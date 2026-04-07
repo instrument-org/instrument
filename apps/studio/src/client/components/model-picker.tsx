@@ -1,3 +1,4 @@
+import { QuestsLogoSimpleIcon } from "@/client/components/quests-logo-icon";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -24,8 +25,7 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/client";
-import { QuestsLogoSimpleIcon } from "@instrument-org/components/logo-simple";
-import { OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
+import { APP_NAME, OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -244,7 +244,7 @@ export function ModelPicker({
                           void navigate({ to: "/subscribe" });
                         },
                       },
-                      description: `${modelName} is available with a paid Quests plan.`,
+                      description: `${modelName} is available with a paid ${APP_NAME} plan.`,
                       dismissible: true,
                       duration: 7000,
                       icon: (
@@ -497,7 +497,7 @@ function NoProvidersMessage({ onAddProvider }: { onAddProvider: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 py-6">
       <p className="text-sm text-muted-foreground">
-        Connect a provider to use Quests
+        Connect a provider to use {APP_NAME}
       </p>
       <Button onClick={onAddProvider} size="sm" variant="outline">
         <Plus className="mr-2 size-4" />

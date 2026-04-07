@@ -19,13 +19,13 @@ import { Perplexity } from "@/client/components/icons/perplexity";
 import { Together } from "@/client/components/icons/together";
 import { XAI } from "@/client/components/icons/x-ai";
 import { ZAI } from "@/client/components/icons/z-ai";
+import { QuestsLogoSimpleIcon } from "@/client/components/quests-logo-icon";
 import { OpenRouter } from "@/client/components/service-icons";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { QuestsLogoSimpleIcon } from "@instrument-org/components/logo-simple";
 import { type AIProviderType } from "@instrument-org/shared";
 import { useAtomValue } from "jotai";
 import { GrNodes } from "react-icons/gr";

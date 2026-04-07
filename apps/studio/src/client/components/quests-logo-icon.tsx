@@ -1,0 +1,61 @@
+import * as React from "react";
+
+type QuestsLogoIconProps = React.SVGProps<SVGSVGElement> & {
+  ref?: React.Ref<SVGSVGElement>;
+  size?: number | string;
+};
+
+export const QuestsLogoIcon = ({
+  className,
+  ref,
+  size,
+  ...props
+}: QuestsLogoIconProps) => {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      height={size}
+      ref={ref}
+      viewBox="0 0 520 520"
+      width={size}
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <rect fill="#F96B55" height="520" rx="136" width="520" />
+      <path
+        d="M436.675 331.78C408.481 401.395 340.226 450.5 260.5 450.5C180.774 450.5 112.519 401.395 84.3252 331.78H436.675ZM446.977 223.906C449.287 235.748 450.5 247.982 450.5 260.5C450.5 274.88 448.899 288.886 445.872 302.352H314.801C293.139 302.351 275.578 284.791 275.578 263.129C275.578 241.467 293.139 223.906 314.801 223.906H446.977ZM210.199 223.906C231.861 223.906 249.422 241.467 249.422 263.129C249.422 284.791 231.861 302.352 210.199 302.352H75.1279C72.1008 288.886 70.5 274.88 70.5 260.5C70.5 247.982 71.7131 235.748 74.0234 223.906H210.199ZM260.5 70.5C342.227 70.5 411.9 122.101 438.721 194.5H82.2793C109.1 122.101 178.773 70.5 260.5 70.5Z"
+        fill="#E8E2DA"
+      />
+    </svg>
+  );
+};
+
+QuestsLogoIcon.displayName = "QuestsLogoIcon";
+
+export const QuestsLogoSimpleIcon = ({
+  className,
+  ref,
+  size,
+  ...props
+}: QuestsLogoIconProps) => {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      height={size}
+      ref={ref}
+      viewBox="0 0 520 520"
+      width={size}
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path
+        d="M436.675 331.78C408.481 401.395 340.226 450.5 260.5 450.5C180.774 450.5 112.519 401.395 84.3252 331.78H436.675ZM446.977 223.906C449.287 235.748 450.5 247.982 450.5 260.5C450.5 274.88 448.899 288.886 445.872 302.352H314.801C293.139 302.351 275.578 284.791 275.578 263.129C275.578 241.467 293.139 223.906 314.801 223.906H446.977ZM210.199 223.906C231.861 223.906 249.422 241.467 249.422 263.129C249.422 284.791 231.861 302.352 210.199 302.352H75.1279C72.1008 288.886 70.5 274.88 70.5 260.5C70.5 247.982 71.7131 235.748 74.0234 223.906H210.199ZM260.5 70.5C342.227 70.5 411.9 122.101 438.721 194.5H82.2793C109.1 122.101 178.773 70.5 260.5 70.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+};
+
+QuestsLogoSimpleIcon.displayName = "QuestsLogoSimpleIcon";

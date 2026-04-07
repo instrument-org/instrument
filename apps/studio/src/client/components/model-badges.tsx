@@ -1,7 +1,8 @@
 import type { ComponentType } from "react";
 
+import { QuestsLogoSimpleIcon } from "@/client/components/quests-logo-icon";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
-import { QuestsLogoSimpleIcon } from "@instrument-org/components/logo-simple";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   AudioLines,
   Hourglass,
@@ -139,7 +140,7 @@ export function ModelBadges({
             icon: QuestsLogoSimpleIcon,
             key: "premium",
             shouldShow: () => true,
-            tooltip: "This model requires a paid Quests plan",
+            tooltip: `This model requires a paid ${APP_NAME} plan`,
           }}
         />
       )}

@@ -102,7 +102,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@instrument-org/components": "workspace:*",
     "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
     "@julr/vite-plugin-validate-env": "^2.2.0",

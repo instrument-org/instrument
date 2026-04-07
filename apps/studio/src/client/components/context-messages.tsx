@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { ChevronDown } from "lucide-react";
 import { memo, useMemo, useState } from "react";
@@ -78,7 +79,7 @@ export const ContextMessages = memo(function ContextMessages({
             <div className="mb-3 border-b border-muted-foreground/20 pr-4 pb-2">
               <p className="text-xs text-muted-foreground italic">
                 Instructions given to the agent explaining how to work in
-                Quests.
+                {APP_NAME}.
               </p>
             </div>
             <div className="max-h-96 overflow-y-auto">

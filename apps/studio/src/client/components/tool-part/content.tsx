@@ -1,5 +1,6 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   formatBytes,
   type SessionMessagePart,
@@ -197,7 +198,7 @@ export function ToolContent({
               onRetry={onRetry}
               providerGuardDescription={
                 part.output.errorType === "no-image-model"
-                  ? "Sign up for Quests or add an AI provider that supports image generation."
+                  ? `Sign up for ${APP_NAME} or add an AI provider that supports image generation.`
                   : undefined
               }
               responseBody={part.output.responseBody}
@@ -365,7 +366,7 @@ export function ToolContent({
             onRetry={onRetry}
             providerGuardDescription={
               part.output.errorType === "no-web-search-model"
-                ? "Sign up for Quests or add an AI provider that supports web search."
+                ? `Sign up for ${APP_NAME} or add an AI provider that supports web search.`
                 : undefined
             }
             responseBody={part.output.responseBody}

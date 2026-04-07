@@ -22,7 +22,7 @@ import {
 } from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
+import { APP_NAME, OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
 import { type FileUpload } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
@@ -586,7 +586,7 @@ export const PromptInput = ({
       </TextareaContainer>
 
       <AIProviderGuardDialog
-        description="You need to add an AI provider to use Quests."
+        description={`You need to add an AI provider to use ${APP_NAME}.`}
         onOpenChange={setShowAIProviderGuard}
         open={showAIProviderGuard}
       />

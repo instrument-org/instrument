@@ -11,7 +11,7 @@ import { useSelectedTab } from "@/client/hooks/use-selected-tab";
 import { useMatchesForPathname } from "@/client/lib/get-route-matches";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { Bug, FlaskConical, PlusIcon, Telescope } from "lucide-react";
+import { Bug, FlaskConical, PlusIcon } from "lucide-react";
 import { useMemo } from "react";
 
 export function StudioSidebar({
@@ -33,22 +33,17 @@ export function StudioSidebar({
         title: "New",
         url: "/new-tab" as const,
       },
-      {
-        icon: Telescope,
-        isActive: matches.some((match) => match.routeId === "/_app/discover/"),
-        title: "Discover",
-        url: "/discover" as const,
-      },
-      {
-        icon: FlaskConical,
-        isActive: matches.some((match) =>
-          match.routeId.startsWith("/_app/evals"),
-        ),
-        title: "Evals",
-        url: "/evals" as const,
-      },
       ...(preferences?.developerMode
         ? [
+            {
+              icon: FlaskConical,
+              isActive: matches.some((match) =>
+                match.routeId.startsWith("/_app/evals"),
+              ),
+              isWarning: true,
+              title: "Evals",
+              url: "/evals" as const,
+            },
             {
               icon: Bug,
               isActive: matches.some((match) =>

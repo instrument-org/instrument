@@ -1,4 +1,4 @@
-import { AIGatewayProviderConfig } from "@quests/ai-gateway/client";
+import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway/client";
 import { z } from "zod";
 
 export const ClientAIProviderConfigSchema = AIGatewayProviderConfig.Schema.omit(

@@ -1,14 +1,14 @@
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getFavoritesStore } from "@/electron-main/stores/favorites";
-import { call, eventIterator } from "@orpc/server";
-import { mergeGenerators } from "@quests/shared/merge-generators";
-import { ProjectSubdomainSchema } from "@quests/workspace/electron";
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { ProjectSubdomainSchema } from "@instrument-org/workspace/electron";
 import {
   type ProjectSubdomain,
   workspacePublisher,
   workspaceRouter,
-} from "@quests/workspace/electron";
+} from "@instrument-org/workspace/electron";
+import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 const add = base

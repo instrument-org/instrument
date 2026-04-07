@@ -2,7 +2,7 @@ import {
   AIGatewayModelURI,
   type AIGatewayProviderConfig,
   migrateModelURI,
-} from "@quests/ai-gateway";
+} from "@instrument-org/ai-gateway";
 import fs from "node:fs/promises";
 import { z } from "zod";
 

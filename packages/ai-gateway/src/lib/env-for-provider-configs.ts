@@ -1,4 +1,4 @@
-import { type WorkspaceServerURL } from "@quests/shared";
+import { type WorkspaceServerURL } from "@instrument-org/shared";
 
 import { internalAPIKey } from "../lib/key-for-provider";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";

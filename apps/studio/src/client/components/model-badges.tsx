@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 
-import { type AIGatewayModel } from "@quests/ai-gateway/client";
-import { QuestsLogoSimpleIcon } from "@quests/components/logo-simple";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
+import { QuestsLogoSimpleIcon } from "@instrument-org/components/logo-simple";
 import {
   AudioLines,
   Hourglass,

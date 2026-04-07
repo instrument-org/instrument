@@ -1,7 +1,7 @@
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { shouldFilterProjectFile } from "@/client/lib/project-file-groups";
 import { cn } from "@/client/lib/utils";
-import { type ProjectSubdomain } from "@quests/workspace/client";
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 

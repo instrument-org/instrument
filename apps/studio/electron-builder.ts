@@ -10,20 +10,24 @@ if (process.env.CI !== "true") {
   });
 }
 
+const APP_NAME = "Instrument";
+const APP_EXECUTABLE = "instrument";
+const APP_SCHEME = "instrument";
+
 const publishConfig: PlatformSpecificBuildOptions["publish"] = {
-  bucket: "quests-releases",
+  bucket: "instrument-releases",
   // eslint-disable-next-line turbo/no-undeclared-env-vars
   endpoint: process.env.BUILDER_PUBLISH_S3_ENDPOINT,
   provider: "s3",
   region: "auto",
-  updaterCacheDirName: "quests-desktop-updater",
+  updaterCacheDirName: "instrument-desktop-updater",
 };
 
 /**
  * @see https://www.electron.build/#documentation
  */
 const config: Configuration = {
-  appId: "com.finalpoint.quests",
+  appId: "com.finalpoint.instrument",
   appImage: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
   },
@@ -87,9 +91,9 @@ const config: Configuration = {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     category: "Utility",
     executableArgs: ["--ozone-platform=x11"],
-    executableName: "quests",
+    executableName: APP_EXECUTABLE,
     icon: "build/icons",
-    maintainer: "quests.dev",
+    maintainer: "tryinstrument.com",
     target: ["AppImage", "deb", "rpm", "tar.gz"],
   },
   mac: {
@@ -114,17 +118,16 @@ const config: Configuration = {
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
   },
-  productName: "Quests",
+  productName: APP_NAME,
   protocols: [
     {
       // Required for Linux deep linking
-      name: "Quests",
-      schemes: ["quests"],
+      name: APP_NAME,
+      schemes: [APP_SCHEME],
     },
   ],
   publish: publishConfig,
   win: {
-    executableName: "quests",
     signtoolOptions: {
       publisherName: "Finalpoint, LLC",
       sign: "scripts/win-cloud-hsm-sign.js",

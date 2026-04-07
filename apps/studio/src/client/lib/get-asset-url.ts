@@ -1,4 +1,4 @@
-import { VERSION_REF_QUERY_PARAM } from "@quests/shared";
+import { VERSION_REF_QUERY_PARAM } from "@instrument-org/shared";
 
 export function getAssetUrl({
   assetBase,

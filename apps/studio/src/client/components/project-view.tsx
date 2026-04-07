@@ -16,11 +16,11 @@ import { hasVisibleProjectFiles } from "@/client/lib/project-file-groups";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type StoreId,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";

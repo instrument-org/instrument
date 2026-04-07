@@ -1,7 +1,7 @@
 import type {
   ProjectSubdomain,
   SessionMessagePart,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 
 import { useSetAtom } from "jotai";
 import {

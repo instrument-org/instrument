@@ -17,7 +17,7 @@ import {
   GITHUB_ORG,
   REGISTRY_REPO_NAME,
   REGISTRY_REPO_URL,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";

@@ -2,7 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
-import { type ProviderMetadata } from "@quests/ai-gateway/client";
+import { type ProviderMetadata } from "@instrument-org/ai-gateway/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { AIProviderIcon } from "./ai-provider-icon";

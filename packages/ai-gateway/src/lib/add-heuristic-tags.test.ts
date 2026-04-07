@@ -1,4 +1,4 @@
-import { AIProviderConfigIdSchema } from "@quests/shared";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { AIGatewayModel } from "../schemas/model";

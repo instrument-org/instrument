@@ -1,5 +1,5 @@
+import { envForProviderConfigs } from "@instrument-org/ai-gateway";
 import { getBuildInfo } from "@netlify/build-info/node";
-import { envForProviderConfigs } from "@quests/ai-gateway";
 import { ExecaError, type ResultPromise } from "execa";
 import ms from "ms";
 import {

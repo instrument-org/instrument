@@ -1,7 +1,7 @@
 import {
   MAX_PROMPT_STORAGE_LENGTH,
   type ProjectSubdomain,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { atom, type SetStateAction } from "jotai";
 import { atomFamily, atomWithStorage } from "jotai/utils";
 import { debounce } from "radashi";

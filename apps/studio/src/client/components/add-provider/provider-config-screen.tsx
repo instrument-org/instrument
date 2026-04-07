@@ -9,7 +9,7 @@ import {
 import { Input } from "@/client/components/ui/input";
 import { Label } from "@/client/components/ui/label";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
-import { type AIProviderType } from "@quests/shared";
+import { type AIProviderType } from "@instrument-org/shared";
 import { useAtom, useAtomValue } from "jotai";
 import { AlertCircle, Lock } from "lucide-react";
 import { useRef, useState } from "react";

@@ -1,4 +1,4 @@
-import { type CaptureExceptionFunction } from "@quests/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { app } from "electron";
 import { unique } from "radashi";
 

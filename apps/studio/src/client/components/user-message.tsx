@@ -1,5 +1,5 @@
 import { cn } from "@/client/lib/utils";
-import { type SessionMessagePart } from "@quests/workspace/client";
+import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { ChevronUp } from "lucide-react";
 import { debounce } from "radashi";
 import { memo, useEffect, useRef, useState } from "react";

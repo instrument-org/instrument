@@ -1,7 +1,6 @@
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { ClientAIProviderConfigSchema } from "@/shared/schemas/provider";
-import { call, eventIterator } from "@orpc/server";
 import {
   AIGatewayProviderConfig,
   baseURLWithDefault,
@@ -10,8 +9,9 @@ import {
   getProviderMetadata,
   ProviderMetadataSchema,
   verifyAPIKey,
-} from "@quests/ai-gateway";
-import { AIProviderConfigIdSchema } from "@quests/shared";
+} from "@instrument-org/ai-gateway";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
+import { call, eventIterator } from "@orpc/server";
 import { safeStorage } from "electron";
 import ms from "ms";
 import { ulid } from "ulid";

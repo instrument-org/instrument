@@ -1,8 +1,8 @@
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { addRef } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
-import { addRef } from "@quests/shared";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { toast } from "sonner";

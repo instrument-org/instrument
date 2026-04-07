@@ -1,14 +1,14 @@
 {
-  "name": "quests-monorepo",
+  "name": "@instrument-org/monorepo",
   "version": "0.0.0",
-  "description": "The open-source app builder that builds and runs apps on your computer using any LLM.",
+  "description": "",
   "repository": {
     "type": "git",
-    "url": "https://github.com/quests-org/quests"
+    "url": "https://github.com/instrument-org/instrument"
   },
   "author": {
-    "name": "Quests",
-    "email": "oss@quests.dev"
+    "name": "Instrument",
+    "email": "oss@tryinstrument.com"
   },
   "type": "module",
   "files": [],
@@ -24,12 +24,12 @@
     "check:types": "tsc --noEmit",
     "check:unused": "knip",
     "check:unused-words": "cspell-check-unused-words",
-    "dev:studio": "turbo run dev --filter=@quests/studio --filter=@quests/shim-client --ui tui",
+    "dev:studio": "turbo run dev --filter=@instrument-org/studio --filter=@instrument-org/shim-client --ui tui",
     "fix:format": "prettier --write .",
+    "fix:lint": "eslint . --fix",
     "fix:unused": "knip --fix",
     "fix:unused-words": "cspell-check-unused-words --fix",
     "format": "prettier --write \"**/*.{ts,tsx,md,json,css,mjs,js}\"",
-    "lint:fix": "eslint . --fix",
     "scripts:delete-dated-dev-folders": "node --experimental-strip-types scripts/delete-dated-dev-folders.ts",
     "scripts:update-registry": "node --experimental-strip-types scripts/update-registry.ts",
     "test": "vitest",
@@ -43,6 +43,7 @@
     "turbo:check:spelling": "turbo run check:spelling",
     "turbo:check:types": "turbo run check:types",
     "turbo:check:unused": "turbo run check:unused",
+    "turbo:fix:lint": "turbo run fix:lint",
     "turbo:smoke-test": "turbo run smoke-test",
     "turbo:test:ci": "turbo run test:ci"
   },
@@ -53,8 +54,8 @@
     "@cspell/dict-node": "^5.0.8",
     "@cspell/dict-npm": "^5.2.19",
     "@cspell/dict-typescript": "^3.2.3",
-    "@quests/eslint-config": "workspace:*",
-    "@quests/typescript-config": "workspace:*",
+    "@instrument-org/eslint-config": "workspace:*",
+    "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "cross-env": "^10.0.0",
     "cspell": "^8.19.4",

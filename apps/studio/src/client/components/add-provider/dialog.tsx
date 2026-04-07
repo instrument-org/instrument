@@ -2,8 +2,8 @@ import { Dialog, DialogContent } from "@/client/components/ui/dialog";
 import { fixURL } from "@/client/lib/fix-url";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
+import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
-import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@quests/shared";
 import { useMutation } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
 

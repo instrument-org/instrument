@@ -4,7 +4,7 @@ import {
   formatBytes,
   type SessionMessagePart,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { AIProviderIcon } from "../ai-provider-icon";

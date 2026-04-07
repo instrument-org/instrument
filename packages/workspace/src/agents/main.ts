@@ -1,4 +1,4 @@
-import { APP_NAME } from "@quests/shared";
+import { APP_NAME } from "@instrument-org/shared";
 import { err, ok, safeTry } from "neverthrow";
 import { dedent, pick } from "radashi";
 

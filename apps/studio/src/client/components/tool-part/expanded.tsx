@@ -1,7 +1,7 @@
 import {
   type SessionMessagePart,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 
 import { ToolContent } from "./content";
 import { SectionHeader } from "./section-header";

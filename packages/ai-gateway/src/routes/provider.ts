@@ -1,4 +1,4 @@
-import { AI_GATEWAY_API_PATH } from "@quests/shared";
+import { AI_GATEWAY_API_PATH } from "@instrument-org/shared";
 import { Hono } from "hono";
 import { proxy } from "hono/proxy";
 

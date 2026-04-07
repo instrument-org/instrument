@@ -1,4 +1,4 @@
-import { type AIProviderType } from "@quests/shared";
+import { type AIProviderType } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";

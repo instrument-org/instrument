@@ -1,7 +1,7 @@
 import type {
   ProjectSubdomain,
   WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { AppIcon } from "@/client/components/app-icon";

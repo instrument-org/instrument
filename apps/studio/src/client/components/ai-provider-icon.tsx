@@ -25,8 +25,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { QuestsLogoSimpleIcon } from "@quests/components/logo-simple";
-import { type AIProviderType } from "@quests/shared";
+import { QuestsLogoSimpleIcon } from "@instrument-org/components/logo-simple";
+import { type AIProviderType } from "@instrument-org/shared";
 import { useAtomValue } from "jotai";
 import { GrNodes } from "react-icons/gr";
 import {

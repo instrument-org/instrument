@@ -35,9 +35,9 @@ import {
 import { rpcClient } from "@/client/rpc/client";
 import { CUSTOM_EVAL_TEMPLATE_NAME } from "@/shared/evals";
 import { createIconMeta } from "@/shared/tabs";
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
-import { EVAL_SUBDOMAIN_PREFIX } from "@quests/shared";
-import { type AIProviderType } from "@quests/shared";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import { EVAL_SUBDOMAIN_PREFIX } from "@instrument-org/shared";
+import { type AIProviderType } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";

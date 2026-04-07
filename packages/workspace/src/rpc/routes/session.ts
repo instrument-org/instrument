@@ -1,5 +1,5 @@
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call } from "@orpc/server";
-import { mergeGenerators } from "@quests/shared/merge-generators";
 import { z } from "zod";
 
 import { createAppConfig } from "../../lib/app-config/create";

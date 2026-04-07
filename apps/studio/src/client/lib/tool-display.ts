@@ -3,7 +3,7 @@ import {
   type SessionMessagePart,
   type TaskAgentName,
   type ToolName,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import {
   BookOpen,
   Eye,

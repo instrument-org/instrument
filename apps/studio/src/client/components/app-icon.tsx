@@ -1,5 +1,5 @@
 import { IconMap } from "@/client/components/tab-icons";
-import { type TabIconName } from "@quests/shared/icons";
+import { type TabIconName } from "@instrument-org/shared/icons";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const appIconVariants = tv({

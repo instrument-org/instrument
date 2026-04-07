@@ -2,7 +2,7 @@ import {
   type WorkspaceActorRef,
   type WorkspaceConfig,
   type WorkspaceRPCContext,
-} from "@quests/workspace/electron";
+} from "@instrument-org/workspace/electron";
 
 import { type StudioAppUpdater } from "../lib/update";
 

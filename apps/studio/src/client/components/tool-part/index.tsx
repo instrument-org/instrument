@@ -2,7 +2,7 @@ import {
   getToolNameByType,
   type SessionMessagePart,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { Loader2Icon } from "lucide-react";
 import { sift } from "radashi";
 import { useState } from "react";

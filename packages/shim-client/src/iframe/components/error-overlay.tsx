@@ -1,4 +1,4 @@
-import { APP_PROTOCOL } from "@quests/shared";
+import { APP_PROTOCOL } from "@instrument-org/shared";
 import { AlertCircle, ExternalLink } from "lucide-react";
 
 export function ErrorOverlay({

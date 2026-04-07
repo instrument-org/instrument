@@ -1,7 +1,7 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { is } from "@electron-toolkit/utils";
-import { aiGatewayApp } from "@quests/ai-gateway";
-import { workspaceMachine } from "@quests/workspace/electron";
+import { aiGatewayApp } from "@instrument-org/ai-gateway";
+import { workspaceMachine } from "@instrument-org/workspace/electron";
 import { app, shell } from "electron";
 import ms from "ms";
 import path from "node:path";

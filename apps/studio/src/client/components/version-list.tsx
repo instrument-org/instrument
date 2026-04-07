@@ -1,7 +1,10 @@
 import { useAppState } from "@/client/hooks/use-app-state";
 import { cn } from "@/client/lib/utils";
-import { QuestsLogoIcon } from "@quests/components/logo";
-import { GIT_AUTHOR, type ProjectSubdomain } from "@quests/workspace/client";
+import { QuestsLogoIcon } from "@instrument-org/components/logo";
+import {
+  GIT_AUTHOR,
+  type ProjectSubdomain,
+} from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import ColorHash from "color-hash";
 import { format, formatDistanceToNow } from "date-fns";

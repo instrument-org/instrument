@@ -1,12 +1,12 @@
 {
-  "name": "@quests/ai-gateway",
+  "name": "@instrument-org/ai-gateway",
   "version": "0.1.0",
   "private": true,
-  "description": "AI Gateway for Quests",
+  "description": "Local AI Gateway for Instrument",
   "keywords": [],
   "author": {
-    "name": "Quests",
-    "email": "oss@quests.dev"
+    "name": "Instrument",
+    "email": "oss@tryinstrument.com"
   },
   "type": "module",
   "exports": {
@@ -16,6 +16,7 @@
   "scripts": {
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:types": "tsc --noEmit",
+    "fix:lint": "eslint . --max-warnings 0 --fix",
     "test": "vitest",
     "test:ci": "cross-env CI=true vitest",
     "turbo:check": "turbo run check:types check:lint"
@@ -35,8 +36,8 @@
     "@ai-sdk/perplexity": "^3.0.19",
     "@ai-sdk/togetherai": "^2.0.33",
     "@ai-sdk/xai": "^3.0.57",
+    "@instrument-org/shared": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.2.5",
-    "@quests/shared": "workspace:*",
     "@types/ms": "^2.1.0",
     "ai": "catalog:",
     "ai-sdk-ollama": "^3.7.1",
@@ -50,8 +51,8 @@
   },
   "devDependencies": {
     "@ai-sdk/provider": "^3.0.8",
-    "@quests/eslint-config": "workspace:*",
-    "@quests/typescript-config": "workspace:*",
+    "@instrument-org/eslint-config": "workspace:*",
+    "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "vitest": "catalog:"
   },

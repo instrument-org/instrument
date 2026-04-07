@@ -1,5 +1,5 @@
-import { QuestsLogoIcon } from "@quests/components/logo";
-import { type TabIconName } from "@quests/shared/icons";
+import { QuestsLogoIcon } from "@instrument-org/components/logo";
+import { type TabIconName } from "@instrument-org/shared/icons";
 import {
   CreditCard,
   FileText,

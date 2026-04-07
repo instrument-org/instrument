@@ -1,7 +1,7 @@
 import type { Tool } from "ai";
 
 import { type LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
-import { type AIGatewayModel } from "@quests/ai-gateway";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { type Result } from "neverthrow";
 import { type z } from "zod";
 

@@ -11,7 +11,7 @@ import {
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { RELEASE_NOTES_URL } from "@quests/shared";
+import { RELEASE_NOTES_URL } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";

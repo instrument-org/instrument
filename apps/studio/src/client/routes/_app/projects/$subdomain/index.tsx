@@ -7,13 +7,13 @@ import { useProjectRouteSync } from "@/client/hooks/use-project-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
 import { createIconMeta, createProjectSubdomainMeta } from "@/shared/tabs";
-import { safe } from "@orpc/client";
 import {
   type ProjectSubdomain,
   ProjectSubdomainSchema,
   StoreId,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
 import {
   CancelledError,
   keepPreviousData,

@@ -5,7 +5,7 @@ import {
   ATTRIBUTION_NAME,
   ATTRIBUTION_URL,
   type WorkspaceServerURL,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { getPackageForProviderType } from "./bundled-providers";

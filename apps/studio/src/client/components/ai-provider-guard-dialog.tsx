@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { rpcClient } from "@/client/rpc/client";
-import { QuestsAnimatedLogo } from "@quests/components/animated-logo";
+import { QuestsAnimatedLogo } from "@instrument-org/components/animated-logo";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 

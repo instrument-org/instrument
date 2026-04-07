@@ -1,4 +1,4 @@
-import { type AIGatewayModel } from "@quests/ai-gateway";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { alphabetical, isEqual } from "radashi";
 import invariant from "tiny-invariant";
 import {

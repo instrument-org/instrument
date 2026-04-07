@@ -1,6 +1,6 @@
-# Quests Studio
+# Instrument Studio
 
-Electron app for Quests.
+Electron desktop app for Instrument.
 
 ## Dependencies
 

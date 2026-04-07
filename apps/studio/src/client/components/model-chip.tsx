@@ -1,4 +1,4 @@
-import { type AIGatewayModel } from "@quests/ai-gateway/client";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 
 import { AIProviderIcon } from "./ai-provider-icon";
 

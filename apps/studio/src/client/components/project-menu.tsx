@@ -1,4 +1,7 @@
-import { StoreId, type WorkspaceAppProject } from "@quests/workspace/client";
+import {
+  StoreId,
+  type WorkspaceAppProject,
+} from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {

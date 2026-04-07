@@ -14,8 +14,8 @@ import {
 } from "@/client/components/ui/tooltip";
 import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
 import { rpcClient } from "@/client/rpc/client";
-import { QuestsAnimatedLogo } from "@quests/components/animated-logo";
-import { type AIProviderType } from "@quests/shared";
+import { QuestsAnimatedLogo } from "@instrument-org/components/animated-logo";
+import { type AIProviderType } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";

@@ -1,15 +1,15 @@
 {
-  "name": "@quests/components",
+  "name": "@instrument-org/components",
   "version": "0.0.0",
   "private": true,
-  "description": "Reusable React components for Quests",
+  "description": "Reusable React components for Instrument",
   "repository": {
     "type": "git",
-    "url": "https://github.com/quests-org/quests"
+    "url": "https://github.com/instrument-org/instrument"
   },
   "author": {
-    "name": "Quests",
-    "email": "oss@quests.dev"
+    "name": "Instrument",
+    "email": "oss@tryinstrument.com"
   },
   "type": "module",
   "exports": {
@@ -21,6 +21,7 @@
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:types": "tsc --noEmit",
     "dev": "vite",
+    "fix:lint": "eslint . --max-warnings 0 --fix",
     "turbo:check": "turbo run check:types check:lint"
   },
   "dependencies": {
@@ -28,8 +29,8 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@quests/eslint-config": "workspace:*",
-    "@quests/typescript-config": "workspace:*",
+    "@instrument-org/eslint-config": "workspace:*",
+    "@instrument-org/typescript-config": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

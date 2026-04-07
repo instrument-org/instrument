@@ -1,9 +1,9 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { RPCHandler } from "@orpc/server/message-port";
 import {
   type WorkspaceActorRef,
   type WorkspaceConfig,
-} from "@quests/workspace/electron";
+} from "@instrument-org/workspace/electron";
+import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 

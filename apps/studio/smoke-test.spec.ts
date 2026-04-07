@@ -1,3 +1,4 @@
+import { APP_EXECUTABLE, APP_NAME } from "@instrument-org/shared";
 import { execSync } from "node:child_process";
 import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,9 +12,11 @@ describe("Studio Smoke Test", () => {
 
   beforeAll(async () => {
     // Must run the app outside of the monorepo to avoid inheriting node modules
-    distPath = await fs.mkdtemp(path.join(tmpdir(), "quests-smoke-app-"));
+    distPath = await fs.mkdtemp(
+      path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-app-`),
+    );
     tempUserDataDir = await fs.mkdtemp(
-      path.join(tmpdir(), "quests-smoke-test-"),
+      path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-test-`),
     );
 
     execSync("pnpm run build:env:unsigned", {
@@ -76,14 +79,14 @@ describe("Studio Smoke Test", () => {
     if (platform === "darwin") {
       executablePath = path.join(
         distPath,
-        "mac-arm64/Quests.app/Contents/MacOS/Quests",
+        `mac-arm64/${APP_NAME}.app/Contents/MacOS/${APP_NAME}`,
       );
       try {
         await fs.access(executablePath);
       } catch {
         executablePath = path.join(
           distPath,
-          "mac-x64/Quests.app/Contents/MacOS/Quests",
+          `mac-x64/${APP_NAME}.app/Contents/MacOS/${APP_NAME}`,
         );
       }
       try {
@@ -91,13 +94,13 @@ describe("Studio Smoke Test", () => {
       } catch {
         executablePath = path.join(
           distPath,
-          "mac/Quests.app/Contents/MacOS/Quests",
+          `mac/${APP_NAME}.app/Contents/MacOS/${APP_NAME}`,
         );
       }
     } else if (platform === "win32") {
-      executablePath = path.join(distPath, "win-unpacked/Quests.exe");
+      executablePath = path.join(distPath, `win-unpacked/${APP_NAME}.exe`);
     } else {
-      executablePath = path.join(distPath, "linux-unpacked/quests");
+      executablePath = path.join(distPath, `linux-unpacked/${APP_EXECUTABLE}`);
     }
 
     try {

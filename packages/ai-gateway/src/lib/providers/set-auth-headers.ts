@@ -1,4 +1,4 @@
-import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@quests/shared";
+import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 
 import { type AIGatewayProviderConfig } from "../../schemas/provider-config";
 

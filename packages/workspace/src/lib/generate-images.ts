@@ -3,8 +3,8 @@ import {
   type AIGatewayProviderConfig,
   getImageModel,
   type ImageGenerationProviderType,
-} from "@quests/ai-gateway";
-import { type WorkspaceServerURL } from "@quests/shared";
+} from "@instrument-org/ai-gateway";
+import { type WorkspaceServerURL } from "@instrument-org/shared";
 import { APICallError, generateImage, generateText } from "ai";
 import { err, ResultAsync } from "neverthrow";
 

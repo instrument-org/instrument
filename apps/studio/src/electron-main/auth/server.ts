@@ -16,7 +16,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/session";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { serve } from "@hono/node-server";
-import { APP_PROTOCOL, SUPPORT_EMAIL } from "@quests/shared";
+import { APP_PROTOCOL, SUPPORT_EMAIL } from "@instrument-org/shared";
 import { detect } from "detect-port";
 import { Hono } from "hono";
 import { html } from "hono/html";

@@ -5,7 +5,7 @@ function App() {
   return (
     <div className="h-screen w-screen dark:bg-black">
       <h1 className="text-sm font-mono p-4 dark:text-white">
-        @quests/components
+        @instrument-org/components
       </h1>
       <div className="flex-1 flex">
         <div className="p-4 flex flex-col items-center gap-2">

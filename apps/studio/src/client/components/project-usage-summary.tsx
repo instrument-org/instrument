@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@quests/workspace/client";
+import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { Skeleton } from "./ui/skeleton";

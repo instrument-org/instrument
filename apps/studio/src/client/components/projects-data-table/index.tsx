@@ -1,4 +1,4 @@
-import type { WorkspaceAppProject } from "@quests/workspace/client";
+import type { WorkspaceAppProject } from "@instrument-org/workspace/client";
 import type {
   ColumnDef,
   ColumnFiltersState,

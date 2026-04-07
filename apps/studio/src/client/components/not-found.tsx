@@ -4,7 +4,14 @@ import { useRouter } from "@tanstack/react-router";
 
 import { rpcClient } from "../rpc/client";
 
-export function NotFoundComponent({
+export function NotFoundRouteComponent() {
+  const router = useRouter();
+  const pathname = router.state.location.pathname;
+
+  return <NotFoundComponent message={`Could not find page: ${pathname}`} />;
+}
+
+function NotFoundComponent({
   message,
   title = "Not Found",
 }: {
@@ -32,11 +39,4 @@ export function NotFoundComponent({
       </div>
     </div>
   );
-}
-
-export function NotFoundRouteComponent() {
-  const router = useRouter();
-  const pathname = router.state.location.pathname;
-
-  return <NotFoundComponent message={`Could not find page: ${pathname}`} />;
 }

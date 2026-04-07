@@ -27,7 +27,6 @@ import { Route as AppNot_authenticatedRouteRouteImport } from './routes/_app/_no
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppEvalsIndexRouteImport } from './routes/_app/evals/index'
-import { Route as AppDiscoverIndexRouteImport } from './routes/_app/discover/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
 import { Route as AppDebugSessionStreamRouteImport } from './routes/_app/debug/session-stream'
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
@@ -37,8 +36,6 @@ import { Route as AppNot_authenticatedWelcomeRouteImport } from './routes/_app/_
 import { Route as AppNot_authenticatedSignInRouteImport } from './routes/_app/_not_authenticated/sign-in'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
-import { Route as AppDiscoverTemplatesIndexRouteImport } from './routes/_app/discover/templates/index'
-import { Route as AppDiscoverTemplatesFolderNameRouteImport } from './routes/_app/discover/templates/$folderName'
 
 const SidebarRoute = SidebarRouteImport.update({
   id: '/sidebar',
@@ -128,11 +125,6 @@ const AppEvalsIndexRoute = AppEvalsIndexRouteImport.update({
   path: '/evals/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppDiscoverIndexRoute = AppDiscoverIndexRouteImport.update({
-  id: '/discover/',
-  path: '/discover/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
 const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -182,18 +174,6 @@ const AppProjectsSubdomainIndexRoute =
     path: '/projects/$subdomain/',
     getParentRoute: () => AppRouteRoute,
   } as any)
-const AppDiscoverTemplatesIndexRoute =
-  AppDiscoverTemplatesIndexRouteImport.update({
-    id: '/discover/templates/',
-    path: '/discover/templates/',
-    getParentRoute: () => AppRouteRoute,
-  } as any)
-const AppDiscoverTemplatesFolderNameRoute =
-  AppDiscoverTemplatesFolderNameRouteImport.update({
-    id: '/discover/templates/$folderName',
-    path: '/discover/templates/$folderName',
-    getParentRoute: () => AppRouteRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -217,11 +197,8 @@ export interface FileRoutesByFullPath {
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/debug/': typeof AppDebugIndexRoute
-  '/discover': typeof AppDiscoverIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
-  '/discover/templates/$folderName': typeof AppDiscoverTemplatesFolderNameRoute
-  '/discover/templates': typeof AppDiscoverTemplatesIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRoutesByTo {
@@ -244,11 +221,8 @@ export interface FileRoutesByTo {
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/debug': typeof AppDebugIndexRoute
-  '/discover': typeof AppDiscoverIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
-  '/discover/templates/$folderName': typeof AppDiscoverTemplatesFolderNameRoute
-  '/discover/templates': typeof AppDiscoverTemplatesIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRoutesById {
@@ -277,11 +251,8 @@ export interface FileRoutesById {
   '/_app/debug/errors': typeof AppDebugErrorsRoute
   '/_app/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/_app/debug/': typeof AppDebugIndexRoute
-  '/_app/discover/': typeof AppDiscoverIndexRoute
   '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
-  '/_app/discover/templates/$folderName': typeof AppDiscoverTemplatesFolderNameRoute
-  '/_app/discover/templates/': typeof AppDiscoverTemplatesIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRouteTypes {
@@ -308,11 +279,8 @@ export interface FileRouteTypes {
     | '/debug/errors'
     | '/debug/session-stream'
     | '/debug/'
-    | '/discover'
     | '/evals'
     | '/projects'
-    | '/discover/templates/$folderName'
-    | '/discover/templates'
     | '/projects/$subdomain'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -335,11 +303,8 @@ export interface FileRouteTypes {
     | '/debug/errors'
     | '/debug/session-stream'
     | '/debug'
-    | '/discover'
     | '/evals'
     | '/projects'
-    | '/discover/templates/$folderName'
-    | '/discover/templates'
     | '/projects/$subdomain'
   id:
     | '__root__'
@@ -367,11 +332,8 @@ export interface FileRouteTypes {
     | '/_app/debug/errors'
     | '/_app/debug/session-stream'
     | '/_app/debug/'
-    | '/_app/discover/'
     | '/_app/evals/'
     | '/_app/projects/'
-    | '/_app/discover/templates/$folderName'
-    | '/_app/discover/templates/'
     | '/_app/projects/$subdomain/'
   fileRoutesById: FileRoutesById
 }
@@ -510,13 +472,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEvalsIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/discover/': {
-      id: '/_app/discover/'
-      path: '/discover'
-      fullPath: '/discover'
-      preLoaderRoute: typeof AppDiscoverIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
     '/_app/debug/': {
       id: '/_app/debug/'
       path: '/'
@@ -580,20 +535,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsSubdomainIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/discover/templates/': {
-      id: '/_app/discover/templates/'
-      path: '/discover/templates'
-      fullPath: '/discover/templates'
-      preLoaderRoute: typeof AppDiscoverTemplatesIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/discover/templates/$folderName': {
-      id: '/_app/discover/templates/$folderName'
-      path: '/discover/templates/$folderName'
-      fullPath: '/discover/templates/$folderName'
-      preLoaderRoute: typeof AppDiscoverTemplatesFolderNameRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
   }
 }
 
@@ -654,11 +595,8 @@ interface AppRouteRouteChildren {
   AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppSetupRoute: typeof AppSetupRoute
-  AppDiscoverIndexRoute: typeof AppDiscoverIndexRoute
   AppEvalsIndexRoute: typeof AppEvalsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
-  AppDiscoverTemplatesFolderNameRoute: typeof AppDiscoverTemplatesFolderNameRoute
-  AppDiscoverTemplatesIndexRoute: typeof AppDiscoverTemplatesIndexRoute
   AppProjectsSubdomainIndexRoute: typeof AppProjectsSubdomainIndexRoute
 }
 
@@ -670,11 +608,8 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppSetupRoute: AppSetupRoute,
-  AppDiscoverIndexRoute: AppDiscoverIndexRoute,
   AppEvalsIndexRoute: AppEvalsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
-  AppDiscoverTemplatesFolderNameRoute: AppDiscoverTemplatesFolderNameRoute,
-  AppDiscoverTemplatesIndexRoute: AppDiscoverTemplatesIndexRoute,
   AppProjectsSubdomainIndexRoute: AppProjectsSubdomainIndexRoute,
 }
 

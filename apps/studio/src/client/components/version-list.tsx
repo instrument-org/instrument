@@ -1,6 +1,6 @@
+import { QuestsLogoIcon } from "@/client/components/quests-logo-icon";
 import { useAppState } from "@/client/hooks/use-app-state";
 import { cn } from "@/client/lib/utils";
-import { QuestsLogoIcon } from "@instrument-org/components/logo";
 import {
   GIT_AUTHOR,
   type ProjectSubdomain,

@@ -2,8 +2,8 @@
 // so dynamic import won't code-split it into a separate chunk
 import { createGateway } from "@ai-sdk/gateway";
 import {
+  APP_URL,
   ATTRIBUTION_NAME,
-  ATTRIBUTION_URL,
   type WorkspaceServerURL,
 } from "@instrument-org/shared";
 
@@ -156,7 +156,7 @@ export async function createOpenRouterSDK(
     baseURL,
     ...extraConfig,
     headers: {
-      "HTTP-Referer": ATTRIBUTION_URL,
+      "HTTP-Referer": APP_URL,
       "X-Title": ATTRIBUTION_NAME,
     },
   });
@@ -182,7 +182,7 @@ export function createVercelSDK(
     apiKey,
     baseURL,
     headers: {
-      "http-referer": ATTRIBUTION_URL,
+      "http-referer": APP_URL,
       "x-title": ATTRIBUTION_NAME,
     },
   });

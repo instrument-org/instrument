@@ -95,7 +95,7 @@ html:has(meta[name="opaque-background"]) body {
   --sidebar-ring: oklch(0.708 0 0);
   --warning: oklch(0.65 0.14 65);
   --warning-foreground: oklch(0.55 0.175 62.49);
-  --brand: oklch(54.6% 0.245 262.881);
+  --brand: oklch(0.699 0.178 30.9);
   --brand-foreground: oklch(100% 0 0);
 }
 
@@ -136,7 +136,7 @@ html:has(meta[name="opaque-background"]) body {
   --sidebar-ring: oklch(0.556 0 0);
   --warning: oklch(0.35 0.09 70);
   --warning-foreground: oklch(0.7824 0.1709 67.19);
-  --brand: oklch(54.6% 0.245 262.881);
+  --brand: oklch(0.699 0.178 30.9);
   --brand-foreground: oklch(100% 0 0);
 }
 

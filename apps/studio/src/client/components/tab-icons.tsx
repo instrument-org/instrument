@@ -1,4 +1,4 @@
-import { QuestsLogoIcon } from "@instrument-org/components/logo";
+import { QuestsLogoIcon } from "@/client/components/quests-logo-icon";
 import { type TabIconName } from "@instrument-org/shared/icons";
 import {
   CreditCard,

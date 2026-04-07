@@ -1,6 +1,7 @@
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
 import { ManualProviderButton } from "@/client/components/manual-provider-button";
+import { QuestsLogoIcon } from "@/client/components/quests-logo-icon";
 import { TermsFooter } from "@/client/components/terms-footer";
 import {
   Dialog,
@@ -10,7 +11,6 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { rpcClient } from "@/client/rpc/client";
-import { QuestsAnimatedLogo } from "@instrument-org/components/animated-logo";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -41,7 +41,7 @@ export function AIProviderGuardDialog({
         <div className="flex flex-col items-center gap-6">
           <div className="flex flex-col items-center gap-4">
             <div className="flex size-16 items-center justify-center rounded-md">
-              <QuestsAnimatedLogo size={64} />
+              <QuestsLogoIcon className="size-16" />
             </div>
             <h2 className="text-center text-2xl font-bold">
               Add an AI provider

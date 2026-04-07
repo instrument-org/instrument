@@ -1,4 +1,4 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@quests/shared";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";

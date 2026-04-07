@@ -1,5 +1,5 @@
 import { useSyntaxHighlighting } from "@/client/hooks/use-syntax-highlighting";
-import { formatBytes } from "@quests/workspace/client";
+import { formatBytes } from "@instrument-org/workspace/client";
 import { Braces, Download, FileText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 

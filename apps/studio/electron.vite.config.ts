@@ -13,7 +13,7 @@ import { analyzer } from "vite-bundle-analyzer";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
 
-const monorepoNamespace = "@quests";
+const monorepoNamespace = "@instrument-org";
 // Not including "components" it will be bundled by default in the client
 const monorepoPackages = ["workspace", "shared", "ai-gateway"];
 

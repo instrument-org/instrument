@@ -1,5 +1,5 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@quests/shared";
-import { APP_FOLDER_NAMES } from "@quests/workspace/client";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import { filenameFromFilePath } from "./path-utils";
 

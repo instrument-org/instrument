@@ -1,12 +1,12 @@
 {
-  "name": "@quests/shim-client",
+  "name": "@instrument-org/shim-client",
   "version": "0.1.0",
   "private": true,
   "description": "Client-side runtime injected into user apps",
   "keywords": [],
   "author": {
-    "name": "Quests",
-    "email": "oss@quests.dev"
+    "name": "Instrument",
+    "email": "oss@tryinstrument.com"
   },
   "type": "module",
   "scripts": {
@@ -15,11 +15,12 @@
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:types": "tsc --noEmit",
     "dev": "vite --configLoader runner --port 8150",
+    "fix:lint": "eslint . --max-warnings 0 --fix",
     "turbo:check": "turbo run check:types check:lint"
   },
   "dependencies": {
-    "@quests/shared": "workspace:*",
-    "@quests/workspace": "workspace:*",
+    "@instrument-org/shared": "workspace:*",
+    "@instrument-org/workspace": "workspace:*",
     "@tailwindcss/postcss": "^4.1.18",
     "lucide-react": "^0.456.0",
     "react": "catalog:",
@@ -28,8 +29,8 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
-    "@quests/eslint-config": "workspace:*",
-    "@quests/typescript-config": "workspace:*",
+    "@instrument-org/eslint-config": "workspace:*",
+    "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

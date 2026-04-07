@@ -11,8 +11,8 @@ import {
   type Tab,
   type TabState,
 } from "@/shared/tabs";
-import { TabIconsSchema } from "@quests/shared/icons";
-import { ProjectSubdomainSchema } from "@quests/workspace/electron";
+import { TabIconsSchema } from "@instrument-org/shared/icons";
+import { ProjectSubdomainSchema } from "@instrument-org/workspace/electron";
 import { type BaseWindow, WebContentsView } from "electron";
 import { type LogFunctions } from "electron-log";
 import Store from "electron-store";

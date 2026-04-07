@@ -1,6 +1,6 @@
 import type { ActorRefFrom } from "xstate";
 
-import { type AIGatewayModel } from "@quests/ai-gateway";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { assign, fromPromise, log, setup } from "xstate";
 
 import { type AgentName } from "../agents/types";

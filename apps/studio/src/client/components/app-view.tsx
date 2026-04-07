@@ -1,4 +1,4 @@
-import { type WorkspaceApp } from "@quests/workspace/client";
+import { type WorkspaceApp } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { atom, useAtom } from "jotai";
 import React, { Activity, useCallback, useMemo, useRef, useState } from "react";

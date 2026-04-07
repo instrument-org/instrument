@@ -1,5 +1,5 @@
 {
-  "extends": "@quests/typescript-config/app.json",
+  "extends": "@instrument-org/typescript-config/app.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]

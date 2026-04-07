@@ -1,4 +1,4 @@
-import { type AIGatewayModel } from "@quests/ai-gateway";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { differenceInMinutes } from "date-fns";
 import { ok, Result } from "neverthrow";
 import { alphabetical } from "radashi";

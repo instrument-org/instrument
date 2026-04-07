@@ -1,6 +1,6 @@
-import type { AIGatewayModel } from "@quests/ai-gateway";
+import type { AIGatewayModel } from "@instrument-org/ai-gateway";
 
-import { QUESTS_AUTO_MODEL_ID } from "@quests/shared";
+import { OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
 
 export function isAnthropic(model: AIGatewayModel.Type): boolean {
   return (
@@ -9,6 +9,6 @@ export function isAnthropic(model: AIGatewayModel.Type): boolean {
     model.canonicalId.includes("anthropic") ||
     model.canonicalId.includes("claude") ||
     (model.params.provider === "quests" &&
-      model.providerId === QUESTS_AUTO_MODEL_ID)
+      model.providerId === OUR_AUTO_MODEL_ID)
   );
 }

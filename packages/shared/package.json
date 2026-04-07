@@ -1,15 +1,15 @@
 {
-  "name": "@quests/shared",
+  "name": "@instrument-org/shared",
   "version": "0.0.0",
   "private": true,
   "description": "Shared utilities, types, and constants across packages",
   "repository": {
     "type": "git",
-    "url": "https://github.com/quests-org/quests"
+    "url": "https://github.com/instrument-org/instrument"
   },
   "author": {
-    "name": "Quests",
-    "email": "oss@quests.dev"
+    "name": "Instrument",
+    "email": "oss@tryinstrument.com"
   },
   "type": "module",
   "exports": {
@@ -21,6 +21,7 @@
   "scripts": {
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:types": "tsc --noEmit",
+    "fix:lint": "eslint . --max-warnings 0 --fix",
     "turbo:check": "turbo run check:types check:lint"
   },
   "dependencies": {
@@ -28,8 +29,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@quests/eslint-config": "workspace:*",
-    "@quests/typescript-config": "workspace:*"
+    "@instrument-org/eslint-config": "workspace:*",
+    "@instrument-org/typescript-config": "workspace:*",
+    "@types/node": "catalog:"
   },
   "engines": {
     "node": ">=22.5"

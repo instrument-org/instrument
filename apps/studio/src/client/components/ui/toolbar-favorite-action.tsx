@@ -6,7 +6,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@quests/workspace/client";
+import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Star } from "lucide-react";
 

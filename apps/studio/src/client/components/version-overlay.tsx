@@ -1,7 +1,7 @@
 import {
   type ProjectSubdomain,
   VersionSubdomainSchema,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import ColorHash from "color-hash";
 import { useMemo } from "react";

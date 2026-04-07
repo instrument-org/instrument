@@ -3,7 +3,7 @@ import {
   type AI_GATEWAY_API_KEY_NOT_NEEDED,
   AIProviderConfigIdSchema,
   AIProviderTypeSchema,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import { z } from "zod";
 
 export namespace AIGatewayProviderConfig {

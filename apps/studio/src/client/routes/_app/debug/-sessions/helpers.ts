@@ -1,13 +1,13 @@
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
-} from "@quests/ai-gateway/client";
-import { type AIProviderConfigId } from "@quests/shared";
+} from "@instrument-org/ai-gateway/client";
+import { type AIProviderConfigId } from "@instrument-org/shared";
 import {
   type SessionMessage,
   type SessionMessagePart,
   StoreId,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 
 interface PresetSessionData {
   messages: SessionMessage.WithParts[];

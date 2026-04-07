@@ -2,7 +2,7 @@ import {
   type ImageModelV3,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
-import { type AISDKWebSearchModelResult } from "@quests/ai-gateway";
+import { type AISDKWebSearchModelResult } from "@instrument-org/ai-gateway";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import mockFs from "mock-fs";

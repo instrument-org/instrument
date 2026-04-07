@@ -1,5 +1,5 @@
+import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { type SessionMessageDataPart } from "@quests/workspace/client";
 import { FolderClosed } from "lucide-react";
 import { toast } from "sonner";
 

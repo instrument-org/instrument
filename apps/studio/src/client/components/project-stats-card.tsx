@@ -1,6 +1,6 @@
 import { AppIcon } from "@/client/components/app-icon";
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@quests/workspace/client";
+import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import { Calendar, Clock, FileText, MessageSquare } from "lucide-react";

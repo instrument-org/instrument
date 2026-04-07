@@ -1,4 +1,4 @@
-import { workspaceRouter } from "@quests/workspace/electron";
+import { workspaceRouter } from "@instrument-org/workspace/electron";
 
 import { appState } from "./app-state";
 import { auth } from "./auth";

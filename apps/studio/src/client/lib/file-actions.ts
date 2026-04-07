@@ -1,5 +1,5 @@
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { type ProjectSubdomain } from "@quests/workspace/client";
 import { toast } from "sonner";
 
 import { type ProjectFileViewerFile } from "../atoms/project-file-viewer";

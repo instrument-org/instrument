@@ -1,4 +1,4 @@
-import { type CaptureExceptionFunction } from "@quests/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { parallel } from "radashi";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";

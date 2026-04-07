@@ -12,7 +12,7 @@ import {
 import { Button } from "@/client/components/ui/button";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@quests/workspace/client";
+import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 

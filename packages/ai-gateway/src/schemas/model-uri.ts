@@ -3,7 +3,7 @@ import {
   AIProviderConfigIdSchema,
   type AIProviderType,
   AIProviderTypeSchema,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import { shake } from "radashi";
 import { Result } from "typescript-result";
 import { z } from "zod";

@@ -3,7 +3,7 @@ import { Input } from "@/client/components/ui/input";
 import { Toggle } from "@/client/components/ui/toggle";
 import { useShimIFrame } from "@/client/hooks/use-shim-iframe";
 import { cn } from "@/client/lib/utils";
-import { type WorkspaceApp } from "@quests/workspace/client";
+import { type WorkspaceApp } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type atom, useAtomValue } from "jotai";
 import {

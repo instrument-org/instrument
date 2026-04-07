@@ -2,11 +2,11 @@ import {
   type AIGatewayApp,
   type AIGatewayModel,
   type GetProviderConfigs,
-} from "@quests/ai-gateway";
+} from "@instrument-org/ai-gateway";
 import {
   type CaptureEventFunction,
   type CaptureExceptionFunction,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import ms from "ms";
 import invariant from "tiny-invariant";
 import {

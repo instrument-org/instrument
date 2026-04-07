@@ -6,8 +6,8 @@ import {
   setLastUpdateCheck,
 } from "@/electron-main/stores/preferences";
 import { openSettingsWindow as openSettingsWindowFn } from "@/electron-main/windows/settings";
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { eventIterator } from "@orpc/server";
-import { AIGatewayModelURI } from "@quests/ai-gateway";
 import { app } from "electron";
 import { z } from "zod";
 

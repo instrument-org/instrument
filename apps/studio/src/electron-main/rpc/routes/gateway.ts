@@ -1,11 +1,11 @@
 import { base } from "@/electron-main/rpc/base";
-import { call, eventIterator } from "@orpc/server";
 import {
   AIGatewayModel,
   AIGatewayProviderConfig,
   fetchModelResultsForProviders,
-} from "@quests/ai-gateway";
-import { mergeGenerators } from "@quests/shared/merge-generators";
+} from "@instrument-org/ai-gateway";
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { publisher } from "../publisher";

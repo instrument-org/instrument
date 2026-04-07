@@ -1,4 +1,4 @@
-import { getProviderDetails } from "@quests/ai-gateway";
+import { getProviderDetails } from "@instrument-org/ai-gateway";
 import { dedent } from "radashi";
 
 import { getWorkspaceServerURL } from "../logic/server/url";

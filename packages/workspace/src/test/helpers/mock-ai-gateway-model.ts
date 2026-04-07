@@ -1,5 +1,8 @@
-import { AIGatewayModel, AIGatewayModelURI } from "@quests/ai-gateway";
-import { AIProviderConfigIdSchema, type AIProviderType } from "@quests/shared";
+import { AIGatewayModel, AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  AIProviderConfigIdSchema,
+  type AIProviderType,
+} from "@instrument-org/shared";
 
 export function createMockAIGatewayModel(
   options: {

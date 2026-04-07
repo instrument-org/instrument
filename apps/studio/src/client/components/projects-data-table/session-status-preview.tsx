@@ -1,4 +1,4 @@
-import type { ProjectSubdomain } from "@quests/workspace/client";
+import type { ProjectSubdomain } from "@instrument-org/workspace/client";
 
 import { useAppState } from "@/client/hooks/use-app-state";
 import {
@@ -8,7 +8,10 @@ import {
 } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { getToolNameByType, isToolPart } from "@quests/workspace/client";
+import {
+  getToolNameByType,
+  isToolPart,
+} from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { Brain, HelpCircle, MessageSquare } from "lucide-react";
 

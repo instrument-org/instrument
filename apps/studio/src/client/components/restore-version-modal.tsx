@@ -1,5 +1,5 @@
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { type ProjectSubdomain } from "@quests/workspace/client";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";

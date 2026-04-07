@@ -1,4 +1,4 @@
-import type { SessionMessagePart } from "@quests/workspace/client";
+import type { SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { ChevronDown, Loader2Icon } from "lucide-react";
 import { throttle } from "radashi";

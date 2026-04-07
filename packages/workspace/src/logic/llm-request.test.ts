@@ -3,7 +3,7 @@ import {
   type LanguageModelV3Prompt,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
-import { type AIProviderType } from "@quests/shared";
+import { type AIProviderType } from "@instrument-org/shared";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";

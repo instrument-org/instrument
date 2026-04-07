@@ -1,6 +1,9 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
-import { type ProjectSubdomain, type StoreId } from "@quests/workspace/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import {
+  type ProjectSubdomain,
+  type StoreId,
+} from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 
 export function useContinueSession({

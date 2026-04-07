@@ -21,10 +21,10 @@ import {
   useWindowFileDrop,
 } from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import { OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
+import { type FileUpload } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
-import { QUESTS_AUTO_MODEL_ID } from "@quests/shared";
-import { type FileUpload } from "@quests/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useSetAtom } from "jotai";
 import {
@@ -145,13 +145,13 @@ export const PromptInput = ({
   const hasPlan = useHasPlan();
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
-  const autoModel = models?.find((m) => m.providerId === QUESTS_AUTO_MODEL_ID);
+  const autoModel = models?.find((m) => m.providerId === OUR_AUTO_MODEL_ID);
 
   const isInvalidQuestsModel =
     !hasPlan &&
     selectedModel &&
     selectedModel.params.provider === "quests" &&
-    selectedModel.providerId !== QUESTS_AUTO_MODEL_ID &&
+    selectedModel.providerId !== OUR_AUTO_MODEL_ID &&
     selectedModel.tags.includes("premium");
 
   const resetTextareaHeight = useCallback(() => {

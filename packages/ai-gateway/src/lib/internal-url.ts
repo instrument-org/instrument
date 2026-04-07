@@ -1,4 +1,7 @@
-import { AI_GATEWAY_API_PATH, type WorkspaceServerURL } from "@quests/shared";
+import {
+  AI_GATEWAY_API_PATH,
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
 
 import { PROVIDERS_PATH } from "../constants";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";

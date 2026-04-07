@@ -4,7 +4,7 @@ import {
   DISCORD_URL,
   NEW_ISSUE_URL,
   PRODUCT_NAME,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 
 export function AppFooter() {
   return (

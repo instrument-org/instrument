@@ -6,8 +6,8 @@ import {
   type AIGatewayModel,
   AIGatewayModelURI,
   fetchModelResultsForProviders,
-} from "@quests/ai-gateway";
-import { QUESTS_AUTO_MODEL_ID } from "@quests/shared";
+} from "@instrument-org/ai-gateway";
+import { OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
 
 import { captureServerException } from "./capture-server-exception";
 import { getAIProviderConfigs } from "./get-ai-provider-configs";
@@ -57,7 +57,7 @@ export async function setDefaultModel(options?: {
   // 4. First default model
   const selectedModel = options?.onlyIfQuestsModel
     ? defaultModels.find((m) => m.author !== "quests")
-    : (defaultModels.find((m) => m.providerId === QUESTS_AUTO_MODEL_ID) ??
+    : (defaultModels.find((m) => m.providerId === OUR_AUTO_MODEL_ID) ??
       defaultModels.find((m) => m.author === "quests") ??
       defaultModels.find((m) => m.params.provider === "quests") ??
       defaultModels[0]);

@@ -1,8 +1,8 @@
 import {
   type ShimIFrameMessage,
   ShimIFrameOutMessageSchema,
-} from "@quests/shared/shim";
-import { type WorkspaceApp } from "@quests/workspace/client";
+} from "@instrument-org/shared/shim";
+import { type WorkspaceApp } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import { type atom, useSetAtom } from "jotai";

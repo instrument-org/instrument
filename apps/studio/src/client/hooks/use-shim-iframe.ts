@@ -1,4 +1,4 @@
-import { type ShimIFrameMessage } from "@quests/shared/shim";
+import { type ShimIFrameMessage } from "@instrument-org/shared/shim";
 import { useCallback } from "react";
 
 interface ShimIframeActions {

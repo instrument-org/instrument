@@ -1,4 +1,4 @@
-import { envForProviderConfigs } from "@quests/ai-gateway";
+import { envForProviderConfigs } from "@instrument-org/ai-gateway";
 import {
   Bash,
   type CommandName,

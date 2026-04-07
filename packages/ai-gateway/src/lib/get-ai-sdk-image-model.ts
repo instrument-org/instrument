@@ -1,8 +1,8 @@
 import { type ImageModelV3, type LanguageModelV3 } from "@ai-sdk/provider";
 import {
-  QUESTS_AUTO_IMAGE_MODEL_ID,
+  OUR_AUTO_IMAGE_MODEL_ID,
   type WorkspaceServerURL,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
 import { type AIGatewayModel } from "../schemas/model";
@@ -135,7 +135,7 @@ async function getAISDKImageModel({
     }
     case "quests": {
       const sdk = await createOpenRouterSDK(config, workspaceServerURL);
-      const model = sdk.imageModel(QUESTS_AUTO_IMAGE_MODEL_ID);
+      const model = sdk.imageModel(OUR_AUTO_IMAGE_MODEL_ID);
       return Result.ok({ model, type: "image" as const });
     }
     case "together": {

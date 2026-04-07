@@ -1,4 +1,4 @@
-import { APP_PROTOCOL } from "@quests/shared";
+import { APP_PROTOCOL } from "@instrument-org/shared";
 import { AlertTriangle, ExternalLink, RefreshCw, X } from "lucide-react";
 
 export function RecoveryOverlay({

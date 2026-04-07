@@ -1,7 +1,7 @@
 import {
   type CaptureExceptionFunction,
   type WorkspaceServerURL,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import { parallel } from "radashi";
 
 import { type AIGatewayModel } from "../schemas/model";

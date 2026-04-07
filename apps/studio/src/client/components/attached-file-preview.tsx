@@ -1,4 +1,4 @@
-import { formatBytes } from "@quests/workspace/client";
+import { formatBytes } from "@instrument-org/workspace/client";
 import { X } from "lucide-react";
 
 import { AttachedItemPreview } from "./attached-item-preview";

@@ -2,7 +2,7 @@ import {
   type AppSubdomain,
   type SessionMessage,
   type SessionMessagePart,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { FileText } from "lucide-react";
 import { sift } from "radashi";

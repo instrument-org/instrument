@@ -3,8 +3,8 @@ import { StarryLayout } from "@/client/components/starry-layout";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { QuestsAnimatedLogo } from "@quests/components/animated-logo";
-import { APP_REPO_URL, DISCORD_URL } from "@quests/shared";
+import { QuestsAnimatedLogo } from "@instrument-org/components/animated-logo";
+import { APP_REPO_URL, DISCORD_URL } from "@instrument-org/shared";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/_not_authenticated/welcome")({

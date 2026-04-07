@@ -9,7 +9,7 @@ import {
 } from "@/client/components/ui/dialog";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@quests/workspace/client";
+import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 

@@ -1,7 +1,7 @@
 import {
   type AIProviderConfigId,
   AIProviderConfigIdSchema,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import { title } from "radashi";
 import { describe, expect, it } from "vitest";
 

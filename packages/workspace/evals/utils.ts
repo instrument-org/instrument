@@ -1,8 +1,8 @@
 import {
   AIGatewayModelURI,
   type AIGatewayProviderConfig,
-} from "@quests/ai-gateway";
-import { AIProviderConfigIdSchema } from "@quests/shared";
+} from "@instrument-org/ai-gateway";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import path from "node:path";
 
 import { env } from "../scripts/lib/env";

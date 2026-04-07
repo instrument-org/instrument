@@ -1,4 +1,7 @@
-import { type AIProviderConfigId, type AIProviderType } from "@quests/shared";
+import {
+  type AIProviderConfigId,
+  type AIProviderType,
+} from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";

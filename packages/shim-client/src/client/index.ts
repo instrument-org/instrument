@@ -4,8 +4,8 @@ import {
   type ConsoleLogType,
   type ShimIFrameMessage,
   type ShimIFrameOutMessage,
-} from "@quests/shared/shim";
-import { SHIM_IFRAME_BASE_PATH } from "@quests/workspace/for-shim";
+} from "@instrument-org/shared/shim";
+import { SHIM_IFRAME_BASE_PATH } from "@instrument-org/workspace/for-shim";
 import { sprintf } from "sprintf-js";
 
 import {

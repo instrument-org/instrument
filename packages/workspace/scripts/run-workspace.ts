@@ -1,7 +1,10 @@
 import "dotenv/config";
+import {
+  aiGatewayApp,
+  type AIGatewayProviderConfig,
+} from "@instrument-org/ai-gateway";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { call } from "@orpc/server";
-import { aiGatewayApp, type AIGatewayProviderConfig } from "@quests/ai-gateway";
-import { AIProviderConfigIdSchema } from "@quests/shared";
 import { execa } from "execa";
 import path from "node:path";
 import readline from "node:readline";

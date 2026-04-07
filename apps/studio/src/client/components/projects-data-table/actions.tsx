@@ -1,4 +1,4 @@
-import type { ProjectSubdomain } from "@quests/workspace/client";
+import type { ProjectSubdomain } from "@instrument-org/workspace/client";
 
 import { Button } from "@/client/components/ui/button";
 import {

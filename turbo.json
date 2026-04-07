@@ -32,86 +32,86 @@
       ],
       "outputs": ["dist/**", "out/**"]
     },
-    "@quests/shim-client#build": {
+    "@instrument-org/shim-client#build": {
       "inputs": ["$TURBO_DEFAULT$"],
       "outputs": ["dist/**"]
     },
     "build:linux": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:linux:arm64": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:linux:x64": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:arm64": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:dev": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:local": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:x64": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:windows": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:windows:arm64": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:windows:dev": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:windows:x64": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:win:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:env:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "smoke-test": {
@@ -123,7 +123,7 @@
         "VITE_POSTHOG_API_KEY"
       ],
       "cache": false,
-      "dependsOn": ["@quests/shim-client#build"],
+      "dependsOn": ["@instrument-org/shim-client#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "smoke-test.spec.ts",
@@ -160,6 +160,11 @@
       "dependsOn": ["transit"]
     },
     "//#check:lint": {},
+    "fix:lint": {
+      "cache": false,
+      "dependsOn": ["transit"]
+    },
+    "//#fix:lint": { "cache": false },
     "check:types": {
       "dependsOn": ["transit"]
     },

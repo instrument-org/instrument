@@ -60,7 +60,7 @@ jobs:
           # A fine-grained GitHub personal access token is required to checkout submodules
           # https://github.com/actions/checkout/issues/287
           # Permissions required:
-          # - Repository access to quests-org/quests & quests-org/registry
+          # - Repository access to instrument-org/instrument & instrument-org/registry
           # - Read access to "Contents" and "Metadata"
           # - Read/Write access to actions and workflows
           token: ${{ secrets.CHECKOUT_ACCESS_TOKEN }}

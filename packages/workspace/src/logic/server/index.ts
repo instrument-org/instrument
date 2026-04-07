@@ -1,6 +1,9 @@
 import { serve, type ServerType } from "@hono/node-server";
-import { type AIGatewayApp, type AIGatewayEnv } from "@quests/ai-gateway";
-import { AI_GATEWAY_API_PATH } from "@quests/shared";
+import {
+  type AIGatewayApp,
+  type AIGatewayEnv,
+} from "@instrument-org/ai-gateway";
+import { AI_GATEWAY_API_PATH } from "@instrument-org/shared";
 import { Hono } from "hono";
 import invariant from "tiny-invariant";
 import { type ActorRefFrom, type AnyEventObject, fromCallback } from "xstate";

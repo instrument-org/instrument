@@ -11,7 +11,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useToggleCommandMenu } from "@/client/hooks/use-toggle-command-menu";
 import { rpcClient } from "@/client/rpc/client";
-import { type ProjectSubdomain } from "@quests/workspace/client";
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import {

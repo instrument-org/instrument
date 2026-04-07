@@ -1,5 +1,5 @@
-import { AIGatewayModel } from "@quests/ai-gateway";
-import { type SyntheticModelId } from "@quests/shared";
+import { AIGatewayModel } from "@instrument-org/ai-gateway";
+import { type SyntheticModelId } from "@instrument-org/shared";
 import {
   convertToModelMessages,
   type ModelMessage,

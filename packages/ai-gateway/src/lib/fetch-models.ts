@@ -1,4 +1,4 @@
-import { type CaptureExceptionFunction } from "@quests/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";

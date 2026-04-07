@@ -1,4 +1,4 @@
-import { addRef, type AIProviderType } from "@quests/shared";
+import { addRef, type AIProviderType } from "@instrument-org/shared";
 import { objectify } from "radashi";
 
 import { type AIGatewayProviderConfig } from "../../schemas/provider-config";

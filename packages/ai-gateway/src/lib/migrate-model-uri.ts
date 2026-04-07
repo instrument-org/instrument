@@ -1,4 +1,4 @@
-import { AIProviderTypeSchema } from "@quests/shared";
+import { AIProviderTypeSchema } from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
 import { TypedError } from "../lib/errors";

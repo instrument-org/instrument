@@ -17,12 +17,12 @@ import {
   OpenAppInTypeSchema,
   SupportedEditorSchema,
 } from "@/shared/schemas/editors";
-import { call, eventIterator } from "@orpc/server";
 import {
   createAppConfig,
   ProjectSubdomainSchema,
   workspaceRouter,
-} from "@quests/workspace/electron";
+} from "@instrument-org/workspace/electron";
+import { call, eventIterator } from "@orpc/server";
 import { app, clipboard, dialog, nativeImage, shell } from "electron";
 import { isBinaryFile } from "isbinaryfile";
 import { exec } from "node:child_process";

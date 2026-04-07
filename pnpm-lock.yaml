@@ -289,9 +289,6 @@ importers:
         specifier: 'catalog:'
         version: 4.2.1
     devDependencies:
-      '@instrument-org/components':
-        specifier: workspace:*
-        version: link:../../packages/components
       '@instrument-org/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
@@ -605,43 +602,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 3.2.4(@edge-runtime/vm@3.2.0)(@types/debug@4.1.12)(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(msw@2.7.5(@types/node@22.19.2)(typescript@5.9.3))(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.2)
-
-  packages/components:
-    dependencies:
-      react:
-        specifier: 'catalog:'
-        version: 19.2.1
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.1(react@19.2.1)
-    devDependencies:
-      '@instrument-org/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@instrument-org/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      '@tailwindcss/vite':
-        specifier: ^4.1.18
-        version: 4.1.18(vite@7.2.7(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.2))
-      '@types/node':
-        specifier: 'catalog:'
-        version: 22.19.2
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.7
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.7)
-      '@vitejs/plugin-react':
-        specifier: 'catalog:'
-        version: 5.1.2(vite@7.2.7(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.2))
-      tailwindcss:
-        specifier: ^4.1.18
-        version: 4.1.18
-      vite:
-        specifier: 'catalog:'
-        version: 7.2.7(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.2)
 
   packages/eslint-config:
     devDependencies:

@@ -1,5 +1,6 @@
 import { type contract } from "@/electron-main/api/contract";
 import { getToken } from "@/electron-main/api/utils";
+import { APP_CLIENT_NAME_STUDIO } from "@instrument-org/shared";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { DedupeRequestsPlugin } from "@orpc/client/plugins";
@@ -9,6 +10,7 @@ import {
 } from "@orpc/contract";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryClient } from "@tanstack/query-core";
+import { app } from "electron";
 import { isEqual } from "radashi";
 
 import { PATHS_TO_DEDUPE } from "./paths-to-dedupe";
@@ -16,10 +18,17 @@ import { PATHS_TO_DEDUPE } from "./paths-to-dedupe";
 const RPC_LINK = new RPCLink({
   headers: () => {
     const token = getToken();
+    const version = app.getVersion();
+    const baseHeaders = {
+      "x-client-name": APP_CLIENT_NAME_STUDIO,
+      "x-client-platform": process.platform,
+      "x-client-version": version,
+    };
     if (!token) {
-      return {};
+      return baseHeaders;
     }
     return {
+      ...baseHeaders,
       authorization: `Bearer ${token}`,
     };
   },

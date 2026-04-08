@@ -24,7 +24,11 @@ import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { EVAL_SUBDOMAIN_PREFIX } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  EVAL_SUBDOMAIN_PREFIX,
+  PROJECT_MANIFEST_FILE_NAME,
+} from "@instrument-org/shared";
 import {
   isProjectSubdomain,
   type ProjectSubdomain,
@@ -449,8 +453,8 @@ function RouteComponent() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Select a zip file exported from Quests containing a
-                  quests.json file
+                  Select a zip file exported from {APP_NAME} containing a
+                  {PROJECT_MANIFEST_FILE_NAME} file
                 </TooltipContent>
               </Tooltip>
               <input

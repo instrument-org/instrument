@@ -9,14 +9,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          # FIXME rename "registry"
           submodules: recursive # Some tests use the registry
-          # A fine-grained GitHub personal access token is required to checkout submodules
-          # https://github.com/actions/checkout/issues/287
-          # Permissions required:
-          # - Repository access to instrument-org/instrument & instrument-org/registry
-          # - Read access to "Contents" and "Metadata"
-          # - Read/Write access to actions and workflows
-          token: ${{ secrets.CHECKOUT_ACCESS_TOKEN || github.token }}
       - uses: ./.github/actions/setup-ripgrep-cache
       - uses: ./.github/actions/prepare
         with:

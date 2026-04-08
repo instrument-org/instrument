@@ -28,3 +28,4 @@ export const VERSION_REF_QUERY_PARAM = "versionRef";
 export const EVAL_SUBDOMAIN_PREFIX = "eval-";
 export const OUR_AUTO_MODEL_ID = "quests/auto"; // TODO(rename): do it once API is ready
 export const OUR_AUTO_IMAGE_MODEL_ID = "quests/auto-image"; // TODO(rename): do it once API is ready
+export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;

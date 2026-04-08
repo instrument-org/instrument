@@ -32,19 +32,7 @@
     "fix:unused-words": "cspell-check-unused-words --fix",
     "scripts:delete-dated-dev-folders": "node --experimental-strip-types scripts/delete-dated-dev-folders.ts",
     "scripts:update-registry": "node --experimental-strip-types scripts/update-registry.ts",
-    "test": "vitest",
-    "turbo:check:build": "turbo run check:build",
-    "turbo:check:format": "turbo run check:format",
-    "turbo:check:lint": "turbo run check:lint",
-    "turbo:check:lint:ci": "cross-env CI=true turbo run check:lint",
-    "turbo:check:md": "turbo run check:md",
-    "turbo:check:packages": "turbo run check:packages",
-    "turbo:check:spelling": "turbo run check:spelling",
-    "turbo:check:types": "turbo run check:types",
-    "turbo:check:unused": "turbo run check:unused",
-    "turbo:fix:lint": "turbo run fix:lint",
-    "turbo:smoke-test": "turbo run smoke-test",
-    "turbo:test:ci": "turbo run test:ci"
+    "test": "vitest"
   },
   "devDependencies": {
     "@cspell/dict-bash": "^4.2.1",

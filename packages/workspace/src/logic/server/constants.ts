@@ -4,7 +4,7 @@ const IS_TEST = process.env.NODE_ENV === "test";
 export const APPS_SERVER_API_PATH = "/_quests";
 export const SHIM_IFRAME_BASE_PATH = `${APPS_SERVER_API_PATH}/shim-iframe`;
 export const SHIM_SCRIPT_PATH = `${SHIM_IFRAME_BASE_PATH}/src/client/index.js`;
-export const SHIM_DEV_HOST = "http://localhost:8150";
+export const SHIM_DEV_HOST = "http://localhost:48350";
 export const LOCAL_LOOPBACK_APPS_SERVER_DOMAIN = "lvh.me"; // Due to some browsers not supporting localhost subdomains
 export const LOCALHOST_APPS_SERVER_DOMAIN = "localhost";
 export const APPS_SERVER_DOMAINS = [
@@ -12,15 +12,15 @@ export const APPS_SERVER_DOMAINS = [
   LOCALHOST_APPS_SERVER_DOMAIN,
 ];
 export const DEFAULT_APPS_SERVER_PORT = IS_DEVELOPMENT
-  ? 8100
+  ? 48_300
   : IS_TEST
-    ? 7100
-    : 9100;
+    ? 48_500
+    : 48_100;
 export const DEFAULT_RUNTIME_BASE_PORT = IS_DEVELOPMENT
-  ? 8200
+  ? 48_400
   : IS_TEST
-    ? 7200
-    : 9200;
+    ? 48_600
+    : 48_200;
 export const SHIM_SCRIPTS = {
   iframeHTML: "index.html",
   iframeJS: "index.js",

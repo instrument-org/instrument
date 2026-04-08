@@ -3,6 +3,7 @@ export const APP_NAME = "Instrument";
 export const APP_PROTOCOL =
   process.env.NODE_ENV === "development" ? "instrument-local" : "instrument";
 export const APP_EXECUTABLE = "instrument";
+export const APP_CLIENT_NAME_STUDIO = "instrument-studio";
 
 export const APP_REPO_NAME = "instrument";
 export const GITHUB_ORG = "instrument-org";

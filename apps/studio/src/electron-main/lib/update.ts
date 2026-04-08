@@ -1,5 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { RELEASES_BUCKET_URL } from "@instrument-org/shared";
 import { app } from "electron";
 import pkg, { type ProgressInfo, type UpdateInfo } from "electron-updater";
 import ms from "ms";
@@ -83,7 +84,7 @@ export class StudioAppUpdater {
       channel: getChannel(),
       provider: "generic",
       updaterCacheDirName: "quests-desktop-updater",
-      url: "https://releases.quests.dev",
+      url: RELEASES_BUCKET_URL,
     });
 
     autoUpdater.on("update-available", (updateInfo) => {

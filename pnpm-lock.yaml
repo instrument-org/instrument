@@ -215,8 +215,8 @@ importers:
         specifier: 3.0.0-rc11
         version: 3.0.0-rc11
       electron-context-menu:
-        specifier: ^4.1.1
-        version: 4.1.1
+        specifier: ^4.1.2
+        version: 4.1.2
       electron-log:
         specifier: ^5.4.1
         version: 5.4.1
@@ -4924,8 +4924,8 @@ packages:
     engines: {node: '>=14.0.0'}
     hasBin: true
 
-  electron-context-menu@4.1.1:
-    resolution: {integrity: sha512-kebXha4K2DmR7zrKpO8muzXlUAdhgqQIT7DpPeT4cAKZugwCB/NbuEuT+1SDjOH9vXJYjWK2UQuFvnVw0u0lHg==}
+  electron-context-menu@4.1.2:
+    resolution: {integrity: sha512-9xYTUV0oRqKL50N9W71IrXNdVRB0LuBp3R1zkUdUc2wfIa2/QZwYYj5RLuO7Tn7ZSLVIaO3X6u+EIBK+cBvzrQ==}
     engines: {node: '>=18'}
 
   electron-dl@4.0.0:
@@ -13151,7 +13151,7 @@ snapshots:
       - electron-builder-squirrel-windows
       - supports-color
 
-  electron-context-menu@4.1.1:
+  electron-context-menu@4.1.2:
     dependencies:
       cli-truncate: 4.0.0
       electron-dl: 4.0.0

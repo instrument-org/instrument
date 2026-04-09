@@ -33,7 +33,8 @@
     "fix:unused-words": "cspell-check-unused-words --fix",
     "scripts:delete-dated-dev-folders": "node --experimental-strip-types scripts/delete-dated-dev-folders.ts",
     "scripts:update-registry": "node --experimental-strip-types scripts/update-registry.ts",
-    "test": "vitest"
+    "test": "vitest",
+    "turbo:fix:lint": "turbo run fix:lint"
   },
   "devDependencies": {
     "@cspell/dict-bash": "^4.2.1",

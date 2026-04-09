@@ -45,7 +45,7 @@ const RPC_LINK = new RPCLink({
       ],
     }),
   ],
-  url: `${import.meta.env.MAIN_VITE_QUESTS_API_BASE_URL}/rpc`,
+  url: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/rpc`,
 });
 
 const baseClient: ContractRouterClient<typeof contract> =

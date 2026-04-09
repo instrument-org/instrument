@@ -11,7 +11,7 @@ export function getAIProviderConfigs(): AIGatewayProviderConfig.Type[] {
   if (token) {
     keyBasedProviderConfigs.push({
       apiKey: token,
-      baseURL: `${import.meta.env.MAIN_VITE_QUESTS_API_BASE_URL}/gateway/openrouter`,
+      baseURL: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/gateway/openrouter`,
       cacheIdentifier: "quests",
       id: "quests",
       type: "quests",

@@ -11,7 +11,7 @@ import { createAuthClient } from "better-auth/client";
 import { captureServerException } from "../lib/capture-server-exception";
 
 export const auth = createAuthClient({
-  baseURL: `${import.meta.env.MAIN_VITE_QUESTS_API_BASE_URL}/auth`,
+  baseURL: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth`,
 });
 
 export const store: {

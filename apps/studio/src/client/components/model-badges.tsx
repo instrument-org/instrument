@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-import { QuestsLogoSimpleIcon } from "@/client/components/quests-logo-icon";
+import { StudioIconGlyph } from "@/client/components/studio-icon";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -137,7 +137,7 @@ export function ModelBadges({
         <Badge
           config={{
             color: "brand",
-            icon: QuestsLogoSimpleIcon,
+            icon: StudioIconGlyph,
             key: "premium",
             shouldShow: () => true,
             tooltip: `This model requires a paid ${APP_NAME} plan`,

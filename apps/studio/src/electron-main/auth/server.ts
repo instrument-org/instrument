@@ -242,8 +242,8 @@ function renderAuthPage({
         </p>`;
     }
     return html`<h2 class="text-xl text-center font-bold">
-        You have successfully signed in to Quests. <br />You may now close this
-        window.
+        You have successfully signed in to ${APP_NAME}. <br />You may now close
+        this window.
       </h2>
       <p>
         ${button("default", `${APP_PROTOCOL}://home`, `Open ${APP_NAME}`)}
@@ -269,7 +269,7 @@ function renderAuthPage({
           class="flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10"
         >
           <div id="icon-container" class="flex items-center justify-center">
-            <img id="app-icon" src="/icon.png" alt="Quests" class="w-24 h-24" />
+            <img id="app-icon" src="/icon.png" alt="${APP_NAME}" class="w-24 h-24" />
           </div>
           ${renderContent()}
         </div>
@@ -278,7 +278,7 @@ function renderAuthPage({
             .getElementById("app-icon")
             .addEventListener("error", function () {
               document.getElementById("icon-container").innerHTML =
-                '<h1 class="text-3xl font-bold">Quests</h1>';
+                '<h1 class="text-3xl font-bold">' + ${JSON.stringify(APP_NAME)} + '</h1>';
             });
         </script>
       </body>

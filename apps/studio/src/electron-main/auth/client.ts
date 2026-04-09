@@ -119,6 +119,6 @@ export async function signOut() {
   }
   const sessionStore = getSessionStore();
   sessionStore.set("apiBearerToken", null);
-  void setDefaultModel({ onlyIfQuestsModel: true });
+  void setDefaultModel({ onlyIfOurModel: true });
   return response;
 }

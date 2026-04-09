@@ -22,7 +22,7 @@ import {
 } from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { APP_NAME, OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
+import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { type FileUpload } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
@@ -145,13 +145,13 @@ export const PromptInput = ({
   const hasPlan = useHasPlan();
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
-  const autoModel = models?.find((m) => m.providerId === OUR_AUTO_MODEL_ID);
+  const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
 
-  const isInvalidQuestsModel =
+  const isInvalidOurModel =
     !hasPlan &&
     selectedModel &&
-    selectedModel.params.provider === "quests" &&
-    selectedModel.providerId !== OUR_AUTO_MODEL_ID &&
+    selectedModel.params.provider === OUR_MODELS.providerType &&
+    selectedModel.providerId !== OUR_MODELS.text.id &&
     selectedModel.tags.includes("premium");
 
   const resetTextareaHeight = useCallback(() => {
@@ -310,7 +310,7 @@ export const PromptInput = ({
       return false;
     }
 
-    if (isInvalidQuestsModel && autoModel) {
+    if (isInvalidOurModel && autoModel) {
       toast.error("Invalid model selected", {
         action: {
           label: "Use Auto",
@@ -516,7 +516,7 @@ export const PromptInput = ({
                 disabled={disabled}
                 errors={modelsErrors}
                 isError={modelsIsError}
-                isInvalidQuestsModel={!!isInvalidQuestsModel}
+                isInvalidOurModel={!!isInvalidOurModel}
                 isLoading={modelsIsLoading}
                 models={models}
                 onAddProvider={() => {

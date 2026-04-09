@@ -1,6 +1,6 @@
 import { EmailLink } from "@/client/components/email-link";
 import { ErrorCard } from "@/client/components/error-card";
-import { QuestsLogoIcon } from "@/client/components/quests-logo-icon";
+import { StudioIcon } from "@/client/components/studio-icon";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -10,7 +10,7 @@ import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { SALES_EMAIL } from "@instrument-org/shared";
+import { APP_NAME, SALES_EMAIL } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -177,7 +177,7 @@ function SubscribePage() {
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 text-center">
             <div className="my-6 flex justify-center">
-              <QuestsLogoIcon className="size-16" />
+              <StudioIcon className="size-16" />
             </div>
             <h1 className="mb-2 bg-linear-to-r from-foreground to-foreground/70 bg-clip-text text-4xl font-bold text-transparent">
               Choose your plan
@@ -204,7 +204,7 @@ function SubscribePage() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 text-center">
           <div className="my-6 flex justify-center">
-            <QuestsLogoIcon className="size-16" />
+            <StudioIcon className="size-16" />
           </div>
           <h1 className="mb-2 bg-linear-to-r from-foreground to-foreground/70 bg-clip-text text-4xl font-bold text-transparent">
             Choose your plan
@@ -400,7 +400,7 @@ function SubscribePage() {
                       onClick={() => {
                         captureClientEvent("subscribe.contact_us_clicked");
                       }}
-                      subject="Quests - Custom Plan Inquiry"
+                      subject={`${APP_NAME} - Custom Plan Inquiry`}
                     >
                       Contact us
                     </EmailLink>

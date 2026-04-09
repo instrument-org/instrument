@@ -438,7 +438,7 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -460,7 +460,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="write_file" state="output-available" callId="test-call-2">
             <input>
@@ -478,7 +478,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="3" />
           <text state="done">I'm done.</text>
           <data-gitCommit ref="-c core.quotepath=false rev-parse HEAD executed successfully in /tmp/workspace/projects/pj-test" />
@@ -513,36 +513,36 @@ describe("sessionMachine", () => {
     });
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-        "<session title="Test session" count="5">
-          <user>
-            <text>Hello, I need help with something.</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="1" />
-            <tool tool="read_file" state="output-available" callId="test-call-image">
-              <input>
-                {
-                  "filePath": "image.png"
-                }
-              </input>
-              <output>
-                {
-                  "base64Data": "iVBORw0KGgoAAAANSUhEUgAAAGQAAABLAQMAAAC81rD0AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEUAAP7////DYP5JAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAALEgAACxIB0t1+/AAAAAd0SU1FB+QIGBcKN7/nP/UAAAASSURBVDjLY2AYBaNgFIwCdAAABBoAAaNglfsAAAAZdEVYdGNvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVDnr0DLAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA4LTI0VDIzOjEwOjU1KzAzOjAwkHdeuQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMC0wOC0yNFQyMzoxMDo1NSswMzowMOEq5gUAAAAASUVORK5CYII=",
-                  "filePath": "./image.png",
-                  "mimeType": "image/png",
-                  "state": "image"
-                }
-              </output>
-            </tool>
-          </assistant>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="2" />
-            <text state="done">I'm done.</text>
-          </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
-        </session>"
-      `);
+      "<session title="Test session" count="5">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="1" />
+          <tool tool="read_file" state="output-available" callId="test-call-image">
+            <input>
+              {
+                "filePath": "image.png"
+              }
+            </input>
+            <output>
+              {
+                "base64Data": "iVBORw0KGgoAAAANSUhEUgAAAGQAAABLAQMAAAC81rD0AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEUAAP7////DYP5JAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAALEgAACxIB0t1+/AAAAAd0SU1FB+QIGBcKN7/nP/UAAAASSURBVDjLY2AYBaNgFIwCdAAABBoAAaNglfsAAAAZdEVYdGNvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVDnr0DLAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA4LTI0VDIzOjEwOjU1KzAzOjAwkHdeuQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMC0wOC0yNFQyMzoxMDo1NSswMzowMOEq5gUAAAAASUVORK5CYII=",
+                "filePath": "./image.png",
+                "mimeType": "image/png",
+                "state": "image"
+              }
+            </output>
+          </tool>
+        </assistant>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="2" />
+          <text state="done">I'm done.</text>
+        </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
+      </session>"
+    `);
   });
 
   it("should generate an image", async () => {
@@ -593,7 +593,7 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="generate_image" state="output-available" callId="test-call-generate-image">
             <input>
@@ -616,7 +616,7 @@ describe("sessionMachine", () => {
                 "modelId": "mock-image-model",
                 "provider": {
                   "id": "mock-provider-config-id",
-                  "type": "quests"
+                  "type": "instrument"
                 },
                 "state": "success",
                 "usage": {
@@ -628,7 +628,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
           <data-gitCommit ref="-c core.quotepath=false rev-parse HEAD executed successfully in /tmp/workspace/projects/pj-test" />
@@ -695,51 +695,51 @@ describe("sessionMachine", () => {
     });
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-        "<session title="Test session" count="5">
-          <user>
-            <text>Hello, I need help with something.</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="1" />
-            <tool tool="web_search" state="output-available" callId="test-call-web-search">
-              <input>
-                {
-                  "explanation": "Search for latest news",
-                  "query": "latest TypeScript features"
-                }
-              </input>
-              <output>
-                {
-                  "modelId": "mock-model-id",
-                  "provider": {
-                    "id": "mock-provider-config-id",
-                    "type": "quests"
-                  },
-                  "sources": [
-                    {
-                      "title": "TypeScript Blog",
-                      "url": "https://devblogs.microsoft.com/typescript"
-                    }
-                  ],
-                  "state": "success",
-                  "text": "TypeScript 5.7 introduces new features.",
-                  "usage": {
-                    "inputTokens": 5,
-                    "outputTokens": 15,
-                    "totalTokens": 20
+      "<session title="Test session" count="5">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="1" />
+          <tool tool="web_search" state="output-available" callId="test-call-web-search">
+            <input>
+              {
+                "explanation": "Search for latest news",
+                "query": "latest TypeScript features"
+              }
+            </input>
+            <output>
+              {
+                "modelId": "mock-model-id",
+                "provider": {
+                  "id": "mock-provider-config-id",
+                  "type": "instrument"
+                },
+                "sources": [
+                  {
+                    "title": "TypeScript Blog",
+                    "url": "https://devblogs.microsoft.com/typescript"
                   }
+                ],
+                "state": "success",
+                "text": "TypeScript 5.7 introduces new features.",
+                "usage": {
+                  "inputTokens": 5,
+                  "outputTokens": 15,
+                  "totalTokens": 20
                 }
-              </output>
-            </tool>
-          </assistant>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="2" />
-            <text state="done">I'm done.</text>
-          </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
-        </session>"
-      `);
+              }
+            </output>
+          </tool>
+        </assistant>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="2" />
+          <text state="done">I'm done.</text>
+        </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
+      </session>"
+    `);
   });
 
   it("should handle task tool calls", async () => {
@@ -770,7 +770,7 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="task" state="output-available" callId="test-call-task">
             <input>
@@ -789,7 +789,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
           <data-gitCommit ref="-c core.quotepath=false rev-parse HEAD executed successfully in /tmp/workspace/projects/pj-test" />
@@ -860,33 +860,33 @@ describe("sessionMachine", () => {
     const sessionResult1 = await runTestMachine(result1);
     const sessionResult2 = await runTestMachine(result2);
     expect(sessionToShorthand(sessionResult1)).toMatchInlineSnapshot(`
-        "<session title="Test session" count="4">
-          <user>
-            <text>Hello, I need help with something.</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="1" />
-            <text state="done">First session</text>
-          </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
-        </session>"
-      `);
+      "<session title="Test session" count="4">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="1" />
+          <text state="done">First session</text>
+        </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
+      </session>"
+    `);
 
     expect(sessionToShorthand(sessionResult2)).toMatchInlineSnapshot(
       `
-        "<session title="Test session" count="4">
-          <user>
-            <text>Second user message</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="1" />
-            <text state="done">Second assistant message</text>
-          </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
-        </session>"
-      `,
+      "<session title="Test session" count="4">
+        <user>
+          <text>Second user message</text>
+        </user>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="1" />
+          <text state="done">Second assistant message</text>
+        </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
+      </session>"
+    `,
     );
   });
 
@@ -910,7 +910,7 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-error" callId="test-call-1">
             <input>
@@ -921,7 +921,7 @@ describe("sessionMachine", () => {
             <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, glob, grep, load_skill, read_file, bash, task, web_search, write_file.</error>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -943,7 +943,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="3" />
           <text state="done">I'm done.</text>
         </assistant>
@@ -976,7 +976,7 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -993,7 +993,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -1015,7 +1015,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="3" />
           <text state="done">I'm done.</text>
         </assistant>
@@ -1051,7 +1051,7 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -1073,7 +1073,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -1095,7 +1095,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="3" />
           <text state="done">I'm done.</text>
         </assistant>
@@ -1111,18 +1111,18 @@ describe("sessionMachine", () => {
     });
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-        "<session title="Test session" count="4">
-          <user>
-            <text>Hello, I need help with something.</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="1" />
-            <text state="done">I'm done.</text>
-          </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
-        </session>"
-      `);
+      "<session title="Test session" count="4">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="1" />
+          <text state="done">I'm done.</text>
+        </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
+      </session>"
+    `);
   });
 
   it("should stop agents during llm request", async () => {
@@ -1185,38 +1185,38 @@ describe("sessionMachine", () => {
 
     const session = await runTestMachine(result);
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-        "<session title="Test session" count="5">
-          <user>
-            <text>Hello, I need help with something.</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="1" />
-            <tool tool="choose" state="output-available" callId="test-call-choose">
-              <input>
-                {
-                  "choices": [
-                    "Continue",
-                    "Stop",
-                    "Restart"
-                  ],
-                  "question": "What would you like to do next?"
-                }
-              </input>
-              <output>
-                {
-                  "selectedChoice": "Continue"
-                }
-              </output>
-            </tool>
-          </assistant>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-            <step-start step="2" />
-            <text state="done">I'm done.</text>
-          </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
-        </session>"
-      `);
+      "<session title="Test session" count="5">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="1" />
+          <tool tool="choose" state="output-available" callId="test-call-choose">
+            <input>
+              {
+                "choices": [
+                  "Continue",
+                  "Stop",
+                  "Restart"
+                ],
+                "question": "What would you like to do next?"
+              }
+            </input>
+            <output>
+              {
+                "selectedChoice": "Continue"
+              }
+            </output>
+          </tool>
+        </assistant>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="2" />
+          <text state="done">I'm done.</text>
+        </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
+      </session>"
+    `);
   });
 
   it("should retry and fail on timeout", async () => {
@@ -1232,13 +1232,13 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="aborted" model="mock-model-id" provider="quests" errorKind="aborted" errorMessage="Aborted">
+        <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
         </assistant>
-        <assistant finishReason="aborted" model="mock-model-id" provider="quests" errorKind="aborted" errorMessage="Aborted">
+        <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -1260,7 +1260,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
         </assistant>
@@ -1289,11 +1289,11 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="aborted" model="mock-model-id" provider="quests" errorKind="aborted" errorMessage="Aborted">
+        <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
           <tool tool="read_file" state="input-streaming" callId="test-call-1"></tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -1315,7 +1315,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
         </assistant>
@@ -1366,24 +1366,24 @@ describe("sessionMachine", () => {
 
       const session = await runTestMachine(result);
       expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-          "<session title="Test session" count="4">
-            <user>
-              <text>Hello, I need help with something.</text>
-            </user>
-            <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
-              <step-start step="1" />
-              <tool tool="read_file" state="input-available" callId="test-call-1">
-                <input>
-                  {
-                    "filePath": "test.txt"
-                  }
-                </input>
-              </tool>
-            </assistant>
-            <session-context main realRole="system" />
-            <session-context main realRole="user" />
-          </session>"
-        `);
+        "<session title="Test session" count="4">
+          <user>
+            <text>Hello, I need help with something.</text>
+          </user>
+          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+            <step-start step="1" />
+            <tool tool="read_file" state="input-available" callId="test-call-1">
+              <input>
+                {
+                  "filePath": "test.txt"
+                }
+              </input>
+            </tool>
+          </assistant>
+          <session-context main realRole="system" />
+          <session-context main realRole="user" />
+        </session>"
+      `);
     });
   });
 
@@ -1398,7 +1398,7 @@ describe("sessionMachine", () => {
         <user>
           <text>Hello, I need help with something.</text>
         </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>
@@ -1420,7 +1420,7 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="quests">
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
             <input>

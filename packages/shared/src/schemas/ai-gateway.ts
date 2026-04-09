@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { OUR_MODELS, type OUR_PROVIDER_CONFIG } from "../constants";
+
 export const AIProviderTypeSchema = z.enum([
   "anthropic",
   "anyscale",
@@ -22,7 +24,7 @@ export const AIProviderTypeSchema = z.enum([
   "openai",
   "openrouter",
   "perplexity",
-  "quests",
+  OUR_MODELS.providerType,
   "together",
   "vercel",
   "x-ai",
@@ -30,9 +32,9 @@ export const AIProviderTypeSchema = z.enum([
 ]);
 export type AIProviderType = z.infer<typeof AIProviderTypeSchema>;
 
-// Quests is a special case and only has one config ID that correlates to the
+// Our provider type is a special case and only has one config ID that correlates to the
 // logged in user.
 export const AIProviderConfigIdSchema = z.custom<
-  "quests" | (string & z.$brand<"AIProviderConfigId">)
+  (string & z.$brand<"AIProviderConfigId">) | typeof OUR_PROVIDER_CONFIG.id
 >((val) => typeof val === "string");
 export type AIProviderConfigId = z.output<typeof AIProviderConfigIdSchema>;

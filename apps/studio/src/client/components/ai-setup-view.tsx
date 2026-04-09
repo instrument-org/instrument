@@ -5,7 +5,7 @@ import { CenteredLayout } from "@/client/components/centered-layout";
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
 import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
 import { ManualProviderButton } from "@/client/components/manual-provider-button";
-import { QuestsLogoIcon } from "@/client/components/quests-logo-icon";
+import { StudioIcon } from "@/client/components/studio-icon";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -66,7 +66,7 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
                     <Check className="size-6 text-brand-foreground" />
                   </div>
                 ) : (
-                  <QuestsLogoIcon className="size-16" />
+                  <StudioIcon className="size-16" />
                 )}
               </div>
               <span className="sr-only">{APP_NAME}</span>

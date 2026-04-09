@@ -1,6 +1,6 @@
-import { APP_URL, ATTRIBUTION_NAME } from "@instrument-org/shared";
+import { APP_NAME, APP_URL } from "@instrument-org/shared";
 
 export function setAttributionHeaders(headers: Headers) {
-  headers.set("X-Title", ATTRIBUTION_NAME);
+  headers.set("X-Title", APP_NAME);
   headers.set("HTTP-Referer", APP_URL);
 }

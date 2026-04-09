@@ -1,4 +1,4 @@
-import { getToken } from "@/electron-main/api/utils";
+import { getToken } from "@/electron-main/platform-api/utils";
 import { getProviderConfigsStore } from "@/electron-main/stores/provider-configs";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";

@@ -1,7 +1,7 @@
-import { getToken } from "@/electron-main/api/utils";
 import { getAuthServerPort } from "@/electron-main/auth/state";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
+import { getToken } from "@/electron-main/platform-api/utils";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/session";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";

@@ -1,5 +1,8 @@
-import { apiQueryClient, apiRPCClient } from "@/electron-main/api/client";
-import { hasToken } from "@/electron-main/api/utils";
+import {
+  platformApiQueryClient,
+  platformApiRpcClient,
+} from "@/electron-main/platform-api/client";
+import { hasToken } from "@/electron-main/platform-api/utils";
 import { base } from "@/electron-main/rpc/base";
 import { createAuthenticatedLiveQuery } from "@/electron-main/rpc/lib/create-authenticated-live-query";
 import { getProviderConfigsStore } from "@/electron-main/stores/provider-configs";
@@ -16,7 +19,9 @@ const me = base.handler(async () => {
   if (!hasToken()) {
     return null;
   }
-  return apiQueryClient.fetchQuery(apiRPCClient.users.getMe.queryOptions());
+  return platformApiQueryClient.fetchQuery(
+    platformApiRpcClient.users.getMe.queryOptions(),
+  );
 });
 
 const live = {
@@ -26,11 +31,11 @@ const live = {
       try {
         yield* createAuthenticatedLiveQuery({
           getOptions: (enabled) =>
-            apiRPCClient.users.getMe.queryOptions({
+            platformApiRpcClient.users.getMe.queryOptions({
               enabled,
               staleTime: input.staleTime,
             }),
-          queryKey: apiRPCClient.users.getMe.queryKey(),
+          queryKey: platformApiRpcClient.users.getMe.queryKey(),
           signal,
         });
       } catch (error) {
@@ -46,11 +51,11 @@ const live = {
       try {
         yield* createAuthenticatedLiveQuery({
           getOptions: (enabled) =>
-            apiRPCClient.users.getSubscriptionStatus.queryOptions({
+            platformApiRpcClient.users.getSubscriptionStatus.queryOptions({
               enabled,
               staleTime: input.staleTime,
             }),
-          queryKey: apiRPCClient.users.getSubscriptionStatus.queryKey(),
+          queryKey: platformApiRpcClient.users.getSubscriptionStatus.queryKey(),
           signal,
         });
       } catch (error) {

@@ -5,6 +5,7 @@ packages:
 allowBuilds:
   "@derhuerst/ffprobe-static": true
   "@swc/core": true
+  better-sqlite3: false
   core-js: true
   tree-sitter-javascript: true
   unrs-resolver: true

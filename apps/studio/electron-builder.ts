@@ -1,3 +1,4 @@
+import { APP_DOMAIN } from "@instrument-org/shared";
 import dotenv from "dotenv";
 import {
   type Configuration,
@@ -93,7 +94,7 @@ const config: Configuration = {
     executableArgs: ["--ozone-platform=x11"],
     executableName: APP_EXECUTABLE,
     icon: "build/icons",
-    maintainer: "tryinstrument.com",
+    maintainer: APP_DOMAIN,
     target: ["AppImage", "deb", "rpm", "tar.gz"],
   },
   mac: {
@@ -109,7 +110,7 @@ const config: Configuration = {
         // eslint-disable-next-line turbo/no-undeclared-env-vars
         process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
     },
-    target: ["dmg", "zip"],
+    target: ["zip"],
   },
   npmRebuild: true,
   nsis: {

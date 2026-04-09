@@ -1,32 +1,24 @@
-description: "Cache downloaded binaries (ripgrep, electron, dugite, ffmpeg) to avoid repeated downloads"
+description: "Cache large binary downloads (ripgrep, electron, dugite, ffmpeg) to skip re-downloading on repeated runs"
 name: "Setup binary caches"
-outputs:
-  cache-hit:
-    description: "A boolean value to indicate if a cache was hit for ripgrep"
-    value: ${{ steps.cache-ripgrep.outputs.cache-hit }}
 runs:
   steps:
-    - id: cache-ripgrep
-      name: Cache @vscode/ripgrep bin
+    - name: Cache @vscode/ripgrep download
       uses: actions/cache@v5
       with:
         key: vscode-ripgrep-bin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-        path: |
-          node_modules/.pnpm/@vscode+ripgrep@*/node_modules/@vscode/ripgrep/bin/
-          node_modules/@vscode/ripgrep/bin/
-          /tmp/vscode-ripgrep-cache-*
+        path: /tmp/vscode-ripgrep-cache-*
 
     - name: Cache electron binary
       uses: actions/cache@v5
       with:
         key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-        path: node_modules/.pnpm/electron@*/node_modules/electron/dist/
+        path: ~/.cache/electron/
 
     - name: Cache dugite git binary
       uses: actions/cache@v5
       with:
         key: dugite-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-        path: node_modules/.pnpm/dugite@*/node_modules/dugite/git/
+        path: ~/.cache/dugite/
 
     - name: Cache ffmpeg/ffprobe binaries
       uses: actions/cache@v5

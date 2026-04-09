@@ -11,7 +11,7 @@ jobs:
         with:
           # FIXME rename "registry"
           submodules: recursive # Some tests use the registry
-      - uses: ./.github/actions/setup-ripgrep-cache
+      - uses: ./.github/actions/setup-binary-caches
       - uses: ./.github/actions/prepare
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

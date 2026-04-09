@@ -1,7 +1,8 @@
+import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { z } from "zod";
 
-const questsErrorResponseSchema = z
+const platformApiErrorResponseSchema = z
   .string()
   .transform((jsonString, ctx) => {
     try {
@@ -24,26 +25,26 @@ const questsErrorResponseSchema = z
     }),
   );
 
-interface QuestsApiError {
-  code: QuestsErrorCode;
+interface PlatformApiError {
+  code: PlatformApiErrorCode;
   message?: string;
   retryable?: boolean;
 }
 
-type QuestsErrorCode =
+type PlatformApiErrorCode =
   | "insufficient-credits"
   | "model-not-allowed"
   | "model-not-found"
   | "no-model-requested";
 
-export function parseQuestsApiError(
+export function parsePlatformApiError(
   message: SessionMessage.Assistant,
-): null | QuestsApiError {
+): null | PlatformApiError {
   const metadataError = message.metadata.error;
   if (
     !metadataError ||
     metadataError.kind !== "api-call" ||
-    message.metadata.aiGatewayModel?.params.provider !== "quests"
+    message.metadata.aiGatewayModel?.params.provider !== OUR_MODELS.providerType
   ) {
     return null;
   }
@@ -52,12 +53,12 @@ export function parseQuestsApiError(
     return null;
   }
 
-  const result = questsErrorResponseSchema.safeParse(
+  const result = platformApiErrorResponseSchema.safeParse(
     metadataError.responseBody,
   );
   if (result.success) {
     return {
-      code: result.data.error.code as QuestsErrorCode,
+      code: result.data.error.code as PlatformApiErrorCode,
       message: result.data.error.message,
       retryable: result.data.error.retryable,
     };
@@ -78,7 +79,7 @@ export function parseQuestsApiError(
 export function requiresAutoModelRecovery(
   message: SessionMessage.Assistant,
 ): boolean {
-  const error = parseQuestsApiError(message);
+  const error = parsePlatformApiError(message);
   return (
     error?.code === "model-not-allowed" ||
     error?.code === "model-not-found" ||

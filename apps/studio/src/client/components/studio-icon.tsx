@@ -1,16 +1,16 @@
 import * as React from "react";
 
-type QuestsLogoIconProps = React.SVGProps<SVGSVGElement> & {
+type StudioIconProps = React.SVGProps<SVGSVGElement> & {
   ref?: React.Ref<SVGSVGElement>;
   size?: number | string;
 };
 
-export const QuestsLogoIcon = ({
+export const StudioIcon = ({
   className,
   ref,
   size,
   ...props
-}: QuestsLogoIconProps) => {
+}: StudioIconProps) => {
   return (
     <svg
       className={className}
@@ -31,14 +31,12 @@ export const QuestsLogoIcon = ({
   );
 };
 
-QuestsLogoIcon.displayName = "QuestsLogoIcon";
-
-export const QuestsLogoSimpleIcon = ({
+export const StudioIconGlyph = ({
   className,
   ref,
   size,
   ...props
-}: QuestsLogoIconProps) => {
+}: StudioIconProps) => {
   return (
     <svg
       className={className}
@@ -57,5 +55,3 @@ export const QuestsLogoSimpleIcon = ({
     </svg>
   );
 };
-
-QuestsLogoSimpleIcon.displayName = "QuestsLogoSimpleIcon";

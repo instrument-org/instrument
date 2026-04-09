@@ -1,5 +1,5 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { OUR_AUTO_MODEL_ID } from "@instrument-org/shared";
+import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
@@ -7,9 +7,9 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
-  parseQuestsApiError,
+  parsePlatformApiError,
   requiresAutoModelRecovery,
-} from "../lib/parse-quests-api-error";
+} from "../lib/parse-platform-api-error";
 import { rpcClient } from "../rpc/client";
 import {
   CollapsiblePartMainContent,
@@ -66,9 +66,9 @@ export function MessageError({
   }
 
   const isAborted = error.kind === "aborted";
-  const questsError = parseQuestsApiError(message);
+  const platformError = parsePlatformApiError(message);
   const isStaleInsufficientCredits =
-    questsError?.code === "insufficient-credits" && !isLastMessage;
+    platformError?.code === "insufficient-credits" && !isLastMessage;
 
   // Normally hidden errors are still shown in developer mode via the generic renderer
   const isDevOnlyVisible =
@@ -80,19 +80,19 @@ export function MessageError({
       return null;
     }
 
-    if (questsError?.code === "insufficient-credits") {
+    if (platformError?.code === "insufficient-credits") {
       return <UpgradeSubscriptionAlert onContinue={onContinue} />;
     }
   }
 
-  if (showActions && questsError && requiresAutoModelRecovery(message)) {
-    const autoModel = models?.find((m) => m.providerId === OUR_AUTO_MODEL_ID);
+  if (showActions && platformError && requiresAutoModelRecovery(message)) {
+    const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
 
     return (
       <Alert>
         <AlertTitle>Model unavailable</AlertTitle>
         <AlertDescription className="flex flex-col gap-3">
-          <span>{questsError.message || error.message}</span>
+          <span>{platformError.message || error.message}</span>
           {autoModel && (
             <div className="flex">
               <Button
@@ -178,7 +178,7 @@ export function MessageError({
         <CollapsibleContent>
           <CollapsiblePartMainContent
             footer={
-              showActions && onStartNewChat && !questsError ? (
+              showActions && onStartNewChat && !platformError ? (
                 <div className="mt-2 flex gap-2">
                   <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>

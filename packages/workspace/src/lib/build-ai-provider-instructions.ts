@@ -1,4 +1,5 @@
 import { getProviderDetails } from "@instrument-org/ai-gateway";
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 import { dedent } from "radashi";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
@@ -35,8 +36,8 @@ export async function buildAIProviderInstructions({
 
         const envVarsText = Object.keys(envVariables).join(", ");
 
-        const questsNote =
-          config.type === "quests"
+        const ourProviderNote =
+          config.type === OUR_PROVIDER_CONFIG.type
             ? "_Preferred first-party provider; behaves like OpenRouter and works for their common APIs._"
             : "";
 
@@ -51,7 +52,7 @@ export async function buildAIProviderInstructions({
 
         return dedent`
         ## ${name}
-        ${questsNote}
+        ${ourProviderNote}
         Env vars: ${envVarsText}
         ${recommendedModelId ? `${modelIdLabel}: \`${recommendedModelId}\`` : ""}
         ${usageExample}

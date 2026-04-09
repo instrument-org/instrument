@@ -2,10 +2,7 @@ import {
   type LanguageModelV3,
   type SharedV3ProviderOptions,
 } from "@ai-sdk/provider";
-import {
-  OUR_AUTO_MODEL_ID,
-  type WorkspaceServerURL,
-} from "@instrument-org/shared";
+import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { type ToolSet } from "ai";
 import { Result } from "typescript-result";
 
@@ -28,7 +25,7 @@ import { selectProviderConfigs } from "./select-provider-configs";
 
 const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   // Ordered by quality/reliability as of 2026-02-06
-  "quests",
+  OUR_MODELS.providerType,
   "openrouter",
   "openai",
   "google",
@@ -106,14 +103,14 @@ export async function getAISDKWebSearchModel({
       break;
     }
     case "openrouter":
-    case "quests": {
+    case OUR_MODELS.providerType: {
       const sdk = await createOpenRouterSDK(config, workspaceServerURL);
       result = {
         model: isCallingModelSameProvider
           ? sdk(callingModel.providerId)
           : config.type === "openrouter"
             ? sdk("openrouter/auto")
-            : sdk(OUR_AUTO_MODEL_ID),
+            : sdk(OUR_MODELS.text.id),
         providerOptions: {
           openrouter: {
             // Let OpenRouter decide native vs Exa-powered

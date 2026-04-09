@@ -1,6 +1,7 @@
 import {
   type AIProviderConfigId,
   type AIProviderType,
+  OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
@@ -23,7 +24,7 @@ const createConfig = ({
   }) as AIGatewayProviderConfig.Type;
 
 const priority = [
-  "quests",
+  OUR_PROVIDER_CONFIG.type,
   "openrouter",
   "google",
   "openai",
@@ -56,7 +57,10 @@ describe("selectProviderConfigs", () => {
     const configs = [
       createConfig({ id: "openai-1", type: "openai" }),
       createConfig({ id: "google-1", type: "google" }),
-      createConfig({ id: "quests-1", type: "quests" }),
+      createConfig({
+        id: OUR_PROVIDER_CONFIG.id,
+        type: OUR_PROVIDER_CONFIG.type,
+      }),
     ];
 
     const result = selectProviderConfigs({
@@ -81,7 +85,7 @@ describe("selectProviderConfigs", () => {
       configs,
       preferredProviderConfig: createConfig({
         id: "quests-999",
-        type: "quests",
+        type: OUR_PROVIDER_CONFIG.type,
       }),
       providerTypePriority: [...priority],
     });
@@ -93,7 +97,10 @@ describe("selectProviderConfigs", () => {
     const configs = [
       createConfig({ id: "fireworks-1", type: "fireworks" }),
       createConfig({ id: "openai-1", type: "openai" }),
-      createConfig({ id: "quests-1", type: "quests" }),
+      createConfig({
+        id: OUR_PROVIDER_CONFIG.id,
+        type: OUR_PROVIDER_CONFIG.type,
+      }),
     ];
 
     const result = selectProviderConfigs({
@@ -105,7 +112,7 @@ describe("selectProviderConfigs", () => {
       providerTypePriority: [...priority],
     });
 
-    expect(result[0]?.id).toBe("quests-1");
+    expect(result[0]?.id).toBe(OUR_PROVIDER_CONFIG.id);
   });
 
   it("uses exact ID when multiple configs of same type exist", () => {
@@ -128,7 +135,10 @@ describe("selectProviderConfigs", () => {
 
   it("returns up to maxConfigs configs", () => {
     const configs = [
-      createConfig({ id: "quests-1", type: "quests" }),
+      createConfig({
+        id: OUR_PROVIDER_CONFIG.id,
+        type: OUR_PROVIDER_CONFIG.type,
+      }),
       createConfig({ id: "openrouter-1", type: "openrouter" }),
       createConfig({ id: "google-1", type: "google" }),
     ];
@@ -136,14 +146,14 @@ describe("selectProviderConfigs", () => {
     const result = selectProviderConfigs({
       configs,
       preferredProviderConfig: createConfig({
-        id: "quests-1",
-        type: "quests",
+        id: OUR_PROVIDER_CONFIG.id,
+        type: OUR_PROVIDER_CONFIG.type,
       }),
       providerTypePriority: [...priority],
     });
 
     expect(result).toHaveLength(2);
-    expect(result[0]?.id).toBe("quests-1");
+    expect(result[0]?.id).toBe(OUR_PROVIDER_CONFIG.id);
     expect(result[1]?.id).toBe("openrouter-1");
   });
 
@@ -177,7 +187,7 @@ describe("selectProviderConfigs", () => {
         id: "anthropic-1",
         type: "anthropic",
       }),
-      providerTypePriority: ["openai", "quests"],
+      providerTypePriority: ["openai", OUR_PROVIDER_CONFIG.type],
     });
 
     expect(result[0]?.id).toBe("openai-1");
@@ -185,7 +195,10 @@ describe("selectProviderConfigs", () => {
 
   it("does not duplicate the preferred config in fallbacks", () => {
     const configs = [
-      createConfig({ id: "quests-1", type: "quests" }),
+      createConfig({
+        id: OUR_PROVIDER_CONFIG.id,
+        type: OUR_PROVIDER_CONFIG.type,
+      }),
       createConfig({ id: "openrouter-1", type: "openrouter" }),
     ];
 
@@ -193,8 +206,8 @@ describe("selectProviderConfigs", () => {
       configs,
       maxConfigs: 3,
       preferredProviderConfig: createConfig({
-        id: "quests-1",
-        type: "quests",
+        id: OUR_PROVIDER_CONFIG.id,
+        type: OUR_PROVIDER_CONFIG.type,
       }),
       providerTypePriority: [...priority],
     });
@@ -202,7 +215,7 @@ describe("selectProviderConfigs", () => {
     expect(result).toHaveLength(2);
     expect(result.map((c) => c.id)).toMatchInlineSnapshot(`
       [
-        "quests-1",
+        "instrument",
         "openrouter-1",
       ]
     `);
@@ -210,7 +223,10 @@ describe("selectProviderConfigs", () => {
 
   it("respects custom maxConfigs", () => {
     const configs = [
-      createConfig({ id: "quests-1", type: "quests" }),
+      createConfig({
+        id: OUR_PROVIDER_CONFIG.id,
+        type: OUR_PROVIDER_CONFIG.type,
+      }),
       createConfig({ id: "openrouter-1", type: "openrouter" }),
       createConfig({ id: "google-1", type: "google" }),
     ];
@@ -219,8 +235,8 @@ describe("selectProviderConfigs", () => {
       configs,
       maxConfigs: 1,
       preferredProviderConfig: createConfig({
-        id: "quests-1",
-        type: "quests",
+        id: OUR_PROVIDER_CONFIG.id,
+        type: OUR_PROVIDER_CONFIG.type,
       }),
       providerTypePriority: [...priority],
     });

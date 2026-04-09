@@ -1,4 +1,7 @@
-import { type AIProviderType } from "@instrument-org/shared";
+import {
+  type AIProviderType,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -71,7 +74,7 @@ describe("getErrorAction", () => {
             name: "APIError",
             url: "https://example.com",
           },
-          "quests",
+          OUR_PROVIDER_CONFIG.type,
         );
         expect(getErrorAction(message)).toEqual({ type: "retry" });
       });
@@ -85,7 +88,7 @@ describe("getErrorAction", () => {
             responseBody: "invalid json",
             url: "https://example.com",
           },
-          "quests",
+          OUR_PROVIDER_CONFIG.type,
         );
         expect(getErrorAction(message)).toEqual({ type: "retry" });
       });
@@ -99,7 +102,7 @@ describe("getErrorAction", () => {
             responseBody: JSON.stringify({}),
             url: "https://example.com",
           },
-          "quests",
+          OUR_PROVIDER_CONFIG.type,
         );
         expect(getErrorAction(message)).toEqual({ type: "retry" });
       });
@@ -119,7 +122,7 @@ describe("getErrorAction", () => {
             }),
             url: "https://example.com",
           },
-          "quests",
+          OUR_PROVIDER_CONFIG.type,
         );
         expect(getErrorAction(message)).toEqual({ type: "stop" });
       });
@@ -139,7 +142,7 @@ describe("getErrorAction", () => {
             }),
             url: "https://example.com",
           },
-          "quests",
+          OUR_PROVIDER_CONFIG.type,
         );
         expect(getErrorAction(message)).toEqual({ type: "retry" });
       });

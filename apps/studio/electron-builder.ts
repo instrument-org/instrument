@@ -1,4 +1,9 @@
-import { APP_DOMAIN } from "@instrument-org/shared";
+import {
+  APP_DOMAIN,
+  APP_EXECUTABLE,
+  APP_NAME,
+  APP_PROTOCOL,
+} from "@instrument-org/shared";
 import dotenv from "dotenv";
 import {
   type Configuration,
@@ -10,10 +15,6 @@ if (process.env.CI !== "true") {
     path: [".env.build"],
   });
 }
-
-const APP_NAME = "Instrument";
-const APP_EXECUTABLE = "instrument";
-const APP_SCHEME = "instrument";
 
 const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   bucket: "instrument-releases",
@@ -124,7 +125,7 @@ const config: Configuration = {
     {
       // Required for Linux deep linking
       name: APP_NAME,
-      schemes: [APP_SCHEME],
+      schemes: [APP_PROTOCOL],
     },
   ],
   publish: publishConfig,

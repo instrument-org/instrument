@@ -11,6 +11,7 @@ allowBuilds:
 
 ignoredOptionalDependencies:
   - "@mongodb-js/zstd"
+  - better-sqlite3
   - node-liblzma
 
 catalog:

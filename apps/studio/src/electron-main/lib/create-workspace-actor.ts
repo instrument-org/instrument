@@ -19,7 +19,7 @@ let UNPACKAGED_REGISTRY_DIR = path.resolve(
   `../../../../${REGISTRY_DIR_NAME}`,
 );
 
-const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_QUESTS_REGISTRY_DIR_PATH;
+const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_APP_REGISTRY_DIR_PATH;
 
 if (ENV_REGISTRY_DIR) {
   const absolutePath = path.resolve(ENV_REGISTRY_DIR);

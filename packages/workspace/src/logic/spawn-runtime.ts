@@ -220,9 +220,9 @@ export const spawnRuntimeLogic = fromCallback<
         cancelSignal: signal,
         env: {
           ...providerEnv,
+          IS_INSIDE_STUDIO: "true",
           NO_COLOR: "1",
           PORT: port.toString(),
-          QUESTS_INSIDE_STUDIO: "true",
         },
       },
     );

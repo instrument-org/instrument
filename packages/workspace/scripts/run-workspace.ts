@@ -32,14 +32,14 @@ const providerConfigs: {
   envKey: keyof typeof env;
   type: AIGatewayProviderConfig.Type["type"];
 }[] = [
-  { envKey: "QUESTS_OPENAI_API_KEY", type: "openai" },
-  { envKey: "QUESTS_OPENROUTER_API_KEY", type: "openrouter" },
-  { envKey: "QUESTS_ANTHROPIC_API_KEY", type: "anthropic" },
-  { envKey: "QUESTS_GOOGLE_API_KEY", type: "google" },
-  { envKey: "QUESTS_AI_GATEWAY_API_KEY", type: "vercel" },
-  { envKey: "QUESTS_ZAI_API_KEY", type: "z-ai" },
-  { envKey: "QUESTS_CEREBRAS_API_KEY", type: "cerebras" },
-  { envKey: "QUESTS_GROQ_API_KEY", type: "groq" },
+  { envKey: "APP_OPENAI_API_KEY", type: "openai" },
+  { envKey: "APP_OPENROUTER_API_KEY", type: "openrouter" },
+  { envKey: "APP_ANTHROPIC_API_KEY", type: "anthropic" },
+  { envKey: "APP_GOOGLE_API_KEY", type: "google" },
+  { envKey: "APP_AI_GATEWAY_API_KEY", type: "vercel" },
+  { envKey: "APP_ZAI_API_KEY", type: "z-ai" },
+  { envKey: "APP_CEREBRAS_API_KEY", type: "cerebras" },
+  { envKey: "APP_GROQ_API_KEY", type: "groq" },
 ];
 
 for (const { envKey, type } of providerConfigs) {
@@ -54,8 +54,8 @@ for (const { envKey, type } of providerConfigs) {
   }
 }
 
-const registryDir = env.QUESTS_REGISTRY_DIR_PATH
-  ? path.resolve(env.QUESTS_REGISTRY_DIR_PATH)
+const registryDir = env.APP_REGISTRY_DIR_PATH
+  ? path.resolve(env.APP_REGISTRY_DIR_PATH)
   : path.resolve("../../registry");
 const actor = createActor(workspaceMachine, {
   input: {

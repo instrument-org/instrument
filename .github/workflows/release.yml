@@ -173,7 +173,7 @@ jobs:
           SIGNTOOL_PATH: signtool.exe
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: github.ref_type != 'tag'
         with:
           name: ${{matrix.os}}-${{matrix.arch}}
@@ -191,7 +191,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload YML auto-update artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: github.ref_type != 'tag'
         with:
           name: ${{matrix.os}}-${{matrix.arch}}-auto-update-yml

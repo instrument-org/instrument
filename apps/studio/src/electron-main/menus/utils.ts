@@ -52,7 +52,7 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
             mainWindow?.webContents.reload();
 
             const currentTab = tabsManager?.getCurrentTab();
-            currentTab?.webView.webContents.reload();
+            currentTab?.webView.webContents?.reload();
           },
           label: "Reload All Web Views",
         },
@@ -73,7 +73,7 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
               click: () => {
                 const tabsManager = getTabsManager();
                 const currentTab = tabsManager?.getCurrentTab();
-                currentTab?.webView.webContents.openDevTools({
+                currentTab?.webView.webContents?.openDevTools({
                   mode: "right",
                   title: "DevTools - Current Tab",
                 });

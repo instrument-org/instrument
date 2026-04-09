@@ -65,10 +65,10 @@ export function createContextMenu({
         if (inspectInNewWindow) {
           menuItems.push({
             click: () => {
-              windowOrWebContentsView.webContents.openDevTools({
+              windowOrWebContentsView.webContents?.openDevTools({
                 mode: "detach",
               });
-              windowOrWebContentsView.webContents.inspectElement(
+              windowOrWebContentsView.webContents?.inspectElement(
                 parameters.x,
                 parameters.y,
               );

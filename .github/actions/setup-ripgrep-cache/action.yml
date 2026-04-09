@@ -20,7 +20,7 @@ runs:
       uses: actions/cache@v5
       with:
         key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-        path: ~/.cache/electron
+        path: node_modules/.pnpm/electron@*/node_modules/electron/dist/
 
     - name: Cache dugite git binary
       uses: actions/cache@v5

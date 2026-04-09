@@ -19,7 +19,7 @@ catalog:
   "@orpc/server": ^1.12.2
   "@orpc/shared": ^1.12.2
   "@orpc/tanstack-query": ^1.12.2
-  "@types/node": 22.19.2
+  "@types/node": 24.12.2
   "@types/react": ^19.2.7
   "@types/react-dom": ^19.2.3
   "@vitejs/plugin-react": ^5.1.2

@@ -16,7 +16,7 @@
     "build": "turbo run build",
     "check-and-test": "turbo run check:electron-node-version check:format check:unused check:unused-words check:packages:install check:packages:dedupe check:spelling check:md check:types check:lint check:build test:ci --ui tui --continue=dependencies-successful --output-logs errors-only",
     "check-test-and-push": "pnpm check-and-test && git push",
-    "check:electron-node-version": "node --experimental-strip-types scripts/check-electron-node-version.ts",
+    "check:electron-node-version": "node scripts/check-electron-node-version.ts",
     "check:format": "prettier --check .",
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:md": "markdownlint-cli2 \"**/*.md\" \".github/**/*.md\"",
@@ -31,8 +31,8 @@
     "fix:lint": "eslint . --fix",
     "fix:unused": "knip --fix",
     "fix:unused-words": "cspell-check-unused-words --fix",
-    "scripts:delete-dated-dev-folders": "node --experimental-strip-types scripts/delete-dated-dev-folders.ts",
-    "scripts:update-registry": "node --experimental-strip-types scripts/update-registry.ts",
+    "scripts:delete-dated-dev-folders": "node scripts/delete-dated-dev-folders.ts",
+    "scripts:update-registry": "node scripts/update-registry.ts",
     "test": "vitest",
     "turbo:fix:lint": "turbo run fix:lint"
   },
@@ -64,7 +64,7 @@
   },
   "packageManager": "pnpm@10.29.1",
   "engines": {
-    "node": ">=22.21.1"
+    "node": ">=24.14.0"
   },
   "publishConfig": {
     "provenance": true
@@ -73,10 +73,10 @@
     "runtime": {
       "name": "node",
       "onFail": "download",
-      "version": "22.21.1"
+      "version": "24.14.0"
     }
   },
   "overrides": {
-    "@types/node": "22.19.2"
+    "@types/node": "24.12.2"
   }
 }

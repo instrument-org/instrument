@@ -16,6 +16,7 @@ runs:
         node-version: "24"
     - env:
         GITHUB_TOKEN: ${{ inputs.token }}
+        electron_config_cache: ~/.cache/electron
       name: install-dependencies
       run: pnpm install --frozen-lockfile
       shell: bash

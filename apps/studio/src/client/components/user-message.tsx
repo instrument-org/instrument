@@ -110,5 +110,3 @@ export const UserMessage = memo(function UserMessage({
     </div>
   );
 });
-
-UserMessage.displayName = "UserMessageHeader";

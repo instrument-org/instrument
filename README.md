@@ -1,5 +1,13 @@
 <h1 align="center">Instrument</h1>
 
+## Setup for Development
+
+```bash
+pnpm install
+./scripts/setup.sh
+pnpm run dev:studio
+```
+
 ## Dependencies
 
 ### `pnpm-workspace.yaml`

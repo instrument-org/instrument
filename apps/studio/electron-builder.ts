@@ -110,7 +110,7 @@ const config: Configuration = {
         // eslint-disable-next-line turbo/no-undeclared-env-vars
         process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
     },
-    target: ["zip"],
+    target: ["dmg", "zip"],
   },
   npmRebuild: true,
   nsis: {

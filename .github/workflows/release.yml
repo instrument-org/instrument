@@ -180,6 +180,7 @@ jobs:
           path: |
             apps/studio/dist/*.exe
             apps/studio/dist/*.zip
+            apps/studio/dist/*.dmg
             apps/studio/dist/*.AppImage
             apps/studio/dist/*.deb
             apps/studio/dist/*.rpm
@@ -207,6 +208,7 @@ jobs:
           files: |
             apps/studio/dist/*.exe
             apps/studio/dist/*.zip
+            apps/studio/dist/*.dmg
             apps/studio/dist/*.AppImage
             apps/studio/dist/*.snap
             apps/studio/dist/*.deb

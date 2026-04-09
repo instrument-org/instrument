@@ -173,14 +173,13 @@ jobs:
           SIGNTOOL_PATH: signtool.exe
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: github.ref_type != 'tag'
         with:
           name: ${{matrix.os}}-${{matrix.arch}}
           path: |
             apps/studio/dist/*.exe
             apps/studio/dist/*.zip
-            apps/studio/dist/*.dmg
             apps/studio/dist/*.AppImage
             apps/studio/dist/*.deb
             apps/studio/dist/*.rpm
@@ -191,7 +190,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload YML auto-update artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: github.ref_type != 'tag'
         with:
           name: ${{matrix.os}}-${{matrix.arch}}-auto-update-yml
@@ -208,7 +207,6 @@ jobs:
           files: |
             apps/studio/dist/*.exe
             apps/studio/dist/*.zip
-            apps/studio/dist/*.dmg
             apps/studio/dist/*.AppImage
             apps/studio/dist/*.snap
             apps/studio/dist/*.deb

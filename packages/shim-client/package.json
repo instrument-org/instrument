@@ -41,6 +41,6 @@
     "vite-plugin-css-injected-by-js": "^3.5.2"
   },
   "engines": {
-    "node": ">=22.5"
+    "node": ">=24.14.0"
   }
 }

@@ -86,6 +86,6 @@
     "xstate-tsserver": "^0.0.5"
   },
   "engines": {
-    "node": ">=22.5"
+    "node": ">=24.14.0"
   }
 }

@@ -13,7 +13,7 @@ runs:
     - uses: actions/setup-node@v6.3.0
       with:
         cache: pnpm
-        node-version: "22"
+        node-version: "24"
     - env:
         GITHUB_TOKEN: ${{ inputs.token }}
       name: install-dependencies

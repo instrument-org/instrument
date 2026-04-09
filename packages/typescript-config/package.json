@@ -4,6 +4,6 @@
   "private": true,
   "description": "Shared TypeScript configurations",
   "engines": {
-    "node": ">=22.5"
+    "node": ">=24.14.0"
   }
 }

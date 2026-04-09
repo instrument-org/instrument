@@ -44,10 +44,10 @@
     "fix:lint": "eslint . --max-warnings 0 --fix",
     "smoke-test": "vitest run --config vitest.smoke.config.ts",
     "start": "electron-vite preview",
-    "tag:release:minor": "node --experimental-strip-types scripts/tag-release.ts minor",
-    "tag:release:minor:beta": "node --experimental-strip-types scripts/tag-release.ts minor beta",
-    "tag:release:patch": "node --experimental-strip-types scripts/tag-release.ts patch",
-    "tag:release:patch:beta": "node --experimental-strip-types scripts/tag-release.ts patch beta",
+    "tag:release:minor": "node scripts/tag-release.ts minor",
+    "tag:release:minor:beta": "node scripts/tag-release.ts minor beta",
+    "tag:release:patch": "node scripts/tag-release.ts patch",
+    "tag:release:patch:beta": "node scripts/tag-release.ts patch beta",
     "tail-logs:dev": "tail -f ~/Library/Logs/Instrument/main.log",
     "tail-logs:prod": "tail -f ~/Library/Application\\ Support/Instrument/logs/main.log",
     "test": "vitest",
@@ -147,8 +147,8 @@
     "color-hash": "^2.0.2",
     "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
-    "electron": "^39.2.6",
-    "electron-builder": "26.3.4",
+    "electron": "^41.2.0",
+    "electron-builder": "26.8.2",
     "electron-vite": "^5.0.0",
     "jotai": "^2.14.0",
     "katex": "^0.16.27",
@@ -176,7 +176,7 @@
     "write-package": "^7.1.0"
   },
   "engines": {
-    "node": ">=22.21.1"
+    "node": ">=24.14.0"
   },
   "productName": "Instrument"
 }

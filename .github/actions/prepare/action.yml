@@ -20,7 +20,7 @@ runs:
           pnpm-workspace.yaml
         node-version: "24"
     - env:
-        DUGITE_CACHE_DIR: ~/.cache/dugite
+        DUGITE_CACHE_DIR: /home/runner/.cache/dugite
         GITHUB_TOKEN: ${{ inputs.token }}
       name: install-dependencies
       run: pnpm install --frozen-lockfile

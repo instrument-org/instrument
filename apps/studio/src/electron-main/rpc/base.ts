@@ -1,6 +1,6 @@
 import { type ErrorMap, os } from "@orpc/server";
 
-import { hasToken } from "../api/utils";
+import { hasToken } from "../platform-api/utils";
 import { getTabsManager } from "../tabs";
 import { type InitialRPCContext } from "./context";
 

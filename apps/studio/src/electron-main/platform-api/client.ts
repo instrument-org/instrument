@@ -1,5 +1,3 @@
-import { type contract } from "@/electron-main/api/contract";
-import { getToken } from "@/electron-main/api/utils";
 import { APP_CLIENT_NAME_STUDIO } from "@instrument-org/shared";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -13,7 +11,9 @@ import { QueryClient } from "@tanstack/query-core";
 import { app } from "electron";
 import { isEqual } from "radashi";
 
+import { type contract } from "./contract";
 import { PATHS_TO_DEDUPE } from "./paths-to-dedupe";
+import { getToken } from "./utils";
 
 const RPC_LINK = new RPCLink({
   headers: () => {
@@ -50,12 +50,12 @@ const RPC_LINK = new RPCLink({
 
 const baseClient: ContractRouterClient<typeof contract> =
   createORPCClient(RPC_LINK);
-export const apiRPCClient = createTanstackQueryUtils(baseClient);
+export const platformApiRpcClient = createTanstackQueryUtils(baseClient);
 
 export type Subscription = Outputs["users"]["getSubscriptionStatus"];
 type Outputs = InferContractRouterOutputs<typeof contract>;
 
-export const apiQueryClient = new QueryClient({
+export const platformApiQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,

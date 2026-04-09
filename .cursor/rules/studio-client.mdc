@@ -22,4 +22,4 @@ Studio is an Electron app. The renderer is a React 19 app using TanStack Router 
 - **UI**: shadcn in `src/client/components/ui`; shared components in `src/client/components/`.
 - **Debug**: Routes under `_app/debug/` and `settings/debug` are for experimentation only; not for end users.
 - **RPC**: Main process handlers in `src/electron-main/rpc/routes/`; workspace at `rpcClient.workspace.*`. Client in `src/client/rpc/client.ts` talks to main over MessageChannel only (no direct remote HTTP).
-- **Remote API**: Main process only, in `src/electron-main/api/`. UI gets that data via main-process RPC (e.g. `user.me`, `plans.get`).
+- **Platform API**: Main process only, in `src/electron-main/platform-api/`. UI gets that data via main-process RPC (e.g. `user.me`, `plans.get`).

@@ -1,8 +1,13 @@
-import { apiQueryClient, apiRPCClient } from "@/electron-main/api/client";
+import {
+  platformApiQueryClient,
+  platformApiRpcClient,
+} from "@/electron-main/platform-api/client";
 import { base } from "@/electron-main/rpc/base";
 
 const get = base.handler(async () => {
-  return apiQueryClient.fetchQuery(apiRPCClient.plans.get.queryOptions());
+  return platformApiQueryClient.fetchQuery(
+    platformApiRpcClient.plans.get.queryOptions(),
+  );
 });
 
 export const plans = {

@@ -10,13 +10,17 @@ name: Prepare
 runs:
   steps:
     - uses: pnpm/action-setup@v4.4.0
+    # pnpm-workspace.yaml included so allowBuilds/ignoredOptionalDependencies
+    # changes bust the cache (setup-node only hashes pnpm-lock.yaml by default).
     - uses: actions/setup-node@v6.3.0
       with:
         cache: pnpm
+        cache-dependency-path: |
+          pnpm-lock.yaml
+          pnpm-workspace.yaml
         node-version: "24"
     - env:
         GITHUB_TOKEN: ${{ inputs.token }}
-        electron_config_cache: ~/.cache/electron
       name: install-dependencies
       run: pnpm install --frozen-lockfile
       shell: bash

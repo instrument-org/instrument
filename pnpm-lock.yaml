@@ -916,9 +916,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 3.2.4(@edge-runtime/vm@3.2.0)(@types/debug@4.1.12)(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.30.2)(msw@2.7.5(@types/node@24.12.2)(typescript@5.9.2))(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.2)
-      xstate-tsserver:
-        specifier: ^0.0.5
-        version: 0.0.5
 
 packages:
 
@@ -7029,10 +7026,6 @@ packages:
   node-addon-api@1.7.2:
     resolution: {integrity: sha512-ibPK3iA+vaY1eEjESkQkM0BbCqFOaZMiXRTtdB0u7b4djtY6JnsjvPdUHVMg6xQt3B8fpTTWHI9A+ADjM9frzg==}
 
-  node-addon-api@8.6.0:
-    resolution: {integrity: sha512-gBVjCaqDlRUk0EwoPNKzIr9KkS9041G/q31IBShPs1Xz6UTA+EXdZADbzqAJQrpDRq71CIMnOP5VMut3SL0z5Q==}
-    engines: {node: ^18 || ^20 || >= 21}
-
   node-api-version@0.2.1:
     resolution: {integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==}
 
@@ -7047,10 +7040,6 @@ packages:
   node-fetch@3.3.2:
     resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
-
-  node-gyp-build@4.8.4:
-    resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
-    hasBin: true
 
   node-gyp@11.5.0:
     resolution: {integrity: sha512-ra7Kvlhxn5V9Slyus0ygMa2h+UqExPqUIkfk7Pc8QTLT956JLSy51uWFwHtIYy0vI8cB4BDhc/S03+880My/LQ==}
@@ -8443,25 +8432,6 @@ packages:
     resolution: {integrity: sha512-Loo5UUvLD9ScZ6jh8beX1T6sO1w2/MpCRpEP7V280GKMVUQ0Jzar2U3UJPsrdbziLEMMhu3Ujnq//rhiFuIeag==}
     engines: {node: '>=6'}
 
-  tree-sitter-javascript@0.23.1:
-    resolution: {integrity: sha512-/bnhbrTD9frUYHQTiYnPcxyHORIw157ERBa6dqzaKxvR/x3PC4Yzd+D1pZIMS6zNg2v3a8BZ0oK7jHqsQo9fWA==}
-    peerDependencies:
-      tree-sitter: ^0.21.1
-    peerDependenciesMeta:
-      tree-sitter:
-        optional: true
-
-  tree-sitter-typescript@0.23.2:
-    resolution: {integrity: sha512-e04JUUKxTT53/x3Uq1zIL45DoYKVfHH4CZqwgZhPg5qYROl5nQjV+85ruFzFGZxu+QeFVbRTPDRnqL9UbU4VeA==}
-    peerDependencies:
-      tree-sitter: ^0.21.0
-    peerDependenciesMeta:
-      tree-sitter:
-        optional: true
-
-  tree-sitter@0.21.1:
-    resolution: {integrity: sha512-7dxoA6kYvtgWw80265MyqJlkRl4yawIjO7S5MigytjELkX43fV2WsAXzsNfO7sBpPPCF5Gp0+XzHk0DwLCq3xQ==}
-
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
 
@@ -9054,9 +9024,6 @@ packages:
     resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
     engines: {node: '>=8.0'}
 
-  xstate-tsserver@0.0.5:
-    resolution: {integrity: sha512-grJM5lp5Wqs+oD75dh01dqXOU5OOC92CSHwUThlVwTyHiDMjFHFW77TBpLTM3OnxzIeCmm0ri7ZeH2m//iX7+g==}
-
   xstate@5.20.1:
     resolution: {integrity: sha512-i9ZpNnm/XhCOMUxae1suT8PjYNTStZWbhmuKt4xeTPaYG5TS0Fz0i+Ka5yxoNPpaHW3VW6JIowrwFgSTZONxig==}
 
@@ -9131,6 +9098,7 @@ packages:
 
 ignoredOptionalDependencies:
   - '@mongodb-js/zstd'
+  - better-sqlite3
   - node-liblzma
 
 snapshots:
@@ -16195,8 +16163,6 @@ snapshots:
   node-addon-api@1.7.2:
     optional: true
 
-  node-addon-api@8.6.0: {}
-
   node-api-version@0.2.1:
     dependencies:
       semver: 7.7.4
@@ -16212,8 +16178,6 @@ snapshots:
       fetch-blob: 3.2.0
       formdata-polyfill: 4.0.10
     optional: true
-
-  node-gyp-build@4.8.4: {}
 
   node-gyp@11.5.0:
     dependencies:
@@ -17744,26 +17708,6 @@ snapshots:
       url-parse: 1.5.10
     optional: true
 
-  tree-sitter-javascript@0.23.1(tree-sitter@0.21.1):
-    dependencies:
-      node-addon-api: 8.6.0
-      node-gyp-build: 4.8.4
-    optionalDependencies:
-      tree-sitter: 0.21.1
-
-  tree-sitter-typescript@0.23.2(tree-sitter@0.21.1):
-    dependencies:
-      node-addon-api: 8.6.0
-      node-gyp-build: 4.8.4
-      tree-sitter-javascript: 0.23.1(tree-sitter@0.21.1)
-    optionalDependencies:
-      tree-sitter: 0.21.1
-
-  tree-sitter@0.21.1:
-    dependencies:
-      node-addon-api: 8.6.0
-      node-gyp-build: 4.8.4
-
   trim-lines@3.0.1: {}
 
   trough@2.2.0: {}
@@ -18421,12 +18365,6 @@ snapshots:
   xdg-basedir@5.1.0: {}
 
   xmlbuilder@15.1.1: {}
-
-  xstate-tsserver@0.0.5:
-    dependencies:
-      tree-sitter: 0.21.1
-      tree-sitter-typescript: 0.23.2(tree-sitter@0.21.1)
-      typescript: 5.9.3
 
   xstate@5.20.1: {}
 

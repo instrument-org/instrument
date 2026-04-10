@@ -35,7 +35,8 @@
     "scripts:delete-dated-dev-folders": "node scripts/delete-dated-dev-folders.ts",
     "scripts:update-registry": "node scripts/update-registry.ts",
     "test": "vitest",
-    "turbo:fix:lint": "turbo run fix:lint"
+    "turbo:fix:lint": "turbo run fix:lint",
+    "update:actions": "actions-up"
   },
   "devDependencies": {
     "@cspell/dict-bash": "^4.2.1",
@@ -47,6 +48,7 @@
     "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "actions-up": "^1.13.0",
     "cross-env": "^10.0.0",
     "cspell": "^8.19.4",
     "cspell-check-unused-words": "^1.5.4",

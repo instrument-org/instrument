@@ -23,14 +23,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-binary-caches
       - uses: ./.github/actions/prepare
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: rharkor/caching-for-turbo@v2.3.11
+      - uses: rharkor/caching-for-turbo@0abc2381e688c4d2832f0665a68a01c6e82f0d6c # v2.3.11
         env:
           # Remove once https://github.com/rharkor/caching-for-turbo/issues/829 is resolved
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -48,14 +48,14 @@ jobs:
         run: pnpm turbo run smoke-test
       - name: Upload main window screenshot
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: apps/studio/smoke-test-screenshots/main-window-${{ runner.os == 'macOS' && 'darwin' || runner.os == 'Windows' && 'win32' || 'linux' }}.png
           archive: false
           if-no-files-found: ignore
       - name: Upload sidebar window screenshot
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: apps/studio/smoke-test-screenshots/sidebar-window-${{ runner.os == 'macOS' && 'darwin' || runner.os == 'Windows' && 'win32' || 'linux' }}.png
           archive: false

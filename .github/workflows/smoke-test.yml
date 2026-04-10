@@ -40,6 +40,6 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-          echo "DISPLAY=:99" >> $GITHUB_ENV
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
       - name: Build and run smoke test
         run: pnpm turbo run smoke-test

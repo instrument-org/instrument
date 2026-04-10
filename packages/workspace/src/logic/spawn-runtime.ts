@@ -1,5 +1,5 @@
+import { envForProviderConfigs } from "@instrument-org/ai-gateway";
 import { getBuildInfo } from "@netlify/build-info/node";
-import { envForProviderConfigs } from "@quests/ai-gateway";
 import { ExecaError, type ResultPromise } from "execa";
 import ms from "ms";
 import {
@@ -220,9 +220,9 @@ export const spawnRuntimeLogic = fromCallback<
         cancelSignal: signal,
         env: {
           ...providerEnv,
+          IS_INSIDE_STUDIO: "true",
           NO_COLOR: "1",
           PORT: port.toString(),
-          QUESTS_INSIDE_STUDIO: "true",
         },
       },
     );

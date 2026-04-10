@@ -1,7 +1,7 @@
 import {
   type AnalyticsEvents,
   type CaptureEventFunction,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 
 import { telemetry } from "./telemetry";
 

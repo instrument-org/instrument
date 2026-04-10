@@ -1,6 +1,9 @@
 import { formatNumber } from "@/client/lib/format-number";
 import { rpcClient } from "@/client/rpc/client";
-import { type AppSubdomain, type StoreId } from "@quests/workspace/client";
+import {
+  type AppSubdomain,
+  type StoreId,
+} from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";

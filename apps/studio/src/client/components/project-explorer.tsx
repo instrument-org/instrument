@@ -8,12 +8,12 @@ import {
 } from "@/client/lib/project-file-groups";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
-import { safe } from "@orpc/client";
 import {
   APP_FOLDER_NAMES,
   type ProjectSubdomain,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import {

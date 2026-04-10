@@ -1,4 +1,4 @@
-import { type AppSubdomain } from "@quests/workspace/client";
+import { type AppSubdomain } from "@instrument-org/workspace/client";
 import { Check, Loader2, Pause } from "lucide-react";
 
 import { useAppState } from "../hooks/use-app-state";

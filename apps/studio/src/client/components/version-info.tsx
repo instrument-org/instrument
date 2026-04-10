@@ -1,4 +1,4 @@
-import { type ProjectSubdomain } from "@quests/workspace/client";
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import ColorHash from "color-hash";

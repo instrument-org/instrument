@@ -1,6 +1,6 @@
-import type { ConfigArray } from "@quests/eslint-config/base";
+import type { ConfigArray } from "@instrument-org/eslint-config/base";
 
-import baseConfig from "@quests/eslint-config/react-with-tailwind";
+import baseConfig from "@instrument-org/eslint-config/react-with-tailwind";
 import { globalIgnores } from "eslint/config";
 
 export default [
@@ -59,20 +59,22 @@ export default [
       "no-restricted-imports": [
         "error",
         {
-          message: "@quests/merge-generators cannot run on the client",
-          name: "@quests/merge-generators",
+          message: "@instrument-org/merge-generators cannot run on the client",
+          name: "@instrument-org/merge-generators",
         },
         {
-          message: "@quests/workspace/electron cannot run on the client",
-          name: "@quests/workspace/electron",
+          message:
+            "@instrument-org/workspace/electron cannot run on the client",
+          name: "@instrument-org/workspace/electron",
         },
         {
-          message: "@quests/workspace/for-shim is not intended for the Studio",
-          name: "@quests/workspace/for-shim",
+          message:
+            "@instrument-org/workspace/for-shim is not intended for the Studio",
+          name: "@instrument-org/workspace/for-shim",
         },
         {
-          message: "@quests/ai-gateway cannot run on the client",
-          name: "@quests/ai-gateway",
+          message: "@instrument-org/ai-gateway cannot run on the client",
+          name: "@instrument-org/ai-gateway",
         },
       ],
     },
@@ -83,12 +85,14 @@ export default [
       "no-restricted-imports": [
         "warn",
         {
-          message: "@quests/workspace/client is only intended for the client",
-          name: "@quests/workspace/client",
+          message:
+            "@instrument-org/workspace/client is only intended for the client",
+          name: "@instrument-org/workspace/client",
         },
         {
-          message: "@quests/ai-gateway/client is only intended for the client",
-          name: "@quests/ai-gateway/client",
+          message:
+            "@instrument-org/ai-gateway/client is only intended for the client",
+          name: "@instrument-org/ai-gateway/client",
         },
       ],
     },

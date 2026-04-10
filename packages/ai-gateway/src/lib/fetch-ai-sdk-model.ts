@@ -2,7 +2,7 @@ import { type LanguageModelV3 } from "@ai-sdk/provider";
 import {
   type CaptureExceptionFunction,
   type WorkspaceServerURL,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
 import { AIGatewayModelURI } from "../schemas/model-uri";

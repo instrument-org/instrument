@@ -1,4 +1,4 @@
-import type { AIGatewayModel } from "@quests/ai-gateway";
+import type { AIGatewayModel } from "@instrument-org/ai-gateway";
 import type { ModelMessage } from "ai";
 
 import { dedent } from "radashi";

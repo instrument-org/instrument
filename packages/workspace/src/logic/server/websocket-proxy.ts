@@ -104,12 +104,16 @@ export function setupWebSocketProxy(
     });
 
     ws.on("error", (error) => {
-      runtimeRef.send({
-        type: "appendError",
-        value: {
-          error: error instanceof Error ? error : new Error("Unknown error"),
-        },
-      });
+      // Only log WS errors once the runtime is ready -- errors during boot
+      // (e.g. 400 before the dev server is listening) are expected and noisy.
+      if (runtimeRef.getSnapshot().hasTag("ready")) {
+        runtimeRef.send({
+          type: "appendError",
+          value: {
+            error: error instanceof Error ? error : new Error("Unknown error"),
+          },
+        });
+      }
       if (clientWs) {
         clientWs.close();
       } else {

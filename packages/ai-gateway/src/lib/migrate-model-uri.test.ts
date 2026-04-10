@@ -1,7 +1,7 @@
 import {
   AI_GATEWAY_API_KEY_NOT_NEEDED,
   AIProviderConfigIdSchema,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { AIGatewayModelURI } from "../schemas/model-uri";

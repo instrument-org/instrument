@@ -2,7 +2,7 @@ import { getAssetUrl } from "@/client/lib/get-asset-url";
 import {
   type ProjectSubdomain,
   type SessionMessageDataPart,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 
 import { FilesGrid } from "./files-grid";
 

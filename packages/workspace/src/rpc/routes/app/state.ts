@@ -1,5 +1,5 @@
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { eventIterator } from "@orpc/server";
-import { mergeGenerators } from "@quests/shared/merge-generators";
 import { isEqual } from "radashi";
 import { z } from "zod";
 

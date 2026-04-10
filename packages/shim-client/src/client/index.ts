@@ -4,8 +4,8 @@ import {
   type ConsoleLogType,
   type ShimIFrameMessage,
   type ShimIFrameOutMessage,
-} from "@quests/shared/shim";
-import { SHIM_IFRAME_BASE_PATH } from "@quests/workspace/for-shim";
+} from "@instrument-org/shared/shim";
+import { SHIM_IFRAME_BASE_PATH } from "@instrument-org/workspace/for-shim";
 import { sprintf } from "sprintf-js";
 
 import {
@@ -14,18 +14,18 @@ import {
   type IframeMessageHandler,
 } from "../iframe/types";
 
-const QUESTS_IFRAME_CLASSES = {
-  base: "quests-iframe",
-  visible: "quests-iframe--visible",
+const IFRAME_CLASSES = {
+  base: "shim-client-iframe",
+  visible: "shim-client-iframe--visible",
 } as const;
 
 const FALLBACK_URL_PARAM = "fallback";
 const WORKSPACE_FALLBACK_PAGE_META_NAME = "workspace-fallback-page";
-const REFRESH_KEY = "quests-refresh";
+const REFRESH_KEY = "shim-client-refresh";
 
 const style = document.createElement("style");
 style.textContent = `
-  .${QUESTS_IFRAME_CLASSES.base} {
+  .${IFRAME_CLASSES.base} {
     background-color: transparent;
     border: none;
     bottom: 0;
@@ -37,7 +37,7 @@ style.textContent = `
     display: none;
   }
   
-  .${QUESTS_IFRAME_CLASSES.visible} {
+  .${IFRAME_CLASSES.visible} {
     display: block;
   }
 `;
@@ -180,9 +180,9 @@ window.addEventListener("message", (event) => {
 
     if (message.type === "app-status") {
       if (message.value === "ready") {
-        iframe.classList.remove(QUESTS_IFRAME_CLASSES.visible);
+        iframe.classList.remove(IFRAME_CLASSES.visible);
       } else {
-        iframe.classList.add(QUESTS_IFRAME_CLASSES.visible);
+        iframe.classList.add(IFRAME_CLASSES.visible);
       }
     }
 
@@ -193,7 +193,7 @@ window.addEventListener("message", (event) => {
     if (message.type === "dismiss-recovery") {
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       isShowingRecovery = false;
-      iframe.classList.remove(QUESTS_IFRAME_CLASSES.visible);
+      iframe.classList.remove(IFRAME_CLASSES.visible);
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       stopRecoveryChecks?.();
     }
@@ -247,7 +247,7 @@ if (isFallbackPage) {
 }
 
 iframe.src = iframeUrl.toString();
-iframe.className = QUESTS_IFRAME_CLASSES.base;
+iframe.className = IFRAME_CLASSES.base;
 document.body.append(iframe);
 
 let hasRendered = false;
@@ -268,7 +268,7 @@ function hasAppRendered() {
     if (element === iframe) {
       continue;
     }
-    if (element.classList.contains(QUESTS_IFRAME_CLASSES.base)) {
+    if (element.classList.contains(IFRAME_CLASSES.base)) {
       continue;
     }
 
@@ -320,7 +320,7 @@ function hideRecovery() {
     return;
   }
   isShowingRecovery = false;
-  iframe.classList.remove(QUESTS_IFRAME_CLASSES.visible);
+  iframe.classList.remove(IFRAME_CLASSES.visible);
   const message: ClientToIframeMessage = {
     type: "hide-failed-to-render",
   };
@@ -333,7 +333,7 @@ function showRecovery() {
   }
 
   isShowingRecovery = true;
-  iframe.classList.add(QUESTS_IFRAME_CLASSES.visible);
+  iframe.classList.add(IFRAME_CLASSES.visible);
 
   const message: ClientToIframeMessage = {
     type: "show-failed-to-render",

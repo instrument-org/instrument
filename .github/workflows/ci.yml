@@ -5,24 +5,23 @@ env:
 jobs:
   check:
     name: Check and Test
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          # FIXME rename "registry"
           submodules: recursive # Some tests use the registry
-          # A fine-grained GitHub personal access token is required to checkout submodules
-          # https://github.com/actions/checkout/issues/287
-          # Permissions required:
-          # - Repository access to quests-org/quests & quests-org/registry
-          # - Read access to "Contents" and "Metadata"
-          # - Read/Write access to actions and workflows
-          token: ${{ secrets.CHECKOUT_ACCESS_TOKEN || github.token }}
-      - uses: ./.github/actions/setup-ripgrep-cache
+      - uses: ./.github/actions/setup-binary-caches
       - uses: ./.github/actions/prepare
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: rharkor/caching-for-turbo@v2.3.11
       - run: pnpm check-and-test
+
+concurrency:
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.ref }}
 
 name: CI
 

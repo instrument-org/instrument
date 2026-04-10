@@ -1,4 +1,4 @@
-import { type WorkspaceAppProject } from "@quests/workspace/client";
+import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 

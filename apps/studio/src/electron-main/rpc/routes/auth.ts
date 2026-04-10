@@ -1,8 +1,8 @@
-import { hasToken as hasTokenUtil } from "@/electron-main/api/utils";
 import {
   signInSocial as signInSocialFn,
   signOut as signOutFn,
 } from "@/electron-main/auth/client";
+import { hasToken as hasTokenUtil } from "@/electron-main/platform-api/utils";
 import { base } from "@/electron-main/rpc/base";
 import { z } from "zod";
 

@@ -11,8 +11,8 @@ import {
   type Tab,
   type TabState,
 } from "@/shared/tabs";
-import { TabIconsSchema } from "@quests/shared/icons";
-import { ProjectSubdomainSchema } from "@quests/workspace/electron";
+import { TabIconsSchema } from "@instrument-org/shared/icons";
+import { ProjectSubdomainSchema } from "@instrument-org/workspace/electron";
 import { type BaseWindow, WebContentsView } from "electron";
 import { type LogFunctions } from "electron-log";
 import Store from "electron-store";
@@ -146,7 +146,8 @@ export class TabsManager {
   public focusCurrentTab() {
     const tab = this.getCurrentTab();
     if (tab) {
-      tab.webView.webContents.focus();
+      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+      tab.webView.webContents?.focus();
     }
   }
 
@@ -168,16 +169,18 @@ export class TabsManager {
   public goBack() {
     const tab = this.getCurrentTab();
     if (tab) {
-      tab.webView.webContents.navigationHistory.goBack();
-      tab.webView.webContents.focus();
+      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+      tab.webView.webContents?.navigationHistory.goBack();
+      tab.webView.webContents?.focus();
     }
   }
 
   public goForward() {
     const tab = this.getCurrentTab();
     if (tab) {
-      tab.webView.webContents.navigationHistory.goForward();
-      tab.webView.webContents.focus();
+      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+      tab.webView.webContents?.navigationHistory.goForward();
+      tab.webView.webContents?.focus();
     }
   }
 
@@ -252,7 +255,8 @@ export class TabsManager {
 
   public resetZoom() {
     const tab = this.getCurrentTab();
-    tab?.webView.webContents.setZoomLevel(0);
+    // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+    tab?.webView.webContents?.setZoomLevel(0);
   }
 
   public selectNextTab() {
@@ -326,16 +330,18 @@ export class TabsManager {
   public zoomIn() {
     const tab = this.getCurrentTab();
     if (tab) {
-      const zoomLevel = tab.webView.webContents.getZoomLevel();
-      tab.webView.webContents.setZoomLevel(zoomLevel + 0.5);
+      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+      const zoomLevel = tab.webView.webContents?.getZoomLevel() ?? 0;
+      tab.webView.webContents?.setZoomLevel(zoomLevel + 0.5);
     }
   }
 
   public zoomOut() {
     const tab = this.getCurrentTab();
     if (tab) {
-      const zoomLevel = tab.webView.webContents.getZoomLevel();
-      tab.webView.webContents.setZoomLevel(zoomLevel - 0.5);
+      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+      const zoomLevel = tab.webView.webContents?.getZoomLevel() ?? 0;
+      tab.webView.webContents?.setZoomLevel(zoomLevel - 0.5);
     }
   }
 
@@ -345,7 +351,7 @@ export class TabsManager {
 
   private closeTabView(tab: TabWithView) {
     this.baseWindow.contentView.removeChildView(tab.webView);
-    tab.webView.webContents.close();
+    tab.webView.webContents?.close();
   }
 
   private computeTabBounds() {
@@ -377,37 +383,41 @@ export class TabsManager {
     // Set initial bounds respecting sidebar width
     newContentView.setBounds(this.computeTabBounds());
 
-    newContentView.webContents.setWindowOpenHandler((details) => {
-      void openExternal(details.url);
-      return { action: "deny" };
-    });
-
-    newContentView.webContents.on("did-navigate-in-page", (_, newUrl) => {
-      const tab = this.tabs.find((t) => t.id === id);
-      const pathname = newUrl.split("#")[1];
-      if (tab && pathname) {
-        tab.pathname = pathname;
-        this.afterUpdate();
-      }
-    });
-
-    newContentView.webContents.on("page-title-updated", (_event, title) => {
-      const tab = this.tabs.find((t) => t.id === id);
-
-      if (!tab) {
-        return;
-      }
-
-      if (title.trim()) {
-        tab.title = title.trim();
-      }
-
-      void this.updateMetaTags(tab).then(() => {
-        this.afterUpdate();
+    // webContents is always defined at construction time, before any destruction event
+    const { webContents } = newContentView;
+    if (webContents) {
+      webContents.setWindowOpenHandler((details) => {
+        void openExternal(details.url);
+        return { action: "deny" };
       });
-    });
 
-    void newContentView.webContents.loadURL(url);
+      webContents.on("did-navigate-in-page", (_, newUrl) => {
+        const tab = this.tabs.find((t) => t.id === id);
+        const pathname = newUrl.split("#")[1];
+        if (tab && pathname) {
+          tab.pathname = pathname;
+          this.afterUpdate();
+        }
+      });
+
+      webContents.on("page-title-updated", (_event, title) => {
+        const tab = this.tabs.find((t) => t.id === id);
+
+        if (!tab) {
+          return;
+        }
+
+        if (title.trim()) {
+          tab.title = title.trim();
+        }
+
+        void this.updateMetaTags(tab).then(() => {
+          this.afterUpdate();
+        });
+      });
+
+      void webContents.loadURL(url);
+    }
 
     return newContentView;
   }
@@ -464,7 +474,8 @@ export class TabsManager {
     }
 
     this.baseWindow.contentView.addChildView(tab.webView);
-    tab.webView.webContents.focus();
+    // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+    tab.webView.webContents?.focus();
     this.selectedTabId = tab.id;
   }
 
@@ -496,7 +507,7 @@ export class TabsManager {
     `;
 
     try {
-      const metaTags = (await tab.webView.webContents.executeJavaScript(
+      const metaTags = (await tab.webView.webContents?.executeJavaScript(
         script,
       )) as MetaTagsResult;
       const iconNameResult = TabIconsSchema.safeParse(metaTags.iconName);

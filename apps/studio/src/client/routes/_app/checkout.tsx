@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/client/components/ui/card";
 import { createIconMeta } from "@/shared/tabs";
-import { SUPPORT_URL } from "@quests/shared";
+import { SUPPORT_URL } from "@instrument-org/shared";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { z } from "zod";

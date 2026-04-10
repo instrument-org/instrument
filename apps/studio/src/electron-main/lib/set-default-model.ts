@@ -6,14 +6,14 @@ import {
   type AIGatewayModel,
   AIGatewayModelURI,
   fetchModelResultsForProviders,
-} from "@quests/ai-gateway";
-import { QUESTS_AUTO_MODEL_ID } from "@quests/shared";
+} from "@instrument-org/ai-gateway";
+import { OUR_MODELS } from "@instrument-org/shared";
 
 import { captureServerException } from "./capture-server-exception";
 import { getAIProviderConfigs } from "./get-ai-provider-configs";
 
 export async function setDefaultModel(options?: {
-  onlyIfQuestsModel?: boolean;
+  onlyIfOurModel?: boolean;
   onlyIfUnset?: boolean;
 }): Promise<void> {
   const existingDefault = getDefaultModelURI();
@@ -21,9 +21,9 @@ export async function setDefaultModel(options?: {
     return;
   }
 
-  if (existingDefault && options?.onlyIfQuestsModel) {
+  if (existingDefault && options?.onlyIfOurModel) {
     const parsed = AIGatewayModelURI.parse(existingDefault);
-    if (!parsed.ok || parsed.value.author !== "quests") {
+    if (!parsed.ok || parsed.value.author !== OUR_MODELS.author) {
       return;
     }
   }
@@ -49,17 +49,19 @@ export async function setDefaultModel(options?: {
     model.tags.includes("default"),
   );
 
-  // When replacing a Quests model, select first non-Quests default model
+  // When replacing one of our models, select our default model
   // Otherwise:
-  // 1. Quests auto model (quests/auto)
-  // 2. Quests authored model (quests/*)
-  // 3. Quests provider model (any/model?provider=quests)
+  // 1. Our auto model
+  // 2. Our authored model (ours/*)
+  // 3. Our provider model (any/model?provider=ours)
   // 4. First default model
-  const selectedModel = options?.onlyIfQuestsModel
-    ? defaultModels.find((m) => m.author !== "quests")
-    : (defaultModels.find((m) => m.providerId === QUESTS_AUTO_MODEL_ID) ??
-      defaultModels.find((m) => m.author === "quests") ??
-      defaultModels.find((m) => m.params.provider === "quests") ??
+  const selectedModel = options?.onlyIfOurModel
+    ? defaultModels.find((m) => m.author !== OUR_MODELS.author)
+    : (defaultModels.find((m) => m.providerId === OUR_MODELS.text.id) ??
+      defaultModels.find((m) => m.author === OUR_MODELS.author) ??
+      defaultModels.find(
+        (m) => m.params.provider === OUR_MODELS.providerType,
+      ) ??
       defaultModels[0]);
 
   if (selectedModel) {

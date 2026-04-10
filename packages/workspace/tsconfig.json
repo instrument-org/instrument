@@ -1,7 +1,4 @@
 {
-  "extends": "@quests/typescript-config/no-react.json",
-  "compilerOptions": {
-    "plugins": [{ "name": "xstate-tsserver" }]
-  },
+  "extends": "@instrument-org/typescript-config/no-react.json",
   "include": ["src", "*.ts", "*.js", "*.cjs", "scripts", "evals", "__mocks__"]
 }

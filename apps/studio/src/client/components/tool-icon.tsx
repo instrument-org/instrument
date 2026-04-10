@@ -1,4 +1,4 @@
-import { type ToolName } from "@quests/workspace/client";
+import { type ToolName } from "@instrument-org/workspace/client";
 
 import { TOOL_ICONS } from "../lib/tool-display";
 

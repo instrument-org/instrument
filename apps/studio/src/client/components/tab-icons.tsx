@@ -1,5 +1,5 @@
-import { QuestsLogoIcon } from "@quests/components/logo";
-import { type TabIconName } from "@quests/shared/icons";
+import { StudioIcon } from "@/client/components/studio-icon";
+import { type TabIconName } from "@instrument-org/shared/icons";
 import {
   CreditCard,
   FileText,
@@ -14,17 +14,16 @@ import {
   Terminal,
 } from "lucide-react";
 
-export const IconMap: Record<TabIconName, LucideIcon | typeof QuestsLogoIcon> =
-  {
-    "credit-card": CreditCard,
-    "file-text": FileText,
-    "flask-conical": FlaskConical,
-    globe: Globe,
-    "message-circle": MessageCircle,
-    quests: QuestsLogoIcon,
-    "square-dashed": SquareDashed,
-    squircle: Squircle,
-    "table-properties": TableProperties,
-    telescope: Telescope,
-    terminal: Terminal,
-  } as const;
+export const IconMap: Record<TabIconName, LucideIcon | typeof StudioIcon> = {
+  "credit-card": CreditCard,
+  "file-text": FileText,
+  "flask-conical": FlaskConical,
+  globe: Globe,
+  "message-circle": MessageCircle,
+  quests: StudioIcon, // TODO(rename)
+  "square-dashed": SquareDashed,
+  squircle: Squircle,
+  "table-properties": TableProperties,
+  telescope: Telescope,
+  terminal: Terminal,
+} as const;

@@ -1,4 +1,4 @@
-import { AIGatewayProviderConfig } from "@quests/ai-gateway";
+import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";

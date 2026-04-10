@@ -1,11 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - about: Share feature ideas, feature requests, and suggestions with the community
-    name: 💡 Feature Requests & Ideas
-    url: https://github.com/quests-org/quests/discussions/categories/ideas
-  - about: Ask questions and get help from the community
-    name: ❓ Questions & Support
-    url: https://github.com/quests-org/quests/discussions
-  - about: Check the documentation for usage instructions
-    name: 📚 Documentation
-    url: https://github.com/quests-org/quests#readme
+  - about: Our preferred starting point if you have any questions, feature requests, or bug reports.
+    name: Bug Reports, Feature Requests & Questions
+    url: https://github.com/instrument-org/instrument/discussions/new/choose

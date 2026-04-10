@@ -1,5 +1,9 @@
-import { AIGatewayModel, AIGatewayModelURI } from "@quests/ai-gateway";
-import { AIProviderConfigIdSchema, type AIProviderType } from "@quests/shared";
+import { AIGatewayModel, AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  AIProviderConfigIdSchema,
+  type AIProviderType,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 
 export function createMockAIGatewayModel(
   options: {
@@ -11,7 +15,7 @@ export function createMockAIGatewayModel(
   const {
     author = "test",
     features = ["inputText", "outputText", "tools"],
-    provider = "quests",
+    provider = OUR_PROVIDER_CONFIG.type,
   } = options;
   const canonicalId = AIGatewayModel.CanonicalIdSchema.parse("mock-model-id");
   const providerConfigId = AIProviderConfigIdSchema.parse(

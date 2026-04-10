@@ -1,3 +1,4 @@
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -66,7 +67,10 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     }
 
     // For Quest provider, check if the response explicitly says not retryable
-    if (message.metadata.aiGatewayModel?.params.provider === "quests") {
+    if (
+      message.metadata.aiGatewayModel?.params.provider ===
+      OUR_PROVIDER_CONFIG.type
+    ) {
       if (!error.responseBody) {
         return { type: "retry" };
       }

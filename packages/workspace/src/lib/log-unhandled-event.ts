@@ -1,6 +1,6 @@
 import type { AnyActorRef, AnyEventObject } from "xstate";
 
-import { type CaptureExceptionFunction } from "@quests/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 
 export function logUnhandledEvent({
   captureException,

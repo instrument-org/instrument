@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 
 export async function migrateSelectedModel() {
   const MIGRATION_KEY = "migrations:selected-model-to-server";

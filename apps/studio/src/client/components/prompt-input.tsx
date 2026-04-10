@@ -21,10 +21,10 @@ import {
   useWindowFileDrop,
 } from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
+import { type FileUpload } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
-import { QUESTS_AUTO_MODEL_ID } from "@quests/shared";
-import { type FileUpload } from "@quests/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useSetAtom } from "jotai";
 import {
@@ -145,13 +145,13 @@ export const PromptInput = ({
   const hasPlan = useHasPlan();
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
-  const autoModel = models?.find((m) => m.providerId === QUESTS_AUTO_MODEL_ID);
+  const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
 
-  const isInvalidQuestsModel =
+  const isInvalidOurModel =
     !hasPlan &&
     selectedModel &&
-    selectedModel.params.provider === "quests" &&
-    selectedModel.providerId !== QUESTS_AUTO_MODEL_ID &&
+    selectedModel.params.provider === OUR_MODELS.providerType &&
+    selectedModel.providerId !== OUR_MODELS.text.id &&
     selectedModel.tags.includes("premium");
 
   const resetTextareaHeight = useCallback(() => {
@@ -310,7 +310,7 @@ export const PromptInput = ({
       return false;
     }
 
-    if (isInvalidQuestsModel && autoModel) {
+    if (isInvalidOurModel && autoModel) {
       toast.error("Invalid model selected", {
         action: {
           label: "Use Auto",
@@ -516,7 +516,7 @@ export const PromptInput = ({
                 disabled={disabled}
                 errors={modelsErrors}
                 isError={modelsIsError}
-                isInvalidQuestsModel={!!isInvalidQuestsModel}
+                isInvalidOurModel={!!isInvalidOurModel}
                 isLoading={modelsIsLoading}
                 models={models}
                 onAddProvider={() => {
@@ -586,7 +586,7 @@ export const PromptInput = ({
       </TextareaContainer>
 
       <AIProviderGuardDialog
-        description="You need to add an AI provider to use Quests."
+        description={`You need to add an AI provider to use ${APP_NAME}.`}
         onOpenChange={setShowAIProviderGuard}
         open={showAIProviderGuard}
       />

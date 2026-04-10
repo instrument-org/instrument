@@ -2,7 +2,6 @@ import { AppFooter } from "@/client/components/app-footer";
 import { AppIcon } from "@/client/components/app-icon";
 import { AppStatusIcon } from "@/client/components/app-status-icon";
 import { CommandMenuCTA } from "@/client/components/command-menu-cta";
-import { NewTabDiscoverHeroCards } from "@/client/components/discover-hero-card";
 import { InternalLink } from "@/client/components/internal-link";
 import { NewTabHelpMessage } from "@/client/components/new-tab-help-message";
 import { ModelPreview } from "@/client/components/projects-data-table/model-preview";
@@ -158,13 +157,6 @@ function RouteComponent() {
       </div>
 
       <div className="w-full max-w-6xl flex-1 px-8 pt-16 pb-8">
-        <div className="mb-2 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-medium text-foreground">Discover</h2>
-          </div>
-        </div>
-        <NewTabDiscoverHeroCards />
-
         {hasProjects && (
           <div className="mt-16">
             <div className="mb-4 flex items-center justify-between">

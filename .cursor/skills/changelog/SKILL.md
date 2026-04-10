@@ -66,7 +66,7 @@ More will follow.
 - Linux: Fixed DBus safe storage issues by setting up direct DBus communication.
 - Workspace: Ensured runtime starts when agent session spawns to prevent missing dependencies.
 - AI Gateway: Fixed handling of `:latest` style model names (e.g., `gpt-oss:latest`).
-- Workspace: Blocked `pnpm dev`, `pnpm start`, and `pnpm run` variants since Quests already manages app lifecycle.
+- Workspace: Blocked `pnpm dev`, `pnpm start`, and `pnpm run` variants since the app already manages app lifecycle.
 
 ## Water Vehicle
 

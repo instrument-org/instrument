@@ -1,15 +1,15 @@
 {
-  "name": "@quests/workspace",
+  "name": "@instrument-org/workspace",
   "version": "0.0.0",
   "private": true,
   "description": "Core AI agents, workflow logic, and workspace management",
   "repository": {
     "type": "git",
-    "url": "https://github.com/quests-org/quests"
+    "url": "https://github.com/instrument-org/instrument"
   },
   "author": {
-    "name": "Quests",
-    "email": "oss@quests.dev"
+    "name": "Instrument",
+    "email": "oss@tryinstrument.com"
   },
   "type": "module",
   "exports": {
@@ -21,6 +21,7 @@
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:types": "tsc --noEmit",
     "eval": "NODE_ENV=test NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx evals/cli.ts",
+    "fix:lint": "eslint . --max-warnings 0 --fix",
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",
     "script:run-workspace": "NODE_ENV=development tsx scripts/run-workspace.ts",
     "test": "vitest",
@@ -34,10 +35,10 @@
     "@11ty/gray-matter": "^2.0.1",
     "@derhuerst/ffprobe-static": "^5.3.0",
     "@hono/node-server": "^1.18.1",
+    "@instrument-org/ai-gateway": "workspace:*",
+    "@instrument-org/shared": "workspace:*",
     "@netlify/build-info": "^10.0.9",
     "@orpc/server": "catalog:",
-    "@quests/ai-gateway": "workspace:*",
-    "@quests/shared": "workspace:*",
     "@types/ws": "^8.18.1",
     "@vscode/ripgrep": "^1.15.13",
     "@zip.js/zip.js": "^2.8.14",
@@ -72,8 +73,8 @@
   },
   "devDependencies": {
     "@ai-sdk/provider": "^3.0.8",
-    "@quests/eslint-config": "workspace:*",
-    "@quests/typescript-config": "workspace:*",
+    "@instrument-org/eslint-config": "workspace:*",
+    "@instrument-org/typescript-config": "workspace:*",
     "@t3-oss/env-core": "^0.13.8",
     "@types/mime-types": "^3.0.1",
     "@types/mock-fs": "^4.13.4",
@@ -82,10 +83,9 @@
     "dotenv": "^16.6.1",
     "mock-fs": "^5.5.0",
     "tsx": "^4.20.3",
-    "vitest": "catalog:",
-    "xstate-tsserver": "^0.0.5"
+    "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=22.5"
+    "node": ">=24.14.0"
   }
 }

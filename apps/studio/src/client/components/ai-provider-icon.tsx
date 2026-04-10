@@ -20,13 +20,13 @@ import { Together } from "@/client/components/icons/together";
 import { XAI } from "@/client/components/icons/x-ai";
 import { ZAI } from "@/client/components/icons/z-ai";
 import { OpenRouter } from "@/client/components/service-icons";
+import { StudioIconGlyph } from "@/client/components/studio-icon";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { QuestsLogoSimpleIcon } from "@quests/components/logo-simple";
-import { type AIProviderType } from "@quests/shared";
+import { type AIProviderType, OUR_MODELS } from "@instrument-org/shared";
 import { useAtomValue } from "jotai";
 import { GrNodes } from "react-icons/gr";
 import {
@@ -61,8 +61,8 @@ const PROVIDER_ICON_MAP: Record<
   openai: SiOpenai,
   "openai-compatible": GrNodes,
   openrouter: OpenRouter,
+  [OUR_MODELS.providerType]: StudioIconGlyph,
   perplexity: Perplexity,
-  quests: QuestsLogoSimpleIcon,
   together: Together,
   vercel: SiVercel,
   "x-ai": XAI,

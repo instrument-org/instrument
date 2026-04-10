@@ -1,7 +1,7 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { is } from "@electron-toolkit/utils";
-import { aiGatewayApp } from "@quests/ai-gateway";
-import { workspaceMachine } from "@quests/workspace/electron";
+import { aiGatewayApp } from "@instrument-org/ai-gateway";
+import { workspaceMachine } from "@instrument-org/workspace/electron";
 import { app, shell } from "electron";
 import ms from "ms";
 import path from "node:path";
@@ -21,7 +21,7 @@ let UNPACKAGED_REGISTRY_DIR = path.resolve(
   `../../../../${REGISTRY_DIR_NAME}`,
 );
 
-const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_QUESTS_REGISTRY_DIR_PATH;
+const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_APP_REGISTRY_DIR_PATH;
 
 if (ENV_REGISTRY_DIR) {
   const absolutePath = path.resolve(ENV_REGISTRY_DIR);

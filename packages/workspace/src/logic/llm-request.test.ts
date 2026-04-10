@@ -3,7 +3,10 @@ import {
   type LanguageModelV3Prompt,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
-import { type AIProviderType } from "@quests/shared";
+import {
+  type AIProviderType,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -97,7 +100,7 @@ describe("llmRequestLogic", () => {
     beforeStream,
     chunks,
     getMessages = () => Promise.resolve(mockMessages),
-    provider = "quests",
+    provider = OUR_PROVIDER_CONFIG.type,
   }: {
     beforeStream?: () => Promise<void>;
     chunks: LanguageModelV3StreamPart[];
@@ -140,7 +143,8 @@ describe("llmRequestLogic", () => {
     });
 
     const model = createMockAIGatewayModel({
-      provider: provider === "anthropic" ? "anthropic" : "quests",
+      provider:
+        provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
     });
 
     const projectAppConfig = createMockAppConfig(

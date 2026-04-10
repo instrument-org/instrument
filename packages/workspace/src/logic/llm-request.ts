@@ -5,7 +5,7 @@ import {
   type AIGatewayModel,
   fetchAISDKModel,
   providerOptionsForModel,
-} from "@quests/ai-gateway";
+} from "@instrument-org/ai-gateway";
 import {
   APICallError,
   InvalidToolInputError,

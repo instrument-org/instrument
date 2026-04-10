@@ -1,6 +1,6 @@
 import { Progress } from "@/client/components/ui/progress";
 import { rpcClient } from "@/client/rpc/client";
-import { MANUAL_DOWNLOAD_URL } from "@quests/shared";
+import { MANUAL_DOWNLOAD_URL } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { useEffect, useRef } from "react";

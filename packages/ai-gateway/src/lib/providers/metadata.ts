@@ -1,4 +1,10 @@
-import { addRef, type AIProviderType } from "@quests/shared";
+import {
+  addRef,
+  type AIProviderType,
+  APP_NAME,
+  APP_URL,
+  OUR_MODELS,
+} from "@instrument-org/shared";
 import { objectify } from "radashi";
 
 import { type AIGatewayProviderConfig } from "../../schemas/provider-config";
@@ -237,6 +243,17 @@ const PROVIDER_METADATA = {
     type: "openrouter",
     url: "https://openrouter.ai",
   },
+  [OUR_MODELS.providerType]: {
+    api: {
+      defaultBaseURL: "not-used",
+    },
+    canAddManually: false,
+    description: `AI access for ${APP_NAME} accounts.`,
+    name: APP_NAME,
+    tags: ["imageGeneration", "webSearch"],
+    type: OUR_MODELS.providerType,
+    url: addRef(APP_URL),
+  },
   perplexity: {
     api: {
       defaultBaseURL: "https://api.perplexity.ai",
@@ -247,17 +264,6 @@ const PROVIDER_METADATA = {
     name: "Perplexity AI",
     type: "perplexity",
     url: addRef("https://www.perplexity.ai"),
-  },
-  quests: {
-    api: {
-      defaultBaseURL: "not-used",
-    },
-    canAddManually: false,
-    description: "AI access for Quests accounts.",
-    name: "Quests",
-    tags: ["imageGeneration", "webSearch"],
-    type: "quests",
-    url: addRef("https://quests.dev"),
   },
   together: {
     api: {

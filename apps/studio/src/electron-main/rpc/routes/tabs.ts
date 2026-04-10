@@ -34,7 +34,8 @@ const navigate = base
     const exactMatch = tabs.find((tab) => tab.pathname === input.appPath);
     if (exactMatch) {
       tabsManager.selectTab({ id: exactMatch.id });
-      exactMatch.webView.webContents.focus();
+      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+      exactMatch.webView.webContents?.focus();
       return;
     }
 
@@ -44,9 +45,9 @@ const navigate = base
     });
 
     if (basePathMatch) {
-      basePathMatch.webView.webContents.send("navigate", input.appPath);
+      basePathMatch.webView.webContents?.send("navigate", input.appPath);
       tabsManager.selectTab({ id: basePathMatch.id });
-      basePathMatch.webView.webContents.focus();
+      basePathMatch.webView.webContents?.focus();
       return;
     }
 
@@ -55,8 +56,8 @@ const navigate = base
       return;
     }
 
-    currentTab.webView.webContents.send("navigate", input.appPath);
-    currentTab.webView.webContents.focus();
+    currentTab.webView.webContents?.send("navigate", input.appPath);
+    currentTab.webView.webContents?.focus();
   });
 
 const navigateBack = base.handler(({ context }) => {

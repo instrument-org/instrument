@@ -1,5 +1,5 @@
+import { type AIGatewayTypedError } from "@instrument-org/ai-gateway";
 import { type ErrorMap, type ORPCErrorConstructorMap, os } from "@orpc/server";
-import { type AIGatewayTypedError } from "@quests/ai-gateway";
 
 import { type TypedError } from "../lib/errors";
 import { type WorkspaceActorRef } from "../machines/workspace";

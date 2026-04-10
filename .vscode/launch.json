@@ -50,7 +50,7 @@
         "MAIN_VITE_USE_BUILT_SHIM_CLIENT": "true",
         "NODE_OPTIONS": "--enable-source-maps",
         "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}",
-        "REMOTE_DEBUGGING_PORT": "9160"
+        "REMOTE_DEBUGGING_PORT": "48160"
       },
       "internalConsoleOptions": "openOnFirstSessionStart",
       "name": "🐛 Studio",
@@ -71,7 +71,7 @@
       "env": {
         "NODE_OPTIONS": "--enable-source-maps",
         "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}",
-        "REMOTE_DEBUGGING_PORT": "9160"
+        "REMOTE_DEBUGGING_PORT": "48160"
       },
       "internalConsoleOptions": "openOnFirstSessionStart",
       "name": "Debug Studio Main Process (Dev Shim)",
@@ -93,7 +93,7 @@
         "MAIN_VITE_USE_BUILT_SHIM_CLIENT": "true",
         "NODE_OPTIONS": "--enable-source-maps",
         "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}",
-        "REMOTE_DEBUGGING_PORT": "9160"
+        "REMOTE_DEBUGGING_PORT": "48160"
       },
       "internalConsoleOptions": "openOnFirstSessionStart",
       "name": "🐛 Studio Fresh",
@@ -112,7 +112,7 @@
     {
       "name": "Debug Studio Renderer Process",
       "perScriptSourcemaps": "yes", // Needed for TanStack Router
-      "port": 9160,
+      "port": 48160,
       "presentation": {
         "hidden": true
       },
@@ -134,7 +134,7 @@
         "--configLoader",
         "runner",
         "--port",
-        "8150",
+        "48350",
         "--clearScreen",
         "false"
       ],

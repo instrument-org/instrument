@@ -17,7 +17,7 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   type ProjectSubdomain,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import {
   ArrowUpRight,

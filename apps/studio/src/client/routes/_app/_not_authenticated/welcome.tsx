@@ -1,10 +1,10 @@
+import { CenteredLayout } from "@/client/components/centered-layout";
 import { ExternalLink } from "@/client/components/external-link";
-import { StarryLayout } from "@/client/components/starry-layout";
+import { StudioIcon } from "@/client/components/studio-icon";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { QuestsAnimatedLogo } from "@quests/components/animated-logo";
-import { APP_REPO_URL, DISCORD_URL } from "@quests/shared";
+import { APP_NAME, APP_REPO_URL, DISCORD_URL } from "@instrument-org/shared";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/_not_authenticated/welcome")({
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_app/_not_authenticated/welcome")({
     return {
       meta: [
         {
-          title: "Welcome to Quests",
+          title: `Welcome to ${APP_NAME}`,
         },
         createIconMeta("quests"),
       ],
@@ -52,10 +52,11 @@ function RouteComponent() {
   const navigate = useNavigate();
 
   return (
-    <StarryLayout
+    <CenteredLayout
       footer={
         <>
-          Quests is <ExternalLink href={APP_REPO_URL}>open source</ExternalLink>
+          {APP_NAME} is{" "}
+          <ExternalLink href={APP_REPO_URL}>open source</ExternalLink>
           <span className="mx-2">·</span>
           <ExternalLink href={DISCORD_URL}>Join us on Discord</ExternalLink>
         </>
@@ -65,10 +66,10 @@ function RouteComponent() {
         <div className="flex flex-col items-center gap-6 pb-12">
           <div className="flex flex-col items-center gap-4">
             <div className="flex size-16 items-center justify-center rounded-md">
-              <QuestsAnimatedLogo size={64} />
+              <StudioIcon className="size-16" />
             </div>
             <h1 className="text-center text-3xl font-bold">
-              Welcome to Quests
+              Welcome to {APP_NAME}
             </h1>
           </div>
 
@@ -79,14 +80,14 @@ function RouteComponent() {
               title="Get started for free"
             />
             <FeatureCard
-              description="Private and secure, all apps and chats are stored on your local computer."
+              description="All your work is stored on your local computer."
               number="2"
-              title="Apps are private and local"
+              title="Your work is private and local"
             />
             <FeatureCard
-              description="Explore built-in templates and example apps to start building in seconds."
+              description="Built in runtime, browser, and more."
               number="3"
-              title="Discover templates and apps"
+              title="No setup required"
             />
           </div>
 
@@ -99,6 +100,6 @@ function RouteComponent() {
           </Button>
         </div>
       </div>
-    </StarryLayout>
+    </CenteredLayout>
   );
 }

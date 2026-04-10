@@ -1,5 +1,5 @@
 import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
-import type { AIProviderType } from "@quests/shared";
+import type { AIProviderType } from "@instrument-org/shared";
 import type { FilePart, ModelMessage } from "ai";
 
 type ContentOutput = Extract<

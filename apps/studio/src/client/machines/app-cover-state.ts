@@ -1,4 +1,4 @@
-import type { AppSubdomain } from "@quests/workspace/client";
+import type { AppSubdomain } from "@instrument-org/workspace/client";
 
 import { rpcClient } from "@/client/rpc/client";
 import { fromCallback, setup } from "xstate";

@@ -1,4 +1,4 @@
-import { FAUX_STUDIO_URL } from "@quests/shared";
+import { FAUX_STUDIO_URL } from "@instrument-org/shared";
 import { type CaptureResult, posthog } from "posthog-js";
 
 import { rpcClient } from "../rpc/client";

@@ -1,4 +1,4 @@
-import { SUPPORT_EMAIL } from "@quests/shared";
+import { SUPPORT_EMAIL } from "@instrument-org/shared";
 import { rootRouteId, useMatch, useRouter } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 

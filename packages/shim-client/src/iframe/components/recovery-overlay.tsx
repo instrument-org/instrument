@@ -1,4 +1,4 @@
-import { APP_PROTOCOL } from "@quests/shared";
+import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import { AlertTriangle, ExternalLink, RefreshCw, X } from "lucide-react";
 
 export function RecoveryOverlay({
@@ -57,7 +57,7 @@ export function RecoveryOverlay({
               onClick={() => window.open(`${APP_PROTOCOL}://`, "_self")}
             >
               <ExternalLink className="size-4" />
-              Open in Quests
+              Open in ${APP_NAME}
             </button>
           )}
         </div>

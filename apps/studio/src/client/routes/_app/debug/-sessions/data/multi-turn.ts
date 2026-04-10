@@ -1,4 +1,4 @@
-import { StoreId } from "@quests/workspace/client";
+import { StoreId } from "@instrument-org/workspace/client";
 
 import { registerSession } from "../helpers";
 

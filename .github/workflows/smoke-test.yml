@@ -9,7 +9,7 @@ on:
 
 env:
   DO_NOT_TRACK: "1"
-  MAIN_VITE_QUESTS_API_BASE_URL: ${{ vars.MAIN_VITE_QUESTS_API_BASE_URL }}
+  MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
   MAIN_VITE_GOOGLE_CLIENT_ID: intentionally-invalid-client-id
   MAIN_VITE_GOOGLE_CLIENT_SECRET: intentionally-invalid-client-secret
   VITE_POSTHOG_API_HOST: intentionally-invalid-api-host
@@ -18,20 +18,20 @@ env:
 jobs:
   smoke_test:
     name: Studio Smoke Test
+    permissions:
+      contents: read
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
-          token: ${{ secrets.CHECKOUT_ACCESS_TOKEN }}
-      - uses: ./.github/actions/setup-ripgrep-cache
+      - uses: ./.github/actions/setup-binary-caches
       - uses: ./.github/actions/prepare
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: rharkor/caching-for-turbo@v2.3.11
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -41,6 +41,20 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-          echo "DISPLAY=:99" >> $GITHUB_ENV
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
       - name: Build and run smoke test
         run: pnpm turbo run smoke-test
+      - name: Upload main window screenshot
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          path: apps/studio/smoke-test-screenshots/main-window-${{ runner.os == 'macOS' && 'darwin' || runner.os == 'Windows' && 'win32' || 'linux' }}.png
+          archive: false
+          if-no-files-found: ignore
+      - name: Upload sidebar window screenshot
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          path: apps/studio/smoke-test-screenshots/sidebar-window-${{ runner.os == 'macOS' && 'darwin' || runner.os == 'Windows' && 'win32' || 'linux' }}.png
+          archive: false
+          if-no-files-found: ignore

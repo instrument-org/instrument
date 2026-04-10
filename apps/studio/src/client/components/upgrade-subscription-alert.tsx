@@ -1,6 +1,7 @@
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { InternalLink } from "./internal-link";
@@ -60,7 +61,7 @@ export function UpgradeSubscriptionAlert({
       <Alert>
         <AlertTitle>Sign in required</AlertTitle>
         <AlertDescription className="flex flex-col gap-3">
-          <span>Sign in to Quests to continue.</span>
+          <span>Sign in to {APP_NAME} to continue.</span>
           <div className="flex">
             <Button onClick={() => void signIn()} size="sm" variant="brand">
               Sign in

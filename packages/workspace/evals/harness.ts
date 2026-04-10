@@ -1,6 +1,6 @@
 import "dotenv/config";
+import { aiGatewayApp, AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { call } from "@orpc/server";
-import { aiGatewayApp, AIGatewayModelURI } from "@quests/ai-gateway";
 import { execa } from "execa";
 import os from "node:os";
 import path from "node:path";

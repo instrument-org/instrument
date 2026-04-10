@@ -7,8 +7,8 @@ import {
   TEST_IMAGE_MODEL_OVERRIDE_KEY,
   TEST_MODEL_OVERRIDE_KEY,
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
-} from "@quests/ai-gateway";
-import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@quests/shared";
+} from "@instrument-org/ai-gateway";
+import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import { noop } from "radashi";
 
 import { createAppConfig } from "../../lib/app-config/create";

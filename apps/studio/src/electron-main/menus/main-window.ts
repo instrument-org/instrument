@@ -32,8 +32,8 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           const currentTab = tabsManager?.getCurrentTab();
           if (currentTab) {
-            currentTab.webView.webContents.send("navigate", "/new-tab");
-            currentTab.webView.webContents.focus();
+            currentTab.webView.webContents?.send("navigate", "/new-tab");
+            currentTab.webView.webContents?.focus();
           }
         },
         label: "New Project",
@@ -70,7 +70,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           const tabsManager = getTabsManager();
           const currentTab = tabsManager?.getCurrentTab();
-          if (currentTab) {
+          if (currentTab?.webView.webContents) {
             publisher.publish("app.toggle-command-menu", {
               webContentsId: currentTab.webView.webContents.id,
             });
@@ -102,7 +102,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           const tabsManager = getTabsManager();
           const currentTab = tabsManager?.getCurrentTab();
-          if (currentTab) {
+          if (currentTab?.webView.webContents) {
             publisher.publish("app.reload", {
               webContentsId: currentTab.webView.webContents.id,
             });

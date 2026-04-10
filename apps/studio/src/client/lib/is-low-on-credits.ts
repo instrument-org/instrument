@@ -1,4 +1,4 @@
-import { type Subscription } from "@/electron-main/api/client";
+import { type Subscription } from "@/electron-main/platform-api/client";
 
 export function isLowOnCredits(data: null | Subscription | undefined): boolean {
   if (!data) {

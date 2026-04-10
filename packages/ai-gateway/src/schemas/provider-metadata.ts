@@ -1,4 +1,4 @@
-import { AIProviderTypeSchema } from "@quests/shared";
+import { AIProviderTypeSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
 const ProviderTagsSchema = z.enum([

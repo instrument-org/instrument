@@ -1,8 +1,8 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { getFileType, isReadableText } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
-import { APP_FOLDER_NAMES } from "@quests/workspace/client";
-import { type SessionMessageDataPart } from "@quests/workspace/client";
+import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { fork } from "radashi";

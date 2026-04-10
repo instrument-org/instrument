@@ -7,7 +7,7 @@ import {
 } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
-import { type ProjectSubdomain } from "@quests/workspace/client";
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
   Check,

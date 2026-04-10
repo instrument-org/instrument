@@ -1,4 +1,4 @@
-import { type HeartbeatResponse } from "@quests/workspace/for-shim";
+import { type HeartbeatResponse } from "@instrument-org/workspace/for-shim";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 

@@ -1,0 +1,36 @@
+description: "Cache large binary downloads (ripgrep, electron, dugite, ffmpeg) to skip re-downloading on repeated runs"
+name: "Setup binary caches"
+runs:
+  steps:
+    - name: Cache @vscode/ripgrep download
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        key: vscode-ripgrep-bin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        path: |
+          /tmp/vscode-ripgrep-cache-*
+          ${{ runner.temp }}/vscode-ripgrep-cache-*
+
+    - name: Cache electron binary
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        path: ~/.cache/electron/
+
+    - name: Cache dugite git binary
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        key: dugite-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        path: ~/.cache/dugite/
+
+    - name: Cache ffmpeg/ffprobe binaries
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        path: |
+          ~/.cache/ffmpeg-static-nodejs
+          ~/.cache/ffprobe-static-nodejs
+          ~/Library/Caches/ffmpeg-static-nodejs
+          ~/Library/Caches/ffprobe-static-nodejs
+          ~/AppData/Local/ffmpeg-static-nodejs/Cache
+          ~/AppData/Local/ffprobe-static-nodejs/Cache
+  using: "composite"

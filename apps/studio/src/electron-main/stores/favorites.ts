@@ -3,7 +3,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import {
   ProjectSubdomainSchema,
   workspacePublisher,
-} from "@quests/workspace/electron";
+} from "@instrument-org/workspace/electron";
 import Store from "electron-store";
 import { z } from "zod";
 

@@ -1,7 +1,7 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { useTrashApp } from "@/client/hooks/use-trash-app";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
-import { type WorkspaceAppProject } from "@quests/workspace/client";
+import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { toast } from "sonner";
 
 import { ProjectStatsCard } from "./project-stats-card";

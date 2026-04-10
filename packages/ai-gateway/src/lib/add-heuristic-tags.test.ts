@@ -1,4 +1,4 @@
-import { AIProviderConfigIdSchema } from "@quests/shared";
+import { AIProviderConfigIdSchema, OUR_MODELS } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { AIGatewayModel } from "../schemas/model";
@@ -172,8 +172,8 @@ describe("addHeuristicTags", () => {
     expect(result.tags).not.toContain("legacy");
   });
 
-  it("should return default, recommended, and coding tags for quests author", () => {
-    const model = createMockModel("quests/auto");
+  it("should return default, recommended, and coding tags for instrument author", () => {
+    const model = createMockModel(OUR_MODELS.text.id);
     const result = addHeuristicTags(model, mockConfig);
     expect(result.tags).toEqual(["recommended", "coding", "default"]);
   });

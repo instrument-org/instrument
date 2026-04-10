@@ -1,3 +1,5 @@
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
+
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 
 interface AISDKProviderInfo {
@@ -118,6 +120,14 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     exportName: "createOpenRouter",
     package: "@openrouter/ai-sdk-provider",
   },
+  [OUR_PROVIDER_CONFIG.type]: {
+    envVars: {
+      apiKey: "APP_AI_API_KEY",
+      baseURL: "APP_AI_BASE_URL",
+    },
+    exportName: "createOpenRouter",
+    package: "@openrouter/ai-sdk-provider",
+  },
   perplexity: {
     envVars: {
       apiKey: "PERPLEXITY_API_KEY",
@@ -125,14 +135,6 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     },
     exportName: "createPerplexity",
     package: "@ai-sdk/perplexity",
-  },
-  quests: {
-    envVars: {
-      apiKey: "QUESTS_AI_API_KEY",
-      baseURL: "QUESTS_AI_BASE_URL",
-    },
-    exportName: "createOpenRouter",
-    package: "@openrouter/ai-sdk-provider",
   },
   together: {
     envVars: {

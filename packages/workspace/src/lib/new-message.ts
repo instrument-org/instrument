@@ -1,7 +1,7 @@
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
-} from "@quests/ai-gateway";
+} from "@instrument-org/ai-gateway";
 import { ok } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";

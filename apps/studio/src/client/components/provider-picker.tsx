@@ -15,8 +15,8 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
-import { type ProviderMetadata } from "@quests/ai-gateway/client";
-import { type AIProviderType } from "@quests/shared";
+import { type ProviderMetadata } from "@instrument-org/ai-gateway/client";
+import { type AIProviderType } from "@instrument-org/shared";
 import { useAtomValue } from "jotai";
 import { Award, ChevronDown } from "lucide-react";
 import { useState } from "react";

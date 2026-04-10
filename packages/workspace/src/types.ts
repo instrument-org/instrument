@@ -1,8 +1,8 @@
-import { type GetProviderConfigs } from "@quests/ai-gateway";
+import { type GetProviderConfigs } from "@instrument-org/ai-gateway";
 import {
   type CaptureEventFunction,
   type CaptureExceptionFunction,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 
 import { type APP_STATUSES } from "./constants";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";

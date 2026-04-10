@@ -62,6 +62,9 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: rharkor/caching-for-turbo@v2.3.11
+        env:
+          # Remove once https://github.com/rharkor/caching-for-turbo/issues/829 is resolved
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
       - if: matrix.os == 'ubuntu-latest'
         name: Build Linux

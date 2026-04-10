@@ -208,10 +208,29 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          submodules: false
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
           merge-multiple: false
+
+      - name: Build Slack commit summary
+        id: slack_summary
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -n1)
+          RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
+          COUNT=$(git log "$RANGE" --pretty=format:"%h" --no-merges | wc -l | tr -d ' ')
+          SHORT=$(git log "$RANGE" --pretty=format:"• %s" --no-merges | head -n10)
+          if [ "$COUNT" -gt 10 ]; then
+            SHORT="$SHORT
+          _…and $((COUNT - 10)) more_"
+          fi
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          { echo "short_log<<EOF"; echo "$SHORT"; echo "EOF"; } >> "$GITHUB_OUTPUT"
 
       - name: GitHub Release
         id: release
@@ -222,6 +241,7 @@ jobs:
           draft: true
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: artifacts/**/*
+          generate_release_notes: true
 
       - name: Delete workflow artifacts
         uses: geekyeggo/delete-artifact@176a747ab7e287e3ff4787bf8a148716375ca118 # v6.0.0
@@ -236,5 +256,5 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": "${{ (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* published successfully. <${{ steps.release.outputs.url }}|View release>"
+              "text": "${{ (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* (${{ steps.slack_summary.outputs.count }} commits) published successfully. <${{ steps.release.outputs.url }}|View release>\n\n${{ steps.slack_summary.outputs.short_log }}"
             }

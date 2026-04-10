@@ -29,4 +29,8 @@ runs:
         path: |
           ~/.cache/ffmpeg-static-nodejs
           ~/.cache/ffprobe-static-nodejs
+          ~/Library/Caches/ffmpeg-static-nodejs
+          ~/Library/Caches/ffprobe-static-nodejs
+          ~/AppData/Local/ffmpeg-static-nodejs/Cache
+          ~/AppData/Local/ffprobe-static-nodejs/Cache
   using: "composite"

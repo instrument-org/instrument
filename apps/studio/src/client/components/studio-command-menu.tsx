@@ -33,6 +33,7 @@ import {
   TrashIcon,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 export function StudioCommandMenu() {
   const [open, setOpen] = useState(false);
@@ -46,6 +47,10 @@ export function StudioCommandMenu() {
 
   const { mutate: setDeveloperMode } = useMutation(
     rpcClient.preferences.setDeveloperMode.mutationOptions(),
+  );
+
+  const { mutate: setReleaseChannel } = useMutation(
+    rpcClient.preferences.setReleaseChannel.mutationOptions(),
   );
 
   const { mutate: checkForUpdates } = useMutation(
@@ -274,13 +279,36 @@ export function StudioCommandMenu() {
                   keywords={["!dev"]}
                   onSelect={() => {
                     handleClose();
-                    setDeveloperMode({
-                      enabled: !(preferences?.developerMode ?? false),
-                    });
+                    const next = !(preferences?.developerMode ?? false);
+                    setDeveloperMode({ enabled: next });
+                    toast(
+                      next
+                        ? "Developer mode enabled"
+                        : "Developer mode disabled",
+                    );
                   }}
                   value="toggle-developer-mode"
                 >
                   <span>Toggle developer mode</span>
+                </CommandItem>
+              )}
+              {/* Only renders when "!beta" is typed exactly, so it never appears in the default list. */}
+              {search === "!beta" && (
+                <CommandItem
+                  keywords={["!beta"]}
+                  onSelect={() => {
+                    handleClose();
+                    const isBeta = preferences?.releaseChannel === "beta";
+                    setReleaseChannel({
+                      channel: isBeta ? undefined : "beta",
+                    });
+                    toast(
+                      isBeta ? "Beta channel removed" : "Beta channel enabled",
+                    );
+                  }}
+                  value="toggle-beta-channel"
+                >
+                  <span>Toggle beta channel</span>
                 </CommandItem>
               )}
             </CommandGroup>

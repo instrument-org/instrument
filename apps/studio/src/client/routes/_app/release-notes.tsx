@@ -11,7 +11,7 @@ import {
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { RELEASE_NOTES_URL } from "@quests/shared";
+import { APP_NAME, RELEASE_NOTES_URL } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
@@ -80,7 +80,7 @@ function RouteComponent() {
         <div>
           <h1 className="text-3xl font-bold">Release Notes</h1>
           <p className="mt-2 text-muted-foreground">
-            Latest updates and changes to Quests
+            Latest updates and changes to {APP_NAME}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">

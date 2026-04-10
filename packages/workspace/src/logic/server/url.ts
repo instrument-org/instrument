@@ -1,4 +1,4 @@
-import { type WorkspaceServerURL } from "@quests/shared";
+import { type WorkspaceServerURL } from "@instrument-org/shared";
 import { detect } from "detect-port";
 
 import {

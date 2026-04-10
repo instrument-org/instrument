@@ -1,3 +1,5 @@
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
+
 import { type AIGatewayProviderConfig } from "../../schemas/provider-config";
 import { SlashPrefixedPathSchema } from "../../schemas/slash-prefixed-path";
 import { baseURLWithDefault } from "./base-url-with-default";
@@ -29,7 +31,7 @@ export function apiURL({
     }
     case "openai":
     case "openrouter":
-    case "quests": {
+    case OUR_PROVIDER_CONFIG.type: {
       return `${baseURL}/v1${path}`;
     }
 

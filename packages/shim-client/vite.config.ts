@@ -1,7 +1,7 @@
 import {
   SHIM_IFRAME_BASE_PATH,
   SHIM_SCRIPTS,
-} from "@quests/workspace/for-shim";
+} from "@instrument-org/workspace/for-shim";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { defineConfig } from "vite";

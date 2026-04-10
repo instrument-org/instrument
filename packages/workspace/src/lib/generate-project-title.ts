@@ -1,4 +1,7 @@
-import { type AIGatewayModel, fetchAISDKModel } from "@quests/ai-gateway";
+import {
+  type AIGatewayModel,
+  fetchAISDKModel,
+} from "@instrument-org/ai-gateway";
 import { generateText } from "ai";
 import { ResultAsync } from "neverthrow";
 import { dedent } from "radashi";

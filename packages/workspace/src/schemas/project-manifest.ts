@@ -1,4 +1,4 @@
-import { TabIconsSchema } from "@quests/shared/icons";
+import { TabIconsSchema } from "@instrument-org/shared/icons";
 import { z } from "zod";
 
 export const ProjectManifestSchema = z.object({

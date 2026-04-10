@@ -1,6 +1,6 @@
 import { cn } from "@/client/lib/utils";
-import { type ConsoleLogType } from "@quests/shared/shim";
-import { type WorkspaceApp } from "@quests/workspace/client";
+import { type ConsoleLogType } from "@instrument-org/shared/shim";
+import { type WorkspaceApp } from "@instrument-org/workspace/client";
 import { useSetAtom } from "jotai";
 import { ChevronDown, Copy, MessageSquare, Trash, X } from "lucide-react";
 import { useMemo, useState } from "react";

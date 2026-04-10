@@ -1,4 +1,4 @@
 {
-  "extends": "@quests/typescript-config/no-react.json",
+  "extends": "@instrument-org/typescript-config/no-react.json",
   "include": ["src", "*.ts", "*.js", "*.cjs"]
 }

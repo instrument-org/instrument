@@ -1,8 +1,8 @@
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type StoreId,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Loader2 } from "lucide-react";

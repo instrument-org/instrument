@@ -1,5 +1,4 @@
-import { type contract } from "@/electron-main/api/contract";
-import { getToken } from "@/electron-main/api/utils";
+import { APP_CLIENT_NAME_STUDIO } from "@instrument-org/shared";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { DedupeRequestsPlugin } from "@orpc/client/plugins";
@@ -9,17 +8,27 @@ import {
 } from "@orpc/contract";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryClient } from "@tanstack/query-core";
+import { app } from "electron";
 import { isEqual } from "radashi";
 
+import { type contract } from "./contract";
 import { PATHS_TO_DEDUPE } from "./paths-to-dedupe";
+import { getToken } from "./utils";
 
 const RPC_LINK = new RPCLink({
   headers: () => {
     const token = getToken();
+    const version = app.getVersion();
+    const baseHeaders = {
+      "x-client-name": APP_CLIENT_NAME_STUDIO,
+      "x-client-platform": process.platform,
+      "x-client-version": version,
+    };
     if (!token) {
-      return {};
+      return baseHeaders;
     }
     return {
+      ...baseHeaders,
       authorization: `Bearer ${token}`,
     };
   },
@@ -36,17 +45,17 @@ const RPC_LINK = new RPCLink({
       ],
     }),
   ],
-  url: `${import.meta.env.MAIN_VITE_QUESTS_API_BASE_URL}/rpc`,
+  url: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/rpc`,
 });
 
 const baseClient: ContractRouterClient<typeof contract> =
   createORPCClient(RPC_LINK);
-export const apiRPCClient = createTanstackQueryUtils(baseClient);
+export const platformApiRpcClient = createTanstackQueryUtils(baseClient);
 
 export type Subscription = Outputs["users"]["getSubscriptionStatus"];
 type Outputs = InferContractRouterOutputs<typeof contract>;
 
-export const apiQueryClient = new QueryClient({
+export const platformApiQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,

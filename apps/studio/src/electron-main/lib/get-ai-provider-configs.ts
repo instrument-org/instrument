@@ -1,6 +1,7 @@
-import { getToken } from "@/electron-main/api/utils";
+import { getToken } from "@/electron-main/platform-api/utils";
 import { getProviderConfigsStore } from "@/electron-main/stores/provider-configs";
-import { type AIGatewayProviderConfig } from "@quests/ai-gateway";
+import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 
 // Helper to get stored configs and add the Quests config if the user is logged in.
 export function getAIProviderConfigs(): AIGatewayProviderConfig.Type[] {
@@ -10,11 +11,9 @@ export function getAIProviderConfigs(): AIGatewayProviderConfig.Type[] {
 
   if (token) {
     keyBasedProviderConfigs.push({
+      ...OUR_PROVIDER_CONFIG,
       apiKey: token,
-      baseURL: `${import.meta.env.MAIN_VITE_QUESTS_API_BASE_URL}/gateway/openrouter`,
-      cacheIdentifier: "quests",
-      id: "quests",
-      type: "quests",
+      baseURL: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/gateway/openrouter`,
     });
   }
 

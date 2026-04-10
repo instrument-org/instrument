@@ -1,14 +1,14 @@
 {
-  "name": "@quests/studio",
-  "version": "1.13.2-beta.7",
-  "description": "Quests, the open-source app builder",
+  "name": "@instrument-org/studio",
+  "version": "1.0.0-beta.7",
+  "description": "Electron desktop app for Instrument",
   "repository": {
     "type": "git",
-    "url": "https://github.com/quests-org/quests"
+    "url": "https://github.com/instrument-org/instrument"
   },
   "author": {
-    "name": "Quests",
-    "email": "oss@quests.dev"
+    "name": "Instrument",
+    "email": "oss@tryinstrument.com"
   },
   "type": "module",
   "main": "./out/main/index.js",
@@ -41,15 +41,15 @@
     "check:types": "tsc --noEmit",
     "dev": "NODE_OPTIONS='--enable-source-maps' electron-vite dev --sourcemap",
     "dev:fresh": "ELECTRON_USE_NEW_USER_FOLDER=true NODE_OPTIONS='--enable-source-maps' electron-vite dev --sourcemap",
-    "lint:fix": "eslint . --max-warnings 0 --fix",
+    "fix:lint": "eslint . --max-warnings 0 --fix",
     "smoke-test": "vitest run --config vitest.smoke.config.ts",
     "start": "electron-vite preview",
-    "tag:release:minor": "node --experimental-strip-types scripts/tag-release.ts minor",
-    "tag:release:minor:beta": "node --experimental-strip-types scripts/tag-release.ts minor beta",
-    "tag:release:patch": "node --experimental-strip-types scripts/tag-release.ts patch",
-    "tag:release:patch:beta": "node --experimental-strip-types scripts/tag-release.ts patch beta",
-    "tail-logs:dev": "tail -f ~/Library/Logs/Quests/main.log",
-    "tail-logs:prod": "tail -f ~/Library/Application\\ Support/Quests/logs/main.log",
+    "tag:release:minor": "node scripts/tag-release.ts minor",
+    "tag:release:minor:beta": "node scripts/tag-release.ts minor beta",
+    "tag:release:patch": "node scripts/tag-release.ts patch",
+    "tag:release:patch:beta": "node scripts/tag-release.ts patch beta",
+    "tail-logs:dev": "tail -f ~/Library/Logs/Instrument/main.log",
+    "tail-logs:prod": "tail -f ~/Library/Application\\ Support/Instrument/logs/main.log",
     "test": "vitest",
     "turbo:check": "turbo run check:types check:lint",
     "turbo:check-and-test": "turbo run check:types check:lint test:ci",
@@ -59,14 +59,14 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@hono/node-server": "^1.18.1",
+    "@instrument-org/ai-gateway": "workspace:*",
+    "@instrument-org/shared": "workspace:*",
+    "@instrument-org/workspace": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/shared": "catalog:",
     "@orpc/tanstack-query": "catalog:",
-    "@quests/ai-gateway": "workspace:*",
-    "@quests/shared": "workspace:*",
-    "@quests/workspace": "workspace:*",
     "@tanstack/query-core": "^5.90.12",
     "@tanstack/react-virtual": "^3.13.18",
     "@types/ws": "^8.18.1",
@@ -76,7 +76,7 @@
     "better-auth": "catalog:",
     "detect-port": "^2.1.0",
     "dugite": "3.0.0-rc11",
-    "electron-context-menu": "^4.1.1",
+    "electron-context-menu": "^4.1.2",
     "electron-log": "^5.4.1",
     "electron-store": "^10.1.0",
     "electron-updater": "^6.6.8",
@@ -102,10 +102,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@instrument-org/eslint-config": "workspace:*",
+    "@instrument-org/typescript-config": "workspace:*",
     "@julr/vite-plugin-validate-env": "^2.2.0",
-    "@quests/components": "workspace:*",
-    "@quests/eslint-config": "workspace:*",
-    "@quests/typescript-config": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -148,8 +147,8 @@
     "color-hash": "^2.0.2",
     "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
-    "electron": "^39.2.6",
-    "electron-builder": "26.3.4",
+    "electron": "^41.2.0",
+    "electron-builder": "26.8.2",
     "electron-vite": "^5.0.0",
     "jotai": "^2.14.0",
     "katex": "^0.16.27",
@@ -177,7 +176,7 @@
     "write-package": "^7.1.0"
   },
   "engines": {
-    "node": ">=22.21.1"
+    "node": ">=24.14.0"
   },
-  "productName": "Quests"
+  "productName": "Instrument"
 }

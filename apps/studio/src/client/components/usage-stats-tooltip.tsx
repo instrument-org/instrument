@@ -2,7 +2,7 @@ import { formatNumber } from "@/client/lib/format-number";
 import { formatDuration } from "@/client/lib/format-time";
 import { isValidNumber } from "@/client/lib/usage-utils";
 import { cn } from "@/client/lib/utils";
-import { type SessionMessage } from "@quests/workspace/client";
+import { type SessionMessage } from "@instrument-org/workspace/client";
 import { Coins, MessageCircle } from "lucide-react";
 import { type ReactNode } from "react";
 

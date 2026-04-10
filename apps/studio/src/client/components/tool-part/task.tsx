@@ -3,7 +3,7 @@ import {
   type SessionMessage,
   type SessionMessagePart,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Loader2Icon } from "lucide-react";
 import { type ReactNode, useState } from "react";

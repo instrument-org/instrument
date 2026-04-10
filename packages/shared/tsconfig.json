@@ -1,4 +1,7 @@
 {
-  "extends": "@quests/typescript-config/no-react.json",
+  "extends": "@instrument-org/typescript-config/no-react.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
   "include": ["src", "*.ts"]
 }

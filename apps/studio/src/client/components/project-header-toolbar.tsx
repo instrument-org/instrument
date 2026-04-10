@@ -18,7 +18,7 @@ import { OpenAppInTypeSchema } from "@/shared/schemas/editors";
 import {
   type StoreId,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {

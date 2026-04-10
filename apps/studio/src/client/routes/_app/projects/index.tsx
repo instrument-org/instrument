@@ -24,12 +24,16 @@ import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { EVAL_SUBDOMAIN_PREFIX } from "@quests/shared";
+import {
+  APP_NAME,
+  EVAL_SUBDOMAIN_PREFIX,
+  PROJECT_MANIFEST_FILE_NAME,
+} from "@instrument-org/shared";
 import {
   isProjectSubdomain,
   type ProjectSubdomain,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Circle, Loader2, Square, Trash2 } from "lucide-react";
@@ -449,8 +453,8 @@ function RouteComponent() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Select a zip file exported from Quests containing a
-                  quests.json file
+                  Select a zip file exported from {APP_NAME} containing a
+                  {PROJECT_MANIFEST_FILE_NAME} file
                 </TooltipContent>
               </Tooltip>
               <input

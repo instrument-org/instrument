@@ -1,7 +1,7 @@
 {
   "tasks": [
     {
-      "command": "turbo run build --filter=@quests/shim-client",
+      "command": "turbo run build --filter=@instrument-org/shim-client",
       "detail": "Build the shim client bundle (cached via Turbo)",
       "label": "Build Shim Client",
       "options": {
@@ -14,7 +14,7 @@
         "clear": true,
         "echo": false,
         "focus": false,
-        "panel": "shared",
+        "panel": "dedicated",
         "reveal": "silent",
         "showReuseMessage": false
       },

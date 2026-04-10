@@ -1,4 +1,4 @@
-import { type SessionMessage } from "@quests/workspace/client";
+import { type SessionMessage } from "@instrument-org/workspace/client";
 
 import { getRegisteredSessions } from "./helpers";
 

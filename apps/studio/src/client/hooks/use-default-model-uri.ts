@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 

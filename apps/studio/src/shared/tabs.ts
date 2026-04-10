@@ -1,5 +1,5 @@
-import { type TabIconName } from "@quests/shared/icons";
-import { type ProjectSubdomain } from "@quests/workspace/client";
+import { type TabIconName } from "@instrument-org/shared/icons";
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 
 export interface Tab {
   iconName?: TabIconName;

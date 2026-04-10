@@ -1,13 +1,16 @@
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
-} from "@quests/ai-gateway/client";
-import { type AIProviderConfigId } from "@quests/shared";
+} from "@instrument-org/ai-gateway/client";
+import {
+  type AIProviderConfigId,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import {
   type SessionMessage,
   type SessionMessagePart,
   StoreId,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 
 interface PresetSessionData {
   messages: SessionMessage.WithParts[];
@@ -146,13 +149,13 @@ export function createDefaultAIGatewayModel(): AIGatewayModel.Type {
     features: ["inputText", "outputText", "tools"],
     name: "Claude 3.5 Sonnet",
     params: {
-      provider: "quests",
-      providerConfigId: "quests" as AIProviderConfigId,
+      provider: OUR_PROVIDER_CONFIG.type,
+      providerConfigId: OUR_PROVIDER_CONFIG.id as AIProviderConfigId,
     },
     providerId: "anthropic-sonnet-4.5" as AIGatewayModel.ProviderId,
     providerName: "Anthropic",
     tags: ["default"],
-    uri: "anthropic/claude-sonnet-4.5?provider=quests&providerConfigId=quests" as AIGatewayModelURI.Type,
+    uri: `anthropic/claude-sonnet-4.5?provider=${OUR_PROVIDER_CONFIG.type}&providerConfigId=${OUR_PROVIDER_CONFIG.id}` as AIGatewayModelURI.Type,
   };
 }
 

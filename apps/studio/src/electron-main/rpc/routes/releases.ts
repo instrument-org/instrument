@@ -1,5 +1,5 @@
 import { base } from "@/electron-main/rpc/base";
-import { APP_REPO_NAME, GITHUB_ORG } from "@quests/shared";
+import { APP_REPO_NAME, GITHUB_ORG } from "@instrument-org/shared";
 import ms from "ms";
 import { z } from "zod";
 

@@ -26,5 +26,3 @@ export const SessionMarkdown = ({
     </div>
   );
 };
-
-SessionMarkdown.displayName = "MarkdownProse";

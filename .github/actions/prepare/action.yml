@@ -9,14 +9,34 @@ name: Prepare
 
 runs:
   steps:
-    - uses: pnpm/action-setup@v4.4.0
-    - uses: actions/setup-node@v6.3.0
+    - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+    # pnpm-workspace.yaml included so allowBuilds/ignoredOptionalDependencies
+    # changes bust the cache (setup-node only hashes pnpm-lock.yaml by default).
+    - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
       with:
         cache: pnpm
-        node-version: "22"
+        cache-dependency-path: |
+          pnpm-lock.yaml
+          pnpm-workspace.yaml
+        node-version: "24"
+    - name: set-cache-dirs
+      run: |
+        mkdir -p "$HOME/.cache/dugite"
+        echo "DUGITE_CACHE_DIR=$HOME/.cache/dugite" >> "$GITHUB_ENV"
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+          echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+        elif [ "$RUNNER_OS" = "macOS" ]; then
+          echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+        fi
+      shell: bash
     - env:
         GITHUB_TOKEN: ${{ inputs.token }}
       name: install-dependencies
       run: pnpm install --frozen-lockfile
       shell: bash
+    - env:
+        # Remove once https://github.com/rharkor/caching-for-turbo/issues/829 is resolved
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      uses: rharkor/caching-for-turbo@0abc2381e688c4d2832f0665a68a01c6e82f0d6c # v2.3.11
   using: composite

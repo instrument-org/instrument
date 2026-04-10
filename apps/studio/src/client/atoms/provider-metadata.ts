@@ -1,8 +1,8 @@
 import { atomWithoutSuspense } from "@/client/lib/atom-without-suspense";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
-import { type ProviderMetadata } from "@quests/ai-gateway/client";
-import { type AIProviderType } from "@quests/shared";
+import { type ProviderMetadata } from "@instrument-org/ai-gateway/client";
+import { type AIProviderType } from "@instrument-org/shared";
 import { atom } from "jotai";
 import { sort } from "radashi";
 

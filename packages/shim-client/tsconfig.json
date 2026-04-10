@@ -1,5 +1,5 @@
 {
-  "extends": "@quests/typescript-config/react.json",
+  "extends": "@instrument-org/typescript-config/react.json",
   "compilerOptions": {
     "types": ["vite/client"]
   },

@@ -1,4 +1,4 @@
-import type { ProjectSubdomain } from "@quests/workspace/client";
+import type { ProjectSubdomain } from "@instrument-org/workspace/client";
 
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { rpcClient } from "@/client/rpc/client";

@@ -7,7 +7,11 @@ import { Progress } from "@/client/components/ui/progress";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { APP_REPO_URL, DISCORD_URL, MANUAL_DOWNLOAD_URL } from "@quests/shared";
+import {
+  APP_REPO_URL,
+  DISCORD_URL,
+  MANUAL_DOWNLOAD_URL,
+} from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ExternalLink as ExternalLinkIcon } from "lucide-react";

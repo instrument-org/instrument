@@ -1,16 +1,16 @@
 import { ExternalLink } from "@/client/components/external-link";
 import {
+  APP_NAME,
   APP_REPO_URL,
   DISCORD_URL,
   NEW_ISSUE_URL,
-  PRODUCT_NAME,
-} from "@quests/shared";
+} from "@instrument-org/shared";
 
 export function AppFooter() {
   return (
     <footer className="w-full px-8 py-4">
       <p className="text-center text-xs text-muted-foreground">
-        {PRODUCT_NAME} is{" "}
+        {APP_NAME} is{" "}
         <ExternalLink
           className="transition-colors hover:text-foreground hover:underline"
           href={APP_REPO_URL}

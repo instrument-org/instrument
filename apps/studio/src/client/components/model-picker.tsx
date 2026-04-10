@@ -1,3 +1,4 @@
+import { StudioIconGlyph } from "@/client/components/studio-icon";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -23,9 +24,8 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
-} from "@quests/ai-gateway/client";
-import { QuestsLogoSimpleIcon } from "@quests/components/logo-simple";
-import { QUESTS_AUTO_MODEL_ID } from "@quests/shared";
+} from "@instrument-org/ai-gateway/client";
+import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -46,7 +46,7 @@ interface ModelPickerProps {
   disabled?: boolean;
   errors?: RPCOutput["gateway"]["models"]["list"]["errors"];
   isError?: boolean;
-  isInvalidQuestsModel?: boolean;
+  isInvalidOurModel?: boolean;
   isLoading?: boolean;
   models?: AIGatewayModel.Type[];
   onAddProvider?: () => void;
@@ -61,7 +61,7 @@ export function ModelPicker({
   disabled = false,
   errors,
   isError = false,
-  isInvalidQuestsModel = false,
+  isInvalidOurModel = false,
   isLoading = false,
   models,
   onAddProvider,
@@ -76,12 +76,12 @@ export function ModelPicker({
   const hasPlan = useHasPlan();
 
   const autoModel = useMemo(
-    () => models?.find((m) => m.providerId === QUESTS_AUTO_MODEL_ID),
+    () => models?.find((m) => m.providerId === OUR_MODELS.text.id),
     [models],
   );
 
   const modelsWithoutAuto = useMemo(
-    () => models?.filter((m) => m.providerId !== QUESTS_AUTO_MODEL_ID) ?? [],
+    () => models?.filter((m) => m.providerId !== OUR_MODELS.text.id) ?? [],
     [models],
   );
 
@@ -95,11 +95,13 @@ export function ModelPicker({
   const isSelectDisabled = disabled || isLoading || isError;
 
   const hasQuestsProviderError = useMemo(
-    () => errors?.some((error) => error.config.type === "quests") ?? false,
+    () =>
+      errors?.some((error) => error.config.type === OUR_MODELS.providerType) ??
+      false,
     [errors],
   );
 
-  const isAutoMode = selectedModel?.providerId === QUESTS_AUTO_MODEL_ID;
+  const isAutoMode = selectedModel?.providerId === OUR_MODELS.text.id;
 
   const hideModelList = isAutoMode && !searchQuery;
 
@@ -126,7 +128,7 @@ export function ModelPicker({
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="shrink-0">
-              {isInvalidQuestsModel ? (
+              {isInvalidOurModel ? (
                 <AlertTriangle className="size-3 text-destructive" />
               ) : (
                 <AIProviderIcon
@@ -137,7 +139,7 @@ export function ModelPicker({
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            {isInvalidQuestsModel ? (
+            {isInvalidOurModel ? (
               <p>Model requires a paid plan.</p>
             ) : (
               <p>{selectedModel.providerName}</p>
@@ -184,7 +186,7 @@ export function ModelPicker({
           <AutoModeSwitch
             autoModel={autoModel}
             checked={isAutoMode}
-            isInvalidQuestsModel={isInvalidQuestsModel}
+            isInvalidOurModel={isInvalidOurModel}
             onCheckedChange={(checked) => {
               if (checked && autoModel) {
                 onValueChange(autoModel.uri);
@@ -244,12 +246,10 @@ export function ModelPicker({
                           void navigate({ to: "/subscribe" });
                         },
                       },
-                      description: `${modelName} is available with a paid Quests plan.`,
+                      description: `${modelName} is available with a paid ${APP_NAME} plan.`,
                       dismissible: true,
                       duration: 7000,
-                      icon: (
-                        <QuestsLogoSimpleIcon className="size-4 text-brand" />
-                      ),
+                      icon: <StudioIconGlyph className="size-4 text-brand" />,
                     });
                   } else {
                     onValueChange(uri);
@@ -269,12 +269,12 @@ export function ModelPicker({
 function AutoModeSwitch({
   autoModel,
   checked,
-  isInvalidQuestsModel,
+  isInvalidOurModel,
   onCheckedChange,
 }: {
   autoModel?: AIGatewayModel.Type;
   checked: boolean;
-  isInvalidQuestsModel: boolean;
+  isInvalidOurModel: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
   const navigate = useNavigate();
@@ -283,7 +283,7 @@ function AutoModeSwitch({
     return null;
   }
 
-  if (isInvalidQuestsModel && !checked) {
+  if (isInvalidOurModel && !checked) {
     return (
       <div
         className="flex flex-col gap-2 px-4 py-3"
@@ -497,7 +497,7 @@ function NoProvidersMessage({ onAddProvider }: { onAddProvider: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 py-6">
       <p className="text-sm text-muted-foreground">
-        Connect a provider to use Quests
+        Connect a provider to use {APP_NAME}
       </p>
       <Button onClick={onAddProvider} size="sm" variant="outline">
         <Plus className="mr-2 size-4" />

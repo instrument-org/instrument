@@ -1,4 +1,4 @@
-import { APP_PROTOCOL } from "@quests/shared";
+import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import { AlertCircle, ExternalLink } from "lucide-react";
 
 export function ErrorOverlay({
@@ -21,7 +21,7 @@ export function ErrorOverlay({
           <p className="text-sm text-muted-foreground">
             {isInsideStudio
               ? "There was an error running your app. Check the console for more details."
-              : "There was an error running your app. For the best development experience with full debugging tools, open this app in Quests app."}
+              : `There was an error running your app. For the best development experience with full debugging tools, open this app in ${APP_NAME} app.`}
           </p>
         </div>
 
@@ -39,7 +39,7 @@ export function ErrorOverlay({
               onClick={() => window.open(`${APP_PROTOCOL}://`, "_self")}
             >
               <ExternalLink className="size-4" />
-              Open in Quests
+              Open in ${APP_NAME}
             </button>
           )}
         </div>

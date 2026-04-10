@@ -1,4 +1,7 @@
-import { type CaptureExceptionFunction } from "@quests/shared";
+import {
+  type CaptureExceptionFunction,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
@@ -29,7 +32,7 @@ export function fetchModelsForProvider(
           return fetchAndParseOpenAIModels(config);
         }
         case "openrouter":
-        case "quests": {
+        case OUR_PROVIDER_CONFIG.type: {
           return fetchModelsForOpenRouter(config);
         }
         case "vercel": {

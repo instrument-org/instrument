@@ -1,6 +1,6 @@
+import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
-import { AIGatewayModelURI, fetchModel } from "@quests/ai-gateway";
-import { mergeGenerators } from "@quests/shared/merge-generators";
 import { parallel } from "radashi";
 import { z } from "zod";
 

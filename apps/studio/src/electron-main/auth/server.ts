@@ -16,7 +16,12 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/session";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { serve } from "@hono/node-server";
-import { APP_PROTOCOL, SUPPORT_EMAIL } from "@quests/shared";
+import {
+  APP_NAME,
+  APP_PROTOCOL,
+  APP_URL,
+  SUPPORT_EMAIL,
+} from "@instrument-org/shared";
 import { detect } from "detect-port";
 import { Hono } from "hono";
 import { html } from "hono/html";
@@ -208,15 +213,19 @@ function renderAuthPage({
   const renderContent = () => {
     if (isUnauthorized) {
       return html`<h1 class="text-xl text-center font-bold">
-          You don't have access to Quests yet.
+          You don't have access to ${APP_NAME} yet.
         </h1>
         <p class="text-center text-stone-400">
           Please join the
-          <a class="underline" href="https://quests.dev">waitlist</a>.
+          <a class="underline" href=${APP_URL}>waitlist</a>.
         </p>
         <p class="flex gap-2">
           ${contactUsButton}
-          ${button("default", `${APP_PROTOCOL}://`, "View error in Quests")}
+          ${button(
+            "default",
+            `${APP_PROTOCOL}://`,
+            `View error in ${APP_NAME}`,
+          )}
         </p>`;
     }
     if (isError) {
@@ -225,14 +234,20 @@ function renderAuthPage({
         </h1>
         <p class="flex gap-2">
           ${contactUsButton}
-          ${button("default", `${APP_PROTOCOL}://`, "View error in Quests")}
+          ${button(
+            "default",
+            `${APP_PROTOCOL}://`,
+            `View error in ${APP_NAME}`,
+          )}
         </p>`;
     }
     return html`<h2 class="text-xl text-center font-bold">
-        You have successfully signed in to Quests. <br />You may now close this
-        window.
+        You have successfully signed in to ${APP_NAME}. <br />You may now close
+        this window.
       </h2>
-      <p>${button("default", `${APP_PROTOCOL}://home`, "Open Quests")}</p>`;
+      <p>
+        ${button("default", `${APP_PROTOCOL}://home`, `Open ${APP_NAME}`)}
+      </p>`;
   };
 
   return html`<!DOCTYPE html>
@@ -242,19 +257,19 @@ function renderAuthPage({
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link
           rel="icon"
-          href="https://quests.dev/favicon.ico"
+          href=${APP_URL}/favicon.ico"
           type="image/x-icon"
           sizes="16x16"
         />
         <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-        <title>Sign in to Quests</title>
+        <title>Sign in to ${APP_NAME}</title>
       </head>
       <body class="dark:bg-stone-950 dark:text-white">
         <div
           class="flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10"
         >
           <div id="icon-container" class="flex items-center justify-center">
-            <img id="app-icon" src="/icon.png" alt="Quests" class="w-24 h-24" />
+            <img id="app-icon" src="/icon.png" alt="${APP_NAME}" class="w-24 h-24" />
           </div>
           ${renderContent()}
         </div>
@@ -263,7 +278,7 @@ function renderAuthPage({
             .getElementById("app-icon")
             .addEventListener("error", function () {
               document.getElementById("icon-container").innerHTML =
-                '<h1 class="text-3xl font-bold">Quests</h1>';
+                '<h1 class="text-3xl font-bold">' + ${JSON.stringify(APP_NAME)} + '</h1>';
             });
         </script>
       </body>

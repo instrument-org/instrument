@@ -1,4 +1,4 @@
-import { SUPPORT_EMAIL } from "@quests/shared";
+import { SUPPORT_EMAIL } from "@instrument-org/shared";
 import { AlertCircle } from "lucide-react";
 
 import { EmailLink } from "./email-link";

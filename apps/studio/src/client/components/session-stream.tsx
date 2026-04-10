@@ -1,11 +1,11 @@
-import { type AIGatewayModelURI } from "@quests/ai-gateway/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   isToolPart,
   type SessionMessage,
   type SessionMessagePart,
   type StoreId,
   type WorkspaceAppProject,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertTriangle } from "lucide-react";
 import { useCallback, useMemo } from "react";

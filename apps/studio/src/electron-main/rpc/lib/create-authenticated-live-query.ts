@@ -1,5 +1,5 @@
-import { apiQueryClient } from "@/electron-main/api/client";
-import { hasToken } from "@/electron-main/api/utils";
+import { platformApiQueryClient } from "@/electron-main/platform-api/client";
+import { hasToken } from "@/electron-main/platform-api/utils";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   type QueryKey,
@@ -23,7 +23,10 @@ export async function* createAuthenticatedLiveQuery<TData>({
   queryKey: QueryKey;
   signal: AbortSignal | undefined;
 }): AsyncGenerator<null | TData, void, unknown> {
-  const observer = new QueryObserver(apiQueryClient, getOptions(hasToken()));
+  const observer = new QueryObserver(
+    platformApiQueryClient,
+    getOptions(hasToken()),
+  );
 
   let resolveNext: (() => void) | undefined;
   let lastYieldedData: unknown;
@@ -48,9 +51,9 @@ export async function* createAuthenticatedLiveQuery<TData>({
         const currentHasToken = hasToken();
         if (currentHasToken) {
           observer.setOptions(getOptions(true));
-          await apiQueryClient.invalidateQueries({ queryKey });
+          await platformApiQueryClient.invalidateQueries({ queryKey });
         } else {
-          apiQueryClient.removeQueries({ queryKey });
+          platformApiQueryClient.removeQueries({ queryKey });
           observer.setOptions(getOptions(false));
         }
       }

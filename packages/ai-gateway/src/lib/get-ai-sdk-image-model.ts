@@ -1,8 +1,5 @@
 import { type ImageModelV3, type LanguageModelV3 } from "@ai-sdk/provider";
-import {
-  QUESTS_AUTO_IMAGE_MODEL_ID,
-  type WorkspaceServerURL,
-} from "@quests/shared";
+import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
 import { type AIGatewayModel } from "../schemas/model";
@@ -26,7 +23,7 @@ import { selectProviderConfigs } from "./select-provider-configs";
 
 const PROVIDER_TYPE_PRIORITY: ImageGenerationProviderType[] = [
   // Ordered by quality as of 2026-01-30
-  "quests",
+  OUR_MODELS.providerType,
   "openrouter",
   "google",
   "openai",
@@ -133,9 +130,9 @@ async function getAISDKImageModel({
       const model = sdk.imageModel("google/gemini-2.5-flash-image");
       return Result.ok({ model, type: "image" as const });
     }
-    case "quests": {
+    case OUR_MODELS.providerType: {
       const sdk = await createOpenRouterSDK(config, workspaceServerURL);
-      const model = sdk.imageModel(QUESTS_AUTO_IMAGE_MODEL_ID);
+      const model = sdk.imageModel(OUR_MODELS.image.id);
       return Result.ok({ model, type: "image" as const });
     }
     case "together": {

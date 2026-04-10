@@ -1,7 +1,7 @@
 import {
   type SessionMessage,
   type SessionMessagePart,
-} from "@quests/workspace/client";
+} from "@instrument-org/workspace/client";
 import { memo } from "react";
 
 import { SessionMarkdown } from "./session-markdown";

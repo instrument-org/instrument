@@ -1,4 +1,4 @@
-import { type SessionMessagePart } from "@quests/workspace/client";
+import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { CodeBlock } from "./code-block";
 import { ToolPartFilePath } from "./file-path";

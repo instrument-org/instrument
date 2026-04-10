@@ -1,10 +1,11 @@
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import { CenteredLayout } from "@/client/components/centered-layout";
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
 import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
 import { ManualProviderButton } from "@/client/components/manual-provider-button";
-import { StarryLayout } from "@/client/components/starry-layout";
+import { StudioIcon } from "@/client/components/studio-icon";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -14,8 +15,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
 import { rpcClient } from "@/client/rpc/client";
-import { QuestsAnimatedLogo } from "@quests/components/animated-logo";
-import { type AIProviderType } from "@quests/shared";
+import { type AIProviderType, APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
@@ -48,13 +48,14 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
     }
   };
 
-  const title = mode === "setup" ? "Sign in to Quests" : "Sign in to Quests";
+  const title =
+    mode === "setup" ? `Sign in to ${APP_NAME}` : `Sign in to ${APP_NAME}`;
   const readyTitle = mode === "setup" ? "You're all set!" : "You're signed in!";
   const subtitle = "Claim your free AI credits, no card required";
   const readySubtitle = "You're now ready to start building!";
 
   return (
-    <StarryLayout footer={!isReady && <TermsFooter />}>
+    <CenteredLayout footer={!isReady && <TermsFooter />}>
       <div className="max-w-sm">
         <div className="flex flex-col gap-6 pb-12">
           <div className="flex flex-col items-center gap-6">
@@ -65,10 +66,10 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
                     <Check className="size-6 text-brand-foreground" />
                   </div>
                 ) : (
-                  <QuestsAnimatedLogo size={64} />
+                  <StudioIcon className="size-16" />
                 )}
               </div>
-              <span className="sr-only">Quests</span>
+              <span className="sr-only">{APP_NAME}</span>
               <h1 className="text-3xl font-bold">
                 {isReady ? readyTitle : title}
               </h1>
@@ -150,6 +151,6 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
           />
         </div>
       </div>
-    </StarryLayout>
+    </CenteredLayout>
   );
 }

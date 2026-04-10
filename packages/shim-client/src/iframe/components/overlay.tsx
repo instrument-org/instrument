@@ -1,4 +1,4 @@
-import { type HeartbeatResponse } from "@quests/workspace/for-shim";
+import { type HeartbeatResponse } from "@instrument-org/workspace/for-shim";
 import { FileX, Loader2 } from "lucide-react";
 
 import { ErrorOverlay } from "./error-overlay";

@@ -1,4 +1,4 @@
-import { QUESTS_AUTO_MODEL_ID } from "@quests/shared";
+import { OUR_MODELS } from "@instrument-org/shared";
 import { unique } from "radashi";
 
 import { type AIGatewayModel } from "../schemas/model";
@@ -57,16 +57,16 @@ export function addHeuristicTags(
     tags.push("default");
   }
 
-  if (author === "quests") {
+  if (author === OUR_MODELS.author) {
     tags = [...tags, "recommended", "coding"];
-    if (model.providerId === QUESTS_AUTO_MODEL_ID) {
+    if (model.providerId === OUR_MODELS.text.id) {
       tags.push("default");
     }
   }
 
   if (
-    params.provider === "quests" &&
-    model.providerId !== QUESTS_AUTO_MODEL_ID
+    params.provider === OUR_MODELS.providerType &&
+    model.providerId !== OUR_MODELS.text.id
   ) {
     tags.push("premium");
   }

@@ -6,8 +6,8 @@ import {
   setLastUpdateCheck,
 } from "@/electron-main/stores/preferences";
 import { openSettingsWindow as openSettingsWindowFn } from "@/electron-main/windows/settings";
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { eventIterator } from "@orpc/server";
-import { AIGatewayModelURI } from "@quests/ai-gateway";
 import { app } from "electron";
 import { z } from "zod";
 
@@ -19,6 +19,7 @@ function getPreferencesData() {
     lastUpdateCheck: preferencesStore.get("lastUpdateCheck"),
     preferApiKeyOverAccount:
       preferencesStore.get("preferApiKeyOverAccount") || false,
+    releaseChannel: preferencesStore.get("releaseChannel"),
     theme: preferencesStore.get("theme"),
   };
 }
@@ -49,6 +50,17 @@ const setDeveloperMode = base
   .handler(({ input }) => {
     const preferencesStore = getPreferencesStore();
     preferencesStore.set("developerMode", input.enabled);
+  });
+
+const setReleaseChannel = base
+  .input(z.object({ channel: z.enum(["latest", "beta", "alpha"]).optional() }))
+  .handler(({ input }) => {
+    const preferencesStore = getPreferencesStore();
+    if (input.channel === undefined) {
+      preferencesStore.delete("releaseChannel");
+    } else {
+      preferencesStore.set("releaseChannel", input.channel);
+    }
   });
 
 const openSettingsWindow = base
@@ -125,5 +137,6 @@ export const preferences = {
   setDeveloperMode,
   setEnableUsageMetrics,
   setPreferApiKeyOverAccount,
+  setReleaseChannel,
   setTheme,
 };

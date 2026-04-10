@@ -1,4 +1,4 @@
-import { type SessionMessagePart } from "@quests/workspace/client";
+import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { HelpCircle } from "lucide-react";
 import { useState } from "react";
 

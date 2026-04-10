@@ -1,50 +1,42 @@
 {
-  "name": "quests-monorepo",
+  "name": "@instrument-org/monorepo",
   "version": "0.0.0",
-  "description": "The open-source app builder that builds and runs apps on your computer using any LLM.",
+  "description": "",
   "repository": {
     "type": "git",
-    "url": "https://github.com/quests-org/quests"
+    "url": "https://github.com/instrument-org/instrument"
   },
   "author": {
-    "name": "Quests",
-    "email": "oss@quests.dev"
+    "name": "Instrument",
+    "email": "oss@tryinstrument.com"
   },
   "type": "module",
   "files": [],
   "scripts": {
     "build": "turbo run build",
-    "check-and-test": "turbo run check:electron-node-version check:format check:unused check:unused-words check:packages check:spelling check:md check:types check:lint check:build test:ci --ui tui --continue=dependencies-successful --output-logs errors-only",
-    "check:electron-node-version": "node --experimental-strip-types scripts/check-electron-node-version.ts",
+    "check-and-test": "turbo run check:actions check:electron-node-version check:format check:unused check:unused-words check:packages:install check:packages:dedupe check:spelling check:md check:types check:lint check:build test:ci --ui tui --continue=dependencies-successful --output-logs errors-only",
+    "check-test-and-push": "pnpm check-and-test && git push",
+    "check:actions": "node scripts/check-actions.ts",
+    "check:electron-node-version": "node scripts/check-electron-node-version.ts",
     "check:format": "prettier --check .",
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:md": "markdownlint-cli2 \"**/*.md\" \".github/**/*.md\"",
-    "check:packages": "pnpm dedupe --check",
+    "check:packages:dedupe": "pnpm dedupe --check",
+    "check:packages:install": "pnpm install --frozen-lockfile",
     "check:spelling": "cspell --no-progress \"**\" \".github/**/*\" \".vscode/**/*\"",
     "check:types": "tsc --noEmit",
     "check:unused": "knip",
     "check:unused-words": "cspell-check-unused-words",
-    "dev:studio": "turbo run dev --filter=@quests/studio --filter=@quests/shim-client --ui tui",
+    "dev:studio": "turbo run dev --filter=@instrument-org/studio --filter=@instrument-org/shim-client --ui tui",
     "fix:format": "prettier --write .",
+    "fix:lint": "eslint . --fix",
     "fix:unused": "knip --fix",
     "fix:unused-words": "cspell-check-unused-words --fix",
-    "format": "prettier --write \"**/*.{ts,tsx,md,json,css,mjs,js}\"",
-    "lint:fix": "eslint . --fix",
-    "scripts:delete-dated-dev-folders": "node --experimental-strip-types scripts/delete-dated-dev-folders.ts",
-    "scripts:update-registry": "node --experimental-strip-types scripts/update-registry.ts",
+    "scripts:delete-dated-dev-folders": "node scripts/delete-dated-dev-folders.ts",
+    "scripts:update-registry": "node scripts/update-registry.ts",
     "test": "vitest",
-    "turbo:check-without-packages": "turbo run check:format check:unused check:unused-words check:spelling check:md check:types check:lint --ui tui --continue=dependencies-successful --output-logs errors-only",
-    "turbo:check:build": "turbo run check:build",
-    "turbo:check:format": "turbo run check:format",
-    "turbo:check:lint": "turbo run check:lint",
-    "turbo:check:lint:ci": "cross-env CI=true turbo run check:lint",
-    "turbo:check:md": "turbo run check:md",
-    "turbo:check:packages": "turbo run check:packages",
-    "turbo:check:spelling": "turbo run check:spelling",
-    "turbo:check:types": "turbo run check:types",
-    "turbo:check:unused": "turbo run check:unused",
-    "turbo:smoke-test": "turbo run smoke-test",
-    "turbo:test:ci": "turbo run test:ci"
+    "turbo:fix:lint": "turbo run fix:lint",
+    "update:actions": "actions-up"
   },
   "devDependencies": {
     "@cspell/dict-bash": "^4.2.1",
@@ -53,9 +45,10 @@
     "@cspell/dict-node": "^5.0.8",
     "@cspell/dict-npm": "^5.2.19",
     "@cspell/dict-typescript": "^3.2.3",
-    "@quests/eslint-config": "workspace:*",
-    "@quests/typescript-config": "workspace:*",
+    "@instrument-org/eslint-config": "workspace:*",
+    "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "actions-up": "^1.13.0",
     "cross-env": "^10.0.0",
     "cspell": "^8.19.4",
     "cspell-check-unused-words": "^1.5.4",
@@ -68,13 +61,13 @@
     "prettier-plugin-sh": "^0.14.0",
     "prettier-plugin-sql": "^0.19.2",
     "tailwindcss": "^4.1.18",
-    "turbo": "^2.7.3",
+    "turbo": "^2.9.6",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
-  "packageManager": "pnpm@10.29.1",
+  "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=22.21.1"
+    "node": ">=24.14.0"
   },
   "publishConfig": {
     "provenance": true
@@ -83,10 +76,10 @@
     "runtime": {
       "name": "node",
       "onFail": "download",
-      "version": "22.21.1"
+      "version": "24.14.0"
     }
   },
   "overrides": {
-    "@types/node": "22.19.2"
+    "@types/node": "24.12.2"
   }
 }

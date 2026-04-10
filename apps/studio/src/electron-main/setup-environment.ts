@@ -1,4 +1,5 @@
 import { is, platform } from "@electron-toolkit/utils";
+import { APP_NAME } from "@instrument-org/shared";
 import { app } from "electron";
 import fixPath from "fix-path";
 import path from "node:path";
@@ -26,12 +27,11 @@ function configureUserDataDirectory() {
     if (process.env.ELECTRON_USE_NEW_USER_FOLDER === "true") {
       suffix = ` (${Date.now().toString()})`;
     }
-    const DEV_APP_NAME = `Quests (Dev${suffix})`;
+    const DEV_APP_NAME = `${APP_NAME} (Dev${suffix})`;
     if (suffix) {
       // eslint-disable-next-line no-console
       console.log(`Using user folder ${DEV_APP_NAME}`);
     }
-    // Sandbox userData during development to Quests/Quests (Dev)/*
     // Must be done as soon as possible because it's stateful
     app.setPath(
       "userData",

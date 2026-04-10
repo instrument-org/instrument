@@ -1,4 +1,4 @@
-import { EVAL_SUBDOMAIN_PREFIX } from "@quests/shared";
+import { EVAL_SUBDOMAIN_PREFIX } from "@instrument-org/shared";
 import { glob } from "glob";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";

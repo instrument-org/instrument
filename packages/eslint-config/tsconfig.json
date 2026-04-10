@@ -1,5 +1,5 @@
 {
-  "extends": "@quests/typescript-config/base.json",
+  "extends": "@instrument-org/typescript-config/base.json",
   "include": ["*.ts"],
   "compilerOptions": {
     "module": "ESNext",

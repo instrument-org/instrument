@@ -1,4 +1,5 @@
-import { type AIGatewayModel } from "@quests/ai-gateway/client";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
+import { OUR_MODELS } from "@instrument-org/shared";
 import { fork, listify } from "radashi";
 
 export interface GroupedModels {
@@ -35,16 +36,17 @@ export function groupAndFilterModels({
       model.tags.includes("recommended") && model.tags.includes("coding"),
   );
 
-  const [questsPremium, nonQuestsPremium] = shouldSeparatePremium
+  const [ourPremium, otherPremium] = shouldSeparatePremium
     ? fork(
         recommended,
         (model) =>
-          model.params.provider === "quests" && model.tags.includes("premium"),
+          model.params.provider === OUR_MODELS.providerType &&
+          model.tags.includes("premium"),
       )
     : [[], recommended];
 
   const [defaultRecommended, nonDefaultRecommended] = fork(
-    nonQuestsPremium,
+    otherPremium,
     (model) => model.tags.includes("default"),
   );
 
@@ -62,28 +64,26 @@ export function groupAndFilterModels({
 
   /* eslint-disable perfectionist/sort-objects */
   const result: GroupedModels = {
-    Recommended: prioritizeQuestsModels([
+    Recommended: prioritizeOurModels([
       ...defaultRecommended,
       ...nonDefaultRecommended,
     ]),
-    Premium: prioritizeQuestsModels(questsPremium),
-    New: prioritizeQuestsModels(newModels),
-    Other: prioritizeQuestsModels(notLegacy),
-    Legacy: prioritizeQuestsModels(legacy),
-    "May not support tools": prioritizeQuestsModels(doesNotSupportTools),
+    Premium: prioritizeOurModels(ourPremium),
+    New: prioritizeOurModels(newModels),
+    Other: prioritizeOurModels(notLegacy),
+    Legacy: prioritizeOurModels(legacy),
+    "May not support tools": prioritizeOurModels(doesNotSupportTools),
   };
   /* eslint-enable perfectionist/sort-objects */
 
   return result;
 }
 
-function prioritizeQuestsModels(
+function prioritizeOurModels(
   models: AIGatewayModel.Type[],
 ): AIGatewayModel.Type[] {
   return sortModelsByProviderAndName(models);
 }
-
-const QUESTS_AUTHOR = "quests";
 
 function sortModelsByProviderAndName(
   models: AIGatewayModel.Type[],
@@ -93,10 +93,10 @@ function sortModelsByProviderAndName(
     const authorB = b.author;
 
     if (authorA !== authorB) {
-      if (authorA === QUESTS_AUTHOR) {
+      if (authorA === OUR_MODELS.author) {
         return -1;
       }
-      if (authorB === QUESTS_AUTHOR) {
+      if (authorB === OUR_MODELS.author) {
         return 1;
       }
     }
@@ -105,18 +105,18 @@ function sortModelsByProviderAndName(
     const providerB = b.params.provider;
 
     if (providerA !== providerB) {
-      if (providerA === "quests") {
+      if (providerA === OUR_MODELS.providerType) {
         return -1;
       }
-      if (providerB === "quests") {
+      if (providerB === OUR_MODELS.providerType) {
         return 1;
       }
 
       return providerA.localeCompare(providerB);
     }
 
-    // Keep Quests models in the order they are returned by the API
-    if (authorA === QUESTS_AUTHOR && authorB === QUESTS_AUTHOR) {
+    // Keep our models in the order they are returned by the API
+    if (authorA === OUR_MODELS.author && authorB === OUR_MODELS.author) {
       return 0;
     }
 

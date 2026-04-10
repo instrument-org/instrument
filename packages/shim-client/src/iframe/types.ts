@@ -1,4 +1,4 @@
-import { type HeartbeatResponse } from "@quests/workspace/for-shim";
+import { type HeartbeatResponse } from "@instrument-org/workspace/for-shim";
 
 export type ClientToIframeMessage =
   | { type: "hide-failed-to-render" }

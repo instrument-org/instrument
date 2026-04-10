@@ -11,7 +11,7 @@ import {
 } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { is, optimizer } from "@electron-toolkit/utils";
-import { APP_PROTOCOL } from "@quests/shared";
+import { APP_PROTOCOL } from "@instrument-org/shared";
 import {
   app,
   BrowserWindow,

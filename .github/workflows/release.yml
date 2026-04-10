@@ -214,6 +214,7 @@ jobs:
           merge-multiple: false
 
       - name: GitHub Release
+        id: release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -235,5 +236,5 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": "${{ (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* published successfully. <https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}|View release>"
+              "text": "${{ (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* published successfully. <${{ steps.release.outputs.url }}|View release>"
             }

@@ -176,7 +176,7 @@ jobs:
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
-        if: github.ref_type != 'tag' || env.SKIP_INTEL_MACOS != 'true'
+        if: env.SKIP_INTEL_MACOS != 'true'
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}
           path: |
@@ -190,7 +190,7 @@ jobs:
             apps/studio/dist/*.yml
             apps/studio/dist/*.blockmap
             apps/studio/dist/*.snap
-          retention-days: 3
+          retention-days: 30
           if-no-files-found: ignore
 
   publish:
@@ -219,6 +219,12 @@ jobs:
           draft: true
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: artifacts/**/*
+
+      - name: Delete workflow artifacts
+        uses: geekyeggo/delete-artifact@v6
+        with:
+          name: "*"
+          failOnError: false
 
       - name: Notify Slack
         uses: slackapi/slack-github-action@v3

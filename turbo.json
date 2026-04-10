@@ -134,6 +134,13 @@
     "check:unused": { "dependsOn": ["transit"] },
     "//#check:unused": {},
     "//#check:electron-node-version": {},
+    "//#check:actions": {
+      "inputs": [
+        ".github/workflows/*.yml",
+        ".github/actions/**/*.yml",
+        "scripts/check-actions.ts"
+      ]
+    },
     "check:electron-node-version": {
       "dependsOn": ["transit"]
     },

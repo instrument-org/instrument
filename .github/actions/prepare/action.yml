@@ -20,7 +20,9 @@ runs:
           pnpm-workspace.yaml
         node-version: "24"
     - name: set-dugite-cache-dir
-      run: echo "DUGITE_CACHE_DIR=$HOME/.cache/dugite" >> "$GITHUB_ENV"
+      run: |
+        mkdir -p "$HOME/.cache/dugite"
+        echo "DUGITE_CACHE_DIR=$HOME/.cache/dugite" >> "$GITHUB_ENV"
       shell: bash
     - env:
         GITHUB_TOKEN: ${{ inputs.token }}

@@ -4,13 +4,17 @@ import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright";
+import { noop } from "radashi";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+const SCREENSHOTS_DIR = path.join(process.cwd(), "smoke-test-screenshots");
 
 describe("Studio Smoke Test", () => {
   let distPath: string;
   let tempUserDataDir: string;
 
   beforeAll(async () => {
+    await fs.mkdir(SCREENSHOTS_DIR, { recursive: true });
     // Must run the app outside of the monorepo to avoid inheriting node modules
     distPath = await fs.mkdtemp(
       path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-app-`),
@@ -184,6 +188,19 @@ describe("Studio Smoke Test", () => {
       });
       expect(await locator?.count(), `${name} window has ${testId}`).toBe(1);
     }
+
+    await Promise.all(
+      windowConfigs.map(async ({ name, window }) => {
+        if (!window) {
+          return;
+        }
+        await window
+          .screenshot({
+            path: path.join(SCREENSHOTS_DIR, `${name}-window.png`),
+          })
+          .catch(() => noop);
+      }),
+    );
 
     await electronApp.close();
 

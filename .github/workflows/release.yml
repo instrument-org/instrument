@@ -227,5 +227,5 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": "${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* published successfully. <https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}|View release>"
+              "text": "${{ (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* published successfully. <https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}|View release>"
             }

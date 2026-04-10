@@ -2,7 +2,7 @@ import {
   type BrowserConfig,
   type BrowserTarget,
   type ProjectSubdomain,
-} from "@quests/workspace/electron";
+} from "@instrument-org/workspace/electron";
 import { BrowserWindow, session, WebContentsView } from "electron";
 
 const SCREENCAST_INTERVAL_MS = 100;
@@ -64,7 +64,8 @@ export class BrowserViewManager {
       },
     });
 
-    const targetId = String(view.webContents.id);
+    // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+    const targetId = String(view.webContents?.id);
 
     // Register a single will-download handler for this session. If the agent
     // has authorized a download path via setDownloadBehavior, route the file
@@ -136,19 +137,19 @@ export class BrowserViewManager {
       devWindow.on("resize", fitViewToWindow);
     }
 
-    view.webContents.on("did-navigate", (_event, url) => {
+    view.webContents?.on("did-navigate", (_event, url) => {
       console.log(
         `[BrowserViewManager] did-navigate targetId=${targetId} url=${url}`,
       );
     });
 
-    view.webContents.on("did-navigate-in-page", (_event, url) => {
+    view.webContents?.on("did-navigate-in-page", (_event, url) => {
       console.log(
         `[BrowserViewManager] did-navigate-in-page targetId=${targetId} url=${url}`,
       );
     });
 
-    view.webContents.on(
+    view.webContents?.on(
       "did-fail-load",
       (_event, errorCode, errorDescription, validatedURL) => {
         console.error(
@@ -171,7 +172,7 @@ export class BrowserViewManager {
 
     this.entries.set(targetId, entry);
 
-    view.webContents.on("destroyed", () => {
+    view.webContents?.on("destroyed", () => {
       this.handleDetach(targetId);
     });
 
@@ -179,20 +180,23 @@ export class BrowserViewManager {
     // the WebContents is in an uninitialized state and Page.enable hangs when
     // the CDP debugger tries to enable page events.
     return new Promise((resolve) => {
-      view.webContents.once("did-finish-load", () => {
+      view.webContents?.once("did-finish-load", () => {
         // Set a default 1280x720 layout viewport so DOM.getBoxModel coordinates
         // and Input.dispatchMouseEvent coordinates are consistent when the view
         // has no physical bounds (i.e. outside of developer mode).
         this.ensureDebuggerAttached(entry);
-        void view.webContents.debugger
-          .sendCommand("Emulation.setDeviceMetricsOverride", {
+        const setMetrics = view.webContents?.debugger.sendCommand(
+          "Emulation.setDeviceMetricsOverride",
+          {
             deviceScaleFactor: 1,
             // 1280x800: matches a 13" MacBook viewport in Chrome (1280 CSS px wide,
             // ~90px consumed by browser chrome on a 900px-tall screen).
             height: 800,
             mobile: false,
             width: 1280,
-          })
+          },
+        );
+        void (setMetrics ?? Promise.resolve())
           .catch(() => {
             // Non-fatal; the view will fall back to its physical bounds.
           })
@@ -200,7 +204,7 @@ export class BrowserViewManager {
             resolve({ targetId });
           });
       });
-      void view.webContents.loadURL("about:blank");
+      void view.webContents?.loadURL("about:blank");
     });
   }
 
@@ -214,7 +218,7 @@ export class BrowserViewManager {
 
     const { devWindow, view } = entry;
 
-    if (view.webContents.debugger.isAttached()) {
+    if (view.webContents?.debugger.isAttached()) {
       try {
         view.webContents.debugger.detach();
       } catch {
@@ -222,8 +226,8 @@ export class BrowserViewManager {
       }
     }
 
-    if (!view.webContents.isDestroyed()) {
-      view.webContents.close();
+    if (!view.webContents?.isDestroyed()) {
+      view.webContents?.close();
     }
 
     if (devWindow && !devWindow.isDestroyed()) {
@@ -234,13 +238,14 @@ export class BrowserViewManager {
   }
 
   private ensureDebuggerAttached(entry: BrowserEntry) {
-    if (!entry.view.webContents.debugger.isAttached()) {
-      entry.view.webContents.debugger.attach("1.3");
+    if (!entry.view.webContents?.debugger.isAttached()) {
+      entry.view.webContents?.debugger.attach("1.3");
 
-      entry.view.webContents.debugger.on(
+      entry.view.webContents?.debugger.on(
         "message",
         (_event, method, params) => {
-          const targetId = String(entry.view.webContents.id);
+          // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+          const targetId = String(entry.view.webContents?.id);
           const current = this.entries.get(targetId);
           if (!current) {
             return;
@@ -259,8 +264,9 @@ export class BrowserViewManager {
         },
       );
 
-      entry.view.webContents.debugger.on("detach", () => {
-        const targetId = String(entry.view.webContents.id);
+      entry.view.webContents?.debugger.on("detach", () => {
+        // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+        const targetId = String(entry.view.webContents?.id);
         this.handleDetach(targetId);
       });
     }
@@ -290,7 +296,8 @@ export class BrowserViewManager {
       }
 
       const wc = entry.view.webContents;
-      if (wc.isDestroyed()) {
+      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+      if (!wc || wc.isDestroyed()) {
         continue;
       }
 
@@ -330,11 +337,14 @@ export class BrowserViewManager {
     if (method === "Page.printToPDF") {
       const p = (params ?? {}) as Record<string, unknown>;
       try {
-        const data = await entry.view.webContents.printToPDF({
+        const data = await entry.view.webContents?.printToPDF({
           landscape: p.landscape === true,
           preferCSSPageSize: p.preferCSSPageSize === true,
           printBackground: p.printBackground !== false,
         });
+        if (!data) {
+          throw new Error("webContents unavailable");
+        }
         const result = { data: data.toString("base64") };
         console.log(
           `[BrowserViewManager] sendCommand result targetId=${targetId} method=${method} result=(pdf ${data.byteLength} bytes)`,
@@ -384,7 +394,7 @@ export class BrowserViewManager {
         downloadPath
       ) {
         entry.authorizedDownloadPath = downloadPath;
-        entry.view.webContents.session.setDownloadPath(downloadPath);
+        entry.view.webContents?.session.setDownloadPath(downloadPath);
       } else {
         entry.authorizedDownloadPath = null;
       }
@@ -393,7 +403,7 @@ export class BrowserViewManager {
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const result = await entry.view.webContents.debugger.sendCommand(
+      const result = await entry.view.webContents?.debugger.sendCommand(
         method,
         params as Record<string, unknown>,
       );
@@ -421,7 +431,8 @@ export class BrowserViewManager {
     const screencastSessionId = entry.screencastSessionId;
 
     const captureAndEmit = () => {
-      if (entry.view.webContents.isDestroyed()) {
+      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
+      if (!entry.view.webContents || entry.view.webContents.isDestroyed()) {
         this.stopScreencast(entry);
         return;
       }

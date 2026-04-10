@@ -50,13 +50,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          path: apps/studio/smoke-test-screenshots/main-window.png
+          path: apps/studio/smoke-test-screenshots/main-window-${{ runner.os == 'macOS' && 'darwin' || runner.os == 'Windows' && 'win32' || 'linux' }}.png
           archive: false
           if-no-files-found: ignore
       - name: Upload sidebar window screenshot
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          path: apps/studio/smoke-test-screenshots/sidebar-window.png
+          path: apps/studio/smoke-test-screenshots/sidebar-window-${{ runner.os == 'macOS' && 'darwin' || runner.os == 'Windows' && 'win32' || 'linux' }}.png
           archive: false
           if-no-files-found: ignore

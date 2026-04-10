@@ -43,3 +43,10 @@ jobs:
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
       - name: Build and run smoke test
         run: pnpm turbo run smoke-test
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-screenshots-${{ matrix.os }}
+          path: apps/studio/smoke-test-screenshots/
+          if-no-files-found: ignore

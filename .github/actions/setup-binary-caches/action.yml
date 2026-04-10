@@ -6,7 +6,9 @@ runs:
       uses: actions/cache@v5
       with:
         key: vscode-ripgrep-bin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-        path: /tmp/vscode-ripgrep-cache-*
+        path: |
+          /tmp/vscode-ripgrep-cache-*
+          ${{ runner.temp }}/vscode-ripgrep-cache-*
 
     - name: Cache electron binary
       uses: actions/cache@v5

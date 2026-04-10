@@ -157,14 +157,6 @@ export class StudioAppUpdater {
       type: "checking",
     };
 
-    autoUpdater.once("update-not-available", (updateInfo) => {
-      this.status = {
-        notifyUser: this.#notify,
-        type: "not-available",
-        updateInfo,
-      };
-    });
-
     const isUpdaterActive = autoUpdater.isUpdaterActive();
 
     if (!isUpdaterActive) {
@@ -183,6 +175,7 @@ export class StudioAppUpdater {
 
   public pollForUpdates() {
     void this.checkForUpdates();
+    setLastUpdateCheck();
     setInterval(() => {
       void this.checkForUpdates();
       setLastUpdateCheck();

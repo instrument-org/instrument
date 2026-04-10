@@ -29,6 +29,8 @@ jobs:
       id-token: "write"
 
     env:
+      # electron-builder doesn't support custom update channels for Intel Mac, so skip
+      # prerelease builds to avoid broken auto-update metadata for Intel Mac users.
       SKIP_INTEL_MACOS: ${{ matrix.skip_for_prerelease && github.ref_type == 'tag' && (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) }}
 
     strategy:

@@ -26,6 +26,8 @@ runs:
         if [ "$RUNNER_OS" = "Windows" ]; then
           echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
           echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+        elif [ "$RUNNER_OS" = "macOS" ]; then
+          echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
         fi
       shell: bash
     - env:

@@ -217,3 +217,13 @@ jobs:
           draft: true
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: artifacts/**/*
+
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* published successfully. <https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}|View release>"
+            }

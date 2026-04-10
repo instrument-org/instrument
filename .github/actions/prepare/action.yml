@@ -24,7 +24,8 @@ runs:
         mkdir -p "$HOME/.cache/dugite"
         echo "DUGITE_CACHE_DIR=$HOME/.cache/dugite" >> "$GITHUB_ENV"
         if [ "$RUNNER_OS" = "Windows" ]; then
-          echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+          echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+          echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
         fi
       shell: bash
     - env:

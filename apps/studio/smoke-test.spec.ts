@@ -189,6 +189,7 @@ describe("Studio Smoke Test", () => {
       expect(await locator?.count(), `${name} window has ${testId}`).toBe(1);
     }
 
+    const osSuffix = process.platform;
     await Promise.all(
       windowConfigs.map(async ({ name, window }) => {
         if (!window) {
@@ -196,7 +197,10 @@ describe("Studio Smoke Test", () => {
         }
         await window
           .screenshot({
-            path: path.join(SCREENSHOTS_DIR, `${name}-window.png`),
+            path: path.join(
+              SCREENSHOTS_DIR,
+              `${name}-window-${osSuffix}.png`,
+            ),
           })
           .catch(() => noop);
       }),

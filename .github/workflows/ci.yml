@@ -5,6 +5,8 @@ env:
 jobs:
   check:
     name: Check and Test
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -15,11 +17,11 @@ jobs:
       - uses: ./.github/actions/prepare
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: rharkor/caching-for-turbo@0abc2381e688c4d2832f0665a68a01c6e82f0d6c # v2.3.11
-        env:
-          # Remove once https://github.com/rharkor/caching-for-turbo/issues/829 is resolved
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       - run: pnpm check-and-test
+
+concurrency:
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.ref }}
 
 name: CI
 

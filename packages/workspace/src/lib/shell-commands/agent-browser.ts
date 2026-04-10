@@ -13,13 +13,16 @@ import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
 import { isProjectSubdomain } from "../is-app";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
+const AGENT_BROWSER_SKILL_NAME = "agent-browser";
+
 export const AGENT_BROWSER_COMMAND = {
   description: dedent`
     Control a built-in Chromium browser to navigate the web, interact with pages, and extract content.
-    IMPORTANT: You MUST load the \`agent-browser\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
+    IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
+    IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, discover the URL first.
     Do NOT pass --cdp, --session, or --auto-connect flags; these are injected automatically.
   `.trim(),
-  name: "agent-browser",
+  name: AGENT_BROWSER_SKILL_NAME,
 } as const;
 const MAX_OUTPUT_LENGTH = 30_000;
 

@@ -176,7 +176,7 @@ jobs:
       # platform. Concurrent uploads of the same filename to the GitHub release cause the
       # API to return 404 on asset updates (race condition in softprops/action-gh-release).
       - name: Upload artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: env.SKIP_INTEL_MACOS != 'true'
         with:
           name: ${{ matrix.os }}-${{ matrix.arch }}
@@ -234,7 +234,7 @@ jobs:
 
       - name: GitHub Release
         id: release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:

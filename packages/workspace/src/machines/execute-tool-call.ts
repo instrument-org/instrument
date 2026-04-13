@@ -11,6 +11,7 @@ import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
 import { streamTool } from "../lib/stream-tool";
 import { type SessionMessagePart } from "../schemas/session/message-part";
+import { type StoreId } from "../schemas/store-id";
 import { getToolByType } from "../tools/all";
 
 type CancellationReason = "manual" | "timeout" | "unknown";
@@ -22,11 +23,12 @@ const executeToolLogic = fromPromise<
     appConfig: AppConfig;
     model: AIGatewayModel.Type;
     part: SessionMessagePart.ToolPartInputAvailable;
+    sessionId: StoreId.Session;
     spawnAgent: SpawnAgentFunction;
   }
 >(
   async ({
-    input: { agentName, appConfig, model, part, spawnAgent },
+    input: { agentName, appConfig, model, part, sessionId, spawnAgent },
     signal,
   }) => {
     const tool = getToolByType(part.type);
@@ -42,6 +44,7 @@ const executeToolLogic = fromPromise<
           input: part.input as never,
           model,
           projectState,
+          sessionId,
           signal,
           spawnAgent,
         },
@@ -164,6 +167,7 @@ export const executeToolCallMachine = setup({
       cancellationReason: CancellationReason;
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
+      sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
     },
     events: {} as { type: "stop" },
@@ -172,6 +176,7 @@ export const executeToolCallMachine = setup({
       appConfig: AppConfig;
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
+      sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
     },
   },
@@ -182,6 +187,7 @@ export const executeToolCallMachine = setup({
     cancellationReason: "unknown",
     model: input.model,
     part: input.part,
+    sessionId: input.sessionId,
     spawnAgent: input.spawnAgent,
   }),
   id: "executeToolCall",
@@ -215,6 +221,7 @@ export const executeToolCallMachine = setup({
           appConfig: context.appConfig,
           model: context.model,
           part: context.part,
+          sessionId: context.sessionId,
           spawnAgent: context.spawnAgent,
         }),
         onDone: [

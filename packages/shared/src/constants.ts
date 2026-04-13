@@ -1,6 +1,7 @@
 export const AI_GATEWAY_API_PATH = "/ai-gateway";
 export const APP_NAME = "Instrument";
 const APP_NAME_LOWER = "instrument";
+export const APP_NAME_SLUG = APP_NAME_LOWER.replaceAll(" ", "-");
 export const APP_PROTOCOL =
   process.env.NODE_ENV === "development"
     ? `${APP_NAME_LOWER}-local`

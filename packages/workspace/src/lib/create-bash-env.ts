@@ -15,6 +15,7 @@ import {
 import type { AppConfig } from "./app-config/types";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
+import { type StoreId } from "../schemas/store-id";
 import {
   AGENT_BROWSER_COMMAND,
   createAgentBrowserCommand,
@@ -156,12 +157,6 @@ interface CustomCommandDef {
 
 const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
-    description: AGENT_BROWSER_COMMAND.description,
-    factory: createAgentBrowserCommand,
-    listInDescription: true,
-    name: AGENT_BROWSER_COMMAND.name,
-  },
-  {
     description: FFMPEG_COMMAND.description,
     factory: createFfmpegCommand,
     listInDescription: true,
@@ -214,9 +209,12 @@ export function createBashDescription() {
     .filter(([name]) => allowedCommandNames.includes(name))
     .map(([name, description]) => `  ${name} - ${description}`);
 
-  const customLines = CUSTOM_COMMAND_DEFS.filter(
-    (cmd) => cmd.listInDescription,
-  ).map((cmd) => `  ${cmd.name} - ${cmd.description}`);
+  const customLines = [
+    `  ${AGENT_BROWSER_COMMAND.name} - ${AGENT_BROWSER_COMMAND.description}`,
+    ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
+      (cmd) => `  ${cmd.name} - ${cmd.description}`,
+    ),
+  ];
 
   return [
     "Execute bash commands in the project directory.",
@@ -237,7 +235,13 @@ export function createBashDescription() {
   ].join("\n");
 }
 
-export function createBashEnv(appConfig: AppConfig) {
+export function createBashEnv({
+  appConfig,
+  sessionId,
+}: {
+  appConfig: AppConfig;
+  sessionId: StoreId.Session;
+}) {
   const fs = new ReadWriteFs({ root: appConfig.appDir });
 
   const allowedCommands = [
@@ -255,9 +259,11 @@ export function createBashEnv(appConfig: AppConfig) {
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
+      createAgentBrowserCommand({ appConfig, sessionId }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(appConfig)),
       createWhichCommand(
         new Set([
+          AGENT_BROWSER_COMMAND.name,
           ...allowedCommands,
           ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
         ]),

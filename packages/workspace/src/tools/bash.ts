@@ -26,8 +26,8 @@ export const BashTool = setupTool({
   }),
 }).create({
   description: createBashDescription(),
-  execute: async ({ appConfig, input, signal }) => {
-    const bash = createBashEnv(appConfig);
+  execute: async ({ appConfig, input, sessionId, signal }) => {
+    const bash = createBashEnv({ appConfig, sessionId });
     const result = await bash.exec(input.command, { signal });
 
     const commands = Array.isArray(result.metadata?.commands)

@@ -344,6 +344,7 @@ export const agentMachine = setup({
             appConfig: context.appConfig,
             model: context.model,
             part: nextToolCall,
+            sessionId: context.sessionId,
             spawnAgent: context.spawnAgent,
           };
         },

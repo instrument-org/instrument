@@ -8,6 +8,7 @@ import type { AppConfig } from "../app-config/types";
 import { APP_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/routes/cdp-bridge";
 import { getWorkspaceServerPort } from "../../logic/server/url";
+import { type StoreId } from "../../schemas/store-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
 import { isProjectSubdomain } from "../is-app";
@@ -30,7 +31,13 @@ const MAX_OUTPUT_LENGTH = 30_000;
 // automatically and must not be passed by the caller.
 const BLOCKED_FLAGS = new Set(["--auto-connect", "--cdp", "--session"]);
 
-export function createAgentBrowserCommand(appConfig: AppConfig) {
+export function createAgentBrowserCommand({
+  appConfig,
+  sessionId,
+}: {
+  appConfig: AppConfig;
+  sessionId: StoreId.Session;
+}) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
     const { workspaceConfig } = appConfig;
     const serverPort = getWorkspaceServerPort();
@@ -69,7 +76,6 @@ export function createAgentBrowserCommand(appConfig: AppConfig) {
     }
 
     const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
-    const sessionName = `quests-${subdomain}`;
 
     const { appCwd, env } = resolveCommandContext(appConfig, ctx);
     const resolvedArgs = resolvePathArgs(args, appConfig, ctx);
@@ -77,7 +83,7 @@ export function createAgentBrowserCommand(appConfig: AppConfig) {
       "--cdp",
       cdpUrl,
       "--session",
-      sessionName,
+      sessionId,
       ...resolvedArgs,
     ];
 

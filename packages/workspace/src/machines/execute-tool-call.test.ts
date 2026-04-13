@@ -115,6 +115,7 @@ describe("executeToolCallMachine", () => {
         appConfig: projectAppConfig,
         model,
         part,
+        sessionId,
         spawnAgent: vi.fn(),
       },
     });

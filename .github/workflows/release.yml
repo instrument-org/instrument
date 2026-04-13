@@ -223,9 +223,10 @@ jobs:
         run: |
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -n1)
           RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
+          REPO_URL="https://github.com/${{ github.repository }}"
           COUNT=$(git log "$RANGE" --pretty=format:"%h" --no-merges | wc -l | tr -d ' ')
-          ALL=$(git log "$RANGE" --pretty=format:"• %s" --no-merges)
-          SLACK=$(echo "$ALL" | head -n10)
+          ALL=$(git log "$RANGE" --pretty=format:"%h %s" --no-merges)
+          SLACK=$(echo "$ALL" | head -n10 | sed 's/^[^ ]* /• /')
           if [ "$COUNT" -gt 10 ]; then
             SLACK="$SLACK
           _…and $((COUNT - 10)) more commits_"
@@ -234,8 +235,9 @@ jobs:
           # Escape for JSON: backslash, double-quote, then newlines → \n
           SLACK_JSON=$(printf '%s' "$SLACK" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
           echo "slack_log_json=$SLACK_JSON" >> "$GITHUB_OUTPUT"
-          # Write full commit list to release body file
-          printf '## What'\''s changed\n\n%s\n' "$ALL" > /tmp/release-body.md
+          # Write full commit list to release body file (short hash links)
+          BODY=$(echo "$ALL" | awk -v repo="$REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}')
+          printf '## What'\''s changed\n\n%s\n' "$BODY" > /tmp/release-body.md
 
       - name: GitHub Release
         id: release

@@ -302,7 +302,10 @@ function getGenerateImageSourceImages(
 ): string[] {
   if (
     part.type === "tool-generate_image" &&
-    part.input?.sourceImages &&
+    // Array.isArray guard is intentional: the AI SDK types DeepPartial<string[]>
+    // as string[] during streaming, but parsePartialJson can produce null or a
+    // partial string mid-stream. The type is wrong; the runtime value is not.
+    Array.isArray(part.input?.sourceImages) &&
     part.input.sourceImages.length > 0
   ) {
     // Skip paths without a 3+ character extension -- they may still be streaming

@@ -5,7 +5,12 @@ import {
   type ImageGenerationProviderType,
 } from "@instrument-org/ai-gateway";
 import { type WorkspaceServerURL } from "@instrument-org/shared";
-import { APICallError, generateImage, generateText } from "ai";
+import {
+  APICallError,
+  generateImage,
+  generateText,
+  NoImageGeneratedError,
+} from "ai";
 import { err, ResultAsync } from "neverthrow";
 
 import { type WorkspaceConfig } from "../types";
@@ -127,7 +132,9 @@ export async function generateImages({
         cause: generationError,
         responseBody,
       });
-      workspaceConfig.captureException(error);
+      if (!NoImageGeneratedError.isInstance(generationError)) {
+        workspaceConfig.captureException(error);
+      }
       return error;
     },
   );

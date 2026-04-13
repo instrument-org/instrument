@@ -12,6 +12,7 @@ import { type AppConfig } from "../lib/app-config/types";
 import { type ExecuteError } from "../lib/execute-error";
 import { type ProjectState } from "../lib/project-state-store";
 import { type SpawnAgentFunction } from "../lib/spawn-agent";
+import { type StoreId } from "../schemas/store-id";
 
 export interface AgentTool<
   TName extends ToolName,
@@ -34,6 +35,7 @@ export interface AgentTool<
     input: z.output<TInputSchema>;
     model: AIGatewayModel.Type;
     projectState: ProjectState;
+    sessionId: StoreId.Session;
     signal: AbortSignal;
     spawnAgent: SpawnAgentFunction;
   }) =>

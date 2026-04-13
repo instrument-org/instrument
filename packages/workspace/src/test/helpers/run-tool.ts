@@ -3,6 +3,7 @@ import { type output } from "zod";
 
 import { type ExecuteError } from "../../lib/execute-error";
 import { isAsyncIterable } from "../../lib/is-async-iterable";
+import { StoreId } from "../../schemas/store-id";
 import { type AgentTool, type AnyAgentTool } from "../../tools/types";
 
 type ExecuteOptions<T extends AnyAgentTool> = Parameters<T["execute"]>[0];
@@ -13,9 +14,14 @@ type ExecuteOutput<T extends AnyAgentTool> =
 
 export async function runTool<T extends AnyAgentTool>(
   tool: T,
-  options: ExecuteOptions<T>,
+  options: Omit<ExecuteOptions<T>, "sessionId"> & {
+    sessionId?: StoreId.Session;
+  },
 ): Promise<ExecuteOutput<T>> {
-  const result = tool.execute(options);
+  const result = tool.execute({
+    sessionId: StoreId.newSessionId(),
+    ...options,
+  } as ExecuteOptions<T>);
 
   if (isAsyncIterable(result)) {
     let lastOutput: Result<unknown, ExecuteError> | undefined;

@@ -1,5 +1,6 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { createRequire } from "node:module";
-import os, { arch, platform } from "node:os";
+import { arch, platform } from "node:os";
 import path from "node:path";
 
 import { unpackAsarPath } from "./asar";
@@ -62,9 +63,13 @@ export const AGENT_BROWSER_PATH = unpackAsarPath(
   path.join(binDir, getBinaryName()),
 );
 
-// Fixed short path to avoid the OS unix socket path limit (~104/108 bytes on macOS/Linux)
-// and prevent conflicts with other agent-browser instances on the system.
-export const AGENT_BROWSER_SOCKET_DIR = path.join(
-  os.tmpdir(),
-  "quests-agent-browser",
-);
+// Use the literal "/tmp" (not os.tmpdir() which expands to a long
+// /var/folders/... path on macOS) so the socket path stays under the
+// 103-byte Unix limit regardless of the user's home directory length.
+// On Windows the daemon uses TCP, not Unix sockets, so there is no path
+// length constraint - leave the env var unset and let the library use its
+// own default.
+export const AGENT_BROWSER_SOCKET_DIR =
+  platform() === "win32"
+    ? undefined
+    : path.join("/tmp", `.${APP_NAME_SLUG}-browser`);

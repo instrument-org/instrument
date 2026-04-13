@@ -28,13 +28,14 @@ export async function runPnpmCommand({
       all: true,
       cancelSignal: signal,
       env: {
+        ...env,
         // just-bash sets HOME=/ when a cwd is given. pnpm uses os.homedir() to
         // locate its store and cache, so HOME=/ causes it to write to /Library/...
         // on the host filesystem and record that wrong store path in .modules.yaml.
         // Subsequent pnpm runs then see a store mismatch and try to purge
         // node_modules, which fails without a TTY (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY).
+        // Must come after ...env so ctx.env (which contains HOME=/) cannot override it.
         ...(process.env.HOME && { HOME: process.env.HOME }),
-        ...env,
       },
       // Don't reject so we can filter the output
       reject: false,

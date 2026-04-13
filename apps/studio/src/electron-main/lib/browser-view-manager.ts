@@ -5,6 +5,10 @@ import {
 } from "@instrument-org/workspace/electron";
 import { BrowserWindow, session, WebContentsView } from "electron";
 
+import { createScopedLogger } from "./electron-logger";
+
+const log = createScopedLogger("BrowserViewManager");
+
 const SCREENCAST_INTERVAL_MS = 100;
 
 interface BrowserEntry {
@@ -110,10 +114,6 @@ export class BrowserViewManager {
       }
     });
 
-    console.log(
-      `[BrowserViewManager] createTarget subdomain=${subdomain} targetId=${targetId}`,
-    );
-
     let devWindow: BrowserWindow | null = null;
     if (this.developerMode) {
       devWindow = new BrowserWindow({
@@ -135,23 +135,11 @@ export class BrowserViewManager {
       devWindow.on("resize", fitViewToWindow);
     }
 
-    view.webContents?.on("did-navigate", (_event, url) => {
-      console.log(
-        `[BrowserViewManager] did-navigate targetId=${targetId} url=${url}`,
-      );
-    });
-
-    view.webContents?.on("did-navigate-in-page", (_event, url) => {
-      console.log(
-        `[BrowserViewManager] did-navigate-in-page targetId=${targetId} url=${url}`,
-      );
-    });
-
     view.webContents?.on(
       "did-fail-load",
       (_event, errorCode, errorDescription, validatedURL) => {
-        console.error(
-          `[BrowserViewManager] did-fail-load targetId=${targetId} url=${validatedURL} errorCode=${errorCode} errorDescription=${errorDescription}`,
+        log.error(
+          `did-fail-load targetId=${targetId} url=${validatedURL} errorCode=${errorCode} errorDescription=${errorDescription}`,
         );
       },
     );
@@ -307,7 +295,6 @@ export class BrowserViewManager {
       });
     }
 
-    // FIXME remove need for promise
     return Promise.resolve(targets);
   }
 
@@ -318,17 +305,13 @@ export class BrowserViewManager {
   ): Promise<unknown> {
     const entry = this.entries.get(targetId);
     if (!entry) {
-      console.error(
-        `[BrowserViewManager] sendCommand: target not found targetId=${targetId} method=${method}`,
+      log.error(
+        `sendCommand: target not found targetId=${targetId} method=${method}`,
       );
       throw new Error(`Browser target not found: ${targetId}`);
     }
 
     this.ensureDebuggerAttached(entry);
-
-    console.log(
-      `[BrowserViewManager] sendCommand targetId=${targetId} method=${method} params=${JSON.stringify(params)}`,
-    );
 
     // Electron's debugger protocol does not expose Page.printToPDF. Use the
     // native webContents.printToPDF() API and return a CDP-compatible response.
@@ -344,13 +327,10 @@ export class BrowserViewManager {
           throw new Error("webContents unavailable");
         }
         const result = { data: data.toString("base64") };
-        console.log(
-          `[BrowserViewManager] sendCommand result targetId=${targetId} method=${method} result=(pdf ${data.byteLength} bytes)`,
-        );
         return result;
       } catch (error) {
-        console.error(
-          `[BrowserViewManager] sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
+        log.error(
+          `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
         );
         throw error;
       }
@@ -405,13 +385,10 @@ export class BrowserViewManager {
         method,
         params as Record<string, unknown>,
       );
-      console.log(
-        `[BrowserViewManager] sendCommand result targetId=${targetId} method=${method} result=${JSON.stringify(result)}`,
-      );
       return result;
     } catch (error) {
-      console.error(
-        `[BrowserViewManager] sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
+      log.error(
+        `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
       );
       throw error;
     }

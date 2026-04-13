@@ -224,13 +224,18 @@ jobs:
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -n1)
           RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
           COUNT=$(git log "$RANGE" --pretty=format:"%h" --no-merges | wc -l | tr -d ' ')
-          SHORT=$(git log "$RANGE" --pretty=format:"• %s" --no-merges | head -n10)
+          ALL=$(git log "$RANGE" --pretty=format:"• %s" --no-merges)
+          SLACK=$(echo "$ALL" | head -n10)
           if [ "$COUNT" -gt 10 ]; then
-            SHORT="$SHORT
-          _…and $((COUNT - 10)) more_"
+            SLACK="$SLACK
+          _…and $((COUNT - 10)) more commits_"
           fi
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
-          { echo "short_log<<EOF"; echo "$SHORT"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+          # Escape for JSON: backslash, double-quote, then newlines → \n
+          SLACK_JSON=$(printf '%s' "$SLACK" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
+          echo "slack_log_json=$SLACK_JSON" >> "$GITHUB_OUTPUT"
+          # Write full commit list to release body file
+          printf '## What'\''s changed\n\n%s\n' "$ALL" > /tmp/release-body.md
 
       - name: GitHub Release
         id: release
@@ -242,6 +247,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: artifacts/**/*
           generate_release_notes: true
+          body_path: /tmp/release-body.md
 
       - name: Delete workflow artifacts
         uses: geekyeggo/delete-artifact@176a747ab7e287e3ff4787bf8a148716375ca118 # v6.0.0
@@ -256,5 +262,20 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": "${{ (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* (${{ steps.slack_summary.outputs.count }} commits) published successfully. <${{ steps.release.outputs.url }}|View release>\n\n${{ steps.slack_summary.outputs.short_log }}"
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* published successfully. <${{ steps.release.outputs.url }}|View release>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.slack_summary.outputs.slack_log_json }}"
+                  }
+                }
+              ]
             }

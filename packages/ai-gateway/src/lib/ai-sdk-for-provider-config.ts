@@ -153,12 +153,10 @@ export async function createOpenRouterSDK(
       : {};
   return createOpenRouter({
     apiKey,
+    appName: APP_NAME,
+    appUrl: APP_URL,
     baseURL,
     ...extraConfig,
-    headers: {
-      "HTTP-Referer": APP_URL,
-      "X-Title": APP_NAME,
-    },
   });
 }
 

@@ -120,9 +120,6 @@ function handleCdpClient(
   };
 
   const onEvent = (method: string, params: unknown) => {
-    console.log(
-      `[CDP] <-- targetId=${targetId} event=${method} params=${JSON.stringify(params)}`,
-    );
     // Inject the synthetic sessionId so agent-browser can match events to the
     // session it attached to via Target.attachToTarget. Electron emits events
     // without a sessionId since the debugger is browser-level, but agent-browser
@@ -174,14 +171,10 @@ function handleCdpClient(
       return;
     }
 
-    const { id, method, params, sessionId } = message;
+    const { id, method, params } = message;
     if (typeof method !== "string") {
       return;
     }
-
-    console.log(
-      `[CDP] --> targetId=${targetId} method=${method} sessionId=${sessionId ?? "none"} params=${JSON.stringify(params)}`,
-    );
 
     // Intercept Target.* commands that would otherwise leak all Electron
     // targets through the browser-level debugger.

@@ -18,6 +18,10 @@ log.transports.console.level = ENABLE_CONSOLE_LOGGING ? "silly" : false;
 
 export { default as logger } from "electron-log";
 
+export function createScopedLogger(scope: string) {
+  return log.scope(scope);
+}
+
 export function initializeElectronLogging() {
   Object.assign(console, log.functions);
 }

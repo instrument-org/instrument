@@ -96,7 +96,14 @@ export namespace Store {
         },
       );
 
-      return Result.combine(messageResults);
+      // Skip transiently missing messages - the key index scan and individual
+      // fetches are not atomic, so a message may appear in the index but not
+      // yet be readable (or may have just been removed). The live query will
+      // re-fetch on the next update event.
+      const found = messageResults.filter(
+        (r) => !(r.isErr() && r.error.type === "workspace-not-found-error"),
+      );
+      return Result.combine(found);
     });
   }
 

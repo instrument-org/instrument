@@ -9,7 +9,7 @@ import { runPnpmCommand } from "../run-pnpm";
 import {
   extractFileAndScriptArgs,
   firstString,
-  parseCommandArgs,
+  parseScriptRunnerArgs,
   resolveCommandContext,
 } from "./utils";
 
@@ -38,7 +38,7 @@ export function createTsCommand(appConfig: AppConfig) {
       };
     }
 
-    const { positionals, values } = parseCommandArgs(
+    const { positionals, values } = parseScriptRunnerArgs(
       appConfig,
       "ts",
       args,

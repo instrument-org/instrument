@@ -9,7 +9,7 @@ import { TS_COMMAND } from "./ts";
 import {
   extractFileAndScriptArgs,
   firstString,
-  parseCommandArgs,
+  parseScriptRunnerArgs,
   resolveCommandContext,
   stringArray,
 } from "./utils";
@@ -63,7 +63,7 @@ export function createNodeCommand(appConfig: AppConfig) {
       };
     }
 
-    const { positionals, values } = parseCommandArgs(
+    const { positionals, values } = parseScriptRunnerArgs(
       appConfig,
       NODE_COMMAND.name,
       args,

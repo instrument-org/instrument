@@ -48,7 +48,7 @@ export function firstString(
 }
 
 /** Parse args and warn about unrecognized options via captureException. */
-export function parseCommandArgs<
+export function parseScriptRunnerArgs<
   T extends NonNullable<ParseArgsConfig["options"]>,
 >(appConfig: AppConfig, commandName: string, args: string[], options: T) {
   const result = parseArgs({
@@ -59,8 +59,13 @@ export function parseCommandArgs<
     tokens: true,
   });
 
+  const foundIndex = result.tokens.findIndex((t) => t.kind === "positional");
+  const firstPositionalIndex = foundIndex === -1 ? Infinity : foundIndex;
   const unknownOptions = result.tokens
-    .filter((t) => t.kind === "option" && !(t.name in options))
+    .filter(
+      (t, i) =>
+        i < firstPositionalIndex && t.kind === "option" && !(t.name in options),
+    )
     .map((t) => `--${(t as { kind: "option"; name: string }).name}`);
 
   if (unknownOptions.length > 0) {

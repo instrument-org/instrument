@@ -1,9 +1,9 @@
 import { InMemoryFs } from "just-bash";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
-import { extractFileAndScriptArgs } from "./utils";
+import { extractFileAndScriptArgs, parseScriptRunnerArgs } from "./utils";
 
 const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"));
 const appDir = appConfig.appDir;
@@ -152,5 +152,46 @@ describe("extractFileAndScriptArgs", () => {
         expect(arg).not.toContain(appDir);
       }
     });
+  });
+});
+
+const KNOWN_OPTIONS = { v: { type: "boolean" } } as const;
+
+describe("parseScriptRunnerArgs", () => {
+  it("does not report unknown options that appear after the script file", () => {
+    const captureException = vi.spyOn(
+      appConfig.workspaceConfig,
+      "captureException",
+    );
+
+    parseScriptRunnerArgs(
+      appConfig,
+      "tsx",
+      ["scripts/remove-background.ts", "--output", "out.png"],
+      KNOWN_OPTIONS,
+    );
+
+    expect(captureException).not.toHaveBeenCalled();
+    captureException.mockRestore();
+  });
+
+  it("reports unknown options that appear before the script file", () => {
+    const captureException = vi.spyOn(
+      appConfig.workspaceConfig,
+      "captureException",
+    );
+
+    parseScriptRunnerArgs(
+      appConfig,
+      "tsx",
+      ["--unknown-flag", "scripts/run.ts"],
+      KNOWN_OPTIONS,
+    );
+
+    expect(captureException).toHaveBeenCalledOnce();
+    expect(captureException.mock.calls[0]?.[0]).toMatchInlineSnapshot(
+      `[Error: [tsx] Unrecognized options ignored: --unknown-flag]`,
+    );
+    captureException.mockRestore();
   });
 });

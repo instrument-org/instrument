@@ -1,10 +1,10 @@
 import ms from "ms";
 import { ok } from "neverthrow";
-import { dedent } from "radashi";
 import { z } from "zod";
 
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
+import { systemNote } from "../lib/system-note";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -69,24 +69,21 @@ export const BashTool = setupTool({
       displayOutput.includes("Warning")
     ) {
       outputParts.push(
-        dedent`
+        systemNote`
+          This warning means some packages were not built during installation.
+          If you encounter "Cannot find module" errors or the package doesn't work:
 
-					<quests-system-note>
-					This warning means some packages were not built during installation.
-					If you encounter "Cannot find module" errors or the package doesn't work:
+          1. Read pnpm-workspace.yaml from the workspace root.
+          2. Add the package names from the warning to the \`allowBuilds\` mapping.
+          \`\`\`yaml
+          allowBuilds:
+            esbuild: true
+            sharp: true
+          \`\`\`
+          3. Run \`${PNPM_COMMAND.name} rebuild <package-name>\` for each package you added.
 
-					1. Read pnpm-workspace.yaml from the workspace root.
-					2. Add the package names from the warning to the \`allowBuilds\` mapping.
-					\`\`\`yaml
-					allowBuilds:
-					  esbuild: true
-					  sharp: true
-					\`\`\`
-					3. Run \`${PNPM_COMMAND.name} rebuild <package-name>\` for each package you added.
-
-					All three steps are required. Running rebuild without first modifying pnpm-workspace.yaml will not fix the issue.
-					</quests-system-note>
-				`,
+          All three steps are required. Running rebuild without first modifying pnpm-workspace.yaml will not fix the issue.
+        `,
       );
     }
 
@@ -97,13 +94,10 @@ export const BashTool = setupTool({
         displayOutput.includes("ERR_MODULE_NOT_FOUND"))
     ) {
       outputParts.push(
-        dedent`
-
-					<quests-system-note>
-					This error indicates a required module is missing. You may need to install dependencies by running:
-					\`${PNPM_COMMAND.name} install\`
-					</quests-system-note>
-				`,
+        systemNote`
+          This error indicates a required module is missing. You may need to install dependencies by running:
+          \`${PNPM_COMMAND.name} install\`
+        `,
       );
     }
 

@@ -8,6 +8,7 @@ import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  APP_NAME,
   APP_REPO_URL,
   DISCORD_URL,
   MANUAL_DOWNLOAD_URL,
@@ -256,7 +257,7 @@ function About() {
           <div className="space-y-2">
             <div className="text-sm font-medium">Open Source</div>
             <p className="text-sm text-muted-foreground">
-              Quests is open source and free to use. You can view the source
+              {APP_NAME} is open source and free to use. You can view the source
               code on GitHub.
             </p>
             <div>
@@ -277,8 +278,8 @@ function About() {
           <div className="space-y-2">
             <div className="text-sm font-medium">Community</div>
             <p className="text-sm text-muted-foreground">
-              Join us on Discord so you can tell us how much you like Quests.
-              Definitely not to yell at us about bugs. Definitely.
+              Join us on Discord so you can tell us how much you like {APP_NAME}
+              . Definitely not to yell at us about bugs. Definitely.
             </p>
             <div>
               <Button

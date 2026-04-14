@@ -1,7 +1,36 @@
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  AppSubdomainSchema,
+  StoreId,
+  workspaceRouter,
+} from "@instrument-org/workspace/electron";
+import { call } from "@orpc/server";
+import { app } from "electron";
+import os from "node:os";
 import { z } from "zod";
+
+function buildSystemFrontMatter() {
+  const platform = os.platform();
+  const osName =
+    platform === "darwin"
+      ? "macOS"
+      : platform === "win32"
+        ? "Windows"
+        : platform === "linux"
+          ? "Linux"
+          : platform;
+
+  const env = app.isPackaged ? "production" : "development";
+
+  return {
+    app: `Instrument v${app.getVersion()} (${env})`,
+    locale: app.getLocale(),
+    node: process.version,
+    os: `${osName} ${os.release()} / ${os.arch()}`,
+  };
+}
 
 const systemInfo = base.handler(async ({ context }) => {
   const pnpmVersionValue = await pnpmVersion();
@@ -20,6 +49,23 @@ const systemInfo = base.handler(async ({ context }) => {
     },
   ];
 });
+
+const sessionMarkdown = base
+  .input(
+    z.object({
+      sessionId: StoreId.SessionSchema,
+      subdomain: AppSubdomainSchema,
+    }),
+  )
+  .output(z.object({ markdown: z.string() }))
+  .handler(async ({ context, input, signal }) => {
+    const frontMatter = buildSystemFrontMatter();
+    return call(
+      workspaceRouter.session.toMarkdown,
+      { frontMatter, sessionId: input.sessionId, subdomain: input.subdomain },
+      { context, signal },
+    );
+  });
 
 const throwError = base
   .input(
@@ -86,6 +132,7 @@ const live = {
 
 export const debug = {
   live,
+  sessionMarkdown,
   systemInfo,
   throwError,
 };

@@ -105,14 +105,19 @@ export function UsageStatsTooltip({
 export function UsageSummaryText({
   className,
   messageCount,
+  onClick,
   totalTokens,
 }: {
   className?: string;
   messageCount: number;
+  onClick?: () => void;
   totalTokens: number;
 }) {
   return (
-    <span className={cn("inline-flex items-center gap-2 truncate", className)}>
+    <span
+      className={cn("inline-flex items-center gap-2 truncate", className)}
+      onClick={onClick}
+    >
       <span className="inline-flex shrink-0 items-center gap-1">
         <MessageCircle className="size-3 shrink-0" />
         <span className="tabular-nums">{formatNumber(messageCount)}</span>

@@ -13,12 +13,10 @@ import {
   Plus,
   TrashIcon,
 } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 
 import { rpcClient } from "../rpc/client";
 import { AppIcon } from "./app-icon";
-import { DebugViewer } from "./debug-viewer";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -35,10 +33,12 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ProjectMenu({
+  onDebugClick,
   onSettingsClick,
   project,
   selectedSessionId,
 }: {
+  onDebugClick: () => void;
   onSettingsClick: () => void;
   project: WorkspaceAppProject;
   selectedSessionId?: StoreId.Session;
@@ -53,12 +53,6 @@ export function ProjectMenu({
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
-
-  const [debugViewerOpen, setDebugViewerOpen] = useState(false);
-  const [debugData, setDebugData] = useState<{
-    jsonData: unknown;
-    markdownData: null | string;
-  }>({ jsonData: null, markdownData: null });
 
   const createEmptySession = useMutation(
     rpcClient.workspace.session.create.mutationOptions(),
@@ -90,42 +84,12 @@ export function ProjectMenu({
     );
   };
 
-  const handleDebugChat = async () => {
+  const handleDebugChat = () => {
     if (!selectedSessionId) {
       return;
     }
-
-    try {
-      const [jsonResult, markdownResult] = await Promise.all([
-        rpcClient.workspace.session.byIdWithMessagesAndParts.call({
-          sessionId: selectedSessionId,
-          subdomain: project.subdomain,
-        }),
-        rpcClient.workspace.session.toMarkdown.call({
-          sessionId: selectedSessionId,
-          subdomain: project.subdomain,
-        }),
-      ]);
-
-      setDebugData({
-        jsonData: jsonResult,
-        markdownData: markdownResult.markdown,
-      });
-      setDebugViewerOpen(true);
-    } catch {
-      toast.error("Failed to load chat debug data");
-    }
+    onDebugClick();
   };
-
-  const sanitizedTitle = project.title
-    .normalize("NFKD")
-    .replaceAll(/[\u0300-\u036F]/g, "")
-    .replaceAll(/[^\w\s-]/g, "")
-    .trim()
-    .replaceAll(/\s+/g, "-")
-    .toLowerCase();
-
-  const downloadFilename = sanitizedTitle ? `${sanitizedTitle}-chat` : "chat";
 
   const showChatsSubmenu = sessions.length > 1;
 
@@ -249,15 +213,6 @@ export function ProjectMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <DebugViewer
-        downloadFilename={downloadFilename}
-        jsonData={debugData.jsonData}
-        markdownData={debugData.markdownData}
-        onOpenChange={setDebugViewerOpen}
-        open={debugViewerOpen}
-        title="Debug Chat"
-      />
     </>
   );
 }

@@ -19,10 +19,12 @@ import { Store } from "./store";
 
 export async function getSessionMarkdown({
   appConfig,
+  frontMatter,
   includeContextMessages = false,
   sessionId,
 }: {
   appConfig: AppConfig;
+  frontMatter?: Record<string, unknown>;
   includeContextMessages?: boolean;
   sessionId: StoreId.Session;
 }): Promise<string> {
@@ -63,6 +65,7 @@ export async function getSessionMarkdown({
   }
 
   return sessionToMarkdown(rootSession, childSessions, {
+    frontMatter,
     includeContextMessages,
   });
 }
@@ -364,7 +367,13 @@ function renderUserMessage(message: UserModelMessage, turn: number): string[] {
 async function sessionToMarkdown(
   rootSession: Session.WithMessagesAndParts,
   childSessions: Map<StoreId.Session, Session.WithMessagesAndParts>,
-  { includeContextMessages = false }: { includeContextMessages?: boolean } = {},
+  {
+    frontMatter,
+    includeContextMessages = false,
+  }: {
+    frontMatter?: Record<string, unknown>;
+    includeContextMessages?: boolean;
+  } = {},
 ): Promise<string> {
   const contextMessages = rootSession.messages.filter(
     (m) => m.role === "session-context",
@@ -476,5 +485,18 @@ async function sessionToMarkdown(
     }
   }
 
-  return parts.join("\n");
+  const body = parts.join("\n");
+
+  if (!frontMatter || Object.keys(frontMatter).length === 0) {
+    return body;
+  }
+
+  const yamlLines = Object.entries(frontMatter).map(([key, value]) => {
+    if (typeof value === "string") {
+      return `${key}: ${value.includes("\n") || value.includes(":") ? JSON.stringify(value) : value}`;
+    }
+    return `${key}: ${JSON.stringify(value)}`;
+  });
+
+  return `---\n${yamlLines.join("\n")}\n---\n\n${body}`;
 }

@@ -6,8 +6,10 @@ import { Skeleton } from "./ui/skeleton";
 import { UsageStatsTooltip, UsageSummaryText } from "./usage-stats-tooltip";
 
 export function ProjectUsageSummary({
+  onClick,
   project,
 }: {
+  onClick?: () => void;
   project: WorkspaceAppProject;
 }) {
   const { data } = useQuery(
@@ -33,6 +35,7 @@ export function ProjectUsageSummary({
           <UsageSummaryText
             className="min-w-0 truncate text-[10px] transition-colors hover:text-warning-foreground"
             messageCount={data.messageCount}
+            onClick={onClick}
             totalTokens={data.totalTokens}
           />
         </UsageStatsTooltip>

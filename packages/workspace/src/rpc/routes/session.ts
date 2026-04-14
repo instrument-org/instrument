@@ -151,17 +151,22 @@ const stop = base
 const toMarkdown = base
   .input(
     z.object({
+      frontMatter: z.record(z.string(), z.unknown()).optional(),
       sessionId: StoreId.SessionSchema,
       subdomain: AppSubdomainSchema,
     }),
   )
   .output(z.object({ markdown: z.string() }))
   .handler(async ({ context, input }) => {
-    const { sessionId, subdomain } = input;
+    const { frontMatter, sessionId, subdomain } = input;
     const { workspaceConfig } = context;
     const appConfig = createAppConfig({ subdomain, workspaceConfig });
 
-    const markdown = await getSessionMarkdown({ appConfig, sessionId });
+    const markdown = await getSessionMarkdown({
+      appConfig,
+      frontMatter,
+      sessionId,
+    });
     return { markdown };
   });
 

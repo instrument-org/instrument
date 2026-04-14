@@ -1,5 +1,11 @@
 import { useSyntaxHighlighting } from "@/client/hooks/use-syntax-highlighting";
-import { formatBytes } from "@instrument-org/workspace/client";
+import { rpcClient } from "@/client/rpc/client";
+import {
+  formatBytes,
+  type StoreId,
+  type WorkspaceAppProject,
+} from "@instrument-org/workspace/client";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { Braces, Download, FileText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -14,39 +20,63 @@ import {
 } from "./ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 
-type DebugViewerTab = "json" | "markdown";
+const MAX_DISPLAY_SIZE = 1_000_000;
 
-export function DebugViewer({
-  downloadFilename = "data",
-  jsonData,
-  markdownData,
-  maxDisplaySize = 1_000_000,
+type DebugTab = "json" | "markdown";
+
+export function ProjectDebugDialog({
   onOpenChange,
   open,
-  title = "Debug Viewer",
+  project,
+  selectedSessionId,
 }: {
-  downloadFilename?: string;
-  jsonData: unknown;
-  markdownData: null | string;
-  maxDisplaySize?: number;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  title?: string;
+  project: WorkspaceAppProject;
+  selectedSessionId: StoreId.Session | undefined;
 }) {
-  const [tab, setTab] = useState<DebugViewerTab>("markdown");
+  const [tab, setTab] = useState<DebugTab>("markdown");
+
+  const queryInput =
+    open && selectedSessionId
+      ? { sessionId: selectedSessionId, subdomain: project.subdomain }
+      : skipToken;
+
+  const { data: jsonData } = useQuery(
+    rpcClient.workspace.session.byIdWithMessagesAndParts.queryOptions({
+      input: queryInput,
+    }),
+  );
+
+  const { data: markdownResult } = useQuery(
+    rpcClient.debug.sessionMarkdown.queryOptions({
+      input: queryInput,
+    }),
+  );
+
+  const downloadFilename = useMemo(() => {
+    const sanitized = project.title
+      .normalize("NFKD")
+      .replaceAll(/[\u0300-\u036F]/g, "")
+      .replaceAll(/[^\w\s-]/g, "")
+      .trim()
+      .replaceAll(/\s+/g, "-")
+      .toLowerCase();
+    return sanitized ? `${sanitized}-chat` : "chat";
+  }, [project.title]);
 
   const jsonContent = useMemo(
-    () => JSON.stringify(jsonData, null, 2),
+    () => JSON.stringify(jsonData ?? null, null, 2),
     [jsonData],
   );
-  const markdownContent = markdownData ?? "";
+  const markdownContent = markdownResult?.markdown ?? "";
 
   const rawContent = tab === "json" ? jsonContent : markdownContent;
 
   const { displayContent, isTruncated, originalSize } = useMemo(() => {
     const bytes = new TextEncoder().encode(rawContent).length;
 
-    if (bytes <= maxDisplaySize) {
+    if (bytes <= MAX_DISPLAY_SIZE) {
       return {
         displayContent: rawContent,
         isTruncated: false,
@@ -54,7 +84,7 @@ export function DebugViewer({
       };
     }
 
-    let truncated = rawContent.slice(0, Math.floor(maxDisplaySize * 0.8));
+    let truncated = rawContent.slice(0, Math.floor(MAX_DISPLAY_SIZE * 0.8));
 
     if (tab === "json") {
       const lastNewline = truncated.lastIndexOf("\n");
@@ -74,7 +104,7 @@ export function DebugViewer({
       isTruncated: true,
       originalSize: bytes,
     };
-  }, [rawContent, maxDisplaySize, tab]);
+  }, [rawContent, tab]);
 
   const mimeType = tab === "json" ? "application/json" : "text/markdown";
   const extension = tab === "json" ? "json" : "md";
@@ -101,10 +131,10 @@ export function DebugViewer({
       <DialogContent className="max-h-[90vh] w-[95vw] bg-background sm:max-w-[95vw]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3 text-warning-foreground">
-            <span>{title}</span>
+            <span>Debug Chat</span>
             <Tabs
               onValueChange={(v) => {
-                setTab(v as DebugViewerTab);
+                setTab(v as DebugTab);
               }}
               value={tab}
             >
@@ -156,7 +186,7 @@ function HighlightedContent({
   language,
 }: {
   content: string;
-  language: DebugViewerTab;
+  language: DebugTab;
 }) {
   const { highlightedHtml } = useSyntaxHighlighting({
     code: content,

@@ -13,6 +13,7 @@ export { type SubdomainPart } from "./schemas/subdomain-part";
 export { SubdomainPartSchema } from "./schemas/subdomain-part";
 export {
   type AppSubdomain,
+  AppSubdomainSchema,
   type PreviewSubdomain,
   type ProjectSubdomain,
   ProjectSubdomainSchema,

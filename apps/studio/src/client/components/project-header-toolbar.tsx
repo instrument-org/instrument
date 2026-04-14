@@ -35,6 +35,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { ExportZipModal } from "./export-zip-modal";
+import { ProjectDebugDialog } from "./project-debug-dialog";
 import { ProjectMenu } from "./project-menu";
 import { ProjectUsageSummary } from "./project-usage-summary";
 import { RestoreVersionModal } from "./restore-version-modal";
@@ -92,6 +93,7 @@ export function ProjectHeaderToolbar({
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [exportZipModalOpen, setExportZipModalOpen] = useState(false);
+  const [debugDialogOpen, setDebugDialogOpen] = useState(false);
   const navigate = useNavigate();
 
   const { data: supportedEditors = [] } = useQuery<SupportedEditor[]>(
@@ -144,6 +146,9 @@ export function ProjectHeaderToolbar({
       <div className="w-full bg-background py-2 pr-2 pl-3">
         <div className="flex items-center gap-2">
           <ProjectMenu
+            onDebugClick={() => {
+              setDebugDialogOpen(true);
+            }}
             onSettingsClick={() => {
               setSettingsDialogOpen(true);
             }}
@@ -182,7 +187,12 @@ export function ProjectHeaderToolbar({
           <div className="flex min-w-0 items-center gap-3">
             {isDeveloperMode && (
               <div className="min-w-0 shrink">
-                <ProjectUsageSummary project={project} />
+                <ProjectUsageSummary
+                  onClick={() => {
+                    setDebugDialogOpen(true);
+                  }}
+                  project={project}
+                />
               </div>
             )}
             {isDeveloperMode && selectedSessionId && (
@@ -365,6 +375,13 @@ export function ProjectHeaderToolbar({
           setExportZipModalOpen(false);
         }}
         project={project}
+      />
+
+      <ProjectDebugDialog
+        onOpenChange={setDebugDialogOpen}
+        open={debugDialogOpen}
+        project={project}
+        selectedSessionId={selectedSessionId}
       />
     </>
   );

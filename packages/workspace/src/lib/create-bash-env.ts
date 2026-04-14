@@ -60,6 +60,10 @@ const BROKEN_COMMANDS = new Set<CommandName>([
 
 const STATIC_STUB_COMMANDS = [
   stubCommand("file"),
+  stubCommand(
+    "npm",
+    "npm is not available in this environment. Use 'pnpm' instead (e.g. 'pnpm add <package>').",
+  ),
   stubCommand("sqlite3", "SQLite is not available in this environment"),
   stubCommand("tar"),
   stubCommand("yq"),
@@ -222,6 +226,8 @@ export function createBashDescription() {
     "IMPORTANT: This is a sandboxed environment. python and other runtimes",
     "are NOT available as system binaries. Do NOT attempt to run them directly.",
     "Use the specialized `tsx` command below to execute TypeScript/JavaScript files.",
+    "",
+    "IMPORTANT: `npm` is NOT available. Use `pnpm` for all package management.",
     "",
     "IMPORTANT: Not a persistent terminal -- each call starts fresh from the project root, so `cd .` is always a no-op.",
     "",

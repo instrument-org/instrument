@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
-import { createPnpmCommand } from "./pnpm";
+import { createPnpmCommand, PNPM_COMMAND } from "./pnpm";
 
 vi.mock(import("../execa-node-for-app"));
 
@@ -24,8 +24,8 @@ describe("createPnpmCommand", () => {
       const result = await command.execute([subcommand], mockCtx);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toBe(
-        `Quests already starts and runs the apps for you. You don't need to run 'pnpm ${subcommand}'.`,
+      expect(result.stderr).toContain(
+        `'${PNPM_COMMAND.name} ${subcommand}' is not needed here`,
       );
     },
   );
@@ -36,8 +36,8 @@ describe("createPnpmCommand", () => {
       const result = await command.execute(["run", subcommand], mockCtx);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toBe(
-        `Quests already starts and runs the apps for you. You don't need to run 'pnpm run ${subcommand}'.`,
+      expect(result.stderr).toContain(
+        `'${PNPM_COMMAND.name} run ${subcommand}' is not needed here`,
       );
     },
   );
@@ -49,8 +49,23 @@ describe("createPnpmCommand", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatchInlineSnapshot(
-      `"'pnpm exec' is not allowed. Use 'tsx' to run scripts directly."`,
+    expect(result.stderr).toContain(
+      `'${PNPM_COMMAND.name} exec' is not allowed`,
+    );
+  });
+
+  it.each([
+    { subcommand: "setup" },
+    { subcommand: "env" },
+    { subcommand: "store" },
+    { subcommand: "publish" },
+    { subcommand: "pack" },
+  ])("errors when trying to run pnpm $subcommand", async ({ subcommand }) => {
+    const result = await command.execute([subcommand], mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      `'${PNPM_COMMAND.name} ${subcommand}' is not allowed`,
     );
   });
 
@@ -71,6 +86,49 @@ describe("createPnpmCommand", () => {
       ERR_PNPM_PEER_DEP_ISSUES
 
       script output"
+    `);
+  });
+
+  it("strips --global flag, runs command without it, and appends system note", async () => {
+    const { execaNodeForApp } = await import("../execa-node-for-app");
+    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+      all: "packages installed",
+      exitCode: 0,
+    } as never);
+
+    const result = await command.execute(
+      ["add", "--global", "lodash"],
+      mockCtx,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "packages installed
+      <instrument-system-note>
+      The --global / -g flag was stripped. Global installs are not supported in this environment.
+      Packages must be installed locally with \`pnpm add <package>\`.
+      The command was re-run without the flag.
+      </instrument-system-note>"
+    `);
+  });
+
+  it("strips -g flag, runs command without it, and appends system note", async () => {
+    const { execaNodeForApp } = await import("../execa-node-for-app");
+    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+      all: "packages installed",
+      exitCode: 0,
+    } as never);
+
+    const result = await command.execute(["add", "-g", "lodash"], mockCtx);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "packages installed
+      <instrument-system-note>
+      The --global / -g flag was stripped. Global installs are not supported in this environment.
+      Packages must be installed locally with \`pnpm add <package>\`.
+      The command was re-run without the flag.
+      </instrument-system-note>"
     `);
   });
 

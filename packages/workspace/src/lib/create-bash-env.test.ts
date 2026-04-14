@@ -12,6 +12,8 @@ describe("createBashDescription", () => {
       are NOT available as system binaries. Do NOT attempt to run them directly.
       Use the specialized \`tsx\` command below to execute TypeScript/JavaScript files.
 
+      IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all package management.
+
       IMPORTANT: Not a persistent terminal -- each call starts fresh from the project root, so \`cd .\` is always a no-op.
 
       TIP: Before using an unfamiliar command, run \`<command> --help\` to check its argument syntax.
@@ -27,7 +29,7 @@ describe("createBashDescription", () => {
       Do NOT pass --cdp, --session, or --auto-connect flags; these are injected automatically.
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
-        pnpm - CLI tool for managing JavaScript packages.
+        pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         tsx - Execute a TypeScript or JavaScript file. For quick one-liners, prefer -e <code> over writing a file.
         tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the project's compiler settings."
     `);

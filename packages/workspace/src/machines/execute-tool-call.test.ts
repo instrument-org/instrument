@@ -472,7 +472,8 @@ describe("executeToolCallMachine", () => {
               "pnpm",
             ],
             "exitCode": 1,
-            "output": "Quests already starts and runs the apps for you. You don't need to run 'pnpm dev'.",
+            "output": "'pnpm dev' is not needed here.
+        The app is already started and running in the sandboxed environment.",
           },
           "preliminary": false,
           "state": "output-available",
@@ -503,7 +504,8 @@ describe("executeToolCallMachine", () => {
               "pnpm",
             ],
             "exitCode": 1,
-            "output": "Quests already starts and runs the apps for you. You don't need to run 'pnpm start'.",
+            "output": "'pnpm start' is not needed here.
+        The app is already started and running in the sandboxed environment.",
           },
           "preliminary": false,
           "state": "output-available",
@@ -534,7 +536,8 @@ describe("executeToolCallMachine", () => {
               "pnpm",
             ],
             "exitCode": 1,
-            "output": "Quests already starts and runs the apps for you. You don't need to run 'pnpm run dev'.",
+            "output": "'pnpm run dev' is not needed here.
+        The app is already started and running in the sandboxed environment.",
           },
           "preliminary": false,
           "state": "output-available",
@@ -565,7 +568,8 @@ describe("executeToolCallMachine", () => {
               "pnpm",
             ],
             "exitCode": 1,
-            "output": "Quests already starts and runs the apps for you. You don't need to run 'pnpm run start'.",
+            "output": "'pnpm run start' is not needed here.
+        The app is already started and running in the sandboxed environment.",
           },
           "preliminary": false,
           "state": "output-available",

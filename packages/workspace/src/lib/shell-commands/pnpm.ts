@@ -1,15 +1,34 @@
 import { defineCommand } from "just-bash";
+import { dedent } from "radashi";
 
 import type { AppConfig } from "../app-config/types";
 
 import { absolutePathJoin } from "../absolute-path-join";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
+import { systemNote } from "../system-note";
 import { createTsCommand, TS_COMMAND } from "./ts";
 
 export const PNPM_COMMAND = {
-  description: "CLI tool for managing JavaScript packages.",
+  description:
+    "CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.",
   name: PNPM_NAME,
 } as const;
+
+const GLOBAL_FLAGS = new Set(["--global", "-g"]);
+
+function blockedSubcommand(
+  cmd: string,
+  reason: string,
+): { exitCode: number; stderr: string; stdout: string } {
+  return {
+    exitCode: 1,
+    stderr: dedent`
+      '${PNPM_COMMAND.name} ${cmd}' is not allowed in this environment.
+      ${reason}
+    `,
+    stdout: "",
+  };
+}
 
 // Skip auto-install when the subcommand is itself a package management operation
 const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
@@ -34,6 +53,8 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "update",
 ]);
 
+const DEV_OR_START = new Set(["dev", "start"]);
+
 export function createPnpmCommand(appConfig: AppConfig) {
   const tsCommand = createTsCommand(appConfig);
 
@@ -50,33 +71,63 @@ export function createPnpmCommand(appConfig: AppConfig) {
       return tsCommand.execute(args.slice(1), ctx);
     }
 
-    if (subcommand === "dev" || subcommand === "start") {
-      return {
-        exitCode: 1,
-        stderr: `Quests already starts and runs the apps for you. You don't need to run '${PNPM_COMMAND.name} ${subcommand}'.`,
-        stdout: "",
-      };
-    }
-
     if (
-      subcommand === "run" &&
-      (secondArg === "dev" || secondArg === "start")
+      DEV_OR_START.has(subcommand ?? "") ||
+      (subcommand === "run" && DEV_OR_START.has(secondArg ?? ""))
     ) {
+      const fullCmd =
+        subcommand === "run"
+          ? `${PNPM_COMMAND.name} run ${secondArg ?? ""}`
+          : `${PNPM_COMMAND.name} ${subcommand ?? ""}`;
       return {
         exitCode: 1,
-        stderr: `Quests already starts and runs the apps for you. You don't need to run '${PNPM_COMMAND.name} run ${secondArg}'.`,
+        stderr: dedent`
+          '${fullCmd}' is not needed here.
+          The app is already started and running in the sandboxed environment.
+        `,
         stdout: "",
       };
     }
 
-    // Too dangerous to allow, because it can run arbitrary binaries
     if (subcommand === "exec") {
-      return {
-        exitCode: 1,
-        stderr: `'${PNPM_COMMAND.name} exec' is not allowed. Use '${TS_COMMAND.name}' to run scripts directly.`,
-        stdout: "",
-      };
+      return blockedSubcommand(
+        "exec",
+        "Use the bash tool directly to run shell commands.",
+      );
     }
+
+    if (subcommand === "setup") {
+      return blockedSubcommand(
+        "setup",
+        "Shell profile changes are not supported in a sandboxed project.",
+      );
+    }
+
+    if (subcommand === "env") {
+      return blockedSubcommand(
+        "env",
+        "The Node.js version is managed by the sandbox and cannot be changed.",
+      );
+    }
+
+    if (subcommand === "store") {
+      return blockedSubcommand(
+        "store",
+        "The shared package store is managed by the sandbox and must not be modified directly.",
+      );
+    }
+
+    if (subcommand === "publish" || subcommand === "pack") {
+      return blockedSubcommand(
+        subcommand,
+        "This is a sandboxed project workspace intended for development; publishing to the npm registry is not permitted.",
+      );
+    }
+
+    const hasGlobalFlag = args.some((arg) => GLOBAL_FLAGS.has(arg));
+    const filteredArgs = hasGlobalFlag
+      ? args.filter((arg) => !GLOBAL_FLAGS.has(arg))
+      : args;
 
     const env = Object.fromEntries(ctx.env);
 
@@ -96,16 +147,26 @@ export function createPnpmCommand(appConfig: AppConfig) {
     const cwd = absolutePathJoin(appConfig.appDir, ctx.cwd);
     const result = await runPnpmCommand({
       appConfig,
-      args,
+      args: filteredArgs,
       cwd,
       env,
       signal: ctx.signal,
       stdin: ctx.stdin || undefined,
     });
+
+    let globalNote = "";
+    if (hasGlobalFlag) {
+      globalNote = systemNote`
+        The --global / -g flag was stripped. Global installs are not supported in this environment.
+        Packages must be installed locally with \`${PNPM_COMMAND.name} add <package>\`.
+        The command was re-run without the flag.
+      `;
+    }
+
     return {
       exitCode: result.exitCode,
       stderr: "",
-      stdout: installOutput + result.combined,
+      stdout: installOutput + result.combined + globalNote,
     };
   });
 }

@@ -67,7 +67,6 @@ export function AccountInfo() {
                       onRetry={() => {
                         void refetch();
                       }}
-                      subject="Account Connection Error"
                       title="Connection error"
                     >
                       {error.message}

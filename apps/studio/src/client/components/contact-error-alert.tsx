@@ -1,7 +1,7 @@
-import { SUPPORT_EMAIL } from "@instrument-org/shared";
+import { SUPPORT_URL } from "@instrument-org/shared";
 import { AlertCircle } from "lucide-react";
 
-import { EmailLink } from "./email-link";
+import { ExternalLink } from "./external-link";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
 
@@ -9,13 +9,11 @@ export function ContactErrorAlert({
   children,
   className,
   onRetry,
-  subject = "Error Report",
   title,
 }: {
   children: React.ReactNode;
   className?: string;
   onRetry?: () => void;
-  subject?: string;
   title: string;
 }) {
   return (
@@ -28,13 +26,12 @@ export function ContactErrorAlert({
             <div>{children}</div>
             <div className="text-xs text-muted-foreground">
               Need help?{" "}
-              <EmailLink
+              <ExternalLink
                 className="inline underline hover:no-underline"
-                email={SUPPORT_EMAIL}
-                subject={subject}
+                href={SUPPORT_URL}
               >
                 Contact us
-              </EmailLink>
+              </ExternalLink>
             </div>
           </AlertDescription>
         </div>

@@ -24,7 +24,7 @@ import {
   SUPPORT_EMAIL,
 } from "@instrument-org/shared";
 import { detect } from "detect-port";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { html } from "hono/html";
 import fs from "node:fs/promises";
 import { tv } from "tailwind-variants";
@@ -48,6 +48,24 @@ const DEFAULT_PORT =
     ? PORTS.authCallback.dev
     : PORTS.authCallback.prod;
 
+const serveAsset = async (
+  c: Context,
+  importFn: () => Promise<{ default: string }>,
+  contentType: string,
+) => {
+  try {
+    const { default: assetPath } = await importFn();
+    const buffer = await fs.readFile(assetPath);
+    return c.body(buffer, 200, { "Content-Type": contentType });
+  } catch (error) {
+    captureServerException(
+      new Error("Failed to load asset", { cause: error }),
+      { scopes: ["auth"] },
+    );
+    return c.body(null, 404);
+  }
+};
+
 export async function startAuthCallbackServer() {
   const existingServer = getAuthServer();
   if (existingServer !== null) {
@@ -59,23 +77,20 @@ export async function startAuthCallbackServer() {
 
   const app = new Hono();
 
-  app.get("/icon.png", async (c) => {
-    try {
-      const { default: appIconPath } = await import(
-        "../../../resources/icon.png?asset"
-      );
-      const iconBuffer = await fs.readFile(appIconPath);
-      return c.body(iconBuffer, 200, {
-        "Content-Type": "image/png",
-      });
-    } catch (error) {
-      captureServerException(
-        new Error("Failed to load app icon", { cause: error }),
-        { scopes: ["auth"] },
-      );
-      return c.body(null, 404);
-    }
-  });
+  app.get("/icon.png", (c) =>
+    serveAsset(
+      c,
+      () => import("../../../resources/icon.png?asset"),
+      "image/png",
+    ),
+  );
+  app.get("/favicon.ico", (c) =>
+    serveAsset(
+      c,
+      () => import("../../../resources/favicon.ico?asset"),
+      "image/x-icon",
+    ),
+  );
 
   app.get("/auth/callback/google", async (c) => {
     const code = c.req.query("code");
@@ -259,12 +274,7 @@ function renderAuthPage({
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link
-          rel="icon"
-          href=${APP_URL}/favicon.ico"
-          type="image/x-icon"
-          sizes="16x16"
-        />
+        <link rel="icon" href="/favicon.ico" type="image/x-icon" />
         <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
         <title>Sign in to ${APP_NAME}</title>
       </head>
@@ -273,7 +283,12 @@ function renderAuthPage({
           class="flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10"
         >
           <div id="icon-container" class="flex items-center justify-center">
-            <img id="app-icon" src="/icon.png" alt="${APP_NAME}" class="w-24 h-24" />
+            <img
+              id="app-icon"
+              src="/icon.png"
+              alt="${APP_NAME}"
+              class="w-24 h-24"
+            />
           </div>
           ${renderContent()}
         </div>
@@ -282,7 +297,9 @@ function renderAuthPage({
             .getElementById("app-icon")
             .addEventListener("error", function () {
               document.getElementById("icon-container").innerHTML =
-                '<h1 class="text-3xl font-bold">' + ${JSON.stringify(APP_NAME)} + '</h1>';
+                '<h1 class="text-3xl font-bold">' +
+                ${JSON.stringify(APP_NAME)} +
+                "</h1>";
             });
         </script>
       </body>

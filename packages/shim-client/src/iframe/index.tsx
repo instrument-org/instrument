@@ -1,9 +1,13 @@
-import { type HeartbeatResponse } from "@instrument-org/workspace/for-shim";
+import {
+  HEARTBEAT_STREAM_PATH,
+  type HeartbeatResponse,
+} from "@instrument-org/workspace/for-shim";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-import { Overlay } from "./components/overlay";
+import { FALLBACK_URL_PARAM } from "../shared/constants";
 import "./styles.css";
+import { Overlay } from "./components/overlay";
 import { type ClientToIframeMessage, type IframeMessage } from "./types";
 
 export function App() {
@@ -14,7 +18,7 @@ export function App() {
   const previousStatusRef = useRef(response?.status ?? null);
   const retryAttemptsRef = useRef(0);
   const urlParams = new URLSearchParams(window.location.search);
-  const isFallbackPage = urlParams.has("fallback");
+  const isFallbackPage = urlParams.has(FALLBACK_URL_PARAM);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -54,7 +58,7 @@ export function App() {
         eventSource.close();
       }
 
-      eventSource = new EventSource("/_quests/heartbeat-stream");
+      eventSource = new EventSource(HEARTBEAT_STREAM_PATH);
 
       eventSource.addEventListener("heartbeat", (event) => {
         try {

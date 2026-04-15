@@ -1,11 +1,12 @@
-// WARNING: Files cannot be shared between the client and the iframe or else
-// it will cause an infinite loop on import due to Vite's build. Not sure why.
 import {
   type ConsoleLogType,
   type ShimIFrameMessage,
   type ShimIFrameOutMessage,
 } from "@instrument-org/shared/shim";
-import { SHIM_IFRAME_BASE_PATH } from "@instrument-org/workspace/for-shim";
+import {
+  FALLBACK_PAGE_META_NAME,
+  SHIM_IFRAME_BASE_PATH,
+} from "@instrument-org/workspace/for-shim";
 import { sprintf } from "sprintf-js";
 
 import {
@@ -13,14 +14,13 @@ import {
   type IframeMessage,
   type IframeMessageHandler,
 } from "../iframe/types";
+import { FALLBACK_URL_PARAM } from "../shared/constants";
 
 const IFRAME_CLASSES = {
   base: "shim-client-iframe",
   visible: "shim-client-iframe--visible",
 } as const;
 
-const FALLBACK_URL_PARAM = "fallback";
-const WORKSPACE_FALLBACK_PAGE_META_NAME = "workspace-fallback-page";
 const REFRESH_KEY = "shim-client-refresh";
 
 const style = document.createElement("style");
@@ -238,9 +238,7 @@ window.addEventListener("message", (event) => {
 });
 
 const isFallbackPage =
-  document.querySelector(
-    `meta[name="${WORKSPACE_FALLBACK_PAGE_META_NAME}"]`,
-  ) !== null;
+  document.querySelector(`meta[name="${FALLBACK_PAGE_META_NAME}"]`) !== null;
 const iframeUrl = new URL(`${SHIM_IFRAME_BASE_PATH}/`, window.location.origin);
 if (isFallbackPage) {
   iframeUrl.searchParams.set(FALLBACK_URL_PARAM, "true");

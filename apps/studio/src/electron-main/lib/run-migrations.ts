@@ -2,7 +2,7 @@ import { getAppStateStore } from "@/electron-main/stores/app-state";
 import { app } from "electron";
 import semver from "semver";
 
-import { logger } from "./electron-logger";
+// import { logger } from "./electron-logger";
 
 export function runMigrations(): void {
   const appStateStore = getAppStateStore();
@@ -14,11 +14,12 @@ export function runMigrations(): void {
     return;
   }
 
-  logger.info(
-    `Running migrations from version ${lastMigratedVersion ?? "initial install"} to ${currentVersion}`,
-  );
+  // logger.info(
+  //   `Running migrations from version ${lastMigratedVersion ?? "initial install"} to ${currentVersion}`,
+  // );
 
   // Update the last migrated version to current version
   appStateStore.set("lastMigratedVersion", currentVersion);
-  logger.info(`Migrations complete, updated to version ${currentVersion}`);
+
+  // logger.info(`Migrations complete, updated to version ${currentVersion}`);
 }

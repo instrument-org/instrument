@@ -63,6 +63,9 @@
       "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite",
       "type": "node",
       "windows": {
+        "env": {
+          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
+        },
         "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite.cmd"
       }
     },
@@ -83,6 +86,9 @@
       "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite",
       "type": "node",
       "windows": {
+        "env": {
+          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
+        },
         "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite.cmd"
       }
     },
@@ -106,6 +112,9 @@
       "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite",
       "type": "node",
       "windows": {
+        "env": {
+          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
+        },
         "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite.cmd"
       }
     },
@@ -142,6 +151,9 @@
       "skipFiles": ["<node_internals>/**", "${workspaceRoot}/node_modules/**"],
       "type": "node",
       "windows": {
+        "env": {
+          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
+        },
         "runtimeExecutable": "${workspaceRoot}/packages/shim-client/node_modules/.bin/vite.cmd"
       }
     },
@@ -160,7 +172,13 @@
         "<node_internals>/**",
         "${workspaceFolder}/node_modules/**"
       ],
-      "type": "node"
+      "type": "node",
+      "windows": {
+        "env": {
+          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
+        },
+        "runtimeExecutable": "${workspaceRoot}/packages/workspace/node_modules/.bin/tsx.cmd"
+      }
     },
     {
       "console": "integratedTerminal",
@@ -178,7 +196,13 @@
         "<node_internals>/**",
         "${workspaceFolder}/node_modules/**"
       ],
-      "type": "node"
+      "type": "node",
+      "windows": {
+        "env": {
+          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
+        },
+        "runtimeExecutable": "${workspaceRoot}/packages/workspace/node_modules/.bin/tsx.cmd"
+      }
     },
     {
       "args": ["run", "${relativeFile}"],

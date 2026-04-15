@@ -1,14 +1,11 @@
 {
   "tasks": [
     {
-      "command": "turbo run build --filter=@instrument-org/shim-client",
+      "command": "pnpm exec turbo run build --filter=@instrument-org/shim-client",
       "detail": "Build the shim client bundle (cached via Turbo)",
       "label": "Build Shim Client",
       "options": {
-        "cwd": "${workspaceRoot}",
-        "env": {
-          "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}"
-        }
+        "cwd": "${workspaceRoot}"
       },
       "presentation": {
         "clear": true,

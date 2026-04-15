@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_app/_authenticated/subscribe")({
         {
           title: "Subscribe",
         },
-        createIconMeta("quests"),
+        createIconMeta("our-app"),
       ],
     };
   },

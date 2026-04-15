@@ -65,7 +65,7 @@ describe("getErrorAction", () => {
   });
 
   describe("api-call errors", () => {
-    describe("quests provider", () => {
+    describe("our provider", () => {
       it("returns retry when no response body", () => {
         const message = createMessage(
           {

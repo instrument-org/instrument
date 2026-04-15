@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_app/_not_authenticated/welcome")({
         {
           title: `Welcome to ${APP_NAME}`,
         },
-        createIconMeta("quests"),
+        createIconMeta("our-app"),
       ],
     };
   },

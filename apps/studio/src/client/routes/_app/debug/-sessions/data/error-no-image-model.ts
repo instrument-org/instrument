@@ -35,7 +35,7 @@ registerSession({
         createdAt: builder.nextTime(),
         finishReason: "stop",
         modelId: "claude-3-5-sonnet-4.5",
-        providerId: "quests",
+        providerId: "instrument",
         sessionId,
       },
       parts: [

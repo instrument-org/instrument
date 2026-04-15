@@ -5,9 +5,9 @@ import { readWindowsShim, resolveShimTarget } from "./read-pnpm-shim";
 const createWindowsShim = (targetPath: string) => {
   return `@SETLOCAL
 @IF NOT DEFINED NODE_PATH (
-  @SET "NODE_PATH=C:\\Users\\tests\\code\\quests\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules\\pnpm\\bin\\node_modules;C:\\Users\\tests\\code\\quests\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules\\pnpm\\node_modules;C:\\Users\\tests\\code\\quests\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules;C:\\Users\\tests\\code\\quests\\node_modules\\.pnpm\\node_modules"
+  @SET "NODE_PATH=C:\\Users\\tests\\code\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules\\pnpm\\bin\\node_modules;C:\\Users\\tests\\code\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules\\pnpm\\node_modules;C:\\Users\\tests\\code\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules;C:\\Users\\tests\\code\\node_modules\\.pnpm\\node_modules"
 ) ELSE (
-  @SET "NODE_PATH=C:\\Users\\tests\\code\\quests\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules\\pnpm\\bin\\node_modules;C:\\Users\\tests\\code\\quests\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules\\pnpm\\node_modules;C:\\Users\\tests\\code\\quests\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules;C:\\Users\\tests\\code\\quests\\node_modules\\.pnpm\\node_modules;%NODE_PATH%"
+  @SET "NODE_PATH=C:\\Users\\tests\\code\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules\\pnpm\\bin\\node_modules;C:\\Users\\tests\\code\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules\\pnpm\\node_modules;C:\\Users\\tests\\code\\node_modules\\.pnpm\\pnpm@10.13.1\\node_modules;C:\\Users\\tests\\code\\node_modules\\.pnpm\\node_modules;%NODE_PATH%"
 )
 @IF EXIST "%~dp0\\node.exe" (
   "%~dp0\\node.exe"  "%~dp0\\${targetPath}" %*

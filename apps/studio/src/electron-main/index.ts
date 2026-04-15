@@ -11,7 +11,7 @@ import {
 } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { is, optimizer } from "@electron-toolkit/utils";
-import { APP_PROTOCOL } from "@instrument-org/shared";
+import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   app,
   BrowserWindow,
@@ -89,8 +89,7 @@ void app.whenReady().then(async () => {
       buttons: ["Move to Applications Folder", "Not Now"],
       cancelId: 1,
       defaultId: 0,
-      message:
-        "Quests works best when run from the Applications folder. Would you like to move it now?",
+      message: `${APP_NAME} works best when run from the Applications folder. Would you like to move it now?`,
       title: "Move to Applications Folder?",
       type: "question",
     });

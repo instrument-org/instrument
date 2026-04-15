@@ -1,5 +1,6 @@
 export {
   FALLBACK_PAGE_META_NAME,
+  HEARTBEAT_STREAM_PATH,
   SHIM_IFRAME_BASE_PATH,
   SHIM_SCRIPTS,
 } from "./logic/server/constants";

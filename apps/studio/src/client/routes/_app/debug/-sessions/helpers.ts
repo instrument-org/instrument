@@ -184,7 +184,7 @@ export function createErrorMessage({
         })
       : undefined,
     statusCode,
-    url: "https://api.quests.ai/v1/messages",
+    url: "https://example.com",
   };
 }
 

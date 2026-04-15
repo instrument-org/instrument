@@ -54,14 +54,14 @@ export async function getRegistryTemplateDetails(
     );
 
     // Read all metadata in parallel for better performance
-    const [questsConfig, readme, screenshotPath] = await Promise.all([
+    const [manifest, readme, screenshotPath] = await Promise.all([
       getProjectManifest(parsedTemplateDir),
       readTemplateReadme(parsedTemplateDir),
       findTemplateScreenshot(parsedTemplateDir),
     ]);
 
-    const title = questsConfig?.name ?? folderName;
-    const description = questsConfig?.description;
+    const title = manifest?.name ?? folderName;
+    const description = manifest?.description;
 
     const preview = await getWorkspaceAppForSubdomain(
       previewSubdomain,
@@ -70,7 +70,7 @@ export async function getRegistryTemplateDetails(
 
     return {
       description,
-      iconName: questsConfig?.iconName,
+      iconName: manifest?.iconName,
       preview,
       readme,
       screenshotPath,

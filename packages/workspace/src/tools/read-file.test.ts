@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -225,7 +226,9 @@ describe("ReadFile Unicode path fallbacks", () => {
   };
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "quests-read-unicode-"));
+    tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `${APP_NAME_SLUG}-read-unicode-`),
+    );
     tmpAppConfig = {
       ...createMockAppConfig(ProjectSubdomainSchema.parse("test"), { model }),
       appDir: AppDirSchema.parse(tmpDir),

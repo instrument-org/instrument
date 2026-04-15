@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,7 +15,9 @@ describe("applyUnicodeFallbacks", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "quests-unicode-test-"));
+    tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `${APP_NAME_SLUG}-unicode-test-`),
+    );
   });
 
   afterEach(async () => {

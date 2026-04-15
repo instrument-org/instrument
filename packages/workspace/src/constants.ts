@@ -3,10 +3,18 @@ export const REGISTRY_FOLDER_NAMES = {
   templates: "templates",
 } as const;
 
+import {
+  APP_PRIVATE_FOLDER_NAME,
+  GIT_AGENT_EMAIL,
+  GIT_AGENT_NAME,
+  GIT_TRAILER_INITIAL_COMMIT,
+  GIT_TRAILER_TEMPLATE,
+} from "@instrument-org/shared";
+
 export const APP_FOLDER_NAMES = {
   agentRetrieved: "agent-retrieved",
   output: "output",
-  private: ".quests",
+  private: APP_PRIVATE_FOLDER_NAME,
   scripts: "scripts",
   skills: "skills",
   src: "src",
@@ -30,10 +38,13 @@ export const APP_STATUSES = [
   "unknown",
 ] as const;
 
-export const GIT_AUTHOR = { email: "agent@quests.dev", name: "Quests Agent" };
+export const GIT_AUTHOR = {
+  email: GIT_AGENT_EMAIL,
+  name: GIT_AGENT_NAME,
+};
 export const GIT_TRAILERS = {
-  initialCommit: "Quests-Initial-Commit",
-  template: "Quests-Template",
+  initialCommit: GIT_TRAILER_INITIAL_COMMIT,
+  template: GIT_TRAILER_TEMPLATE,
 };
 
 // Limit prompt storage to 50KB to avoid blowing up the JSON file

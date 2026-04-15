@@ -20,7 +20,7 @@ export const IconMap: Record<TabIconName, LucideIcon | typeof StudioIcon> = {
   "flask-conical": FlaskConical,
   globe: Globe,
   "message-circle": MessageCircle,
-  quests: StudioIcon, // TODO(rename)
+  "our-app": StudioIcon,
   "square-dashed": SquareDashed,
   squircle: Squircle,
   "table-properties": TableProperties,

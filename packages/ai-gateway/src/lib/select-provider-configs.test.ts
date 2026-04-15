@@ -84,7 +84,7 @@ describe("selectProviderConfigs", () => {
     const result = selectProviderConfigs({
       configs,
       preferredProviderConfig: createConfig({
-        id: "quests-999",
+        id: `${OUR_PROVIDER_CONFIG.id}-999`,
         type: OUR_PROVIDER_CONFIG.type,
       }),
       providerTypePriority: [...priority],
@@ -93,7 +93,7 @@ describe("selectProviderConfigs", () => {
     expect(result[0]?.id).toBe("google-1");
   });
 
-  it("prioritizes quests in automatic ordering", () => {
+  it("prioritizes our provider in automatic ordering", () => {
     const configs = [
       createConfig({ id: "fireworks-1", type: "fireworks" }),
       createConfig({ id: "openai-1", type: "openai" }),

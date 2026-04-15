@@ -7,15 +7,15 @@ import { WebSocket, WebSocketServer } from "ws";
 
 import { type ProjectSubdomain } from "../../../schemas/subdomains";
 import { type WorkspaceConfig } from "../../../types";
+import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
 import { type WorkspaceServerEnv } from "../types";
 import { getWorkspaceServerPort } from "../url";
 
-const CDP_BASE_PATH = "/_quests/cdp";
-export const CDP_PAGE_PATH_PREFIX = `${CDP_BASE_PATH}/devtools/page/`;
+export const cdpBridgeRoute = new Hono<WorkspaceServerEnv>().basePath(
+  CDP_BASE_PATH,
+);
 
-export const cdpBridgeRoute = new Hono<WorkspaceServerEnv>();
-
-cdpBridgeRoute.get(`${CDP_BASE_PATH}/json/version`, (c) => {
+cdpBridgeRoute.get("/json/version", (c) => {
   const port = getWorkspaceServerPort();
   return c.json({
     Browser: "Electron/Chromium",
@@ -27,7 +27,7 @@ cdpBridgeRoute.get(`${CDP_BASE_PATH}/json/version`, (c) => {
   });
 });
 
-cdpBridgeRoute.get(`${CDP_BASE_PATH}/json`, async (c) => {
+cdpBridgeRoute.get("/json", async (c) => {
   const subdomain = c.req.query("subdomain") as ProjectSubdomain | undefined;
   if (!subdomain) {
     return c.json({ error: "subdomain query parameter required" }, 400);

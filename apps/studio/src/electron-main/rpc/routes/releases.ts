@@ -1,5 +1,5 @@
 import { base } from "@/electron-main/rpc/base";
-import { APP_REPO_NAME, GITHUB_ORG } from "@instrument-org/shared";
+import { APP_NAME, APP_REPO_NAME, GITHUB_ORG } from "@instrument-org/shared";
 import ms from "ms";
 import { z } from "zod";
 
@@ -47,7 +47,7 @@ const list = base
       const response = await fetch(apiUrl, {
         headers: {
           Accept: "application/vnd.github.v3+json",
-          "User-Agent": "Quests.dev",
+          "User-Agent": APP_NAME,
         },
       });
 

@@ -6,7 +6,7 @@ import { dedent } from "radashi";
 import type { AppConfig } from "../app-config/types";
 
 import { APP_FOLDER_NAMES } from "../../constants";
-import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/routes/cdp-bridge";
+import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
 import { absolutePathJoin } from "../absolute-path-join";

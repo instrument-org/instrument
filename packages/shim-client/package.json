@@ -10,7 +10,7 @@
   },
   "type": "module",
   "scripts": {
-    "build": "vite build --configLoader runner",
+    "build": "vite build --configLoader runner && vite build --configLoader runner --config vite.shim.config.ts",
     "check:build": "pnpm run build",
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:types": "tsc --noEmit",

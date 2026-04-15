@@ -215,7 +215,8 @@ const buttonVariants = tv({
   variants: {
     variant: {
       default: "bg-white text-black shadow-sm hover:bg-white/90",
-      outline: "border border-stone-700 text-white hover:bg-stone-800",
+      outline:
+        "border border-stone-700 text-stone-900 hover:bg-stone-100 dark:text-white dark:hover:bg-stone-800",
     },
   },
 });
@@ -273,7 +274,7 @@ function renderAuthPage({
         <script src="/tailwind.js"></script>
         <title>Sign in to ${APP_NAME}</title>
       </head>
-      <body class="dark:bg-stone-950 dark:text-white">
+      <body class="bg-white text-stone-900 dark:bg-stone-950 dark:text-white">
         <div
           class="flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10"
         >

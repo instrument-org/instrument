@@ -50,7 +50,7 @@
         "MAIN_VITE_USE_BUILT_SHIM_CLIENT": "true",
         "NODE_OPTIONS": "--enable-source-maps",
         "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}",
-        "REMOTE_DEBUGGING_PORT": "48160"
+        "REMOTE_DEBUGGING_PORT": "48160" // PORTS.electronDebug
       },
       "internalConsoleOptions": "openOnFirstSessionStart",
       "name": "🐛 Studio",

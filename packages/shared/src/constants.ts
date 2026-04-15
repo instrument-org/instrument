@@ -37,6 +37,30 @@ export const GIT_AGENT_NAME = `${APP_NAME} Agent`;
 export const GIT_TRAILER_INITIAL_COMMIT = "Instrument-Initial-Commit";
 export const GIT_TRAILER_TEMPLATE = "Instrument-Template";
 
+// 47xxx-48xxx range: above WSL2/Hyper-V exclusion bands (~4k-10k) and below
+// the OS ephemeral range (49152+). Env suffixes (prod/dev/test) allow all
+// three to run side-by-side.
+export const PORTS = {
+  appsServer: {
+    dev: 48_300,
+    prod: 48_100,
+    test: 48_500,
+  },
+  authCallback: {
+    dev: 47_783,
+    prod: 47_893,
+  },
+  electronDebug: 48_160,
+  // Starting port for PortManager, which increments upward (up to 1000 attempts)
+  // to assign a port to each running user app.
+  runtimeBase: {
+    dev: 48_400,
+    prod: 48_200,
+    test: 48_600,
+  },
+  shimClient: 48_350,
+} as const;
+
 const OUR_MODEL_PREFIX = APP_NAME_SLUG;
 export const OUR_MODELS = {
   author: APP_NAME_SLUG,

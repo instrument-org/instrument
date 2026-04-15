@@ -20,6 +20,7 @@ import {
   APP_NAME,
   APP_PROTOCOL,
   APP_URL,
+  PORTS,
   SUPPORT_EMAIL,
 } from "@instrument-org/shared";
 import { detect } from "detect-port";
@@ -42,7 +43,10 @@ function focusMainWindow() {
   }
 }
 
-const DEFAULT_PORT = process.env.NODE_ENV === "development" ? 5605 : 5705;
+const DEFAULT_PORT =
+  process.env.NODE_ENV === "development"
+    ? PORTS.authCallback.dev
+    : PORTS.authCallback.prod;
 
 export async function startAuthCallbackServer() {
   const existingServer = getAuthServer();

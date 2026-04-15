@@ -25,7 +25,7 @@ import {
 } from "@instrument-org/shared";
 import { detect } from "detect-port";
 import { type Context, Hono } from "hono";
-import { html } from "hono/html";
+import { html, raw } from "hono/html";
 import fs from "node:fs/promises";
 import { tv } from "tailwind-variants";
 
@@ -89,6 +89,13 @@ export async function startAuthCallbackServer() {
       c,
       () => import("../../../resources/favicon.ico?asset"),
       "image/x-icon",
+    ),
+  );
+  app.get("/tailwind.js", (c) =>
+    serveAsset(
+      c,
+      () => import("../../../resources/tailwind-browser.js?asset"),
+      "application/javascript",
     ),
   );
 
@@ -216,11 +223,7 @@ const buttonVariants = tv({
 const button = (variant: "default" | "outline", href: string, label: string) =>
   html`<a class="${buttonVariants({ variant })}" href="${href}">${label}</a>`;
 
-const contactUsButton = button(
-  "outline",
-  SUPPORT_URL,
-  "Contact us",
-);
+const contactUsButton = button("outline", SUPPORT_URL, "Contact us");
 
 function renderAuthPage({
   isError = false,
@@ -267,7 +270,7 @@ function renderAuthPage({
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+        <script src="/tailwind.js"></script>
         <title>Sign in to ${APP_NAME}</title>
       </head>
       <body class="dark:bg-stone-950 dark:text-white">
@@ -290,7 +293,7 @@ function renderAuthPage({
             .addEventListener("error", function () {
               document.getElementById("icon-container").innerHTML =
                 '<h1 class="text-3xl font-bold">' +
-                ${JSON.stringify(APP_NAME)} +
+                ${raw(JSON.stringify(APP_NAME))} +
                 "</h1>";
             });
         </script>

@@ -238,9 +238,6 @@ importers:
       isbinaryfile:
         specifier: ^6.0.0
         version: 6.0.0
-      motion:
-        specifier: ^12.35.2
-        version: 12.35.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       ms:
         specifier: ^2.1.3
         version: 2.1.3
@@ -253,15 +250,9 @@ importers:
       radashi:
         specifier: ^12.6.0
         version: 12.6.0
-      react-split-pane:
-        specifier: ^3.2.0
-        version: 3.2.0(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       read-pkg:
         specifier: ^9.0.1
         version: 9.0.1
-      remark-breaks:
-        specifier: ^4.0.0
-        version: 4.0.0
       semver:
         specifier: ^7.7.2
         version: 7.7.4
@@ -446,6 +437,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 0.525.0(react@19.2.1)
+      motion:
+        specifier: ^12.35.2
+        version: 12.35.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       playwright:
         specifier: ^1.57.0
         version: 1.57.0
@@ -464,12 +458,18 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.7)(react@19.2.1)
+      react-split-pane:
+        specifier: ^3.2.0
+        version: 3.2.0(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       rehype-katex:
         specifier: ^7.0.1
         version: 7.0.1
       rehype-raw:
         specifier: ^7.0.0
         version: 7.0.0
+      remark-breaks:
+        specifier: ^4.0.0
+        version: 4.0.0
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -693,9 +693,6 @@ importers:
 
   packages/shared:
     dependencies:
-      lucide-react:
-        specifier: 'catalog:'
-        version: 0.525.0(react@19.2.1)
       zod:
         specifier: 'catalog:'
         version: 4.2.1
@@ -709,6 +706,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.12.2
+      lucide-react:
+        specifier: 'catalog:'
+        version: 0.525.0(react@19.2.1)
 
   packages/shim-client:
     dependencies:
@@ -868,9 +868,6 @@ importers:
       tiny-invariant:
         specifier: ^1.3.3
         version: 1.3.3
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.2
       ulid:
         specifier: ^3.0.1
         version: 3.0.1
@@ -920,6 +917,9 @@ importers:
       tsx:
         specifier: ^4.20.3
         version: 4.20.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.2
       vitest:
         specifier: 'catalog:'
         version: 3.2.4(@edge-runtime/vm@3.2.0)(@types/debug@4.1.12)(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.30.2)(msw@2.7.5(@types/node@24.12.2)(typescript@5.9.2))(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.3)

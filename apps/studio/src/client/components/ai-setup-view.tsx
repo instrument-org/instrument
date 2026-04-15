@@ -121,7 +121,6 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
                 {error && (
                   <ContactErrorAlert
                     className="w-full min-w-80"
-                    subject="Sign In Error"
                     title="Sign in failed"
                   >
                     There was an error signing in. Please try again.

@@ -21,7 +21,7 @@ import {
   APP_PROTOCOL,
   APP_URL,
   PORTS,
-  SUPPORT_EMAIL,
+  SUPPORT_URL,
 } from "@instrument-org/shared";
 import { detect } from "detect-port";
 import { type Context, Hono } from "hono";
@@ -218,7 +218,7 @@ const button = (variant: "default" | "outline", href: string, label: string) =>
 
 const contactUsButton = button(
   "outline",
-  `mailto:${SUPPORT_EMAIL}`,
+  SUPPORT_URL,
   "Contact us",
 );
 
@@ -240,11 +240,7 @@ function renderAuthPage({
         </p>
         <p class="flex gap-2">
           ${contactUsButton}
-          ${button(
-            "default",
-            `${APP_PROTOCOL}://`,
-            `View error in ${APP_NAME}`,
-          )}
+          ${button("default", `${APP_PROTOCOL}://`, `Open ${APP_NAME}`)}
         </p>`;
     }
     if (isError) {
@@ -253,11 +249,7 @@ function renderAuthPage({
         </h1>
         <p class="flex gap-2">
           ${contactUsButton}
-          ${button(
-            "default",
-            `${APP_PROTOCOL}://`,
-            `View error in ${APP_NAME}`,
-          )}
+          ${button("default", `${APP_PROTOCOL}://`, `Open ${APP_NAME}`)}
         </p>`;
     }
     return html`<h2 class="text-xl text-center font-bold">

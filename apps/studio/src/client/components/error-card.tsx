@@ -1,8 +1,8 @@
-import { SUPPORT_EMAIL } from "@instrument-org/shared";
+import { SUPPORT_URL } from "@instrument-org/shared";
 import { rootRouteId, useMatch, useRouter } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 
-import { EmailLink } from "./email-link";
+import { ExternalLink } from "./external-link";
 import { InternalLink } from "./internal-link";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -88,7 +88,7 @@ export function ErrorCard({
       </CardContent>
       <CardFooter className="justify-end gap-x-2">
         <Button asChild variant="ghost">
-          <EmailLink email={SUPPORT_EMAIL}>Contact us</EmailLink>
+          <ExternalLink href={SUPPORT_URL}>Contact us</ExternalLink>
         </Button>
         {isRoot ? (
           <Button asChild variant="outline">

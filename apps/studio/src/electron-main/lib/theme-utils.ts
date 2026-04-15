@@ -18,9 +18,13 @@ export function getMainWindowBackgroundColor() {
 
 export function getTitleBarOverlay() {
   const isDark = shouldUseDarkMode();
+  // Windows and Linux include a 1px border in the overlay height that is not
+  // part of the CSS content area, causing a 1px overlap with the tab bar.
+  const height =
+    process.platform === "darwin" ? TOOLBAR_HEIGHT : TOOLBAR_HEIGHT - 1;
   return {
     color: isDark ? "#272a2d" : "#e7e8ec",
-    height: TOOLBAR_HEIGHT,
+    height,
     symbolColor: isDark ? "#ffffff" : "#3f3f3f",
   };
 }

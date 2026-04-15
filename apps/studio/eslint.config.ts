@@ -17,6 +17,7 @@ export default [
     "dist",
     "bin",
     ".tmp",
+    "resources/tailwind-browser.js",
   ]),
   ...baseConfig,
   {

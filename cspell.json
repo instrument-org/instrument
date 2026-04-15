@@ -1,7 +1,11 @@
 {
   "files": ["**", ".github/**", ".vscode/**"],
   "dictionaries": ["typescript", "bash", "css", "html", "node", "npm"],
-  "ignorePaths": ["pnpm-lock.yaml", "registry/"],
+  "ignorePaths": [
+    "pnpm-lock.yaml",
+    "registry/",
+    "apps/studio/resources/tailwind-browser.js"
+  ],
   "useGitignore": true,
   "words": [
     "aisdk",

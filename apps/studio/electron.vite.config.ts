@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
+import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,6 +43,27 @@ const resolve = {
     "@": path.join(path.dirname(fileURLToPath(import.meta.url)), "src"),
   },
 };
+
+function copyVendorAssets(): Plugin {
+  const require = createRequire(import.meta.url);
+  const assets = [
+    {
+      from: require.resolve("@tailwindcss/browser"),
+      to: path.join(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "resources/tailwind-browser.js",
+      ),
+    },
+  ];
+  return {
+    async buildStart() {
+      for (const { from, to } of assets) {
+        await fs.copyFile(from, to);
+      }
+    },
+    name: "copy-vendor-assets",
+  };
+}
 
 /**
  * Creates a plugin to validate production environment variables based on context.
@@ -147,6 +169,7 @@ export default defineConfig(({ command }) => {
         __FFPROBE_STATIC_PATH__: JSON.stringify(ffprobeStaticValue),
       },
       plugins: [
+        copyVendorAssets(),
         ...(isAnalyzing ? [analyzer()] : []),
         createValidateProductionEnv("main"),
         ValidateEnv({ configFile: "./validate-env" }),

@@ -1,6 +1,9 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { RELEASES_BUCKET_URL } from "@instrument-org/shared";
+import {
+  APP_UPDATER_CACHE_DIR_NAME,
+  RELEASES_BUCKET_URL,
+} from "@instrument-org/shared";
 import { app } from "electron";
 import pkg, { type ProgressInfo, type UpdateInfo } from "electron-updater";
 import ms from "ms";
@@ -83,7 +86,7 @@ export class StudioAppUpdater {
     autoUpdater.setFeedURL({
       channel: getChannel(),
       provider: "generic",
-      updaterCacheDirName: "quests-desktop-updater",
+      updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
       url: RELEASES_BUCKET_URL,
     });
 

@@ -3,6 +3,7 @@ import {
   APP_EXECUTABLE,
   APP_NAME,
   APP_PROTOCOL,
+  APP_UPDATER_CACHE_DIR_NAME,
 } from "@instrument-org/shared";
 import dotenv from "dotenv";
 import {
@@ -22,7 +23,7 @@ const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   endpoint: process.env.BUILDER_PUBLISH_S3_ENDPOINT,
   provider: "s3",
   region: "auto",
-  updaterCacheDirName: "instrument-desktop-updater",
+  updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
 };
 
 /**

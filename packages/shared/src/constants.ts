@@ -27,11 +27,11 @@ export const MANUAL_DOWNLOAD_URL = `${APP_URL}/download`;
 export const AI_GATEWAY_API_KEY_NOT_NEEDED = "NOT_NEEDED";
 export const SALES_EMAIL = `hello@${APP_DOMAIN}`;
 export const SUPPORT_EMAIL = `support@${APP_DOMAIN}`;
-export const PROJECT_MANIFEST_FILE_NAME = `${APP_NAME_SLUG}.json`;
+export const PROJECT_MANIFEST_FILE_NAME = `instrument.json`;
 export const VERSION_REF_QUERY_PARAM = "versionRef";
 export const EVAL_SUBDOMAIN_PREFIX = "eval-";
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
-export const APP_PRIVATE_FOLDER_NAME = `.${APP_NAME_SLUG}`;
+export const APP_PRIVATE_FOLDER_NAME = `.instrument`;
 export const GIT_AGENT_EMAIL = `agent@${APP_DOMAIN}`;
 export const GIT_AGENT_NAME = `${APP_NAME} Agent`;
 export const GIT_TRAILER_INITIAL_COMMIT = "Instrument-Initial-Commit";
@@ -61,24 +61,25 @@ export const PORTS = {
   shimClient: 48_350,
 } as const;
 
-const OUR_MODEL_PREFIX = APP_NAME_SLUG;
+const OUR_MODELS_GROUP_ID = "instrument";
+
 export const OUR_MODELS = {
-  author: APP_NAME_SLUG,
-  cacheIdentifier: APP_NAME_SLUG,
+  author: OUR_MODELS_GROUP_ID,
+  cacheIdentifier: OUR_MODELS_GROUP_ID,
   image: {
     // Should technically be a ProviderId, but that's defined in the ai-gateway package
-    id: `${OUR_MODEL_PREFIX}/auto-image`,
+    id: `${OUR_MODELS_GROUP_ID}/auto-image`,
   },
-  prefix: OUR_MODEL_PREFIX,
-  providerType: APP_NAME_SLUG,
+  prefix: OUR_MODELS_GROUP_ID,
+  providerType: OUR_MODELS_GROUP_ID,
   text: {
     // Should technically be a ProviderId, but that's defined in the ai-gateway package
-    id: `${OUR_MODEL_PREFIX}/auto`,
+    id: `${OUR_MODELS_GROUP_ID}/auto`,
   },
 } as const;
 
 export const OUR_PROVIDER_CONFIG = {
   cacheIdentifier: OUR_MODELS.cacheIdentifier,
-  id: APP_NAME_SLUG,
+  id: OUR_MODELS_GROUP_ID,
   type: OUR_MODELS.providerType,
 } as const;

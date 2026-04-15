@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { type TabIconName } from "@instrument-org/shared/icons";
 import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 
@@ -18,8 +19,8 @@ export interface TabState {
 export const SingleTabOnlyRoutes = /\/projects\/[^/]+|\/sign-in/;
 
 export const META_TAGS = {
-  iconName: "quests-icon-name",
-  projectSubdomain: "quests-project-subdomain",
+  iconName: `${APP_NAME_SLUG}-icon-name`,
+  projectSubdomain: `${APP_NAME_SLUG}-project-subdomain`,
 };
 
 export function createIconMeta(icon: TabIconName) {

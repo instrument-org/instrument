@@ -1,3 +1,4 @@
+import { SYNTHETIC_MODEL_ID } from "@instrument-org/shared";
 import ms from "ms";
 import { err, ok, safeTry } from "neverthrow";
 
@@ -34,7 +35,7 @@ export async function restoreVersion({
       metadata: {
         createdAt: new Date(),
         finishReason: "stop",
-        modelId: "quests-synthetic",
+        modelId: SYNTHETIC_MODEL_ID,
         providerId: "system",
         sessionId,
         synthetic: true,

@@ -12,7 +12,7 @@ describe("filterShellOutput", () => {
   it("replaces absolute path with relative path", () => {
     const output = `$ pnpm lint
 
-> quests-template-basic@0.0.0 lint ${appDir}
+> instrument-template-basic@0.0.0 lint ${appDir}
 > eslint .
 
 
@@ -26,7 +26,7 @@ ${appDir}/scripts/interleave-demo.ts
     expect(result).toMatchInlineSnapshot(`
       "$ pnpm lint
 
-      > quests-template-basic@0.0.0 lint .
+      > instrument-template-basic@0.0.0 lint .
       > eslint .
 
 

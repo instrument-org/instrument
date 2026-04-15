@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_app/setup")({
         {
           title: "Setup",
         },
-        createIconMeta("quests"),
+        createIconMeta("our-app"),
       ],
     };
   },

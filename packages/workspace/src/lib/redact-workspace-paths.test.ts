@@ -1,42 +1,49 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type AppConfig } from "./app-config/types";
 import { redactWorkspacePaths } from "./redact-workspace-paths";
 
 describe("redactWorkspacePaths", () => {
+  const APP_DIR_NAME = `${APP_NAME} (Dev)`;
+  const appDir = `/Users/test/Library/Application Support/${APP_DIR_NAME}/workspace/projects/test`;
+  const appDirEncoded = `/Users/test/Library/Application%20Support/${APP_NAME}%20(Dev)/workspace/projects/test`;
   const mockAppConfig: AppConfig = {
-    appDir:
-      "/Users/test/Library/Application Support/Quests (Dev)/workspace/projects/test",
+    appDir,
     // other properties would be here in real config
   } as AppConfig;
 
   it("redacts literal workspace paths", () => {
-    const message =
-      "Error in /Users/test/Library/Application Support/Quests (Dev)/workspace/projects/test/file.js";
-    const result = redactWorkspacePaths(message, mockAppConfig);
+    const result = redactWorkspacePaths(
+      `Error in ${appDir}/file.js`,
+      mockAppConfig,
+    );
     expect(result).toBe("Error in /file.js");
   });
 
   it("redacts URL-encoded workspace paths", () => {
-    const message =
-      "file:///Users/test/Library/Application%20Support/Quests%20(Dev)/workspace/projects/test/node_modules/.pnpm/vite@7.1.3_@types+node@22.17.2_jiti@2.5.1_lightningcss@1.30.1/node_modules/vite/dist/node/module-runner.js";
-    const result = redactWorkspacePaths(message, mockAppConfig);
+    const result = redactWorkspacePaths(
+      `file://${appDirEncoded}/node_modules/.pnpm/vite@7.1.3_@types+node@22.17.2_jiti@2.5.1_lightningcss@1.30.1/node_modules/vite/dist/node/module-runner.js`,
+      mockAppConfig,
+    );
     expect(result).toBe(
       "file:///node_modules/.pnpm/vite@7.1.3_@types+node@22.17.2_jiti@2.5.1_lightningcss@1.30.1/node_modules/vite/dist/node/module-runner.js",
     );
   });
 
   it("redacts multiple occurrences", () => {
-    const message =
-      "Error at /Users/test/Library/Application Support/Quests (Dev)/workspace/projects/test/file1.js and file:/Users/test/Library/Application%20Support/Quests%20(Dev)/workspace/projects/test/file2.js";
-    const result = redactWorkspacePaths(message, mockAppConfig);
+    const result = redactWorkspacePaths(
+      `Error at ${appDir}/file1.js and file:${appDirEncoded}/file2.js`,
+      mockAppConfig,
+    );
     expect(result).toBe("Error at /file1.js and file:/file2.js");
   });
 
   it("handles mixed encoding within the same message", () => {
-    const message =
-      "Loading /Users/test/Library/Application Support/Quests (Dev)/workspace/projects/test/src/index.ts and file:/Users/test/Library/Application%20Support/Quests%20(Dev)/workspace/projects/test/src/main.ts";
-    const result = redactWorkspacePaths(message, mockAppConfig);
+    const result = redactWorkspacePaths(
+      `Loading ${appDir}/src/index.ts and file:${appDirEncoded}/src/main.ts`,
+      mockAppConfig,
+    );
     expect(result).toBe("Loading /src/index.ts and file:/src/main.ts");
   });
 

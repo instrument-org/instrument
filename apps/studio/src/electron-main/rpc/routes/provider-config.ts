@@ -10,7 +10,7 @@ import {
   ProviderMetadataSchema,
   verifyAPIKey,
 } from "@instrument-org/ai-gateway";
-import { AIProviderConfigIdSchema } from "@instrument-org/shared";
+import { AIProviderConfigIdSchema, APP_DOMAIN } from "@instrument-org/shared";
 import { call, eventIterator } from "@orpc/server";
 import { safeStorage } from "electron";
 import ms from "ms";
@@ -154,7 +154,7 @@ const create = base
 
       const configToSave = {
         ...newConfig,
-        cacheIdentifier: `quests.dev-${crypto.randomUUID()}`,
+        cacheIdentifier: `${APP_DOMAIN}-${crypto.randomUUID()}`,
         id: AIProviderConfigIdSchema.parse(ulid()),
       };
 

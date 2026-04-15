@@ -94,7 +94,7 @@ export function ModelPicker({
   const hasErrors = !!errors?.length;
   const isSelectDisabled = disabled || isLoading || isError;
 
-  const hasQuestsProviderError = useMemo(
+  const hasOurProviderError = useMemo(
     () =>
       errors?.some((error) => error.config.type === OUR_MODELS.providerType) ??
       false,
@@ -225,7 +225,7 @@ export function ModelPicker({
             {hasErrors && (
               <ErrorsGroup
                 errors={errors}
-                hasQuestsProviderError={hasQuestsProviderError}
+                hasOurProviderError={hasOurProviderError}
               />
             )}
             {isError && (
@@ -347,10 +347,10 @@ function AutoModeSwitch({
 
 function ErrorsGroup({
   errors,
-  hasQuestsProviderError,
+  hasOurProviderError,
 }: {
   errors: NonNullable<RPCOutput["gateway"]["models"]["list"]["errors"]>;
-  hasQuestsProviderError: boolean;
+  hasOurProviderError: boolean;
 }) {
   return (
     <CommandGroup
@@ -360,7 +360,7 @@ function ErrorsGroup({
           <Button
             className="h-6 px-2 text-xs"
             onClick={() => {
-              if (hasQuestsProviderError) {
+              if (hasOurProviderError) {
                 void rpcClient.preferences.openSettingsWindow.call({
                   tab: "General",
                 });
@@ -374,7 +374,7 @@ function ErrorsGroup({
             size="sm"
             variant="outline"
           >
-            {hasQuestsProviderError ? "Check account" : "Edit providers"}
+            {hasOurProviderError ? "Check account" : "Edit providers"}
           </Button>
         </div>
       }

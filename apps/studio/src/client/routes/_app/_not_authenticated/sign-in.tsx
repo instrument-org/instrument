@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_app/_not_authenticated/sign-in")({
         {
           title: "Sign in",
         },
-        createIconMeta("quests"),
+        createIconMeta("our-app"),
       ],
     };
   },

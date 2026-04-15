@@ -3,7 +3,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { getTabsManager } from "@/electron-main/tabs";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { openSettingsWindow } from "@/electron-main/windows/settings";
-import { NEW_ISSUE_URL } from "@instrument-org/shared";
+import { APP_URL, NEW_ISSUE_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
 
 export function createAppMenu(): MenuItemConstructorOptions {
@@ -233,7 +233,7 @@ export function createHelpMenu(): MenuItemConstructorOptions {
     submenu: [
       {
         click: () => {
-          void openExternal("https://quests.dev");
+          void openExternal(APP_URL);
         },
         label: "Learn More",
       },

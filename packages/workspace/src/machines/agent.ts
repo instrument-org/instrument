@@ -1,4 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { SYNTHETIC_MODEL_ID } from "@instrument-org/shared";
 import { type Result } from "neverthrow";
 import invariant from "tiny-invariant";
 import {
@@ -130,7 +131,7 @@ export const agentMachine = setup({
           metadata: {
             createdAt: now,
             finishReason: "max-steps",
-            modelId: "quests-synthetic",
+            modelId: SYNTHETIC_MODEL_ID,
             providerId: "system",
             sessionId: input.sessionId,
             synthetic: true,

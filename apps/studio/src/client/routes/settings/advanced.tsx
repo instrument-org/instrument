@@ -1,8 +1,7 @@
-import { ExternalLink } from "@/client/components/external-link";
 import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
 import { rpcClient } from "@/client/rpc/client";
-import { APP_NAME, APP_REPO_URL } from "@instrument-org/shared";
+import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -59,13 +58,7 @@ function UsageMetrics() {
               onCheckedChange={handleToggleUsageMetrics}
             />
             <Label className="inline" htmlFor="usage-metrics">
-              Help {APP_NAME} improve by submitting{" "}
-              <ExternalLink
-                className="text-blue-600 hover:underline dark:text-blue-400"
-                href={`${APP_REPO_URL}/blob/main/docs/usage-metrics.md`}
-              >
-                usage metrics
-              </ExternalLink>
+              Help {APP_NAME} improve by submitting usage metrics
             </Label>
           </div>
         </div>

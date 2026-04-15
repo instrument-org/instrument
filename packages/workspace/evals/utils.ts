@@ -2,7 +2,10 @@ import {
   AIGatewayModelURI,
   type AIGatewayProviderConfig,
 } from "@instrument-org/ai-gateway";
-import { AIProviderConfigIdSchema } from "@instrument-org/shared";
+import {
+  AIProviderConfigIdSchema,
+  APP_NAME_SLUG,
+} from "@instrument-org/shared";
 import path from "node:path";
 
 import { env } from "../scripts/lib/env";
@@ -90,7 +93,7 @@ export const modelURI = {
 };
 
 export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
-  const cacheIdentifier = "quests-evals";
+  const cacheIdentifier = `${APP_NAME_SLUG}-evals`;
   const configs: AIGatewayProviderConfig.Type[] = [
     // Uncomment to test with Ollama
     // {

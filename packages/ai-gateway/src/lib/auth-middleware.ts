@@ -28,6 +28,6 @@ export function createAuthMiddleware(): MiddlewareHandler<AIGatewayEnv> {
       return;
     }
 
-    return c.json({ error: "Missing or invalid Quests internal API key" }, 401);
+    return c.json({ error: "Missing or invalid internal API key" }, 401);
   };
 }

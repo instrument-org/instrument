@@ -1,4 +1,8 @@
-import { AIProviderConfigIdSchema, OUR_MODELS } from "@instrument-org/shared";
+import {
+  AIProviderConfigIdSchema,
+  OUR_MODELS,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { AIGatewayModel } from "../schemas/model";
@@ -8,8 +12,8 @@ import { addHeuristicTags } from "./add-heuristic-tags";
 
 const mockConfig: AIGatewayProviderConfig.Type = {
   apiKey: "NOT_NEEDED",
-  cacheIdentifier: "quests",
-  id: AIProviderConfigIdSchema.parse("test"),
+  cacheIdentifier: OUR_MODELS.cacheIdentifier,
+  id: OUR_PROVIDER_CONFIG.id,
   type: "openrouter",
 };
 

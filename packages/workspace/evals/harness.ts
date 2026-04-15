@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { aiGatewayApp, AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
 import os from "node:os";
@@ -81,7 +82,10 @@ export async function runEvals(
     dryRun = false,
   }: { concurrency?: number; dryRun?: boolean } = {},
 ): Promise<{ workspaceRootDir: string }> {
-  const workspaceRootDir = path.join(os.tmpdir(), "quests-evals", ulid());
+  const workspaceRootDir = path.join(
+    os.tmpdir(),
+    `${APP_NAME_SLUG}-evals-${ulid()}`,
+  );
   const providerConfigs = buildProviderConfigs();
   const registryDir = resolveRegistryDir();
 

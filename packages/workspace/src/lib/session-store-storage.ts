@@ -86,7 +86,7 @@ export function getSessionsStoreStorage(appConfig: AppConfig) {
 
       // Perform a read to ensure storage is actually usable before caching
       return ResultAsync.fromPromise(
-        storage.getItem("__quests_canary__"),
+        storage.getItem(`__canary__`),
         (error) =>
           new TypedError.Storage(
             `Failed to read session database at ${sessionStorePath(appConfig.appDir)}`,

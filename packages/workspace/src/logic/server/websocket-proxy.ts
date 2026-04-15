@@ -5,8 +5,7 @@ import { type ServerType } from "@hono/node-server";
 import invariant from "tiny-invariant";
 import { WebSocket, WebSocketServer } from "ws";
 
-import { SHIM_IFRAME_BASE_PATH } from "./constants";
-import { CDP_PAGE_PATH_PREFIX } from "./routes/cdp-bridge";
+import { CDP_PAGE_PATH_PREFIX, SHIM_IFRAME_BASE_PATH } from "./constants";
 import { type WorkspaceServerParentRef } from "./types";
 import { uriDetailsForHost } from "./uri-details-for-host";
 

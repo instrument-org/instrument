@@ -16,7 +16,7 @@ import {
 import { projectSubdomainForSubdomain } from "../../../lib/project-subdomain-for-subdomain";
 import { type RuntimeSnapshot } from "../../../machines/runtime";
 import { type AppStatus } from "../../../types";
-import { APPS_SERVER_API_PATH } from "../constants";
+import { APPS_SERVER_API_PATH, HEARTBEAT_STREAM_ROUTE } from "../constants";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
 
@@ -26,7 +26,7 @@ export interface HeartbeatResponse {
 
 const app = new Hono<WorkspaceServerEnv>().basePath(APPS_SERVER_API_PATH);
 
-app.get("/heartbeat-stream", (c) => {
+app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
   const uriDetails = uriDetailsForHost(c.req.header("host") || "");
 
   if (uriDetails.isErr()) {

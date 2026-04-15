@@ -3,9 +3,9 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
-const questsPath = path.join(homedir(), "Library", "Application Support");
+const appSupportPath = path.join(homedir(), "Library", "Application Support");
 
-const DATED_DEV_FOLDER_PATTERN = /^Quests \(Dev \((\d+)\)\)$/;
+const DATED_DEV_FOLDER_PATTERN = /^Instrument \(Dev \((\d+)\)\)$/;
 
 function findDatedDevFolders(): {
   name: string;
@@ -14,7 +14,7 @@ function findDatedDevFolders(): {
   timestamp: number;
 }[] {
   try {
-    const entries = readdirSync(questsPath, { withFileTypes: true });
+    const entries = readdirSync(appSupportPath, { withFileTypes: true });
     const folders = [];
 
     for (const entry of entries) {
@@ -24,7 +24,7 @@ function findDatedDevFolders(): {
 
       const match = DATED_DEV_FOLDER_PATTERN.exec(entry.name);
       if (match) {
-        const folderPath = path.join(questsPath, entry.name);
+        const folderPath = path.join(appSupportPath, entry.name);
         const stats = statSync(folderPath);
         const timestamp = Number.parseInt(match[1] ?? "0", 10);
 
@@ -42,7 +42,7 @@ function findDatedDevFolders(): {
     return folders;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      console.log(`No Quests folder found at: ${questsPath}`);
+      console.log(`No Instrument folder found at: ${appSupportPath}`);
       return [];
     }
     throw error;
@@ -55,7 +55,7 @@ function formatDate(timestamp: number): string {
 
 async function main() {
   console.log("🔍 Searching for dated developer folders...\n");
-  console.log(`Looking in: ${questsPath}\n`);
+  console.log(`Looking in: ${appSupportPath}\n`);
 
   const folders = findDatedDevFolders();
 

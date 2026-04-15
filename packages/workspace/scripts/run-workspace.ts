@@ -19,11 +19,10 @@ import { type StoreId } from "../src/schemas/store-id";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-app-config";
 import { env } from "./lib/env";
 
-const cacheIdentifier = "quests-run-workspace";
 const PROVIDER_CONFIGS: AIGatewayProviderConfig.Type[] = [
   {
     apiKey: "ollama",
-    cacheIdentifier,
+    cacheIdentifier: "ollama-cache-identifier",
     id: AIProviderConfigIdSchema.parse(ulid()),
     type: "ollama",
   },
@@ -48,7 +47,7 @@ for (const { envKey, type } of providerConfigs) {
   if (apiKey) {
     PROVIDER_CONFIGS.push({
       apiKey,
-      cacheIdentifier,
+      cacheIdentifier: `${type}-cache-identifier`,
       id: AIProviderConfigIdSchema.parse(`${type}-config-id`),
       type,
     });

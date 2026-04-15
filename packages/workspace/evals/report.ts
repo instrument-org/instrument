@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { createAppConfig } from "../src/lib/app-config/create";
 import { getProjects } from "../src/lib/get-apps";
-import { getMigratedProjectState } from "../src/lib/project-state-store";
+import { getProjectState } from "../src/lib/project-state-store";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { getProjectUsageSummary } from "../src/lib/usage-summary";
@@ -65,11 +65,7 @@ export async function generateReport({
       workspaceConfig,
     });
 
-    const projectState = await getMigratedProjectState({
-      appDir: appConfig.appDir,
-      captureException: workspaceConfig.captureException,
-      configs: workspaceConfig.getAIProviderConfigs(),
-    });
+    const projectState = await getProjectState(appConfig.appDir);
     const projectModelURI = projectState.selectedModelURI;
     if (projectModelURI) {
       rollupModelURIs.add(projectModelURI);

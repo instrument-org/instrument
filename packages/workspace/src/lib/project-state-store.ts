@@ -1,8 +1,4 @@
-import {
-  AIGatewayModelURI,
-  type AIGatewayProviderConfig,
-  migrateModelURI,
-} from "@instrument-org/ai-gateway";
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import fs from "node:fs/promises";
 import { z } from "zod";
 
@@ -14,7 +10,6 @@ import { getAppPrivateDir } from "./app-dir-utils";
 const PROJECT_STATE_FILE_NAME = "project-state.json";
 
 const StoredProjectStateSchema = z
-  // Relaxed schema for backwards compatibility
   .object({
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     promptDraft: z.string().optional(),
@@ -29,41 +24,6 @@ export const ProjectStateSchema = z.object({
 });
 
 export type ProjectState = z.output<typeof StoredProjectStateSchema>;
-
-export async function getMigratedProjectState({
-  appDir,
-  captureException,
-  configs,
-}: {
-  appDir: AppDir;
-  captureException: (error: Error) => void;
-  configs: AIGatewayProviderConfig.Type[];
-}): Promise<z.output<typeof ProjectStateSchema>> {
-  const { selectedModelURI, ...rest } = await getProjectState(appDir);
-
-  if (!selectedModelURI) {
-    return rest;
-  }
-
-  const [migratedURI, error] = migrateModelURI({
-    configs,
-    modelURI: selectedModelURI,
-  }).toTuple();
-
-  if (error) {
-    if (error.type !== "gateway-not-found-error") {
-      // Ignoring not found errors, because that just means they don't have
-      // that provider anymore.
-      captureException(error);
-    }
-    return rest;
-  }
-
-  return {
-    ...rest,
-    selectedModelURI: migratedURI,
-  };
-}
 
 export async function getProjectState(appDir: AppDir): Promise<ProjectState> {
   const stateFilePath = getProjectStateFilePath(appDir);

@@ -2,6 +2,7 @@
 
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { StudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { getTabsManager } from "@/electron-main/tabs";
@@ -25,7 +26,6 @@ import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { logger } from "./lib/electron-logger";
 import { generateUserAgent } from "./lib/generate-user-agent";
 import { registerTelemetry } from "./lib/register-telemetry";
-import { runMigrations } from "./lib/run-migrations";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import { watchThemePreferenceAndApply } from "./lib/theme-utils";
 import { initializeRPC } from "./rpc/initialize";
@@ -144,7 +144,7 @@ void app.whenReady().then(async () => {
 
   await setupBinDirectory();
 
-  await runMigrations();
+  runMigrations();
 
   appUpdater = new StudioAppUpdater();
   appUpdater.pollForUpdates();

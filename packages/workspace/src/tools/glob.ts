@@ -36,9 +36,8 @@ export const Glob = setupTool({
   outputSchema: z.object({
     error: z.string().optional(),
     files: z.array(z.string()),
-    // TODO: Remove `.optional()` after 2026-03-17 (backward compat)
-    totalFiles: z.number().optional(),
-    truncated: z.boolean().optional(),
+    totalFiles: z.number(),
+    truncated: z.boolean(),
   }),
 }).create({
   description: ({ agentName }) => {
@@ -97,15 +96,12 @@ export const Glob = setupTool({
       };
     }
 
-    const lines = [
-      `Found ${output.totalFiles ?? output.files.length} files`,
-      ...output.files,
-    ];
+    const lines = [`Found ${output.totalFiles} files`, ...output.files];
 
     if (output.truncated) {
       lines.push(
         "",
-        `(Results truncated: showing first ${GLOB_LIMIT} of ${output.totalFiles ?? output.files.length} files. Consider using a more specific path or pattern.)`,
+        `(Results truncated: showing first ${GLOB_LIMIT} of ${output.totalFiles} files. Consider using a more specific path or pattern.)`,
       );
     }
 

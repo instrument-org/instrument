@@ -3,7 +3,7 @@ import { z } from "zod";
 import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
 import { createAppConfig } from "../../../lib/app-config/create";
 import {
-  getMigratedProjectState,
+  getProjectState,
   ProjectStateSchema,
   setProjectState,
 } from "../../../lib/project-state-store";
@@ -19,11 +19,7 @@ const get = base
       workspaceConfig: context.workspaceConfig,
     });
 
-    return getMigratedProjectState({
-      appDir: appConfig.appDir,
-      captureException: context.workspaceConfig.captureException,
-      configs: context.workspaceConfig.getAIProviderConfigs(),
-    });
+    return getProjectState(appConfig.appDir);
   });
 
 const set = base

@@ -159,8 +159,7 @@ export const ReadFile = setupTool({
       offset: z.number(),
       state: z.literal("exists"),
       totalLines: z.number(),
-      // TODO: Remove `.optional()` after 2026-04-19 (backward compat)
-      truncatedByBytes: z.boolean().optional().default(false),
+      truncatedByBytes: z.boolean().default(false),
     }),
     z.object({
       base64Data: z.string(),

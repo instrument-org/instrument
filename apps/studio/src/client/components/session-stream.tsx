@@ -239,12 +239,6 @@ export function SessionStream({
         return null;
       }
 
-      // File attachments were one part per file. Safe to ignore these.
-      // Remove after 2026-01-17
-      if ((part as { type: string }).type === "data-fileAttachment") {
-        return null;
-      }
-
       const _exhaustiveCheck: never = part;
       return <UnknownPart key={partIndex} part={_exhaustiveCheck} />;
     },

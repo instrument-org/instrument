@@ -58,17 +58,7 @@ export namespace SessionMessage {
   // -----
   const OptionalNumberOrNaNSchema = z.union([z.number(), z.nan()]).optional();
 
-  // AI SDK v5 usage schema
-  const LegacyUsageSchema = z.object({
-    cachedInputTokens: z.union([z.number(), z.nan()]),
-    inputTokens: z.union([z.number(), z.nan()]),
-    outputTokens: z.union([z.number(), z.nan()]),
-    reasoningTokens: z.union([z.number(), z.nan()]),
-    totalTokens: z.union([z.number(), z.nan()]),
-  });
-
-  // AI SDK v6 usage schema
-  const NewUsageSchema = z.object({
+  export const UsageSchema = z.object({
     inputTokenDetails: z.object({
       cacheReadTokens: OptionalNumberOrNaNSchema,
       cacheWriteTokens: OptionalNumberOrNaNSchema,
@@ -82,31 +72,6 @@ export namespace SessionMessage {
     outputTokens: OptionalNumberOrNaNSchema,
     totalTokens: OptionalNumberOrNaNSchema,
   });
-
-  export const UsageSchema = z
-    .union([LegacyUsageSchema, NewUsageSchema])
-    .transform((value) => {
-      // Check if it's the legacy format by checking for cachedInputTokens
-      if ("cachedInputTokens" in value) {
-        // Transform legacy format to new format
-        return {
-          inputTokenDetails: {
-            cacheReadTokens: value.cachedInputTokens,
-            cacheWriteTokens: undefined,
-            noCacheTokens: undefined,
-          },
-          inputTokens: value.inputTokens,
-          outputTokenDetails: {
-            reasoningTokens: value.reasoningTokens,
-            textTokens: undefined,
-          },
-          outputTokens: value.outputTokens,
-          totalTokens: value.totalTokens,
-        };
-      }
-      // Already in new format
-      return value;
-    });
   export type Usage = z.output<typeof UsageSchema>;
 
   // --------
@@ -117,10 +82,7 @@ export namespace SessionMessage {
     sessionId: StoreId.SessionSchema,
   });
   const ContextMetadataSchema = BaseMetadataSchema.extend({
-    agentName: z
-      .custom<AgentName>()
-      // Migrate legacy "code" agent name
-      .transform((value) => ((value as string) === "code" ? "main" : value)),
+    agentName: z.custom<AgentName>(),
     realRole: z.enum(["system", "user", "assistant"]),
   });
   const SystemMetadataSchema = BaseMetadataSchema;

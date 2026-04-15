@@ -1,9 +1,6 @@
 import { ok, safeTry } from "neverthrow";
 
-import {
-  APP_FOLDER_NAMES,
-  LEGACY_PROJECT_SUBDOMAIN_MODE_PREFIXES,
-} from "../constants";
+import { APP_FOLDER_NAMES } from "../constants";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { createAppConfig } from "./app-config/create";
@@ -20,14 +17,6 @@ export async function hasAppModifications(
       subdomain: projectSubdomain,
       workspaceConfig,
     });
-
-    if (
-      projectSubdomain.startsWith(
-        `${LEGACY_PROJECT_SUBDOMAIN_MODE_PREFIXES.chat}-`,
-      )
-    ) {
-      return ok(false);
-    }
 
     // Check if git repo exists
     const hasGitRepo = await git(

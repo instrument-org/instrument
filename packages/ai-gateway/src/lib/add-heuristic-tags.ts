@@ -23,10 +23,10 @@ const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
   Record<AIGatewayProviderConfig.Type["type"], string[]>
 > = {
   cerebras: ["glm-4.7", "gpt-oss-120b"],
-  google: ["gemini-3-pro", "gemini-3-pro-preview"],
+  google: ["gemini-3.1-pro", "gemini-3.1-pro-preview"],
   groq: ["gpt-oss-120b"],
-  openai: ["gpt-5.1-codex-mini"],
-  "x-ai": ["grok-code-fast-1"],
+  openai: ["gpt-5.3-codex"],
+  "x-ai": ["grok-4.20-0309-non-reasoning", "grok-code-fast-1"],
   "z-ai": ["glm-4.6"],
 };
 
@@ -101,7 +101,7 @@ function getDynamicTags(
     if (
       matchesVersionFloor(canonicalId, "claude-sonnet-", 4.6) ||
       matchesVersionFloor(canonicalId, "claude-haiku-", 4.5) ||
-      matchesVersionFloor(canonicalId, "claude-opus-", 4.6)
+      matchesVersionFloor(canonicalId, "claude-opus-", 4.7)
     ) {
       return ["coding", "recommended"];
     }
@@ -124,8 +124,8 @@ function getDynamicTags(
     return ["coding", "recommended"];
   }
 
-  // GLM-4+ models get coding + recommended
-  if (matchesVersionFloor(canonicalId, "glm-", 4.7)) {
+  // GLM-5+ models get coding + recommended
+  if (matchesVersionFloor(canonicalId, "glm-", 5)) {
     return ["coding", "recommended"];
   }
 
@@ -135,7 +135,7 @@ function getDynamicTags(
   }
 
   // Minimax models
-  if (matchesVersionFloor(canonicalId, "minimax-m", 2.5)) {
+  if (matchesVersionFloor(canonicalId, "minimax-m", 2.7)) {
     return ["coding", "recommended"];
   }
 

@@ -80,7 +80,7 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "legacy"], modelId: "claude-opus-4" },
     { expected: ["coding", "legacy"], modelId: "claude-opus-4.3" },
     { expected: ["coding"], modelId: "claude-opus-4.5" },
-    { expected: ["coding", "recommended"], modelId: "claude-opus-4.6" },
+    { expected: ["coding"], modelId: "claude-opus-4.6" },
     { expected: ["coding", "recommended"], modelId: "claude-opus-5" },
     { expected: ["coding", "recommended"], modelId: "claude-opus-5.5" },
     { expected: [], modelId: "gemini-2-pro" },
@@ -107,7 +107,7 @@ describe("addHeuristicTags", () => {
     { expected: [], modelId: "glm-4.5" },
     { expected: [], modelId: "glm-4.5-air" },
     { expected: [], modelId: "glm-4.6" },
-    { expected: ["coding", "recommended"], modelId: "glm-4.7" },
+    { expected: [], modelId: "glm-4.7" },
     { expected: [], modelId: "glm-4.1v-9b-thinking" },
     { expected: ["coding", "recommended"], modelId: "glm-5" },
     { expected: ["coding", "recommended"], modelId: "claude-sonnet-5.5" },
@@ -117,8 +117,16 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "kimi-k2-0905" },
     { expected: ["coding", "recommended"], modelId: "kimi-k3" },
     { expected: [], modelId: "minimax-m2" },
-    { expected: ["coding", "recommended"], modelId: "minimax-m2.5" },
+    { expected: [], modelId: "minimax-m2.5" },
+    { expected: ["coding", "recommended"], modelId: "minimax-m2.7" },
     { expected: ["coding", "recommended"], modelId: "minimax-m3" },
+    { expected: ["coding", "recommended"], modelId: "claude-opus-4.7" },
+    { expected: ["coding", "recommended"], modelId: "gpt-5.4" },
+    { expected: ["coding", "recommended"], modelId: "gemini-3.1" },
+    { expected: ["coding", "recommended"], modelId: "gemini-3.1-pro" },
+    { expected: ["coding", "recommended"], modelId: "grok-4.20" },
+    { expected: ["coding", "recommended"], modelId: "kimi-k2.6" },
+    { expected: ["coding", "recommended"], modelId: "kimi-k2.6-code" },
   ].map(({ expected, modelId }) => ({
     expected: expected.map((tag) => AIGatewayModel.ModelTagSchema.parse(tag)),
     modelId,
@@ -140,7 +148,7 @@ describe("addHeuristicTags", () => {
       id: AIProviderConfigIdSchema.parse("openai"),
       type: "openai",
     };
-    const model = createMockModel("openai/gpt-5.1-codex-mini");
+    const model = createMockModel("openai/gpt-5.3-codex");
     const result = addHeuristicTags(model, openaiConfig);
     expect(result.tags).toContain("default");
   });

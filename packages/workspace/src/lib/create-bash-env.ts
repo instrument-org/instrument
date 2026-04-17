@@ -280,8 +280,13 @@ export function createBashEnv({
     ],
     cwd: "/",
     network: {
-      // FIXME: Remove this in favor of a whitelist based on session or approval
+      // No per-domain allow-list to maintain; the agent legitimately fetches
+      // arbitrary public URLs (downloads, scraping, etc.). Someday: gate this
+      // behind a per-session human-in-the-loop allow-list / approval prompt.
       dangerouslyAllowFullInternetAccess: true,
+      // SSRF block: loopback/RFC1918/metadata, with DNS check + redirect re-check.
+      // Enforced even when the dangerously-allow flag is on.
+      denyPrivateRanges: true,
     },
     // Seed with process.env so PATH and other system vars are available to
     // commands that pass ctx.env explicitly (e.g. pnpm, tsx). Provider env

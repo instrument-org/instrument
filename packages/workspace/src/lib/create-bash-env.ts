@@ -233,6 +233,8 @@ export function createBashDescription() {
     "",
     "TIP: Before using an unfamiliar command, run `<command> --help` to check its argument syntax.",
     "",
+    "TIP: Heredoc pipes/redirects go on the `<<EOF` line, not after `EOF`: `cmd <<'EOF' | jq` (not `cmd <<'EOF'` ... `EOF` ... `| jq`).",
+    "",
     `Available commands: ${namedOnly.join(", ")}`,
     "",
     "Specialized commands:",

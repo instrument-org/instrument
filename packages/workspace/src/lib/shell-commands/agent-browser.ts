@@ -137,11 +137,13 @@ export function createAgentBrowserCommand({
     // Relative so agent-browser outputs screenshot paths the agent sees as relative
     // to its cwd (e.g. "tmp/agent-browser-screenshots/shot.png"), not host absolute.
     const screenshotDirRelative = path.relative(appCwd, screenshotDir);
-    // just-bash sets HOME=/ which causes read-only FS errors when agent-browser
-    // tries to write temp files. Use a writable dir under the workspace root,
-    // shared across projects and isolated from app files.
+    // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
+    // already redirected via dedicated env vars (socket dir, screenshot dir,
+    // download path); this is a per-project sink for anything that falls back
+    // to $HOME (e.g. ~/.agent-browser/config reads, future writes).
     const homeDir = absolutePathJoin(
-      appConfig.workspaceConfig.rootDir,
+      appConfig.appDir,
+      APP_FOLDER_NAMES.private,
       "agent-browser-home",
     );
 

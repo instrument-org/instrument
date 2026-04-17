@@ -803,8 +803,8 @@ importers:
         specifier: ^2.8.14
         version: 2.8.14
       agent-browser:
-        specifier: ^0.25.4
-        version: 0.25.4
+        specifier: ^0.26.0
+        version: 0.26.0
       ai:
         specifier: 'catalog:'
         version: 6.0.91(zod@4.2.1)
@@ -3934,8 +3934,8 @@ packages:
     resolution: {integrity: sha512-jRR5wdylq8CkOe6hei19GGZnxM6rBGwFl3Bg0YItGDimvjGtAvdZk4Pu6Cl4u4Igsws4a1fd1Vq3ezrhn4KmFw==}
     engines: {node: '>= 14'}
 
-  agent-browser@0.25.4:
-    resolution: {integrity: sha512-vl4tzDAk5+pJ2g8eMWWzZOLJ2yevJDN3YQ1gcSdN3GKPI0RwNr+T/2PxqSxsipiREu0oid2yxFJIoQ6NMrq/fQ==}
+  agent-browser@0.26.0:
+    resolution: {integrity: sha512-pdqSfjwbFSp+qnwlb2g23e9wXveIOfMi19xpPA9xZUbzEAUp6W4YBZj6Ybj8z4M7WkcbGDDYc+oDIHDt9R3EDQ==}
     hasBin: true
 
   ai-sdk-ollama@3.7.1:
@@ -12059,7 +12059,7 @@ snapshots:
 
   agent-base@7.1.3: {}
 
-  agent-browser@0.25.4: {}
+  agent-browser@0.26.0: {}
 
   ai-sdk-ollama@3.7.1(ai@6.0.91(zod@4.2.1))(zod@4.2.1):
     dependencies:

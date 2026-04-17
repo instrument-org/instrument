@@ -42,7 +42,7 @@
     "@types/ws": "^8.18.1",
     "@vscode/ripgrep": "^1.15.13",
     "@zip.js/zip.js": "^2.8.14",
-    "agent-browser": "^0.25.4",
+    "agent-browser": "^0.26.0",
     "ai": "catalog:",
     "date-fns": "^4.1.0",
     "db0": "^0.3.1",

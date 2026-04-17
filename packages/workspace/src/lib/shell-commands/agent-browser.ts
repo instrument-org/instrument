@@ -21,15 +21,46 @@ export const AGENT_BROWSER_COMMAND = {
     Control a built-in Chromium browser to navigate the web, interact with pages, and extract content.
     IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
     IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, discover the URL first.
-    Do NOT pass --cdp, --session, or --auto-connect flags; these are injected automatically.
+    Do NOT pass connection, provider, profile, or state flags; the browser session is managed automatically.
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,
 } as const;
 const MAX_OUTPUT_LENGTH = 30_000;
 
-// Flags that configure the CDP endpoint or session - these are injected
-// automatically and must not be passed by the caller.
-const BLOCKED_FLAGS = new Set(["--auto-connect", "--cdp", "--session"]);
+// Flags rejected because they would bypass our Electron CDP bridge or load
+// data into the wrong browser context.
+const BLOCKED_FLAGS = new Set([
+  "--auto-connect", // Would discover a real Chrome instance instead of our bridge.
+  "--cdp", // Harness injects this; agent override would point at the wrong target.
+  "--profile", // Copies a real Chrome profile; meaningless for our proxied target.
+  "--provider", // Would launch a cloud browser
+  "--session", // Harness injects this; tied to our session id.
+  "--state", // Loads cookies/localStorage into a context our bridge doesn't own.
+]);
+
+// Subcommands rejected because they don't apply to our proxied target or
+// duplicate workspace-managed features. CLI-side check; action-policy only
+// gates in-session actions, not these meta-commands.
+const BLOCKED_SUBCOMMANDS = new Set([
+  "auth", // Credential vault; we don't expose it.
+  "chat", // Built-in AI REPL; the agent is the AI.
+  "close", // Lifecycle managed by the workspace.
+  "dashboard", // We have our own UI.
+  "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
+  "launch", // We don't launch; we proxy an existing target.
+  "profiles", // Lists real Chrome profiles; N/A.
+  "skills", // Workspace manages skill loading.
+  "state", // Persistence managed by the workspace.
+  "stream", // Streaming managed by the workspace.
+  "upgrade", // Binary is bundled; agent shouldn't self-update.
+]);
+
+// Flags silently stripped (with their value arg, including --flag=value form)
+// because the harness controls them via env vars and must always win.
+const STRIPPED_VALUE_FLAGS = new Set([
+  "--download-path", // Sandboxed under the app's tmp dir via AGENT_BROWSER_DOWNLOAD_PATH.
+  "--screenshot-dir", // Made app-relative via AGENT_BROWSER_SCREENSHOT_DIR.
+]);
 
 export function createAgentBrowserCommand({
   appConfig,
@@ -53,12 +84,24 @@ export function createAgentBrowserCommand({
 
     const subdomain = appConfig.subdomain;
 
-    // Reject any attempt to override CDP connection flags.
-    const blockedArg = args.find((a) => BLOCKED_FLAGS.has(a));
+    // Match both --flag and --flag=value forms.
+    const blockedArg = args.find((a) => {
+      const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
+      return BLOCKED_FLAGS.has(flagName);
+    });
     if (blockedArg) {
       return {
         exitCode: 1,
         stderr: `agent-browser: flag ${blockedArg} is not allowed. The browser session is managed automatically.\n`,
+        stdout: "",
+      };
+    }
+
+    const subcommand = args.find((a) => !a.startsWith("-"));
+    if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
+      return {
+        exitCode: 1,
+        stderr: `agent-browser: subcommand '${subcommand}' is not available in this environment.\n`,
         stdout: "",
       };
     }
@@ -78,7 +121,8 @@ export function createAgentBrowserCommand({
     const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
 
     const { appCwd, env } = resolveCommandContext(appConfig, ctx);
-    const resolvedArgs = resolvePathArgs(args, appConfig, ctx);
+    const strippedArgs = stripHarnessControlledFlags(args);
+    const resolvedArgs = resolvePathArgs(strippedArgs, appConfig, ctx);
     const commandArgs = [
       "--cdp",
       cdpUrl,
@@ -106,6 +150,13 @@ export function createAgentBrowserCommand({
       cwd: appCwd,
       env: {
         ...env,
+        // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
+        // can't bypass the rejection above.
+        AGENT_BROWSER_AUTO_CONNECT: undefined,
+        AGENT_BROWSER_CDP: undefined,
+        AGENT_BROWSER_PROFILE: undefined,
+        AGENT_BROWSER_PROVIDER: undefined,
+        AGENT_BROWSER_STATE: undefined,
         // Absolute: passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
         AGENT_BROWSER_DOWNLOAD_PATH: downloadPath,
         AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
@@ -129,4 +180,24 @@ export function createAgentBrowserCommand({
       stdout: truncated,
     };
   });
+}
+
+function stripHarnessControlledFlags(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined) {
+      continue;
+    }
+    if (STRIPPED_VALUE_FLAGS.has(arg)) {
+      i++;
+      continue;
+    }
+    const eqIdx = arg.indexOf("=");
+    if (eqIdx > 0 && STRIPPED_VALUE_FLAGS.has(arg.slice(0, eqIdx))) {
+      continue;
+    }
+    out.push(arg);
+  }
+  return out;
 }

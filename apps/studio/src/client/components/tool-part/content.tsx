@@ -255,9 +255,7 @@ export function ToolContent({
       );
     }
     case "tool-glob": {
-      const files = part.output.files;
-      const totalFiles = part.output.totalFiles ?? files.length;
-      const truncated = part.output.truncated ?? false;
+      const { files, totalFiles, truncated } = part.output;
       return (
         <div>
           <SectionHeader>

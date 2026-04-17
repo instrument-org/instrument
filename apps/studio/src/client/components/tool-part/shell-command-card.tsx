@@ -117,7 +117,7 @@ export function ShellCommandCard({
 
       {showContent && (
         <>
-          <div className="border-b border-border/50 bg-muted/40 px-3 py-1.5">
+          <div className="max-h-32 overflow-y-auto border-b border-border/50 bg-muted/40 px-3 py-1.5">
             <pre className="font-mono text-xs leading-[1.4] whitespace-pre-wrap text-foreground/90">
               <span className="mr-1.5 text-muted-foreground select-none">
                 $

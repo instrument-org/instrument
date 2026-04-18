@@ -103,6 +103,7 @@ export function FileActionsMenuItems({
         filePath: file.filePath,
         mimeType: file.mimeType,
         subdomain: file.projectSubdomain,
+        versionRef: file.versionRef,
       });
       setCopied(true);
       setTimeout(() => {

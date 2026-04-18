@@ -11,13 +11,20 @@ export async function copyFileToClipboard({
   filePath,
   mimeType,
   subdomain,
+  versionRef,
 }: {
   filePath: string;
   mimeType: string;
   subdomain: ProjectSubdomain;
+  versionRef?: string;
 }) {
   const [error] = await safe(
-    rpcClient.utils.copyFileToClipboard.call({ filePath, mimeType, subdomain }),
+    rpcClient.utils.copyFileToClipboard.call({
+      filePath,
+      mimeType,
+      subdomain,
+      versionRef,
+    }),
   );
   if (error) {
     const errorMessage =

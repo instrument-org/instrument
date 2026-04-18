@@ -20,6 +20,7 @@ import {
 import {
   createAppConfig,
   ProjectSubdomainSchema,
+  readProjectFile,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
@@ -447,21 +448,21 @@ const copyFileToClipboard = base
       filePath: z.string(),
       mimeType: z.string(),
       subdomain: ProjectSubdomainSchema,
+      versionRef: z.string().optional(),
     }),
   )
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ context, errors, input, signal }) => {
     const snapshot = context.workspaceRef.getSnapshot();
-    const appConfig = createAppConfig({
-      subdomain: input.subdomain,
+
+    const buffer = await readProjectFile({
+      filePath: input.filePath,
+      projectSubdomain: input.subdomain,
+      signal,
+      versionRef: input.versionRef,
       workspaceConfig: snapshot.context.config,
     });
 
-    const fullPath = path.join(appConfig.appDir, input.filePath);
-
-    let buffer: Buffer;
-    try {
-      buffer = await fs.readFile(fullPath);
-    } catch {
+    if (!buffer) {
       throw errors.FILE_NOT_FOUND();
     }
 

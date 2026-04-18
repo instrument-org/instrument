@@ -37,7 +37,7 @@
     "@ai-sdk/togetherai": "^2.0.33",
     "@ai-sdk/xai": "^3.0.57",
     "@instrument-org/shared": "workspace:*",
-    "@openrouter/ai-sdk-provider": "^2.5.1",
+    "@openrouter/ai-sdk-provider": "^2.8.0",
     "@types/ms": "^2.1.0",
     "ai": "catalog:",
     "ai-sdk-ollama": "^3.7.1",

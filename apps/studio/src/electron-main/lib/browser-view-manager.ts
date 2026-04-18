@@ -21,6 +21,9 @@ interface BrowserEntry {
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
   subdomain: ProjectSubdomain;
+  // Stable target id captured at construction. Never re-read from
+  // webContents.id, which can become undefined after destruction.
+  targetId: string;
   view: WebContentsView;
 }
 
@@ -61,15 +64,30 @@ export class BrowserViewManager {
     const partition = `persist:browser-${subdomain}`;
     const ses = session.fromPartition(partition);
 
+    // All current Electron defaults; pinned to guard against a future default
+    // flip silently weakening this agent-controlled browsing context.
     const view = new WebContentsView({
       webPreferences: {
+        allowRunningInsecureContent: false,
         contextIsolation: true,
+        experimentalFeatures: false,
+        nodeIntegration: false,
+        sandbox: true,
         session: ses,
+        webSecurity: true,
       },
     });
 
-    // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-    const targetId = String(view.webContents?.id);
+    // Capture the WebContents and its id once at construction. The id is stable
+    // for the lifetime of the WebContents, so reading it later via
+    // `view.webContents?.id` (which can be undefined after destruction in
+    // Electron 41+; see electron/electron#50249) would yield the literal
+    // string "undefined" and corrupt the entries map.
+    const wc = view.webContents;
+    if (!wc) {
+      throw new Error("WebContentsView constructed without webContents");
+    }
+    const targetId = String(wc.id);
 
     // Register a single will-download handler for this session. If the agent
     // has authorized a download path via setDownloadBehavior, route the file
@@ -135,7 +153,7 @@ export class BrowserViewManager {
       devWindow.on("resize", fitViewToWindow);
     }
 
-    view.webContents?.on(
+    wc.on(
       "did-fail-load",
       (_event, errorCode, errorDescription, validatedURL) => {
         log.error(
@@ -153,12 +171,13 @@ export class BrowserViewManager {
       screencastInterval: null,
       screencastSessionId: 0,
       subdomain,
+      targetId,
       view,
     };
 
     this.entries.set(targetId, entry);
 
-    view.webContents?.on("destroyed", () => {
+    wc.on("destroyed", () => {
       this.handleDetach(targetId);
     });
 
@@ -166,12 +185,12 @@ export class BrowserViewManager {
     // the WebContents is in an uninitialized state and Page.enable hangs when
     // the CDP debugger tries to enable page events.
     return new Promise((resolve) => {
-      view.webContents?.once("did-finish-load", () => {
+      wc.once("did-finish-load", () => {
         // Set a default 1280x720 layout viewport so DOM.getBoxModel coordinates
         // and Input.dispatchMouseEvent coordinates are consistent when the view
         // has no physical bounds (i.e. outside of developer mode).
         this.ensureDebuggerAttached(entry);
-        const setMetrics = view.webContents?.debugger.sendCommand(
+        const setMetrics = wc.debugger.sendCommand(
           "Emulation.setDeviceMetricsOverride",
           {
             deviceScaleFactor: 1,
@@ -182,7 +201,7 @@ export class BrowserViewManager {
             width: 1280,
           },
         );
-        void (setMetrics ?? Promise.resolve())
+        void setMetrics
           .catch(() => {
             // Non-fatal; the view will fall back to its physical bounds.
           })
@@ -190,7 +209,7 @@ export class BrowserViewManager {
             resolve({ targetId });
           });
       });
-      void view.webContents?.loadURL("about:blank");
+      void wc.loadURL("about:blank");
     });
   }
 
@@ -224,44 +243,60 @@ export class BrowserViewManager {
   }
 
   private ensureDebuggerAttached(entry: BrowserEntry) {
-    if (!entry.view.webContents?.debugger.isAttached()) {
-      entry.view.webContents?.debugger.attach("1.3");
-
-      entry.view.webContents?.debugger.on(
-        "message",
-        (_event, method, params) => {
-          // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-          const targetId = String(entry.view.webContents?.id);
-          const current = this.entries.get(targetId);
-          if (!current) {
-            return;
-          }
-          // Capture the GUID from Page.downloadWillBegin so will-download can
-          // save with the GUID filename that agent-browser expects to find.
-          if (method === "Page.downloadWillBegin") {
-            const p = params as { guid?: string; url?: string };
-            if (p.guid && p.url) {
-              current.pendingDownloadGuids.set(p.url, p.guid);
-            }
-          }
-          for (const listener of current.eventListeners) {
-            listener(method, params as unknown);
-          }
-        },
-      );
-
-      entry.view.webContents?.debugger.on("detach", () => {
-        // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-        const targetId = String(entry.view.webContents?.id);
-        this.handleDetach(targetId);
-      });
+    const wc = entry.view.webContents;
+    if (!wc || wc.isDestroyed()) {
+      return;
     }
+    if (wc.debugger.isAttached()) {
+      return;
+    }
+    // Capture the targetId once; `wc.id` becomes undefined after destruction
+    // in Electron 41+ (electron/electron#50249), so re-reading it inside the
+    // callbacks below would yield "undefined" and miss the entry lookup.
+    const targetId = entry.targetId;
+    wc.debugger.attach("1.3");
+
+    wc.debugger.on("message", (_event, method, params) => {
+      const current = this.entries.get(targetId);
+      if (!current) {
+        return;
+      }
+      // Capture the GUID from Page.downloadWillBegin so will-download can
+      // save with the GUID filename that agent-browser expects to find.
+      if (method === "Page.downloadWillBegin") {
+        const p = params as { guid?: string; url?: string };
+        if (p.guid && p.url) {
+          current.pendingDownloadGuids.set(p.url, p.guid);
+        }
+      }
+      for (const listener of current.eventListeners) {
+        listener(method, params as unknown);
+      }
+    });
+
+    wc.debugger.on("detach", () => {
+      this.handleDetach(targetId);
+    });
   }
 
   private handleDetach(targetId: string) {
     const entry = this.entries.get(targetId);
     if (!entry) {
       return;
+    }
+
+    this.stopScreencast(entry);
+
+    // Defensively detach the debugger. If the WebContents was closed externally
+    // (crash, OS kill) the debugger may still be attached from our side; if it
+    // already detached this throws and we ignore it.
+    const wc = entry.view.webContents;
+    if (wc && !wc.isDestroyed() && wc.debugger.isAttached()) {
+      try {
+        wc.debugger.detach();
+      } catch {
+        // Already detached
+      }
     }
 
     for (const listener of entry.detachListeners) {
@@ -404,16 +439,33 @@ export class BrowserViewManager {
     this.stopScreencast(entry);
     entry.screencastSessionId += 1;
     const screencastSessionId = entry.screencastSessionId;
+    const { targetId } = entry;
+    let inFlight = false;
 
     const captureAndEmit = () => {
+      // Backpressure: skip this tick if the previous capture hasn't resolved.
+      // Prevents pile-up if encoding/IPC is slower than SCREENCAST_INTERVAL_MS.
+      if (inFlight) {
+        return;
+      }
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-      if (!entry.view.webContents || entry.view.webContents.isDestroyed()) {
+      const wc = entry.view.webContents;
+      if (!wc || wc.isDestroyed()) {
         this.stopScreencast(entry);
         return;
       }
-      void entry.view.webContents
-        .capturePage({ height: maxHeight, width: maxWidth, x: 0, y: 0 })
+      inFlight = true;
+      wc.capturePage({ height: maxHeight, width: maxWidth, x: 0, y: 0 })
         .then((image) => {
+          // Stale: a new screencast session started, or the entry is gone, or
+          // the WebContents was destroyed while the capture was pending.
+          if (entry.screencastSessionId !== screencastSessionId) {
+            return;
+          }
+          const current = entry.view.webContents;
+          if (!current || current.isDestroyed()) {
+            return;
+          }
           const data =
             format === "png"
               ? image.toPNG().toString("base64")
@@ -434,6 +486,14 @@ export class BrowserViewManager {
           for (const listener of entry.eventListeners) {
             listener("Page.screencastFrame", params);
           }
+        })
+        .catch((error: unknown) => {
+          log.warn(
+            `screencast capture failed targetId=${targetId} err=${String(error)}`,
+          );
+        })
+        .finally(() => {
+          inFlight = false;
         });
     };
 

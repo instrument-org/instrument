@@ -14,8 +14,11 @@ const SCREENCAST_INTERVAL_MS = 100;
 interface BrowserEntry {
   authorizedDownloadPath: null | string;
   detachListeners: Set<() => void>;
-  devWindow: BrowserWindow | null;
   eventListeners: Set<(method: string, params: unknown) => void>;
+  // Host window for the WebContentsView. Always present so the view has real
+  // bounds and a real compositor surface. Hidden by default; shown in
+  // developer mode so the agent's browsing context is visible to the dev.
+  hostWindow: BrowserWindow;
   // Maps download URL -> GUID from Page.downloadWillBegin, consumed by will-download.
   pendingDownloadGuids: Map<string, string>;
   screencastInterval: null | ReturnType<typeof setInterval>;
@@ -26,6 +29,13 @@ interface BrowserEntry {
   targetId: string;
   view: WebContentsView;
 }
+
+// Default viewport for agent browsing contexts. Matches a 13" MacBook viewport
+// in Chrome (1280 CSS px wide, ~90px consumed by browser chrome on a 900px-tall
+// screen). Used as the host window's content size so the WebContentsView has a
+// real surface without needing Emulation.setDeviceMetricsOverride.
+const DEFAULT_VIEWPORT_WIDTH = 1280;
+const DEFAULT_VIEWPORT_HEIGHT = 800;
 
 export class BrowserViewManager {
   public get browser(): BrowserConfig {
@@ -132,26 +142,32 @@ export class BrowserViewManager {
       }
     });
 
-    let devWindow: BrowserWindow | null = null;
-    if (this.developerMode) {
-      devWindow = new BrowserWindow({
-        height: 800,
-        title: `Agent Browser [${subdomain}]`,
-        width: 1280,
-      });
-      devWindow.contentView.addChildView(view);
-      const fitViewToWindow = () => {
-        if (!devWindow || devWindow.isDestroyed()) {
-          return;
-        }
-        const size = devWindow.getContentSize();
-        const width = size[0] ?? 0;
-        const height = size[1] ?? 0;
-        view.setBounds({ height, width, x: 0, y: 0 });
-      };
-      fitViewToWindow();
-      devWindow.on("resize", fitViewToWindow);
-    }
+    // Always host the view in a real BrowserWindow so it has actual bounds
+    // and a real compositor surface. Without this we'd have to rely on
+    // Emulation.setDeviceMetricsOverride, which conflicts with the override
+    // Chromium applies internally during full-page screenshots (causing
+    // duplicated content) and breaks subtle layout features that depend on a
+    // real visual viewport (sticky positioning, lazy-load IntersectionObservers,
+    // visualViewport APIs, etc.). In production the window is hidden; in
+    // developer mode it's shown so the dev can see the agent's browsing context.
+    const hostWindow = new BrowserWindow({
+      height: DEFAULT_VIEWPORT_HEIGHT,
+      show: this.developerMode,
+      title: `Agent Browser [${subdomain}]`,
+      width: DEFAULT_VIEWPORT_WIDTH,
+    });
+    hostWindow.contentView.addChildView(view);
+    const fitViewToWindow = () => {
+      if (hostWindow.isDestroyed()) {
+        return;
+      }
+      const size = hostWindow.getContentSize();
+      const width = size[0] ?? DEFAULT_VIEWPORT_WIDTH;
+      const height = size[1] ?? DEFAULT_VIEWPORT_HEIGHT;
+      view.setBounds({ height, width, x: 0, y: 0 });
+    };
+    fitViewToWindow();
+    hostWindow.on("resize", fitViewToWindow);
 
     wc.on(
       "did-fail-load",
@@ -165,8 +181,8 @@ export class BrowserViewManager {
     const entry: BrowserEntry = {
       authorizedDownloadPath: null,
       detachListeners: new Set(),
-      devWindow,
       eventListeners: new Set(),
+      hostWindow,
       pendingDownloadGuids: new Map(),
       screencastInterval: null,
       screencastSessionId: 0,
@@ -181,33 +197,15 @@ export class BrowserViewManager {
       this.handleDetach(targetId);
     });
 
-    // Load about:blank to properly initialize the renderer frame. Without this
-    // the WebContents is in an uninitialized state and Page.enable hangs when
-    // the CDP debugger tries to enable page events.
+    // Load about:blank to properly initialize the renderer frame. Without an
+    // initial navigation the WebContents has no main RenderFrame, so CDP
+    // commands like Page.enable hang and Page.navigate has no frame to act on.
+    // Even with the view attached to a (hidden) BrowserWindow, Electron does
+    // not auto-navigate; the explicit load is what materializes the frame.
     return new Promise((resolve) => {
       wc.once("did-finish-load", () => {
-        // Set a default 1280x720 layout viewport so DOM.getBoxModel coordinates
-        // and Input.dispatchMouseEvent coordinates are consistent when the view
-        // has no physical bounds (i.e. outside of developer mode).
         this.ensureDebuggerAttached(entry);
-        const setMetrics = wc.debugger.sendCommand(
-          "Emulation.setDeviceMetricsOverride",
-          {
-            deviceScaleFactor: 1,
-            // 1280x800: matches a 13" MacBook viewport in Chrome (1280 CSS px wide,
-            // ~90px consumed by browser chrome on a 900px-tall screen).
-            height: 800,
-            mobile: false,
-            width: 1280,
-          },
-        );
-        void setMetrics
-          .catch(() => {
-            // Non-fatal; the view will fall back to its physical bounds.
-          })
-          .finally(() => {
-            resolve({ targetId });
-          });
+        resolve({ targetId });
       });
       void wc.loadURL("about:blank");
     });
@@ -221,7 +219,7 @@ export class BrowserViewManager {
 
     this.stopScreencast(entry);
 
-    const { devWindow, view } = entry;
+    const { hostWindow, view } = entry;
 
     if (view.webContents?.debugger.isAttached()) {
       try {
@@ -235,8 +233,8 @@ export class BrowserViewManager {
       view.webContents?.close();
     }
 
-    if (devWindow && !devWindow.isDestroyed()) {
-      devWindow.close();
+    if (!hostWindow.isDestroyed()) {
+      hostWindow.close();
     }
 
     this.entries.delete(targetId);
@@ -305,6 +303,11 @@ export class BrowserViewManager {
 
     entry.detachListeners.clear();
     entry.eventListeners.clear();
+
+    if (!entry.hostWindow.isDestroyed()) {
+      entry.hostWindow.close();
+    }
+
     this.entries.delete(targetId);
   }
 
@@ -414,6 +417,10 @@ export class BrowserViewManager {
       return {};
     }
 
+    // Known limitation: Page.captureScreenshot with captureBeyondViewport=true
+    // produces stacked duplicates on Electron's on-screen WebContentsView (the
+    // renderer reflows at the clip height but only the top tile paints). Use
+    // Page.printToPDF or client-side stitching for full-page captures.
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const result = await entry.view.webContents?.debugger.sendCommand(

@@ -568,4 +568,73 @@ describe("filterUnsupportedMedia", () => {
       ]
     `);
   });
+
+  it("should replace PDF files for xAI models via OpenRouter even when inputFile is advertised", () => {
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          { text: "Read this document", type: "text" },
+          {
+            data: "data:pdf",
+            mediaType: "application/pdf",
+            type: "file",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const model = createMockAIGatewayModel({
+      author: "x-ai",
+      features: ["inputText", "inputFile", "outputText"],
+      provider: "openrouter",
+    });
+    const result = filterUnsupportedMedia({ messages, model });
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "Read this document",
+              "type": "text",
+            },
+            {
+              "text": "<system_note>
+      File file removed - your model lacks file input capability.
+      Convert it to a different format or request the user to provide it in a different format if you need to access it.
+      </system_note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
+  it("should keep image files for xAI models via OpenRouter", () => {
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          { text: "Look at this", type: "text" },
+          {
+            data: "base64imagedata",
+            mediaType: "image/png",
+            type: "file",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const model = createMockAIGatewayModel({
+      author: "x-ai",
+      features: ["inputText", "inputImage", "inputFile", "outputText"],
+      provider: "openrouter",
+    });
+    const result = filterUnsupportedMedia({ messages, model });
+
+    expect(result).toEqual(messages);
+  });
 });

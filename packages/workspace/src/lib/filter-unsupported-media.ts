@@ -1,9 +1,38 @@
 import type { AIGatewayModel } from "@instrument-org/ai-gateway";
+import type { AIProviderType } from "@instrument-org/shared";
 import type { ModelMessage } from "ai";
 
 import { dedent } from "radashi";
 
 type MediaCategory = "audio" | "file" | "image" | "video";
+
+const MEDIA_LABELS: Record<MediaCategory, string> = {
+  audio: "Audio",
+  file: "File",
+  image: "Image",
+  video: "Video",
+};
+
+const MEDIA_FEATURE_MAP: Record<MediaCategory, AIGatewayModel.ModelFeatures> = {
+  audio: "inputAudio",
+  file: "inputFile",
+  image: "inputImage",
+  video: "inputVideo",
+};
+
+// Combinations where the upstream provider/author advertises support for a
+// media category but is known to reject (or mishandle) requests in practice.
+// These take precedence over the model's `features` array.
+const KNOWN_BROKEN_MEDIA: readonly {
+  author: string;
+  category: MediaCategory;
+  provider: AIProviderType;
+}[] = [
+  // OpenRouter claims to auto-parse PDFs for any model, but xAI rejects
+  // file inputs and the request fails. See:
+  // https://openrouter.ai/docs/guides/overview/multimodal/pdfs
+  { author: "x-ai", category: "file", provider: "openrouter" },
+];
 
 export function filterUnsupportedMedia({
   messages,
@@ -103,47 +132,16 @@ export function filterUnsupportedMedia({
   });
 }
 
-const MEDIA_LABELS: Record<"audio" | "file" | "image" | "video", string> = {
-  audio: "Audio",
-  file: "File",
-  image: "Image",
-  video: "Video",
-};
-
-const MEDIA_FEATURE_MAP: Record<MediaCategory, AIGatewayModel.ModelFeatures> = {
-  audio: "inputAudio",
-  file: "inputFile",
-  image: "inputImage",
-  video: "inputVideo",
-};
-
-function createReplacementTextForCategory(
-  mediaCategory: MediaCategory,
-  isOpenAIViaOpenRouter: boolean,
-): string {
-  const mediaTypeLabel = MEDIA_LABELS[mediaCategory];
-  const alternativeInstruction =
-    "Convert it to a different format or request the user to provide it in a different format if you need to access it.";
-
-  if (isOpenAIViaOpenRouter) {
-    return dedent`
-      <system_note>
-      ${mediaTypeLabel} file removed - OpenAI models via OpenRouter are currently causing errors with ${mediaCategory} inputs.
-      The model has the capability to read these files, but this provider combination is experiencing technical issues.
-      ${alternativeInstruction}
-      </system_note>
-    `;
-  }
-
+function createReplacementText(mediaCategory: MediaCategory): string {
   return dedent`
     <system_note>
-    ${mediaTypeLabel} file removed - your model lacks ${mediaCategory} input capability.
-    ${alternativeInstruction}
+    ${MEDIA_LABELS[mediaCategory]} file removed - your model lacks ${mediaCategory} input capability.
+    Convert it to a different format or request the user to provide it in a different format if you need to access it.
     </system_note>
   `;
 }
 
-function getMediaTypeCategory(mediaType: string) {
+function getMediaTypeCategory(mediaType: string): "other" | MediaCategory {
   if (mediaType.startsWith("audio/")) {
     return "audio";
   }
@@ -159,6 +157,18 @@ function getMediaTypeCategory(mediaType: string) {
   return "other";
 }
 
+function isKnownBrokenCombo(
+  mediaCategory: MediaCategory,
+  model: AIGatewayModel.Type,
+): boolean {
+  return KNOWN_BROKEN_MEDIA.some(
+    (entry) =>
+      entry.category === mediaCategory &&
+      entry.provider === model.params.provider &&
+      entry.author === model.author,
+  );
+}
+
 function maybeCreateReplacementText(
   mediaType: string,
   model: AIGatewayModel.Type,
@@ -169,8 +179,11 @@ function maybeCreateReplacementText(
     return null;
   }
 
-  if (!model.features.includes(MEDIA_FEATURE_MAP[mediaCategory])) {
-    return createReplacementTextForCategory(mediaCategory, false);
+  if (
+    !model.features.includes(MEDIA_FEATURE_MAP[mediaCategory]) ||
+    isKnownBrokenCombo(mediaCategory, model)
+  ) {
+    return createReplacementText(mediaCategory);
   }
 
   return null;

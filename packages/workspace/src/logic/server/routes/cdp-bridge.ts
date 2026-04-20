@@ -5,7 +5,7 @@ import { type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
 import { WebSocket, WebSocketServer } from "ws";
 
-import { type ProjectSubdomain } from "../../../schemas/subdomains";
+import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
 import { type WorkspaceConfig } from "../../../types";
 import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
 import { type WorkspaceServerEnv } from "../types";
@@ -28,14 +28,16 @@ cdpBridgeRoute.get("/json/version", (c) => {
 });
 
 cdpBridgeRoute.get("/json", async (c) => {
-  const subdomain = c.req.query("subdomain") as ProjectSubdomain | undefined;
-  if (!subdomain) {
+  const subdomainResult = ProjectSubdomainSchema.safeParse(
+    c.req.query("subdomain"),
+  );
+  if (!subdomainResult.success) {
     return c.json({ error: "subdomain query parameter required" }, 400);
   }
 
   const { browser } = c.get("workspaceConfig");
   const port = getWorkspaceServerPort();
-  const targets = await browser.listTargets(subdomain);
+  const targets = await browser.listTargets(subdomainResult.data);
 
   return c.json(
     targets.map((t) => ({

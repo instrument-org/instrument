@@ -1,4 +1,7 @@
 import "dotenv/config";
+
+import "./lib/define-globals-apply";
+
 import {
   aiGatewayApp,
   type AIGatewayProviderConfig,
@@ -53,6 +56,50 @@ for (const { envKey, type } of providerConfigs) {
     });
   }
 }
+
+const MODEL_URI =
+  // "anthropic/claude-sonnet-4?provider=anthropic&providerConfigId=anthropic-config-id";
+  // "openai/gpt-5-mini?provider=openai&providerConfigId=openai-config-id";
+  // "google/gemini-2.5-pro?provider=google&providerConfigId=google-config-id";
+  // "google/gemini-2.5-flash?provider=google&providerConfigId=google-config-id";
+  "x-ai/grok-4.1-fast?provider=openrouter&providerConfigId=openrouter-config-id";
+// "google/gemini-3-pro-preview?provider=openrouter&providerConfigId=openrouter-config-id";
+// "openai/gpt-5.2?provider=openrouter&providerConfigId=openrouter-config-id";
+
+function assertModelURIConfigured(modelURI: string) {
+  const query = modelURI.split("?")[1] ?? "";
+  const params = new URLSearchParams(query);
+  const providerConfigId = params.get("providerConfigId");
+  if (!providerConfigId) {
+    return;
+  }
+  const found = PROVIDER_CONFIGS.some(
+    (config) => config.id === providerConfigId,
+  );
+  if (found) {
+    return;
+  }
+  const provider = params.get("provider");
+  const envKey = providerConfigs.find(
+    (entry) => entry.type === provider,
+  )?.envKey;
+  const hint = envKey
+    ? ` Set ${envKey} in your environment (e.g. packages/workspace/.env) and re-run.`
+    : "";
+  throw new Error(
+    `No provider config found for "${providerConfigId}" (modelURI: ${modelURI}).${hint}`,
+  );
+}
+
+/* eslint-disable no-console */
+console.log("Loaded provider configs:");
+for (const config of PROVIDER_CONFIGS) {
+  console.log(`  - ${config.type} (id: ${config.id})`);
+}
+console.log(`Active modelURI: ${MODEL_URI}`);
+/* eslint-enable no-console */
+
+assertModelURIConfigured(MODEL_URI);
 
 const registryDir = env.APP_REGISTRY_DIR_PATH
   ? path.resolve(env.APP_REGISTRY_DIR_PATH)
@@ -204,21 +251,12 @@ rl.on("line", (input) => {
       workspaceRef: actor,
     };
 
-    const modelURI =
-      // "anthropic/claude-sonnet-4?provider=anthropic&providerConfigId=anthropic-config-id";
-      // "openai/gpt-5-mini?provider=openai&providerConfigId=openai-config-id";
-      // "google/gemini-2.5-pro?provider=google&providerConfigId=google-config-id";
-      // "google/gemini-2.5-flash?provider=google&providerConfigId=google-config-id";
-      // "x-ai/grok-code-fast-1?provider=openrouter&providerConfigId=openrouter-config-id";
-      // "google/gemini-3-pro-preview?provider=openrouter&providerConfigId=openrouter-config-id";
-      "openai/gpt-5.2?provider=openrouter&providerConfigId=openrouter-config-id";
-
     if (projectSubdomain) {
       void call(
         messageRoute.create,
         {
           files,
-          modelURI,
+          modelURI: MODEL_URI,
           prompt,
           sessionId: savedSessionId,
           subdomain: projectSubdomain,
@@ -232,7 +270,7 @@ rl.on("line", (input) => {
         projectRoute.create,
         {
           files,
-          modelURI,
+          modelURI: MODEL_URI,
           prompt,
         },
         { context },

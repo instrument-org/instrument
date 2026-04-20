@@ -2,6 +2,9 @@ import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import type { AIProviderType } from "@instrument-org/shared";
 import type { FilePart, ModelMessage } from "ai";
 
+import { OUR_MODELS } from "@instrument-org/shared";
+import mime from "mime-types";
+
 type ContentOutput = Extract<
   LanguageModelV2ToolResultOutput,
   { type: "content" }
@@ -18,6 +21,15 @@ const MULTIPART_TOOL_RESULT_PROVIDERS = new Set<AIProviderType>([
   "anthropic",
   "google",
   "openai",
+]);
+
+// OpenRouter (and our gateway, which proxies through OpenRouter) requires a
+// `filename` whenever `file_data` is set, otherwise upstream providers like xAI
+// reject the request with: "input_file.filename is required when file_data is
+// set". Synthesize one from the media type for these providers.
+const FILENAME_REQUIRED_PROVIDERS = new Set<AIProviderType>([
+  "openrouter",
+  OUR_MODELS.providerType,
 ]);
 
 export function splitMultipartToolResults({
@@ -64,6 +76,7 @@ export function splitMultipartToolResults({
       content: modifiedContent,
     });
 
+    const includeFilename = FILENAME_REQUIRED_PROVIDERS.has(provider);
     const userMessageParts = message.content
       .filter((part) => part.type !== "tool-approval-response")
       .filter((part) => isContentOutput(part.output))
@@ -72,7 +85,7 @@ export function splitMultipartToolResults({
         if (!isContentOutput(output)) {
           return [];
         }
-        return extractMediaParts(output);
+        return extractMediaParts(output, includeFilename);
       });
 
     if (userMessageParts.length > 0) {
@@ -105,11 +118,17 @@ function convertToTextOutput(
   };
 }
 
-function extractMediaParts(output: ContentOutput): FilePart[] {
+function extractMediaParts(
+  output: ContentOutput,
+  includeFilename: boolean,
+): FilePart[] {
   return output.value
     .filter((item): item is MediaPart => item.type === "media")
     .map((item) => ({
       data: item.data,
+      ...(includeFilename
+        ? { filename: filenameForMediaType(item.mediaType) }
+        : {}),
       mediaType: item.mediaType,
       type: "file",
     }));
@@ -117,6 +136,11 @@ function extractMediaParts(output: ContentOutput): FilePart[] {
 
 function extractTextParts(output: ContentOutput) {
   return output.value.filter((item) => item.type === "text");
+}
+
+function filenameForMediaType(mediaType: string): string {
+  const extension = mime.extension(mediaType);
+  return extension ? `file.${extension}` : "file";
 }
 
 function hasMediaParts(output: ContentOutput): boolean {

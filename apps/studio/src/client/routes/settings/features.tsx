@@ -5,7 +5,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export const Route = createFileRoute("/settings/features")({
   component: SettingsFeaturesPage,
@@ -15,10 +15,13 @@ function SettingsFeaturesPage() {
   const features = useAtomValue(featuresAtom);
   const [optimisticFeatures, setOptimisticFeatures] =
     useState<Record<FeatureName, boolean>>(features);
+  const [lastFeatures, setLastFeatures] =
+    useState<Record<FeatureName, boolean>>(features);
 
-  useEffect(() => {
+  if (features !== lastFeatures) {
+    setLastFeatures(features);
     setOptimisticFeatures(features);
-  }, [features]);
+  }
 
   const handleToggle = async (feature: FeatureName, enabled: boolean) => {
     setOptimisticFeatures((prev) => ({ ...prev, [feature]: enabled }));

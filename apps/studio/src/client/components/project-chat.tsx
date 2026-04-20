@@ -6,7 +6,7 @@ import {
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
 
@@ -57,6 +57,13 @@ export function ProjectChat({
   const [selectedModelURI, setSelectedModelURI] = useState<
     AIGatewayModelURI.Type | undefined
   >(initialSelectedModelURI);
+  const [lastInitialSelectedModelURI, setLastInitialSelectedModelURI] =
+    useState(initialSelectedModelURI);
+
+  if (initialSelectedModelURI !== lastInitialSelectedModelURI) {
+    setLastInitialSelectedModelURI(initialSelectedModelURI);
+    setSelectedModelURI(initialSelectedModelURI);
+  }
 
   const { data: appState } = useAppState({
     subdomain: project.subdomain,
@@ -83,10 +90,6 @@ export function ProjectChat({
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
   const isDeveloperMode = preferences?.developerMode;
-
-  useEffect(() => {
-    setSelectedModelURI(initialSelectedModelURI);
-  }, [initialSelectedModelURI]);
 
   const sessionActors = appState?.sessionActors ?? [];
   const isAgentAlive = sessionActors.some((session) =>

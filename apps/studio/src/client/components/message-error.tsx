@@ -3,7 +3,7 @@ import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -52,14 +52,16 @@ export function MessageError({
   const showActions = isLastMessage && !isAgentRunning;
   const defaultExpanded = isLastMessage && !isAgentRunning;
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [lastDefaultExpanded, setLastDefaultExpanded] =
+    useState(defaultExpanded);
+  if (defaultExpanded !== lastDefaultExpanded) {
+    setLastDefaultExpanded(defaultExpanded);
+    setIsExpanded(defaultExpanded);
+  }
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
   const { models } = modelsData ?? {};
-
-  useEffect(() => {
-    setIsExpanded(defaultExpanded);
-  }, [defaultExpanded]);
 
   if (!error) {
     return null;

@@ -1,6 +1,5 @@
 ---
 globs: *.tsx
-alwaysApply: true
 ---
 
 - Avoid using interfaces for component props, use inline types instead.

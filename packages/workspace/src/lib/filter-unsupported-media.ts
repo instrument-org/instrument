@@ -32,6 +32,7 @@ const KNOWN_BROKEN_MEDIA: readonly {
   // file inputs and the request fails. See:
   // https://openrouter.ai/docs/guides/overview/multimodal/pdfs
   { author: "x-ai", category: "file", provider: "openrouter" },
+  { author: "x-ai", category: "file", provider: "instrument" },
 ];
 
 export function filterUnsupportedMedia({

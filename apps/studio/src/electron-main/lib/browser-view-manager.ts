@@ -15,25 +15,20 @@ interface BrowserEntry {
   authorizedDownloadPath: null | string;
   detachListeners: Set<() => void>;
   eventListeners: Set<(method: string, params: unknown) => void>;
-  // Host window for the WebContentsView. Always present so the view has real
-  // bounds and a real compositor surface. Hidden by default; shown in
-  // developer mode so the agent's browsing context is visible to the dev.
   hostWindow: BrowserWindow;
   // Maps download URL -> GUID from Page.downloadWillBegin, consumed by will-download.
   pendingDownloadGuids: Map<string, string>;
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
   subdomain: ProjectSubdomain;
-  // Stable target id captured at construction. Never re-read from
-  // webContents.id, which can become undefined after destruction.
+  // Captured at construction; webContents.id becomes undefined after
+  // destruction in Electron 41+ (electron/electron#50249).
   targetId: string;
   view: WebContentsView;
 }
 
-// Default viewport for agent browsing contexts. Matches a 13" MacBook viewport
-// in Chrome (1280 CSS px wide, ~90px consumed by browser chrome on a 900px-tall
-// screen). Used as the host window's content size so the WebContentsView has a
-// real surface without needing Emulation.setDeviceMetricsOverride.
+// Matches a 13" MacBook viewport in Chrome (1280 CSS px wide, ~90px consumed
+// by browser chrome on a 900px-tall screen).
 const DEFAULT_VIEWPORT_WIDTH = 1280;
 const DEFAULT_VIEWPORT_HEIGHT = 800;
 
@@ -63,6 +58,29 @@ export class BrowserViewManager {
     }
   }
 
+  private async applyDeviceMetricsOverride(entry: BrowserEntry) {
+    const wc = entry.view.webContents;
+    if (!wc || wc.isDestroyed() || !wc.debugger.isAttached()) {
+      return;
+    }
+    try {
+      // Pin a deterministic CSS layout viewport independent of host window
+      // size so agent layout assumptions (1280x800) hold even when the user
+      // resizes the visible developer-mode window.
+      await wc.debugger.sendCommand("Emulation.setDeviceMetricsOverride", {
+        deviceScaleFactor: 1,
+        height: DEFAULT_VIEWPORT_HEIGHT,
+        mobile: false,
+        screenOrientation: { angle: 0, type: "portraitPrimary" },
+        width: DEFAULT_VIEWPORT_WIDTH,
+      });
+    } catch (error) {
+      log.warn(
+        `setDeviceMetricsOverride failed targetId=${entry.targetId} err=${String(error)}`,
+      );
+    }
+  }
+
   private closeTarget(targetId: string): Promise<void> {
     this.destroyEntry(targetId);
     return Promise.resolve();
@@ -74,8 +92,8 @@ export class BrowserViewManager {
     const partition = `persist:browser-${subdomain}`;
     const ses = session.fromPartition(partition);
 
-    // All current Electron defaults; pinned to guard against a future default
-    // flip silently weakening this agent-controlled browsing context.
+    // Defaults are pinned explicitly to guard against a future Electron
+    // default flip silently weakening this agent-controlled browsing context.
     const view = new WebContentsView({
       webPreferences: {
         allowRunningInsecureContent: false,
@@ -88,11 +106,8 @@ export class BrowserViewManager {
       },
     });
 
-    // Capture the WebContents and its id once at construction. The id is stable
-    // for the lifetime of the WebContents, so reading it later via
-    // `view.webContents?.id` (which can be undefined after destruction in
-    // Electron 41+; see electron/electron#50249) would yield the literal
-    // string "undefined" and corrupt the entries map.
+    // Capture id once; webContents.id becomes undefined after destruction
+    // in Electron 41+ (electron/electron#50249) and would corrupt the map.
     const wc = view.webContents;
     if (!wc) {
       throw new Error("WebContentsView constructed without webContents");
@@ -142,14 +157,11 @@ export class BrowserViewManager {
       }
     });
 
-    // Always host the view in a real BrowserWindow so it has actual bounds
-    // and a real compositor surface. Without this we'd have to rely on
-    // Emulation.setDeviceMetricsOverride, which conflicts with the override
-    // Chromium applies internally during full-page screenshots (causing
-    // duplicated content) and breaks subtle layout features that depend on a
-    // real visual viewport (sticky positioning, lazy-load IntersectionObservers,
-    // visualViewport APIs, etc.). In production the window is hidden; in
-    // developer mode it's shown so the dev can see the agent's browsing context.
+    // cspell:ignore RWHV
+    // Real BrowserWindow gives the view actual on-screen bounds; we still
+    // apply Emulation.setDeviceMetricsOverride below to decouple Blink's
+    // viewport from the RWHV so captureBeyondViewport reflows correctly
+    // (FP-922) without resizing the host window during capture.
     const hostWindow = new BrowserWindow({
       height: DEFAULT_VIEWPORT_HEIGHT,
       show: this.developerMode,
@@ -197,11 +209,8 @@ export class BrowserViewManager {
       this.handleDetach(targetId);
     });
 
-    // Load about:blank to properly initialize the renderer frame. Without an
-    // initial navigation the WebContents has no main RenderFrame, so CDP
-    // commands like Page.enable hang and Page.navigate has no frame to act on.
-    // Even with the view attached to a (hidden) BrowserWindow, Electron does
-    // not auto-navigate; the explicit load is what materializes the frame.
+    // Materialize the main RenderFrame; without an initial navigation
+    // CDP commands like Page.enable hang and Page.navigate has no frame.
     return new Promise((resolve) => {
       wc.once("did-finish-load", () => {
         this.ensureDebuggerAttached(entry);
@@ -248,9 +257,6 @@ export class BrowserViewManager {
     if (wc.debugger.isAttached()) {
       return;
     }
-    // Capture the targetId once; `wc.id` becomes undefined after destruction
-    // in Electron 41+ (electron/electron#50249), so re-reading it inside the
-    // callbacks below would yield "undefined" and miss the entry lookup.
     const targetId = entry.targetId;
     wc.debugger.attach("1.3");
 
@@ -267,6 +273,16 @@ export class BrowserViewManager {
           current.pendingDownloadGuids.set(p.url, p.guid);
         }
       }
+      // FP-922: Chromium's captureBeyondViewport reflows against the RWHV
+      // when no Emulation override is active, breaking 100vh/sticky/parallax
+      // pages. Re-apply on every top-level navigation since cross-origin
+      // navigation can drop the override.
+      if (method === "Page.frameNavigated") {
+        const p = params as { frame?: { parentId?: string } };
+        if (!p.frame?.parentId) {
+          void this.applyDeviceMetricsOverride(current);
+        }
+      }
       for (const listener of current.eventListeners) {
         listener(method, params as unknown);
       }
@@ -275,6 +291,8 @@ export class BrowserViewManager {
     wc.debugger.on("detach", () => {
       this.handleDetach(targetId);
     });
+
+    void this.applyDeviceMetricsOverride(entry);
   }
 
   private handleDetach(targetId: string) {
@@ -334,6 +352,70 @@ export class BrowserViewManager {
     }
 
     return Promise.resolve(targets);
+  }
+
+  // FP-922: agent-browser builds its full-page clip from contentSize (device
+  // pixels) at scale: 1.0. Embedded in a HiDPI host window, Electron's layout
+  // metrics report contentSize = dsf * cssContentSize regardless of Emulation
+  // overrides (the override only affects window.devicePixelRatio, not
+  // Page.getLayoutMetrics). That makes both the clip rectangle AND the
+  // resulting PNG 2x too large in each axis: the document is painted in the
+  // top half and the area below contentHeight is rendered as a second tiled
+  // paint. Convert the clip to CSS px so it matches actual document bounds.
+  // Returns the rewritten capture result, or null to fall through to the
+  // default debugger.sendCommand path.
+  private async rescaleFullPageScreenshotClip(
+    entry: BrowserEntry,
+    params: unknown,
+  ): Promise<unknown> {
+    const p = (params ?? {}) as Record<string, unknown>;
+    if (p.captureBeyondViewport !== true) {
+      return null;
+    }
+    const clip = p.clip as
+      | undefined
+      | { height: number; scale?: number; width: number; x: number; y: number };
+    if (!clip) {
+      return null;
+    }
+    const wc = entry.view.webContents;
+    if (!wc || wc.isDestroyed() || !wc.debugger.isAttached()) {
+      return null;
+    }
+    try {
+      const metrics = (await wc.debugger.sendCommand(
+        "Page.getLayoutMetrics",
+      )) as {
+        contentSize?: { width: number };
+        cssContentSize?: { width: number };
+      };
+      const dpW = metrics.contentSize?.width ?? 0;
+      const cssW = metrics.cssContentSize?.width ?? 0;
+      const dsf = cssW > 0 ? dpW / cssW : 1;
+      if (dsf === 1) {
+        return null;
+      }
+      const newClip = {
+        height: clip.height / dsf,
+        scale: clip.scale ?? 1,
+        width: clip.width / dsf,
+        x: clip.x / dsf,
+        y: clip.y / dsf,
+      };
+      log.debug(
+        `captureScreenshot rescale dsf=${dsf} cssW=${cssW} dpW=${dpW} ` +
+          `clipIn=${JSON.stringify(clip)} clipOut=${JSON.stringify(newClip)}`,
+      );
+      return await wc.debugger.sendCommand("Page.captureScreenshot", {
+        ...p,
+        clip: newClip,
+      });
+    } catch (error) {
+      log.warn(
+        `captureScreenshot rescale failed targetId=${entry.targetId} err=${String(error)}`,
+      );
+      return null;
+    }
   }
 
   private async sendCommand(
@@ -398,6 +480,13 @@ export class BrowserViewManager {
       return {};
     }
 
+    if (method === "Page.captureScreenshot") {
+      const rescaled = await this.rescaleFullPageScreenshotClip(entry, params);
+      if (rescaled) {
+        return rescaled;
+      }
+    }
+
     // Electron does not support CDP browser context management. Map
     // Browser.setDownloadBehavior to the native Electron session API instead.
     if (method === "Browser.setDownloadBehavior") {
@@ -417,15 +506,11 @@ export class BrowserViewManager {
       return {};
     }
 
-    // Known limitation: Page.captureScreenshot with captureBeyondViewport=true
-    // produces stacked duplicates on Electron's on-screen WebContentsView (the
-    // renderer reflows at the clip height but only the top tile paints). Use
-    // Page.printToPDF or client-side stitching for full-page captures.
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const result = await entry.view.webContents?.debugger.sendCommand(
         method,
-        params as Record<string, unknown>,
+        params,
       );
       return result;
     } catch (error) {

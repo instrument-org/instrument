@@ -661,8 +661,8 @@ importers:
         specifier: ^7.37.5
         version: 7.37.5(eslint@9.31.0(jiti@2.6.1))
       eslint-plugin-react-hooks:
-        specifier: ^7
-        version: 7.0.1(eslint@9.31.0(jiti@2.6.1))
+        specifier: ^7.1.1
+        version: 7.1.1(eslint@9.31.0(jiti@2.6.1))
       eslint-plugin-react-refresh:
         specifier: ^0.4.20
         version: 0.4.20(eslint@9.31.0(jiti@2.6.1))

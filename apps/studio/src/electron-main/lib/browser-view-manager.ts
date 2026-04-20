@@ -396,11 +396,11 @@ export class BrowserViewManager {
         return null;
       }
       const newClip = {
-        height: clip.height / dsf,
+        height: Math.round(clip.height / dsf),
         scale: clip.scale ?? 1,
-        width: clip.width / dsf,
-        x: clip.x / dsf,
-        y: clip.y / dsf,
+        width: Math.round(clip.width / dsf),
+        x: Math.round(clip.x / dsf),
+        y: Math.round(clip.y / dsf),
       };
       log.debug(
         `captureScreenshot rescale dsf=${dsf} cssW=${cssW} dpW=${dpW} ` +
@@ -485,6 +485,23 @@ export class BrowserViewManager {
       if (rescaled) {
         return rescaled;
       }
+    }
+
+    // Electron's debugger does not implement the Browser domain. agent-browser
+    // probes Browser.getWindowForTarget to discover window dimensions; return
+    // a fixed stub matching our DEFAULT_VIEWPORT so callers can size relative
+    // to the agent's logical viewport without hitting an error log per session.
+    if (method === "Browser.getWindowForTarget") {
+      return {
+        bounds: {
+          height: DEFAULT_VIEWPORT_HEIGHT,
+          left: 0,
+          top: 0,
+          width: DEFAULT_VIEWPORT_WIDTH,
+          windowState: "normal",
+        },
+        windowId: 1,
+      };
     }
 
     // Electron does not support CDP browser context management. Map

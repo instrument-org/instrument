@@ -1,3 +1,5 @@
+import type { Protocol } from "devtools-protocol";
+import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 
@@ -10,6 +12,25 @@ import { type WorkspaceConfig } from "../../../types";
 import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
 import { type WorkspaceServerEnv } from "../types";
 import { getWorkspaceServerPort } from "../url";
+
+// CDP wire envelopes. Inbound is from agent-browser (untrusted JSON), outbound
+// either has `result` (typed by command) or `error`, plus async event frames.
+interface CdpEventFrame<E extends CdpEventName = CdpEventName> {
+  method: E;
+  params: CdpEventParams<E>;
+  sessionId: string;
+}
+type CdpEventName = keyof ProtocolMapping.Events;
+type CdpEventParams<E extends CdpEventName> = ProtocolMapping.Events[E][0];
+interface CdpRequest {
+  id?: number;
+  method?: string;
+  params?: unknown;
+  sessionId?: string;
+}
+type CdpResponse =
+  | { error: { code: number; message: string }; id?: number }
+  | { id?: number; result: unknown };
 
 export const cdpBridgeRoute = new Hono<WorkspaceServerEnv>().basePath(
   CDP_BASE_PATH,
@@ -98,7 +119,7 @@ function handleCdpClient(
   let unsubscribe: (() => void) | null = null;
   let currentLoaderId = "";
 
-  const send = (payload: unknown) => {
+  const send = (payload: CdpEventFrame | CdpResponse) => {
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(JSON.stringify(payload));
     }
@@ -108,15 +129,16 @@ function handleCdpClient(
     clientWs.close(1001, "Target detached");
   };
 
-  const sendLifecycleEvent = (frameId: string, name: string) => {
+  const sendLifecycleEvent = (frameId: Protocol.Page.FrameId, name: string) => {
+    const params: Protocol.Page.LifecycleEventEvent = {
+      frameId,
+      loaderId: currentLoaderId,
+      name,
+      timestamp: Date.now() / 1000,
+    };
     send({
       method: "Page.lifecycleEvent",
-      params: {
-        frameId,
-        loaderId: currentLoaderId,
-        name,
-        timestamp: Date.now() / 1000,
-      },
+      params,
       sessionId: `session-${targetId}`,
     });
   };
@@ -126,20 +148,24 @@ function handleCdpClient(
     // session it attached to via Target.attachToTarget. Electron emits events
     // without a sessionId since the debugger is browser-level, but agent-browser
     // filters events by sessionId when waiting for Page.loadEventFired etc.
-    send({ method, params, sessionId: `session-${targetId}` });
+    send({
+      method: method as CdpEventName,
+      params: params as CdpEventParams<CdpEventName>,
+      sessionId: `session-${targetId}`,
+    });
 
     // Track the loaderId from navigation events so lifecycle events carry the
     // correct loaderId that agent-browser uses to match them to the navigation.
     if (method === "Page.frameStartedNavigating") {
-      const p = params as { loaderId?: string };
-      currentLoaderId = p.loaderId ?? "";
+      const p = params as Protocol.Page.FrameStartedNavigatingEvent;
+      currentLoaderId = p.loaderId;
     }
 
     // Electron doesn't emit Page.lifecycleEvent, which agent-browser waits for
     // after navigation (specifically "networkIdle"). Synthesize the full
     // sequence after Page.frameStoppedLoading so the open command resolves.
     if (method === "Page.frameStoppedLoading") {
-      const { frameId } = params as { frameId?: string };
+      const { frameId } = params as Protocol.Page.FrameStoppedLoadingEvent;
       if (frameId) {
         sendLifecycleEvent(frameId, "DOMContentLoaded");
         sendLifecycleEvent(frameId, "load");
@@ -156,19 +182,14 @@ function handleCdpClient(
   );
 
   clientWs.on("message", (data) => {
-    let message: {
-      id?: number;
-      method?: string;
-      params?: unknown;
-      sessionId?: string;
-    };
+    let message: CdpRequest;
     try {
       const raw = Buffer.isBuffer(data)
         ? data.toString("utf8")
         : Array.isArray(data)
           ? Buffer.concat(data).toString("utf8")
           : Buffer.from(data).toString("utf8");
-      message = JSON.parse(raw) as typeof message;
+      message = JSON.parse(raw) as CdpRequest;
     } catch {
       return;
     }
@@ -230,7 +251,7 @@ function handleInterceptedTargetCommand(
   targetId: string,
   workspaceConfig: WorkspaceConfig,
 ) {
-  const send = (payload: unknown) => {
+  const send = (payload: CdpResponse) => {
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(JSON.stringify(payload));
     }
@@ -245,7 +266,7 @@ function handleInterceptedTargetCommand(
     }
 
     case "Target.attachToTarget": {
-      const p = params as undefined | { targetId?: string };
+      const p = params as Protocol.Target.AttachToTargetRequest | undefined;
       const requestedId = p?.targetId;
       // Only allow attaching to the target this connection owns.
       if (requestedId && requestedId !== targetId) {
@@ -262,7 +283,10 @@ function handleInterceptedTargetCommand(
       // Electron doesn't support Target.attachToTarget with our integer-based
       // targetId. Return a synthetic sessionId - commands sent with this
       // sessionId are stripped of it and forwarded directly to the debugger.
-      send({ id, result: { sessionId: `session-${targetId}` } });
+      const result: Protocol.Target.AttachToTargetResponse = {
+        sessionId: `session-${targetId}`,
+      };
+      send({ id, result });
       return;
     }
     case "Target.createBrowserContext":
@@ -271,7 +295,10 @@ function handleInterceptedTargetCommand(
       // synthetic context ID so agent-browser's recording flow can proceed.
       // Download behavior is handled via Browser.setDownloadBehavior interception
       // in BrowserViewManager.
-      send({ id, result: { browserContextId: `context-${targetId}` } });
+      const result: Protocol.Target.CreateBrowserContextResponse = {
+        browserContextId: `context-${targetId}`,
+      };
+      send({ id, result });
       return;
     }
 
@@ -279,19 +306,20 @@ function handleInterceptedTargetCommand(
       // agent-browser may try to open a new tab; redirect it to the existing
       // target rather than creating one (which is not supported on a
       // WebContentsView debugger). If a URL was requested, navigate to it.
-      const cp = params as undefined | { url?: string };
+      const cp = params as Protocol.Target.CreateTargetRequest | undefined;
       const url = cp?.url;
+      const result: Protocol.Target.CreateTargetResponse = { targetId };
       if (url && url !== "about:blank") {
         workspaceConfig.browser
           .sendCommand(targetId, "Page.navigate", { url })
           .then(() => {
-            send({ id, result: { targetId } });
+            send({ id, result });
           })
           .catch(() => {
-            send({ id, result: { targetId } });
+            send({ id, result });
           });
       } else {
-        send({ id, result: { targetId } });
+        send({ id, result });
       }
       return;
     }
@@ -300,21 +328,19 @@ function handleInterceptedTargetCommand(
       // Return a synthetic single-target list scoped to just this view.
       // The underlying Target.getTargets leaks all Electron targets because
       // the WebContentsView debugger is browser-level.
-      send({
-        id,
-        result: {
-          targetInfos: [
-            {
-              attached: true,
-              canAccessOpener: false,
-              targetId,
-              title: "",
-              type: "page",
-              url: "",
-            },
-          ],
-        },
-      });
+      const result: Protocol.Target.GetTargetsResponse = {
+        targetInfos: [
+          {
+            attached: true,
+            canAccessOpener: false,
+            targetId,
+            title: "",
+            type: "page",
+            url: "",
+          },
+        ],
+      };
+      send({ id, result });
       return;
     }
 

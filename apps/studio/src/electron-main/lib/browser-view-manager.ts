@@ -1,3 +1,5 @@
+import type { Protocol } from "devtools-protocol";
+
 import {
   type BrowserConfig,
   type BrowserTarget,
@@ -5,6 +7,7 @@ import {
 } from "@instrument-org/workspace/electron";
 import { BrowserWindow, session, WebContentsView } from "electron";
 
+import { sendCdpCommand } from "./cdp";
 import { createScopedLogger } from "./electron-logger";
 
 const log = createScopedLogger("BrowserViewManager");
@@ -67,7 +70,7 @@ export class BrowserViewManager {
       // Pin a deterministic CSS layout viewport independent of host window
       // size so agent layout assumptions (1280x800) hold even when the user
       // resizes the visible developer-mode window.
-      await wc.debugger.sendCommand("Emulation.setDeviceMetricsOverride", {
+      await sendCdpCommand(wc, "Emulation.setDeviceMetricsOverride", {
         deviceScaleFactor: 1,
         height: DEFAULT_VIEWPORT_HEIGHT,
         mobile: false,
@@ -129,12 +132,14 @@ export class BrowserViewManager {
 
         // Synthesize Page.downloadWillBegin so agent-browser's download command
         // can capture the GUID and start waiting for completion.
+        const willBegin: Protocol.Page.DownloadWillBeginEvent = {
+          frameId: targetId,
+          guid,
+          suggestedFilename: item.getFilename(),
+          url: item.getURL(),
+        };
         for (const listener of entry.eventListeners) {
-          listener("Page.downloadWillBegin", {
-            frameId: targetId,
-            guid,
-            url: item.getURL(),
-          });
+          listener("Page.downloadWillBegin", willBegin);
         }
 
         item.once("done", (_doneEvent, state) => {
@@ -143,13 +148,14 @@ export class BrowserViewManager {
             return;
           }
           // Synthesize Page.downloadProgress so agent-browser resolves or errors.
+          const progress: Protocol.Page.DownloadProgressEvent = {
+            guid,
+            receivedBytes: item.getReceivedBytes(),
+            state: state === "completed" ? "completed" : "canceled",
+            totalBytes: item.getTotalBytes(),
+          };
           for (const listener of currentEntry.eventListeners) {
-            listener("Page.downloadProgress", {
-              guid,
-              receivedBytes: item.getReceivedBytes(),
-              state: state === "completed" ? "completed" : "canceled",
-              totalBytes: item.getTotalBytes(),
-            });
+            listener("Page.downloadProgress", progress);
           }
         });
       } else {
@@ -260,7 +266,7 @@ export class BrowserViewManager {
     const targetId = entry.targetId;
     wc.debugger.attach("1.3");
 
-    wc.debugger.on("message", (_event, method, params) => {
+    wc.debugger.on("message", (_event, method, params: unknown) => {
       const current = this.entries.get(targetId);
       if (!current) {
         return;
@@ -268,7 +274,7 @@ export class BrowserViewManager {
       // Capture the GUID from Page.downloadWillBegin so will-download can
       // save with the GUID filename that agent-browser expects to find.
       if (method === "Page.downloadWillBegin") {
-        const p = params as { guid?: string; url?: string };
+        const p = params as Protocol.Page.DownloadWillBeginEvent;
         if (p.guid && p.url) {
           current.pendingDownloadGuids.set(p.url, p.guid);
         }
@@ -278,13 +284,13 @@ export class BrowserViewManager {
       // pages. Re-apply on every top-level navigation since cross-origin
       // navigation can drop the override.
       if (method === "Page.frameNavigated") {
-        const p = params as { frame?: { parentId?: string } };
-        if (!p.frame?.parentId) {
+        const p = params as Protocol.Page.FrameNavigatedEvent;
+        if (!p.frame.parentId) {
           void this.applyDeviceMetricsOverride(current);
         }
       }
       for (const listener of current.eventListeners) {
-        listener(method, params as unknown);
+        listener(method, params);
       }
     });
 
@@ -367,15 +373,9 @@ export class BrowserViewManager {
   private async rescaleFullPageScreenshotClip(
     entry: BrowserEntry,
     params: unknown,
-  ): Promise<unknown> {
-    const p = (params ?? {}) as Record<string, unknown>;
-    if (p.captureBeyondViewport !== true) {
-      return null;
-    }
-    const clip = p.clip as
-      | undefined
-      | { height: number; scale?: number; width: number; x: number; y: number };
-    if (!clip) {
+  ): Promise<null | Protocol.Page.CaptureScreenshotResponse> {
+    const p = (params ?? {}) as Protocol.Page.CaptureScreenshotRequest;
+    if (p.captureBeyondViewport !== true || !p.clip) {
       return null;
     }
     const wc = entry.view.webContents;
@@ -383,30 +383,21 @@ export class BrowserViewManager {
       return null;
     }
     try {
-      const metrics = (await wc.debugger.sendCommand(
-        "Page.getLayoutMetrics",
-      )) as {
-        contentSize?: { width: number };
-        cssContentSize?: { width: number };
-      };
-      const dpW = metrics.contentSize?.width ?? 0;
-      const cssW = metrics.cssContentSize?.width ?? 0;
+      const metrics = await sendCdpCommand(wc, "Page.getLayoutMetrics");
+      const dpW = metrics.contentSize.width;
+      const cssW = metrics.cssContentSize.width;
       const dsf = cssW > 0 ? dpW / cssW : 1;
       if (dsf === 1) {
         return null;
       }
-      const newClip = {
-        height: Math.round(clip.height / dsf),
-        scale: clip.scale ?? 1,
-        width: Math.round(clip.width / dsf),
-        x: Math.round(clip.x / dsf),
-        y: Math.round(clip.y / dsf),
+      const newClip: Protocol.Page.Viewport = {
+        height: Math.round(p.clip.height / dsf),
+        scale: p.clip.scale,
+        width: Math.round(p.clip.width / dsf),
+        x: Math.round(p.clip.x / dsf),
+        y: Math.round(p.clip.y / dsf),
       };
-      log.debug(
-        `captureScreenshot rescale dsf=${dsf} cssW=${cssW} dpW=${dpW} ` +
-          `clipIn=${JSON.stringify(clip)} clipOut=${JSON.stringify(newClip)}`,
-      );
-      return await wc.debugger.sendCommand("Page.captureScreenshot", {
+      return await sendCdpCommand(wc, "Page.captureScreenshot", {
         ...p,
         clip: newClip,
       });
@@ -436,7 +427,7 @@ export class BrowserViewManager {
     // Electron's debugger protocol does not expose Page.printToPDF. Use the
     // native webContents.printToPDF() API and return a CDP-compatible response.
     if (method === "Page.printToPDF") {
-      const p = (params ?? {}) as Record<string, unknown>;
+      const p = (params ?? {}) as Protocol.Page.PrintToPDFRequest;
       try {
         const data = await entry.view.webContents?.printToPDF({
           landscape: p.landscape === true,
@@ -446,7 +437,9 @@ export class BrowserViewManager {
         if (!data) {
           throw new Error("webContents unavailable");
         }
-        const result = { data: data.toString("base64") };
+        const result: Protocol.Page.PrintToPDFResponse = {
+          data: data.toString("base64"),
+        };
         return result;
       } catch (error) {
         log.error(
@@ -460,11 +453,11 @@ export class BrowserViewManager {
     // Emulate them by polling webContents.capturePage() and emitting synthetic
     // Page.screencastFrame events into the event listener set.
     if (method === "Page.startScreencast") {
-      const p = (params ?? {}) as Record<string, unknown>;
-      const format = typeof p.format === "string" ? p.format : "jpeg";
-      const quality = typeof p.quality === "number" ? p.quality : 80;
-      const maxWidth = typeof p.maxWidth === "number" ? p.maxWidth : 1280;
-      const maxHeight = typeof p.maxHeight === "number" ? p.maxHeight : 720;
+      const p = (params ?? {}) as Protocol.Page.StartScreencastRequest;
+      const format = p.format ?? "jpeg";
+      const quality = p.quality ?? 80;
+      const maxWidth = p.maxWidth ?? 1280;
+      const maxHeight = p.maxHeight ?? 720;
       this.startScreencast(entry, format, quality, maxWidth, maxHeight);
       return {};
     }
@@ -492,7 +485,7 @@ export class BrowserViewManager {
     // a fixed stub matching our DEFAULT_VIEWPORT so callers can size relative
     // to the agent's logical viewport without hitting an error log per session.
     if (method === "Browser.getWindowForTarget") {
-      return {
+      const response: Protocol.Browser.GetWindowForTargetResponse = {
         bounds: {
           height: DEFAULT_VIEWPORT_HEIGHT,
           left: 0,
@@ -502,15 +495,15 @@ export class BrowserViewManager {
         },
         windowId: 1,
       };
+      return response;
     }
 
     // Electron does not support CDP browser context management. Map
     // Browser.setDownloadBehavior to the native Electron session API instead.
     if (method === "Browser.setDownloadBehavior") {
-      const p = (params ?? {}) as Record<string, unknown>;
-      const downloadPath =
-        typeof p.downloadPath === "string" ? p.downloadPath : null;
-      const behavior = typeof p.behavior === "string" ? p.behavior : "default";
+      const p = (params ?? {}) as Protocol.Browser.SetDownloadBehaviorRequest;
+      const downloadPath = p.downloadPath ?? null;
+      const behavior = p.behavior;
       if (
         (behavior === "allow" || behavior === "allowAndName") &&
         downloadPath
@@ -524,11 +517,15 @@ export class BrowserViewManager {
     }
 
     try {
+      const wc = entry.view.webContents;
+      if (!wc) {
+        throw new Error("webContents unavailable");
+      }
+      // Pass-through: BrowserConfig.sendCommand is a string-keyed bridge from
+      // an out-of-process Rust client (agent-browser), so we cannot type the
+      // method here. Typed call sites use sendCdpCommand directly above.
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const result = await entry.view.webContents?.debugger.sendCommand(
-        method,
-        params,
-      );
+      const result = await wc.debugger.sendCommand(method, params);
       return result;
     } catch (error) {
       log.error(
@@ -540,7 +537,7 @@ export class BrowserViewManager {
 
   private startScreencast(
     entry: BrowserEntry,
-    format: string,
+    format: Protocol.Page.StartScreencastRequest["format"],
     quality: number,
     maxWidth: number,
     maxHeight: number,
@@ -579,7 +576,7 @@ export class BrowserViewManager {
             format === "png"
               ? image.toPNG().toString("base64")
               : image.toJPEG(quality).toString("base64");
-          const params = {
+          const frame: Protocol.Page.ScreencastFrameEvent = {
             data,
             metadata: {
               deviceHeight: maxHeight,
@@ -593,7 +590,7 @@ export class BrowserViewManager {
             sessionId: screencastSessionId,
           };
           for (const listener of entry.eventListeners) {
-            listener("Page.screencastFrame", params);
+            listener("Page.screencastFrame", frame);
           }
         })
         .catch((error: unknown) => {

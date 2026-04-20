@@ -62,6 +62,16 @@ const STRIPPED_VALUE_FLAGS = new Set([
   "--screenshot-dir", // Made app-relative via AGENT_BROWSER_SCREENSHOT_DIR.
 ]);
 
+// Flags that short-circuit the CLI to print info and exit without needing a
+// browser target. Skip target creation / --cdp / --session injection so the
+// agent doesn't accidentally spawn a browser view just by running --help.
+const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
+
+// Idle ms after which the agent-browser daemon self-terminates. Tuned to
+// outlast a single agent-loop tool-call gap (a few seconds) but reap soon
+// after the agent moves on. The view itself stays warm; only the daemon dies.
+const IDLE_TIMEOUT_MS = "30000";
+
 export function createAgentBrowserCommand({
   appConfig,
   sessionId,
@@ -106,30 +116,42 @@ export function createAgentBrowserCommand({
       };
     }
 
-    // Ensure a browser target exists for this project before handing off to the
-    // agent-browser daemon so it has something to connect to.
-    const existingTargets =
-      await workspaceConfig.browser.listTargets(subdomain);
-    let targetId: string;
-    if (existingTargets.length > 0 && existingTargets[0]) {
-      targetId = existingTargets[0].id;
-    } else {
-      const created = await workspaceConfig.browser.createTarget(subdomain);
-      targetId = created.targetId;
-    }
-
-    const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
+    const isInfoOnly = args.some((a) => {
+      const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
+      return INFO_ONLY_FLAGS.has(flagName);
+    });
 
     const { appCwd, env } = resolveCommandContext(appConfig, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
     const resolvedArgs = resolvePathArgs(strippedArgs, appConfig, ctx);
-    const commandArgs = [
-      "--cdp",
-      cdpUrl,
-      "--session",
-      sessionId,
-      ...resolvedArgs,
-    ];
+
+    // Info-only invocations (--help, --version) print and exit without ever
+    // touching a browser target, so don't spin up a WebContentsView or attach
+    // to the CDP bridge.
+    const commandArgs: string[] = isInfoOnly ? [...resolvedArgs] : [];
+
+    if (!isInfoOnly) {
+      // Ensure a browser target exists for this project before handing off to
+      // the agent-browser daemon so it has something to connect to.
+      const existingTargets =
+        await workspaceConfig.browser.listTargets(subdomain);
+      let targetId: string;
+      if (existingTargets.length > 0 && existingTargets[0]) {
+        targetId = existingTargets[0].id;
+      } else {
+        const created = await workspaceConfig.browser.createTarget(subdomain);
+        targetId = created.targetId;
+      }
+
+      const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
+      commandArgs.push(
+        "--cdp",
+        cdpUrl,
+        "--session",
+        sessionId,
+        ...resolvedArgs,
+      );
+    }
 
     const tmpDir = absolutePathJoin(appConfig.appDir, APP_FOLDER_NAMES.tmp);
     const screenshotDir = absolutePathJoin(tmpDir, "agent-browser-screenshots");
@@ -161,6 +183,7 @@ export function createAgentBrowserCommand({
         AGENT_BROWSER_STATE: undefined,
         // Absolute: passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
         AGENT_BROWSER_DOWNLOAD_PATH: downloadPath,
+        AGENT_BROWSER_IDLE_TIMEOUT_MS: IDLE_TIMEOUT_MS,
         AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
         AGENT_BROWSER_SOCKET_DIR,
         HOME: homeDir,

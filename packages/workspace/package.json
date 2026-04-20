@@ -79,6 +79,7 @@
     "@types/mock-fs": "^4.13.4",
     "@types/ms": "^2.1.0",
     "@types/node": "catalog:",
+    "devtools-protocol": "^0.0.1617013",
     "dotenv": "^16.6.1",
     "mock-fs": "^5.5.0",
     "tsx": "^4.20.3",

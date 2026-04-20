@@ -144,6 +144,7 @@
     "cmdk": "^1.1.1",
     "color-hash": "^2.0.2",
     "date-fns": "^4.1.0",
+    "devtools-protocol": "^0.0.1617013",
     "dotenv": "^16.6.1",
     "electron": "^41.2.1",
     "electron-builder": "26.8.2",

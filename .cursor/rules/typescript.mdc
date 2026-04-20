@@ -1,6 +1,5 @@
 ---
 globs: *.ts,*.tsx
-alwaysApply: true
 ---
 
 - NEVER use non-null assertions (`!`). This is forbidden. Always use proper type guards or optional chaining instead.

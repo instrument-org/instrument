@@ -1,7 +1,6 @@
 ---
 description: Rules for the workspace package (agents, tools, RPC, runtime).
 globs: packages/workspace/**/*
-alwaysApply: true
 ---
 
 ## Structure

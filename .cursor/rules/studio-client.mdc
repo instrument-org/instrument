@@ -1,7 +1,6 @@
 ---
 description: Rules for the Studio.
 globs: apps/studio/**/*
-alwaysApply: true
 ---
 
 ## ⚠️ WARNING: Studio `dependencies` vs `devDependencies`

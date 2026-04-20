@@ -145,7 +145,7 @@
     "color-hash": "^2.0.2",
     "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
-    "electron": "^41.2.0",
+    "electron": "^41.2.1",
     "electron-builder": "26.8.2",
     "electron-vite": "^5.0.0",
     "jotai": "^2.14.0",
@@ -176,7 +176,7 @@
     "write-package": "^7.1.0"
   },
   "engines": {
-    "node": ">=24.14.0"
+    "node": ">=24.14.1"
   },
   "productName": "Instrument"
 }

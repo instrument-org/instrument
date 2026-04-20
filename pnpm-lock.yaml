@@ -128,8 +128,8 @@ importers:
         specifier: ^0.21.0
         version: 0.21.0
       node:
-        specifier: runtime:24.14.0
-        version: runtime:24.14.0
+        specifier: runtime:24.14.1
+        version: runtime:24.14.1
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -159,10 +159,10 @@ importers:
     dependencies:
       '@electron-toolkit/preload':
         specifier: ^3.0.2
-        version: 3.0.2(electron@41.2.0)
+        version: 3.0.2(electron@41.2.1)
       '@electron-toolkit/utils':
         specifier: ^4.0.0
-        version: 4.0.0(electron@41.2.0)
+        version: 4.0.0(electron@41.2.1)
       '@hono/node-server':
         specifier: ^1.18.1
         version: 1.18.1(hono@4.8.5)
@@ -420,8 +420,8 @@ importers:
         specifier: ^16.6.1
         version: 16.6.1
       electron:
-        specifier: ^41.2.0
-        version: 41.2.0
+        specifier: ^41.2.1
+        version: 41.2.1
       electron-builder:
         specifier: 26.8.2
         version: 26.8.2(electron-builder-squirrel-windows@26.8.2)
@@ -4855,8 +4855,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@41.2.0:
-    resolution: {integrity: sha512-0OKLiymqfV0WK68RBXqAm3Myad2TpI5wwxLCBEUcH5Nugo3YfSk7p1Js/AL9266qTz5xZioUnxt9hG8FFwax0g==}
+  electron@41.2.1:
+    resolution: {integrity: sha512-teeRThiYGTPKf/2yOW7zZA1bhb91KEQ4yLBPOg7GxpmnkLFLugKgQaAKOrCgdzwsXh/5mFIfmkm+4+wACJKwaA==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -9524,13 +9524,13 @@ snapshots:
       '@edge-runtime/primitives': 4.1.0
     optional: true
 
-  '@electron-toolkit/preload@3.0.2(electron@41.2.0)':
+  '@electron-toolkit/preload@3.0.2(electron@41.2.1)':
     dependencies:
-      electron: 41.2.0
+      electron: 41.2.1
 
-  '@electron-toolkit/utils@4.0.0(electron@41.2.0)':
+  '@electron-toolkit/utils@4.0.0(electron@41.2.1)':
     dependencies:
-      electron: 41.2.0
+      electron: 41.2.1
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -13040,7 +13040,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@41.2.0:
+  electron@41.2.1:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 24.12.2

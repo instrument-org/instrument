@@ -67,7 +67,7 @@
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=24.14.0"
+    "node": ">=24.14.1"
   },
   "publishConfig": {
     "provenance": true
@@ -76,7 +76,7 @@
     "runtime": {
       "name": "node",
       "onFail": "download",
-      "version": "24.14.0"
+      "version": "24.14.1"
     }
   },
   "overrides": {

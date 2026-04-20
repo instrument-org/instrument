@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import "./lib/bootstrap-proxy";
 import "./lib/define-globals-apply";
 
 import {

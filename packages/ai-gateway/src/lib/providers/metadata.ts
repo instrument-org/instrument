@@ -23,6 +23,7 @@ const PROVIDER_METADATA = {
     },
     description: "Claude Haiku, Sonnet, and Opus",
     name: "Anthropic",
+    quirks: { supportsMultipartToolResults: true },
     tags: ["webSearch"],
     type: "anthropic",
     url: addRef("https://anthropic.com"),
@@ -95,6 +96,7 @@ const PROVIDER_METADATA = {
     },
     description: "Google AI Studio with Gemini and other models",
     name: "Google",
+    quirks: { supportsMultipartToolResults: true },
     tags: ["imageGeneration", "webSearch"],
     type: "google",
     url: addRef("https://ai.google.dev/gemini-api/docs"),
@@ -218,6 +220,7 @@ const PROVIDER_METADATA = {
     },
     description: "GPT-5 and other OpenAI models",
     name: "OpenAI",
+    quirks: { supportsMultipartToolResults: true },
     tags: ["imageGeneration", "webSearch"],
     type: "openai",
     url: addRef("https://openai.com"),
@@ -239,6 +242,13 @@ const PROVIDER_METADATA = {
     },
     description: "Access an extensive catalog of models across providers",
     name: "OpenRouter",
+    quirks: {
+      // OpenRouter claims to auto-parse PDFs for any model, but xAI rejects
+      // file inputs and the request fails. See:
+      // https://openrouter.ai/docs/guides/overview/multimodal/pdfs
+      brokenMedia: [{ author: "x-ai", category: "file" }],
+      requiresFilenameOnFileParts: true,
+    },
     tags: ["recommended", "imageGeneration", "webSearch"],
     type: "openrouter",
     url: "https://openrouter.ai",
@@ -250,6 +260,12 @@ const PROVIDER_METADATA = {
     canAddManually: false,
     description: `AI access for ${APP_NAME} accounts.`,
     name: APP_NAME,
+    quirks: {
+      // Our gateway proxies through OpenRouter, so it inherits the same
+      // quirks.
+      brokenMedia: [{ author: "x-ai", category: "file" }],
+      requiresFilenameOnFileParts: true,
+    },
     tags: ["imageGeneration", "webSearch"],
     type: OUR_MODELS.providerType,
     url: addRef(APP_URL),

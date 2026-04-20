@@ -2,7 +2,7 @@ import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import type { AIProviderType } from "@instrument-org/shared";
 import type { FilePart, ModelMessage } from "ai";
 
-import { OUR_MODELS } from "@instrument-org/shared";
+import { getProviderMetadata } from "@instrument-org/ai-gateway";
 import mime from "mime-types";
 
 type ContentOutput = Extract<
@@ -17,21 +17,6 @@ type ToolResultPart = Extract<
   { type: "tool-result" }
 >;
 
-const MULTIPART_TOOL_RESULT_PROVIDERS = new Set<AIProviderType>([
-  "anthropic",
-  "google",
-  "openai",
-]);
-
-// OpenRouter (and our gateway, which proxies through OpenRouter) requires a
-// `filename` whenever `file_data` is set, otherwise upstream providers like xAI
-// reject the request with: "input_file.filename is required when file_data is
-// set". Synthesize one from the media type for these providers.
-const FILENAME_REQUIRED_PROVIDERS = new Set<AIProviderType>([
-  "openrouter",
-  OUR_MODELS.providerType,
-]);
-
 export function splitMultipartToolResults({
   messages,
   provider,
@@ -39,7 +24,8 @@ export function splitMultipartToolResults({
   messages: ModelMessage[];
   provider: AIProviderType;
 }): ModelMessage[] {
-  if (supportsMultipartToolResults(provider)) {
+  const quirks = getProviderMetadata(provider).quirks;
+  if (quirks.supportsMultipartToolResults) {
     return messages;
   }
   const result: ModelMessage[] = [];
@@ -76,7 +62,7 @@ export function splitMultipartToolResults({
       content: modifiedContent,
     });
 
-    const includeFilename = FILENAME_REQUIRED_PROVIDERS.has(provider);
+    const includeFilename = quirks.requiresFilenameOnFileParts;
     const userMessageParts = message.content
       .filter((part) => part.type !== "tool-approval-response")
       .filter((part) => isContentOutput(part.output))
@@ -156,8 +142,4 @@ function isContentOutput(output: unknown): output is ContentOutput {
     "value" in output &&
     Array.isArray(output.value)
   );
-}
-
-function supportsMultipartToolResults(provider: AIProviderType): boolean {
-  return MULTIPART_TOOL_RESULT_PROVIDERS.has(provider);
 }

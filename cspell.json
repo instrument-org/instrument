@@ -74,6 +74,7 @@
     "overscan",
     "PATHEXT",
     "posthog",
+    "prefault",
     "pwsh",
     "quotepath",
     "qwen",

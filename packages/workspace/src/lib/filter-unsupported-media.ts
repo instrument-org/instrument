@@ -1,7 +1,9 @@
-import type { AIGatewayModel } from "@instrument-org/ai-gateway";
-import type { AIProviderType } from "@instrument-org/shared";
 import type { ModelMessage } from "ai";
 
+import {
+  type AIGatewayModel,
+  getProviderMetadata,
+} from "@instrument-org/ai-gateway";
 import { dedent } from "radashi";
 
 type MediaCategory = "audio" | "file" | "image" | "video";
@@ -19,21 +21,6 @@ const MEDIA_FEATURE_MAP: Record<MediaCategory, AIGatewayModel.ModelFeatures> = {
   image: "inputImage",
   video: "inputVideo",
 };
-
-// Combinations where the upstream provider/author advertises support for a
-// media category but is known to reject (or mishandle) requests in practice.
-// These take precedence over the model's `features` array.
-const KNOWN_BROKEN_MEDIA: readonly {
-  author: string;
-  category: MediaCategory;
-  provider: AIProviderType;
-}[] = [
-  // OpenRouter claims to auto-parse PDFs for any model, but xAI rejects
-  // file inputs and the request fails. See:
-  // https://openrouter.ai/docs/guides/overview/multimodal/pdfs
-  { author: "x-ai", category: "file", provider: "openrouter" },
-  { author: "x-ai", category: "file", provider: "instrument" },
-];
 
 export function filterUnsupportedMedia({
   messages,
@@ -162,11 +149,11 @@ function isKnownBrokenCombo(
   mediaCategory: MediaCategory,
   model: AIGatewayModel.Type,
 ): boolean {
-  return KNOWN_BROKEN_MEDIA.some(
+  const brokenMedia = getProviderMetadata(model.params.provider).quirks
+    .brokenMedia;
+  return brokenMedia.some(
     (entry) =>
-      entry.category === mediaCategory &&
-      entry.provider === model.params.provider &&
-      entry.author === model.author,
+      entry.category === mediaCategory && entry.author === model.author,
   );
 }
 

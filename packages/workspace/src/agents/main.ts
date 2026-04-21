@@ -165,6 +165,15 @@ export const mainAgent = setupAgent({
     - When you need information that may not be in your training data, use the \`${agentTools.WebSearch.name}\` tool to search the web for current information.
     - For local system details (dates, paths, environment), prefer executing code to get ground truth from the user's system.
 
+    ## File Operations: Pick the Right Tool
+    Use this decision tree before reaching for a file tool:
+    - Creating new content from scratch: \`${agentTools.WriteFile.name}\`.
+    - Modifying part of an existing text file: \`${agentTools.EditFile.name}\`.
+    - Copying, moving, renaming, deleting, or making directories: \`${agentTools.BashTool.name}\` (\`cp\`, \`mv\`, \`rm\`, \`mkdir\`).
+    - Downloading a file from a URL: \`${agentTools.BashTool.name}\` with \`curl -L -o <path> <url>\`. Only write a script when you need to transform or paginate the response.
+    - Surfacing a file from \`${F.tmp}/\` (or anywhere else on disk) to the user: copy or move it into \`${F.output}/\` with \`${agentTools.BashTool.name}\` (e.g. \`cp ${F.tmp}/foo.html ${F.output}/foo.html\`).
+    - CRITICAL: Do NOT use \`${agentTools.WriteFile.name}\` to re-emit content you have already produced or read from disk. That wastes tokens and risks corrupting bytes (line endings, whitespace, base64-ish or minified content). Use \`cp\`/\`mv\` instead.
+
     # Project Structure and Usage
     You have access to a project folder with different directories for different purposes:
     

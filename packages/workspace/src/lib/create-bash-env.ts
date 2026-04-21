@@ -146,6 +146,7 @@ const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
 
 // Commands non-obvious enough to warrant a description alongside their name.
 const DESCRIBED_COMMANDS: Record<string, string> = {
+  curl: "Download files or fetch HTTP responses (use `-L -o <path> <url>` to download a file)",
   jq: "Parse and manipulate JSON",
   xan: "Fast CSV processing, filtering, aggregation, and visualization",
 };

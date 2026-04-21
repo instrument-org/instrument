@@ -132,7 +132,7 @@ export class BrowserViewManager {
 
         // Synthesize Page.downloadWillBegin so agent-browser's download command
         // can capture the GUID and start waiting for completion.
-        const willBegin: Protocol.Page.DownloadWillBeginEvent = {
+        const willBegin: Protocol.Browser.DownloadWillBeginEvent = {
           frameId: targetId,
           guid,
           suggestedFilename: item.getFilename(),
@@ -148,7 +148,7 @@ export class BrowserViewManager {
             return;
           }
           // Synthesize Page.downloadProgress so agent-browser resolves or errors.
-          const progress: Protocol.Page.DownloadProgressEvent = {
+          const progress: Protocol.Browser.DownloadProgressEvent = {
             guid,
             receivedBytes: item.getReceivedBytes(),
             state: state === "completed" ? "completed" : "canceled",
@@ -274,7 +274,7 @@ export class BrowserViewManager {
       // Capture the GUID from Page.downloadWillBegin so will-download can
       // save with the GUID filename that agent-browser expects to find.
       if (method === "Page.downloadWillBegin") {
-        const p = params as Protocol.Page.DownloadWillBeginEvent;
+        const p = params as Protocol.Browser.DownloadWillBeginEvent;
         if (p.guid && p.url) {
           current.pendingDownloadGuids.set(p.url, p.guid);
         }
@@ -498,21 +498,18 @@ export class BrowserViewManager {
       return response;
     }
 
-    // Electron does not support CDP browser context management. Map
-    // Browser.setDownloadBehavior to the native Electron session API instead.
+    // Electron does not support CDP browser context management. Track the
+    // authorized path per-target; the will-download handler in createTarget
+    // applies it via item.setSavePath. session.setDownloadPath is avoided
+    // because it is session-wide and would collide across concurrent targets.
     if (method === "Browser.setDownloadBehavior") {
       const p = (params ?? {}) as Protocol.Browser.SetDownloadBehaviorRequest;
       const downloadPath = p.downloadPath ?? null;
       const behavior = p.behavior;
-      if (
-        (behavior === "allow" || behavior === "allowAndName") &&
-        downloadPath
-      ) {
-        entry.authorizedDownloadPath = downloadPath;
-        entry.view.webContents?.session.setDownloadPath(downloadPath);
-      } else {
-        entry.authorizedDownloadPath = null;
-      }
+      entry.authorizedDownloadPath =
+        (behavior === "allow" || behavior === "allowAndName") && downloadPath
+          ? downloadPath
+          : null;
       return {};
     }
 

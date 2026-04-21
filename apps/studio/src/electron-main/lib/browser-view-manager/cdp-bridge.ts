@@ -143,7 +143,20 @@ async function rescaleFullPageScreenshotClip(
     return null;
   }
   try {
-    const metrics = await sendCdpCommand(wc, "Page.getLayoutMetrics");
+    // We rely on the deprecated contentSize specifically: it reports the
+    // scrollable area in device pixels as Electron's CDP layer sees it,
+    // which is the exact scale agent-browser inherits when it builds its
+    // clip from the same field. Comparing against cssContentSize is the
+    // only reliable way to recover that effective DSF (host display
+    // scaleFactor and Emulation overrides don't match it in practice).
+    // The cast strips the @deprecated marker from contentSize since we have
+    // no non-deprecated equivalent for this diagnostic.
+    const metrics = (await sendCdpCommand(wc, "Page.getLayoutMetrics")) as Omit<
+      Protocol.Page.GetLayoutMetricsResponse,
+      "contentSize"
+    > & {
+      contentSize: Protocol.DOM.Rect;
+    };
     const dpW = metrics.contentSize.width;
     const cssW = metrics.cssContentSize.width;
     const dsf = cssW > 0 ? dpW / cssW : 1;

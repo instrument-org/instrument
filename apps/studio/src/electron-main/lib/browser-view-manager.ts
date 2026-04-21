@@ -117,6 +117,11 @@ export class BrowserViewManager {
     }
     const targetId = String(wc.id);
 
+    // Mute audio because the page may be controlled by the agent and not
+    // visible to the user. In the future, when the user has control of the
+    // page, we can unmute it.
+    wc.setAudioMuted(true);
+
     // Register a single will-download handler for this session. If the agent
     // has authorized a download path via setDownloadBehavior, route the file
     // there using the GUID as filename (matching agent-browser's "allowAndName"

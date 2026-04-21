@@ -10,6 +10,10 @@ import { dedent, sift } from "radashi";
 import { z } from "zod";
 
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import {
+  LINE_NUMBER_PAD_WIDTH,
+  LINE_NUMBER_SEPARATOR,
+} from "../lib/add-line-numbers";
 import { checkReminder } from "../lib/check-reminder";
 import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
@@ -719,7 +723,7 @@ export const EditFile = setupTool({
     Usage:
     - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./src/client/app.tsx
     - You must use your \`${ReadFile.name}\` tool at least once in the conversation before editing.
-    - When editing text from \`${ReadFile.name}\` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + tab. Everything after that tab is the actual file content to match. Never include any part of the line number prefix in the \`${INPUT_PARAMS.oldString}\` or \`${INPUT_PARAMS.newString}\`.
+    - When editing text from \`${ReadFile.name}\` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: the line number right-padded with spaces to ${LINE_NUMBER_PAD_WIDTH} characters, followed by the \`${LINE_NUMBER_SEPARATOR}\` separator character. Everything after that separator is the actual file content to match. Never include any part of the line number prefix in the \`${INPUT_PARAMS.oldString}\` or \`${INPUT_PARAMS.newString}\`.
     - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
     - Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
     - The edit will FAIL if \`${INPUT_PARAMS.oldString}\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use \`${INPUT_PARAMS.replaceAll}\` to change every instance of \`${INPUT_PARAMS.oldString}\`. 

@@ -288,26 +288,32 @@ export const agentMachine = setup({
           );
           for (const pendingToolCall of pendingToolCalls) {
             // TODO Save these promises and handle them async in the state machine
-            void Store.savePart(
-              value.type === "success"
-                ? {
-                    ...pendingToolCall,
-                    metadata: {
-                      ...pendingToolCall.metadata,
-                      endedAt: new Date(),
-                    },
-                    output: value.value.output as never,
-                    state: "output-available",
-                  }
-                : {
-                    ...pendingToolCall,
-                    errorText: value.errorText,
-                    metadata: {
-                      ...pendingToolCall.metadata,
-                      endedAt: new Date(),
-                    },
-                    state: "output-error",
-                  },
+            void Store.updatePart(
+              {
+                messageId: pendingToolCall.metadata.messageId,
+                partId: pendingToolCall.metadata.id,
+                sessionId: pendingToolCall.metadata.sessionId,
+              },
+              (current) =>
+                (value.type === "success"
+                  ? {
+                      ...current,
+                      metadata: {
+                        ...current.metadata,
+                        endedAt: new Date(),
+                      },
+                      output: value.value.output as never,
+                      state: "output-available",
+                    }
+                  : {
+                      ...current,
+                      errorText: value.errorText,
+                      metadata: {
+                        ...current.metadata,
+                        endedAt: new Date(),
+                      },
+                      state: "output-error",
+                    }) as SessionMessagePart.Type,
               context.appConfig,
             );
           }

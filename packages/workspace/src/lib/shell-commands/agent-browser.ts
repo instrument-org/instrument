@@ -73,6 +73,52 @@ const STRIPPED_VALUE_FLAGS = new Set([
 // agent doesn't accidentally spawn a browser view just by running --help.
 const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
 
+// Subcommands that don't change the visible page in any meaningful way:
+// pure introspection, network mocking, persisted-state writes that don't
+// repaint, and out-of-band side channels. We skip the auto-screenshot for
+// these because every spurious capture pushes useful older shots out of the
+// MAX_BROWSER_OBSERVATIONS window and burns context tokens for no signal.
+//
+// Default-capture (blacklist, not allowlist): if agent-browser adds a new
+// verb that does mutate the page, we'd rather take an unnecessary shot than
+// silently miss a real state change. Re-evaluate this list when subcommand
+// behavior changes upstream.
+//
+// The runtime-blocked subcommands (BLOCKED_SUBCOMMANDS) are intentionally
+// omitted here -- they error out before reaching the capture call anyway.
+const SCREENSHOT_SKIPPED_SUBCOMMANDS = new Set([
+  "clipboard", // Side-channel; no repaint.
+  "connect", // Inspector/transport setup.
+  "console", // Reads accumulated console messages.
+  "cookies", // get/set/clear: future page loads only.
+  "diff", // Compares two snapshots; read-only.
+  "errors", // Reads accumulated console errors.
+  "eval", // JS evaluation; result returned but page may still change. Conservatively skip; the agent can `screenshot` if it intentionally mutates DOM via eval.
+  "find", // Locator query; read-only.
+  "get", // Title/url/text/attr reads.
+  "highlight", // Inspector overlay; not part of normal page state.
+  "inspect", // DevTools-style inspection.
+  "is", // Boolean state checks.
+  "network", // Request log / route mocking; doesn't repaint.
+  "pdf", // Exports to file; no UI change.
+  "profiler", // CPU profiling; no UI change.
+  "record", // Action recording; no UI change.
+  "screenshot", // Agent already captured one explicitly.
+  "snapshot", // ARIA snapshot; read-only.
+  "storage", // local/session storage reads/writes; no repaint.
+  "trace", // Trace start/stop; no UI change.
+]);
+
+// For verbs whose sub-verbs are mixed (some mutate, some don't), match the
+// full "verb sub" pair to skip only the read-only sub-actions. The empty
+// sub-token (e.g. "tab") matches when no sub-verb is given, which the CLI
+// usually treats as the "list" default.
+const SCREENSHOT_SKIPPED_SUBCOMMAND_PAIRS = new Set([
+  "dialog status", // Reads pending dialog; doesn't accept/dismiss.
+  "tab", // Bare `tab` defaults to `tab list`.
+  "tab list", // Lists tabs; doesn't switch/open/close.
+]);
+
 // Idle ms after which the agent-browser daemon self-terminates. Tuned to
 // outlast a single agent-loop tool-call gap (a few seconds) but reap soon
 // after the agent moves on. The view itself stays warm; only the daemon dies.
@@ -208,7 +254,7 @@ export function createAgentBrowserCommand({
       reject: false,
     });
 
-    if (!isInfoOnly) {
+    if (!isInfoOnly && shouldCaptureScreenshotFor(args)) {
       await captureBrowserScreenshot({
         appConfig,
         appendContextItem,
@@ -231,6 +277,23 @@ export function createAgentBrowserCommand({
       stdout: truncated,
     };
   });
+}
+
+export function shouldCaptureScreenshotFor(args: readonly string[]): boolean {
+  const positionals = args.filter((a) => !a.startsWith("-"));
+  const subcommand = positionals[0];
+  if (!subcommand) {
+    return false;
+  }
+  if (SCREENSHOT_SKIPPED_SUBCOMMANDS.has(subcommand)) {
+    return false;
+  }
+  const subSub = positionals[1];
+  const pair = subSub ? `${subcommand} ${subSub}` : subcommand;
+  if (SCREENSHOT_SKIPPED_SUBCOMMAND_PAIRS.has(pair)) {
+    return false;
+  }
+  return true;
 }
 
 function stripHarnessControlledFlags(args: string[]): string[] {

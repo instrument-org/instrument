@@ -3,7 +3,7 @@ import type { BrowserWindow, WebContentsView } from "electron";
 import { type ProjectSubdomain } from "@instrument-org/workspace/electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { sendCommand } from "./cdp-bridge";
+import { sendCommand } from "./dispatch-command";
 import { type BrowserEntry, createEntry } from "./entry";
 
 vi.mock("../cdp", () => ({

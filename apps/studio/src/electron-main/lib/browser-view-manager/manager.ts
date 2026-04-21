@@ -9,8 +9,8 @@ import {
 import { session } from "electron";
 import fs from "node:fs";
 
-import { sendCommand } from "./cdp-bridge";
 import { applyDeviceMetricsOverride } from "./device-metrics";
+import { sendCommand } from "./dispatch-command";
 import {
   attachDownloadHandler,
   captureDownloadWillBeginGuid,

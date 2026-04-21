@@ -9,7 +9,7 @@ import {
   createWindowMenu,
 } from "./utils";
 
-export function createSettingsWindowMenu(): MenuItemConstructorOptions[] {
+export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [

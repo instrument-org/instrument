@@ -12,10 +12,10 @@ import { formatDuration } from "../lib/format-time";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
-import { ExternalLink } from "./external-link";
 import { Favicon } from "./favicon";
 import { ModelChip } from "./model-chip";
 import { RelativeTime } from "./relative-time";
+import { SourceLink } from "./source-link";
 import { Button } from "./ui/button";
 import {
   Collapsible,
@@ -317,18 +317,11 @@ export function AssistantMessagesFooter({
             {sources.map((source) => {
               if (source.type === "source-url") {
                 return (
-                  <div
-                    className="flex items-center gap-2 text-sm"
+                  <SourceLink
                     key={source.metadata.id}
-                  >
-                    <Favicon url={source.url} />
-                    <ExternalLink
-                      className="text-muted-foreground transition-colors hover:text-foreground"
-                      href={source.url}
-                    >
-                      {source.title || source.url}
-                    </ExternalLink>
-                  </div>
+                    title={source.title}
+                    url={source.url}
+                  />
                 );
               }
 

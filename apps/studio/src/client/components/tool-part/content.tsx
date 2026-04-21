@@ -10,10 +10,9 @@ import {
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { AIProviderIcon } from "../ai-provider-icon";
 import { CopyButton } from "../copy-button";
-import { ExternalLink } from "../external-link";
-import { Favicon } from "../favicon";
 import { FilesGrid } from "../files-grid";
 import { SessionMarkdown } from "../session-markdown";
+import { SourceLink } from "../source-link";
 import { Badge } from "../ui/badge";
 import { ToolCapabilityFailure } from "./capability-failure";
 import { CodeBlock } from "./code-block";
@@ -397,15 +396,11 @@ export function ToolContent({
               </SectionHeader>
               <div className="mt-1 space-y-2">
                 {part.output.sources.map((source, index) => (
-                  <div className="flex items-center gap-2 text-sm" key={index}>
-                    <Favicon url={source.url} />
-                    <ExternalLink
-                      className="text-muted-foreground transition-colors hover:text-foreground"
-                      href={source.url}
-                    >
-                      {source.title || source.url}
-                    </ExternalLink>
-                  </div>
+                  <SourceLink
+                    key={index}
+                    title={source.title}
+                    url={source.url}
+                  />
                 ))}
               </div>
             </div>

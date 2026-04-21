@@ -1,6 +1,7 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
 import { getTabsManager } from "@/electron-main/tabs";
+import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { captureServerEvent } from "../lib/capture-server-event";
@@ -41,7 +42,12 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       { type: "separator" as const },
       {
         accelerator: "CmdOrCtrl+W",
-        click: () => {
+        click: (_menuItem, focusedWindow) => {
+          const mainWindow = getMainWindow();
+          if (focusedWindow && focusedWindow !== mainWindow) {
+            focusedWindow.close();
+            return;
+          }
           const tabsManager = getTabsManager();
           const selectedTabId = tabsManager?.getState().selectedTabId;
           if (selectedTabId) {

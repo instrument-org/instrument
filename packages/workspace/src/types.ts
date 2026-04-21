@@ -12,7 +12,10 @@ export type AppStatus = (typeof APP_STATUSES)[number];
 
 export interface BrowserConfig {
   closeTarget: (targetId: string) => Promise<void>;
-  createTarget: (subdomain: ProjectSubdomain) => Promise<{ targetId: string }>;
+  createTarget: (
+    subdomain: ProjectSubdomain,
+    partitionDir: AbsolutePath,
+  ) => Promise<{ targetId: string }>;
   listTargets: (subdomain: ProjectSubdomain) => Promise<BrowserTarget[]>;
   sendCommand: (
     targetId: string,

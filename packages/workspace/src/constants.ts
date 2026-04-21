@@ -22,6 +22,7 @@ export const APP_FOLDER_NAMES = {
   userProvided: "user-provided",
 } as const;
 export const SESSIONS_DB_FILE_NAME = "sessions.db";
+export const BROWSER_SESSION_FOLDER_NAME = "browser-session";
 
 export const APP_STATUSES = [
   "error",

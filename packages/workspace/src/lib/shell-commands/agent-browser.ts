@@ -11,6 +11,7 @@ import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
+import { getBrowserSessionDir } from "../app-dir-utils";
 import { isProjectSubdomain } from "../is-app";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
@@ -139,7 +140,11 @@ export function createAgentBrowserCommand({
       if (existingTargets.length > 0 && existingTargets[0]) {
         targetId = existingTargets[0].id;
       } else {
-        const created = await workspaceConfig.browser.createTarget(subdomain);
+        const partitionDir = getBrowserSessionDir(appConfig.appDir);
+        const created = await workspaceConfig.browser.createTarget(
+          subdomain,
+          partitionDir,
+        );
         targetId = created.targetId;
       }
 

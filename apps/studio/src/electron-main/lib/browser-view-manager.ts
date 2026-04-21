@@ -1,11 +1,13 @@
 import type { Protocol } from "devtools-protocol";
 
 import {
+  type AbsolutePath,
   type BrowserConfig,
   type BrowserTarget,
   type ProjectSubdomain,
 } from "@instrument-org/workspace/electron";
 import { BrowserWindow, session, WebContentsView } from "electron";
+import fs from "node:fs";
 
 import { sendCdpCommand } from "./cdp";
 import { createScopedLogger } from "./electron-logger";
@@ -39,7 +41,8 @@ export class BrowserViewManager {
   public get browser(): BrowserConfig {
     return {
       closeTarget: (targetId) => this.closeTarget(targetId),
-      createTarget: (subdomain) => this.createTarget(subdomain),
+      createTarget: (subdomain, partitionDir) =>
+        this.createTarget(subdomain, partitionDir),
       listTargets: (subdomain) => this.listTargets(subdomain),
       sendCommand: (targetId, method, params) =>
         this.sendCommand(targetId, method, params),
@@ -91,9 +94,13 @@ export class BrowserViewManager {
 
   private createTarget(
     subdomain: ProjectSubdomain,
+    partitionDir: AbsolutePath,
   ): Promise<{ targetId: string }> {
-    const partition = `persist:browser-${subdomain}`;
-    const ses = session.fromPartition(partition);
+    // session.fromPath requires the directory to exist (Chromium opens the
+    // profile in-place). The workspace's .private dir is created lazily, so
+    // ensure it exists before handing the path to Electron.
+    fs.mkdirSync(partitionDir, { recursive: true });
+    const ses = session.fromPath(partitionDir, { cache: true });
 
     // Defaults are pinned explicitly to guard against a future Electron
     // default flip silently weakening this agent-controlled browsing context.

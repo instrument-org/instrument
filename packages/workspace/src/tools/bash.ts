@@ -2,9 +2,12 @@ import ms from "ms";
 import { ok } from "neverthrow";
 import { z } from "zod";
 
+import { browserObservationsNote } from "../lib/browser-observations-note";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
+import { Store } from "../lib/store";
 import { systemNote } from "../lib/system-note";
+import { extractContextItemsFromOutput } from "../lib/tool-output-context-items";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -26,10 +29,23 @@ export const BashTool = setupTool({
   }),
 }).create({
   description: createBashDescription(),
-  execute: async ({ appConfig, input, sessionId, signal }) => {
-    const bash = createBashEnv({ appConfig, sessionId });
+  async execute({ appConfig, input, messageId, partId, sessionId, signal }) {
+    const bash = createBashEnv({
+      appConfig,
+      appendContextItem: async (item) => {
+        // Best-effort side-channel write; if the part has been finalized or
+        // removed we silently skip, since the screenshot is still on disk.
+        await Store.appendToolPartContextItem(
+          { messageId, partId, sessionId },
+          item,
+          appConfig,
+          { signal },
+        );
+      },
+      partId,
+      sessionId,
+    });
     const result = await bash.exec(input.command, { signal });
-
     const commands = Array.isArray(result.metadata?.commands)
       ? result.metadata.commands
       : [];
@@ -99,6 +115,13 @@ export const BashTool = setupTool({
           \`${PNPM_COMMAND.name} install\`
         `,
       );
+    }
+
+    const browserNote = browserObservationsNote(
+      extractContextItemsFromOutput(output),
+    );
+    if (browserNote) {
+      outputParts.push(browserNote);
     }
 
     const finalOutput = outputParts.join("\n");

@@ -14,6 +14,46 @@ import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
 
 export namespace Store {
+  export function appendToolPartContextItem(
+    ids: {
+      messageId: StoreId.Message;
+      partId: StoreId.Part;
+      sessionId: StoreId.Session;
+    },
+    item: SessionMessagePart.ToolPartContextItem,
+    appConfig: AppConfig,
+    { signal }: { signal?: AbortSignal } = {},
+  ) {
+    return updatePart(
+      ids,
+      (part) => {
+        // Only tool parts carry contextItems; ignore otherwise to avoid
+        // accidentally mutating non-tool parts.
+        if (
+          part.type === "step-start" ||
+          !("state" in part) ||
+          (part.state !== "input-available" &&
+            part.state !== "input-streaming" &&
+            part.state !== "output-available" &&
+            part.state !== "output-error")
+        ) {
+          return part;
+        }
+        const existing =
+          ("contextItems" in part.metadata && part.metadata.contextItems) || [];
+        return {
+          ...part,
+          metadata: {
+            ...part.metadata,
+            contextItems: [...existing, item],
+          },
+        } as SessionMessagePart.Type;
+      },
+      appConfig,
+      { signal },
+    );
+  }
+
   export function getAllMessageIds(
     appConfig: AppConfig,
     { signal }: { signal?: AbortSignal } = {},
@@ -138,6 +178,25 @@ export namespace Store {
       );
 
       return ok({ ...message, parts: partsResult });
+    });
+  }
+
+  export function getPart(
+    sessionId: StoreId.Session,
+    messageId: StoreId.Message,
+    partId: StoreId.Part,
+    appConfig: AppConfig,
+    { signal }: { signal?: AbortSignal } = {},
+  ) {
+    return safeTry(async function* () {
+      const storage = yield* getSessionsStoreStorage(appConfig);
+      const part = yield* getParsedStorageItem(
+        StorageKey.part(sessionId, messageId, partId),
+        SessionMessagePart.CoercedSchema,
+        storage,
+        { signal },
+      );
+      return ok(part);
     });
   }
 
@@ -539,6 +598,40 @@ export namespace Store {
       });
 
       return ok(savedSession);
+    });
+  }
+
+  // Read-modify-write helper that re-loads the part from storage before
+  // applying `updater`, so concurrent side-channel writes (e.g. browser
+  // screenshot context items appended while a tool is executing) are not
+  // clobbered by a stale in-memory snapshot held by the caller.
+  export function updatePart(
+    ids: {
+      messageId: StoreId.Message;
+      partId: StoreId.Part;
+      sessionId: StoreId.Session;
+    },
+    updater: (part: SessionMessagePart.Type) => SessionMessagePart.Type,
+    appConfig: AppConfig,
+    {
+      publish = true,
+      signal,
+    }: { publish?: boolean; signal?: AbortSignal } = {},
+  ) {
+    return safeTry(async function* () {
+      const current = yield* getPart(
+        ids.sessionId,
+        ids.messageId,
+        ids.partId,
+        appConfig,
+        { signal },
+      );
+      const next = updater(current);
+      if (next === current) {
+        return ok(current);
+      }
+      const saved = yield* savePart(next, appConfig, { publish, signal });
+      return ok(saved);
     });
   }
 

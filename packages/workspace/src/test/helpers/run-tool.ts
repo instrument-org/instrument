@@ -14,11 +14,15 @@ type ExecuteOutput<T extends AnyAgentTool> =
 
 export async function runTool<T extends AnyAgentTool>(
   tool: T,
-  options: Omit<ExecuteOptions<T>, "sessionId"> & {
+  options: Omit<ExecuteOptions<T>, "messageId" | "partId" | "sessionId"> & {
+    messageId?: StoreId.Message;
+    partId?: StoreId.Part;
     sessionId?: StoreId.Session;
   },
 ): Promise<ExecuteOutput<T>> {
   const result = tool.execute({
+    messageId: StoreId.newMessageId(),
+    partId: StoreId.newPartId(),
     sessionId: StoreId.newSessionId(),
     ...options,
   } as ExecuteOptions<T>);

@@ -42,7 +42,9 @@ const executeToolLogic = fromPromise<
           agentName,
           appConfig,
           input: part.input as never,
+          messageId: part.metadata.messageId,
           model,
+          partId: part.metadata.id,
           projectState,
           sessionId,
           signal,
@@ -53,16 +55,23 @@ const executeToolLogic = fromPromise<
           return { preliminarySaved };
         }
 
+        const ids = {
+          messageId: part.metadata.messageId,
+          partId: part.metadata.id,
+          sessionId,
+        };
         if (type === "preliminary") {
           if (output.isOk()) {
-            await Store.savePart(
-              {
-                ...part,
-                metadata: { ...part.metadata, endedAt: getCurrentDate() },
-                output: output.value as never,
-                preliminary: true,
-                state: "output-available",
-              },
+            await Store.updatePart(
+              ids,
+              (current) =>
+                ({
+                  ...current,
+                  metadata: { ...current.metadata, endedAt: getCurrentDate() },
+                  output: output.value as never,
+                  preliminary: true,
+                  state: "output-available",
+                }) as SessionMessagePart.Type,
               appConfig,
               { signal },
             );
@@ -70,24 +79,34 @@ const executeToolLogic = fromPromise<
           }
         } else {
           await (output.isOk()
-            ? Store.savePart(
-                {
-                  ...part,
-                  metadata: { ...part.metadata, endedAt: getCurrentDate() },
-                  output: output.value as never,
-                  preliminary: false,
-                  state: "output-available",
-                },
+            ? Store.updatePart(
+                ids,
+                (current) =>
+                  ({
+                    ...current,
+                    metadata: {
+                      ...current.metadata,
+                      endedAt: getCurrentDate(),
+                    },
+                    output: output.value as never,
+                    preliminary: false,
+                    state: "output-available",
+                  }) as SessionMessagePart.Type,
                 appConfig,
                 { signal },
               )
-            : Store.savePart(
-                {
-                  ...part,
-                  errorText: output.error.message,
-                  metadata: { ...part.metadata, endedAt: getCurrentDate() },
-                  state: "output-error",
-                },
+            : Store.updatePart(
+                ids,
+                (current) =>
+                  ({
+                    ...current,
+                    errorText: output.error.message,
+                    metadata: {
+                      ...current.metadata,
+                      endedAt: getCurrentDate(),
+                    },
+                    state: "output-error",
+                  }) as SessionMessagePart.Type,
                 appConfig,
                 { signal },
               ));
@@ -101,16 +120,22 @@ const executeToolLogic = fromPromise<
       if (signal.aborted) {
         return { preliminarySaved };
       }
-      await Store.savePart(
+      await Store.updatePart(
         {
-          ...part,
-          errorText: `Something went wrong while running '${part.type}': ${error instanceof Error ? error.message : "An unexpected error occurred"}`,
-          metadata: {
-            ...part.metadata,
-            endedAt: getCurrentDate(),
-          },
-          state: "output-error",
+          messageId: part.metadata.messageId,
+          partId: part.metadata.id,
+          sessionId,
         },
+        (current) =>
+          ({
+            ...current,
+            errorText: `Something went wrong while running '${part.type}': ${error instanceof Error ? error.message : "An unexpected error occurred"}`,
+            metadata: {
+              ...current.metadata,
+              endedAt: getCurrentDate(),
+            },
+            state: "output-error",
+          }) as SessionMessagePart.Type,
         appConfig,
         { signal },
       );
@@ -130,16 +155,22 @@ export const executeToolCallMachine = setup({
         reason: CancellationReason;
       }
     >(async ({ input, signal }) => {
-      await Store.savePart(
+      await Store.updatePart(
         {
-          ...input.part,
-          errorText: `This action was stopped${input.reason === "timeout" ? " because it took too long" : input.reason === "manual" ? " by you" : ""}.`,
-          metadata: {
-            ...input.part.metadata,
-            endedAt: getCurrentDate(),
-          },
-          state: "output-error",
+          messageId: input.part.metadata.messageId,
+          partId: input.part.metadata.id,
+          sessionId: input.part.metadata.sessionId,
         },
+        (current) =>
+          ({
+            ...current,
+            errorText: `This action was stopped${input.reason === "timeout" ? " because it took too long" : input.reason === "manual" ? " by you" : ""}.`,
+            metadata: {
+              ...current.metadata,
+              endedAt: getCurrentDate(),
+            },
+            state: "output-error",
+          }) as SessionMessagePart.Type,
         input.appConfig,
         { signal },
       );

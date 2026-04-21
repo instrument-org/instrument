@@ -13,6 +13,7 @@ import { type AgentName, RETRIEVAL_AGENT_NAME } from "../../agents/types";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
+import { injectContextItemsIntoOutput } from "../../lib/tool-output-context-items";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
 
@@ -211,7 +212,25 @@ export namespace SessionMessage {
             part.state === "output-available" ||
             part.state === "output-error",
         )
-        .map(SessionMessagePart.toUIPart);
+        .map((part) => {
+          const uiPart = SessionMessagePart.toUIPart(part);
+          // Smuggle metadata.contextItems through to the tool's toModelOutput.
+          // Model-bound only; never persisted, never sent to the client.
+          if (isToolPart(part) && part.state === "output-available") {
+            const contextItems =
+              "contextItems" in part.metadata
+                ? part.metadata.contextItems
+                : undefined;
+            return {
+              ...uiPart,
+              output: injectContextItemsIntoOutput(
+                (uiPart as { output?: unknown }).output,
+                contextItems,
+              ),
+            } as typeof uiPart;
+          }
+          return uiPart;
+        });
 
       const parts = [...filteredParts];
 

@@ -29,6 +29,7 @@ describe("createBashDescription", () => {
       IMPORTANT: You MUST load the \`agent-browser\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
       IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, discover the URL first.
       Do NOT pass connection, provider, profile, or state flags; the browser session is managed automatically.
+      NOTE: A screenshot is auto-captured after each command, shown to the user, and its path is reported back to you (read it if you need to inspect the page).
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.

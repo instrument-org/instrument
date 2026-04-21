@@ -13,16 +13,17 @@ import {
 
 export const APP_FOLDER_NAMES = {
   agentRetrieved: "agent-retrieved",
+  browserSession: "browser-session",
   output: "output",
   private: APP_PRIVATE_FOLDER_NAME,
   scripts: "scripts",
   skills: "skills",
   src: "src",
   tmp: "tmp",
+  toolResults: "tool-results",
   userProvided: "user-provided",
 } as const;
 export const SESSIONS_DB_FILE_NAME = "sessions.db";
-export const BROWSER_SESSION_FOLDER_NAME = "browser-session";
 
 export const APP_STATUSES = [
   "error",

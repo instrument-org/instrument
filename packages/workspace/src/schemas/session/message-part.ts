@@ -23,6 +23,15 @@ interface BaseMetadata extends Record<string, unknown> {
 }
 
 export namespace SessionMessagePart {
+  export interface AgentBrowserScreenshotContextItem {
+    command: string;
+    createdAt: Date;
+    kind: "agent-browser-screenshot";
+    screenshotPath: string;
+    title?: string;
+    url: string;
+  }
+
   export type DataPart = DataUIPart<SessionMessageDataPart.DataParts> & {
     metadata: BaseMetadata;
   };
@@ -67,13 +76,23 @@ export namespace SessionMessagePart {
     | ToolPartOutputAvailable
     | ToolPartOutputError;
 
+  export interface ToolPartBaseMetadata extends BaseMetadata {
+    contextItems?: ToolPartContextItem[];
+  }
+
+  // Polymorphic context items appended to tool parts as a side channel by the
+  // tool's environment. Not validated by Zod, since they're written by us, not
+  // by the agent. Each item carries `createdAt` so the UI can order them
+  // chronologically without depending on array order.
+  export type ToolPartContextItem = AgentBrowserScreenshotContextItem;
+
   export type ToolPartInputAvailable = ToolUIPart<AISDKTools> & {
-    metadata: BaseMetadata;
+    metadata: ToolPartBaseMetadata;
     state: "input-available";
   };
 
   export type ToolPartInputStreaming = ToolUIPart<AISDKTools> & {
-    metadata: BaseMetadata;
+    metadata: ToolPartBaseMetadata;
     state: "input-streaming";
   };
 
@@ -82,7 +101,8 @@ export namespace SessionMessagePart {
     state: "output-available";
   };
 
-  export interface ToolPartOutputAvailableMetadata extends BaseMetadata {
+  export interface ToolPartOutputAvailableMetadata
+    extends ToolPartBaseMetadata {
     endedAt: Date;
   }
 
@@ -91,7 +111,7 @@ export namespace SessionMessagePart {
     state: "output-error";
   };
 
-  export interface ToolPartOutputErrorMetadata extends BaseMetadata {
+  export interface ToolPartOutputErrorMetadata extends ToolPartBaseMetadata {
     endedAt: Date;
   }
 

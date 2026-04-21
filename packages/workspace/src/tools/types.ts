@@ -33,7 +33,9 @@ export interface AgentTool<
     agentName: AgentName;
     appConfig: AppConfig;
     input: z.output<TInputSchema>;
+    messageId: StoreId.Message;
     model: AIGatewayModel.Type;
+    partId: StoreId.Part;
     projectState: ProjectState;
     sessionId: StoreId.Session;
     signal: AbortSignal;

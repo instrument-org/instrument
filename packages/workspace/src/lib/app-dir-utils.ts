@@ -1,11 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  APP_FOLDER_NAMES,
-  BROWSER_SESSION_FOLDER_NAME,
-  SESSIONS_DB_FILE_NAME,
-} from "../constants";
+import { APP_FOLDER_NAMES, SESSIONS_DB_FILE_NAME } from "../constants";
 import { type AbsolutePath, type AppDir } from "../schemas/paths";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -17,12 +13,19 @@ export function getAppPrivateDir(appDir: AppDir): AbsolutePath {
 export function getBrowserSessionDir(appDir: AppDir): AbsolutePath {
   return absolutePathJoin(
     getAppPrivateDir(appDir),
-    BROWSER_SESSION_FOLDER_NAME,
+    APP_FOLDER_NAMES.browserSession,
   );
 }
 
 export function getSandboxesDir(appDir: AppDir): AbsolutePath {
   return absolutePathJoin(getAppPrivateDir(appDir), "sandboxes");
+}
+
+export function getToolResultsDir(appDir: AppDir): AbsolutePath {
+  return absolutePathJoin(
+    getAppPrivateDir(appDir),
+    APP_FOLDER_NAMES.toolResults,
+  );
 }
 
 export function isRunnable(appDir: AppDir): Promise<boolean> {

@@ -109,6 +109,7 @@ export function ToolPart({
   if (part.type === "tool-bash") {
     return (
       <ShellCommandCard
+        assetBaseUrl={project.urls.assetBase}
         isLoading={isLoading}
         part={part}
         projectSubdomain={project.subdomain}

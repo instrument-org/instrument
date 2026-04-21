@@ -12,6 +12,10 @@ import { type StoreId } from "../../schemas/store-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
 import { getBrowserSessionDir } from "../app-dir-utils";
+import {
+  type AppendContextItem,
+  captureBrowserScreenshot,
+} from "../capture-browser-screenshot";
 import { isProjectSubdomain } from "../is-app";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
@@ -23,6 +27,7 @@ export const AGENT_BROWSER_COMMAND = {
     IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
     IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, discover the URL first.
     Do NOT pass connection, provider, profile, or state flags; the browser session is managed automatically.
+    NOTE: A screenshot is auto-captured after each command, shown to the user, and its path is reported back to you (read it if you need to inspect the page).
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,
 } as const;
@@ -75,9 +80,13 @@ const IDLE_TIMEOUT_MS = "30000";
 
 export function createAgentBrowserCommand({
   appConfig,
+  appendContextItem,
+  partId,
   sessionId,
 }: {
   appConfig: AppConfig;
+  appendContextItem: AppendContextItem;
+  partId: StoreId.Part;
   sessionId: StoreId.Session;
 }) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
@@ -174,6 +183,8 @@ export function createAgentBrowserCommand({
       "agent-browser-home",
     );
 
+    const commandText = ["agent-browser", ...args].join(" ");
+
     const result = await execa(AGENT_BROWSER_PATH, commandArgs, {
       cancelSignal: ctx.signal,
       cwd: appCwd,
@@ -196,6 +207,16 @@ export function createAgentBrowserCommand({
       input: ctx.stdin || undefined,
       reject: false,
     });
+
+    if (!isInfoOnly) {
+      await captureBrowserScreenshot({
+        appConfig,
+        appendContextItem,
+        command: commandText,
+        partId,
+        subdomain,
+      });
+    }
 
     const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
     const truncated =

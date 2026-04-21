@@ -38,7 +38,13 @@ export const UserMessage = memo(function UserMessage({
     }
 
     const checkOverflow = () => {
+      const previousMaxHeight = element.style.maxHeight;
+      const previousOverflow = element.style.overflow;
+      element.style.maxHeight = "12rem";
+      element.style.overflow = "hidden";
       const isContentOverflowing = element.scrollHeight > element.clientHeight;
+      element.style.maxHeight = previousMaxHeight;
+      element.style.overflow = previousOverflow;
       setIsOverflowing(isContentOverflowing);
     };
 
@@ -54,17 +60,21 @@ export const UserMessage = memo(function UserMessage({
   }, [messageText]);
 
   return (
-    <div className="group flex flex-col items-end">
-      <div className="relative max-w-full rounded-xl border border-border/50 bg-muted px-4 py-2 text-foreground">
+    <div className="group flex w-full flex-col items-end">
+      <div className="relative max-w-[80%] rounded-xl border border-border/50 bg-muted px-4 py-2 text-foreground">
         <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
           <div
-            className={cn(!isExpanded && "max-h-24 overflow-hidden")}
+            className={cn(
+              isExpanded
+                ? "max-h-[32rem] overflow-y-auto"
+                : "max-h-48 overflow-hidden",
+            )}
             ref={contentRef}
           >
             <SessionMarkdown markdown={messageText} />
           </div>
 
-          {isOverflowing && (
+          {!isExpanded && isOverflowing && (
             <CollapsibleTrigger asChild>
               <button
                 className="absolute inset-0 cursor-pointer"

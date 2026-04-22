@@ -12,6 +12,7 @@ import {
 } from "@instrument-org/shared";
 
 export const APP_FOLDER_NAMES = {
+  agentBrowserState: "agent-browser",
   agentRetrieved: "agent-retrieved",
   browserSession: "browser-session",
   output: "output",
@@ -19,8 +20,8 @@ export const APP_FOLDER_NAMES = {
   scripts: "scripts",
   skills: "skills",
   src: "src",
+  state: ".state",
   tmp: "tmp",
-  toolResults: "tool-results",
   userProvided: "user-provided",
 } as const;
 export const SESSIONS_DB_FILE_NAME = "sessions.db";

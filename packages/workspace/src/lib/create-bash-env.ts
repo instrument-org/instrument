@@ -247,12 +247,10 @@ export function createBashDescription() {
 
 export function createBashEnv({
   appConfig,
-  partId,
   sessionId,
   upsertContextItem,
 }: {
   appConfig: AppConfig;
-  partId: StoreId.Part;
   sessionId: StoreId.Session;
   upsertContextItem: UpsertContextItem;
 }) {
@@ -275,7 +273,6 @@ export function createBashEnv({
     customCommands: [
       createAgentBrowserCommand({
         appConfig,
-        partId,
         sessionId,
         upsertContextItem,
       }),

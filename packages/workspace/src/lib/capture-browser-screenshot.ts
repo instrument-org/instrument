@@ -9,13 +9,8 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { absolutePathJoin } from "./absolute-path-join";
-import { getToolResultsDir } from "./app-dir-utils";
+import { getAgentBrowserStateDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
-
-const screenshotPathsByPartIdByHash = new Map<
-  StoreId.Part,
-  Map<string, string>
->();
 
 // Tail of stderr/stdout to attach as `error` on a failed observation. Sized
 // to surface the actionable error message without flooding the array entry
@@ -45,20 +40,17 @@ interface BrowserCommandObservation {
 // that as "this command happened without observation" and continue.
 export async function beginBrowserCommandObservation({
   appConfig,
-  partId,
   subcommand,
   subdomain,
   upsertContextItem,
 }: {
   appConfig: AppConfig;
-  partId: StoreId.Part;
   subcommand: string;
   subdomain: ProjectSubdomain;
   upsertContextItem: UpsertContextItem;
 }): Promise<BrowserCommandObservation | undefined> {
   const startScreenshot = await captureBrowserScreenshot({
     appConfig,
-    partId,
     subdomain,
   });
   if (!startScreenshot) {
@@ -88,7 +80,6 @@ export async function beginBrowserCommandObservation({
       try {
         const endScreenshot = await captureBrowserScreenshot({
           appConfig,
-          partId,
           subdomain,
         });
         await upsertContextItem({
@@ -113,11 +104,9 @@ export async function beginBrowserCommandObservation({
 
 async function captureBrowserScreenshot({
   appConfig,
-  partId,
   subdomain,
 }: {
   appConfig: AppConfig;
-  partId: StoreId.Part;
   subdomain: ProjectSubdomain;
 }): Promise<SessionMessagePart.AgentBrowserScreenshot | undefined> {
   try {
@@ -148,37 +137,29 @@ async function captureBrowserScreenshot({
     }
 
     const buffer = Buffer.from(dataB64, "base64");
-    // Truncated SHA-1: 12 hex chars = 48 bits. Per-tool-call namespace, so
-    // collision risk among the handful of screenshots in one call is
-    // negligible.
+    // Truncated SHA-1: 12 hex chars = 48 bits. The namespace is the
+    // project's on-disk screenshot folder; a collision would mean two
+    // screenshots with different content land at the same path. At 48
+    // bits the birthday bound is ~16M files before a 50% chance, well
+    // beyond any realistic per-project volume.
     const hash = createHash("sha1").update(buffer).digest("hex").slice(0, 12);
 
-    let pathsByHash = screenshotPathsByPartIdByHash.get(partId);
-    if (!pathsByHash) {
-      pathsByHash = new Map();
-      screenshotPathsByPartIdByHash.set(partId, pathsByHash);
-    }
-
-    // Dedupe by content hash within a tool call: we always *capture* a
-    // screenshot at the start and end of every browser command, but only
-    // the unique bytes are persisted to disk. Identical pre/post pairs
-    // (typical for non-mutating commands like `get title`) end up sharing
-    // a single JPEG file referenced by both the startScreenshot and
-    // endScreenshot fields of the same observation.
-    let relativePath = pathsByHash.get(hash);
-    if (!relativePath) {
-      const dir = getToolResultsDir(appConfig.appDir);
-      await fs.mkdir(dir, { recursive: true });
-      const fileName = `agent-browser-${hash}.jpg`;
-      const fullPath = absolutePathJoin(dir, fileName);
-      await fs.writeFile(fullPath, buffer);
-      relativePath = path.posix.join(
-        APP_FOLDER_NAMES.private,
-        APP_FOLDER_NAMES.toolResults,
-        fileName,
-      );
-      pathsByHash.set(hash, relativePath);
-    }
+    // Filename is the content hash, so identical pre/post pairs (typical
+    // for non-mutating commands like `get title`) naturally collapse to a
+    // single file on disk that both startScreenshot and endScreenshot
+    // reference. Re-writing the same bytes to the same path on a hash
+    // collision within a session is idempotent and cheaper than tracking
+    // a process-lifetime cache.
+    const dir = getAgentBrowserStateDir(appConfig.appDir);
+    await fs.mkdir(dir, { recursive: true });
+    const fileName = `${hash}.jpg`;
+    const fullPath = absolutePathJoin(dir, fileName);
+    await fs.writeFile(fullPath, buffer);
+    const relativePath = path.posix.join(
+      APP_FOLDER_NAMES.state,
+      APP_FOLDER_NAMES.agentBrowserState,
+      fileName,
+    );
 
     return {
       path: relativePath,

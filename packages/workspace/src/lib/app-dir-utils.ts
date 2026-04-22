@@ -6,6 +6,13 @@ import { type AbsolutePath, type AppDir } from "../schemas/paths";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 
+export function getAgentBrowserStateDir(appDir: AppDir): AbsolutePath {
+  return absolutePathJoin(
+    getStateDir(appDir),
+    APP_FOLDER_NAMES.agentBrowserState,
+  );
+}
+
 export function getAppPrivateDir(appDir: AppDir): AbsolutePath {
   return absolutePathJoin(appDir, APP_FOLDER_NAMES.private);
 }
@@ -19,13 +26,6 @@ export function getBrowserSessionDir(appDir: AppDir): AbsolutePath {
 
 export function getSandboxesDir(appDir: AppDir): AbsolutePath {
   return absolutePathJoin(getAppPrivateDir(appDir), "sandboxes");
-}
-
-export function getToolResultsDir(appDir: AppDir): AbsolutePath {
-  return absolutePathJoin(
-    getAppPrivateDir(appDir),
-    APP_FOLDER_NAMES.toolResults,
-  );
 }
 
 export function isRunnable(appDir: AppDir): Promise<boolean> {
@@ -68,4 +68,8 @@ export function templateExists({
     .access(templateDir)
     .then(() => true)
     .catch(() => false);
+}
+
+function getStateDir(appDir: AppDir): AbsolutePath {
+  return absolutePathJoin(appDir, APP_FOLDER_NAMES.state);
 }

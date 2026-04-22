@@ -32,7 +32,6 @@ export const BashTool = setupTool({
   async execute({ appConfig, input, messageId, partId, sessionId, signal }) {
     const bash = createBashEnv({
       appConfig,
-      partId,
       sessionId,
       upsertContextItem: async (item) => {
         // Best-effort side-channel write; if the part has been finalized or

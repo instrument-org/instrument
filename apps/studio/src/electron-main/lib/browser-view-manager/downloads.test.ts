@@ -1,6 +1,14 @@
+import type {
+  AbsolutePath,
+  BrowserTargetId,
+} from "@instrument-org/workspace/electron";
 import type { BrowserWindow, Session, WebContentsView } from "electron";
 
-import { type ProjectSubdomain } from "@instrument-org/workspace/electron";
+import {
+  encodeBrowserTargetId,
+  ProjectSubdomainSchema,
+  StoreId,
+} from "@instrument-org/workspace/electron";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 
@@ -11,6 +19,10 @@ import {
 } from "./downloads";
 import { type BrowserEntry, createEntry } from "./entry";
 
+const SUBDOMAIN = ProjectSubdomainSchema.parse("agent-browser-test");
+const SESSION_ID = StoreId.newSessionId();
+const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
+
 interface FakeItem extends EventEmitter {
   cancel: ReturnType<typeof vi.fn>;
   getFilename: () => string;
@@ -20,10 +32,12 @@ interface FakeItem extends EventEmitter {
   setSavePath: ReturnType<typeof vi.fn>;
 }
 
-function makeEntry(targetId = "1"): BrowserEntry {
+function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
   return createEntry({
     hostWindow: {} as BrowserWindow,
-    subdomain: "agent-browser-test" as ProjectSubdomain,
+    partitionDir: "/tmp/partition" as AbsolutePath,
+    sessionId: SESSION_ID,
+    subdomain: SUBDOMAIN,
     targetId,
     view: {} as WebContentsView,
   });
@@ -103,10 +117,10 @@ function makeSession() {
 
 describe("attachDownloadHandler", () => {
   it("cancels downloads when no path is authorized", () => {
-    const entries = new Map<string, BrowserEntry>();
-    entries.set("1", makeEntry());
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    entries.set(TARGET_ID, makeEntry());
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session, targetId: "1" });
+    attachDownloadHandler({ entries, session, targetId: TARGET_ID });
 
     const item = makeFakeItem();
     trigger(item);
@@ -116,7 +130,7 @@ describe("attachDownloadHandler", () => {
   });
 
   it("uses captured guid for save path and synthesizes Page.downloadWillBegin", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
     entry.authorizedDownloadPath = "/tmp/dl";
     entry.pendingDownloadGuids.set(
@@ -125,10 +139,10 @@ describe("attachDownloadHandler", () => {
     );
     const onEvent = vi.fn();
     entry.eventListeners.add(onEvent);
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session, targetId: "1" });
+    attachDownloadHandler({ entries, session, targetId: TARGET_ID });
 
     const item = makeFakeItem();
     trigger(item);
@@ -136,7 +150,7 @@ describe("attachDownloadHandler", () => {
     expect(item.setSavePath).toHaveBeenCalledWith("/tmp/dl/guid-from-cdp");
     expect(entry.pendingDownloadGuids.size).toBe(0);
     expect(onEvent).toHaveBeenCalledWith("Page.downloadWillBegin", {
-      frameId: "1",
+      frameId: TARGET_ID,
       guid: "guid-from-cdp",
       suggestedFilename: "report.pdf",
       url: "https://example.com/report.pdf",
@@ -144,13 +158,13 @@ describe("attachDownloadHandler", () => {
   });
 
   it("falls back to a generated UUID when no guid was captured", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
     entry.authorizedDownloadPath = "/tmp/dl";
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session, targetId: "1" });
+    attachDownloadHandler({ entries, session, targetId: TARGET_ID });
 
     vi.spyOn(crypto, "randomUUID").mockReturnValue(
       "00000000-0000-0000-0000-000000000001" as `${string}-${string}-${string}-${string}-${string}`,
@@ -171,16 +185,16 @@ describe("attachDownloadHandler", () => {
   ])(
     "emits Page.downloadProgress with state=$expectedState when item finishes with $state",
     ({ expectedState, state }) => {
-      const entries = new Map<string, BrowserEntry>();
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
       const entry = makeEntry();
       entry.authorizedDownloadPath = "/tmp/dl";
       entry.pendingDownloadGuids.set("https://example.com/report.pdf", "g");
       const onEvent = vi.fn();
       entry.eventListeners.add(onEvent);
-      entries.set("1", entry);
+      entries.set(TARGET_ID, entry);
 
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session, targetId: "1" });
+      attachDownloadHandler({ entries, session, targetId: TARGET_ID });
 
       const item = makeFakeItem();
       trigger(item);
@@ -198,21 +212,21 @@ describe("attachDownloadHandler", () => {
   );
 
   it("ignores done event if entry was removed before completion", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
     entry.authorizedDownloadPath = "/tmp/dl";
     const onEvent = vi.fn();
     entry.eventListeners.add(onEvent);
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session, targetId: "1" });
+    attachDownloadHandler({ entries, session, targetId: TARGET_ID });
 
     const item = makeFakeItem();
     trigger(item);
     onEvent.mockClear();
 
-    entries.delete("1");
+    entries.delete(TARGET_ID);
     (item as unknown as EventEmitter).emit("done", {}, "completed");
 
     expect(onEvent).not.toHaveBeenCalled();

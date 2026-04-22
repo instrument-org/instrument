@@ -1,5 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 
+import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+
 import type { BrowserEntry } from "./entry";
 
 import { sendCdpCommand } from "../cdp";
@@ -20,10 +22,10 @@ export async function sendCommand({
   targetId,
 }: {
   ensureDebuggerAttached: (entry: BrowserEntry) => void;
-  entries: Map<string, BrowserEntry>;
+  entries: Map<BrowserTargetId, BrowserEntry>;
   method: string;
   params: unknown;
-  targetId: string;
+  targetId: BrowserTargetId;
 }): Promise<unknown> {
   const entry = entries.get(targetId);
   if (!entry) {

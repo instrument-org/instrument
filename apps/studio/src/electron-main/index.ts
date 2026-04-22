@@ -149,9 +149,18 @@ void app.whenReady().then(async () => {
   appUpdater = new StudioAppUpdater();
   appUpdater.pollForUpdates();
 
-  const { actor: workspaceRef, workspaceConfig } = createWorkspaceActor();
+  const {
+    actor: workspaceRef,
+    browserViewManager,
+    workspaceConfig,
+  } = createWorkspaceActor();
 
-  initializeRPC({ appUpdater, workspaceConfig, workspaceRef });
+  initializeRPC({
+    appUpdater,
+    browserViewManager,
+    workspaceConfig,
+    workspaceRef,
+  });
 
   await createMainWindow();
 

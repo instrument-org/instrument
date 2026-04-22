@@ -15,6 +15,7 @@ export function createHostWindow({
   session: Session;
   subdomain: ProjectSubdomain;
 }): {
+  destroyHostWindow: () => void;
   fitViewToWindow: () => void;
   hostWindow: BrowserWindow;
   view: WebContentsView;
@@ -58,5 +59,27 @@ export function createHostWindow({
   fitViewToWindow();
   hostWindow.on("resize", fitViewToWindow);
 
-  return { fitViewToWindow, hostWindow, view };
+  // The host window only exists for developers to peek at agent-controlled
+  // browsing. If the user clicks the OS close button we hide the window
+  // instead of destroying it, so the debug page can re-show it later without
+  // having to re-create the WebContentsView. Real teardown goes through
+  // `destroyHostWindow` (called from the entry's disposer chain).
+  let allowClose = false;
+  hostWindow.on("close", (event) => {
+    if (allowClose || hostWindow.isDestroyed()) {
+      return;
+    }
+    event.preventDefault();
+    hostWindow.hide();
+  });
+
+  const destroyHostWindow = () => {
+    if (hostWindow.isDestroyed()) {
+      return;
+    }
+    allowClose = true;
+    hostWindow.close();
+  };
+
+  return { destroyHostWindow, fitViewToWindow, hostWindow, view };
 }

@@ -16,6 +16,7 @@ interface PublisherEvents {
   "auth.sign-in-success": {
     success: true;
   };
+  "debug.browser-view-manager.updated": null;
   "debug.open-analytics-toolbar": null;
   "debug.open-debug-page": null;
   "debug.open-query-devtools": null;

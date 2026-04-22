@@ -46,9 +46,20 @@ import {
 } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
-import { type AppSubdomain } from "../../schemas/subdomains";
-import { type BrowserConfig, type WorkspaceConfig } from "../../types";
+import {
+  type AppSubdomain,
+  type ProjectSubdomain,
+} from "../../schemas/subdomains";
+import {
+  type BrowserConfig,
+  type BrowserTargetId,
+  type WorkspaceConfig,
+} from "../../types";
 import { type ToolCallUpdate } from "../agent";
+import {
+  projectBrowserMachine,
+  type ProjectBrowserParentEvent,
+} from "../project-browser";
 import { runtimeMachine } from "../runtime";
 import {
   type SessionActorRef,
@@ -60,6 +71,7 @@ import { type WorkspaceContext } from "./types";
 export type WorkspaceEvent =
   | CheckoutVersionParentEvent
   | CreatePreviewParentEvent
+  | ProjectBrowserParentEvent
   | SessionMachineParentEvent
   | WorkspaceServerParentEvent
   | {
@@ -106,7 +118,10 @@ export type WorkspaceEvent =
       type: "internal.updateHeartbeat";
       value: { createdAt: number; subdomain: AppSubdomain };
     }
-  | { type: "prepareToTrashApp"; value: { subdomain: AppSubdomain } }
+  | {
+      type: "prepareToTrashApp";
+      value: { onBrowserReaped?: () => void; subdomain: AppSubdomain };
+    }
   | { type: "removeAppBeingTrashed"; value: { subdomain: AppSubdomain } }
   | {
       type: "restartAllRuntimes";
@@ -136,6 +151,10 @@ export type WorkspaceEvent =
         subdomain: AppSubdomain;
         update: ToolCallUpdate;
       };
+    }
+  | {
+      type: "updateUserHeartbeat";
+      value: { subdomain: ProjectSubdomain };
     };
 
 export const workspaceMachine = setup({
@@ -172,6 +191,125 @@ export const workspaceMachine = setup({
         return {
           sessionRefsBySubdomain: newsessionRefsBySubdomain,
         };
+      },
+    ),
+
+    forwardAttachAgentSession: enqueueActions(
+      (
+        { context },
+        {
+          sessionId,
+          subdomain,
+        }: { sessionId: StoreId.Session; subdomain: ProjectSubdomain },
+      ) => {
+        const ref = context.projectBrowserRefs.get(subdomain);
+        ref?.send({
+          type: "attachAgentSession",
+          value: { sessionId },
+        });
+      },
+    ),
+
+    forwardUpdateCdpHeartbeat: enqueueActions(
+      (
+        { enqueue },
+        {
+          partitionDir,
+          sessionId,
+          subdomain,
+          targetId,
+        }: {
+          partitionDir: AbsolutePath;
+          sessionId: StoreId.Session;
+          subdomain: ProjectSubdomain;
+          targetId: BrowserTargetId;
+        },
+      ) => {
+        enqueue.assign(({ context, spawn }) => {
+          const existing = context.projectBrowserRefs.get(subdomain);
+          const ref =
+            existing ??
+            spawn("projectBrowserMachine", {
+              input: { browser: context.config.browser, subdomain },
+            });
+          ref.send({
+            type: "updateCdpHeartbeat",
+            value: { partitionDir, sessionId, targetId },
+          });
+          if (existing) {
+            return {};
+          }
+          return {
+            projectBrowserRefs: new Map(context.projectBrowserRefs).set(
+              subdomain,
+              ref,
+            ),
+          };
+        });
+      },
+    ),
+
+    forwardUpdateHeartbeat: enqueueActions(
+      (
+        { context },
+        {
+          createdAt,
+          subdomain,
+        }: { createdAt: number; subdomain: AppSubdomain },
+      ) => {
+        const runtimeRef = context.runtimeRefs.get(subdomain);
+        runtimeRef?.send({
+          type: "updateHeartbeat",
+          value: { createdAt },
+        });
+      },
+    ),
+
+    forwardUpdateUserHeartbeat: enqueueActions(
+      ({ enqueue }, { subdomain }: { subdomain: ProjectSubdomain }) => {
+        enqueue.assign(({ context, spawn }) => {
+          const existing = context.projectBrowserRefs.get(subdomain);
+          const ref =
+            existing ??
+            spawn("projectBrowserMachine", {
+              input: { browser: context.config.browser, subdomain },
+            });
+          ref.send({ type: "updateUserHeartbeat" });
+          if (existing) {
+            return {};
+          }
+          return {
+            projectBrowserRefs: new Map(context.projectBrowserRefs).set(
+              subdomain,
+              ref,
+            ),
+          };
+        });
+      },
+    ),
+
+    handleProjectBrowserStopped: enqueueActions(
+      (
+        { context, enqueue },
+        { subdomain }: { subdomain: ProjectSubdomain },
+      ) => {
+        const ref = context.projectBrowserRefs.get(subdomain);
+        if (ref) {
+          enqueue.stopChild(ref);
+        }
+        const nextRefs = new Map(context.projectBrowserRefs);
+        nextRefs.delete(subdomain);
+        enqueue.assign({ projectBrowserRefs: nextRefs });
+
+        const resolvers = context.pendingBrowserReapResolvers.get(subdomain);
+        if (resolvers && resolvers.length > 0) {
+          for (const resolve of resolvers) {
+            resolve();
+          }
+          const nextResolvers = new Map(context.pendingBrowserReapResolvers);
+          nextResolvers.delete(subdomain);
+          enqueue.assign({ pendingBrowserReapResolvers: nextResolvers });
+        }
       },
     ),
 
@@ -224,6 +362,8 @@ export const workspaceMachine = setup({
     checkoutVersionLogic,
 
     createPreviewLogic,
+
+    projectBrowserMachine,
 
     runtimeMachine,
 
@@ -278,6 +418,8 @@ export const workspaceMachine = setup({
       checkoutVersionRefs: new Map(),
       config: workspaceConfig,
       createPreviewRefs: new Map(),
+      pendingBrowserReapResolvers: new Map(),
+      projectBrowserRefs: new Map(),
       runtimeRefs: new Map(),
       sessionRefsBySubdomain: new Map(),
       workspaceServerRef: spawn("workspaceServerLogic", {
@@ -522,37 +664,87 @@ export const workspaceMachine = setup({
       },
     },
     "internal.updateHeartbeat": {
-      actions: ({ context, event }) => {
-        const runtimeRef = context.runtimeRefs.get(event.value.subdomain);
-        if (runtimeRef) {
-          runtimeRef.send({
-            type: "updateHeartbeat",
-            value: { createdAt: event.value.createdAt },
-          });
-        }
+      actions: {
+        params: ({ event }) => ({
+          createdAt: event.value.createdAt,
+          subdomain: event.value.subdomain,
+        }),
+        type: "forwardUpdateHeartbeat",
       },
     },
     prepareToTrashApp: {
-      actions: [
-        assign({
-          appsBeingTrashed: ({ context, event }) => [
+      actions: enqueueActions(({ context, enqueue, event }) => {
+        enqueue.assign({
+          appsBeingTrashed: [
             ...context.appsBeingTrashed,
             event.value.subdomain,
           ],
-        }),
-        raise(({ event }) => {
-          return {
-            type: "stopRuntime",
-            value: { includeChildren: true, subdomain: event.value.subdomain },
-          };
-        }),
-        raise(({ event }) => {
-          return {
-            type: "stopSessions",
-            value: { subdomain: event.value.subdomain },
-          };
-        }),
-      ],
+        });
+
+        // Track every projectBrowser whose subdomain matches the trashed
+        // project (the project itself, plus any sandbox-suffixed entries
+        // that happen to share the prefix).
+        const matchingSubdomains: ProjectSubdomain[] = [];
+        for (const [
+          browserSubdomain,
+          ref,
+        ] of context.projectBrowserRefs.entries()) {
+          const matches =
+            browserSubdomain === event.value.subdomain ||
+            (typeof event.value.subdomain === "string" &&
+              browserSubdomain.endsWith(event.value.subdomain));
+          if (matches) {
+            matchingSubdomains.push(browserSubdomain);
+            ref.send({ type: "forceReap" });
+          }
+        }
+
+        if (event.value.onBrowserReaped) {
+          const resolver = event.value.onBrowserReaped;
+          if (matchingSubdomains.length === 0) {
+            // Nothing to wait for: resolve immediately so trash-project can
+            // proceed without blocking.
+            resolver();
+          } else {
+            // Wait for every matching projectBrowser.stopped before resolving.
+            enqueue.assign({
+              pendingBrowserReapResolvers: () => {
+                const next = new Map(context.pendingBrowserReapResolvers);
+                let remaining = matchingSubdomains.length;
+                const onceAll = () => {
+                  remaining -= 1;
+                  if (remaining === 0) {
+                    resolver();
+                  }
+                };
+                for (const sd of matchingSubdomains) {
+                  const existing = next.get(sd) ?? [];
+                  next.set(sd, [...existing, onceAll]);
+                }
+                return next;
+              },
+            });
+          }
+        }
+
+        enqueue.raise({
+          type: "stopRuntime",
+          value: {
+            includeChildren: true,
+            subdomain: event.value.subdomain,
+          },
+        });
+        enqueue.raise({
+          type: "stopSessions",
+          value: { subdomain: event.value.subdomain },
+        });
+      }),
+    },
+    "projectBrowser.stopped": {
+      actions: {
+        params: ({ event }) => ({ subdomain: event.value.subdomain }),
+        type: "handleProjectBrowserStopped",
+      },
     },
     removeAppBeingTrashed: {
       actions: assign(({ context, event }) => {
@@ -634,14 +826,12 @@ export const workspaceMachine = setup({
       //   };
       // }),
     ],
-
     "session.spawnSubAgent": {
       actions: raise(({ event }) => ({
         type: "internal.spawnSession" as const,
         value: event.value,
       })),
     },
-
     spawnRuntime: {
       actions: assign(({ context, event, spawn }) => {
         return {
@@ -665,7 +855,6 @@ export const workspaceMachine = setup({
         );
       },
     },
-
     stopRuntime: {
       actions: enqueueActions(
         ({
@@ -735,6 +924,23 @@ export const workspaceMachine = setup({
       },
     ],
 
+    updateUserHeartbeat: {
+      actions: {
+        params: ({ event }) => ({ subdomain: event.value.subdomain }),
+        type: "forwardUpdateUserHeartbeat",
+      },
+    },
+
+    "workspaceServer.attachAgentSession": {
+      actions: {
+        params: ({ event }) => ({
+          sessionId: event.value.sessionId,
+          subdomain: event.value.subdomain,
+        }),
+        type: "forwardAttachAgentSession",
+      },
+    },
+
     "workspaceServer.error": {
       actions: log(({ event }) => {
         return `Workspace server error: ${event.value.error.message}`;
@@ -756,6 +962,18 @@ export const workspaceMachine = setup({
           return `Workspace server started on port ${event.value.port}`;
         }),
       ],
+    },
+
+    "workspaceServer.updateCdpHeartbeat": {
+      actions: {
+        params: ({ event }) => ({
+          partitionDir: event.value.partitionDir,
+          sessionId: event.value.sessionId,
+          subdomain: event.value.subdomain,
+          targetId: event.value.targetId,
+        }),
+        type: "forwardUpdateCdpHeartbeat",
+      },
     },
   },
   states: {

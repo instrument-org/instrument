@@ -62,6 +62,15 @@ function RouteComponent() {
             >
               Errors
             </InternalLink>
+            <InternalLink
+              activeProps={{
+                className: linkActiveClasses,
+              }}
+              className={linkBaseClasses}
+              to="/debug/browser-view-manager"
+            >
+              Browser Views
+            </InternalLink>
           </div>
           <ThemeToggle />
         </nav>

@@ -85,7 +85,7 @@ export const workspaceServerLogic = fromCallback<
       server = serve({ fetch: app.fetch, port });
 
       setupWebSocketProxy(server, input.parentRef);
-      setupCdpWebSocketBridge(server, input.workspaceConfig);
+      setupCdpWebSocketBridge(server, input.workspaceConfig, input.parentRef);
 
       input.parentRef.send({
         type: "workspaceServer.started",

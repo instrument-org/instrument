@@ -3,6 +3,7 @@ import { downloadFile, isFileDownloadable } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { Maximize2, X } from "lucide-react";
+import { useState } from "react";
 
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
@@ -36,6 +37,11 @@ export function ProjectFileViewer({
   const isImage = fileType === "image";
   const isVideo = fileType === "video";
   const isMediaFile = isImage || isVideo;
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
+
+  const handleImageClick = () => {
+    setIsImageZoomed((zoomed) => !zoomed);
+  };
 
   const handleDownload = async () => {
     await downloadFile(file);
@@ -92,6 +98,7 @@ export function ProjectFileViewer({
           "flex size-full items-center justify-center",
           isMediaFile && !isInPanel && "pt-14",
           isMediaFile && isInPanel && "pt-8",
+          isImage && isImageZoomed && "block overflow-auto",
         )}
       >
         {isImage ? (
@@ -99,7 +106,12 @@ export function ProjectFileViewer({
             <ContextMenuTrigger asChild>
               <ImageWithFallback
                 alt={file.filename}
-                className="size-auto max-h-full max-w-full object-contain select-none"
+                className={cn(
+                  "select-none",
+                  isImageZoomed
+                    ? "size-auto max-w-none cursor-zoom-out"
+                    : "size-auto max-h-full max-w-full cursor-zoom-in object-contain",
+                )}
                 fallback={
                   <FilePreviewFallback
                     fallbackExtension="jpg"
@@ -109,7 +121,7 @@ export function ProjectFileViewer({
                 }
                 fallbackClassName="size-32 rounded-lg"
                 filename={file.filename}
-                onClick={isInPanel ? undefined : onClose}
+                onClick={handleImageClick}
                 showCheckerboard
                 src={file.url}
               />

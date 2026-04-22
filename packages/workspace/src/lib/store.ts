@@ -14,46 +14,6 @@ import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
 
 export namespace Store {
-  export function appendToolPartContextItem(
-    ids: {
-      messageId: StoreId.Message;
-      partId: StoreId.Part;
-      sessionId: StoreId.Session;
-    },
-    item: SessionMessagePart.ToolPartContextItem,
-    appConfig: AppConfig,
-    { signal }: { signal?: AbortSignal } = {},
-  ) {
-    return updatePart(
-      ids,
-      (part) => {
-        // Only tool parts carry contextItems; ignore otherwise to avoid
-        // accidentally mutating non-tool parts.
-        if (
-          part.type === "step-start" ||
-          !("state" in part) ||
-          (part.state !== "input-available" &&
-            part.state !== "input-streaming" &&
-            part.state !== "output-available" &&
-            part.state !== "output-error")
-        ) {
-          return part;
-        }
-        const existing =
-          ("contextItems" in part.metadata && part.metadata.contextItems) || [];
-        return {
-          ...part,
-          metadata: {
-            ...part.metadata,
-            contextItems: [...existing, item],
-          },
-        } as SessionMessagePart.Type;
-      },
-      appConfig,
-      { signal },
-    );
-  }
-
   export function getAllMessageIds(
     appConfig: AppConfig,
     { signal }: { signal?: AbortSignal } = {},
@@ -633,6 +593,61 @@ export namespace Store {
       const saved = yield* savePart(next, appConfig, { publish, signal });
       return ok(saved);
     });
+  }
+
+  // Insert or replace a context item on a tool part, keyed by `item.id`. The
+  // item is appended on first write and replaced in place on subsequent
+  // writes so callers can model lifecycle transitions (e.g. an agent-browser
+  // observation moving from `pending` to `complete`) without producing a
+  // second array entry for the same logical event. Order is preserved:
+  // existing items keep their slot; new items are appended.
+  export function upsertToolPartContextItem(
+    ids: {
+      messageId: StoreId.Message;
+      partId: StoreId.Part;
+      sessionId: StoreId.Session;
+    },
+    item: SessionMessagePart.ToolPartContextItem,
+    appConfig: AppConfig,
+    { signal }: { signal?: AbortSignal } = {},
+  ) {
+    return updatePart(
+      ids,
+      (part) => {
+        // Only tool parts carry contextItems; ignore otherwise to avoid
+        // accidentally mutating non-tool parts.
+        if (
+          part.type === "step-start" ||
+          !("state" in part) ||
+          (part.state !== "input-available" &&
+            part.state !== "input-streaming" &&
+            part.state !== "output-available" &&
+            part.state !== "output-error")
+        ) {
+          return part;
+        }
+        const existing =
+          ("contextItems" in part.metadata && part.metadata.contextItems) || [];
+        const index = existing.findIndex((existingItem) => {
+          return existingItem.id === item.id;
+        });
+        const next =
+          index === -1
+            ? [...existing, item]
+            : existing.map((existingItem, i) =>
+                i === index ? item : existingItem,
+              );
+        return {
+          ...part,
+          metadata: {
+            ...part.metadata,
+            contextItems: next,
+          },
+        } as SessionMessagePart.Type;
+      },
+      appConfig,
+      { signal },
+    );
   }
 
   function removeSessionAndMessages(

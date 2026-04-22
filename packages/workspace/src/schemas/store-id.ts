@@ -6,6 +6,7 @@ const ulid = monotonicFactory();
 const PREFIXES = {
   message: "msg_",
   part: "prt_",
+  partContextItem: "pci_",
   session: "ses_",
 } as const;
 
@@ -46,11 +47,27 @@ export namespace StoreId {
   );
   export type Part = z.output<typeof PartSchema>;
 
+  // Identifies a single ToolPartContextItem so it can be upserted on the
+  // owning part's metadata (e.g. start an agent-browser observation as
+  // `pending`, then transition the same item to `complete`). Not used as a
+  // storage key today; lives on the part alongside other context items.
+  export const PartContextItemSchema = createIdSchema(
+    PREFIXES.partContextItem,
+    "SessionMessagePartContextItemId",
+  );
+  export type PartContextItem = z.output<typeof PartContextItemSchema>;
+
   export const ToolCallSchema = z.string().brand("ToolCallId");
   export type ToolCall = z.output<typeof ToolCallSchema>;
 
   export function newMessageId() {
     return StoreId.MessageSchema.parse(`${PREFIXES.message}${ulid()}`);
+  }
+
+  export function newPartContextItemId() {
+    return StoreId.PartContextItemSchema.parse(
+      `${PREFIXES.partContextItem}${ulid()}`,
+    );
   }
 
   export function newPartId() {

@@ -16,7 +16,7 @@ import type { AppConfig } from "./app-config/types";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type StoreId } from "../schemas/store-id";
-import { type AppendContextItem } from "./capture-browser-screenshot";
+import { type UpsertContextItem } from "./capture-browser-screenshot";
 import {
   AGENT_BROWSER_COMMAND,
   createAgentBrowserCommand,
@@ -247,14 +247,14 @@ export function createBashDescription() {
 
 export function createBashEnv({
   appConfig,
-  appendContextItem,
   partId,
   sessionId,
+  upsertContextItem,
 }: {
   appConfig: AppConfig;
-  appendContextItem: AppendContextItem;
   partId: StoreId.Part;
   sessionId: StoreId.Session;
+  upsertContextItem: UpsertContextItem;
 }) {
   const fs = new ReadWriteFs({ root: appConfig.appDir });
 
@@ -275,9 +275,9 @@ export function createBashEnv({
     customCommands: [
       createAgentBrowserCommand({
         appConfig,
-        appendContextItem,
         partId,
         sessionId,
+        upsertContextItem,
       }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(appConfig)),
       createWhichCommand(

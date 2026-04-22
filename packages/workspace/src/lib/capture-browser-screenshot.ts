@@ -6,7 +6,7 @@ import type { AppConfig } from "./app-config/types";
 
 import { APP_FOLDER_NAMES } from "../constants";
 import { type SessionMessagePart } from "../schemas/session/message-part";
-import { type StoreId } from "../schemas/store-id";
+import { StoreId } from "../schemas/store-id";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getToolResultsDir } from "./app-dir-utils";
@@ -17,29 +17,115 @@ const screenshotPathsByPartIdByHash = new Map<
   Map<string, string>
 >();
 
-export type AppendContextItem = (
+// Tail of stderr/stdout to attach as `error` on a failed observation. Sized
+// to surface the actionable error message without flooding the array entry
+// or the system note that the agent reads.
+const MAX_ERROR_LENGTH = 500;
+
+export type UpsertContextItem = (
   item: SessionMessagePart.ToolPartContextItem,
 ) => Promise<void>;
 
-export async function captureBrowserScreenshot({
+interface BrowserCommandObservation {
+  // Pass `error` only when the command failed; its presence on the
+  // resulting context item is what the UI and the system note treat as
+  // "this command did not succeed". Omit it for successful runs.
+  complete: (args: { error?: string }) => Promise<void>;
+}
+
+// Records that the agent has started running a browser command. Captures
+// a starting screenshot synchronously (the observation isn't created if
+// that fails); returns a handle whose `complete` captures the ending
+// screenshot and finalizes the record. Both writes share the same
+// context-item id so the UI replaces the in-flight card in place rather
+// than rendering two cards per command.
+//
+// Returns `undefined` when no observation could be opened (no live
+// target, or the start-of-command capture failed). Callers should treat
+// that as "this command happened without observation" and continue.
+export async function beginBrowserCommandObservation({
   appConfig,
-  appendContextItem,
-  command,
+  partId,
+  subcommand,
+  subdomain,
+  upsertContextItem,
+}: {
+  appConfig: AppConfig;
+  partId: StoreId.Part;
+  subcommand: string;
+  subdomain: ProjectSubdomain;
+  upsertContextItem: UpsertContextItem;
+}): Promise<BrowserCommandObservation | undefined> {
+  const startScreenshot = await captureBrowserScreenshot({
+    appConfig,
+    partId,
+    subdomain,
+  });
+  if (!startScreenshot) {
+    return undefined;
+  }
+
+  const id = StoreId.newPartContextItemId();
+  const startedAt = getCurrentDate();
+
+  try {
+    await upsertContextItem({
+      createdAt: startedAt,
+      id,
+      kind: "agent-browser-command",
+      startScreenshot,
+      status: "pending",
+      subcommand,
+    });
+  } catch (error) {
+    appConfig.workspaceConfig.captureException(error, {
+      scopes: ["workspace"],
+    });
+  }
+
+  return {
+    complete: async ({ error }) => {
+      try {
+        const endScreenshot = await captureBrowserScreenshot({
+          appConfig,
+          partId,
+          subdomain,
+        });
+        await upsertContextItem({
+          createdAt: startedAt,
+          ...(endScreenshot ? { endScreenshot } : {}),
+          endedAt: getCurrentDate(),
+          ...(error ? { error: truncateError(error) } : {}),
+          id,
+          kind: "agent-browser-command",
+          startScreenshot,
+          status: "complete",
+          subcommand,
+        });
+      } catch (error_) {
+        appConfig.workspaceConfig.captureException(error_, {
+          scopes: ["workspace"],
+        });
+      }
+    },
+  };
+}
+
+async function captureBrowserScreenshot({
+  appConfig,
   partId,
   subdomain,
 }: {
   appConfig: AppConfig;
-  appendContextItem: AppendContextItem;
-  command: string;
   partId: StoreId.Part;
   subdomain: ProjectSubdomain;
-}): Promise<void> {
+}): Promise<SessionMessagePart.AgentBrowserScreenshot | undefined> {
   try {
     const { workspaceConfig } = appConfig;
     const targets = await workspaceConfig.browser.listTargets(subdomain);
     const target = targets[0];
     if (!target) {
-      return;
+      return undefined;
     }
 
     const screenshotResult = (await workspaceConfig.browser.sendCommand(
@@ -49,12 +135,13 @@ export async function captureBrowserScreenshot({
     )) as null | { data?: string };
     const dataB64 = screenshotResult?.data;
     if (!dataB64) {
-      return;
+      return undefined;
     }
 
     const buffer = Buffer.from(dataB64, "base64");
     // Truncated SHA-1: 12 hex chars = 48 bits. Per-tool-call namespace, so
-    // collision risk among the handful of screenshots in one call is negligible.
+    // collision risk among the handful of screenshots in one call is
+    // negligible.
     const hash = createHash("sha1").update(buffer).digest("hex").slice(0, 12);
 
     let pathsByHash = screenshotPathsByPartIdByHash.get(partId);
@@ -63,36 +150,44 @@ export async function captureBrowserScreenshot({
       screenshotPathsByPartIdByHash.set(partId, pathsByHash);
     }
 
-    // Skip duplicates: if we've already captured this exact image for this
-    // tool call, don't write a new file *and* don't append a redundant
-    // context item.
-    if (pathsByHash.has(hash)) {
-      return;
+    // Dedupe by content hash within a tool call: we always *capture* a
+    // screenshot at the start and end of every browser command, but only
+    // the unique bytes are persisted to disk. Identical pre/post pairs
+    // (typical for non-mutating commands like `get title`) end up sharing
+    // a single PNG file referenced by both the startScreenshot and
+    // endScreenshot fields of the same observation.
+    let relativePath = pathsByHash.get(hash);
+    if (!relativePath) {
+      const dir = getToolResultsDir(appConfig.appDir);
+      await fs.mkdir(dir, { recursive: true });
+      const fileName = `agent-browser-${hash}.png`;
+      const fullPath = absolutePathJoin(dir, fileName);
+      await fs.writeFile(fullPath, buffer);
+      relativePath = path.posix.join(
+        APP_FOLDER_NAMES.private,
+        APP_FOLDER_NAMES.toolResults,
+        fileName,
+      );
+      pathsByHash.set(hash, relativePath);
     }
 
-    const dir = getToolResultsDir(appConfig.appDir);
-    await fs.mkdir(dir, { recursive: true });
-    const fileName = `agent-browser-${hash}.png`;
-    const fullPath = absolutePathJoin(dir, fileName);
-    await fs.writeFile(fullPath, buffer);
-    const relativePath = path.posix.join(
-      APP_FOLDER_NAMES.private,
-      APP_FOLDER_NAMES.toolResults,
-      fileName,
-    );
-    pathsByHash.set(hash, relativePath);
-
-    await appendContextItem({
-      command,
-      createdAt: getCurrentDate(),
-      kind: "agent-browser-screenshot",
-      screenshotPath: relativePath,
-      title: target.title || undefined,
+    return {
+      path: relativePath,
+      ...(target.title ? { title: target.title } : {}),
       url: target.url,
-    });
+    };
   } catch (error) {
     appConfig.workspaceConfig.captureException(error, {
       scopes: ["workspace"],
     });
+    return undefined;
   }
+}
+
+function truncateError(error: string): string {
+  const trimmed = error.trim();
+  if (trimmed.length <= MAX_ERROR_LENGTH) {
+    return trimmed;
+  }
+  return `... (truncated ${trimmed.length - MAX_ERROR_LENGTH} characters)\n${trimmed.slice(-MAX_ERROR_LENGTH)}`;
 }

@@ -1876,9 +1876,7 @@ describe("llmRequestLogic", () => {
                 {
                   "output": {
                     "type": "text",
-                    "value": "Successfully wrote new file ./foo.ts
-
-        Run \`tsc --noEmit\` using the \`bash\` tool to check for type errors before finishing.",
+                    "value": "Successfully wrote new file ./foo.ts",
                   },
                   "providerOptions": undefined,
                   "toolCallId": "2",

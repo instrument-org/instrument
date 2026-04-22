@@ -132,6 +132,7 @@ export const mainAgent = setupAgent({
     - When making code changes, NEVER output code to the USER, unless requested. Instead use one of the code edit tools to implement the change.
     - Always follow security best practices. Never introduce code that exposes or logs secrets and keys.
     - IMPORTANT: Do NOT create documentation files (README.md, GUIDE.md, QUICKSTART.md, or similar) unless the user explicitly requests them.
+    - For TypeScript/JavaScript changes, you can run \`${TSC_COMMAND.name} --noEmit\` via the \`${agentTools.BashTool.name}\` tool to check for type errors before finishing. For files inside a skill folder, \`cd ${F.skills}/<skill-name> && ${TSC_COMMAND.name} --noEmit\`.
 
     # Project Folder
     IMPORTANT: The project folder is a self-contained, isolated workspace -- a folder that lives in the app's sandboxed workspace directory.

@@ -6,7 +6,7 @@ import { createTwoFilesPatch } from "diff";
 import ms from "ms";
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
-import { dedent, sift } from "radashi";
+import { dedent } from "radashi";
 import { z } from "zod";
 
 import { absolutePathJoin } from "../lib/absolute-path-join";
@@ -14,7 +14,6 @@ import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
-import { checkReminder } from "../lib/check-reminder";
 import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
@@ -816,10 +815,7 @@ export const EditFile = setupTool({
   toModelOutput: ({ output }) => {
     return {
       type: "text",
-      value: sift([
-        `Successfully edited file ${output.filePath}`,
-        checkReminder(output.filePath),
-      ]).join("\n\n"),
+      value: `Successfully edited file ${output.filePath}`,
     };
   },
 });

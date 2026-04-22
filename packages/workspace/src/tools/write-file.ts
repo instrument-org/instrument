@@ -2,21 +2,16 @@ import ms from "ms";
 import { err, ok } from "neverthrow";
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/write.ts
-import path from "node:path";
-import { dedent, sift } from "radashi";
+import { dedent } from "radashi";
 import { z } from "zod";
 
-import { APP_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
-import { checkReminder } from "../lib/check-reminder";
 import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
-import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema, TOOL_EXPLANATION_PARAM_NAME } from "./base";
-import { BashTool } from "./bash";
 import { setupTool } from "./create-tool";
 import { ReadFile } from "./read-file";
 
@@ -24,37 +19,6 @@ const INPUT_PARAMS = {
   content: "content",
   filePath: "filePath",
 } as const;
-
-function scriptsDirectoryReminder(filePath: string): string | undefined {
-  // Scripts will often use new dependencies, so we remind the agent to add them.
-  if (!filePath.startsWith(`./${APP_FOLDER_NAMES.scripts}/`)) {
-    return undefined;
-  }
-  return `Before running this script, add any new dependencies using the ${BashTool.name} tool with the ${PNPM_COMMAND.name} command.`;
-}
-
-const SCRIPT_EXTENSIONS = new Set([
-  ".cjs",
-  ".cts",
-  ".js",
-  ".mjs",
-  ".mts",
-  ".ts",
-]);
-
-function importMetaUrlReminder(
-  filePath: string,
-  content: string,
-): string | undefined {
-  const ext = path.extname(filePath).toLowerCase();
-  if (!SCRIPT_EXTENSIONS.has(ext)) {
-    return undefined;
-  }
-  if (!content.includes("import.meta.url")) {
-    return undefined;
-  }
-  return `If checking whether this script is the main module, use \`pathToFileURL(process.argv[1]).href\` from \`node:url\` instead of \`\`file://\${process.argv[1]}\`\` -- the latter breaks on paths with spaces.`;
-}
 
 export const WriteFile = setupTool({
   inputSchema: BaseInputSchema.extend({
@@ -119,12 +83,7 @@ export const WriteFile = setupTool({
 
     return {
       type: "text",
-      value: sift([
-        `${baseContent} ${output.filePath}`,
-        checkReminder(output.filePath),
-        scriptsDirectoryReminder(output.filePath),
-        importMetaUrlReminder(output.filePath, output.content),
-      ]).join("\n\n"),
+      value: `${baseContent} ${output.filePath}`,
     };
   },
 });

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const TOOL_NAMES = {
+const TOOL_NAMES = {
   bash: "bash",
   choose: "choose",
   copyToProject: "copy_to_project",

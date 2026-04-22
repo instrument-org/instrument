@@ -99,9 +99,19 @@ export namespace SessionMessagePart {
 
   // Polymorphic context items appended to tool parts as a side channel by the
   // tool's environment. Not validated by Zod, since they're written by us, not
-  // by the agent. Each item carries `createdAt` so the UI can order them
-  // chronologically without depending on array order.
+  // by the agent. Array order (driven by ULID `id` insertion order via
+  // `upsertToolPartContextItem`) is authoritative for playback ordering.
   export type ToolPartContextItem = AgentBrowserCommandContextItem;
+
+  // Common envelope shared by every context-item kind. Per-kind variants
+  // extend this and add their own discriminated `kind` literal plus any
+  // lifecycle fields (e.g. `status`, `endedAt`) - lifecycle isn't lifted to
+  // the base because not every future kind needs the same shape.
+  export interface ToolPartContextItemBase {
+    createdAt: Date;
+    id: StoreId.PartContextItem;
+    kind: string;
+  }
 
   export type ToolPartInputAvailable = ToolUIPart<AISDKTools> & {
     metadata: ToolPartBaseMetadata;
@@ -143,9 +153,7 @@ export namespace SessionMessagePart {
     | TextPart
     | ToolPart;
 
-  interface AgentBrowserCommandContextItemBase {
-    createdAt: Date;
-    id: StoreId.PartContextItem;
+  interface AgentBrowserCommandContextItemBase extends ToolPartContextItemBase {
     kind: "agent-browser-command";
     // Captured before the command runs so the agent and the user can see
     // the page state the command was acting on. Mandatory: an observation

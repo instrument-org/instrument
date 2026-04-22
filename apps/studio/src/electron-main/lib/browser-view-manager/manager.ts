@@ -198,14 +198,18 @@ export function createBrowserViewManager({
     },
     createTarget,
     listTargets,
-    sendCommand: (targetId, method, params) =>
+    sendCommand: ((
+      targetId: string,
+      method: string,
+      params?: Record<string, unknown>,
+    ) =>
       sendCommand({
         ensureDebuggerAttached,
         entries,
         method,
         params,
         targetId,
-      }),
+      })) satisfies BrowserConfig["sendCommand"],
     subscribeEvents: (targetId, onDetach, onEvent) =>
       subscribeEvents({
         ensureDebuggerAttached,

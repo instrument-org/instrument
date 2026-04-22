@@ -137,12 +137,12 @@ async function captureBrowserScreenshot({
       return undefined;
     }
 
-    const screenshotResult = (await workspaceConfig.browser.sendCommand(
+    const screenshotResult = await workspaceConfig.browser.sendCommand(
       target.id,
       "Page.captureScreenshot",
       { captureBeyondViewport: false, format: "jpeg", quality: 70 },
-    )) as null | { data?: string };
-    const dataB64 = screenshotResult?.data;
+    );
+    const dataB64 = screenshotResult.data;
     if (!dataB64) {
       return undefined;
     }

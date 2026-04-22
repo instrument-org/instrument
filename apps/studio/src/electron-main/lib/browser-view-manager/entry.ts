@@ -1,12 +1,22 @@
 import type { BrowserWindow, WebContentsView } from "electron";
 
-import { type ProjectSubdomain } from "@instrument-org/workspace/electron";
+import {
+  type AbsolutePath,
+  type BrowserTargetId,
+  type ProjectSubdomain,
+  type StoreId,
+} from "@instrument-org/workspace/electron";
 import { noop } from "radashi";
 
 import { log } from "./log";
 
 export interface BrowserEntry {
   authorizedDownloadPath: null | string;
+  // Listeners notified once when the entry is removed from the manager (for
+  // any reason: explicit close, detach, renderer crash). Drained as part of
+  // the disposer chain so they never fire more than once. Used to surface
+  // "view destroyed" to higher layers (e.g. the projectBrowser machine).
+  destructionListeners: Set<() => void>;
   detachListeners: Set<() => void>;
   // Disposers run once when the entry is torn down (either via explicit close
   // or detach). Each disposer must be idempotent-safe; it will be called at
@@ -14,37 +24,51 @@ export interface BrowserEntry {
   disposers: Set<() => void>;
   eventListeners: Set<(method: string, params: unknown) => void>;
   hostWindow: BrowserWindow;
+  // Chromium profile partition directory; threaded through so callers like
+  // BrowserConfig.getTargetMeta can correlate the target back to its session
+  // dir without re-deriving it.
+  partitionDir: AbsolutePath;
   // Maps download URL -> GUID from Page.downloadWillBegin, consumed by will-download.
   pendingDownloadGuids: Map<string, string>;
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
+  sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
-  // Captured at construction; webContents.id becomes undefined after
-  // destruction in Electron 41+ (electron/electron#50249).
-  targetId: string;
+  // Stable, externally-meaningful target id: `${subdomain}/${sessionId}`.
+  // Used as the manager Map key, the CDP URL path component, and the wire
+  // identifier in BrowserConfig. Independent of webContents.id (which becomes
+  // undefined after destruction in Electron 41+, electron/electron#50249).
+  targetId: BrowserTargetId;
   view: WebContentsView;
 }
 
 export function createEntry({
   hostWindow,
+  partitionDir,
+  sessionId,
   subdomain,
   targetId,
   view,
 }: {
   hostWindow: BrowserWindow;
+  partitionDir: AbsolutePath;
+  sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
-  targetId: string;
+  targetId: BrowserTargetId;
   view: WebContentsView;
 }): BrowserEntry {
   return {
     authorizedDownloadPath: null,
+    destructionListeners: new Set(),
     detachListeners: new Set(),
     disposers: new Set(),
     eventListeners: new Set(),
     hostWindow,
+    partitionDir,
     pendingDownloadGuids: new Map(),
     screencastInterval: null,
     screencastSessionId: 0,
+    sessionId,
     subdomain,
     targetId,
     view,
@@ -52,8 +76,8 @@ export function createEntry({
 }
 
 export function destroyEntry(
-  entries: Map<string, BrowserEntry>,
-  targetId: string,
+  entries: Map<BrowserTargetId, BrowserEntry>,
+  targetId: BrowserTargetId,
 ) {
   const entry = entries.get(targetId);
   if (!entry) {
@@ -64,8 +88,8 @@ export function destroyEntry(
 }
 
 export function handleDetach(
-  entries: Map<string, BrowserEntry>,
-  targetId: string,
+  entries: Map<BrowserTargetId, BrowserEntry>,
+  targetId: BrowserTargetId,
 ) {
   const entry = entries.get(targetId);
   if (!entry) {
@@ -90,10 +114,10 @@ export function subscribeEvents({
   targetId,
 }: {
   ensureDebuggerAttached: (entry: BrowserEntry) => void;
-  entries: Map<string, BrowserEntry>;
+  entries: Map<BrowserTargetId, BrowserEntry>;
   onDetach: () => void;
   onEvent: (method: string, params: unknown) => void;
-  targetId: string;
+  targetId: BrowserTargetId;
 }): () => void {
   const entry = entries.get(targetId);
   if (!entry) {

@@ -1,6 +1,8 @@
 import type { Protocol } from "devtools-protocol";
 import type { Session } from "electron";
 
+import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+
 import type { BrowserEntry } from "./entry";
 
 export function applyDownloadBehavior(
@@ -27,9 +29,9 @@ export function attachDownloadHandler({
   session,
   targetId,
 }: {
-  entries: Map<string, BrowserEntry>;
+  entries: Map<BrowserTargetId, BrowserEntry>;
   session: Session;
-  targetId: string;
+  targetId: BrowserTargetId;
 }) {
   session.on("will-download", (_event, item) => {
     const entry = entries.get(targetId);

@@ -140,23 +140,18 @@ export function createAgentBrowserCommand({
     const commandArgs: string[] = isInfoOnly ? [...resolvedArgs] : [];
 
     if (!isInfoOnly) {
-      // Ensure a browser target exists for this project before handing off to
-      // the agent-browser daemon so it has something to connect to.
-      const existingTargets =
-        await workspaceConfig.browser.listTargets(subdomain);
-      let targetId: string;
-      if (existingTargets.length > 0 && existingTargets[0]) {
-        targetId = existingTargets[0].id;
-      } else {
-        const partitionDir = getBrowserSessionDir(appConfig.appDir);
-        const created = await workspaceConfig.browser.createTarget(
-          subdomain,
-          partitionDir,
-        );
-        targetId = created.targetId;
-      }
+      // Idempotent: createTarget returns the existing view for this
+      // (subdomain, sessionId) pair if one is already live, so sub-agents and
+      // repeat invocations within the same session reuse the same browsing
+      // surface (cookies, page, debugger).
+      const partitionDir = getBrowserSessionDir(appConfig.appDir);
+      const { targetId } = await workspaceConfig.browser.createTarget(
+        subdomain,
+        sessionId,
+        partitionDir,
+      );
 
-      const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}?sessionId=${sessionId}`;
+      const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
       commandArgs.push(
         "--cdp",
         cdpUrl,

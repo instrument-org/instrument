@@ -1,6 +1,14 @@
+import type {
+  AbsolutePath,
+  BrowserTargetId,
+} from "@instrument-org/workspace/electron";
 import type { BrowserWindow, WebContentsView } from "electron";
 
-import { type ProjectSubdomain } from "@instrument-org/workspace/electron";
+import {
+  encodeBrowserTargetId,
+  ProjectSubdomainSchema,
+  StoreId,
+} from "@instrument-org/workspace/electron";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -11,11 +19,17 @@ import {
   subscribeEvents,
 } from "./entry";
 
-function makeEntry(targetId = "1"): BrowserEntry {
+const SUBDOMAIN = ProjectSubdomainSchema.parse("agent-browser-test");
+const SESSION_ID = StoreId.newSessionId();
+const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
+
+function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
   return createEntry({
     // Stub host objects; entry helpers never touch their internals here.
     hostWindow: {} as BrowserWindow,
-    subdomain: "agent-browser-test" as ProjectSubdomain,
+    partitionDir: "/tmp/partition" as AbsolutePath,
+    sessionId: SESSION_ID,
+    subdomain: SUBDOMAIN,
     targetId,
     view: {} as WebContentsView,
   });
@@ -23,47 +37,47 @@ function makeEntry(targetId = "1"): BrowserEntry {
 
 describe("destroyEntry", () => {
   it("drains disposers in insertion order and removes the entry", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
     const order: string[] = [];
     entry.disposers.add(() => order.push("a"));
     entry.disposers.add(() => order.push("b"));
     entry.disposers.add(() => order.push("c"));
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
 
-    destroyEntry(entries, "1");
+    destroyEntry(entries, TARGET_ID);
 
     expect(order).toEqual(["a", "b", "c"]);
     expect(entry.disposers.size).toBe(0);
-    expect(entries.has("1")).toBe(false);
+    expect(entries.has(TARGET_ID)).toBe(false);
   });
 
   it("continues draining if a disposer throws", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
     const after = vi.fn();
     entry.disposers.add(() => {
       throw new Error("boom");
     });
     entry.disposers.add(after);
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
 
     expect(() => {
-      destroyEntry(entries, "1");
+      destroyEntry(entries, TARGET_ID);
     }).not.toThrow();
     expect(after).toHaveBeenCalledOnce();
-    expect(entries.has("1")).toBe(false);
+    expect(entries.has(TARGET_ID)).toBe(false);
   });
 
   it("does not re-run disposers if called twice", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
     const dispose = vi.fn();
     entry.disposers.add(dispose);
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
 
-    destroyEntry(entries, "1");
-    destroyEntry(entries, "1");
+    destroyEntry(entries, TARGET_ID);
+    destroyEntry(entries, TARGET_ID);
 
     expect(dispose).toHaveBeenCalledOnce();
   });
@@ -71,7 +85,7 @@ describe("destroyEntry", () => {
 
 describe("handleDetach", () => {
   it("notifies detach listeners then clears event/detach listeners and disposers", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
     const order: string[] = [];
     const onDetach = vi.fn(() => order.push("detach"));
@@ -79,27 +93,27 @@ describe("handleDetach", () => {
     entry.detachListeners.add(onDetach);
     entry.eventListeners.add(onEvent);
     entry.disposers.add(() => order.push("disposer"));
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
 
-    handleDetach(entries, "1");
+    handleDetach(entries, TARGET_ID);
 
     expect(onDetach).toHaveBeenCalledOnce();
     expect(order).toEqual(["detach", "disposer"]);
     expect(entry.detachListeners.size).toBe(0);
     expect(entry.eventListeners.size).toBe(0);
     expect(entry.disposers.size).toBe(0);
-    expect(entries.has("1")).toBe(false);
+    expect(entries.has(TARGET_ID)).toBe(false);
   });
 
   it("does not double-fire when called after destroyEntry", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
     const onDetach = vi.fn();
     entry.detachListeners.add(onDetach);
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
 
-    destroyEntry(entries, "1");
-    handleDetach(entries, "1");
+    destroyEntry(entries, TARGET_ID);
+    handleDetach(entries, TARGET_ID);
 
     expect(onDetach).not.toHaveBeenCalled();
   });
@@ -107,7 +121,7 @@ describe("handleDetach", () => {
 
 describe("subscribeEvents", () => {
   it("calls onDetach immediately and returns a no-op unsubscribe when target missing", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const onDetach = vi.fn();
     const onEvent = vi.fn();
     const ensureDebuggerAttached = vi.fn();
@@ -117,7 +131,7 @@ describe("subscribeEvents", () => {
       entries,
       onDetach,
       onEvent,
-      targetId: "missing",
+      targetId: "missing/x" as BrowserTargetId,
     });
 
     expect(onDetach).toHaveBeenCalledOnce();
@@ -128,9 +142,9 @@ describe("subscribeEvents", () => {
   });
 
   it("registers listeners, ensures the debugger is attached, and unsubscribes cleanly", () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
-    entries.set("1", entry);
+    entries.set(TARGET_ID, entry);
     const ensureDebuggerAttached = vi.fn();
     const onDetach = vi.fn();
     const onEvent = vi.fn();
@@ -140,7 +154,7 @@ describe("subscribeEvents", () => {
       entries,
       onDetach,
       onEvent,
-      targetId: "1",
+      targetId: TARGET_ID,
     });
 
     expect(ensureDebuggerAttached).toHaveBeenCalledWith(entry);

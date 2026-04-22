@@ -8,9 +8,16 @@ import { Hono } from "hono";
 import { WebSocket, WebSocketServer } from "ws";
 
 import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
-import { type WorkspaceConfig } from "../../../types";
+import {
+  type BrowserTargetId,
+  BrowserTargetIdSchema,
+  type WorkspaceConfig,
+} from "../../../types";
 import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
-import { type WorkspaceServerEnv } from "../types";
+import {
+  type WorkspaceServerEnv,
+  type WorkspaceServerParentRef,
+} from "../types";
 import { getWorkspaceServerPort } from "../url";
 
 // CDP wire envelopes. Inbound is from agent-browser (untrusted JSON), outbound
@@ -76,6 +83,7 @@ cdpBridgeRoute.get("/json", async (c) => {
 export function setupCdpWebSocketBridge(
   server: ServerType,
   workspaceConfig: WorkspaceConfig,
+  workspaceRef: WorkspaceServerParentRef,
 ) {
   const wss = new WebSocketServer({ noServer: true });
 
@@ -84,14 +92,19 @@ export function setupCdpWebSocketBridge(
       return;
     }
 
-    const targetId = req.url.slice(CDP_PAGE_PATH_PREFIX.length).split("?")[0];
-    if (!targetId) {
+    // The path component IS the target id: `${subdomain}/${sessionId}`.
+    // No query parameters; everything routing-relevant is in the path so
+    // the WS upgrade alone tells us which (subdomain, sessionId) is wired.
+    const rawTargetId = req.url.slice(CDP_PAGE_PATH_PREFIX.length);
+    const parsed = BrowserTargetIdSchema.safeParse(rawTargetId.split("?")[0]);
+    if (!parsed.success) {
       socket.destroy();
       return;
     }
+    const targetId = parsed.data;
 
     wss.handleUpgrade(req, socket, head, (clientWs) => {
-      handleCdpClient(clientWs, targetId, workspaceConfig);
+      handleCdpClient(clientWs, targetId, workspaceConfig, workspaceRef);
     });
   });
 }
@@ -113,11 +126,26 @@ const INTERCEPTED_TARGET_COMMANDS = new Set([
 
 function handleCdpClient(
   clientWs: WebSocket,
-  targetId: string,
+  targetId: BrowserTargetId,
   workspaceConfig: WorkspaceConfig,
+  workspaceRef: WorkspaceServerParentRef,
 ) {
   let unsubscribe: (() => void) | null = null;
   let currentLoaderId = "";
+
+  // Surface this WS connection to the projectBrowser machine so it can fan
+  // out `agent-browser close --session <id>` at reap time. Lookup is cheap
+  // and missing meta means the target was already destroyed; skip.
+  const initialMeta = workspaceConfig.browser.getTargetMeta(targetId);
+  if (initialMeta) {
+    workspaceRef.send({
+      type: "workspaceServer.attachAgentSession",
+      value: {
+        sessionId: initialMeta.sessionId,
+        subdomain: initialMeta.subdomain,
+      },
+    });
+  }
 
   const send = (payload: CdpEventFrame | CdpResponse) => {
     if (clientWs.readyState === WebSocket.OPEN) {
@@ -213,6 +241,23 @@ function handleCdpClient(
       return;
     }
 
+    // Real (non-intercepted) inbound command from agent-browser: count it as
+    // agent activity and forward target meta into the projectBrowser machine.
+    // The agent is the only writer on this WS so this matches real agent
+    // command rate without throttling.
+    const meta = workspaceConfig.browser.getTargetMeta(targetId);
+    if (meta) {
+      workspaceRef.send({
+        type: "workspaceServer.updateCdpHeartbeat",
+        value: {
+          partitionDir: meta.partitionDir,
+          sessionId: meta.sessionId,
+          subdomain: meta.subdomain,
+          targetId,
+        },
+      });
+    }
+
     // sessionId is present when agent-browser uses flat session mode after
     // Target.attachToTarget. We issued a synthetic sessionId so we just strip
     // it and forward the command directly to the target's debugger.
@@ -248,7 +293,7 @@ function handleInterceptedTargetCommand(
   id: number | undefined,
   method: string,
   params: unknown,
-  targetId: string,
+  targetId: BrowserTargetId,
   workspaceConfig: WorkspaceConfig,
 ) {
   const send = (payload: CdpResponse) => {

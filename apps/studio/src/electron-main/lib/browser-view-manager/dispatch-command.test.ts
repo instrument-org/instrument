@@ -1,10 +1,22 @@
+import type {
+  AbsolutePath,
+  BrowserTargetId,
+} from "@instrument-org/workspace/electron";
 import type { BrowserWindow, WebContentsView } from "electron";
 
-import { type ProjectSubdomain } from "@instrument-org/workspace/electron";
+import {
+  encodeBrowserTargetId,
+  ProjectSubdomainSchema,
+  StoreId,
+} from "@instrument-org/workspace/electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sendCommand } from "./dispatch-command";
 import { type BrowserEntry, createEntry } from "./entry";
+
+const SUBDOMAIN = ProjectSubdomainSchema.parse("agent-browser-test");
+const SESSION_ID = StoreId.newSessionId();
+const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
 
 vi.mock("../cdp", () => ({
   sendCdpCommand: vi.fn(),
@@ -29,14 +41,14 @@ function makeEntry({
   destroyed = false,
   printToPDF,
   sendCommand: wcSendCommand = vi.fn(),
-  targetId = "1",
+  targetId = TARGET_ID,
   webContents = true,
 }: {
   attached?: boolean;
   destroyed?: boolean;
   printToPDF?: ReturnType<typeof vi.fn>;
   sendCommand?: ReturnType<typeof vi.fn>;
-  targetId?: string;
+  targetId?: BrowserTargetId;
   webContents?: boolean;
 } = {}): BrowserEntry {
   const wc: FakeWebContents | null = webContents
@@ -51,7 +63,9 @@ function makeEntry({
     : null;
   const entry = createEntry({
     hostWindow: {} as BrowserWindow,
-    subdomain: "agent-browser-test" as ProjectSubdomain,
+    partitionDir: "/tmp/partition" as AbsolutePath,
+    sessionId: SESSION_ID,
+    subdomain: SUBDOMAIN,
     targetId,
     // Cast to satisfy the WebContentsView type while exposing only the surface
     // sendCommand actually touches (entry.view.webContents).
@@ -66,29 +80,29 @@ beforeEach(() => {
 
 describe("sendCommand", () => {
   it("throws when target is not registered", async () => {
-    const entries = new Map<string, BrowserEntry>();
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
     await expect(
       sendCommand({
         ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.enable",
         params: undefined,
-        targetId: "missing",
+        targetId: "missing/x" as BrowserTargetId,
       }),
-    ).rejects.toThrow("Browser target not found: missing");
+    ).rejects.toThrow("Browser target not found: missing/x");
   });
 
   it("acknowledges Page.screencastFrameAck locally without hitting the debugger", async () => {
     const wcSendCommand = vi.fn();
     const entry = makeEntry({ sendCommand: wcSendCommand });
-    const entries = new Map([["1", entry]]);
+    const entries = new Map([[TARGET_ID, entry]]);
 
     const result = await sendCommand({
       ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Page.screencastFrameAck",
       params: undefined,
-      targetId: "1",
+      targetId: TARGET_ID,
     });
 
     expect(result).toEqual({});
@@ -97,14 +111,14 @@ describe("sendCommand", () => {
 
   it("delegates Browser.setDownloadBehavior to applyDownloadBehavior", async () => {
     const entry = makeEntry();
-    const entries = new Map([["1", entry]]);
+    const entries = new Map([[TARGET_ID, entry]]);
 
     await sendCommand({
       ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Browser.setDownloadBehavior",
       params: { behavior: "allowAndName", downloadPath: "/tmp/dl" },
-      targetId: "1",
+      targetId: TARGET_ID,
     });
 
     expect(entry.authorizedDownloadPath).toBe("/tmp/dl");
@@ -113,14 +127,14 @@ describe("sendCommand", () => {
   it("routes Page.printToPDF through the native printToPDF API", async () => {
     const printToPDF = vi.fn().mockResolvedValue(Buffer.from("PDF_DATA"));
     const entry = makeEntry({ printToPDF });
-    const entries = new Map([["1", entry]]);
+    const entries = new Map([[TARGET_ID, entry]]);
 
     const result = await sendCommand({
       ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Page.printToPDF",
       params: { landscape: true, printBackground: false },
-      targetId: "1",
+      targetId: TARGET_ID,
     });
 
     expect(printToPDF).toHaveBeenCalledWith({
@@ -136,14 +150,14 @@ describe("sendCommand", () => {
   it("passes unknown methods through to webContents.debugger.sendCommand", async () => {
     const wcSendCommand = vi.fn().mockResolvedValue({ frameId: "F" });
     const entry = makeEntry({ sendCommand: wcSendCommand });
-    const entries = new Map([["1", entry]]);
+    const entries = new Map([[TARGET_ID, entry]]);
 
     const result = await sendCommand({
       ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Page.navigate",
       params: { url: "https://example.com" },
-      targetId: "1",
+      targetId: TARGET_ID,
     });
 
     expect(wcSendCommand).toHaveBeenCalledWith("Page.navigate", {
@@ -155,7 +169,7 @@ describe("sendCommand", () => {
   it("rethrows pass-through errors from the debugger", async () => {
     const wcSendCommand = vi.fn().mockRejectedValue(new Error("CDP boom"));
     const entry = makeEntry({ sendCommand: wcSendCommand });
-    const entries = new Map([["1", entry]]);
+    const entries = new Map([[TARGET_ID, entry]]);
 
     await expect(
       sendCommand({
@@ -163,14 +177,14 @@ describe("sendCommand", () => {
         entries,
         method: "Page.navigate",
         params: { url: "https://example.com" },
-        targetId: "1",
+        targetId: TARGET_ID,
       }),
     ).rejects.toThrow("CDP boom");
   });
 
   it("throws when webContents is unavailable for a pass-through method", async () => {
     const entry = makeEntry({ webContents: false });
-    const entries = new Map([["1", entry]]);
+    const entries = new Map([[TARGET_ID, entry]]);
 
     await expect(
       sendCommand({
@@ -178,7 +192,7 @@ describe("sendCommand", () => {
         entries,
         method: "Page.navigate",
         params: undefined,
-        targetId: "1",
+        targetId: TARGET_ID,
       }),
     ).rejects.toThrow("webContents unavailable");
   });
@@ -187,14 +201,14 @@ describe("sendCommand", () => {
     it("falls through when captureBeyondViewport is not set", async () => {
       const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
       const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([["1", entry]]);
+      const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await sendCommand({
         ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.captureScreenshot",
         params: { format: "png" },
-        targetId: "1",
+        targetId: TARGET_ID,
       });
 
       expect(sendCdpCommandMock).not.toHaveBeenCalled();
@@ -204,14 +218,14 @@ describe("sendCommand", () => {
     it("falls through when no clip is provided", async () => {
       const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
       const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([["1", entry]]);
+      const entries = new Map([[TARGET_ID, entry]]);
 
       await sendCommand({
         ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.captureScreenshot",
         params: { captureBeyondViewport: true },
-        targetId: "1",
+        targetId: TARGET_ID,
       });
 
       expect(sendCdpCommandMock).not.toHaveBeenCalled();
@@ -225,7 +239,7 @@ describe("sendCommand", () => {
       } as never);
       const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
       const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([["1", entry]]);
+      const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await sendCommand({
         ensureDebuggerAttached: vi.fn(),
@@ -235,7 +249,7 @@ describe("sendCommand", () => {
           captureBeyondViewport: true,
           clip: { height: 1600, scale: 1, width: 2560, x: 0, y: 0 },
         },
-        targetId: "1",
+        targetId: TARGET_ID,
       });
 
       expect(result).toEqual({ data: "FALLTHROUGH" });
@@ -253,7 +267,7 @@ describe("sendCommand", () => {
 
       const wcSendCommand = vi.fn();
       const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([["1", entry]]);
+      const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await sendCommand({
         ensureDebuggerAttached: vi.fn(),
@@ -264,7 +278,7 @@ describe("sendCommand", () => {
           clip: { height: 1600, scale: 1, width: 2560, x: 100, y: 200 },
           format: "png",
         },
-        targetId: "1",
+        targetId: TARGET_ID,
       });
 
       expect(result).toEqual({ data: "RESCALED" });
@@ -290,7 +304,7 @@ describe("sendCommand", () => {
       sendCdpCommandMock.mockRejectedValueOnce(new Error("metrics boom"));
       const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
       const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([["1", entry]]);
+      const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await sendCommand({
         ensureDebuggerAttached: vi.fn(),
@@ -300,7 +314,7 @@ describe("sendCommand", () => {
           captureBeyondViewport: true,
           clip: { height: 1600, scale: 1, width: 2560, x: 0, y: 0 },
         },
-        targetId: "1",
+        targetId: TARGET_ID,
       });
 
       expect(result).toEqual({ data: "FALLTHROUGH" });
@@ -309,7 +323,7 @@ describe("sendCommand", () => {
     it("falls through when the debugger is not attached", async () => {
       const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
       const entry = makeEntry({ attached: false, sendCommand: wcSendCommand });
-      const entries = new Map([["1", entry]]);
+      const entries = new Map([[TARGET_ID, entry]]);
 
       await sendCommand({
         ensureDebuggerAttached: vi.fn(),
@@ -319,7 +333,7 @@ describe("sendCommand", () => {
           captureBeyondViewport: true,
           clip: { height: 1600, scale: 1, width: 2560, x: 0, y: 0 },
         },
-        targetId: "1",
+        targetId: TARGET_ID,
       });
 
       expect(sendCdpCommandMock).not.toHaveBeenCalled();
@@ -340,7 +354,7 @@ describe("sendCommand", () => {
             toPNG: () => Buffer.from(""),
           }),
         });
-        const entries = new Map([["1", entry]]);
+        const entries = new Map([[TARGET_ID, entry]]);
 
         const startResult = await sendCommand({
           ensureDebuggerAttached: vi.fn(),
@@ -352,7 +366,7 @@ describe("sendCommand", () => {
             maxWidth: 1280,
             quality: 80,
           },
-          targetId: "1",
+          targetId: TARGET_ID,
         });
         expect(startResult).toEqual({});
         expect(entry.screencastInterval).not.toBeNull();
@@ -363,7 +377,7 @@ describe("sendCommand", () => {
           entries,
           method: "Page.stopScreencast",
           params: undefined,
-          targetId: "1",
+          targetId: TARGET_ID,
         });
         expect(stopResult).toEqual({});
         expect(entry.screencastInterval).toBeNull();

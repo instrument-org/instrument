@@ -1,6 +1,7 @@
 import ms from "ms";
 import { err, ok, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
+import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
 import { type AppDir } from "../schemas/paths";
@@ -30,12 +31,19 @@ export async function trashProject({
 }: RemoveProjectOptions) {
   return ResultAsync.fromPromise(
     (async () => {
-      // Shuts down runtimes and prevents new ones from being spawned.
-      workspaceRef.send({ type: "prepareToTrashApp", value: { subdomain } });
+      // Block until every projectBrowser for this subdomain has fully reaped
+      // its WebContentsView and agent-browser daemon sessions, so the
+      // Chromium profile is no longer locked when we delete the app dir.
+      const browserReaped = new Promise<void>((resolve) => {
+        workspaceRef.send({
+          type: "prepareToTrashApp",
+          value: { onBrowserReaped: resolve, subdomain },
+        });
+      });
 
-      // Wait for the agent to stop all sessions and runtimes. Attempting to avoid
-      // race condition that may write to the database while it is being deleted.
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Cap the wait so a stuck reap can't hang trashing forever; the old
+      // 500ms sleep was already best-effort, this is a strict upper bound.
+      await Promise.race([browserReaped, setTimeoutPromise(2000)]);
 
       // Mark storage as disposing to prevent recreation during deletion
       markStorageAsDisposing(subdomain);

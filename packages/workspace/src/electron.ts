@@ -20,4 +20,12 @@ export {
   type ProjectSubdomain,
   ProjectSubdomainSchema,
 } from "./schemas/subdomains";
-export type { BrowserConfig, BrowserTarget, WorkspaceConfig } from "./types";
+export {
+  type BrowserConfig,
+  type BrowserTarget,
+  type BrowserTargetId,
+  BrowserTargetIdSchema,
+  decodeBrowserTargetId,
+  encodeBrowserTargetId,
+  type WorkspaceConfig,
+} from "./types";

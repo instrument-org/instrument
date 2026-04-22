@@ -233,6 +233,15 @@ function RouteComponent() {
     }),
   );
 
+  // User-presence heartbeat for the projectBrowser machine. Subscribed on
+  // mount; the workspace-side machine reaps the per-subdomain browser if
+  // pings stop arriving.
+  useQuery(
+    rpcClient.workspace.browser.live.heartbeat.experimental_liveOptions({
+      input: { subdomain },
+    }),
+  );
+
   // Tracks the settled (post-load) value. Stays undefined until the query resolves
   // for the first time, so we don't treat undefined→true as a live transition.
   const settledHasAppModificationsRef = useRef<boolean | undefined>(undefined);

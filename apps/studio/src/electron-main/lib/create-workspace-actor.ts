@@ -7,6 +7,7 @@ import ms from "ms";
 import path from "node:path";
 import { createActor } from "xstate";
 
+import { publisher } from "../rpc/publisher";
 import { isDeveloperMode } from "../stores/preferences";
 import { createBrowserViewManager } from "./browser-view-manager/manager";
 import { captureServerEvent } from "./capture-server-event";
@@ -33,6 +34,9 @@ export function createWorkspaceActor() {
   const rootDir = getWorkspaceFolder();
   const browserViewManager = createBrowserViewManager({
     developerMode: isDeveloperMode(),
+    onChange: () => {
+      publisher.publish("debug.browser-view-manager.updated", null);
+    },
   });
 
   const actor = createActor(workspaceMachine, {
@@ -135,5 +139,9 @@ export function createWorkspaceActor() {
     actor.stop();
   });
 
-  return { actor, workspaceConfig: snapshot.context.config };
+  return {
+    actor,
+    browserViewManager,
+    workspaceConfig: snapshot.context.config,
+  };
 }

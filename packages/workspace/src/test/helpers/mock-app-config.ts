@@ -14,7 +14,7 @@ import { noop } from "radashi";
 import { createAppConfig } from "../../lib/app-config/create";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type AppSubdomain } from "../../schemas/subdomains";
-import { type BrowserConfig } from "../../types";
+import { type BrowserConfig, encodeBrowserTargetId } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
@@ -96,8 +96,13 @@ export function createMockAppConfig(
 export function createStubBrowserConfig(): BrowserConfig {
   return {
     closeTarget: () => Promise.resolve(),
-    createTarget: () => Promise.resolve({ targetId: "stub" }),
+    createTarget: (subdomain, sessionId) =>
+      Promise.resolve({
+        targetId: encodeBrowserTargetId(subdomain, sessionId),
+      }),
+    getTargetMeta: () => null,
     listTargets: () => Promise.resolve([]),
+    onTargetDestroyed: () => noop,
     sendCommand: () => Promise.resolve({}),
     subscribeEvents: () => noop,
   };

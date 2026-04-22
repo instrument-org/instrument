@@ -11,6 +11,8 @@ import { app } from "electron";
 import os from "node:os";
 import { z } from "zod";
 
+import { browserViewManagerDebugRoutes } from "../../lib/browser-view-manager/debug-snapshot";
+
 function buildSystemFrontMatter() {
   const platform = os.platform();
   const osName =
@@ -131,6 +133,7 @@ const live = {
 };
 
 export const debug = {
+  browserViewManager: browserViewManagerDebugRoutes,
   live,
   sessionMarkdown,
   systemInfo,

@@ -5,6 +5,8 @@ import { tool } from "ai";
 import type { AgentName } from "../agents/types";
 import type { AgentTool, ToolName } from "./types";
 
+import { toolInputSchemaForLLM } from "./base";
+
 type CreateOptions<
   TName extends ToolName,
   TInputSchema extends z.ZodType,
@@ -64,7 +66,7 @@ function buildTool<
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         tool<any, any>({
           description,
-          inputSchema,
+          inputSchema: toolInputSchemaForLLM(inputSchema),
           outputSchema: setup.outputSchema,
           toModelOutput: ({ input, output, toolCallId }) =>
             options.toModelOutput({

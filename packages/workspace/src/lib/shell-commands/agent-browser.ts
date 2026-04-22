@@ -53,6 +53,7 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "close", // Lifecycle managed by the workspace.
   "dashboard", // We have our own UI.
   "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
+  "inspect", // Opens Chrome DevTools, which doesn't work against our WebContentsView CDP bridge.
   "launch", // We don't launch; we proxy an existing target.
   "profiles", // Lists real Chrome profiles; N/A.
   "skills", // Workspace manages skill loading.

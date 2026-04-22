@@ -14,7 +14,13 @@ describe("createBashDescription", () => {
 
       IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all package management.
 
-      IMPORTANT: Not a persistent terminal -- each call starts fresh from the project root, so \`cd .\` is always a no-op.
+      IMPORTANT: Not a persistent terminal -- each call starts fresh from the project root, so \`cd .\` is always a no-op. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+
+      IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
+
+      IMPORTANT: Prefer specialized tools over shell equivalents:
+        - Use the \`read_file\` tool instead of \`cat\`/\`head\`/\`tail\`.
+        - Use the \`edit_file\`/\`write_file\` tools instead of \`sed\`/\`awk\`/redirects for editing.
 
       TIP: Before using an unfamiliar command, run \`<command> --help\` to check its argument syntax.
 

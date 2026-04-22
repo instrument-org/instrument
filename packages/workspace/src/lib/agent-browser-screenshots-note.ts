@@ -4,13 +4,13 @@ import { systemNote } from "./system-note";
 const MAX_SCREENSHOTS = 24;
 
 // Files written by capture-browser-screenshot live at
-// `<tool-results>/agent-browser-<hash>.png`. The note shows just the
-// `-<hash>.png` suffix so the agent can reconstruct the full path by
+// `<tool-results>/agent-browser-<hash>.jpg`. The note shows just the
+// `-<hash>.jpg` suffix so the agent can reconstruct the full path by
 // concatenating with the prefix advertised in the header. Keeping the
-// `-` and `.png` makes each reference look like an actual filename
+// `-` and `.jpg` makes each reference look like an actual filename
 // fragment instead of a bare hash, which (a) reads better and (b)
 // nudges the agent toward treating it as a file it can open.
-const SCREENSHOT_FILENAME_PATTERN = /agent-browser(-[0-9a-f]+\.png)$/;
+const SCREENSHOT_FILENAME_PATTERN = /agent-browser(-[0-9a-f]+\.jpg)$/;
 
 type CompleteObservation = Extract<
   Observation,
@@ -45,7 +45,7 @@ export function agentBrowserScreenshotsNote(
   }
 
   return systemNote`
-    agent-browser screenshots (PNG written after each call, one per call, deduped by content; full path is \`tool-results/agent-browser<suffix>\`):
+    agent-browser screenshots (written after each call, one per call, deduped by content; full path is \`tool-results/agent-browser<suffix>\`):
     ${lines.join("\n")}
   `;
 }

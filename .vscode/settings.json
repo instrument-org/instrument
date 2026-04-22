@@ -64,7 +64,7 @@
   "tailwindCSS.lint.suggestCanonicalClasses": "ignore", // Handled by better-tailwindcss in ESLint
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "typescript.tsdk": "node_modules/typescript/lib",
-  "vitest.rootConfig": "vitest.config.ts",
+  "vitest.configSearchPatternInclude": "**/vitest*.config*.{ts,js,mjs,cjs,cts,mts}",
   "yaml.schemas": {
     "https://json.schemastore.org/pnpm-workspace": ["pnpm-workspace.yaml"]
   }

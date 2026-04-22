@@ -254,6 +254,32 @@ a.cursor-pointer {
   animation: none;
 }
 
+/* Activity indicator that lives along the top edge of a container. A short
+ * pill bounces left to right to signal "agent is still working." */
+.activity-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 30%;
+  border-radius: 9999px;
+  background: var(--brand);
+  animation: activity-bounce 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  pointer-events: none;
+  will-change: left, transform;
+}
+@keyframes activity-bounce {
+  0%,
+  100% {
+    left: 0;
+    transform: translateX(0);
+  }
+  50% {
+    left: 100%;
+    transform: translateX(-100%);
+  }
+}
+
 [data-sonner-toast] {
   /* Fixes hover for toast growing to full height of screen */
   height: auto !important;

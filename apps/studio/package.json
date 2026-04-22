@@ -87,6 +87,7 @@
     "pnpm": "^10.33.0",
     "posthog-node": "^5.11.2",
     "radashi": "^12.6.0",
+    "radix-ui": "^1.4.3",
     "read-pkg": "^9.0.1",
     "semver": "^7.7.2",
     "shiki": "^3.21.0",

@@ -25,10 +25,10 @@ type FileModificationPart = Extract<
 >;
 
 export function FileModification({
-  isLoading,
+  isStreaming,
   part,
 }: {
-  isLoading: boolean;
+  isStreaming: boolean;
   part: FileModificationPart;
 }) {
   const [highlightedLines, setHighlightedLines] = useState<string[]>([]);
@@ -62,7 +62,7 @@ export function FileModification({
 
   // Remove trailing empty line when done loading
   const cleanedContent = content
-    ? !isLoading && content.endsWith("\n")
+    ? !isStreaming && content.endsWith("\n")
       ? content.slice(0, -1)
       : content
     : "";
@@ -142,16 +142,16 @@ export function FileModification({
   return (
     <ToolCard>
       <ToolCardHeader
-        className={cn(!isExpanded && !isLoading && "border-b-0")}
+        className={cn(!isExpanded && !isStreaming && "border-b-0")}
         onClick={
-          isLoading
+          isStreaming
             ? undefined
             : () => {
                 setIsExpanded((v) => !v);
               }
         }
       >
-        {isLoading ? (
+        {isStreaming ? (
           <Loader2Icon className="size-3 shrink-0 animate-spin text-accent-foreground/80" />
         ) : (
           <span className="relative size-3 shrink-0">
@@ -170,10 +170,10 @@ export function FileModification({
         <span
           className={cn(
             "shrink-0 font-medium text-foreground/80",
-            isLoading && "shiny-text",
+            isStreaming && "shiny-text",
           )}
         >
-          {isLoading
+          {isStreaming
             ? getToolStreamingLabel(toolName, true)
             : getToolLabel(toolName)}
         </span>
@@ -207,9 +207,9 @@ export function FileModification({
         )}
       </ToolCardHeader>
 
-      {(isExpanded || isLoading) && (
+      {(isExpanded || isStreaming) && (
         <VirtualizedScrollingText
-          autoScrollToBottom={isLoading}
+          autoScrollToBottom={isStreaming}
           content={cleanedContent}
           highlightedLines={
             highlightedLines.length > 0 ? highlightedLines : undefined

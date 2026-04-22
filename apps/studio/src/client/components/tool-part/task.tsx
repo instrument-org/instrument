@@ -30,12 +30,12 @@ export type RenderStream = (args: {
 }) => ReactNode;
 
 export function TaskToolCard({
-  isLoading,
+  isStreaming,
   part,
   project,
   renderStream,
 }: {
-  isLoading: boolean;
+  isStreaming: boolean;
   part: Extract<SessionMessagePart.ToolPart, { type: "tool-task" }>;
   project: WorkspaceAppProject;
   renderStream: RenderStream;
@@ -45,18 +45,18 @@ export function TaskToolCard({
   const isError = part.state === "output-error";
   const isSuccess = part.state === "output-available";
   const isTaskRunning =
-    isLoading && isSuccess && part.output.status === "running";
+    isStreaming && isSuccess && part.output.status === "running";
   const isExpandable = isSuccess || isError;
   const isOpen = isExpanded || isTaskRunning;
 
   const label = getToolLabelForPart({
     part,
-    state: isLoading ? "streaming" : isError ? "failed" : "completed",
+    state: isStreaming ? "streaming" : isError ? "failed" : "completed",
     toolName,
   });
 
   const value =
-    isLoading || isTaskRunning
+    isStreaming || isTaskRunning
       ? (part.input?.subagent_type ?? "")
       : isError
         ? part.errorText || ""
@@ -67,7 +67,7 @@ export function TaskToolCard({
   const header = (
     <ToolPartListItemCompact
       icon={
-        isLoading ? (
+        isStreaming ? (
           <Loader2Icon className="size-3 animate-spin" />
         ) : (
           <ToolIcon className="size-3" toolName={toolName} />
@@ -75,7 +75,7 @@ export function TaskToolCard({
       }
       isExpanded={isExpandable && isOpen}
       label={label}
-      labelClassName={cn(isLoading && "shiny-text")}
+      labelClassName={cn(isStreaming && "shiny-text")}
       value={value}
     />
   );

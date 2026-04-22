@@ -30,14 +30,14 @@ import { type RenderStream, TaskToolCard } from "./task";
 
 export function ToolPart({
   isDeveloperMode,
-  isLoading,
+  isStreaming,
   onRetry,
   part,
   project,
   renderStream,
 }: {
   isDeveloperMode: boolean;
-  isLoading: boolean;
+  isStreaming: boolean;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
   project: WorkspaceAppProject;
@@ -57,13 +57,13 @@ export function ToolPart({
   // Hide tool parts that haven't reached a terminal state and aren't loading,
   // unless developer mode is enabled.
   const hasTerminalState = isError || isSuccess;
-  if (!hasTerminalState && !isLoading && !isDeveloperMode) {
+  if (!hasTerminalState && !isStreaming && !isDeveloperMode) {
     return null;
   }
 
   // In developer mode, show a collapsible indicator for dead tool calls
   // (not loading, no terminal state).
-  if (!hasTerminalState && !isLoading && isDeveloperMode) {
+  if (!hasTerminalState && !isStreaming && isDeveloperMode) {
     return (
       <Collapsible
         className="w-full"
@@ -103,14 +103,14 @@ export function ToolPart({
     !isError &&
     (part.type === "tool-edit_file" || part.type === "tool-write_file")
   ) {
-    return <FileModification isLoading={isLoading} part={part} />;
+    return <FileModification isStreaming={isStreaming} part={part} />;
   }
 
   if (part.type === "tool-bash") {
     return (
       <ShellCommandCard
         assetBaseUrl={project.urls.assetBase}
-        isLoading={isLoading}
+        isStreaming={isStreaming}
         part={part}
         projectSubdomain={project.subdomain}
       />
@@ -120,7 +120,7 @@ export function ToolPart({
   if (part.type === "tool-task") {
     return (
       <TaskToolCard
-        isLoading={isLoading}
+        isStreaming={isStreaming}
         part={part}
         project={project}
         renderStream={renderStream}
@@ -191,7 +191,7 @@ export function ToolPart({
   const mainContent = (
     <ToolPartListItemCompact
       icon={
-        isLoading ? (
+        isStreaming ? (
           <Loader2Icon className="size-3 animate-spin" />
         ) : isFailed ? undefined : (
           <ToolIcon className="size-3" toolName={toolName} />
@@ -199,7 +199,7 @@ export function ToolPart({
       }
       isExpanded={isExpandable && isExpanded}
       label={label}
-      labelClassName={cn(isLoading && "shiny-text")}
+      labelClassName={cn(isStreaming && "shiny-text")}
       reasoning={reasoning}
       value={
         webSearchSources.length > 0 ? (

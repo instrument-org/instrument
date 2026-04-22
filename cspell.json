@@ -73,6 +73,7 @@
     "orpc",
     "overscan",
     "PATHEXT",
+    "playhead",
     "posthog",
     "prefault",
     "pwsh",

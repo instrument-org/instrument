@@ -4,13 +4,14 @@ import { systemNote } from "./system-note";
 const MAX_SCREENSHOTS = 24;
 
 // Files written by capture-browser-screenshot live at
-// `<tool-results>/agent-browser-<hash>.jpg`. The note shows just the
-// `-<hash>.jpg` suffix so the agent can reconstruct the full path by
-// concatenating with the prefix advertised in the header. Keeping the
-// `-` and `.jpg` makes each reference look like an actual filename
-// fragment instead of a bare hash, which (a) reads better and (b)
-// nudges the agent toward treating it as a file it can open.
-const SCREENSHOT_FILENAME_PATTERN = /agent-browser(-[0-9a-f]+\.jpg)$/;
+// `.state/agent-browser/<hash>.jpg`. The note shows just the `<hash>`
+// token (no `.jpg`, no directory prefix) so the agent has a stable
+// identifier per call and can reconstruct the full path from the prefix
+// advertised in the header when it actually needs to read the file
+// (e.g. to inspect the page visually instead of re-capturing). The
+// header also tells the agent these are UI metadata and not deliverables
+// to mention to the user.
+const SCREENSHOT_FILENAME_PATTERN = /([0-9a-f]+)\.jpg$/;
 
 type CompleteObservation = Extract<
   Observation,
@@ -45,7 +46,7 @@ export function agentBrowserScreenshotsNote(
   }
 
   return systemNote`
-    agent-browser screenshots (written after each call, one per call, deduped by content; full path is \`tool-results/agent-browser<suffix>\`):
+    \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
     ${lines.join("\n")}
   `;
 }
@@ -67,11 +68,11 @@ function formatObservation(obs: CompleteObservation): string {
   }
   if (!obs.endScreenshot) {
     // Completed but no end-screenshot and no error: capture itself failed
-    // silently. Show the start suffix so the agent can still inspect the
+    // silently. Show the start hash so the agent can still anchor on the
     // pre-command state if needed.
-    return `- ${verb} -> (no after) ${screenshotSuffix(obs.startScreenshot.path)}`;
+    return `- ${verb} -> (no after) ${screenshotHash(obs.startScreenshot.path)}`;
   }
-  return `- ${verb} -> ${screenshotSuffix(obs.endScreenshot.path)}`;
+  return `- ${verb} -> ${screenshotHash(obs.endScreenshot.path)}`;
 }
 
 function isComplete(item: Observation): item is CompleteObservation {
@@ -81,11 +82,17 @@ function isComplete(item: Observation): item is CompleteObservation {
   );
 }
 
-function screenshotSuffix(filePath: string): string {
+function screenshotHash(filePath: string): string {
   const match = SCREENSHOT_FILENAME_PATTERN.exec(filePath);
-  // Fall back to the full path if the file doesn't follow the expected
+  if (match?.[1]) {
+    return match[1];
+  }
+  // Fall back to the basename if the file doesn't follow the expected
   // naming pattern (e.g. someone changed the capture filename format).
-  return match?.[1] ?? filePath;
+  // The agent still needs to be able to resolve to a real file when it
+  // wants to look at a prior page state, so we keep enough to do that;
+  // we just don't echo the full directory prefix.
+  return filePath.split("/").pop() ?? filePath;
 }
 
 function subcommandVerb(subcommand: string): string {

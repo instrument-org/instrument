@@ -80,12 +80,10 @@ const IDLE_TIMEOUT_MS = "30000";
 
 export function createAgentBrowserCommand({
   appConfig,
-  partId,
   sessionId,
   upsertContextItem,
 }: {
   appConfig: AppConfig;
-  partId: StoreId.Part;
   sessionId: StoreId.Session;
   upsertContextItem: UpsertContextItem;
 }) {
@@ -198,7 +196,6 @@ export function createAgentBrowserCommand({
       ? undefined
       : await beginBrowserCommandObservation({
           appConfig,
-          partId,
           subcommand: subcommandText,
           subdomain,
           upsertContextItem,

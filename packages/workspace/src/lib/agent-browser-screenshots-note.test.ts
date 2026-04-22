@@ -25,7 +25,7 @@ function obs({
     ...(endHash && endUrl
       ? {
           endScreenshot: {
-            path: `tool-results/agent-browser-${endHash}.jpg`,
+            path: `.state/agent-browser/${endHash}.jpg`,
             url: endUrl,
           },
         }
@@ -34,7 +34,7 @@ function obs({
     id: StoreId.newPartContextItemId(),
     kind: "agent-browser-command",
     startScreenshot: {
-      path: `tool-results/agent-browser-${startHash}.jpg`,
+      path: `.state/agent-browser/${startHash}.jpg`,
       url: startUrl,
     },
     status: "complete",
@@ -48,7 +48,7 @@ function pending(subcommand: string): SessionMessagePart.ToolPartContextItem {
     id: StoreId.newPartContextItemId(),
     kind: "agent-browser-command",
     startScreenshot: {
-      path: "tool-results/agent-browser-aaa.jpg",
+      path: ".state/agent-browser/aaa.jpg",
       url: "https://a",
     },
     status: "pending",
@@ -89,9 +89,9 @@ describe("agentBrowserScreenshotsNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      agent-browser screenshots (written after each call, one per call, deduped by content; full path is \`tool-results/agent-browser<suffix>\`):
-      - navigate -> -b1c2d3.jpg
-      - click -> -e4f5a6.jpg
+      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
+      - navigate -> b1c2d3
+      - click -> e4f5a6
       </instrument-system-note>"
     `);
   });
@@ -110,7 +110,7 @@ describe("agentBrowserScreenshotsNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      agent-browser screenshots (written after each call, one per call, deduped by content; full path is \`tool-results/agent-browser<suffix>\`):
+      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
       - get (no change)
       </instrument-system-note>"
     `);
@@ -129,7 +129,7 @@ describe("agentBrowserScreenshotsNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      agent-browser screenshots (written after each call, one per call, deduped by content; full path is \`tool-results/agent-browser<suffix>\`):
+      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
       - click failed: Element not found
       </instrument-system-note>"
     `);
@@ -150,8 +150,8 @@ describe("agentBrowserScreenshotsNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      agent-browser screenshots (written after each call, one per call, deduped by content; full path is \`tool-results/agent-browser<suffix>\`):
-      - navigate -> -a1b2c3.jpg
+      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
+      - navigate -> a1b2c3
       </instrument-system-note>"
     `);
   });
@@ -169,32 +169,32 @@ describe("agentBrowserScreenshotsNote", () => {
     expect(agentBrowserScreenshotsNote(items)).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      agent-browser screenshots (written after each call, one per call, deduped by content; full path is \`tool-results/agent-browser<suffix>\`):
+      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
       - ... 6 earlier call(s) omitted
-      - navigate -> -000100000006.jpg
-      - navigate -> -000100000007.jpg
-      - navigate -> -000100000008.jpg
-      - navigate -> -000100000009.jpg
-      - navigate -> -00010000000a.jpg
-      - navigate -> -00010000000b.jpg
-      - navigate -> -00010000000c.jpg
-      - navigate -> -00010000000d.jpg
-      - navigate -> -00010000000e.jpg
-      - navigate -> -00010000000f.jpg
-      - navigate -> -000100000010.jpg
-      - navigate -> -000100000011.jpg
-      - navigate -> -000100000012.jpg
-      - navigate -> -000100000013.jpg
-      - navigate -> -000100000014.jpg
-      - navigate -> -000100000015.jpg
-      - navigate -> -000100000016.jpg
-      - navigate -> -000100000017.jpg
-      - navigate -> -000100000018.jpg
-      - navigate -> -000100000019.jpg
-      - navigate -> -00010000001a.jpg
-      - navigate -> -00010000001b.jpg
-      - navigate -> -00010000001c.jpg
-      - navigate -> -00010000001d.jpg
+      - navigate -> 000100000006
+      - navigate -> 000100000007
+      - navigate -> 000100000008
+      - navigate -> 000100000009
+      - navigate -> 00010000000a
+      - navigate -> 00010000000b
+      - navigate -> 00010000000c
+      - navigate -> 00010000000d
+      - navigate -> 00010000000e
+      - navigate -> 00010000000f
+      - navigate -> 000100000010
+      - navigate -> 000100000011
+      - navigate -> 000100000012
+      - navigate -> 000100000013
+      - navigate -> 000100000014
+      - navigate -> 000100000015
+      - navigate -> 000100000016
+      - navigate -> 000100000017
+      - navigate -> 000100000018
+      - navigate -> 000100000019
+      - navigate -> 00010000001a
+      - navigate -> 00010000001b
+      - navigate -> 00010000001c
+      - navigate -> 00010000001d
       </instrument-system-note>"
     `);
   });

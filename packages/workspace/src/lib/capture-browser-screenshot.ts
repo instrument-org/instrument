@@ -128,10 +128,19 @@ async function captureBrowserScreenshot({
       return undefined;
     }
 
+    // Electron's WebContentsView is bootstrapped with `loadURL("about:blank")`
+    // in BrowserViewManager.createTarget so CDP becomes responsive (Page.enable
+    // hangs without an initial main frame). Capturing that blank page wastes a
+    // CDP round-trip and produces a useless white JPEG that adds noise to the
+    // observation timeline and the system note. Skip it.
+    if (!target.url || target.url === "about:blank") {
+      return undefined;
+    }
+
     const screenshotResult = (await workspaceConfig.browser.sendCommand(
       target.id,
       "Page.captureScreenshot",
-      { captureBeyondViewport: false, format: "png" },
+      { captureBeyondViewport: false, format: "jpeg", quality: 70 },
     )) as null | { data?: string };
     const dataB64 = screenshotResult?.data;
     if (!dataB64) {
@@ -154,13 +163,13 @@ async function captureBrowserScreenshot({
     // screenshot at the start and end of every browser command, but only
     // the unique bytes are persisted to disk. Identical pre/post pairs
     // (typical for non-mutating commands like `get title`) end up sharing
-    // a single PNG file referenced by both the startScreenshot and
+    // a single JPEG file referenced by both the startScreenshot and
     // endScreenshot fields of the same observation.
     let relativePath = pathsByHash.get(hash);
     if (!relativePath) {
       const dir = getToolResultsDir(appConfig.appDir);
       await fs.mkdir(dir, { recursive: true });
-      const fileName = `agent-browser-${hash}.png`;
+      const fileName = `agent-browser-${hash}.jpg`;
       const fullPath = absolutePathJoin(dir, fileName);
       await fs.writeFile(fullPath, buffer);
       relativePath = path.posix.join(

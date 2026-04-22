@@ -31,6 +31,10 @@ describe("executeToolCallMachine", () => {
   const mockDate = new Date("2025-01-01T00:00:00.000Z");
 
   beforeEach(async () => {
+    // Pin performance.now so the bash tool's `durationMs` is deterministic in
+    // snapshots. Returning a constant means `end - start === 0`.
+    vi.spyOn(performance, "now").mockReturnValue(0);
+
     const { execaNodeForApp: execaElectronNode } = await import(
       "../lib/execa-node-for-app"
     );
@@ -194,6 +198,7 @@ describe("executeToolCallMachine", () => {
             "commands": [
               "pnpm",
             ],
+            "durationMs": 0,
             "exitCode": 0,
             "output": "mocked all",
           },
@@ -245,6 +250,7 @@ describe("executeToolCallMachine", () => {
             "commands": [
               "pnpm",
             ],
+            "durationMs": 0,
             "exitCode": 1,
             "output": "pnpm: Shell command failed
         ",
@@ -471,6 +477,7 @@ describe("executeToolCallMachine", () => {
             "commands": [
               "pnpm",
             ],
+            "durationMs": 0,
             "exitCode": 1,
             "output": "'pnpm dev' is not needed here.
         The app is already started and running in the sandboxed environment.",
@@ -503,6 +510,7 @@ describe("executeToolCallMachine", () => {
             "commands": [
               "pnpm",
             ],
+            "durationMs": 0,
             "exitCode": 1,
             "output": "'pnpm start' is not needed here.
         The app is already started and running in the sandboxed environment.",
@@ -535,6 +543,7 @@ describe("executeToolCallMachine", () => {
             "commands": [
               "pnpm",
             ],
+            "durationMs": 0,
             "exitCode": 1,
             "output": "'pnpm run dev' is not needed here.
         The app is already started and running in the sandboxed environment.",
@@ -567,6 +576,7 @@ describe("executeToolCallMachine", () => {
             "commands": [
               "pnpm",
             ],
+            "durationMs": 0,
             "exitCode": 1,
             "output": "'pnpm run start' is not needed here.
         The app is already started and running in the sandboxed environment.",

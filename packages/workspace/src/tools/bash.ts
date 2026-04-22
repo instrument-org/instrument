@@ -12,18 +12,37 @@ import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
 const MAX_OUTPUT_LENGTH = 30_000;
+const DEFAULT_TIMEOUT_MS = ms("30 seconds");
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export const BashTool = setupTool({
   inputSchema: BaseInputSchema.extend({
     command: z.string().meta({ description: "The bash command to run" }),
-    timeoutMs: z.number().optional().default(ms("30 seconds")).meta({
-      description: "The timeout in milliseconds for the command",
-    }),
+    timeoutMs: z
+      .number()
+      .optional()
+      .default(DEFAULT_TIMEOUT_MS)
+      .meta({
+        description: [
+          "Timeout in ms; on expiry the command is killed and you must re-run with a higher value.",
+          `Default ${DEFAULT_TIMEOUT_MS}.`,
+        ].join(" "),
+      }),
   }),
   name: "bash",
   outputSchema: z.object({
     command: z.string(),
     commands: z.array(z.string()),
+    durationMs: z.number().default(0),
     exitCode: z.number(),
     output: z.string(),
   }),
@@ -44,7 +63,9 @@ export const BashTool = setupTool({
         );
       },
     });
+    const startedAt = performance.now();
     const result = await bash.exec(input.command, { signal });
+    const durationMs = Math.round(performance.now() - startedAt);
     const commands = Array.isArray(result.metadata?.commands)
       ? result.metadata.commands
       : [];
@@ -52,6 +73,7 @@ export const BashTool = setupTool({
     return ok({
       command: input.command,
       commands,
+      durationMs,
       exitCode: result.exitCode,
       output: [result.stdout, result.stderr].filter(Boolean).join("\n"),
     });
@@ -61,22 +83,39 @@ export const BashTool = setupTool({
   toModelOutput: ({ output }) => {
     const hasErrors = output.exitCode !== 0;
 
+    const totalBytes = Buffer.byteLength(output.output, "utf8");
+    const totalLines = output.output ? output.output.split("\n").length : 0;
+
     let displayOutput = output.output;
+    let truncationNotice = "";
     if (displayOutput.length > MAX_OUTPUT_LENGTH) {
-      const truncated = displayOutput.length - MAX_OUTPUT_LENGTH;
-      displayOutput =
-        `... (truncated ${truncated} characters)\n` +
-        displayOutput.slice(displayOutput.length - MAX_OUTPUT_LENGTH);
+      const keptBytes = Buffer.byteLength(
+        displayOutput.slice(displayOutput.length - MAX_OUTPUT_LENGTH),
+        "utf8",
+      );
+      truncationNotice =
+        `[Output truncated: showing last ${formatBytes(keptBytes)} of ${formatBytes(totalBytes)} (${totalLines} lines total). ` +
+        `Re-run with \`tail\`, \`head\`, or \`grep\` to view other parts.]\n`;
+      displayOutput = displayOutput.slice(
+        displayOutput.length - MAX_OUTPUT_LENGTH,
+      );
     }
+
+    const exitLine = `Exit code: ${output.exitCode}`;
+    const durationLine = `Duration: ${ms(output.durationMs, { long: true })}`;
 
     if (!hasErrors && !displayOutput) {
-      return { type: "text", value: `$ ${output.command}` };
+      return {
+        type: "text",
+        value: [exitLine, "", durationLine].join("\n"),
+      };
     }
 
-    const outputParts: string[] = [];
-    if (displayOutput) {
-      outputParts.push(displayOutput);
-    }
+    const outputParts: string[] = [
+      "Command output:",
+      "",
+      (truncationNotice + displayOutput).replace(/\n+$/, ""),
+    ];
 
     if (
       output.commands.includes("pnpm") &&
@@ -123,11 +162,9 @@ export const BashTool = setupTool({
       outputParts.push(screenshotsNote);
     }
 
-    const finalOutput = outputParts.join("\n");
-
     return {
       type: hasErrors ? "error-text" : "text",
-      value: [`$ ${output.command}`, finalOutput].join("\n"),
+      value: [exitLine, "", ...outputParts, "", durationLine].join("\n"),
     };
   },
 });

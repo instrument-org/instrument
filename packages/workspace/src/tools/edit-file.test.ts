@@ -154,8 +154,8 @@ describe("EditFile", () => {
     });
   });
 
-  describe("checkReminder in toModelOutput", () => {
-    it("should include tsc --noEmit reminder for a root TypeScript file", async () => {
+  describe("toModelOutput", () => {
+    it("returns a bare success line", async () => {
       setupMockFs({ "index.ts": "const x = 1;" });
 
       const input = {
@@ -173,44 +173,7 @@ describe("EditFile", () => {
       expect(modelOutput).toMatchInlineSnapshot(`
         {
           "type": "text",
-          "value": "Successfully edited file ./index.ts
-
-        Run \`tsc --noEmit\` using the \`bash\` tool to check for type errors before finishing.",
-        }
-      `);
-    });
-
-    it("should include skill-scoped tsc reminder for a TypeScript file inside a skill folder", async () => {
-      setupMockFs({
-        skills: {
-          "my-skill": {
-            scripts: {
-              "test.ts": "const x = 1;",
-            },
-            "tsconfig.json": "{}",
-          },
-        },
-      });
-
-      const input = {
-        filePath: "./skills/my-skill/scripts/test.ts",
-        newString: "const x = 2;",
-        oldString: "const x = 1;",
-      };
-      const result = await runTool(TOOLS.EditFile, makeExecuteArgs(input));
-
-      const output = result._unsafeUnwrap();
-      const modelOutput = TOOLS.EditFile.toModelOutput({
-        input,
-        output,
-        toolCallId: "test",
-      });
-      expect(modelOutput).toMatchInlineSnapshot(`
-        {
-          "type": "text",
-          "value": "Successfully edited file ./skills/my-skill/scripts/test.ts
-
-        Run \`cd skills/my-skill && tsc --noEmit\` using the \`bash\` tool to check for type errors before finishing.",
+          "value": "Successfully edited file ./index.ts",
         }
       `);
     });

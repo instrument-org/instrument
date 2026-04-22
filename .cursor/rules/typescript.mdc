@@ -4,6 +4,7 @@ globs: *.ts,*.tsx
 
 - NEVER use non-null assertions (`!`). This is forbidden. Always use proper type guards or optional chaining instead.
 - Avoid casting types unless necessary. If you do cast, you must add a comment explaining why.
+- Prefer `satisfies` over `as`; use `as` only to assert a different type (e.g. unknown payloads).
 - Avoid `any` and NEVER use `as any`.
 - Avoid redefining types and interfaces in every file, if possible, use an existing type or interface.
 - Avoid making component props and object properties optional unless necessary.

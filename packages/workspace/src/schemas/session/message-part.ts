@@ -23,11 +23,28 @@ interface BaseMetadata extends Record<string, unknown> {
 }
 
 export namespace SessionMessagePart {
-  export interface AgentBrowserScreenshotContextItem {
-    command: string;
-    createdAt: Date;
-    kind: "agent-browser-screenshot";
-    screenshotPath: string;
+  export type AgentBrowserCommandContextItem =
+    | AgentBrowserCommandContextItemComplete
+    | AgentBrowserCommandContextItemPending;
+
+  export interface AgentBrowserCommandContextItemComplete
+    extends AgentBrowserCommandContextItemBase {
+    endedAt: Date;
+    // Captured after the command finishes. Optional only because a CDP
+    // capture can fail mid-flight (e.g. the debugger detached because the
+    // target closed). When absent, `error` should explain why.
+    endScreenshot?: AgentBrowserScreenshot;
+    error?: string;
+    status: "complete";
+  }
+
+  export interface AgentBrowserCommandContextItemPending
+    extends AgentBrowserCommandContextItemBase {
+    status: "pending";
+  }
+
+  export interface AgentBrowserScreenshot {
+    path: string;
     title?: string;
     url: string;
   }
@@ -84,7 +101,7 @@ export namespace SessionMessagePart {
   // tool's environment. Not validated by Zod, since they're written by us, not
   // by the agent. Each item carries `createdAt` so the UI can order them
   // chronologically without depending on array order.
-  export type ToolPartContextItem = AgentBrowserScreenshotContextItem;
+  export type ToolPartContextItem = AgentBrowserCommandContextItem;
 
   export type ToolPartInputAvailable = ToolUIPart<AISDKTools> & {
     metadata: ToolPartBaseMetadata;
@@ -125,6 +142,20 @@ export namespace SessionMessagePart {
     | StepStartPart
     | TextPart
     | ToolPart;
+
+  interface AgentBrowserCommandContextItemBase {
+    createdAt: Date;
+    id: StoreId.PartContextItem;
+    kind: "agent-browser-command";
+    // Captured before the command runs so the agent and the user can see
+    // the page state the command was acting on. Mandatory: an observation
+    // that couldn't capture a starting screenshot is never created.
+    startScreenshot: AgentBrowserScreenshot;
+    // The agent-browser sub-invocation as the agent typed it (e.g.
+    // "navigate https://example.com" or "click #submit"), without the
+    // `agent-browser` prefix - the kind already discriminates that.
+    subcommand: string;
+  }
 
   interface ReasoningPartMetadata extends BaseMetadata {
     endedAt?: Date;

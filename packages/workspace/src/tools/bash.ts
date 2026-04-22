@@ -2,7 +2,7 @@ import ms from "ms";
 import { ok } from "neverthrow";
 import { z } from "zod";
 
-import { browserObservationsNote } from "../lib/browser-observations-note";
+import { agentBrowserScreenshotsNote } from "../lib/agent-browser-screenshots-note";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { Store } from "../lib/store";
@@ -32,18 +32,18 @@ export const BashTool = setupTool({
   async execute({ appConfig, input, messageId, partId, sessionId, signal }) {
     const bash = createBashEnv({
       appConfig,
-      appendContextItem: async (item) => {
+      partId,
+      sessionId,
+      upsertContextItem: async (item) => {
         // Best-effort side-channel write; if the part has been finalized or
         // removed we silently skip, since the screenshot is still on disk.
-        await Store.appendToolPartContextItem(
+        await Store.upsertToolPartContextItem(
           { messageId, partId, sessionId },
           item,
           appConfig,
           { signal },
         );
       },
-      partId,
-      sessionId,
     });
     const result = await bash.exec(input.command, { signal });
     const commands = Array.isArray(result.metadata?.commands)
@@ -117,11 +117,11 @@ export const BashTool = setupTool({
       );
     }
 
-    const browserNote = browserObservationsNote(
+    const screenshotsNote = agentBrowserScreenshotsNote(
       extractContextItemsFromOutput(output),
     );
-    if (browserNote) {
-      outputParts.push(browserNote);
+    if (screenshotsNote) {
+      outputParts.push(screenshotsNote);
     }
 
     const finalOutput = outputParts.join("\n");

@@ -5,13 +5,14 @@ import type {
 
 import { useSetAtom } from "jotai";
 import {
+  AlertCircle,
   ChevronDown,
   Copy,
   Loader2Icon,
   MessageSquare,
   Terminal,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { openFileViewerAtom } from "../../atoms/project-file-viewer";
 import { appendToPromptAtom } from "../../atoms/prompt-value";
@@ -24,10 +25,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ToolCard, ToolCardHeader } from "./tool-card";
 import { VirtualizedScrollingText } from "./virtualized-scrolling-text";
 
-type BrowserScreenshot = Extract<
+type BrowserCommandObservation = Extract<
   SessionMessagePart.ToolPartContextItem,
-  { kind: "agent-browser-screenshot" }
+  { kind: "agent-browser-command" }
 >;
+type BrowserScreenshot = SessionMessagePart.AgentBrowserScreenshot;
 
 type ShellCommandPart = Extract<
   SessionMessagePart.ToolPart,
@@ -86,11 +88,12 @@ export function ShellCommandCard({
 
   const contextItems =
     "contextItems" in part.metadata ? (part.metadata.contextItems ?? []) : [];
-  // Currently the only context item kind is screenshots; this filter exists
-  // for future-proofing as we add more polymorphic context item kinds.
-  const screenshots: BrowserScreenshot[] = contextItems.flatMap((item) =>
+  // Currently the only context item kind is browser observations; this
+  // filter exists for future-proofing as we add more polymorphic context
+  // item kinds.
+  const browserObservations: BrowserCommandObservation[] = contextItems.flatMap(
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    item.kind === "agent-browser-screenshot" ? [item] : [],
+    (item) => (item.kind === "agent-browser-command" ? [item] : []),
   );
 
   return (
@@ -136,11 +139,11 @@ export function ShellCommandCard({
         )}
       </ToolCardHeader>
 
-      {screenshots.length > 0 && (
+      {browserObservations.length > 0 && (
         <BrowserScreenshotStrip
           assetBaseUrl={assetBaseUrl}
+          observations={browserObservations}
           projectSubdomain={projectSubdomain}
-          screenshots={screenshots}
         />
       )}
 
@@ -187,86 +190,226 @@ export function ShellCommandCard({
 
 function BrowserScreenshotStrip({
   assetBaseUrl,
+  observations,
   projectSubdomain,
-  screenshots,
 }: {
   assetBaseUrl: string;
+  observations: BrowserCommandObservation[];
   projectSubdomain: ProjectSubdomain;
-  screenshots: BrowserScreenshot[];
 }) {
   const openFileViewer = useSetAtom(openFileViewerAtom);
 
-  const items = useMemo(
-    () =>
-      screenshots.map((shot) => ({
-        ...shot,
-        assetUrl: getAssetUrl({
-          assetBase: assetBaseUrl,
-          filePath: shot.screenshotPath,
-        }),
-        filename: shot.screenshotPath.split("/").pop() ?? shot.screenshotPath,
-      })),
-    [assetBaseUrl, screenshots],
-  );
+  // Flatten all screenshots across observations into the file-viewer list
+  // so the prev/next arrows traverse them in order. Each individual
+  // thumbnail clicks open at its own index.
+  const viewerFiles = observations.flatMap((obs) => {
+    const shots: BrowserScreenshot[] = [obs.startScreenshot];
+    if (obs.status === "complete" && obs.endScreenshot) {
+      shots.push(obs.endScreenshot);
+    }
+    return shots.map((s) => ({
+      filename: s.path.split("/").pop() ?? s.path,
+      filePath: s.path,
+      mimeType: "image/png" as const,
+      projectSubdomain,
+      url: getAssetUrl({ assetBase: assetBaseUrl, filePath: s.path }),
+    }));
+  });
 
-  const handleClick = (index: number) => {
-    openFileViewer({
-      currentIndex: index,
-      files: items.map((item) => ({
-        filename: item.filename,
-        filePath: item.screenshotPath,
-        mimeType: "image/png",
-        projectSubdomain,
-        url: item.assetUrl,
-      })),
-    });
+  const openViewerFor = (filePath: string) => {
+    const currentIndex = viewerFiles.findIndex((f) => f.filePath === filePath);
+    if (currentIndex === -1) {
+      return;
+    }
+    openFileViewer({ currentIndex, files: viewerFiles });
   };
 
   return (
-    <div className="flex gap-2 overflow-x-auto border-b border-border/50 bg-muted/40 p-2">
-      {items.map((item, index) => {
-        const tooltipLabel = item.title
-          ? `${item.title} - ${item.url}`
-          : item.url;
-        return (
-          <Tooltip key={`${item.screenshotPath}-${index}`}>
-            <TooltipTrigger asChild>
-              <button
-                aria-label={`Open screenshot for ${tooltipLabel}`}
-                className="block w-32 shrink-0 overflow-hidden rounded-sm border border-border/50 bg-background transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => {
-                  handleClick(index);
-                }}
-                type="button"
-              >
-                <div className="flex items-center gap-1 border-b border-border/50 bg-muted/60 px-1.5 py-1">
-                  <Favicon className="size-3" url={item.url} />
-                  <span className="min-w-0 flex-1 truncate text-left text-[10px] leading-tight text-foreground/80">
-                    {item.title || item.url}
-                  </span>
-                </div>
-                <ImageWithFallback
-                  alt={item.title || item.url}
-                  className="h-20 w-32 object-cover"
-                  fallbackClassName="h-20 w-32"
-                  filename={item.filename}
-                  src={item.assetUrl}
-                />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[min(500px,90vw)] wrap-break-word">
-              {item.title ? (
-                <div className="flex flex-col gap-0.5">
-                  <span>{item.title}</span>
-                  <span className="text-muted-foreground">{item.url}</span>
-                </div>
-              ) : (
-                <span>{item.url}</span>
-              )}
-            </TooltipContent>
-          </Tooltip>
-        );
+    <div className="flex gap-3 overflow-x-auto border-b border-border/50 bg-muted/40 p-2">
+      {observations.map((obs) => (
+        <ObservationCard
+          assetBaseUrl={assetBaseUrl}
+          key={obs.id}
+          observation={obs}
+          onOpenViewer={openViewerFor}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ObservationCard({
+  assetBaseUrl,
+  observation,
+  onOpenViewer,
+}: {
+  assetBaseUrl: string;
+  observation: BrowserCommandObservation;
+  onOpenViewer: (filePath: string) => void;
+}) {
+  const isPending = observation.status === "pending";
+  const error =
+    observation.status === "complete" ? observation.error : undefined;
+  const endScreenshot =
+    observation.status === "complete" ? observation.endScreenshot : undefined;
+  const samePath =
+    !!endScreenshot && endScreenshot.path === observation.startScreenshot.path;
+
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <ScreenshotThumbnail
+        assetBaseUrl={assetBaseUrl}
+        command={observation.subcommand}
+        label="before"
+        onClick={() => {
+          onOpenViewer(observation.startScreenshot.path);
+        }}
+        screenshot={observation.startScreenshot}
+      />
+      {samePath ? (
+        <span className="px-1 text-[10px] text-muted-foreground italic">
+          no change
+        </span>
+      ) : (
+        <ChevronDown className="size-3 -rotate-90 text-muted-foreground/60" />
+      )}
+      {renderEndSlot({
+        assetBaseUrl,
+        command: observation.subcommand,
+        endScreenshot,
+        error,
+        isPending,
+        onOpenViewer,
+        samePath,
       })}
     </div>
+  );
+}
+
+function PlaceholderThumbnail({
+  kind,
+  tooltip,
+}: {
+  kind: "error" | "pending";
+  tooltip?: string;
+}) {
+  const content = (
+    <div
+      className={cn(
+        "flex h-20 w-32 items-center justify-center rounded-sm border bg-muted/40",
+        kind === "error" ? "border-destructive/60" : "border-border/50",
+      )}
+    >
+      {kind === "pending" ? (
+        <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+      ) : (
+        <AlertCircle className="size-4 text-destructive" />
+      )}
+    </div>
+  );
+  if (!tooltip) {
+    return content;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{content}</TooltipTrigger>
+      <TooltipContent className="max-w-[min(500px,90vw)] wrap-break-word">
+        <span className="text-destructive">{tooltip}</span>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function renderEndSlot({
+  assetBaseUrl,
+  command,
+  endScreenshot,
+  error,
+  isPending,
+  onOpenViewer,
+  samePath,
+}: {
+  assetBaseUrl: string;
+  command: string;
+  endScreenshot: BrowserScreenshot | undefined;
+  error: string | undefined;
+  isPending: boolean;
+  onOpenViewer: (filePath: string) => void;
+  samePath: boolean;
+}) {
+  if (isPending) {
+    return <PlaceholderThumbnail kind="pending" />;
+  }
+  if (endScreenshot && samePath) {
+    return null;
+  }
+  if (endScreenshot) {
+    return (
+      <ScreenshotThumbnail
+        assetBaseUrl={assetBaseUrl}
+        command={command}
+        label="after"
+        onClick={() => {
+          onOpenViewer(endScreenshot.path);
+        }}
+        screenshot={endScreenshot}
+      />
+    );
+  }
+  return <PlaceholderThumbnail kind="error" tooltip={error} />;
+}
+
+function ScreenshotThumbnail({
+  assetBaseUrl,
+  command,
+  label,
+  onClick,
+  screenshot,
+}: {
+  assetBaseUrl: string;
+  command: string;
+  label: string;
+  onClick: () => void;
+  screenshot: BrowserScreenshot;
+}) {
+  const assetUrl = getAssetUrl({
+    assetBase: assetBaseUrl,
+    filePath: screenshot.path,
+  });
+  const filename = screenshot.path.split("/").pop() ?? screenshot.path;
+  const headerLabel = screenshot.title || screenshot.url;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={`Open ${label} screenshot for ${command}`}
+          className="block w-32 shrink-0 overflow-hidden rounded-sm border border-border/50 bg-background transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onClick}
+          type="button"
+        >
+          <div className="flex items-center gap-1 border-b border-border/50 bg-muted/60 px-1.5 py-1">
+            <Favicon className="size-3" url={screenshot.url} />
+            <span className="min-w-0 flex-1 truncate text-left text-[10px] leading-tight text-foreground/80">
+              {headerLabel}
+            </span>
+          </div>
+          <ImageWithFallback
+            alt={headerLabel}
+            className="h-20 w-32 object-cover"
+            fallbackClassName="h-20 w-32"
+            filename={filename}
+            src={assetUrl}
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[min(500px,90vw)] wrap-break-word">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-xs">{command}</span>
+          <span className="text-muted-foreground">{label}</span>
+          {screenshot.title ? <span>{screenshot.title}</span> : null}
+          <span className="text-muted-foreground">{screenshot.url}</span>
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 }

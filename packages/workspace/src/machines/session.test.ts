@@ -1220,11 +1220,12 @@ describe("sessionMachine", () => {
   });
 
   it("should retry and fail on timeout", async () => {
+    const chunkTimeoutMs = 500;
     const session = await createAndRunTestMachine({
       baseLLMRetryDelayMs: 0,
       chunkSets: [readFileChunks, readFileChunks, readFileChunks, finishChunks],
-      initialChunkDelaysMs: [200, 200, 1, 1],
-      llmRequestChunkTimeoutMs: 100,
+      initialChunkDelaysMs: [chunkTimeoutMs * 2, chunkTimeoutMs * 2, 1, 1],
+      llmRequestChunkTimeoutMs: chunkTimeoutMs,
     });
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`

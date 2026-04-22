@@ -195,7 +195,7 @@ export function SessionStream({
         return (
           <ToolPart
             isDeveloperMode={isDeveloperMode}
-            isLoading={
+            isStreaming={
               isAgentRunning &&
               lastMessageId === message.id &&
               (part.state === "input-streaming" ||

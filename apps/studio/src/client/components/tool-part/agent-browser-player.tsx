@@ -15,8 +15,10 @@ type BrowserCommandObservation = Extract<
   SessionMessagePart.ToolPartContextItem,
   { kind: "agent-browser-command" }
 >;
-type BrowserScreenshot = SessionMessagePart.AgentBrowserScreenshot;
 
+// One UI timeline step. Not the same as `AgentBrowserCommandContextItem`: we
+// expand a single observation into 1 to N frames (start, optional end, or
+// error when `complete` has no `endScreenshot`).
 type PlayableFrame =
   | {
       error: string | undefined;
@@ -33,7 +35,7 @@ type PlayableFrame =
       isPending: boolean;
       kind: "screenshot";
       observationId: string;
-      screenshot: BrowserScreenshot;
+      screenshot: SessionMessagePart.AgentBrowserScreenshot;
       subcommand: string;
     };
 
@@ -41,34 +43,29 @@ const SLIDER_STEP = 0.01;
 
 export function AgentBrowserPlayer({
   assetBaseUrl,
+  isStreaming,
   observations,
 }: {
   assetBaseUrl: string;
+  isStreaming: boolean;
   observations: BrowserCommandObservation[];
 }) {
   const frames = buildFrames(observations);
 
   const frameCount = frames.length;
   const lastFrameIndex = Math.max(0, frameCount - 1);
-  const hasPending = frames.some((f) => f.kind === "screenshot" && f.isPending);
-  // When something is still in flight we render one extra "ghost" slot at
-  // the right of the slider track. The playhead asymptotically creeps
-  // toward (but never reaches) it, signaling "more is still coming."
-  const streamTarget = lastFrameIndex + (hasPending ? 1 : 0);
-  const timelineMax = streamTarget;
 
   const [snapshot, send] = useMachine(agentBrowserPlayerMachine, {
-    input: { lastFrameIndex, streamTarget },
+    input: { isStreaming, lastFrameIndex },
   });
 
   useEffect(() => {
-    send({ lastFrameIndex, streamTarget, type: "frames.changed" });
-  }, [lastFrameIndex, streamTarget, send]);
+    send({ lastFrameIndex, type: "frames.changed" });
+  }, [lastFrameIndex, send]);
 
   const playhead = snapshot.context.playhead;
-  // Tag is set on both Following.Streaming and UserControlled.Playing -
-  // either way the slider thumb is moving on its own and the button reads
-  // as pause.
+  // Tag is set on UserControlled.Playing - the slider thumb is moving on its
+  // own and the button reads as pause.
   const showPause = snapshot.hasTag("playing");
   const displayedIndex = clampIndex(Math.floor(playhead), lastFrameIndex);
 
@@ -96,23 +93,28 @@ export function AgentBrowserPlayer({
     send({ type: showPause ? "pause" : "play" });
   };
 
+  const showFaviconLoader =
+    currentFrame.kind === "screenshot" &&
+    (currentFrame.isPending ||
+      (isStreaming && displayedIndex === lastFrameIndex));
+
   return (
     <div className="flex flex-col gap-1.5 border-b border-border/50 bg-muted/40 p-2">
-      <FrameHeader frame={currentFrame} />
+      <FrameHeader frame={currentFrame} showFaviconLoader={showFaviconLoader} />
       <FramePreview
         assetBaseUrl={assetBaseUrl}
         frame={currentFrame}
-        isStreaming={hasPending}
+        isStreaming={isStreaming}
       />
       {frameCount > 1 && (
         <PlayerControls
           displayedIndex={displayedIndex}
           frameCount={frameCount}
+          isStreaming={isStreaming}
           onSliderChange={handleSliderChange}
           onTogglePlay={togglePlay}
           playhead={playhead}
           showPause={showPause}
-          timelineMax={timelineMax}
         />
       )}
     </div>
@@ -172,7 +174,13 @@ function clampIndex(value: number, max: number): number {
   return value;
 }
 
-function FrameHeader({ frame }: { frame: PlayableFrame }) {
+function FrameHeader({
+  frame,
+  showFaviconLoader,
+}: {
+  frame: PlayableFrame;
+  showFaviconLoader: boolean;
+}) {
   if (frame.kind === "error") {
     return (
       <div className="flex min-w-0 items-center gap-1.5 px-0.5">
@@ -188,7 +196,7 @@ function FrameHeader({ frame }: { frame: PlayableFrame }) {
   }
   return (
     <div className="flex min-w-0 items-center gap-1.5 px-0.5">
-      {frame.isPending ? (
+      {showFaviconLoader ? (
         <Loader2Icon className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
       ) : (
         <Favicon className="size-3.5" url={frame.screenshot.url} />
@@ -250,20 +258,22 @@ function FramePreview({
 function PlayerControls({
   displayedIndex,
   frameCount,
+  isStreaming,
   onSliderChange,
   onTogglePlay,
   playhead,
   showPause,
-  timelineMax,
 }: {
   displayedIndex: number;
   frameCount: number;
+  isStreaming: boolean;
   onSliderChange: (values: number[]) => void;
   onTogglePlay: () => void;
   playhead: number;
   showPause: boolean;
-  timelineMax: number;
 }) {
+  const lastFrameIndex = frameCount - 1;
+  const timelineMax = lastFrameIndex + (isStreaming ? 1 : 0);
   return (
     <div className="flex items-center gap-2 px-0.5">
       <button
@@ -275,6 +285,7 @@ function PlayerControls({
         {showPause ? <Pause className="size-3" /> : <Play className="size-3" />}
       </button>
       <Slider
+        className="w-full"
         max={timelineMax}
         min={0}
         onValueChange={onSliderChange}

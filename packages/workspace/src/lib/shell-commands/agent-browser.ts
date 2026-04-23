@@ -207,14 +207,16 @@ export function createAgentBrowserCommand({
         // can't bypass the rejection above.
         AGENT_BROWSER_AUTO_CONNECT: undefined,
         AGENT_BROWSER_CDP: undefined,
+        // Uncomment this to enable debug mode.
+        // AGENT_BROWSER_DEBUG:
+        //   process.env.NODE_ENV === "development" ? "1" : undefined,
+        AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
+        AGENT_BROWSER_IDLE_TIMEOUT_MS: IDLE_TIMEOUT_MS,
         AGENT_BROWSER_PROFILE: undefined,
         AGENT_BROWSER_PROVIDER: undefined,
-        AGENT_BROWSER_STATE: undefined,
-        // Absolute: passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
-        AGENT_BROWSER_DOWNLOAD_PATH: downloadPath,
-        AGENT_BROWSER_IDLE_TIMEOUT_MS: IDLE_TIMEOUT_MS,
         AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
         AGENT_BROWSER_SOCKET_DIR,
+        AGENT_BROWSER_STATE: undefined,
         HOME: homeDir,
       },
       input: ctx.stdin || undefined,

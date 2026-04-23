@@ -136,6 +136,11 @@ export function createBrowserViewManager({
       throw new Error("WebContentsView constructed without webContents");
     }
 
+    // Block all popup windows. Agent-controlled views are headless and must
+    // never open new BrowserWindows or WebContentsViews via window.open /
+    // target=_blank / link[target] / etc.
+    wc.setWindowOpenHandler(() => ({ action: "deny" }));
+
     // Mute audio because the page may be controlled by the agent and not
     // visible to the user. In the future, when the user has control of the
     // page, we can unmute it.

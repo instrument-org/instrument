@@ -113,6 +113,15 @@ export class TabsManager {
           this.afterUpdate();
         }
       });
+
+      // If the externally-owned view is destroyed, proactively close the tab
+      // so we never attempt to add a destroyed child view to the window.
+      view.webContents?.on("destroyed", () => {
+        const live = this.tabs.find((t) => t.id === id);
+        if (live) {
+          this.closeTab({ id });
+        }
+      });
     }
 
     const newTab: TabWithView = {
@@ -520,6 +529,13 @@ export class TabsManager {
   }
 
   private selectTabView(tab: TabWithView) {
+    if (tab.webView.webContents?.isDestroyed()) {
+      this.logger.warn(
+        `selectTabView: skipping destroyed view for tab ${tab.id}`,
+      );
+      return;
+    }
+
     const currentTab = this.getCurrentTab();
     if (
       currentTab &&

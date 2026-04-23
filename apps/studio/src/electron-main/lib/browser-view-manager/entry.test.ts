@@ -2,7 +2,7 @@ import type {
   AbsolutePath,
   BrowserTargetId,
 } from "@instrument-org/workspace/electron";
-import type { BrowserWindow, WebContentsView } from "electron";
+import type { WebContentsView } from "electron";
 
 import {
   encodeBrowserTargetId,
@@ -25,8 +25,6 @@ const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
 
 function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
   return createEntry({
-    // Stub host objects; entry helpers never touch their internals here.
-    hostWindow: {} as BrowserWindow,
     partitionDir: "/tmp/partition" as AbsolutePath,
     sessionId: SESSION_ID,
     subdomain: SUBDOMAIN,

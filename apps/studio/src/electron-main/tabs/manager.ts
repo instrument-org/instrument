@@ -26,11 +26,17 @@ interface TabStore {
 }
 
 interface TabWithView extends Tab {
+  /**
+   * When true, closing the tab detaches the view without destroying it.
+   * Used for dev-mode agent view tabs where the browser-view-manager owns
+   * the view lifecycle.
+   */
+  closeDetachesOnly?: true;
   webView: WebContentsView;
 }
 
 export class TabsManager {
-  private baseWindow: BaseWindow;
+  public baseWindow: BaseWindow;
   private logger: LogFunctions;
   private recentlyClosed: Tab[] = [];
   private selectedTabId: null | string = null;
@@ -51,54 +57,76 @@ export class TabsManager {
     this.logger = logger.scope("tabs");
     this.baseWindow = baseWindow;
     this.store = new Store<TabStore>({ name: "tabs" });
-    this.store.onDidAnyChange((value) => {
-      if (value?.root) {
-        this.emitStateChange(value.root);
-      }
-    });
 
     this.unsubscribeSidebar = publisher.subscribe(
       "sidebar.updated",
       ({ width }) => {
         this.sidebarWidth = width;
-        const currentTab = this.getCurrentTab();
-        if (currentTab) {
-          this.updateTabBounds(currentTab);
-        }
+        this.updateCurrentTabBounds();
         this.focusCurrentTab();
       },
     );
   }
 
   public addTab({
+    closeDetachesOnly,
+    iconName,
     params = {},
-    select = true,
+    select,
+    title,
     urlPath = "/",
+    webView,
   }: {
+    closeDetachesOnly?: true;
+    iconName?: Tab["iconName"];
     params?: Record<string, string>;
     select?: boolean;
+    title?: string;
     urlPath?: StudioPath;
+    webView?: WebContentsView;
   }) {
+    // When borrowing an external view, default to opening in the background so
+    // the agent's work isn't interrupted.
+    const shouldSelect = select ?? (webView ? false : true);
+
     const searchParams = new URLSearchParams(params);
     const queryString = searchParams.toString();
     const pathWithParams = urlPath + (queryString ? `?${queryString}` : "");
 
-    if (this.selectOnAddNewTab({ urlPath: pathWithParams })) {
+    if (!webView && this.selectOnAddNewTab({ urlPath: pathWithParams })) {
       return;
     }
 
     const id = crypto.randomUUID();
-    const view = this.createTabView({ id, urlPath: pathWithParams });
-    const newTab = {
-      icon: undefined,
+    const view = webView ?? this.createTabView({ id, urlPath: pathWithParams });
+
+    if (webView) {
+      view.setBounds(this.computeTabBounds());
+      // Add at z-index 0 so it starts beneath any regular tab view on top.
+      this.baseWindow.contentView.addChildView(view, 0);
+
+      // Keep the tab title in sync with whatever the agent navigates to.
+      view.webContents?.on("page-title-updated", (_event, newTitle) => {
+        const live = this.tabs.find((t) => t.id === id);
+        if (live && newTitle.trim()) {
+          live.title = newTitle.trim();
+          this.afterUpdate();
+        }
+      });
+    }
+
+    const newTab: TabWithView = {
+      closeDetachesOnly,
+      iconName,
       id,
       pathname: pathWithParams,
       pinned: false,
+      title,
       webView: view,
     };
 
     this.tabs.push(newTab);
-    if (select) {
+    if (shouldSelect) {
       this.selectTabView(newTab);
     }
     this.afterUpdate();
@@ -158,7 +186,9 @@ export class TabsManager {
   public getState(): TabState {
     return {
       selectedTabId: this.selectedTabId,
-      tabs: this.tabs.map(({ webView: _webView, ...tab }) => tab),
+      tabs: this.tabs.map(
+        ({ closeDetachesOnly: _c, webView: _webView, ...tab }) => tab,
+      ),
     };
   }
 
@@ -223,7 +253,6 @@ export class TabsManager {
     }
 
     this.afterUpdate();
-    this.emitStateChange(this.getState());
   }
 
   public reopenClosedTab() {
@@ -321,6 +350,13 @@ export class TabsManager {
     if (currentTab) {
       this.updateTabBounds(currentTab);
     }
+    // closeDetachesOnly tabs stay mounted in the window even when not selected,
+    // so they must be resized alongside the active tab.
+    for (const tab of this.tabs) {
+      if (tab.closeDetachesOnly && tab.id !== this.selectedTabId) {
+        this.updateTabBounds(tab);
+      }
+    }
   }
 
   public zoomIn() {
@@ -342,10 +378,20 @@ export class TabsManager {
   }
 
   private afterUpdate() {
-    this.store.set("root", this.getState());
+    this.store.set("root", this.getPersistedState());
+    this.emitStateChange(this.getState());
   }
 
   private closeTabView(tab: TabWithView) {
+    if (tab.closeDetachesOnly) {
+      // The browser-view-manager owns this view's lifecycle -- just detach it.
+      try {
+        this.baseWindow.contentView.removeChildView(tab.webView);
+      } catch {
+        // View may already be detached.
+      }
+      return;
+    }
     this.baseWindow.contentView.removeChildView(tab.webView);
     tab.webView.webContents?.close();
   }
@@ -422,6 +468,20 @@ export class TabsManager {
     publisher.publish("tabs.updated", value);
   }
 
+  /** Written to disk -- excludes tabs whose view is owned externally. */
+  private getPersistedState(): TabState {
+    const persistedTabs = this.tabs.filter((tab) => !tab.closeDetachesOnly);
+    const selectedIsPersisted = persistedTabs.some(
+      (tab) => tab.id === this.selectedTabId,
+    );
+    return {
+      selectedTabId: selectedIsPersisted ? this.selectedTabId : null,
+      tabs: persistedTabs.map(
+        ({ closeDetachesOnly: _c, webView: _webView, ...tab }) => tab,
+      ),
+    };
+  }
+
   private selectNeighborTab(tab: Tab, index: number) {
     const isSelected = this.selectedTabId === tab.id;
 
@@ -460,14 +520,21 @@ export class TabsManager {
   }
 
   private selectTabView(tab: TabWithView) {
-    // Remove the currently visible tab from view
     const currentTab = this.getCurrentTab();
-    if (currentTab && currentTab.id !== tab.id) {
+    if (
+      currentTab &&
+      currentTab.id !== tab.id &&
+      !currentTab.closeDetachesOnly
+    ) {
       this.baseWindow.contentView.removeChildView(currentTab.webView);
     }
 
     this.updateTabBounds(tab);
+
+    // Append to top of the z-stack. For closeDetachesOnly views this moves
+    // them to the front; for regular tabs this covers any such views beneath.
     this.baseWindow.contentView.addChildView(tab.webView);
+
     // electron/electron#50249: webContents is undefined after destruction in Electron 41+
     tab.webView.webContents?.focus();
     this.selectedTabId = tab.id;

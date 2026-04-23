@@ -1,4 +1,4 @@
-import type { BrowserWindow, WebContentsView } from "electron";
+import type { WebContentsView } from "electron";
 
 import {
   type AbsolutePath,
@@ -23,7 +23,6 @@ export interface BrowserEntry {
   // most once because the set is cleared after draining.
   disposers: Set<() => void>;
   eventListeners: Set<(method: string, params: unknown) => void>;
-  hostWindow: BrowserWindow;
   // Chromium profile partition directory; threaded through so callers like
   // BrowserConfig.getTargetMeta can correlate the target back to its session
   // dir without re-deriving it.
@@ -43,14 +42,12 @@ export interface BrowserEntry {
 }
 
 export function createEntry({
-  hostWindow,
   partitionDir,
   sessionId,
   subdomain,
   targetId,
   view,
 }: {
-  hostWindow: BrowserWindow;
   partitionDir: AbsolutePath;
   sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
@@ -63,7 +60,6 @@ export function createEntry({
     detachListeners: new Set(),
     disposers: new Set(),
     eventListeners: new Set(),
-    hostWindow,
     partitionDir,
     pendingDownloadGuids: new Map(),
     screencastInterval: null,

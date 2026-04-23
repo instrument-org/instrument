@@ -110,7 +110,10 @@ export async function sendCommand({
     // fast so agent-browser gets a real error instead of a 30s silent hang.
     // Screenshot and evaluate get 20s: the compositor may not have a frame
     // ready post-navigation, and awaitPromise evals run real user JS.
-    const SLOW_COMMANDS = new Set(["Page.captureScreenshot", "Runtime.evaluate"]);
+    const SLOW_COMMANDS = new Set([
+      "Page.captureScreenshot",
+      "Runtime.evaluate",
+    ]);
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const result = await Promise.race([

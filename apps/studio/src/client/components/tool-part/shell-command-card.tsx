@@ -138,6 +138,7 @@ export function ShellCommandCard({
           {browserObservations.length > 0 && (
             <AgentBrowserPlayer
               assetBaseUrl={assetBaseUrl}
+              isStreaming={isStreaming}
               observations={browserObservations}
             />
           )}

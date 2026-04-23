@@ -1,27 +1,20 @@
-import { assertEvent, assign, fromCallback, not, setup } from "xstate";
+import { assertEvent, assign, fromCallback, setup } from "xstate";
 
 // Time spent traversing the gap between two frames during user-driven
 // auto-playback. Higher values feel slower / more cinematic.
 const FRAME_DURATION_MS = 1200;
-// Per-second exponential approach factor used while creeping the playhead
-// into the ghost slot during streaming. Low so the thumb visibly slows as
-// it approaches and never quite arrives.
-const STREAM_APPROACH_PER_S = 0.6;
 
 interface AgentBrowserPlayerContext {
+  // Stashed at init only to drive the Initializing guard; not updated after that.
+  isStreaming: boolean;
   lastFrameIndex: number;
   playhead: number;
-  // The position the playhead should creep toward while streaming. Usually
-  // `lastFrameIndex + 1` (the ghost slot) when something is pending, else
-  // equal to `lastFrameIndex`.
-  streamTarget: number;
 }
 
 type AgentBrowserPlayerEvent =
   | { deltaMs: number; type: "tick" }
   | {
       lastFrameIndex: number;
-      streamTarget: number;
       type: "frames.changed";
     }
   | { type: "pause" }
@@ -36,16 +29,6 @@ export const agentBrowserPlayerMachine = setup({
       return {
         playhead: Math.min(context.playhead + delta, context.lastFrameIndex),
       };
-    }),
-    creepPlayheadTowardStream: assign(({ context, event }) => {
-      assertEvent(event, "tick");
-      const distance = context.streamTarget - context.playhead;
-      if (distance <= 0) {
-        return {};
-      }
-      const dtSec = Math.min(event.deltaMs / 1000, 0.1);
-      const factor = 1 - Math.exp(-STREAM_APPROACH_PER_S * dtSec);
-      return { playhead: context.playhead + distance * factor };
     }),
     rewindIfAtEnd: assign(({ context }) => {
       if (context.playhead >= context.lastFrameIndex) {
@@ -68,7 +51,6 @@ export const agentBrowserPlayerMachine = setup({
       assertEvent(event, "frames.changed");
       return {
         lastFrameIndex: event.lastFrameIndex,
-        streamTarget: event.streamTarget,
       };
     }),
   },
@@ -94,30 +76,25 @@ export const agentBrowserPlayerMachine = setup({
   },
   guards: {
     hasMultipleFrames: ({ context }) => context.lastFrameIndex > 0,
-    isStreaming: ({ context }) => context.streamTarget > context.lastFrameIndex,
+    isLiveSession: ({ context }) => context.isStreaming,
     reachedEnd: ({ context }) => context.playhead >= context.lastFrameIndex,
   },
   types: {
     context: {} as AgentBrowserPlayerContext,
     events: {} as AgentBrowserPlayerEvent,
-    input: {} as { lastFrameIndex: number; streamTarget: number },
+    input: {} as { isStreaming: boolean; lastFrameIndex: number },
     tags: {} as "playing",
   },
 }).createMachine({
   context: ({ input }) => ({
+    isStreaming: input.isStreaming,
     lastFrameIndex: input.lastFrameIndex,
     playhead: input.lastFrameIndex,
-    streamTarget: input.streamTarget,
   }),
   id: "agentBrowserPlayer",
   initial: "Initializing",
   states: {
-    // Transient: pick the right starting state based on input. Streaming
-    // sessions live-follow; finished sessions auto-play from the start so
-    // the user immediately sees what happened. Single-frame sessions just
-    // sit on that frame.
     Following: {
-      initial: "Settled",
       on: {
         "frames.changed": {
           actions: ["updateFrameInfo", "snapPlayheadToLatest"],
@@ -132,27 +109,14 @@ export const agentBrowserPlayerMachine = setup({
           target: "UserControlled.Paused",
         },
       },
-      states: {
-        // No active session: parked on the latest real frame, no ticker.
-        Settled: {
-          always: { guard: "isStreaming", target: "Streaming" },
-        },
-        // Agent is still producing frames. The ticker is running and the
-        // playhead is asymptotically creeping into the ghost slot to signal
-        // "more is coming."
-        Streaming: {
-          always: { guard: not("isStreaming"), target: "Settled" },
-          invoke: { src: "playbackTicker" },
-          on: {
-            tick: { actions: ["creepPlayheadTowardStream"] },
-          },
-          tags: ["playing"],
-        },
-      },
     },
+    // Transient: pick the right starting state based on input. Active
+    // streaming sessions live-follow. Finished sessions auto-play from the
+    // start so the user immediately sees what happened. Single-frame sessions
+    // just sit on that frame.
     Initializing: {
       always: [
-        { guard: "isStreaming", target: "Following" },
+        { guard: "isLiveSession", target: "Following" },
         {
           actions: assign({ playhead: 0 }),
           guard: "hasMultipleFrames",

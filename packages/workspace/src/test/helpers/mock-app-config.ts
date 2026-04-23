@@ -95,6 +95,7 @@ export function createMockAppConfig(
 
 export function createStubBrowserConfig(): BrowserConfig {
   return {
+    captureScreenshot: () => Promise.resolve(undefined),
     closeTarget: () => Promise.resolve(),
     createTarget: (subdomain, sessionId) =>
       Promise.resolve({

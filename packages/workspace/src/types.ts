@@ -18,23 +18,13 @@ import {
 export type AppStatus = (typeof APP_STATUSES)[number];
 
 export interface BrowserConfig {
-  // Awaitable destroy entry point. The returned promise resolves only after the
-  // entry has been fully torn down (debugger detached, host window closed,
-  // entry removed from the manager's map). Safe to call on an already-destroyed
-  // target -- resolves immediately in that case.
+  captureScreenshot: (targetId: BrowserTargetId) => Promise<Buffer | undefined>;
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
-  // Idempotent: if a view already exists for (subdomain, sessionId), returns
-  // its targetId without creating a new one. Otherwise creates a fresh
-  // WebContentsView using the given Chromium profile partition. The targetId
-  // is deterministic: `${subdomain}/${sessionId}`.
   createTarget: (
     subdomain: ProjectSubdomain,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ) => Promise<{ targetId: BrowserTargetId }>;
-  // Returns metadata for a live target so callers (e.g. the CDP bridge) can
-  // correlate a `targetId` back to its owning project. Returns null if the
-  // target has already been destroyed.
   getTargetMeta: (targetId: BrowserTargetId) => null | {
     partitionDir: AbsolutePath;
     sessionId: StoreId.Session;

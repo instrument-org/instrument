@@ -58,6 +58,7 @@ const createTargetMock: BrowserConfig["createTarget"] = (
 
 function makeBrowser(): BrowserConfig {
   return {
+    captureScreenshot: vi.fn(() => Promise.resolve(undefined)),
     closeTarget: vi.fn(asyncNoop),
     createTarget: vi.fn(createTargetMock),
     getTargetMeta: vi.fn(() => null),

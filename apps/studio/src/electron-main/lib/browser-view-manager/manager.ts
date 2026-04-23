@@ -306,6 +306,29 @@ export function createBrowserViewManager({
   }
 
   const browser: BrowserConfig = {
+    captureScreenshot: async (targetId) => {
+      const entry = entries.get(targetId);
+      if (!entry) {
+        return;
+      }
+      const wc = entry.view.webContents;
+      if (!wc || wc.isDestroyed()) {
+        return;
+      }
+      const url = wc.getURL();
+      if (!url || url === "about:blank") {
+        return;
+      }
+      const image = await wc.capturePage();
+      if (image.isEmpty()) {
+        return;
+      }
+      const MAX_WIDTH = 800; // Aiming for <200KB encoded size.
+      const { width } = image.getSize();
+      const resized =
+        width > MAX_WIDTH ? image.resize({ width: MAX_WIDTH }) : image;
+      return resized.toJPEG(85);
+    },
     closeTarget: (targetId) =>
       new Promise<void>((resolve) => {
         // Resolve only after the destruction listener fires (which happens as

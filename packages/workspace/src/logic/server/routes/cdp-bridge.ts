@@ -121,6 +121,7 @@ const INTERCEPTED_TARGET_COMMANDS = new Set([
   "Target.createTarget",
   "Target.disposeBrowserContext",
   "Target.getTargets",
+  "Target.setAutoAttach",
   "Target.setDiscoverTargets",
 ]);
 
@@ -131,7 +132,6 @@ function handleCdpClient(
   workspaceRef: WorkspaceServerParentRef,
 ) {
   let unsubscribe: (() => void) | null = null;
-  let currentLoaderId = "";
 
   // Surface this WS connection to the projectBrowser machine so it can fan
   // out `agent-browser close --session <id>` at reap time. Lookup is cheap
@@ -157,20 +157,6 @@ function handleCdpClient(
     clientWs.close(1001, "Target detached");
   };
 
-  const sendLifecycleEvent = (frameId: Protocol.Page.FrameId, name: string) => {
-    const params: Protocol.Page.LifecycleEventEvent = {
-      frameId,
-      loaderId: currentLoaderId,
-      name,
-      timestamp: Date.now() / 1000,
-    };
-    send({
-      method: "Page.lifecycleEvent",
-      params,
-      sessionId: `session-${targetId}`,
-    });
-  };
-
   const onEvent = (method: string, params: unknown) => {
     // Inject the synthetic sessionId so agent-browser can match events to the
     // session it attached to via Target.attachToTarget. Electron emits events
@@ -182,23 +168,22 @@ function handleCdpClient(
       sessionId: `session-${targetId}`,
     });
 
-    // Track the loaderId from navigation events so lifecycle events carry the
-    // correct loaderId that agent-browser uses to match them to the navigation.
-    if (method === "Page.frameStartedNavigating") {
-      const p = params as Protocol.Page.FrameStartedNavigatingEvent;
-      currentLoaderId = p.loaderId;
-    }
-
-    // Electron doesn't emit Page.lifecycleEvent, which agent-browser waits for
-    // after navigation (specifically "networkIdle"). Synthesize the full
-    // sequence after Page.frameStoppedLoading so the open command resolves.
+    // Synthesize Page.loadEventFired from Page.frameStoppedLoading.
+    // Electron's debugger does not emit Page.loadEventFired natively; agent-
+    // browser's poll_network_idle uses it as the idle-timer trigger when the
+    // Network pending set is already empty (e.g. cached page loads). Without
+    // this, poll_network_idle falls back to a 600ms recv-timeout cycle before
+    // setting idle_start, adding unnecessary latency after every navigation.
     if (method === "Page.frameStoppedLoading") {
       const { frameId } = params as Protocol.Page.FrameStoppedLoadingEvent;
       if (frameId) {
-        sendLifecycleEvent(frameId, "DOMContentLoaded");
-        sendLifecycleEvent(frameId, "load");
-        sendLifecycleEvent(frameId, "networkAlmostIdle");
-        sendLifecycleEvent(frameId, "networkIdle");
+        send({
+          method: "Page.loadEventFired",
+          params: {
+            timestamp: Date.now() / 1000,
+          } satisfies Protocol.Page.LoadEventFiredEvent,
+          sessionId: `session-${targetId}`,
+        });
       }
     }
   };
@@ -386,6 +371,19 @@ function handleInterceptedTargetCommand(
         ],
       };
       send({ id, result });
+      return;
+    }
+
+    case "Target.setAutoAttach": {
+      // Do not forward to Electron. Forwarding causes Electron to emit
+      // Target.attachedToTarget events for real iframe sub-sessions. Those
+      // real sub-session IDs leak into agent-browser's iframe_sessions map,
+      // causing subsequent CDP commands (Page.enable, Network.enable,
+      // Accessibility.getFullAXTree) to be sent with the wrong session ID
+      // and potentially hang or fail. We are running in a flat, single-target
+      // model; Electron's WebContentsView debugger already auto-attaches to
+      // frames at the browser level.
+      send({ id, result: {} });
       return;
     }
 

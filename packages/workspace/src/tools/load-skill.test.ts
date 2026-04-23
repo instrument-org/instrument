@@ -192,7 +192,7 @@ describe("LoadSkill", () => {
     const fileContent = await fs.readFile(destScript, "utf8");
     expect(fileContent).toMatchInlineSnapshot(`"modified"`);
     expect(result.content).toMatchInlineSnapshot(
-      `"Skill "my-skill" is already loaded at skills/my-skill."`,
+      `"Skill "my-skill" is already loaded. Read skills/my-skill/SKILL.md if you haven't yet -- do not read other files in that folder unless the skill instructs you to."`,
     );
   });
 

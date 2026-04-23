@@ -244,10 +244,10 @@ function FramePreview({
     frame.screenshot.path.split("/").pop() ?? frame.screenshot.path;
   const headerLabel = frame.screenshot.title || frame.screenshot.url;
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-border/50 bg-background">
+    <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-border/50 bg-black">
       <ImageWithFallback
         alt={headerLabel}
-        className="h-full w-full object-cover object-top"
+        className="h-full w-full object-contain"
         fallbackClassName="h-full w-full"
         filename={filename}
         src={url}

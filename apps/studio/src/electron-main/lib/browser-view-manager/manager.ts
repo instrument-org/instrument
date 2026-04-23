@@ -1,5 +1,3 @@
-import type { Protocol } from "devtools-protocol";
-
 import {
   type AbsolutePath,
   type BrowserConfig,
@@ -13,7 +11,12 @@ import { session } from "electron";
 import fs from "node:fs";
 import { noop } from "radashi";
 
-import { applyDeviceMetricsOverride } from "./device-metrics";
+import { isDeveloperMode } from "../../stores/preferences";
+import {
+  attachDevHooks,
+  getBaseWindowForAgentView,
+  notifyDebugChange,
+} from "./dev-hooks";
 import { sendCommand } from "./dispatch-command";
 import {
   attachDownloadHandler,
@@ -26,7 +29,7 @@ import {
   handleDetach,
   subscribeEvents,
 } from "./entry";
-import { createHostWindow } from "./host-window";
+import { createAgentView } from "./host-window";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
 
@@ -34,33 +37,12 @@ export interface BrowserViewManager {
   browser: BrowserConfig;
   // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
   // convention; do not mutate the returned map from outside the manager.
-  developerMode: boolean;
   getDebugEntries: () => ReadonlyMap<BrowserTargetId, BrowserEntry>;
-  // Debug-only: bring the host BrowserWindow to the foreground (or unhide it
-  // if it was hidden by a user click on the OS close button). Returns true if
-  // a window was shown, false if the entry or its window are gone.
-  showHostWindow: (targetId: BrowserTargetId) => boolean;
   teardown: () => void;
 }
 
-export function createBrowserViewManager({
-  developerMode = false,
-  onChange,
-}: {
-  developerMode?: boolean;
-  onChange?: () => void;
-} = {}): BrowserViewManager {
+export function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
-  const notifyChange = () => {
-    if (!onChange) {
-      return;
-    }
-    try {
-      onChange();
-    } catch {
-      // Listener errors must not impact the manager.
-    }
-  };
 
   function ensureDebuggerAttached(entry: BrowserEntry) {
     const wc = entry.view.webContents;
@@ -81,17 +63,6 @@ export function createBrowserViewManager({
       if (method === "Page.downloadWillBegin") {
         captureDownloadWillBeginGuid(current, params);
       }
-      // cspell:ignore RWHV
-      // FP-922: Chromium's captureBeyondViewport reflows against the RWHV
-      // when no Emulation override is active, breaking 100vh/sticky/parallax
-      // pages. Re-apply on every top-level navigation since cross-origin
-      // navigation can drop the override.
-      if (method === "Page.frameNavigated") {
-        const p = params as Protocol.Page.FrameNavigatedEvent;
-        if (!p.frame.parentId) {
-          void applyDeviceMetricsOverride(current);
-        }
-      }
       for (const listener of current.eventListeners) {
         listener(method, params);
       }
@@ -100,8 +71,6 @@ export function createBrowserViewManager({
     wc.debugger.on("detach", () => {
       handleDetach(entries, targetId);
     });
-
-    void applyDeviceMetricsOverride(entry);
   }
 
   function createTarget(
@@ -125,8 +94,9 @@ export function createBrowserViewManager({
     fs.mkdirSync(partitionDir, { recursive: true });
     const ses = session.fromPath(partitionDir, { cache: true });
 
-    const { destroyHostWindow, hostWindow, view } = createHostWindow({
-      developerMode,
+    const { destroyView, view } = createAgentView({
+      developerMode: isDeveloperMode(),
+      getBaseWindow: getBaseWindowForAgentView,
       session: ses,
       subdomain,
     });
@@ -158,7 +128,6 @@ export function createBrowserViewManager({
     );
 
     const entry = createEntry({
-      hostWindow,
       partitionDir,
       sessionId,
       subdomain,
@@ -184,13 +153,7 @@ export function createBrowserViewManager({
       }
     });
     entry.disposers.add(() => {
-      const currentWc = entry.view.webContents;
-      if (currentWc && !currentWc.isDestroyed()) {
-        currentWc.close();
-      }
-    });
-    entry.disposers.add(() => {
-      destroyHostWindow();
+      destroyView();
     });
     // Fire destruction listeners as part of the disposer chain so any reason
     // for entry removal naturally signals out (explicit close, detach,
@@ -210,11 +173,11 @@ export function createBrowserViewManager({
     });
 
     entries.set(targetId, entry);
-    notifyChange();
+    notifyDebugChange();
 
     wc.on("destroyed", () => {
       handleDetach(entries, targetId);
-      notifyChange();
+      notifyDebugChange();
     });
 
     // Renderer crash: today only `handleDetach` was called via the debugger
@@ -222,33 +185,7 @@ export function createBrowserViewManager({
     // Force a full entry teardown so the projectBrowser machine reaps.
     wc.on("render-process-gone", () => {
       destroyEntry(entries, targetId);
-      notifyChange();
-    });
-
-    // Notify on any other entry teardown path (close, detach) so the debug
-    // page sees explicit closeTarget / debugger detach without waiting for
-    // the periodic heartbeat.
-    entry.destructionListeners.add(() => {
-      notifyChange();
-    });
-
-    // Title/URL/loading-state changes are handy in the debug view; surface
-    // them on a few cheap webContents events. Each is a no-op if no listener
-    // is attached.
-    wc.on("page-title-updated", () => {
-      notifyChange();
-    });
-    wc.on("did-navigate", () => {
-      notifyChange();
-    });
-    wc.on("did-navigate-in-page", () => {
-      notifyChange();
-    });
-    wc.on("did-start-loading", () => {
-      notifyChange();
-    });
-    wc.on("did-stop-loading", () => {
-      notifyChange();
+      notifyDebugChange();
     });
 
     // Materialize the main RenderFrame; without an initial navigation
@@ -256,7 +193,7 @@ export function createBrowserViewManager({
     return new Promise((resolve) => {
       wc.once("did-finish-load", () => {
         ensureDebuggerAttached(entry);
-        notifyChange();
+        attachDevHooks(entry);
         resolve({ targetId });
       });
       void wc.loadURL("about:blank");
@@ -375,23 +312,12 @@ export function createBrowserViewManager({
 
   return {
     browser,
-    developerMode,
     getDebugEntries: () => entries,
-    showHostWindow: (targetId) => {
-      const entry = entries.get(targetId);
-      if (!entry || entry.hostWindow.isDestroyed()) {
-        return false;
-      }
-      entry.hostWindow.show();
-      entry.hostWindow.focus();
-      notifyChange();
-      return true;
-    },
     teardown: () => {
       for (const targetId of entries.keys()) {
         destroyEntry(entries, targetId);
       }
-      notifyChange();
+      notifyDebugChange();
     },
   };
 }

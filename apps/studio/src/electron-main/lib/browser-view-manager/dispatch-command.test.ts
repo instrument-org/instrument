@@ -2,7 +2,7 @@ import type {
   AbsolutePath,
   BrowserTargetId,
 } from "@instrument-org/workspace/electron";
-import type { BrowserWindow, WebContentsView } from "electron";
+import type { WebContentsView } from "electron";
 
 import {
   encodeBrowserTargetId,
@@ -62,7 +62,6 @@ function makeEntry({
       }
     : null;
   const entry = createEntry({
-    hostWindow: {} as BrowserWindow,
     partitionDir: "/tmp/partition" as AbsolutePath,
     sessionId: SESSION_ID,
     subdomain: SUBDOMAIN,

@@ -10,8 +10,6 @@ import ms from "ms";
 import path from "node:path";
 import { createActor } from "xstate";
 
-import { publisher } from "../rpc/publisher";
-import { isDeveloperMode } from "../stores/preferences";
 import { createBrowserViewManager } from "./browser-view-manager/manager";
 import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
@@ -35,12 +33,7 @@ if (ENV_REGISTRY_DIR) {
 
 export function createWorkspaceActor() {
   const rootDir = getWorkspaceFolder();
-  const browserViewManager = createBrowserViewManager({
-    developerMode: isDeveloperMode(),
-    onChange: () => {
-      publisher.publish("debug.browser-view-manager.updated", null);
-    },
-  });
+  const browserViewManager = createBrowserViewManager();
 
   const actor = createActor(workspaceMachine, {
     input: {

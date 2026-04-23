@@ -37,6 +37,7 @@ import { Route as AppNot_authenticatedWelcomeRouteImport } from './routes/_app/_
 import { Route as AppNot_authenticatedSignInRouteImport } from './routes/_app/_not_authenticated/sign-in'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
+import { Route as AppDebugAgentViewTargetIdRouteImport } from './routes/_app/debug/agent-view.$targetId'
 
 const SidebarRoute = SidebarRouteImport.update({
   id: '/sidebar',
@@ -181,6 +182,12 @@ const AppProjectsSubdomainIndexRoute =
     path: '/projects/$subdomain/',
     getParentRoute: () => AppRouteRoute,
   } as any)
+const AppDebugAgentViewTargetIdRoute =
+  AppDebugAgentViewTargetIdRouteImport.update({
+    id: '/agent-view/$targetId',
+    path: '/agent-view/$targetId',
+    getParentRoute: () => AppDebugRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -207,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/debug/': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/debug/agent-view/$targetId': typeof AppDebugAgentViewTargetIdRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRoutesByTo {
@@ -232,6 +240,7 @@ export interface FileRoutesByTo {
   '/debug': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/debug/agent-view/$targetId': typeof AppDebugAgentViewTargetIdRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRoutesById {
@@ -263,6 +272,7 @@ export interface FileRoutesById {
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
+  '/_app/debug/agent-view/$targetId': typeof AppDebugAgentViewTargetIdRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRouteTypes {
@@ -292,6 +302,7 @@ export interface FileRouteTypes {
     | '/debug/'
     | '/evals'
     | '/projects'
+    | '/debug/agent-view/$targetId'
     | '/projects/$subdomain'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/debug'
     | '/evals'
     | '/projects'
+    | '/debug/agent-view/$targetId'
     | '/projects/$subdomain'
   id:
     | '__root__'
@@ -347,6 +359,7 @@ export interface FileRouteTypes {
     | '/_app/debug/'
     | '/_app/evals/'
     | '/_app/projects/'
+    | '/_app/debug/agent-view/$targetId'
     | '/_app/projects/$subdomain/'
   fileRoutesById: FileRoutesById
 }
@@ -555,6 +568,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsSubdomainIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/debug/agent-view/$targetId': {
+      id: '/_app/debug/agent-view/$targetId'
+      path: '/agent-view/$targetId'
+      fullPath: '/debug/agent-view/$targetId'
+      preLoaderRoute: typeof AppDebugAgentViewTargetIdRouteImport
+      parentRoute: typeof AppDebugRouteRoute
+    }
   }
 }
 
@@ -594,6 +614,7 @@ interface AppDebugRouteRouteChildren {
   AppDebugErrorsRoute: typeof AppDebugErrorsRoute
   AppDebugSessionStreamRoute: typeof AppDebugSessionStreamRoute
   AppDebugIndexRoute: typeof AppDebugIndexRoute
+  AppDebugAgentViewTargetIdRoute: typeof AppDebugAgentViewTargetIdRoute
 }
 
 const AppDebugRouteRouteChildren: AppDebugRouteRouteChildren = {
@@ -603,6 +624,7 @@ const AppDebugRouteRouteChildren: AppDebugRouteRouteChildren = {
   AppDebugErrorsRoute: AppDebugErrorsRoute,
   AppDebugSessionStreamRoute: AppDebugSessionStreamRoute,
   AppDebugIndexRoute: AppDebugIndexRoute,
+  AppDebugAgentViewTargetIdRoute: AppDebugAgentViewTargetIdRoute,
 }
 
 const AppDebugRouteRouteWithChildren = AppDebugRouteRoute._addFileChildren(

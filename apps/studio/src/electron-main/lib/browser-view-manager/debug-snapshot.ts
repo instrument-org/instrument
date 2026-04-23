@@ -5,6 +5,8 @@
 
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { isDeveloperMode } from "@/electron-main/stores/preferences";
+import { type StudioPath } from "@/shared/studio-path";
 import {
   BrowserTargetIdSchema,
   type WorkspaceActorRef,
@@ -34,8 +36,6 @@ const BrowserViewDebugEntrySchema = z.object({
   detachListenerCount: z.number(),
   disposerCount: z.number(),
   eventListenerCount: z.number(),
-  hostWindowDestroyed: z.boolean(),
-  hostWindowVisible: z.boolean(),
   isCrashed: z.boolean(),
   isLoading: z.boolean(),
   partitionDir: z.string(),
@@ -73,7 +73,6 @@ function buildBrowserViewEntries(
   for (const [targetId, entry] of manager.getDebugEntries()) {
     const wc = entry.view.webContents;
     const wcDestroyed = !wc || wc.isDestroyed();
-    const hostDestroyed = entry.hostWindow.isDestroyed();
 
     out.push({
       audioMuted: wcDestroyed ? false : wc.isAudioMuted(),
@@ -83,8 +82,6 @@ function buildBrowserViewEntries(
       detachListenerCount: entry.detachListeners.size,
       disposerCount: entry.disposers.size,
       eventListenerCount: entry.eventListeners.size,
-      hostWindowDestroyed: hostDestroyed,
-      hostWindowVisible: hostDestroyed ? false : entry.hostWindow.isVisible(),
       isCrashed: wcDestroyed ? false : wc.isCrashed(),
       isLoading: wcDestroyed ? false : wc.isLoading(),
       partitionDir: entry.partitionDir,
@@ -147,7 +144,7 @@ function buildSnapshot({
 }): BrowserViewManagerDebugSnapshot {
   return {
     capturedAt: new Date().toISOString(),
-    developerMode: manager.developerMode,
+    developerMode: isDeveloperMode(),
     entries: buildBrowserViewEntries(manager),
     projectBrowsers: buildProjectBrowserEntries(workspaceRef),
     totalEntries: manager.getDebugEntries().size,
@@ -244,19 +241,33 @@ const snapshotLive = base
     }
   });
 
-// Bring an entry's host BrowserWindow back to the foreground. Useful when the
-// user has clicked the OS close button on the window (which now hides instead
-// of destroying) and wants to peek at the agent-controlled page again.
-const showHostWindow = base
+const openAsTab = base
   .input(z.object({ targetId: BrowserTargetIdSchema }))
-  .output(z.object({ shown: z.boolean() }))
   .handler(({ context, input }) => {
-    const shown = context.browserViewManager.showHostWindow(input.targetId);
-    return { shown };
+    const entry = context.browserViewManager
+      .getDebugEntries()
+      .get(input.targetId);
+    if (!entry || !context.tabsManager) {
+      return;
+    }
+    const targetId = String(input.targetId);
+    const wc = entry.view.webContents;
+    const title = (wc && !wc.isDestroyed() ? wc.getTitle() : null) || targetId;
+    context.tabsManager.addTab({
+      closeDetachesOnly: true,
+      iconName: "globe",
+      title,
+      // Cast: TanStack Router's FileRoutesByPath can't verify template-literal
+      // paths at runtime, but this path is valid.
+      urlPath: `/debug/agent-view/${targetId}` as StudioPath,
+      webView: entry.view,
+    });
   });
 
 export const browserViewManagerDebugRoutes = {
-  showHostWindow,
+  live: {
+    snapshot: snapshotLive,
+  },
+  openAsTab,
   snapshot,
-  snapshotLive,
 };

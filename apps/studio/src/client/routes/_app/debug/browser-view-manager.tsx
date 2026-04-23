@@ -14,7 +14,7 @@ import {
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRightIcon, EyeIcon } from "lucide-react";
+import { ChevronRightIcon, MonitorIcon } from "lucide-react";
 
 type Entry = Snapshot["entries"][number];
 type ProjectBrowser = Snapshot["projectBrowsers"][number];
@@ -33,17 +33,6 @@ export const Route = createFileRoute("/_app/debug/browser-view-manager")({
 });
 
 function EntryCard({ entry }: { entry: Entry }) {
-  const showWindow = useMutation(
-    rpcClient.debug.browserViewManager.showHostWindow.mutationOptions(),
-  );
-
-  const windowState: { canShow: boolean; label: string; tone: Tone } =
-    entry.hostWindowDestroyed
-      ? { canShow: false, label: "window closed", tone: "danger" }
-      : entry.hostWindowVisible
-        ? { canShow: false, label: "window open", tone: "ok" }
-        : { canShow: true, label: "window hidden", tone: "muted" };
-
   const status: { label: string; tone: Tone } = entry.webContentsDestroyed
     ? { label: "page gone", tone: "danger" }
     : entry.isCrashed
@@ -51,6 +40,10 @@ function EntryCard({ entry }: { entry: Entry }) {
       : entry.isLoading
         ? { label: "loading", tone: "warn" }
         : { label: "ready", tone: "ok" };
+
+  const openAsTab = useMutation(
+    rpcClient.debug.browserViewManager.openAsTab.mutationOptions(),
+  );
 
   return (
     <Card className="overflow-hidden">
@@ -64,24 +57,20 @@ function EntryCard({ entry }: { entry: Entry }) {
               {entry.subdomain} · {entry.sessionId}
             </p>
           </div>
-          {windowState.canShow && (
-            <Button
-              className="h-7 shrink-0 text-xs"
-              disabled={showWindow.isPending}
-              onClick={() => {
-                showWindow.mutate({ targetId: entry.targetId });
-              }}
-              size="sm"
-              variant="outline"
-            >
-              <EyeIcon className="size-3.5" />
-              Show window
-            </Button>
-          )}
+          <Button
+            disabled={entry.webContentsDestroyed || openAsTab.isPending}
+            onClick={() => {
+              openAsTab.mutate({ targetId: entry.targetId });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <MonitorIcon className="size-3.5" />
+            View
+          </Button>
         </div>
         <div className="flex flex-wrap gap-1">
           <StatusBadge label={status.label} tone={status.tone} />
-          <StatusBadge label={windowState.label} tone={windowState.tone} />
           {entry.debuggerAttached ? (
             <StatusBadge label="cdp attached" tone="ok" />
           ) : (
@@ -274,7 +263,7 @@ function projectBrowserStatus(state: string): {
 
 function RouteComponent() {
   const { data } = useQuery(
-    rpcClient.debug.browserViewManager.snapshotLive.experimental_liveOptions(),
+    rpcClient.debug.browserViewManager.live.snapshot.experimental_liveOptions(),
   );
 
   const captured = data?.capturedAt
@@ -302,7 +291,7 @@ function RouteComponent() {
         <section className="flex flex-col gap-2">
           <SectionHeader
             count={data?.entries.length}
-            help="Each card is one WebContentsView the main process is hosting. Use Show window to bring its OS window back to the front."
+            help="Each card is one WebContentsView the main process is hosting."
             title="Browsers"
           />
           {data && data.entries.length === 0 ? (

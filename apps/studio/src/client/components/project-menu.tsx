@@ -8,6 +8,7 @@ import {
   Bug,
   ChevronDown,
   Copy,
+  Loader2,
   MessageCircle,
   Pencil,
   Plus,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useAppState } from "../hooks/use-app-state";
 import { rpcClient } from "../rpc/client";
 import { AppIcon } from "./app-icon";
 import { Button } from "./ui/button";
@@ -50,6 +52,9 @@ export function ProjectMenu({
       input: { subdomain: project.subdomain },
     }),
   );
+
+  const { data: appState } = useAppState({ subdomain: project.subdomain });
+  const sessionActors = appState?.sessionActors ?? [];
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
@@ -172,11 +177,27 @@ export function ProjectMenu({
                   }}
                   value={selectedSessionId}
                 >
-                  {sessions.map((session) => (
-                    <DropdownMenuRadioItem key={session.id} value={session.id}>
-                      {session.title || "Untitled Chat"}
-                    </DropdownMenuRadioItem>
-                  ))}
+                  {sessions.map((session) => {
+                    const isAlive = sessionActors.some(
+                      (a) =>
+                        a.sessionId === session.id &&
+                        a.tags.includes("agent.alive"),
+                    );
+                    return (
+                      <DropdownMenuRadioItem
+                        className="pl-2 data-[state=checked]:bg-black/10 dark:data-[state=checked]:bg-white/10 [&>span:first-child]:hidden"
+                        key={session.id}
+                        value={session.id}
+                      >
+                        <span className="flex-1 truncate">
+                          {session.title || "Untitled Chat"}
+                        </span>
+                        {isAlive && (
+                          <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
+                        )}
+                      </DropdownMenuRadioItem>
+                    );
+                  })}
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>

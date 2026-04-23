@@ -10,7 +10,6 @@ const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
   "devstral-medium-2507": ["coding", "recommended"],
   "gemini-2.5-flash": ["recommended"],
   "gemini-2.5-pro": ["coding"],
-  "grok-code-fast-1": ["coding", "recommended"],
   "kimi-k2-0905": ["coding", "recommended"],
   "qwen3-coder": ["coding", "recommended"],
   "qwen3-coder-plus": ["coding", "recommended"],

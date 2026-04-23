@@ -1,7 +1,10 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
-import { workspaceMachine } from "@instrument-org/workspace/electron";
+import {
+  closeAllAgentBrowserSessions,
+  workspaceMachine,
+} from "@instrument-org/workspace/electron";
 import { app, shell } from "electron";
 import ms from "ms";
 import path from "node:path";
@@ -134,9 +137,25 @@ export function createWorkspaceActor() {
     throw error;
   }
 
-  app.on("before-quit", () => {
-    browserViewManager.teardown();
-    actor.stop();
+  app.on("before-quit", (e) => {
+    e.preventDefault();
+    // eslint-disable-next-line unicorn/consistent-function-scoping
+    const doExit = () => {
+      browserViewManager.teardown();
+      actor.stop();
+      app.exit(0);
+    };
+    const timeout = setTimeout(() => {
+      captureServerException(
+        new Error("agent-browser close --all timed out on quit"),
+        { scopes: ["studio"] },
+      );
+      doExit();
+    }, 3000);
+    void closeAllAgentBrowserSessions().finally(() => {
+      clearTimeout(timeout);
+      doExit();
+    });
   });
 
   return {

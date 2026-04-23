@@ -11,9 +11,9 @@ import { session } from "electron";
 import fs from "node:fs";
 import { noop } from "radashi";
 
-import { isDeveloperMode } from "../../stores/preferences";
+import { getTabsManager } from "../../tabs";
 import { createBrowserView } from "./browser-view";
-import { attachDevHooks, getBaseWindow, notifyDebugChange } from "./dev-hooks";
+import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { sendCommand } from "./dispatch-command";
 import {
   attachDownloadHandler,
@@ -91,8 +91,6 @@ export function createBrowserViewManager(): BrowserViewManager {
     const ses = session.fromPath(partitionDir, { cache: true });
 
     const { destroyView, view } = createBrowserView({
-      developerMode: isDeveloperMode(),
-      getBaseWindow,
       session: ses,
       subdomain,
     });
@@ -170,6 +168,23 @@ export function createBrowserViewManager(): BrowserViewManager {
 
     entries.set(targetId, entry);
     notifyDebugChange();
+
+    // Register the view as a background tab immediately so Chromium starts
+    // compositing it before any navigation. This is required for both
+    // Input.dispatchMouseEvent (CDP) and capturePage to work -- Chromium drops
+    // input events and refuses surface copies for views that are not in the
+    // window hierarchy. closeDetachesOnly means the tab manager never destroys
+    // the view; lifecycle stays owned here.
+    try {
+      getTabsManager()?.addTab({
+        iconName: "globe",
+        keepMounted: true,
+        title: `Browser: ${String(entry.subdomain)}`,
+        webView: entry.view,
+      });
+    } catch {
+      // Must not impact the manager.
+    }
 
     wc.on("destroyed", () => {
       handleDetach(entries, targetId);

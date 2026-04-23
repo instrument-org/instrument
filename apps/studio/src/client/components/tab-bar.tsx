@@ -8,7 +8,8 @@ import { AnimatePresence, motion, Reorder } from "motion/react";
 export default function TabBar() {
   const { addTab, closeTab, reorderTabs, selectTab } = useTabActions();
   const selectedTabId = useSelectedTabId();
-  const tabs = useTabs();
+  const allTabs = useTabs();
+  const tabs = allTabs.filter((tab) => !tab.tabBarHidden);
 
   return (
     <div className="flex min-w-0 flex-1 flex-row items-center overflow-hidden">

@@ -27,11 +27,12 @@ interface TabStore {
 
 interface TabWithView extends Tab {
   /**
-   * When true, closing the tab detaches the view without destroying it.
-   * Used for dev-mode agent view tabs where the browser-view-manager owns
-   * the view lifecycle.
+   * When true, this view is owned externally (browser-view-manager) and must
+   * always stay in the window hierarchy so Chromium keeps it composited.
+   * "Closing" such a tab only sets tabBarHidden=true; it is never removed from
+   * this.tabs or the window.
    */
-  closeDetachesOnly?: true;
+  keepMounted?: true;
   webView: WebContentsView;
 }
 
@@ -69,16 +70,16 @@ export class TabsManager {
   }
 
   public addTab({
-    closeDetachesOnly,
     iconName,
+    keepMounted,
     params = {},
     select,
     title,
     urlPath = "/",
     webView,
   }: {
-    closeDetachesOnly?: true;
     iconName?: Tab["iconName"];
+    keepMounted?: true;
     params?: Record<string, string>;
     select?: boolean;
     title?: string;
@@ -125,9 +126,9 @@ export class TabsManager {
     }
 
     const newTab: TabWithView = {
-      closeDetachesOnly,
       iconName,
       id,
+      keepMounted,
       pathname: pathWithParams,
       pinned: false,
       title,
@@ -166,6 +167,16 @@ export class TabsManager {
       return;
     }
 
+    // Background views must stay in the window for Chromium to keep them
+    // composited. Just mark them dismissed so the client hides them from the
+    // tab bar; everything else (resize, title sync, lifecycle) continues as-is.
+    if (tab.keepMounted) {
+      tab.tabBarHidden = true;
+      this.selectNeighborTab(tab, tabIndex);
+      this.afterUpdate();
+      return;
+    }
+
     const { webView: _webView, ...closedTabData } = tab;
     this.recentlyClosed.push(closedTabData);
 
@@ -173,7 +184,7 @@ export class TabsManager {
     this.selectNeighborTab(tab, tabIndex);
     this.tabs = this.tabs.filter((t) => t.id !== id);
 
-    if (this.tabs.length === 0) {
+    if (this.visibleTabs().length === 0) {
       this.addTab({});
     } else {
       this.afterUpdate();
@@ -196,7 +207,7 @@ export class TabsManager {
     return {
       selectedTabId: this.selectedTabId,
       tabs: this.tabs.map(
-        ({ closeDetachesOnly: _c, webView: _webView, ...tab }) => tab,
+        ({ keepMounted: _k, webView: _webView, ...tab }) => tab,
       ),
     };
   }
@@ -298,14 +309,13 @@ export class TabsManager {
   }
 
   public selectNextTab() {
-    if (this.tabs.length <= 1) {
+    const visible = this.visibleTabs();
+    if (visible.length <= 1) {
       return;
     }
-    const currentIndex = this.tabs.findIndex(
-      (t) => t.id === this.selectedTabId,
-    );
-    const nextIndex = (currentIndex + 1) % this.tabs.length;
-    const tab = this.tabs[nextIndex];
+    const currentIndex = visible.findIndex((t) => t.id === this.selectedTabId);
+    const nextIndex = (currentIndex + 1) % visible.length;
+    const tab = visible[nextIndex];
     if (tab) {
       this.selectTabView(tab);
       this.afterUpdate();
@@ -313,14 +323,13 @@ export class TabsManager {
   }
 
   public selectPreviousTab() {
-    if (this.tabs.length <= 1) {
+    const visible = this.visibleTabs();
+    if (visible.length <= 1) {
       return;
     }
-    const currentIndex = this.tabs.findIndex(
-      (t) => t.id === this.selectedTabId,
-    );
-    const prevIndex = (currentIndex - 1 + this.tabs.length) % this.tabs.length;
-    const tab = this.tabs[prevIndex];
+    const currentIndex = visible.findIndex((t) => t.id === this.selectedTabId);
+    const prevIndex = (currentIndex - 1 + visible.length) % visible.length;
+    const tab = visible[prevIndex];
     if (tab) {
       this.selectTabView(tab);
       this.afterUpdate();
@@ -336,9 +345,9 @@ export class TabsManager {
   }
 
   public selectTabByIndex({ index }: { index: number }) {
-    // Ensure index is within bounds
-    if (index >= 0 && index < this.tabs.length) {
-      const tab = this.tabs[index];
+    const visible = this.visibleTabs();
+    if (index >= 0 && index < visible.length) {
+      const tab = visible[index];
       if (tab) {
         this.selectTabView(tab);
         this.afterUpdate();
@@ -359,10 +368,10 @@ export class TabsManager {
     if (currentTab) {
       this.updateTabBounds(currentTab);
     }
-    // closeDetachesOnly tabs stay mounted in the window even when not selected,
+    // keepMounted tabs stay in the window even when not selected,
     // so they must be resized alongside the active tab.
     for (const tab of this.tabs) {
-      if (tab.closeDetachesOnly && tab.id !== this.selectedTabId) {
+      if (tab.keepMounted && tab.id !== this.selectedTabId) {
         this.updateTabBounds(tab);
       }
     }
@@ -392,15 +401,6 @@ export class TabsManager {
   }
 
   private closeTabView(tab: TabWithView) {
-    if (tab.closeDetachesOnly) {
-      // The browser-view-manager owns this view's lifecycle -- just detach it.
-      try {
-        this.baseWindow.contentView.removeChildView(tab.webView);
-      } catch {
-        // View may already be detached.
-      }
-      return;
-    }
     this.baseWindow.contentView.removeChildView(tab.webView);
     tab.webView.webContents?.close();
   }
@@ -477,34 +477,29 @@ export class TabsManager {
     publisher.publish("tabs.updated", value);
   }
 
-  /** Written to disk -- excludes tabs whose view is owned externally. */
+  /** Written to disk -- excludes keepMounted views whose lifecycle is external. */
   private getPersistedState(): TabState {
-    const persistedTabs = this.tabs.filter((tab) => !tab.closeDetachesOnly);
+    const persistedTabs = this.tabs.filter((tab) => !tab.keepMounted);
     const selectedIsPersisted = persistedTabs.some(
       (tab) => tab.id === this.selectedTabId,
     );
     return {
       selectedTabId: selectedIsPersisted ? this.selectedTabId : null,
       tabs: persistedTabs.map(
-        ({ closeDetachesOnly: _c, webView: _webView, ...tab }) => tab,
+        ({ keepMounted: _k, webView: _webView, ...tab }) => tab,
       ),
     };
   }
 
-  private selectNeighborTab(tab: Tab, index: number) {
+  private selectNeighborTab(tab: Tab, _index: number) {
     const isSelected = this.selectedTabId === tab.id;
 
     if (isSelected) {
-      const nextTab = this.tabs[index + 1];
+      const visible = this.visibleTabs();
+      const visibleIndex = visible.findIndex((t) => t.id === tab.id);
+      const nextTab = visible[visibleIndex + 1] ?? visible[visibleIndex - 1];
       if (nextTab) {
         this.selectTabView(nextTab);
-        return;
-      }
-
-      const prevTab = this.tabs[index - 1];
-      if (prevTab) {
-        this.selectTabView(prevTab);
-        return;
       }
     }
   }
@@ -537,18 +532,14 @@ export class TabsManager {
     }
 
     const currentTab = this.getCurrentTab();
-    if (
-      currentTab &&
-      currentTab.id !== tab.id &&
-      !currentTab.closeDetachesOnly
-    ) {
+    if (currentTab && currentTab.id !== tab.id && !currentTab.keepMounted) {
       this.baseWindow.contentView.removeChildView(currentTab.webView);
     }
 
     this.updateTabBounds(tab);
 
-    // Append to top of the z-stack. For closeDetachesOnly views this moves
-    // them to the front; for regular tabs this covers any such views beneath.
+    // Append to top of the z-stack. For background views this moves them to
+    // the front; for regular tabs this covers any background views beneath.
     this.baseWindow.contentView.addChildView(tab.webView);
 
     // electron/electron#50249: webContents is undefined after destruction in Electron 41+
@@ -605,5 +596,10 @@ export class TabsManager {
 
   private updateTabBounds(tab: TabWithView) {
     tab.webView.setBounds(this.computeTabBounds());
+  }
+
+  /** Non-keepMounted tabs that participate in tab bar UI and navigation. */
+  private visibleTabs() {
+    return this.tabs.filter((tab) => !tab.keepMounted);
   }
 }

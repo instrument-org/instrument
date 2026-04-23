@@ -8,6 +8,7 @@ import { getAssetUrl } from "../../lib/get-asset-url";
 import { Favicon } from "../favicon";
 import { ImageWithFallback } from "../image-with-fallback";
 import { Slider } from "../ui/slider";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { agentBrowserPlayerMachine } from "./agent-browser-player-machine";
 
 type BrowserCommandObservation = Extract<
@@ -192,9 +193,16 @@ function FrameHeader({ frame }: { frame: PlayableFrame }) {
       ) : (
         <Favicon className="size-3.5" url={frame.screenshot.url} />
       )}
-      <span className="min-w-0 truncate text-[11px] text-foreground/80">
-        {frame.screenshot.title || frame.screenshot.url}
-      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="min-w-0 truncate text-[11px] text-foreground/80">
+            {frame.screenshot.title || frame.screenshot.url}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-sm break-all">
+          {frame.screenshot.url}
+        </TooltipContent>
+      </Tooltip>
       <span className="ml-auto shrink-0 truncate font-mono text-[11px] text-muted-foreground">
         {frame.subcommand}
       </span>

@@ -265,11 +265,16 @@ function handleCdpClient(
   clientWs.on("close", () => {
     unsubscribe?.();
     unsubscribe = null;
+    // Stop any in-progress screencast so the capturePage interval doesn't
+    // keep firing into the void (or bleed into the next WS connection for
+    // the same target before it sends its own Page.startScreencast).
+    workspaceConfig.browser.stopScreencast(targetId);
   });
 
   clientWs.on("error", () => {
     unsubscribe?.();
     unsubscribe = null;
+    workspaceConfig.browser.stopScreencast(targetId);
   });
 }
 

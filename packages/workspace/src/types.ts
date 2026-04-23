@@ -45,6 +45,7 @@ export interface BrowserConfig {
     method: string,
     params: unknown,
   ): Promise<unknown>;
+  stopScreencast: (targetId: BrowserTargetId) => void;
   subscribeEvents: (
     targetId: BrowserTargetId,
     onDetach: () => void,

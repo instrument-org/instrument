@@ -57,8 +57,9 @@ function SessionStatusText({
   const { data: appState } = useAppState({ subdomain });
 
   const sessionActors = appState?.sessionActors ?? [];
-  const isAgentAlive = sessionActors.some((actor) =>
-    actor.tags.includes("agent.alive"),
+  const isAgentAlive = sessionActors.some(
+    (actor) =>
+      actor.sessionId === sessionId && actor.tags.includes("agent.alive"),
   );
 
   const nonSystemMessages = messages.filter(

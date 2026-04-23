@@ -92,8 +92,8 @@ export function ProjectChat({
   const isDeveloperMode = preferences?.developerMode;
 
   const sessionActors = appState?.sessionActors ?? [];
-  const isAgentAlive = sessionActors.some((session) =>
-    session.tags.includes("agent.alive"),
+  const isAgentAlive = sessionActors.some(
+    (s) => s.sessionId === selectedSessionId && s.tags.includes("agent.alive"),
   );
   const isAgentRunning = sessionActors.some(
     (s) =>

@@ -8,6 +8,7 @@ import { APP_FOLDER_NAMES } from "../constants";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ProjectSubdomain } from "../schemas/subdomains";
+import { encodeBrowserTargetId } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getAgentBrowserStateDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
@@ -42,23 +43,26 @@ interface BrowserCommandObservation {
 // Callers should treat that as "this command happened without observation".
 export async function beginBrowserCommandObservation({
   appConfig,
+  sessionId,
   subcommand,
   subdomain,
   upsertContextItem,
 }: {
   appConfig: AppConfig;
+  sessionId: StoreId.Session;
   subcommand: string;
   subdomain: ProjectSubdomain;
   upsertContextItem: UpsertContextItem;
 }): Promise<BrowserCommandObservation | undefined> {
-  const { workspaceConfig } = appConfig;
-  const targets = await workspaceConfig.browser.listTargets(subdomain);
-  if (!targets[0]) {
+  const targetId = encodeBrowserTargetId(subdomain, sessionId);
+  const meta = appConfig.workspaceConfig.browser.getTargetMeta(targetId);
+  if (!meta) {
     return undefined;
   }
 
   const startScreenshot = await captureBrowserScreenshot({
     appConfig,
+    sessionId,
     subdomain,
   });
 
@@ -85,6 +89,7 @@ export async function beginBrowserCommandObservation({
       try {
         const endScreenshot = await captureBrowserScreenshot({
           appConfig,
+          sessionId,
           subdomain,
         });
         await upsertContextItem({
@@ -109,15 +114,18 @@ export async function beginBrowserCommandObservation({
 
 async function captureBrowserScreenshot({
   appConfig,
+  sessionId,
   subdomain,
 }: {
   appConfig: AppConfig;
+  sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
 }): Promise<SessionMessagePart.AgentBrowserScreenshot | undefined> {
   try {
     const { workspaceConfig } = appConfig;
+    const targetId = encodeBrowserTargetId(subdomain, sessionId);
     const targets = await workspaceConfig.browser.listTargets(subdomain);
-    const target = targets[0];
+    const target = targets.find((t) => t.id === targetId);
     if (!target) {
       return undefined;
     }

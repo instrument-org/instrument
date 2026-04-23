@@ -192,6 +192,7 @@ export function createAgentBrowserCommand({
       ? undefined
       : await beginBrowserCommandObservation({
           appConfig,
+          sessionId,
           subcommand: subcommandText,
           subdomain,
           upsertContextItem,

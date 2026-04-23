@@ -445,26 +445,27 @@ export const workspaceMachine = setup({
     addMessage: [
       {
         actions: ({ context, event }) => {
-          const subdomain = event.value.subdomain;
+          const { sessionId, subdomain } = event.value;
           const sessionRefs = context.sessionRefsBySubdomain.get(subdomain);
 
-          // Send to existing session
-          if (sessionRefs) {
-            for (const sessionRef of sessionRefs) {
-              sessionRef.send({
-                type: "addMessage",
-                value: event.value.message,
-              });
-            }
-          }
+          const targetRef = sessionRefs?.find(
+            (ref) => ref.getSnapshot().context.sessionId === sessionId,
+          );
+          targetRef?.send({
+            type: "addMessage",
+            value: event.value.message,
+          });
         },
         guard: ({ context, event }) => {
-          const subdomain = event.value.subdomain;
+          const { sessionId, subdomain } = event.value;
           const sessionRefs = context.sessionRefsBySubdomain.get(subdomain);
-          const hasActiveSession = sessionRefs?.some(
-            (ref) => ref.getSnapshot().status === "active",
+          return Boolean(
+            sessionRefs?.some(
+              (ref) =>
+                ref.getSnapshot().context.sessionId === sessionId &&
+                ref.getSnapshot().status === "active",
+            ),
           );
-          return Boolean(hasActiveSession);
         },
       },
       {

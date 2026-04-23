@@ -124,24 +124,17 @@ async function captureBrowserScreenshot({
 
     // Electron's WebContentsView is bootstrapped with `loadURL("about:blank")`
     // in BrowserViewManager.createTarget so CDP becomes responsive (Page.enable
-    // hangs without an initial main frame). Capturing that blank page wastes a
-    // CDP round-trip and produces a useless white JPEG that adds noise to the
-    // observation timeline and the system note. Skip it.
+    // hangs without an initial main frame). Capturing that blank page produces
+    // a useless white JPEG that adds noise to the observation timeline and the
+    // system note. Skip it.
     if (!target.url || target.url === "about:blank") {
       return undefined;
     }
 
-    const screenshotResult = await workspaceConfig.browser.sendCommand(
-      target.id,
-      "Page.captureScreenshot",
-      { captureBeyondViewport: false, format: "jpeg", quality: 70 },
-    );
-    const dataB64 = screenshotResult.data;
-    if (!dataB64) {
+    const buffer = await workspaceConfig.browser.captureScreenshot(target.id);
+    if (!buffer) {
       return undefined;
     }
-
-    const buffer = Buffer.from(dataB64, "base64");
     // Truncated SHA-1: 12 hex chars = 48 bits. The namespace is the
     // project's on-disk screenshot folder; a collision would mean two
     // screenshots with different content land at the same path. At 48

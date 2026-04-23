@@ -8,6 +8,7 @@ export interface Tab {
   pathname: string;
   pinned?: boolean;
   projectSubdomain?: ProjectSubdomain;
+  tabBarHidden?: boolean;
   title?: string;
 }
 

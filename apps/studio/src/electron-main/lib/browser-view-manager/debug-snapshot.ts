@@ -256,8 +256,8 @@ const openAsTab = base
     const browserViewPath =
       "/debug/browser-view/$targetId" satisfies StudioPath;
     context.tabsManager.addTab({
-      closeDetachesOnly: true,
       iconName: "globe",
+      keepMounted: true,
       title,
       // Cast: TanStack Router can't verify a template-literal fullPath, but
       // browserViewPath satisfies StudioPath so staleness is caught at compile time.

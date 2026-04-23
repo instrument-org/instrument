@@ -253,13 +253,15 @@ const openAsTab = base
     const targetId = String(input.targetId);
     const wc = entry.view.webContents;
     const title = (wc && !wc.isDestroyed() ? wc.getTitle() : null) || targetId;
+    const browserViewPath =
+      "/debug/browser-view/$targetId" satisfies StudioPath;
     context.tabsManager.addTab({
       closeDetachesOnly: true,
       iconName: "globe",
       title,
-      // Cast: TanStack Router's FileRoutesByPath can't verify template-literal
-      // paths at runtime, but this path is valid.
-      urlPath: `/debug/agent-view/${targetId}` as StudioPath,
+      // Cast: TanStack Router can't verify a template-literal fullPath, but
+      // browserViewPath satisfies StudioPath so staleness is caught at compile time.
+      urlPath: browserViewPath.replace("$targetId", targetId) as StudioPath,
       webView: entry.view,
     });
   });

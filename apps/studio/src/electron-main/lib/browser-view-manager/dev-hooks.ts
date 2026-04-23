@@ -1,5 +1,5 @@
 // Developer-mode hooks for the browser view manager.
-// Contains all debug-page event publishing and agent-view tab insertion logic.
+// Contains all debug-page event publishing and browser-view tab insertion logic.
 // Nothing in this file affects production behavior -- it is a no-op when
 // isDeveloperMode() returns false.
 
@@ -10,6 +10,8 @@ import { type StudioPath } from "@/shared/studio-path";
 import { type BaseWindow } from "electron";
 
 import { type BrowserEntry } from "./entry";
+
+const browserViewPath = "/debug/browser-view/$targetId" satisfies StudioPath;
 
 /**
  * Attach all developer-mode hooks to a freshly created entry after its view
@@ -43,9 +45,9 @@ export function attachDevHooks(entry: BrowserEntry) {
       closeDetachesOnly: true,
       iconName: "globe",
       title: `Browser: ${String(entry.subdomain)}`,
-      // Cast: TanStack Router's FileRoutesByPath can't verify template-literal
-      // paths at runtime, but this path is valid.
-      urlPath: `/debug/agent-view/${targetId}` as StudioPath,
+      // Cast: TanStack Router can't verify a template-literal fullPath, but
+      // browserViewPath satisfies StudioPath so staleness is caught at compile time.
+      urlPath: browserViewPath.replace("$targetId", targetId) as StudioPath,
       webView: entry.view,
     });
   } catch {
@@ -57,7 +59,7 @@ export function attachDevHooks(entry: BrowserEntry) {
  * Returns the BaseWindow owned by the tab manager, or null if it is not yet
  * ready or has been destroyed.
  */
-export function getBaseWindowForAgentView(): BaseWindow | null {
+export function getBaseWindow(): BaseWindow | null {
   const tm = getTabsManager();
   return tm && !tm.baseWindow.isDestroyed() ? tm.baseWindow : null;
 }

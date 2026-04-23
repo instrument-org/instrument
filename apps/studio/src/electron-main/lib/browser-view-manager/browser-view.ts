@@ -6,7 +6,7 @@ import {
   DEFAULT_VIEWPORT_WIDTH,
 } from "./device-metrics";
 
-export function createAgentView({
+export function createBrowserView({
   developerMode,
   getBaseWindow,
   session,

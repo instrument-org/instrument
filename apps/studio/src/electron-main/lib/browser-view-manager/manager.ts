@@ -12,11 +12,8 @@ import fs from "node:fs";
 import { noop } from "radashi";
 
 import { isDeveloperMode } from "../../stores/preferences";
-import {
-  attachDevHooks,
-  getBaseWindowForAgentView,
-  notifyDebugChange,
-} from "./dev-hooks";
+import { createBrowserView } from "./browser-view";
+import { attachDevHooks, getBaseWindow, notifyDebugChange } from "./dev-hooks";
 import { sendCommand } from "./dispatch-command";
 import {
   attachDownloadHandler,
@@ -29,7 +26,6 @@ import {
   handleDetach,
   subscribeEvents,
 } from "./entry";
-import { createAgentView } from "./host-window";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
 
@@ -94,9 +90,9 @@ export function createBrowserViewManager(): BrowserViewManager {
     fs.mkdirSync(partitionDir, { recursive: true });
     const ses = session.fromPath(partitionDir, { cache: true });
 
-    const { destroyView, view } = createAgentView({
+    const { destroyView, view } = createBrowserView({
       developerMode: isDeveloperMode(),
-      getBaseWindow: getBaseWindowForAgentView,
+      getBaseWindow,
       session: ses,
       subdomain,
     });

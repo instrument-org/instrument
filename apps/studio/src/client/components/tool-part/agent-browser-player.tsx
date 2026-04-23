@@ -127,21 +127,23 @@ function buildFrames(
   const frames: PlayableFrame[] = [];
   for (const obs of observations) {
     const isPending = obs.status === "pending";
-    frames.push({
-      id: `${obs.id}:start`,
-      isPending,
-      kind: "screenshot",
-      observationId: obs.id,
-      screenshot: obs.startScreenshot,
-      subcommand: obs.subcommand,
-    });
+    if (obs.startScreenshot) {
+      frames.push({
+        id: `${obs.id}:start`,
+        isPending,
+        kind: "screenshot",
+        observationId: obs.id,
+        screenshot: obs.startScreenshot,
+        subcommand: obs.subcommand,
+      });
+    }
     if (isPending) {
       continue;
     }
     if (obs.endScreenshot) {
       // Skip a duplicate end frame when the page didn't change at all - the
       // start frame already represents this state.
-      if (obs.endScreenshot.path !== obs.startScreenshot.path) {
+      if (obs.endScreenshot.path !== obs.startScreenshot?.path) {
         frames.push({
           id: `${obs.id}:end`,
           isPending: false,

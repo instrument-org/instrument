@@ -29,15 +29,17 @@ interface BrowserCommandObservation {
 }
 
 // Records that the agent has started running a browser command. Captures
-// a starting screenshot synchronously (the observation isn't created if
-// that fails); returns a handle whose `complete` captures the ending
-// screenshot and finalizes the record. Both writes share the same
-// context-item id so the UI replaces the in-flight card in place rather
-// than rendering two cards per command.
+// a starting screenshot synchronously; returns a handle whose `complete`
+// captures the ending screenshot and finalizes the record. Both writes
+// share the same context-item id so the UI replaces the in-flight card
+// in place rather than rendering two cards per command.
 //
-// Returns `undefined` when no observation could be opened (no live
-// target, or the start-of-command capture failed). Callers should treat
-// that as "this command happened without observation" and continue.
+// The start screenshot may be absent (e.g. the page is still about:blank
+// before an `open` command navigates). The observation is still created so
+// the end screenshot after the command runs is always captured.
+//
+// Returns `undefined` only when there is no live browser target at all.
+// Callers should treat that as "this command happened without observation".
 export async function beginBrowserCommandObservation({
   appConfig,
   subcommand,
@@ -49,13 +51,16 @@ export async function beginBrowserCommandObservation({
   subdomain: ProjectSubdomain;
   upsertContextItem: UpsertContextItem;
 }): Promise<BrowserCommandObservation | undefined> {
+  const { workspaceConfig } = appConfig;
+  const targets = await workspaceConfig.browser.listTargets(subdomain);
+  if (!targets[0]) {
+    return undefined;
+  }
+
   const startScreenshot = await captureBrowserScreenshot({
     appConfig,
     subdomain,
   });
-  if (!startScreenshot) {
-    return undefined;
-  }
 
   const id = StoreId.newPartContextItemId();
   const startedAt = getCurrentDate();

@@ -101,7 +101,6 @@ export const mainAgent = setupAgent({
     You operate in a conversational workspace where users chat with you to accomplish tasks. Here's how it works:
     - Your conversation with the user appears in the main area, where you can display text, files, and previews
     - Files you create in \`${F.output}/\` automatically appear as previews in the conversation (images, videos, documents, etc.)
-    - When you build interactive apps in \`${F.src}/\`, they open in a side panel where users can interact with them
     - Users can upload files directly in a message, or attach folders from their computer using the attachment button in the chat input
     
     When guiding users on how to use ${APP_NAME}:
@@ -196,21 +195,8 @@ export const mainAgent = setupAgent({
     
     Examples: data visualizations (charts as images), animations (videos/GIFs), reports (markdown/HTML/PDF), generated images, data analysis results, CSV exports, HTML wireframes, diagrams.
     
-    ## When to use the \`${F.src}/\` directory (Interactive Apps)
-    - First, read the \`${F.src}/AGENTS.md\` file to understand the project's structure and conventions.
-    - Only create an interactive app in \`${F.src}/\` when the user explicitly needs interactivity or would clearly benefit from it.
+    **Rule of thumb:** For static content, prefer scripts for data-heavy or algorithmic generation, otherwise use direct file writing.
 
-    Examples: calculators with inputs, games, real-time data dashboards, forms, interactive data exploration tools, configuration builders.
-    
-    **Rule of thumb:** For static content, prefer scripts for data-heavy or algorithmic generation, otherwise use direct file writing. If the user wants interactivity, they can ask for it, or you can suggest upgrading to an interactive app in \`${F.src}/\`.
-
-    # Runtime Environment for \`${F.src}/\` Apps
-    When working with interactive apps in the \`${F.src}/\` directory:
-    - The client-side code runs in an iframe within a desktop application.
-    - The server is automatically managed and will boot up without your intervention.
-    - When you make code changes, the user will see the updated versions automatically in their running application.
-    - Do NOT attempt to start, restart, or interact with development servers - this is handled automatically by the system.
-    
     # Scripts
     - Node.js and ${PNPM_COMMAND.name} are pre-installed for package management.
     - You can write scripts in TypeScript or bash. Use TypeScript for data processing, file manipulation, and anything that benefits from packages or type safety. Use bash for simple shell tasks, chaining CLI tools, or when it's the more natural fit.

@@ -105,6 +105,7 @@ export function createStubBrowserConfig(): BrowserConfig {
     listTargets: () => Promise.resolve([]),
     onTargetDestroyed: () => noop,
     sendCommand: () => Promise.resolve({}),
+    stopScreencast: noop,
     subscribeEvents: () => noop,
   };
 }

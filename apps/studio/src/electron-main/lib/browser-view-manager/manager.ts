@@ -296,6 +296,12 @@ export function createBrowserViewManager(): BrowserViewManager {
         params,
         targetId,
       })) satisfies BrowserConfig["sendCommand"],
+    stopScreencast: (targetId) => {
+      const entry = entries.get(targetId);
+      if (entry) {
+        stopScreencast(entry);
+      }
+    },
     subscribeEvents: (targetId, onDetach, onEvent) =>
       subscribeEvents({
         ensureDebuggerAttached,

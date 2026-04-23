@@ -1,3 +1,4 @@
+import { noop } from "radashi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ActorRefFrom,
@@ -65,6 +66,7 @@ function makeBrowser(): BrowserConfig {
     listTargets: vi.fn(emptyTargets),
     onTargetDestroyed: vi.fn(makeDisposer),
     sendCommand: vi.fn(emptyResult),
+    stopScreencast: vi.fn(noop),
     subscribeEvents: vi.fn(makeDisposer),
   };
 }

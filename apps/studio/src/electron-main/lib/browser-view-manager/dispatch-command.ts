@@ -78,6 +78,16 @@ export async function sendCommand({
     return getWindowForTargetStub();
   }
 
+  // Browser.setContentsSize is an experimental CDP command that resizes the
+  // host window's content area to match the emulated viewport. Electron has no
+  // implementation of this command, and we must not resize the Studio window.
+  // agent-browser calls it as best-effort after Emulation.setDeviceMetricsOverride
+  // (which does work); the screencast path it is intended to align doesn't apply
+  // to our capturePage-based emulated screencast. Stub it out silently.
+  if (method === "Browser.setContentsSize") {
+    return {};
+  }
+
   // Electron does not support CDP browser context management. Track the
   // authorized path per-target; the will-download handler in downloads.ts
   // applies it via item.setSavePath. session.setDownloadPath is avoided

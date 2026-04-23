@@ -269,7 +269,6 @@ export class TabsManager {
     const nextIndex = (currentIndex + 1) % this.tabs.length;
     const tab = this.tabs[nextIndex];
     if (tab) {
-      this.updateTabBounds(tab);
       this.selectTabView(tab);
       this.afterUpdate();
     }
@@ -285,7 +284,6 @@ export class TabsManager {
     const prevIndex = (currentIndex - 1 + this.tabs.length) % this.tabs.length;
     const tab = this.tabs[prevIndex];
     if (tab) {
-      this.updateTabBounds(tab);
       this.selectTabView(tab);
       this.afterUpdate();
     }
@@ -294,7 +292,6 @@ export class TabsManager {
   public selectTab({ id }: { id: string }) {
     const tab = this.tabs.find((t) => t.id === id);
     if (tab) {
-      this.updateTabBounds(tab);
       this.selectTabView(tab);
       this.afterUpdate();
     }
@@ -305,7 +302,6 @@ export class TabsManager {
     if (index >= 0 && index < this.tabs.length) {
       const tab = this.tabs[index];
       if (tab) {
-        this.updateTabBounds(tab);
         this.selectTabView(tab);
         this.afterUpdate();
       }
@@ -432,14 +428,12 @@ export class TabsManager {
     if (isSelected) {
       const nextTab = this.tabs[index + 1];
       if (nextTab) {
-        this.updateTabBounds(nextTab);
         this.selectTabView(nextTab);
         return;
       }
 
       const prevTab = this.tabs[index - 1];
       if (prevTab) {
-        this.updateTabBounds(prevTab);
         this.selectTabView(prevTab);
         return;
       }
@@ -457,7 +451,6 @@ export class TabsManager {
     });
 
     if (existingTab) {
-      this.updateTabBounds(existingTab);
       this.selectTabView(existingTab);
       this.afterUpdate();
       return true;
@@ -473,6 +466,7 @@ export class TabsManager {
       this.baseWindow.contentView.removeChildView(currentTab.webView);
     }
 
+    this.updateTabBounds(tab);
     this.baseWindow.contentView.addChildView(tab.webView);
     // electron/electron#50249: webContents is undefined after destruction in Electron 41+
     tab.webView.webContents?.focus();

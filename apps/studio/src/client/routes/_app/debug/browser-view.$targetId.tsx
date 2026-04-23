@@ -4,7 +4,7 @@ import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { createFileRoute } from "@tanstack/react-router";
 import { MonitorOffIcon } from "lucide-react";
 
-export const Route = createFileRoute("/_app/debug/agent-view/$targetId")({
+export const Route = createFileRoute("/_app/debug/browser-view/$targetId")({
   component: RouteComponent,
 });
 

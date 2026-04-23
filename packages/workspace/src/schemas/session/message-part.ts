@@ -156,9 +156,9 @@ export namespace SessionMessagePart {
   interface AgentBrowserCommandContextItemBase extends ToolPartContextItemBase {
     kind: "agent-browser-command";
     // Captured before the command runs so the agent and the user can see
-    // the page state the command was acting on. Mandatory: an observation
-    // that couldn't capture a starting screenshot is never created.
-    startScreenshot: AgentBrowserScreenshot;
+    // the page state the command was acting on. Optional because the page
+    // may be blank (e.g. about:blank) before the command navigates to a URL.
+    startScreenshot?: AgentBrowserScreenshot;
     // The agent-browser sub-invocation as the agent typed it (e.g.
     // "navigate https://example.com" or "click #submit"), without the
     // `agent-browser` prefix - the kind already discriminates that.

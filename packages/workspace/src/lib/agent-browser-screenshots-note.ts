@@ -62,15 +62,19 @@ function formatObservation(obs: CompleteObservation): string {
   }
   if (
     obs.endScreenshot &&
+    obs.startScreenshot &&
     obs.endScreenshot.path === obs.startScreenshot.path
   ) {
     return `- ${verb} (no change)`;
   }
   if (!obs.endScreenshot) {
     // Completed but no end-screenshot and no error: capture itself failed
-    // silently. Show the start hash so the agent can still anchor on the
-    // pre-command state if needed.
-    return `- ${verb} -> (no after) ${screenshotHash(obs.startScreenshot.path)}`;
+    // silently. Show the start hash if available so the agent can anchor on
+    // the pre-command state if needed.
+    if (obs.startScreenshot) {
+      return `- ${verb} -> (no after) ${screenshotHash(obs.startScreenshot.path)}`;
+    }
+    return `- ${verb} -> (no screenshots)`;
   }
   return `- ${verb} -> ${screenshotHash(obs.endScreenshot.path)}`;
 }

@@ -26,7 +26,7 @@ export async function copySkill({
     await fs.access(destDir);
     return err(
       new TypedError.Conflict(
-        `Skill "${skillName}" is already loaded at ${normalizedPathJoin(APP_FOLDER_NAMES.skills, skillName)}.`,
+        `Skill "${skillName}" is already loaded. Read ${normalizedPathJoin(APP_FOLDER_NAMES.skills, skillName, "SKILL.md")} if you haven't yet -- do not read other files in that folder unless the skill instructs you to.`,
       ),
     );
   } catch (error) {

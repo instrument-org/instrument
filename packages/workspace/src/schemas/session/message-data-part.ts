@@ -4,7 +4,11 @@ import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 
 export namespace SessionMessageDataPart {
-  export const NameSchema = z.enum(["attachments", "gitCommit"]);
+  export const NameSchema = z.enum([
+    "attachments",
+    "browserStatus",
+    "gitCommit",
+  ]);
 
   export type Name = z.output<typeof NameSchema>;
 
@@ -38,9 +42,20 @@ export namespace SessionMessageDataPart {
     typeof FileAttachmentsDataPartSchema
   >;
 
+  const BrowserStatusDataPartSchema = z.object({
+    hasLiveView: z.boolean(),
+    pageTitle: z.string().optional(),
+    pageUrl: z.string().optional(),
+  });
+
+  export type BrowserStatusDataPart = z.output<
+    typeof BrowserStatusDataPartSchema
+  >;
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
+    [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.gitCommit]: GitCommitDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;

@@ -298,4 +298,61 @@ describe("SessionMessage.toModelMessages", () => {
       ]
     `);
   });
+
+  it("injects browser status system note for user data-browserStatus parts", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: messageMetadata,
+        parts: [
+          {
+            metadata: partMetadata,
+            text: "Hello",
+            type: "text",
+          },
+          {
+            data: {
+              hasLiveView: true,
+              pageTitle: "Example",
+              pageUrl: "https://example.com",
+            },
+            metadata: {
+              ...partMetadata,
+              id: StoreId.newPartId(),
+            },
+            type: "data-browserStatus",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "Hello",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      \`agent-browser\` already has a live in-app browser tab for this chat session. Current URL: https://example.com. Page title: Example.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
 });

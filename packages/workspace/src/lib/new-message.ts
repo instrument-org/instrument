@@ -8,7 +8,9 @@ import { type FileUpload } from "../schemas/file-upload";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
+import { encodeBrowserTargetId } from "../types";
 import { type AppConfig } from "./app-config/types";
+import { isProjectSubdomain } from "./is-app";
 import { setProjectState } from "./project-state-store";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
@@ -59,6 +61,31 @@ export async function newMessage({
     }
 
     parts.push(uploadResult.value.part);
+  }
+
+  if (appConfig.type === "project" && isProjectSubdomain(appConfig.subdomain)) {
+    const targets = await appConfig.workspaceConfig.browser.listTargets(
+      appConfig.subdomain,
+    );
+    const expectedId = encodeBrowserTargetId(appConfig.subdomain, sessionId);
+    const match = targets.find((t) => t.id === expectedId);
+
+    parts.push({
+      data: match
+        ? {
+            hasLiveView: true,
+            pageTitle: match.title,
+            pageUrl: match.url,
+          }
+        : { hasLiveView: false },
+      metadata: {
+        createdAt: new Date(),
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-browserStatus",
+    });
   }
 
   const message: SessionMessage.UserWithParts = {

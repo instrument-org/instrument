@@ -76,6 +76,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-attachments>\n${indent(filesList)}\n</data-attachments>`;
     }
+    case "data-browserStatus": {
+      return `<data-browserStatus hasLiveView=${JSON.stringify(part.data.hasLiveView)} />`;
+    }
     case "data-gitCommit": {
       const ref = ` ref="${part.data.ref}"`;
       return `<data-gitCommit${ref} />`;

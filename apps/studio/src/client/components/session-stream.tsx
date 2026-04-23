@@ -187,7 +187,10 @@ export function SessionStream({
         );
       }
 
-      if (part.type === "data-attachments") {
+      if (
+        part.type === "data-attachments" ||
+        part.type === "data-browserStatus"
+      ) {
         return null;
       }
 
@@ -281,6 +284,10 @@ export function SessionStream({
         if (part.type === "source-document" || part.type === "source-url") {
           seenSourceIds.add(part.sourceId);
           sources.push(part);
+          continue;
+        }
+
+        if (message.role === "user" && part.type === "data-browserStatus") {
           continue;
         }
 

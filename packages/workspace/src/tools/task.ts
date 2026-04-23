@@ -158,7 +158,11 @@ export const Task = setupTool({
     for (const message of messages) {
       if (message.role === "assistant") {
         for (const part of message.parts) {
-          if (part.type !== "text" && part.type !== "data-attachments") {
+          if (
+            part.type !== "text" &&
+            part.type !== "data-attachments" &&
+            part.type !== "data-browserStatus"
+          ) {
             toolCounts[part.type] = (toolCounts[part.type] ?? 0) + 1;
 
             if (

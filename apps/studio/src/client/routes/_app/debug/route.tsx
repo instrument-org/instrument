@@ -67,7 +67,7 @@ function RouteComponent() {
                 className: linkActiveClasses,
               }}
               className={linkBaseClasses}
-              to="/debug/browser-view-manager"
+              to="/debug/browser-views"
             >
               Browser Views
             </InternalLink>

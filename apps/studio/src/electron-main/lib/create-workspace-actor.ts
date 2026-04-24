@@ -10,7 +10,7 @@ import ms from "ms";
 import path from "node:path";
 import { createActor } from "xstate";
 
-import { createBrowserViewManager } from "./browser-view-manager/manager";
+import { createBrowserViewManager } from "../browser-view/manager";
 import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";

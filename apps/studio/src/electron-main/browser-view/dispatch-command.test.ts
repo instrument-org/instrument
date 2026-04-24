@@ -22,7 +22,7 @@ vi.mock("../cdp", () => ({
   sendCdpCommand: vi.fn(),
 }));
 
-const { sendCdpCommand } = await import("../cdp");
+const { sendCdpCommand } = await import("../lib/cdp");
 const sendCdpCommandMock = vi.mocked(sendCdpCommand);
 
 interface FakeDebugger {

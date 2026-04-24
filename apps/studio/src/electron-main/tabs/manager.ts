@@ -134,6 +134,17 @@ export class TabsManager {
         this.sinkBehindShield(view);
       });
 
+      // Prevent background browser views from stealing within-app focus when
+      // renderer JS calls element.focus() or autofocus elements fire. Only
+      // redirect when our window is already key -- NativeWindowMac::Focus uses
+      // activateIgnoringOtherApps:NO so makeKeyAndOrderFront is a no-op when
+      // another app is active anyway, but skipping entirely is cleaner.
+      view.webContents?.on("focus", () => {
+        if (this.selectedTabId !== id && this.baseWindow.isFocused()) {
+          this.focusCurrentTab();
+        }
+      });
+
       // Keep the tab title in sync with whatever the agent navigates to.
       view.webContents?.on("page-title-updated", (_event, newTitle) => {
         const live = this.tabs.find((t) => t.id === id);

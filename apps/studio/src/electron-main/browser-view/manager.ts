@@ -110,6 +110,12 @@ export function createBrowserViewManager(): BrowserViewManager {
     // page, we can unmute it.
     wc.setAudioMuted(true);
 
+    // Prevent Chromium from throttling/pausing the renderer when the view is
+    // occluded (sunk behind the shield). On Linux this can cause the compositor
+    // to stop producing frames, which in turn re-triggers input suppression
+    // even after --allow-pre-commit-input is set.
+    wc.setBackgroundThrottling(false);
+
     attachDownloadHandler({ entries, session: ses, targetId });
 
     wc.on(

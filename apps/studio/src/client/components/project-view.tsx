@@ -21,7 +21,12 @@ import {
   type StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
-import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  skipToken,
+  useMutation,
+  useQuery,
+} from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { X } from "lucide-react";
@@ -96,6 +101,24 @@ export function ProjectView({
 }) {
   const navigate = useNavigate();
   const openFileViewer = useSetAtom(openFileViewerAtom);
+
+  const { data: replayStatus } = useQuery(
+    rpcClient.workspace.debug.live.replayStatus.experimental_liveOptions({
+      input: selectedSessionId ? { sessionId: selectedSessionId } : skipToken,
+    }),
+  );
+
+  const isReplayActive = replayStatus?.isActive ?? false;
+
+  const cancelReplayMutation = useMutation(
+    rpcClient.workspace.debug.cancelReplay.mutationOptions(),
+  );
+
+  const handleCancelReplay = () => {
+    if (selectedSessionId) {
+      cancelReplayMutation.mutate({ sessionId: selectedSessionId });
+    }
+  };
 
   const isViewingApp = artifactPanel?.type === "app";
   const isViewingFile = artifactPanel?.type === "file";
@@ -212,7 +235,9 @@ export function ProjectView({
     explorerCollapsed || explorerFloating ? 0 : PANEL_SIZES.explorerDefault;
 
   const sidebarProps = {
+    isReplayActive,
     isViewingApp,
+    onCancelReplay: handleCancelReplay,
     project,
     selectedModelURI,
     selectedSessionId,

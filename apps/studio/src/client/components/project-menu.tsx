@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Pencil,
   Plus,
+  RotateCcw,
   TrashIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,11 +37,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ProjectMenu({
   onDebugClick,
+  onReplayClick,
   onSettingsClick,
   project,
   selectedSessionId,
 }: {
   onDebugClick: () => void;
+  onReplayClick: () => void;
   onSettingsClick: () => void;
   project: WorkspaceAppProject;
   selectedSessionId?: StoreId.Session;
@@ -213,6 +216,18 @@ export function ProjectMenu({
               >
                 <Bug className="size-4 text-warning-foreground" />
                 Debug chat
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-warning-foreground"
+                disabled={!selectedSessionId}
+                onClick={() => {
+                  if (selectedSessionId) {
+                    onReplayClick();
+                  }
+                }}
+              >
+                <RotateCcw className="size-4 text-warning-foreground" />
+                Replay chat
               </DropdownMenuItem>
             </>
           )}

@@ -13,13 +13,15 @@ import {
 } from "@/shared/tabs";
 import { TabIconsSchema } from "@instrument-org/shared/icons";
 import { ProjectSubdomainSchema } from "@instrument-org/workspace/electron";
-import { type BaseWindow, WebContentsView } from "electron";
+import { type BaseWindow, nativeTheme, WebContentsView } from "electron";
 import { type LogFunctions } from "electron-log";
 import Store from "electron-store";
 import path from "node:path";
 
 import { captureServerException } from "../lib/capture-server-exception";
+import { tryCaptureError } from "../lib/try-capture-error";
 import { unsafe_studioURL } from "../lib/urls";
+import { getPreferencesStore } from "../stores/preferences";
 
 interface TabStore {
   root?: TabState;
@@ -41,10 +43,12 @@ export class TabsManager {
   private logger: LogFunctions;
   private recentlyClosed: Tab[] = [];
   private selectedTabId: null | string = null;
+  private shield: WebContentsView;
   private sidebarWidth = 0;
   private store: Store<TabStore>;
   private tabs: TabWithView[];
   private unsubscribeSidebar?: () => void;
+  private unsubscribeTheme?: () => void;
 
   public constructor({
     baseWindow,
@@ -59,6 +63,19 @@ export class TabsManager {
     this.baseWindow = baseWindow;
     this.store = new Store<TabStore>({ name: "tabs" });
 
+    // WebContentsView that sits above all keepMounted (z=0) views and below all
+    // regular tab views (appended to top). Blocks keepMounted agent browser
+    // views from flickering into view when tabs are closed. Must be a
+    // WebContentsView (not a plain View) so Chromium GPU-composites it.
+    this.shield = new WebContentsView();
+    // Load a minimal data: URL so the renderer paints immediately. setBackgroundColor
+    // alone is insufficient -- Chromium won't GPU-composite a WebContentsView that
+    // has never painted a frame. Using data: avoids a network round-trip and a
+    // shared renderer process with the app.
+    this.loadShieldColor();
+    this.baseWindow.contentView.addChildView(this.shield, 1);
+    this.shield.setBounds(this.computeTabBounds());
+
     this.unsubscribeSidebar = publisher.subscribe(
       "sidebar.updated",
       ({ width }) => {
@@ -67,6 +84,16 @@ export class TabsManager {
         this.focusCurrentTab();
       },
     );
+
+    nativeTheme.on("updated", this.loadShieldColor);
+    const unsubscribeTheme = getPreferencesStore().onDidChange(
+      "theme",
+      this.loadShieldColor,
+    );
+    this.unsubscribeTheme = () => {
+      nativeTheme.off("updated", this.loadShieldColor);
+      unsubscribeTheme();
+    };
   }
 
   public addTab({
@@ -103,8 +130,9 @@ export class TabsManager {
 
     if (webView) {
       view.setBounds(this.computeTabBounds());
-      // Add at z-index 0 so it starts beneath any regular tab view on top.
-      this.baseWindow.contentView.addChildView(view, 0);
+      tryCaptureError("addChildView failed mounting keepMounted tab", () => {
+        this.sinkBehindShield(view);
+      });
 
       // Keep the tab title in sync with whatever the agent navigates to.
       view.webContents?.on("page-title-updated", (_event, newTitle) => {
@@ -115,12 +143,26 @@ export class TabsManager {
         }
       });
 
-      // If the externally-owned view is destroyed, proactively close the tab
-      // so we never attempt to add a destroyed child view to the window.
+      // If the externally-owned view is destroyed, remove it from the tab list
+      // directly without going through closeTab -- the view is already gone so
+      // we must not attempt any addChildView/removeChildView calls on it.
       view.webContents?.on("destroyed", () => {
-        const live = this.tabs.find((t) => t.id === id);
-        if (live) {
-          this.closeTab({ id });
+        const tabIndex = this.tabs.findIndex((t) => t.id === id);
+        if (tabIndex === -1) {
+          return;
+        }
+        const live = this.tabs[tabIndex];
+        if (!live) {
+          return;
+        }
+        const visibleSnapshot = this.visibleTabs();
+        const visibleIndex = visibleSnapshot.findIndex((t) => t.id === id);
+        this.tabs = this.tabs.filter((t) => t.id !== id);
+        this.selectNeighborByVisibleIndex(live, visibleIndex, visibleSnapshot);
+        if (this.visibleTabs().length === 0) {
+          this.addTab({});
+        } else {
+          this.afterUpdate();
         }
       });
     }
@@ -171,24 +213,48 @@ export class TabsManager {
     // composited. Just mark them dismissed so the client hides them from the
     // tab bar; everything else (resize, title sync, lifecycle) continues as-is.
     if (tab.keepMounted) {
+      // Capture snapshot + index BEFORE setting tabBarHidden so the closing
+      // tab is still present in visibleTabs() for neighbor resolution.
+      const visibleSnapshot = this.visibleTabs();
+      const visibleIndex = visibleSnapshot.findIndex((t) => t.id === id);
       tab.tabBarHidden = true;
-      this.selectNeighborTab(tab, tabIndex);
-      this.afterUpdate();
+      // Push back to z=0 below the shield immediately, regardless of whether
+      // it was selected, so it can never paint above the shield.
+      tryCaptureError(
+        "addChildView failed pushing keepMounted tab behind shield",
+        () => {
+          this.sinkBehindShield(tab.webView);
+        },
+      );
+      this.selectNeighborByVisibleIndex(tab, visibleIndex, visibleSnapshot);
+      if (this.visibleTabs().length === 0) {
+        this.addTab({});
+      } else {
+        this.afterUpdate();
+      }
       return;
     }
 
     const { webView: _webView, ...closedTabData } = tab;
     this.recentlyClosed.push(closedTabData);
 
-    this.closeTabView(tab);
-    this.selectNeighborTab(tab, tabIndex);
+    // Capture snapshot + index BEFORE filtering so the closing tab is still
+    // present and neighbor indices are correct.
+    const visibleSnapshot = this.visibleTabs();
+    const visibleIndex = visibleSnapshot.findIndex((t) => t.id === id);
+
+    // Select/create the replacement tab BEFORE removing the closing view so
+    // there is never a frame where no regular tab covers the shield.
     this.tabs = this.tabs.filter((t) => t.id !== id);
+    this.selectNeighborByVisibleIndex(tab, visibleIndex, visibleSnapshot);
 
     if (this.visibleTabs().length === 0) {
       this.addTab({});
     } else {
       this.afterUpdate();
     }
+
+    this.closeTabView(tab);
   }
 
   public focusCurrentTab() {
@@ -360,7 +426,9 @@ export class TabsManager {
       this.closeTabView(tab);
     }
 
+    this.baseWindow.contentView.removeChildView(this.shield);
     this.unsubscribeSidebar?.();
+    this.unsubscribeTheme?.();
   }
 
   public updateCurrentTabBounds() {
@@ -368,6 +436,7 @@ export class TabsManager {
     if (currentTab) {
       this.updateTabBounds(currentTab);
     }
+    this.shield.setBounds(this.computeTabBounds());
     // keepMounted tabs stay in the window even when not selected,
     // so they must be resized alongside the active tab.
     for (const tab of this.tabs) {
@@ -401,7 +470,9 @@ export class TabsManager {
   }
 
   private closeTabView(tab: TabWithView) {
-    this.baseWindow.contentView.removeChildView(tab.webView);
+    tryCaptureError("removeChildView failed closing tab", () => {
+      this.baseWindow.contentView.removeChildView(tab.webView);
+    });
     tab.webView.webContents?.close();
   }
 
@@ -491,16 +562,34 @@ export class TabsManager {
     };
   }
 
-  private selectNeighborTab(tab: Tab, _index: number) {
-    const isSelected = this.selectedTabId === tab.id;
+  /**
+   * Selects the best neighbor from `visibleSnapshot` (captured before the tab
+   * was removed/hidden) using `visibleIndex` as the closing tab's position.
+   * Prefers the tab to the right; falls back to the left.
+   */
+  private loadShieldColor = () => {
+    const color = getBackgroundColor();
+    // Encode '#' for use inside a data: URL attribute value.
+    const encoded = color.replace("#", "%23");
+    void this.shield.webContents?.loadURL(
+      `data:text/html,<body bgcolor=${encoded} style='margin:0'>`,
+    );
+  };
 
-    if (isSelected) {
-      const visible = this.visibleTabs();
-      const visibleIndex = visible.findIndex((t) => t.id === tab.id);
-      const nextTab = visible[visibleIndex + 1] ?? visible[visibleIndex - 1];
-      if (nextTab) {
-        this.selectTabView(nextTab);
-      }
+  private selectNeighborByVisibleIndex(
+    tab: Tab,
+    visibleIndex: number,
+    visibleSnapshot: TabWithView[],
+  ) {
+    const isSelected = this.selectedTabId === tab.id;
+    if (!isSelected) {
+      return;
+    }
+
+    const nextTab =
+      visibleSnapshot[visibleIndex + 1] ?? visibleSnapshot[visibleIndex - 1];
+    if (nextTab) {
+      this.selectTabView(nextTab);
     }
   }
 
@@ -531,20 +620,31 @@ export class TabsManager {
       return;
     }
 
-    const currentTab = this.getCurrentTab();
-    if (currentTab && currentTab.id !== tab.id && !currentTab.keepMounted) {
-      this.baseWindow.contentView.removeChildView(currentTab.webView);
-    }
-
     this.updateTabBounds(tab);
 
-    // Append to top of the z-stack. For background views this moves them to
-    // the front; for regular tabs this covers any background views beneath.
-    this.baseWindow.contentView.addChildView(tab.webView);
+    const currentTab = this.getCurrentTab();
+    tryCaptureError("addChildView failed selecting tab", () => {
+      // Add the incoming tab to the top of the z-stack BEFORE removing the
+      // outgoing one so there is never a frame where neither is present.
+      this.baseWindow.contentView.addChildView(tab.webView);
+
+      if (currentTab && currentTab.id !== tab.id) {
+        if (currentTab.keepMounted) {
+          this.sinkBehindShield(currentTab.webView);
+        } else {
+          this.baseWindow.contentView.removeChildView(currentTab.webView);
+        }
+      }
+    });
 
     // electron/electron#50249: webContents is undefined after destruction in Electron 41+
     tab.webView.webContents?.focus();
     this.selectedTabId = tab.id;
+  }
+  /** Pushes `view` to z=0 then re-asserts the shield at z=1, atomically. */
+  private sinkBehindShield(view: WebContentsView) {
+    this.baseWindow.contentView.addChildView(view, 0);
+    this.baseWindow.contentView.addChildView(this.shield, 1);
   }
 
   private async updateMetaTags(tab: TabWithView) {
@@ -598,8 +698,8 @@ export class TabsManager {
     tab.webView.setBounds(this.computeTabBounds());
   }
 
-  /** Non-keepMounted tabs that participate in tab bar UI and navigation. */
+  /** Tabs visible in the tab bar -- not cosmetically closed via tabBarHidden. */
   private visibleTabs() {
-    return this.tabs.filter((tab) => !tab.keepMounted);
+    return this.tabs.filter((tab) => !tab.tabBarHidden);
   }
 }

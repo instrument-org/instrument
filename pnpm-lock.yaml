@@ -271,6 +271,9 @@ importers:
       top-user-agents:
         specifier: ^2.1.84
         version: 2.1.84
+      typescript-result:
+        specifier: 'catalog:'
+        version: 3.5.2
       ulid:
         specifier: ^3.0.1
         version: 3.0.1

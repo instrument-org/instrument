@@ -29,7 +29,7 @@ interface TabStore {
 
 interface TabWithView extends Tab {
   /**
-   * When true, this view is owned externally (browser-view-manager) and must
+   * When true, this view is owned externally (browser-view/manager) and must
    * always stay in the window hierarchy so Chromium keeps it composited.
    * "Closing" such a tab only sets tabBarHidden=true; it is never removed from
    * this.tabs or the window.

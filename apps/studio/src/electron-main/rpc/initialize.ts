@@ -7,7 +7,7 @@ import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 
-import { type BrowserViewManager } from "../lib/browser-view-manager/manager";
+import { type BrowserViewManager } from "../browser-view/manager";
 import { captureServerException } from "../lib/capture-server-exception";
 import { type StudioAppUpdater } from "../lib/update";
 import { type InitialRPCContext } from "./context";

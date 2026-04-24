@@ -1,7 +1,5 @@
 // Debug-only snapshot of the browser view manager and the projectBrowser
-// XState machines that reap it. Surfaced through `rpcClient.debug.*` and
-// rendered by `/debug/browser-view-manager`. None of this is on a hot path,
-// keep it isolated from the manager's runtime code.
+// XState machines that reap it.
 
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";

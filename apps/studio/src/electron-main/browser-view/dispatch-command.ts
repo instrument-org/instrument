@@ -4,7 +4,7 @@ import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 
 import type { BrowserEntry } from "./entry";
 
-import { sendCdpCommand } from "../cdp";
+import { sendCdpCommand } from "../lib/cdp";
 import {
   DEFAULT_VIEWPORT_HEIGHT,
   DEFAULT_VIEWPORT_WIDTH,

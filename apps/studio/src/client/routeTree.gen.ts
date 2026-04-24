@@ -32,7 +32,7 @@ import { Route as AppDebugSessionStreamRouteImport } from './routes/_app/debug/s
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
 import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
 import { Route as AppDebugColorsRouteImport } from './routes/_app/debug/colors'
-import { Route as AppDebugBrowserViewManagerRouteImport } from './routes/_app/debug/browser-view-manager'
+import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
 import { Route as AppNot_authenticatedWelcomeRouteImport } from './routes/_app/_not_authenticated/welcome'
 import { Route as AppNot_authenticatedSignInRouteImport } from './routes/_app/_not_authenticated/sign-in'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
@@ -152,12 +152,11 @@ const AppDebugColorsRoute = AppDebugColorsRouteImport.update({
   path: '/colors',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
-const AppDebugBrowserViewManagerRoute =
-  AppDebugBrowserViewManagerRouteImport.update({
-    id: '/browser-view-manager',
-    path: '/browser-view-manager',
-    getParentRoute: () => AppDebugRouteRoute,
-  } as any)
+const AppDebugBrowserViewsRoute = AppDebugBrowserViewsRouteImport.update({
+  id: '/browser-views',
+  path: '/browser-views',
+  getParentRoute: () => AppDebugRouteRoute,
+} as any)
 const AppNot_authenticatedWelcomeRoute =
   AppNot_authenticatedWelcomeRouteImport.update({
     id: '/welcome',
@@ -206,7 +205,7 @@ export interface FileRoutesByFullPath {
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/sign-in': typeof AppNot_authenticatedSignInRoute
   '/welcome': typeof AppNot_authenticatedWelcomeRoute
-  '/debug/browser-view-manager': typeof AppDebugBrowserViewManagerRoute
+  '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/colors': typeof AppDebugColorsRoute
   '/debug/components': typeof AppDebugComponentsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
@@ -232,7 +231,7 @@ export interface FileRoutesByTo {
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/sign-in': typeof AppNot_authenticatedSignInRoute
   '/welcome': typeof AppNot_authenticatedWelcomeRoute
-  '/debug/browser-view-manager': typeof AppDebugBrowserViewManagerRoute
+  '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/colors': typeof AppDebugColorsRoute
   '/debug/components': typeof AppDebugComponentsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
@@ -264,7 +263,7 @@ export interface FileRoutesById {
   '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/_app/_not_authenticated/sign-in': typeof AppNot_authenticatedSignInRoute
   '/_app/_not_authenticated/welcome': typeof AppNot_authenticatedWelcomeRoute
-  '/_app/debug/browser-view-manager': typeof AppDebugBrowserViewManagerRoute
+  '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/_app/debug/colors': typeof AppDebugColorsRoute
   '/_app/debug/components': typeof AppDebugComponentsRoute
   '/_app/debug/errors': typeof AppDebugErrorsRoute
@@ -294,7 +293,7 @@ export interface FileRouteTypes {
     | '/subscribe'
     | '/sign-in'
     | '/welcome'
-    | '/debug/browser-view-manager'
+    | '/debug/browser-views'
     | '/debug/colors'
     | '/debug/components'
     | '/debug/errors'
@@ -320,7 +319,7 @@ export interface FileRouteTypes {
     | '/subscribe'
     | '/sign-in'
     | '/welcome'
-    | '/debug/browser-view-manager'
+    | '/debug/browser-views'
     | '/debug/colors'
     | '/debug/components'
     | '/debug/errors'
@@ -351,7 +350,7 @@ export interface FileRouteTypes {
     | '/_app/_authenticated/subscribe'
     | '/_app/_not_authenticated/sign-in'
     | '/_app/_not_authenticated/welcome'
-    | '/_app/debug/browser-view-manager'
+    | '/_app/debug/browser-views'
     | '/_app/debug/colors'
     | '/_app/debug/components'
     | '/_app/debug/errors'
@@ -533,11 +532,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugColorsRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
-    '/_app/debug/browser-view-manager': {
-      id: '/_app/debug/browser-view-manager'
-      path: '/browser-view-manager'
-      fullPath: '/debug/browser-view-manager'
-      preLoaderRoute: typeof AppDebugBrowserViewManagerRouteImport
+    '/_app/debug/browser-views': {
+      id: '/_app/debug/browser-views'
+      path: '/browser-views'
+      fullPath: '/debug/browser-views'
+      preLoaderRoute: typeof AppDebugBrowserViewsRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
     '/_app/_not_authenticated/welcome': {
@@ -608,7 +607,7 @@ const AppNot_authenticatedRouteRouteWithChildren =
   )
 
 interface AppDebugRouteRouteChildren {
-  AppDebugBrowserViewManagerRoute: typeof AppDebugBrowserViewManagerRoute
+  AppDebugBrowserViewsRoute: typeof AppDebugBrowserViewsRoute
   AppDebugColorsRoute: typeof AppDebugColorsRoute
   AppDebugComponentsRoute: typeof AppDebugComponentsRoute
   AppDebugErrorsRoute: typeof AppDebugErrorsRoute
@@ -618,7 +617,7 @@ interface AppDebugRouteRouteChildren {
 }
 
 const AppDebugRouteRouteChildren: AppDebugRouteRouteChildren = {
-  AppDebugBrowserViewManagerRoute: AppDebugBrowserViewManagerRoute,
+  AppDebugBrowserViewsRoute: AppDebugBrowserViewsRoute,
   AppDebugColorsRoute: AppDebugColorsRoute,
   AppDebugComponentsRoute: AppDebugComponentsRoute,
   AppDebugErrorsRoute: AppDebugErrorsRoute,

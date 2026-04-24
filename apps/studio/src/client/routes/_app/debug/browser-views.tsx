@@ -28,7 +28,7 @@ const toneClass: Record<Tone, string> = {
   warn: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400",
 };
 
-export const Route = createFileRoute("/_app/debug/browser-view-manager")({
+export const Route = createFileRoute("/_app/debug/browser-views")({
   component: RouteComponent,
 });
 

@@ -11,7 +11,7 @@ import { app } from "electron";
 import os from "node:os";
 import { z } from "zod";
 
-import { browserViewManagerDebugRoutes } from "../../lib/browser-view-manager/debug-snapshot";
+import { browserViewManagerDebugRoutes } from "../../browser-view/debug-snapshot";
 
 function buildSystemFrontMatter() {
   const platform = os.platform();

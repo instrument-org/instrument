@@ -1,3 +1,3 @@
-import { createScopedLogger } from "../electron-logger";
+import { createScopedLogger } from "../lib/electron-logger";
 
 export const log = createScopedLogger("BrowserViewManager");

@@ -11,7 +11,7 @@ import { session } from "electron";
 import fs from "node:fs";
 import { noop } from "radashi";
 
-import { getTabsManager } from "../../tabs";
+import { getTabsManager } from "../tabs";
 import { createBrowserView } from "./browser-view";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { sendCommand } from "./dispatch-command";

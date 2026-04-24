@@ -62,6 +62,14 @@ if (platform.isLinux) {
   // https://www.electronjs.org/docs/latest/breaking-changes#planned-breaking-api-changes-380
   app.commandLine.appendSwitch("ozone-platform", "x11");
 
+  // Allow CDP Input.dispatchMouseEvent on WebContentsViews that are occluded
+  // (sunk behind the shield at z=0). Without this, Chromium's
+  // WidgetInputHandlerManager suppresses input on views that have not yet
+  // produced a compositor frame in the visible window, causing click commands
+  // to time out on Linux where occlusion tracking is stricter than macOS.
+  // https://github.com/electron/electron/issues/35155
+  app.commandLine.appendSwitch("allow-pre-commit-input");
+
   const existing = app.commandLine.getSwitchValue("password-store");
   if (existing) {
     logger.info(

@@ -1,4 +1,5 @@
 import type { Protocol } from "devtools-protocol";
+import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 
@@ -114,13 +115,31 @@ export async function sendCommand({
       "Page.captureScreenshot",
       "Runtime.evaluate",
     ]);
+    // Input.dispatchMouseEvent is known to hang when the compositor thread is
+    // blocked (e.g. during or just after navigation) -- the event fires but
+    // Chromium never sends the CDP ack until the compositor unblocks. Tap
+    // gestures go through the same path. Keyboard and scroll commands are
+    // less likely to hang but share the same 5s budget.
+    const MOUSE_COMMANDS = new Set<
+      Extract<
+        keyof ProtocolMapping.Commands,
+        "Input.dispatchMouseEvent" | "Input.synthesizeTapGesture"
+      >
+    >(["Input.dispatchMouseEvent", "Input.synthesizeTapGesture"]);
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const result = await Promise.race([
       wc.debugger.sendCommand(method, params),
       new Promise<never>((_, reject) =>
         setTimeout(() => {
-          reject(new Error(`CDP command timed out: ${method}`));
+          // Cast is safe: has() is a runtime membership check against a fixed string set
+          const isMouse = MOUSE_COMMANDS.has(
+            method as "Input.dispatchMouseEvent" | "Input.synthesizeTapGesture",
+          );
+          const detail = isMouse
+            ? `CDP command timed out: ${method}. The page is not responding to click/tap events -- this is a known Chromium behavior when the compositor thread is blocked (e.g. the page is still loading or is unresponsive). Try navigating directly to a URL instead of clicking, or ask the user to reload the app if the problem persists.`
+            : `CDP command timed out: ${method}. The browser tab is not responding. The page may be unresponsive or still loading. Try navigating directly to a URL or ask the user to reload the app if the problem persists.`;
+          reject(new Error(detail));
         }, timeoutMs),
       ),
     ]);

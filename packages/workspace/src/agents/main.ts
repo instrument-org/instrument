@@ -6,10 +6,6 @@ import { APP_FOLDER_NAMES as F } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { buildAIProviderInstructions } from "../lib/build-ai-provider-instructions";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
-import {
-  buildStaticFileServingInstructions,
-  detectStaticFileServing,
-} from "../lib/detect-static-file-serving";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { git } from "../lib/git";
@@ -63,10 +59,6 @@ export const mainAgent = setupAgent({
 }).create(({ agentTools, name }) => ({
   getMessages: async ({ appConfig, sessionId }) => {
     const now = getCurrentDate();
-
-    const servedFolders = await detectStaticFileServing(appConfig.appDir);
-    const staticFileServingInstructions =
-      buildStaticFileServingInstructions(servedFolders);
 
     const aiProviderInstructions = await buildAIProviderInstructions({
       appConfig,
@@ -233,10 +225,6 @@ export const mainAgent = setupAgent({
       text =
         "NOTE: Running in development mode. You may test unusual edge cases and operate more freely on behalf of the developer for testing purposes.\n\n" +
         text;
-    }
-
-    if (staticFileServingInstructions) {
-      text = text + "\n\n" + staticFileServingInstructions;
     }
 
     if (aiProviderInstructions) {

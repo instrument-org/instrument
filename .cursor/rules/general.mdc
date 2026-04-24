@@ -3,7 +3,7 @@ alwaysApply: true
 ---
 
 - NEVER use em dashes in text.
-- For fallible operations: use neverthrow `Result` in workspace; use the `typescript-result` package in ai-gateway. Prefer these over throwing.
+- For fallible operations: use neverthrow `Result` in workspace; use the `typescript-result` package in ai-gateway and studio. Prefer these over throwing.
 
 ## ⚠️ WARNING: Registry Submodule is Read-Only
 

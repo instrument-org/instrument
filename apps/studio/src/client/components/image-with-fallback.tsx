@@ -26,10 +26,11 @@ export function ImageWithFallback({
   showCheckerboard?: boolean;
   src: string;
 }) {
-  const [hasError, setHasError] = useState(false);
+  const [errorSrc, setErrorSrc] = useState<null | string>(null);
+  const hasError = errorSrc === src;
 
   const handleError = () => {
-    setHasError(true);
+    setErrorSrc(src);
     onError?.();
   };
 

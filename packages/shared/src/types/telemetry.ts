@@ -89,6 +89,7 @@ export interface AnalyticsEvents {
   };
   "session.created": never;
   "session.removed": never;
+  "session.replay_started": never;
   "session.stopped": never;
   "subscribe.billing_cycle_changed": {
     billing_cycle: "monthly" | "yearly";

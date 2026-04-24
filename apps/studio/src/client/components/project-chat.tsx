@@ -23,7 +23,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ProjectChat({
   isChatOnly = false,
+  isReplayActive = false,
   isViewingApp = false,
+  onCancelReplay,
   project,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
@@ -31,7 +33,9 @@ export function ProjectChat({
   versionRef,
 }: {
   isChatOnly?: boolean;
+  isReplayActive?: boolean;
   isViewingApp?: boolean;
+  onCancelReplay?: () => void;
   project: WorkspaceAppProject;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
@@ -92,13 +96,18 @@ export function ProjectChat({
   const isDeveloperMode = preferences?.developerMode;
 
   const sessionActors = appState?.sessionActors ?? [];
-  const isAgentAlive = sessionActors.some(
-    (s) => s.sessionId === selectedSessionId && s.tags.includes("agent.alive"),
-  );
-  const isAgentRunning = sessionActors.some(
-    (s) =>
-      s.sessionId === selectedSessionId && s.tags.includes("agent.running"),
-  );
+  const isAgentAlive =
+    isReplayActive ||
+    sessionActors.some(
+      (s) =>
+        s.sessionId === selectedSessionId && s.tags.includes("agent.alive"),
+    );
+  const isAgentRunning =
+    isReplayActive ||
+    sessionActors.some(
+      (s) =>
+        s.sessionId === selectedSessionId && s.tags.includes("agent.running"),
+    );
 
   const { handleContinue } = useContinueSession({
     modelURI: selectedModelURI,
@@ -253,7 +262,11 @@ export function ProjectChat({
             modelURI={selectedModelURI}
             onModelChange={setSelectedModelURI}
             onStop={() => {
-              stopSessions.mutate({ subdomain: project.subdomain });
+              if (isReplayActive && onCancelReplay) {
+                onCancelReplay();
+              } else {
+                stopSessions.mutate({ subdomain: project.subdomain });
+              }
             }}
             onSubmit={({ files, folders, modelURI, prompt }) => {
               createMessage.mutate(

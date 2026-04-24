@@ -34,6 +34,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ReplaySessionModal } from "./debug/replay-session-modal";
 import { ExportZipModal } from "./export-zip-modal";
 import { ProjectDebugDialog } from "./project-debug-dialog";
 import { ProjectMenu } from "./project-menu";
@@ -94,6 +95,7 @@ export function ProjectHeaderToolbar({
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [exportZipModalOpen, setExportZipModalOpen] = useState(false);
   const [debugDialogOpen, setDebugDialogOpen] = useState(false);
+  const [replayModalOpen, setReplayModalOpen] = useState(false);
   const navigate = useNavigate();
 
   const { data: supportedEditors = [] } = useQuery<SupportedEditor[]>(
@@ -148,6 +150,9 @@ export function ProjectHeaderToolbar({
           <ProjectMenu
             onDebugClick={() => {
               setDebugDialogOpen(true);
+            }}
+            onReplayClick={() => {
+              setReplayModalOpen(true);
             }}
             onSettingsClick={() => {
               setSettingsDialogOpen(true);
@@ -380,6 +385,15 @@ export function ProjectHeaderToolbar({
       <ProjectDebugDialog
         onOpenChange={setDebugDialogOpen}
         open={debugDialogOpen}
+        project={project}
+        selectedSessionId={selectedSessionId}
+      />
+
+      <ReplaySessionModal
+        isOpen={replayModalOpen}
+        onClose={() => {
+          setReplayModalOpen(false);
+        }}
         project={project}
         selectedSessionId={selectedSessionId}
       />

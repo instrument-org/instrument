@@ -129,10 +129,6 @@ export const agentBrowserPlayerMachine = setup({
       initial: "Paused",
       on: {
         "frames.changed": { actions: ["updateFrameInfo"] },
-        scrub: {
-          actions: ["setPlayheadFromScrub"],
-          target: ".Paused",
-        },
       },
       states: {
         Paused: {
@@ -141,12 +137,14 @@ export const agentBrowserPlayerMachine = setup({
               actions: ["rewindIfAtEnd"],
               target: "Playing",
             },
+            scrub: { actions: ["setPlayheadFromScrub"] },
           },
         },
         Playing: {
           invoke: { src: "playbackTicker" },
           on: {
             pause: { target: "Paused" },
+            scrub: { actions: ["setPlayheadFromScrub"] },
             tick: [
               {
                 actions: ["advancePlayhead"],

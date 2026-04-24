@@ -231,9 +231,7 @@ function FramePreview({
 }) {
   if (frame.kind === "error") {
     return (
-      <div className="flex aspect-video w-full items-center justify-center rounded-sm border border-destructive/60 bg-muted/40">
-        <AlertCircle className="size-5 text-destructive" />
-      </div>
+      <div className="aspect-video w-full rounded-sm border border-border/50 bg-black" />
     );
   }
   const url = getAssetUrl({
@@ -248,7 +246,7 @@ function FramePreview({
       <ImageWithFallback
         alt={headerLabel}
         className="h-full w-full object-contain"
-        fallbackClassName="h-full w-full"
+        fallback={<div className="h-full w-full bg-black" />}
         filename={filename}
         src={url}
       />

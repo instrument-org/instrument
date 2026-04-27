@@ -1,3 +1,5 @@
+import { APP_NAME } from "@instrument-org/shared";
+
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { systemNote } from "./system-note";
 
@@ -46,7 +48,16 @@ export function agentBrowserScreenshotsNote(
   }
 
   return systemNote`
-    \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
+    \`agent-browser\` capture metadata (one entry per call, deduped by content).
+
+    The ${APP_NAME} UI renders these screenshots inline for the user. Do NOT
+    mention, summarize, or narrate them in your reply (e.g. no "I captured a
+    screenshot", "the screenshot shows…", etc.).
+
+    You MAY silently read the underlying files when you need to inspect a prior
+    page state instead of re-capturing: each \`<hash>\` resolves to
+    \`.state/agent-browser/<hash>.jpg\`.
+
     ${lines.join("\n")}
   `;
 }

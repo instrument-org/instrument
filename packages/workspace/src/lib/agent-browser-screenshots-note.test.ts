@@ -89,7 +89,16 @@ describe("agentBrowserScreenshotsNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
+      \`agent-browser\` capture metadata (one entry per call, deduped by content).
+
+      The Instrument UI renders these screenshots inline for the user. Do NOT
+      mention, summarize, or narrate them in your reply (e.g. no "I captured a
+      screenshot", "the screenshot shows…", etc.).
+
+      You MAY silently read the underlying files when you need to inspect a prior
+      page state instead of re-capturing: each \`<hash>\` resolves to
+      \`.state/agent-browser/<hash>.jpg\`.
+
       - navigate -> b1c2d3
       - click -> e4f5a6
       </instrument-system-note>"
@@ -110,7 +119,16 @@ describe("agentBrowserScreenshotsNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
+      \`agent-browser\` capture metadata (one entry per call, deduped by content).
+
+      The Instrument UI renders these screenshots inline for the user. Do NOT
+      mention, summarize, or narrate them in your reply (e.g. no "I captured a
+      screenshot", "the screenshot shows…", etc.).
+
+      You MAY silently read the underlying files when you need to inspect a prior
+      page state instead of re-capturing: each \`<hash>\` resolves to
+      \`.state/agent-browser/<hash>.jpg\`.
+
       - get (no change)
       </instrument-system-note>"
     `);
@@ -129,7 +147,16 @@ describe("agentBrowserScreenshotsNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
+      \`agent-browser\` capture metadata (one entry per call, deduped by content).
+
+      The Instrument UI renders these screenshots inline for the user. Do NOT
+      mention, summarize, or narrate them in your reply (e.g. no "I captured a
+      screenshot", "the screenshot shows…", etc.).
+
+      You MAY silently read the underlying files when you need to inspect a prior
+      page state instead of re-capturing: each \`<hash>\` resolves to
+      \`.state/agent-browser/<hash>.jpg\`.
+
       - click failed: Element not found
       </instrument-system-note>"
     `);
@@ -150,7 +177,16 @@ describe("agentBrowserScreenshotsNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
+      \`agent-browser\` capture metadata (one entry per call, deduped by content).
+
+      The Instrument UI renders these screenshots inline for the user. Do NOT
+      mention, summarize, or narrate them in your reply (e.g. no "I captured a
+      screenshot", "the screenshot shows…", etc.).
+
+      You MAY silently read the underlying files when you need to inspect a prior
+      page state instead of re-capturing: each \`<hash>\` resolves to
+      \`.state/agent-browser/<hash>.jpg\`.
+
       - navigate -> a1b2c3
       </instrument-system-note>"
     `);
@@ -169,7 +205,16 @@ describe("agentBrowserScreenshotsNote", () => {
     expect(agentBrowserScreenshotsNote(items)).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      \`agent-browser\` capture metadata (one entry per call, deduped by content). The Instrument UI renders these inline next to the call for the user, so do NOT mention this list, the hashes, or the file paths in your reply to the user. You MAY read the underlying files yourself when you need a visual of a prior page state instead of re-capturing: each \`<hash>\` resolves to \`.state/agent-browser/<hash>.jpg\`.
+      \`agent-browser\` capture metadata (one entry per call, deduped by content).
+
+      The Instrument UI renders these screenshots inline for the user. Do NOT
+      mention, summarize, or narrate them in your reply (e.g. no "I captured a
+      screenshot", "the screenshot shows…", etc.).
+
+      You MAY silently read the underlying files when you need to inspect a prior
+      page state instead of re-capturing: each \`<hash>\` resolves to
+      \`.state/agent-browser/<hash>.jpg\`.
+
       - ... 6 earlier call(s) omitted
       - navigate -> 000100000006
       - navigate -> 000100000007

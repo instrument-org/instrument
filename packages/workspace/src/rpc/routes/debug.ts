@@ -1,4 +1,8 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import { AIGatewayModel, AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  AIProviderConfigIdSchema,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
@@ -7,7 +11,6 @@ import { ActiveReplays } from "../../lib/active-replays";
 import { createAppConfig } from "../../lib/app-config/create";
 import { getCurrentDate } from "../../lib/get-current-date";
 import { getProjectManifest } from "../../lib/project-manifest";
-import { getProjectState } from "../../lib/project-state-store";
 import {
   createReplaySession,
   executeSessionReplay,
@@ -53,20 +56,23 @@ const replaySession = base
     }
     const sourceMessages = messagesResult.value;
 
-    const sourceProjectState = await getProjectState(sourceAppConfig.appDir);
-    const modelURI = AIGatewayModelURI.Schema.parse(
-      sourceProjectState.selectedModelURI,
-    );
-
-    const modelResult = await fetchModel({
-      captureException: workspaceConfig.captureException,
-      configs: workspaceConfig.getAIProviderConfigs(),
-      modelURI,
+    const canonicalId = AIGatewayModel.CanonicalIdSchema.parse("replay-stub");
+    const providerConfigId = AIProviderConfigIdSchema.parse("replay-stub");
+    const model = AIGatewayModel.Schema.parse({
+      author: "replay",
+      canonicalId,
+      features: [],
+      name: "Replay Stub",
+      params: { provider: OUR_PROVIDER_CONFIG.type, providerConfigId },
+      providerId: AIGatewayModel.ProviderIdSchema.parse("replay-stub"),
+      providerName: "Replay",
+      tags: [],
+      uri: AIGatewayModelURI.fromModel({
+        author: "replay",
+        canonicalId,
+        params: { provider: OUR_PROVIDER_CONFIG.type, providerConfigId },
+      }),
     });
-    if (!modelResult.ok) {
-      throw toORPCError(modelResult.error, errors);
-    }
-    const model = modelResult.value;
 
     let targetAppConfig = sourceAppConfig;
     let newSessionId: StoreId.Session;

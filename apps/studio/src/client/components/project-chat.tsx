@@ -12,6 +12,7 @@ import { useStickToBottom } from "use-stick-to-bottom";
 
 import { useAgentSessionStatus } from "../hooks/use-agent-session-status";
 import { useContinueSession } from "../hooks/use-continue-session";
+import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { ChatZeroState } from "./chat-zero-state";
@@ -86,10 +87,7 @@ export function ProjectChat({
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
 
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-  const isDeveloperMode = preferences?.developerMode;
+  const isDeveloperMode = useDeveloperMode();
 
   const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
     isReplayActive,
@@ -204,7 +202,7 @@ export function ProjectChat({
           ) : (
             <SessionStream
               isAgentRunning={isAgentRunning}
-              isDeveloperMode={isDeveloperMode ?? false}
+              isDeveloperMode={isDeveloperMode}
               isViewingApp={isViewingApp}
               messages={messages}
               onContinue={handleContinue}

@@ -10,7 +10,6 @@ import {
 } from "@/client/components/ui/sidebar";
 import { Toaster } from "@/client/components/ui/sonner";
 import { type StudioPath } from "@/shared/studio-path";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import {
   BotIcon,
@@ -20,17 +19,15 @@ import {
   SlidersHorizontalIcon,
 } from "lucide-react";
 
+import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { isLinux } from "../lib/utils";
-import { rpcClient } from "../rpc/client";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsLayout,
 });
 
 function SettingsLayout() {
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
+  const isDeveloperMode = useDeveloperMode();
   const sidebarNavItems: {
     icon: React.ElementType;
     isWarning?: boolean;
@@ -52,7 +49,7 @@ function SettingsLayout() {
       path: "/settings/advanced",
       title: "Advanced",
     },
-    ...(preferences?.developerMode
+    ...(isDeveloperMode
       ? [
           {
             icon: FlagIcon,

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 import { getSessionTags } from "../hooks/use-agent-session-status";
 import { useAppState } from "../hooks/use-app-state";
+import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { rpcClient } from "../rpc/client";
 import { AppIcon } from "./app-icon";
 import { SessionStatusIcon } from "./app-status-icon";
@@ -59,9 +60,7 @@ export function ProjectMenu({
 
   const { data: appState } = useAppState({ subdomain: project.subdomain });
   const sessionActors = appState?.sessionActors ?? [];
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
+  const isDeveloperMode = useDeveloperMode();
 
   const createEmptySession = useMutation(
     rpcClient.workspace.session.create.mutationOptions(),
@@ -207,7 +206,7 @@ export function ProjectMenu({
             </DropdownMenuSub>
           )}
 
-          {preferences?.developerMode && (
+          {isDeveloperMode && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem

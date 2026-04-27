@@ -36,6 +36,10 @@ basePreferencesAtom.onMount = (setAtom) => {
   });
 };
 
+/**
+ * Avoids many subscriptions to the preferences live endpoint.
+ * Starts with default values to avoid loading state.
+ */
 export const preferencesAtom = atomWithoutSuspense(
   basePreferencesAtom,
   defaultPreferences,

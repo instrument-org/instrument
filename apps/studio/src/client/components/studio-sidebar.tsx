@@ -14,12 +14,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Bug, FlaskConical, PlusIcon } from "lucide-react";
 import { useMemo } from "react";
 
+import { useDeveloperMode } from "../hooks/use-developer-mode";
+
 export function StudioSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
+  const isDeveloperMode = useDeveloperMode();
 
   const selectedTab = useSelectedTab();
 
@@ -33,7 +33,7 @@ export function StudioSidebar({
         title: "New",
         url: "/new-tab" as const,
       },
-      ...(preferences?.developerMode
+      ...(isDeveloperMode
         ? [
             {
               icon: FlaskConical,
@@ -56,7 +56,7 @@ export function StudioSidebar({
           ]
         : []),
     ],
-    [preferences?.developerMode, matches],
+    [isDeveloperMode, matches],
   );
 
   const { data: favorites } = useQuery(

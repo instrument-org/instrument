@@ -1,10 +1,9 @@
 import { FilePreviewModal } from "@/client/components/file-preview-modal";
 import { ProjectFileViewerModal } from "@/client/components/project-file-viewer-modal";
 import { Toaster } from "@/client/components/ui/sonner";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInvalidateRouterOnUserChange } from "@/client/hooks/use-invalidate-router-on-user-change";
 import { useUpdateNotifications } from "@/client/hooks/use-update-notifications";
-import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect } from "react";
 
@@ -33,9 +32,7 @@ const DevTools = lazy(() =>
 );
 
 function RouteComponent() {
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
+  const isDeveloperMode = useDeveloperMode();
   useUpdateNotifications();
   useInvalidateRouterOnUserChange();
 
@@ -64,7 +61,7 @@ function RouteComponent() {
     >
       <Outlet />
 
-      {preferences?.developerMode && (
+      {isDeveloperMode && (
         <Suspense fallback={null}>
           <DevTools />
         </Suspense>

@@ -8,6 +8,7 @@ import { FileText } from "lucide-react";
 import { sift } from "radashi";
 import { useMemo, useState } from "react";
 
+import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { formatDuration } from "../lib/format-time";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
@@ -45,10 +46,7 @@ export function AssistantMessagesFooter({
   subdomain,
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-  const isDeveloperMode = preferences?.developerMode;
+  const isDeveloperMode = useDeveloperMode();
 
   const messageRefs = useMemo(
     () =>

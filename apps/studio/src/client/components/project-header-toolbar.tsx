@@ -34,6 +34,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { ReplaySessionModal } from "./debug/replay-session-modal";
 import { ExportZipModal } from "./export-zip-modal";
 import { ProjectDebugDialog } from "./project-debug-dialog";
@@ -102,10 +103,7 @@ export function ProjectHeaderToolbar({
     rpcClient.utils.getSupportedEditors.queryOptions(),
   );
 
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-  const isDeveloperMode = preferences?.developerMode;
+  const isDeveloperMode = useDeveloperMode();
 
   const openAppInMutation = useMutation(
     rpcClient.utils.openAppIn.mutationOptions({

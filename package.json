@@ -46,6 +46,7 @@
     "@cspell/dict-typescript": "^3.2.3",
     "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
+    "@posthog/cli": "^0.7.10",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
     "actions-up": "^1.13.0",

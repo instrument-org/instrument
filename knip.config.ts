@@ -4,13 +4,11 @@ const config: KnipConfig = {
   ignore: ["registry/**/*", ".cursor/**/*"],
   workspaces: {
     ".": {
-      // Required because tailwindcss is loaded in root by Knip because of
-      // eslint-plugin-better-tailwindcss
       entry: ["scripts/*.ts"],
       ignoreDependencies: [
-        "tailwindcss",
-        // markdownlint used by VSCode Extension for the markdownlint/style/prettier
-        "markdownlint",
+        "@posthog/cli", // Used in .github/workflows/release.yml to upload source maps to PostHog
+        "tailwindcss", // Required because tailwindcss is loaded in root by Knip because of eslint-plugin-better-tailwindcss
+        "markdownlint", // markdownlint used by VSCode Extension for the markdownlint/style/prettier
       ],
     },
     "apps/api": {

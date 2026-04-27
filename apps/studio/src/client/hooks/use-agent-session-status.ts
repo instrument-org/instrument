@@ -1,10 +1,13 @@
 import {
-  type AppSubdomain,
+  type ProjectSubdomain,
   type SessionTag,
+  type StoreId,
 } from "@instrument-org/workspace/client";
-import { skipToken } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
+import { rpcClient } from "../rpc/client";
 import { useAppState } from "./use-app-state";
+import { useDeveloperMode } from "./use-developer-mode";
 
 export function getSessionTags({
   sessionActors,
@@ -17,8 +20,10 @@ export function getSessionTags({
 }
 
 /**
- * Derives agent status for a specific session within an app.
- * Pass `isReplayActive: true` to treat a replay as a live agent.
+ * Derives agent status for a specific session within a project app.
+ * Replay status is queried automatically by subdomain.
+ * Pass `isReplayActive` to additionally treat an external replay signal as
+ * live (e.g. for cancel button logic in project-chat).
  */
 export function useAgentSessionStatus({
   isReplayActive = false,
@@ -26,11 +31,23 @@ export function useAgentSessionStatus({
   subdomain,
 }: {
   isReplayActive?: boolean;
-  sessionId: string | typeof skipToken | undefined;
-  subdomain: AppSubdomain;
+  sessionId: StoreId.Session | typeof skipToken | undefined;
+  subdomain: ProjectSubdomain;
 }) {
+  const isDeveloperMode = useDeveloperMode();
   const { data: appState } = useAppState({ subdomain });
   const sessionActors = appState?.sessionActors ?? [];
+
+  const { data: replayStatus } = useQuery(
+    rpcClient.workspace.debug.live.replayStatusBySubdomain.experimental_liveOptions(
+      { input: isDeveloperMode ? { subdomain } : skipToken },
+    ),
+  );
+  const isReplayActiveForSession =
+    isReplayActive ||
+    (!!sessionId &&
+      sessionId !== skipToken &&
+      (replayStatus?.activeSessionIds.includes(sessionId) ?? false));
 
   if (!sessionId || sessionId === skipToken) {
     return { isAgentAlive: isReplayActive, isAgentRunning: isReplayActive };
@@ -39,8 +56,8 @@ export function useAgentSessionStatus({
   const tags = getSessionTags({ sessionActors, sessionId });
 
   return {
-    isAgentAlive: isReplayActive || isSessionAlive(tags),
-    isAgentRunning: isReplayActive || isSessionRunning(tags),
+    isAgentAlive: isReplayActiveForSession || isSessionAlive(tags),
+    isAgentRunning: isReplayActiveForSession || isSessionRunning(tags),
   };
 }
 

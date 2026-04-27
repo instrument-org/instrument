@@ -1,4 +1,7 @@
-import type { ProjectSubdomain } from "@instrument-org/workspace/client";
+import type {
+  ProjectSubdomain,
+  StoreId,
+} from "@instrument-org/workspace/client";
 
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import {
@@ -45,7 +48,7 @@ function SessionStatusText({
   sessionId,
   subdomain,
 }: {
-  sessionId: string;
+  sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
 }) {
   const { data: messages = [] } = useQuery(

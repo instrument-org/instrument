@@ -119,10 +119,15 @@ const replaySession = base
 
     const agentName: AgentName = "main";
     const abortController = new AbortController();
-    ActiveReplays.register(newSessionId, abortController);
+    ActiveReplays.register(
+      newSessionId,
+      abortController,
+      targetAppConfig.subdomain,
+    );
     publisher.publish("replay.changed", {
       isActive: true,
       sessionId: newSessionId,
+      subdomain: targetAppConfig.subdomain,
     });
 
     const spawnAgent: SpawnAgentFunction = ({ signal: subSignal }) => {
@@ -182,6 +187,7 @@ const replaySession = base
         publisher.publish("replay.changed", {
           isActive: false,
           sessionId: newSessionId,
+          subdomain: targetAppConfig.subdomain,
         });
       }
     });
@@ -202,11 +208,15 @@ const cancelReplay = base
   )
   .output(z.void())
   .handler(({ input }) => {
+    const subdomain = ActiveReplays.getSubdomain(input.sessionId);
     ActiveReplays.cancel(input.sessionId);
-    publisher.publish("replay.changed", {
-      isActive: false,
-      sessionId: input.sessionId,
-    });
+    if (subdomain) {
+      publisher.publish("replay.changed", {
+        isActive: false,
+        sessionId: input.sessionId,
+        subdomain,
+      });
+    }
   });
 
 const replayStatus = base
@@ -228,6 +238,30 @@ const live = {
       })) {
         if (payload.sessionId === input.sessionId) {
           yield { isActive: payload.isActive };
+        }
+      }
+    }),
+  replayStatusBySubdomain: base
+    .input(z.object({ subdomain: ProjectSubdomainSchema }))
+    .output(
+      eventIterator(
+        z.object({ activeSessionIds: z.array(StoreId.SessionSchema) }),
+      ),
+    )
+    .handler(async function* ({ input, signal }) {
+      yield {
+        activeSessionIds: ActiveReplays.getActiveSessionIds(input.subdomain),
+      };
+
+      for await (const payload of publisher.subscribe("replay.changed", {
+        signal,
+      })) {
+        if (payload.subdomain === input.subdomain) {
+          yield {
+            activeSessionIds: ActiveReplays.getActiveSessionIds(
+              input.subdomain,
+            ),
+          };
         }
       }
     }),

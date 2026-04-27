@@ -3,11 +3,12 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getDefaultModelURI,
   getPreferencesStore,
+  PreferencesStoreSchema,
   setLastUpdateCheck,
 } from "@/electron-main/stores/preferences";
 import { openSettingsWindow as openSettingsWindowFn } from "@/electron-main/windows/settings";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
-import { eventIterator } from "@orpc/server";
+import { call, eventIterator } from "@orpc/server";
 import { app } from "electron";
 import { z } from "zod";
 
@@ -104,6 +105,10 @@ const setDefaultModelURI = base
     preferencesStore.set("defaultModelURI", input.modelURI);
   });
 
+const get = base.output(PreferencesStoreSchema).handler(() => {
+  return getPreferencesData();
+});
+
 const live = {
   defaultModelURI: base
     .output(eventIterator(AIGatewayModelURI.Schema.optional()))
@@ -116,19 +121,20 @@ const live = {
         yield getDefaultModelURI();
       }
     }),
-  get: base.handler(async function* ({ signal }) {
-    yield getPreferencesData();
+  get: base.handler(async function* ({ context, signal }) {
+    yield call(get, {}, { context, signal });
 
     for await (const _payload of publisher.subscribe("preferences.updated", {
       signal,
     })) {
-      yield getPreferencesData();
+      yield call(get, {}, { context, signal });
     }
   }),
 };
 
 export const preferences = {
   checkForUpdates,
+  get,
   getAppVersion,
   live,
   openSettingsWindow,

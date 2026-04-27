@@ -44,6 +44,7 @@ export const publisher = new EventPublisher<{
   "replay.changed": {
     isActive: boolean;
     sessionId: StoreId.Session;
+    subdomain: ProjectSubdomain;
   };
   "runtime.log.updated": {
     subdomain: AppSubdomain;

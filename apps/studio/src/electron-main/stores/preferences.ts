@@ -5,7 +5,7 @@ import Store from "electron-store";
 import { z } from "zod";
 
 /* eslint-disable unicorn/prefer-top-level-await */
-const PreferencesStoreSchema = z.object({
+export const PreferencesStoreSchema = z.object({
   defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
   developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
   enableUsageMetrics: z.boolean().catch(true),

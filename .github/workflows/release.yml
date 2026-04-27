@@ -20,6 +20,7 @@ jobs:
           check-regexp: Studio Smoke Test.*
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 20
+          allowed-conclusions: success
 
   build:
     name: ${{ matrix.os }} ${{ matrix.arch }}

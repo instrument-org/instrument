@@ -1,5 +1,7 @@
 ---
-globs: *.tsx
+description: React component patterns for instrument.
+globs: **/*.tsx
+alwaysApply: false
 ---
 
 - Avoid using interfaces for component props, use inline types instead.

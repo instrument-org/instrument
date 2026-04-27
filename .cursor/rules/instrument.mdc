@@ -1,0 +1,16 @@
+---
+description: General rules for the Instrument monorepo.
+alwaysApply: true
+---
+
+# Instrument Monorepo
+
+Pnpm monorepo for the Instrument desktop app platform.
+
+- `apps/studio`: Electron desktop app (main product)
+- `packages/workspace`: Core AI agents, workflow logic, and workspace management
+- `packages/shim-client`: Client-side runtime injected into user apps
+
+## ⚠️ WARNING: Registry Submodule is Read-Only
+
+**NEVER make changes to files inside the `registry/` folder.** It is a git submodule (`instrument-org/skills`) managed independently. Read from it freely, but do not edit, create, or delete any files within it.

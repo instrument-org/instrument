@@ -3,6 +3,7 @@
   "include": ["*.ts"],
   "compilerOptions": {
     "module": "ESNext",
-    "moduleResolution": "Bundler"
+    "moduleResolution": "Bundler",
+    "types": ["node"]
   }
 }

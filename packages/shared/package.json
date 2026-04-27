@@ -20,7 +20,7 @@
   },
   "scripts": {
     "check:lint": "eslint . --max-warnings 0 --cache",
-    "check:types": "tsc --noEmit",
+    "check:types": "tsgo --noEmit",
     "fix:lint": "eslint . --max-warnings 0 --fix",
     "turbo:check": "turbo run check:types check:lint"
   },
@@ -31,6 +31,7 @@
     "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "@typescript/native-preview": "catalog:",
     "lucide-react": "catalog:"
   },
   "engines": {

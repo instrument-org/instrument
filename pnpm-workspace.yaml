@@ -28,6 +28,7 @@ catalog:
   "@types/node": 24.12.2
   "@types/react": ^19.2.7
   "@types/react-dom": ^19.2.3
+  "@typescript/native-preview": 7.0.0-dev.20260421.2
   "@vitejs/plugin-react": ^5.1.2
   ai: ^6.0.168
   better-auth: ^1.2.12

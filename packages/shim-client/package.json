@@ -13,7 +13,7 @@
     "build": "vite build --configLoader runner && vite build --configLoader runner --config vite.shim.config.ts",
     "check:build": "pnpm run build",
     "check:lint": "eslint . --max-warnings 0 --cache",
-    "check:types": "tsc --noEmit",
+    "check:types": "tsgo --noEmit",
     "dev": "vite --configLoader runner --port 48350",
     "fix:lint": "eslint . --max-warnings 0 --fix",
     "turbo:check": "turbo run check:types check:lint"
@@ -35,6 +35,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/sprintf-js": "^1.1.4",
+    "@typescript/native-preview": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "postcss": "^8.5.3",
     "vite": "catalog:",

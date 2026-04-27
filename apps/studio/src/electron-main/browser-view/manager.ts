@@ -275,9 +275,21 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       let image: Electron.NativeImage;
       try {
-        image = await wc.capturePage();
+        // capturePage can hang on Windows if the background view is occluded
+        // and Chromium has not produced a compositor frame yet. Observation
+        // screenshots should never block the command pipeline.
+        const CAPTURE_TIMEOUT_MS = 5000;
+        image = await Promise.race([
+          wc.capturePage(),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error("capturePage timed out"));
+            }, CAPTURE_TIMEOUT_MS);
+          }),
+        ]);
       } catch (error) {
-        // Transient Chromium compositor failure (e.g. UnknownVizError) -- not actionable.
+        // Transient Chromium compositor failure (e.g. UnknownVizError) or
+        // timeout -- not actionable.
         log.warn(
           `captureScreenshot failed targetId=${targetId} err=${String(error)}`,
         );

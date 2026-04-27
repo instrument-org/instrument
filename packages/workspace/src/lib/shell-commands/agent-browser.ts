@@ -1,5 +1,8 @@
 import { execa } from "execa";
 import { defineCommand } from "just-bash";
+import { spawn } from "node:child_process";
+import fsSync from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent } from "radashi";
 
@@ -11,7 +14,10 @@ import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
-import { getBrowserSessionDir } from "../app-dir-utils";
+import {
+  getAgentBrowserStateDir,
+  getBrowserSessionDir,
+} from "../app-dir-utils";
 import {
   beginBrowserCommandObservation,
   type UpsertContextItem,
@@ -163,6 +169,7 @@ export function createAgentBrowserCommand({
     const tmpDir = absolutePathJoin(appConfig.appDir, APP_FOLDER_NAMES.tmp);
     const screenshotDir = absolutePathJoin(tmpDir, "agent-browser-screenshots");
     const downloadPath = absolutePathJoin(tmpDir, "agent-browser-downloads");
+    const agentBrowserStateDir = getAgentBrowserStateDir(appConfig.appDir);
     // Relative so agent-browser outputs screenshot paths the agent sees as relative
     // to its cwd (e.g. "tmp/agent-browser-screenshots/shot.png"), not host absolute.
     const screenshotDirRelative = path.relative(appCwd, screenshotDir);
@@ -197,9 +204,9 @@ export function createAgentBrowserCommand({
           upsertContextItem,
         });
 
-    const result = await execa(AGENT_BROWSER_PATH, commandArgs, {
+    const result = await runAgentBrowser({
+      args: commandArgs,
       cancelSignal: ctx.signal,
-
       cwd: appCwd,
       env: {
         ...env,
@@ -220,7 +227,7 @@ export function createAgentBrowserCommand({
         HOME: homeDir,
       },
       input: ctx.stdin || undefined,
-      reject: false,
+      stateDir: agentBrowserStateDir,
     });
 
     const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
@@ -248,6 +255,91 @@ export function createAgentBrowserCommand({
       stdout: truncated,
     };
   });
+}
+
+async function runAgentBrowser({
+  args,
+  cancelSignal,
+  cwd,
+  env,
+  input,
+  stateDir,
+}: {
+  args: string[];
+  cancelSignal: AbortSignal | undefined;
+  cwd: string;
+  env: Record<string, string | undefined>;
+  input: string | undefined;
+  stateDir: string;
+}) {
+  if (process.platform !== "win32") {
+    return await execa(AGENT_BROWSER_PATH, args, {
+      cancelSignal,
+      cwd,
+      env,
+      input,
+      reject: false,
+    });
+  }
+
+  await fs.mkdir(stateDir, { recursive: true });
+  const runId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const stdoutPath = path.join(stateDir, `command-output-${runId}.stdout.log`);
+  const stderrPath = path.join(stateDir, `command-output-${runId}.stderr.log`);
+  const stdoutFd = fsSync.openSync(stdoutPath, "w");
+  const stderrFd = fsSync.openSync(stderrPath, "w");
+
+  try {
+    // On Windows, most agent-browser commands otherwise appear to take ~30s to
+    // resolve even though the CDP work is already done. agent-browser starts a
+    // detached daemon that can keep inherited stdout/stderr pipe handles alive;
+    // waiting directly on the CLI process exit avoids treating pipe EOF as part
+    // of command completion.
+    const child = spawn(AGENT_BROWSER_PATH, args, {
+      cwd,
+      env,
+      stdio: ["pipe", stdoutFd, stderrFd],
+      windowsHide: true,
+    });
+    fsSync.closeSync(stdoutFd);
+    fsSync.closeSync(stderrFd);
+
+    const exitCode = await new Promise<number | undefined>(
+      (resolve, reject) => {
+        const abort = () => {
+          child.kill();
+        };
+
+        cancelSignal?.addEventListener("abort", abort, { once: true });
+        child.once("error", (error) => {
+          cancelSignal?.removeEventListener("abort", abort);
+          reject(error);
+        });
+        child.once("exit", (code) => {
+          cancelSignal?.removeEventListener("abort", abort);
+          resolve(code ?? undefined);
+        });
+
+        if (input === undefined) {
+          child.stdin?.end();
+        } else {
+          child.stdin?.end(input);
+        }
+      },
+    );
+
+    const [stdout, stderr] = await Promise.all([
+      fs.readFile(stdoutPath, "utf8").catch(() => ""),
+      fs.readFile(stderrPath, "utf8").catch(() => ""),
+    ]);
+
+    return { exitCode, stderr, stdout };
+  } finally {
+    await Promise.all([
+      fs.rm(stdoutPath, { force: true }),
+      fs.rm(stderrPath, { force: true }),
+    ]);
+  }
 }
 
 function stripHarnessControlledFlags(args: string[]): string[] {

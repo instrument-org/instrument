@@ -14,6 +14,11 @@ const isMainWindow = (url: string) =>
   url.includes("#/") && !url.includes("#/sidebar");
 
 describe("Studio Smoke Test", () => {
+  it("PLACEHOLDER: remove before merging", () => {
+    expect(true, "placeholder failing test - remove before merging").toBe(false);
+  });
+
+
   let distPath: string;
   let tempUserDataDir: string;
 

@@ -1,5 +1,7 @@
 ---
-globs: *.test.*
+description: Test conventions for instrument.
+globs: **/*.test.*
+alwaysApply: false
 ---
 
 - Use `it.each` for testing repetitive cases.

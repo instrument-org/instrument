@@ -1,0 +1,21 @@
+description: Injects PostHog chunk IDs into built assets and uploads source maps
+
+inputs:
+  api-key:
+    description: PostHog CLI API key
+    required: true
+  project-id:
+    description: PostHog project ID
+    required: true
+
+name: Upload Source Maps to PostHog
+runs:
+  steps:
+    - name: Inject and upload source maps
+      uses: PostHog/upload-source-maps@991172e085213c222c61d2ba6a0b9e57c81e5066 # v2.0.0
+      with:
+        api-key: ${{ inputs.api-key }}
+        directory: apps/studio/out
+        project-id: ${{ inputs.project-id }}
+        release-name: instrument
+  using: composite

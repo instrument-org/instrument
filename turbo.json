@@ -37,6 +37,19 @@
       "inputs": ["$TURBO_DEFAULT$"],
       "outputs": ["dist/**"]
     },
+    "build:vite": {
+      "dependsOn": ["@instrument-org/shim-client#build"],
+      "env": [
+        "CI",
+        "MAIN_VITE_APP_API_BASE_URL",
+        "MAIN_VITE_GOOGLE_CLIENT_ID",
+        "MAIN_VITE_GOOGLE_CLIENT_SECRET",
+        "VITE_POSTHOG_API_HOST",
+        "VITE_POSTHOG_API_KEY"
+      ],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["out/**"]
+    },
     "build:linux": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "dependsOn": ["@instrument-org/shim-client#build"],

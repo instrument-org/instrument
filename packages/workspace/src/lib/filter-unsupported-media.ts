@@ -1,9 +1,6 @@
 import type { ModelMessage } from "ai";
 
-import {
-  type AIGatewayModel,
-  getProviderMetadata,
-} from "@instrument-org/ai-gateway";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { dedent } from "radashi";
 
 type MediaCategory = "audio" | "file" | "image" | "video";
@@ -145,18 +142,6 @@ function getMediaTypeCategory(mediaType: string): "other" | MediaCategory {
   return "other";
 }
 
-function isKnownBrokenCombo(
-  mediaCategory: MediaCategory,
-  model: AIGatewayModel.Type,
-): boolean {
-  const brokenMedia = getProviderMetadata(model.params.provider).quirks
-    .brokenMedia;
-  return brokenMedia.some(
-    (entry) =>
-      entry.category === mediaCategory && entry.author === model.author,
-  );
-}
-
 function maybeCreateReplacementText(
   mediaType: string,
   model: AIGatewayModel.Type,
@@ -167,10 +152,7 @@ function maybeCreateReplacementText(
     return null;
   }
 
-  if (
-    !model.features.includes(MEDIA_FEATURE_MAP[mediaCategory]) ||
-    isKnownBrokenCombo(mediaCategory, model)
-  ) {
+  if (!model.features.includes(MEDIA_FEATURE_MAP[mediaCategory])) {
     return createReplacementText(mediaCategory);
   }
 

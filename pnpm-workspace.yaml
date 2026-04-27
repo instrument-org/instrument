@@ -5,6 +5,7 @@ packages:
 allowBuilds:
   "@derhuerst/ffprobe-static": true
   "@swc/core": true
+  "@posthog/cli": true
   "@vscode/ripgrep": true
   agent-browser: true
   better-sqlite3: false

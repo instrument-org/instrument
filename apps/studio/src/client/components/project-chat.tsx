@@ -10,7 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
 
-import { useAppState } from "../hooks/use-app-state";
+import { useAgentSessionStatus } from "../hooks/use-agent-session-status";
 import { useContinueSession } from "../hooks/use-continue-session";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
@@ -69,10 +69,6 @@ export function ProjectChat({
     setSelectedModelURI(initialSelectedModelURI);
   }
 
-  const { data: appState } = useAppState({
-    subdomain: project.subdomain,
-  });
-
   const messagesQuery = useQuery(
     rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
       input: selectedSessionId
@@ -95,19 +91,11 @@ export function ProjectChat({
   );
   const isDeveloperMode = preferences?.developerMode;
 
-  const sessionActors = appState?.sessionActors ?? [];
-  const isAgentAlive =
-    isReplayActive ||
-    sessionActors.some(
-      (s) =>
-        s.sessionId === selectedSessionId && s.tags.includes("agent.alive"),
-    );
-  const isAgentRunning =
-    isReplayActive ||
-    sessionActors.some(
-      (s) =>
-        s.sessionId === selectedSessionId && s.tags.includes("agent.running"),
-    );
+  const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
+    isReplayActive,
+    sessionId: selectedSessionId,
+    subdomain: project.subdomain,
+  });
 
   const { handleContinue } = useContinueSession({
     modelURI: selectedModelURI,

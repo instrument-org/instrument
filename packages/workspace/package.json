@@ -20,7 +20,7 @@
   },
   "scripts": {
     "check:lint": "eslint . --max-warnings 0 --cache",
-    "check:types": "tsc --noEmit",
+    "check:types": "tsgo --noEmit",
     "eval": "NODE_ENV=test NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx evals/cli.ts",
     "fix:lint": "eslint . --max-warnings 0 --fix",
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",
@@ -80,6 +80,7 @@
     "@types/mock-fs": "^4.13.4",
     "@types/ms": "^2.1.0",
     "@types/node": "catalog:",
+    "@typescript/native-preview": "catalog:",
     "devtools-protocol": "^0.0.1617013",
     "dotenv": "^16.6.1",
     "mock-fs": "^5.5.0",

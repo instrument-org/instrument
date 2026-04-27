@@ -50,27 +50,8 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["out/**"]
     },
-    "build:linux": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
-    "build:linux:arm64": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
-    "build:linux:x64": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
-    "build:mac": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
-    "build:mac:arm64": {
+    "build:env:unsigned": {
+      "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
@@ -85,33 +66,8 @@
       "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
-    "build:mac:x64": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
     "build:mac:unsigned": {
       "cache": false,
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
-    "build:windows": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
-    "build:windows:arm64": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
-    "build:windows:dev": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
-      "outputs": ["dist/**", "out/**"]
-    },
-    "build:windows:x64": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
@@ -122,8 +78,7 @@
       "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
-    "build:env:unsigned": {
-      "cache": false,
+    "build:windows:dev": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]

@@ -7,6 +7,7 @@ import {
 import { app } from "electron";
 import pkg, { type ProgressInfo, type UpdateInfo } from "electron-updater";
 import ms from "ms";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 
@@ -200,8 +201,24 @@ export class StudioAppUpdater {
           type: "installing",
         };
 
-        // Use app.relaunch() and app.quit() for Linux to avoid hanging
-        app.relaunch();
+        // cspell:ignore PRIVS pkexec
+        // app.relaunch() on Linux sets PR_SET_NO_NEW_PRIVS=1 on the child
+        // process, permanently stripping pkexec/sudo privileges so future
+        // updates cannot authenticate. Spawn a detached process that waits
+        // for us to exit before launching, bypassing the zygote inheritance.
+        // See: https://github.com/electron/electron/issues/41463
+        const child = spawn(
+          "sh",
+          [
+            "-c",
+            `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.1; done; ${process.execPath} ${process.argv
+              .slice(1)
+              .map((a) => JSON.stringify(a))
+              .join(" ")} & disown`,
+          ],
+          { detached: true, stdio: "ignore" },
+        );
+        child.unref();
         app.quit();
         return;
       }

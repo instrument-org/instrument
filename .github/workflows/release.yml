@@ -14,7 +14,7 @@ jobs:
     if: github.ref_type == 'tag'
     steps:
       - name: Wait for smoke tests to complete
-        uses: lewagon/wait-on-check-action@78dd4dd5d9b337c14c3c81f79e53bf7d222435c1 # v1.6.1
+        uses: lewagon/wait-on-check-action@a326e60b572c447ce98818518a79da6cbdf1b9a6 # v1.7.0
         with:
           ref: ${{ github.sha }}
           check-regexp: Studio Smoke Test.*
@@ -233,7 +233,7 @@ jobs:
       always() &&
       github.ref_type == 'tag' &&
       needs.build.result == 'success' &&
-      (needs.check_smoke_test.result == 'success' || needs.check_smoke_test.result == 'skipped')
+      needs.check_smoke_test.result == 'success'
     permissions:
       contents: write
 

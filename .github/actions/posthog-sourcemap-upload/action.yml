@@ -11,11 +11,11 @@ inputs:
 name: Upload Source Maps to PostHog
 runs:
   steps:
-    - name: Inject and upload source maps
-      uses: PostHog/upload-source-maps@991172e085213c222c61d2ba6a0b9e57c81e5066 # v2.0.0
-      with:
-        api-key: ${{ inputs.api-key }}
-        directory: apps/studio/out
-        project-id: ${{ inputs.project-id }}
-        release-name: instrument
+    - env:
+        POSTHOG_CLI_API_KEY: ${{ inputs.api-key }}
+        POSTHOG_CLI_PROJECT_ID: ${{ inputs.project-id }}
+      name: Upload source maps
+      run: |
+        pnpm exec posthog-cli sourcemap process --directory "apps/studio/out" --release-name "instrument"
+      shell: bash
   using: composite

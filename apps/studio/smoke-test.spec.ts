@@ -9,6 +9,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "smoke-test-screenshots");
 
+const isSidebarWindow = (url: string) => url.includes("#/sidebar");
+const isMainWindow = (url: string) =>
+  url.includes("#/") && !url.includes("#/sidebar");
+
 describe("Studio Smoke Test", () => {
   let distPath: string;
   let tempUserDataDir: string;
@@ -151,50 +155,62 @@ describe("Studio Smoke Test", () => {
       console.log(msg.text());
     });
 
-    expect(electronApp).toBeDefined();
+    expect(electronApp, "electron app launched").toBeDefined();
 
     await electronApp.firstWindow({ timeout: 30_000 });
 
-    let windows = electronApp.windows();
+    // Wait for both named windows to appear. The app may open additional internal
+    // WebContentsViews (e.g. the shield view used to prevent tab flicker) that
+    // Playwright surfaces in windows() -- we locate by URL rather than index.
     const startTime = Date.now();
-    while (windows.length < 2 && Date.now() - startTime < 30_000) {
+
+    let sidebarWindow = electronApp
+      .windows()
+      .find((w) => isSidebarWindow(w.url()));
+    let mainWindow = electronApp.windows().find((w) => isMainWindow(w.url()));
+    while ((!sidebarWindow || !mainWindow) && Date.now() - startTime < 30_000) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      windows = electronApp.windows();
+      sidebarWindow = electronApp
+        .windows()
+        .find((w) => isSidebarWindow(w.url()));
+      mainWindow = electronApp.windows().find((w) => isMainWindow(w.url()));
     }
 
-    expect(windows).toHaveLength(2);
+    const windowUrls = electronApp.windows().map((w) => w.url());
+    expect(
+      sidebarWindow,
+      `sidebar window found (all window URLs: ${windowUrls.join(", ")})`,
+    ).toBeDefined();
+    expect(
+      mainWindow,
+      `main window found (all window URLs: ${windowUrls.join(", ")})`,
+    ).toBeDefined();
 
-    const sidebarWindow = windows.find((w) => w.url().includes("#/sidebar"));
-    const mainWindow = windows.find((w) => !w.url().includes("#/sidebar"));
+    if (!sidebarWindow || !mainWindow) {
+      throw new Error(`windows not found. URLs: ${windowUrls.join(", ")}`);
+    }
 
     const windowConfigs = [
       { name: "sidebar", testId: "sidebar-page", window: sidebarWindow },
       { name: "main", testId: "app-page", window: mainWindow },
     ];
 
-    for (const { name, window } of windowConfigs) {
-      expect(window, `${name} window`).toBeDefined();
-      if (!window) {
-        throw new Error(`${name} window not found`);
-      }
-    }
-
     for (const { name, testId, window } of windowConfigs) {
-      const locator = window?.locator(`[data-testid="${testId}"]`);
-      await locator?.waitFor({
+      const locator = window.locator(`[data-testid="${testId}"]`);
+      await locator.waitFor({
         // Sidebar is hidden during initial setup
         state: name === "sidebar" ? "attached" : "visible",
         timeout: 30_000,
       });
-      expect(await locator?.count(), `${name} window has ${testId}`).toBe(1);
+      expect(
+        await locator.count(),
+        `${name} window: [data-testid="${testId}"] element found`,
+      ).toBe(1);
     }
 
     const osSuffix = process.platform;
     await Promise.all(
       windowConfigs.map(async ({ name, window }) => {
-        if (!window) {
-          return;
-        }
         await window
           .screenshot({
             path: path.join(SCREENSHOTS_DIR, `${name}-window-${osSuffix}.png`),
@@ -229,8 +245,17 @@ describe("Studio Smoke Test", () => {
     const appState = JSON.parse(appStateContent) as {
       lastMigratedVersion?: string;
     };
-    expect(appState.lastMigratedVersion).toBeDefined();
-    expect(typeof appState.lastMigratedVersion).toBe("string");
-    expect(appState.lastMigratedVersion?.length).toBeGreaterThan(0);
+    expect(
+      appState.lastMigratedVersion,
+      "app-state.json: lastMigratedVersion is set (migrations ran on first launch)",
+    ).toBeDefined();
+    expect(
+      typeof appState.lastMigratedVersion,
+      "app-state.json: lastMigratedVersion is a string",
+    ).toBe("string");
+    expect(
+      appState.lastMigratedVersion?.length,
+      "app-state.json: lastMigratedVersion is non-empty",
+    ).toBeGreaterThan(0);
   });
 });

@@ -30,6 +30,11 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
         throw e;
       },
       onError: (e, options) => {
+        // DON'T treat aborted signal as error - the client disconnected
+        // intentionally (e.g. navigated away, query input changed).
+        if (options.signal?.aborted && options.signal.reason === e) {
+          throw e;
+        }
         captureServerException(e, {
           rpc_path: options.path,
           scopes: ["rpc"],

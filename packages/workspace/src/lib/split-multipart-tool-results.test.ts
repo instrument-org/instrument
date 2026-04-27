@@ -102,7 +102,6 @@ describe("splitMultipartToolResults", () => {
         "content": [
           {
             "data": "base64data",
-            "filename": "file.png",
             "mediaType": "image/png",
             "type": "file",
           },
@@ -210,7 +209,6 @@ describe("splitMultipartToolResults", () => {
         "content": [
           {
             "data": "base64data",
-            "filename": "file.png",
             "mediaType": "image/png",
             "type": "file",
           },

@@ -3,7 +3,6 @@ import type { AIProviderType } from "@instrument-org/shared";
 import type { FilePart, ModelMessage } from "ai";
 
 import { getProviderMetadata } from "@instrument-org/ai-gateway";
-import mime from "mime-types";
 
 type ContentOutput = Extract<
   LanguageModelV2ToolResultOutput,
@@ -62,7 +61,6 @@ export function splitMultipartToolResults({
       content: modifiedContent,
     });
 
-    const includeFilename = quirks.requiresFilenameOnFileParts;
     const userMessageParts = message.content
       .filter((part) => part.type !== "tool-approval-response")
       .filter((part) => isContentOutput(part.output))
@@ -71,7 +69,7 @@ export function splitMultipartToolResults({
         if (!isContentOutput(output)) {
           return [];
         }
-        return extractMediaParts(output, includeFilename);
+        return extractMediaParts(output);
       });
 
     if (userMessageParts.length > 0) {
@@ -104,17 +102,11 @@ function convertToTextOutput(
   };
 }
 
-function extractMediaParts(
-  output: ContentOutput,
-  includeFilename: boolean,
-): FilePart[] {
+function extractMediaParts(output: ContentOutput): FilePart[] {
   return output.value
     .filter((item): item is MediaPart => item.type === "media")
     .map((item) => ({
       data: item.data,
-      ...(includeFilename
-        ? { filename: filenameForMediaType(item.mediaType) }
-        : {}),
       mediaType: item.mediaType,
       type: "file",
     }));
@@ -122,11 +114,6 @@ function extractMediaParts(
 
 function extractTextParts(output: ContentOutput) {
   return output.value.filter((item) => item.type === "text");
-}
-
-function filenameForMediaType(mediaType: string): string {
-  const extension = mime.extension(mediaType);
-  return extension ? `file.${extension}` : "file";
 }
 
 function hasMediaParts(output: ContentOutput): boolean {

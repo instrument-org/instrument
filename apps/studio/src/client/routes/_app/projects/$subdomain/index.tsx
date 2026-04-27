@@ -23,6 +23,7 @@ import {
   createFileRoute,
   notFound,
   redirect,
+  useMatchRoute,
   useNavigate,
 } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
@@ -165,8 +166,15 @@ function RouteComponent() {
     showVersions,
   } = Route.useSearch();
   const navigate = useNavigate();
+  const matchRoute = useMatchRoute();
 
   const handleDeleteDialogChange = (open: boolean) => {
+    // After a successful delete, trashApp has already navigated the tab away.
+    // Guard against calling navigate with from: "/projects/$subdomain" when
+    // this route is no longer matched -- the match is gone and it would throw.
+    if (!matchRoute({ params: { subdomain }, to: "/projects/$subdomain" })) {
+      return;
+    }
     void navigate({
       from: "/projects/$subdomain",
       params: { subdomain },

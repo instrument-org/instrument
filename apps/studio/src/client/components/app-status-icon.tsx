@@ -1,24 +1,31 @@
-import { type AppSubdomain } from "@instrument-org/workspace/client";
+import {
+  type AppSubdomain,
+  type SessionTag,
+} from "@instrument-org/workspace/client";
 import { Check, Loader2, Pause } from "lucide-react";
 
 import { useAppState } from "../hooks/use-app-state";
 import { cn } from "../lib/utils";
 
-interface AppStatusIconProps {
+export function AppStatusIcon({
+  className,
+  subdomain,
+}: {
   className?: string;
   subdomain: AppSubdomain;
+}) {
+  const { data: appState } = useAppState({ subdomain });
+  const tags = appState?.sessionActors.flatMap((a) => a.tags) ?? [];
+  return <SessionStatusIcon className={className} tags={tags} />;
 }
 
-export function AppStatusIcon({
+export function SessionStatusIcon({
   className = "h-4 w-4",
-  subdomain,
-}: AppStatusIconProps) {
-  const { data: appState } = useAppState({
-    subdomain,
-  });
-
-  const tags = appState?.sessionActors.flatMap((actor) => actor.tags) ?? [];
-
+  tags,
+}: {
+  className?: string;
+  tags: SessionTag[];
+}) {
   switch (true) {
     case tags.includes("agent.paused"): {
       return <Pause className={cn(className, "text-warning-foreground")} />;

@@ -1,6 +1,6 @@
 import type { ProjectSubdomain } from "@instrument-org/workspace/client";
 
-import { useAppState } from "@/client/hooks/use-app-state";
+import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import {
   getToolLabel,
   getToolStreamingLabel,
@@ -54,13 +54,7 @@ function SessionStatusText({
     }),
   );
 
-  const { data: appState } = useAppState({ subdomain });
-
-  const sessionActors = appState?.sessionActors ?? [];
-  const isAgentAlive = sessionActors.some(
-    (actor) =>
-      actor.sessionId === sessionId && actor.tags.includes("agent.alive"),
-  );
+  const { isAgentAlive } = useAgentSessionStatus({ sessionId, subdomain });
 
   const nonSystemMessages = messages.filter(
     (msg) => msg.role !== "session-context",

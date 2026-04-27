@@ -8,7 +8,6 @@ import {
   Bug,
   ChevronDown,
   Copy,
-  Loader2,
   MessageCircle,
   Pencil,
   Plus,
@@ -17,9 +16,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { getSessionTags } from "../hooks/use-agent-session-status";
 import { useAppState } from "../hooks/use-app-state";
 import { rpcClient } from "../rpc/client";
 import { AppIcon } from "./app-icon";
+import { SessionStatusIcon } from "./app-status-icon";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -181,11 +182,10 @@ export function ProjectMenu({
                   value={selectedSessionId}
                 >
                   {sessions.map((session) => {
-                    const isAlive = sessionActors.some(
-                      (a) =>
-                        a.sessionId === session.id &&
-                        a.tags.includes("agent.alive"),
-                    );
+                    const tags = getSessionTags({
+                      sessionActors,
+                      sessionId: session.id,
+                    });
                     return (
                       <DropdownMenuRadioItem
                         className="pl-2 data-[state=checked]:bg-black/10 dark:data-[state=checked]:bg-white/10 [&>span:first-child]:hidden"
@@ -195,9 +195,10 @@ export function ProjectMenu({
                         <span className="flex-1 truncate">
                           {session.title || "Untitled Chat"}
                         </span>
-                        {isAlive && (
-                          <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
-                        )}
+                        <SessionStatusIcon
+                          className="size-3 shrink-0"
+                          tags={tags}
+                        />
                       </DropdownMenuRadioItem>
                     );
                   })}

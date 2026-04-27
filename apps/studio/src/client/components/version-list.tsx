@@ -41,12 +41,9 @@ export function VersionList({
     }),
   );
 
-  const { data: appState } = useAppState({
-    subdomain: projectSubdomain,
-  });
-
-  const isAgentRunning = (appState?.sessionActors ?? []).some((session) =>
-    session.tags.includes("agent.running"),
+  const { data: appState } = useAppState({ subdomain: projectSubdomain });
+  const isAgentRunning = (appState?.sessionActors ?? []).some((s) =>
+    s.tags.includes("agent.running"),
   );
 
   useEffect(() => {

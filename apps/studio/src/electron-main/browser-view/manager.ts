@@ -273,7 +273,16 @@ export function createBrowserViewManager(): BrowserViewManager {
       if (!url || url === "about:blank") {
         return;
       }
-      const image = await wc.capturePage();
+      let image: Electron.NativeImage;
+      try {
+        image = await wc.capturePage();
+      } catch (error) {
+        // Transient Chromium compositor failure (e.g. UnknownVizError) -- not actionable.
+        log.warn(
+          `captureScreenshot failed targetId=${targetId} err=${String(error)}`,
+        );
+        return;
+      }
       if (image.isEmpty()) {
         return;
       }

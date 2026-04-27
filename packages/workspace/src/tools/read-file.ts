@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { APP_FOLDER_NAMES } from "../constants";
 import { addLineNumbers } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
@@ -207,8 +208,8 @@ export const ReadFile = setupTool({
   description: ({ agentName }) => {
     const pathExample =
       agentName === "retrieval"
-        ? "/path/to/some/file.pdf"
-        : "./src/client/app.tsx";
+        ? "/path/to/some/file.txt"
+        : `./${APP_FOLDER_NAMES.userProvided}/upload.txt`;
 
     return dedent`
       Reads a file from the ${agentName === "retrieval" ? "attached folders" : "app directory"}. You can access any file directly by using this tool.

@@ -79,14 +79,11 @@ jobs:
         with:
           api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
           project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
+          version: ${{ github.ref_name }}
 
       - if: matrix.os == 'ubuntu-latest'
         name: Package Linux
-        run: pnpm --filter @instrument-org/studio exec electron-builder --linux --${{ matrix.arch }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          BUILDER_PUBLISH_S3_ENDPOINT: ${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}
+        run: pnpm --filter @instrument-org/studio exec electron-builder --linux --${{ matrix.arch }} --publish never
 
       - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
         name: setup-signing
@@ -110,18 +107,16 @@ jobs:
         with:
           api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
           project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
+          version: ${{ github.ref_name }}
 
       - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
         name: Package Mac
-        run: pnpm --filter @instrument-org/studio exec electron-builder --mac --${{ matrix.arch }}
+        run: pnpm --filter @instrument-org/studio exec electron-builder --mac --${{ matrix.arch }} --publish never
         env:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY: ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
           APPLE_NOTARIZATION_ENABLED: ${{ vars.APPLE_NOTARIZATION_ENABLED }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          BUILDER_PUBLISH_S3_ENDPOINT: ${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           ARCH: ${{ matrix.arch }}
@@ -190,14 +185,12 @@ jobs:
         with:
           api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
           project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
+          version: ${{ github.ref_name }}
 
       - if: matrix.os == 'windows-latest'
         name: Package Windows
-        run: pnpm --filter @instrument-org/studio exec electron-builder --win --${{ matrix.arch }}
+        run: pnpm --filter @instrument-org/studio exec electron-builder --win --${{ matrix.arch }} --publish never
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          BUILDER_PUBLISH_S3_ENDPOINT: ${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}
           WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
           WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
 
@@ -253,7 +246,17 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
-          merge-multiple: false
+          merge-multiple: true
+
+      - name: Upload release artifacts to S3
+        run: |
+          aws s3 sync artifacts/ s3://instrument-releases/ \
+            --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
+            --no-progress
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
 
       - name: Build Slack commit summary
         id: slack_summary

@@ -32,6 +32,7 @@
     "build:mac:x64": "pnpm run build:install-and-build && electron-builder --mac --x64",
     "build:test": "electron-vite build --mode test",
     "build:unpack": "npm run build && electron-builder --dir",
+    "build:vite": "pnpm run build:install-and-build",
     "build:win:unsigned": "pnpm run build:install-and-build && electron-builder --win --config.win.signAndEditExecutable=false --dir",
     "build:windows": "pnpm run build:install-and-build && electron-builder --win",
     "build:windows:arm64": "pnpm run build:install-and-build && electron-builder --win --arm64",

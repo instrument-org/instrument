@@ -126,6 +126,8 @@ export default defineConfig(({ command }) => {
       ? path.dirname(require.resolve("agent-browser/bin/agent-browser.js"))
       : null;
 
+  const isProduction = command === "build";
+
   return {
     main: {
       build: {
@@ -161,6 +163,7 @@ export default defineConfig(({ command }) => {
             warn(warning);
           },
         },
+        sourcemap: isProduction,
         watch: {}, // Enable hot reloading
       },
       define: {
@@ -181,6 +184,7 @@ export default defineConfig(({ command }) => {
         lib: {
           entry: path.join(process.cwd(), "src/electron-preload/index.ts"),
         },
+        sourcemap: isProduction,
         watch: {}, // Enable hot reloading
       },
       plugins: [
@@ -196,6 +200,7 @@ export default defineConfig(({ command }) => {
             browser: path.join(process.cwd(), "src/index.html"),
           },
         },
+        sourcemap: isProduction,
         watch: {}, // Enable hot reloading
       },
       plugins: [

@@ -67,7 +67,7 @@ export function ReplaySessionModal({
   project: WorkspaceAppProject;
   selectedSessionId: StoreId.Session | undefined;
 }) {
-  const [mode, setMode] = useState<ReplayMode>("new-project");
+  const [mode, setMode] = useState<ReplayMode>("new-session");
   const [speed, setSpeed] = useState<PlaybackSpeed>("instant");
   const navigate = useNavigate();
 
@@ -104,7 +104,7 @@ export function ReplaySessionModal({
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      setMode("new-project");
+      setMode("new-session");
       setSpeed("instant");
       onClose();
     }
@@ -129,18 +129,6 @@ export function ReplaySessionModal({
             }}
             value={mode}
           >
-            <FieldLabel htmlFor="mode-new-project">
-              <Field orientation="horizontal">
-                <FieldContent>
-                  <FieldTitle>New project</FieldTitle>
-                  <FieldDescription>
-                    Creates a fresh project named &quot;Replay of{" "}
-                    {project.title}&quot; and runs the tools there.
-                  </FieldDescription>
-                </FieldContent>
-                <RadioGroupItem id="mode-new-project" value="new-project" />
-              </Field>
-            </FieldLabel>
             <FieldLabel htmlFor="mode-new-session">
               <Field orientation="horizontal">
                 <FieldContent>
@@ -151,6 +139,18 @@ export function ReplaySessionModal({
                   </FieldDescription>
                 </FieldContent>
                 <RadioGroupItem id="mode-new-session" value="new-session" />
+              </Field>
+            </FieldLabel>
+            <FieldLabel htmlFor="mode-new-project">
+              <Field orientation="horizontal">
+                <FieldContent>
+                  <FieldTitle>New project</FieldTitle>
+                  <FieldDescription>
+                    Creates a fresh project named &quot;Replay of{" "}
+                    {project.title}&quot; and runs the tools there.
+                  </FieldDescription>
+                </FieldContent>
+                <RadioGroupItem id="mode-new-project" value="new-project" />
               </Field>
             </FieldLabel>
           </RadioGroup>

@@ -25,9 +25,8 @@ export const AGENT_BROWSER_COMMAND = {
   description: dedent`
     Control a built-in Chromium browser to navigate the web, interact with pages, and extract content.
     IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
-    IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, discover the URL first.
+    IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, discover the URL with search first.
     Do NOT pass connection, provider, profile, or state flags; the browser session is managed automatically.
-    NOTE: A screenshot is auto-captured after each command, shown to the user, and its path is reported back to you (read it if you need to inspect the page).
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,
 } as const;

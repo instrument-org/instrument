@@ -7,6 +7,9 @@ inputs:
   project-id:
     description: PostHog project ID
     required: true
+  version:
+    description: Release version (e.g. git tag)
+    required: false
 
 name: Upload Source Maps to PostHog
 runs:
@@ -16,6 +19,6 @@ runs:
         POSTHOG_CLI_PROJECT_ID: ${{ inputs.project-id }}
       name: Upload source maps
       run: |
-        pnpm exec posthog-cli sourcemap process --directory "apps/studio/out" --release-name "instrument"
+        pnpm exec posthog-cli sourcemap process --directory "apps/studio/out" --release-name "instrument"${{ inputs.version != '' && format(' --release-version "{0}"', inputs.version) || '' }}
       shell: bash
   using: composite

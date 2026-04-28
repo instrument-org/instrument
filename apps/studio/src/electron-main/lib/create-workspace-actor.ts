@@ -38,6 +38,7 @@ export function createWorkspaceActor() {
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
+      appVersion: app.getVersion(),
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
       captureException: captureServerException,

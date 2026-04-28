@@ -99,6 +99,7 @@ export async function runEvals(
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
+      appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
       captureEvent: () => {
         return;

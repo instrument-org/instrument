@@ -108,6 +108,7 @@ const registryDir = env.APP_REGISTRY_DIR_PATH
 const actor = createActor(workspaceMachine, {
   input: {
     aiGatewayApp,
+    appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: (...args: unknown[]) => {
       // eslint-disable-next-line no-console

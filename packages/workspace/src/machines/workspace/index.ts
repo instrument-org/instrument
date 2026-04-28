@@ -372,6 +372,7 @@ export const workspaceMachine = setup({
     events: {} as WorkspaceEvent,
     input: {} as {
       aiGatewayApp: AIGatewayApp;
+      appVersion: string;
       browser: BrowserConfig;
       captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
@@ -391,6 +392,7 @@ export const workspaceMachine = setup({
     const registryDir = AbsolutePathSchema.parse(input.registryDir);
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
     const workspaceConfig: WorkspaceConfig = {
+      appVersion: input.appVersion,
       browser: input.browser,
       captureEvent: input.captureEvent,
       captureException: input.captureException,

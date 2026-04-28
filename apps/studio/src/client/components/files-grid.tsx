@@ -26,24 +26,21 @@ type SupportingSectionKey =
   | "agentRetrieved"
   | "scripts"
   | "skills"
-  | "temporary"
-  | "uploaded";
+  | "temporary";
 
 const DEFAULT_INITIAL_VISIBLE_COUNT = 6;
 const EMPTY_FOLDERS: SessionMessageDataPart.FolderAttachmentDataPart[] = [];
-const EMPTY_EXPANDED_SECTIONS: Record<SupportingSectionKey, boolean> = {
+const DEFAULT_EXPANDED_SECTIONS: Record<SupportingSectionKey, boolean> = {
   agentRetrieved: false,
   scripts: false,
   skills: false,
   temporary: false,
-  uploaded: false,
 };
 const EXPANDED_SECTIONS: Record<SupportingSectionKey, boolean> = {
   agentRetrieved: true,
   scripts: true,
   skills: true,
   temporary: true,
-  uploaded: true,
 };
 
 export function FilesGrid({
@@ -57,13 +54,16 @@ export function FilesGrid({
   const navigate = useNavigate({ from: "/projects/$subdomain" });
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedSections, setExpandedSections] = useState(
-    EMPTY_EXPANDED_SECTIONS,
+    DEFAULT_EXPANDED_SECTIONS,
   );
 
   const [outputFiles, nonOutputFiles] = fork(files, isOutputFile);
+  const [userProvidedFiles, nonUserProvidedFiles] = fork(
+    nonOutputFiles,
+    isUserProvidedFile,
+  );
   const [supportingFilesByKey, regularFiles] =
-    splitSupportingFiles(nonOutputFiles);
-  const userProvidedFiles = supportingFilesByKey.uploaded;
+    splitSupportingFiles(nonUserProvidedFiles);
 
   const sortedOutputFiles = sortByRichPreview(outputFiles);
   const sortedRegularFiles = sortByRichPreview(regularFiles);
@@ -85,12 +85,9 @@ export function FilesGrid({
 
   const mainFiles = prioritizeUserFiles
     ? [...sortedUserProvidedFiles, ...sortedOutputFiles, ...sortedRegularFiles]
-    : [...sortedOutputFiles, ...sortedRegularFiles];
+    : [...sortedOutputFiles, ...sortedRegularFiles, ...sortedUserProvidedFiles];
 
   const visibleMainFiles = mainFiles.slice(0, initialVisibleCount);
-  const collapsedUserProvidedFiles = prioritizeUserFiles
-    ? []
-    : userProvidedFiles;
   const supportingSections = [
     {
       files: supportingFilesByKey.scripts,
@@ -106,11 +103,6 @@ export function FilesGrid({
       files: supportingFilesByKey.temporary,
       key: "temporary" as const,
       title: "Temporary",
-    },
-    {
-      files: collapsedUserProvidedFiles,
-      key: "uploaded" as const,
-      title: "Uploaded",
     },
     {
       files: supportingFilesByKey.agentRetrieved,
@@ -206,10 +198,7 @@ export function FilesGrid({
           <Button
             onClick={() => {
               setIsExpanded(true);
-              if (
-                outputFiles.length === 0 &&
-                collapsedUserProvidedFiles.length === 0
-              ) {
+              if (outputFiles.length === 0) {
                 setExpandedSections(EXPANDED_SECTIONS);
               }
             }}
@@ -259,7 +248,7 @@ export function FilesGrid({
           <Button
             onClick={() => {
               setIsExpanded(false);
-              setExpandedSections(EMPTY_EXPANDED_SECTIONS);
+              setExpandedSections(DEFAULT_EXPANDED_SECTIONS);
             }}
             size="sm"
             type="button"
@@ -379,7 +368,6 @@ function splitSupportingFiles(files: ProjectFileViewerFile[]) {
     scripts: [],
     skills: [],
     temporary: [],
-    uploaded: [],
   };
 
   let remainingFiles = files;
@@ -390,7 +378,6 @@ function splitSupportingFiles(files: ProjectFileViewerFile[]) {
     { key: "scripts", matches: isScriptFile },
     { key: "skills", matches: isSkillFile },
     { key: "temporary", matches: isTempFile },
-    { key: "uploaded", matches: isUserProvidedFile },
     { key: "agentRetrieved", matches: isAgentRetrievedFile },
   ];
 

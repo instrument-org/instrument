@@ -1,5 +1,5 @@
 import { APP_EXECUTABLE, APP_NAME } from "@instrument-org/shared";
-import { execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -8,6 +8,32 @@ import { noop } from "radashi";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "smoke-test-screenshots");
+
+function runPnpmScript(
+  script: string,
+  options: { cwd: string; env: NodeJS.ProcessEnv },
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("pnpm", ["run", script], {
+      cwd: options.cwd,
+      env: options.env,
+      shell: process.platform === "win32",
+      stdio: "inherit",
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error(
+          `pnpm run ${script} failed with code ${String(code)}${signal == null ? "" : ` signal ${signal}`}`,
+        ),
+      );
+    });
+  });
+}
 
 const isSidebarWindow = (url: string) => url.includes("#/sidebar");
 const isMainWindow = (url: string) =>
@@ -27,13 +53,12 @@ describe("Studio Smoke Test", () => {
       path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-test-`),
     );
 
-    execSync("pnpm run build:env:unsigned", {
+    await runPnpmScript("build:env:unsigned", {
       cwd: process.cwd(),
       env: {
         ...process.env,
         ELECTRON_BUILDER_OUTPUT_DIR: distPath,
       },
-      stdio: "inherit",
     });
   }, 300_000);
 

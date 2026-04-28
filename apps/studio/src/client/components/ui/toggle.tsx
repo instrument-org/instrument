@@ -6,7 +6,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 const toggleSharedChrome =
   "inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[color,box-shadow,background-color] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
-const toolbarTabSurface = tv({
+const toolbarSurface = tv({
   base: "rounded-lg border-0 shadow-none",
   variants: {
     pressed: {
@@ -17,7 +17,7 @@ const toolbarTabSurface = tv({
   },
 });
 
-function toolbarTabClassName({
+function toolbarClassName({
   className,
   pressed,
 }: {
@@ -26,7 +26,7 @@ function toolbarTabClassName({
 }) {
   return cn(
     toggleSharedChrome,
-    toolbarTabSurface({ pressed }),
+    toolbarSurface({ pressed }),
     pressed &&
       "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
     className,
@@ -52,7 +52,7 @@ const toggleVariants = tv({
       default: "bg-transparent",
       outline:
         "border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
-      tab: toolbarTabSurface({ pressed: false }),
+      toolbar: toolbarSurface({ pressed: false }),
     },
   },
 });
@@ -74,4 +74,4 @@ function Toggle({
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export { Toggle, toggleVariants, toolbarTabClassName };
+export { Toggle, toggleVariants, toolbarClassName };

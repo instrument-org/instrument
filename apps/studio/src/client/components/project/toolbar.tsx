@@ -1,7 +1,8 @@
 import { Folder } from "@/client/components/icons/folder";
+import { ShareExport } from "@/client/components/icons/share-export";
 import { ProjectSettingsDialog } from "@/client/components/project-settings-dialog";
 import { Button } from "@/client/components/ui/button";
-import { Toggle } from "@/client/components/ui/toggle";
+import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
 import { ToolbarFavoriteAction } from "@/client/components/ui/toolbar-favorite-action";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import {
@@ -9,7 +10,7 @@ import {
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { useNavigate } from "@tanstack/react-router";
-import { FileArchive, Share2 } from "lucide-react";
+import { FileArchive } from "lucide-react";
 import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
@@ -87,7 +88,7 @@ export function ProjectToolbar({
               }}
               pressed={sidebar === "files"}
               size="sm"
-              variant="tab"
+              variant="toolbar"
             >
               <Folder className="size-4" />
               <span>Files</span>
@@ -132,11 +133,15 @@ export function ProjectToolbar({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      className="h-7 gap-1.5 px-2.5 has-[>svg]:px-2.5"
+                      className={toolbarClassName({
+                        className:
+                          "h-7 gap-1.5 px-2.5 has-[>svg]:px-2.5 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                        pressed: false,
+                      })}
                       size="sm"
-                      variant="secondary"
+                      variant="ghost"
                     >
-                      <Share2 className="size-4" />
+                      <ShareExport className="size-4" />
                       Share
                     </Button>
                   </DropdownMenuTrigger>

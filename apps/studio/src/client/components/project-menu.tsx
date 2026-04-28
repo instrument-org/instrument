@@ -34,7 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { toolbarTabClassName } from "./ui/toggle";
+import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ProjectActionsMenu({
@@ -193,7 +193,7 @@ export function ProjectChatPicker({
 
   const button = (
     <Button
-      className={toolbarTabClassName({
+      className={toolbarClassName({
         className:
           "h-auto max-w-80 min-w-0 justify-start gap-2 py-1 font-semibold has-[>svg]:px-1",
         pressed: sidebar === "chat",

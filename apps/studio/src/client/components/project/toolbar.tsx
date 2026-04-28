@@ -3,15 +3,12 @@ import type {
   SupportedEditorId,
 } from "@/shared/schemas/editors";
 
+import { Folder } from "@/client/components/icons/folder";
 import { ProjectSettingsDialog } from "@/client/components/project-settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Toggle } from "@/client/components/ui/toggle";
 import { ToolbarFavoriteAction } from "@/client/components/ui/toolbar-favorite-action";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { OpenAppInTypeSchema } from "@/shared/schemas/editors";
@@ -24,20 +21,18 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
   FileArchive,
-  Files,
   FolderOpenIcon,
   Terminal,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { useDeveloperMode } from "../hooks/use-developer-mode";
-import { ReplaySessionModal } from "./debug/replay-session-modal";
-import { ExportZipModal } from "./export-zip-modal";
-import { ProjectDebugDialog } from "./project-debug-dialog";
-import { ProjectActionsMenu, ProjectChatPicker } from "./project-menu";
-import { ProjectUsageSummary } from "./project-usage-summary";
-import { RestoreVersionModal } from "./restore-version-modal";
+import { ReplaySessionModal } from "../debug/replay-session-modal";
+import { ExportZipModal } from "../export-zip-modal";
+import { ProjectDebugDialog } from "../project-debug-dialog";
+import { ProjectActionsMenu, ProjectChatPicker } from "../project-menu";
+import { ProjectUsageSummary } from "../project-usage-summary";
+import { RestoreVersionModal } from "../restore-version-modal";
 import {
   Alacritty,
   CMD,
@@ -45,15 +40,15 @@ import {
   ITerm,
   MacOSTerminal,
   VSCode,
-} from "./service-icons";
-import { SessionContextRing } from "./session-context-ring";
+} from "../service-icons";
+import { SessionContextRing } from "../session-context-ring";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 
 const EDITOR_ICON_MAP: Record<
   SupportedEditorId,
@@ -68,7 +63,7 @@ const EDITOR_ICON_MAP: Record<
   vscode: VSCode,
 };
 
-export function ProjectHeaderToolbar({
+export function ProjectToolbar({
   onSidebarChange,
   project,
   selectedSessionId,
@@ -146,23 +141,18 @@ export function ProjectHeaderToolbar({
           />
 
           {showFilesToggle && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Toggle
-                  aria-label="Show files"
-                  onPressedChange={() => {
-                    onSidebarChange("files");
-                  }}
-                  pressed={sidebar === "files"}
-                  size="sm"
-                  variant={sidebar === "files" ? "default" : "outline"}
-                >
-                  <Files className="size-4" />
-                  <span>Files</span>
-                </Toggle>
-              </TooltipTrigger>
-              <TooltipContent>Show files</TooltipContent>
-            </Tooltip>
+            <Toggle
+              aria-label="Show files"
+              onPressedChange={() => {
+                onSidebarChange("files");
+              }}
+              pressed={sidebar === "files"}
+              size="sm"
+              variant="tab"
+            >
+              <Folder className="size-4" />
+              <span>Files</span>
+            </Toggle>
           )}
 
           <div className="flex-1" />

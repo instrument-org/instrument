@@ -1,7 +1,6 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { ProjectChat } from "@/client/components/project-chat";
 import { ProjectFiles } from "@/client/components/project-explorer";
-import { ProjectHeaderToolbar } from "@/client/components/project-header-toolbar";
 import { Button } from "@/client/components/ui/button";
 import { VersionList } from "@/client/components/version-list";
 import { hasVisibleProjectFiles } from "@/client/lib/project-file-groups";
@@ -13,6 +12,8 @@ import {
 import { X } from "lucide-react";
 import { type ComponentProps } from "react";
 import { z } from "zod";
+
+import { ProjectToolbar } from "./toolbar";
 
 export const ProjectSidebarModeSchema = z.enum(["chat", "files"]);
 export type ProjectSidebarMode = z.output<typeof ProjectSidebarModeSchema>;
@@ -57,7 +58,7 @@ export function ProjectSidebar({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <ProjectHeaderToolbar
+      <ProjectToolbar
         onSidebarChange={onSidebarChange}
         project={project}
         selectedSessionId={selectedSessionId}

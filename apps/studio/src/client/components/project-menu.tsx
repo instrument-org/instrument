@@ -33,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { toolbarTabClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ProjectActionsMenu({
@@ -190,7 +191,11 @@ export function ProjectChatPicker({
 
   const button = (
     <Button
-      className="h-auto max-w-80 min-w-0 justify-start gap-2 py-1 font-semibold text-foreground hover:bg-accent hover:text-accent-foreground has-[>svg]:px-1"
+      className={toolbarTabClassName({
+        className:
+          "h-auto max-w-80 min-w-0 justify-start gap-2 py-1 font-semibold has-[>svg]:px-1",
+        pressed: sidebar === "chat",
+      })}
       onClick={sidebar === "files" ? onChatClick : undefined}
       variant="ghost"
     >
@@ -201,25 +206,17 @@ export function ProjectChatPicker({
   );
 
   if (sidebar === "files") {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <TooltipContent>Back to chat</TooltipContent>
-      </Tooltip>
-    );
+    return button;
   }
 
   return (
     <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-[min(500px,90vw)] break-all">
-          {project.title}
-        </TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="start" side="bottom">
+      <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="min-w-(--radix-popper-anchor-width)"
+        side="bottom"
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuItem

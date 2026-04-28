@@ -72,6 +72,7 @@ export function createMockAppConfig(
   return createAppConfig({
     subdomain,
     workspaceConfig: {
+      appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
       captureEvent: () => {
         // No-op

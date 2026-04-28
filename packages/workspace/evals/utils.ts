@@ -26,6 +26,7 @@ export function buildReportWorkspaceConfig(
   absoluteWorkspaceDir: string,
 ): WorkspaceConfig {
   return {
+    appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: () => {
       return;

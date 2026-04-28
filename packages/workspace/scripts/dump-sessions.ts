@@ -19,6 +19,7 @@ const absoluteWorkspaceDir = path.resolve(workspaceDir);
 const projectsDir = path.join(absoluteWorkspaceDir, "projects");
 
 const workspaceConfig: WorkspaceConfig = {
+  appVersion: "0.0.0-test",
   browser: createStubBrowserConfig(),
   captureEvent: () => {
     return;

@@ -2,6 +2,7 @@ import { TabIconsSchema } from "@instrument-org/shared/icons";
 import { z } from "zod";
 
 export const ProjectManifestSchema = z.object({
+  createdWithAppVersion: z.string().optional(),
   description: z.string().optional(),
   // eslint-disable-next-line unicorn/prefer-top-level-await
   iconName: TabIconsSchema.optional().catch(undefined),

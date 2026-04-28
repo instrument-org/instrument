@@ -108,6 +108,7 @@ export const BrowserTargetIdSchema = z
 export type BrowserTargetId = z.output<typeof BrowserTargetIdSchema>;
 
 export interface WorkspaceConfig {
+  appVersion: string;
   browser: BrowserConfig;
   captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;

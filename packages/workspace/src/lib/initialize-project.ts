@@ -11,6 +11,7 @@ import { TypedError } from "./errors";
 import { git } from "./git";
 import { GitCommands } from "./git/commands";
 import { ensureGitRepo } from "./git/ensure-git-repo";
+import { updateProjectManifest } from "./project-manifest";
 
 export async function initializeProject(
   {
@@ -67,6 +68,10 @@ export async function initializeProject(
       isTemplate: true,
       sourceDir: templateDir,
       targetDir: projectConfig.appDir,
+    });
+
+    yield* updateProjectManifest(projectConfig, {
+      createdWithAppVersion: workspaceConfig.appVersion,
     });
 
     // Create standard directories so they appear in the file tree. Avoids agent

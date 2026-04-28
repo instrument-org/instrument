@@ -69,7 +69,7 @@ type FileTreeNode =
   | { children: FileTreeNode[]; kind: "dir"; name: string }
   | { file: ProjectFileViewerFile; kind: "file" };
 
-export function ProjectExplorer({
+export function ProjectFiles({
   activeFilePath,
   attachedFolders,
   files,
@@ -192,12 +192,12 @@ export function ProjectExplorer({
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
-            <ExplorerItemMenu>
+            <FilesItemMenu>
               <DropdownMenuItem onClick={handleAppAddToChat}>
                 <MessageSquare className="size-4" />
                 <span>Add to chat</span>
               </DropdownMenuItem>
-            </ExplorerItemMenu>
+            </FilesItemMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       )}
@@ -358,13 +358,13 @@ function AttachedFolderRow({
           />
         </ContextMenuContent>
       </ContextMenu>
-      <ExplorerItemMenu>
+      <FilesItemMenu>
         <AttachedFolderMenuItems
           onAddToChat={handleAddToChat}
           onReveal={handleReveal}
           variant="dropdown"
         />
-      </ExplorerItemMenu>
+      </FilesItemMenu>
     </SidebarMenuItem>
   );
 }
@@ -398,22 +398,6 @@ function buildTree(files: ProjectFileViewerFile[]): FileTreeNode[] {
   root.sort((a, b) => rankTreeNode(a) - rankTreeNode(b));
 
   return root;
-}
-
-function ExplorerItemMenu({ children }: { children: React.ReactNode }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <SidebarMenuAction showOnHover>
-          <MoreVertical />
-          <span className="sr-only">More</span>
-        </SidebarMenuAction>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="bottom">
-        {children}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 }
 
 function FileRow({
@@ -483,14 +467,30 @@ function FileRow({
           />
         </ContextMenuContent>
       </ContextMenu>
-      <ExplorerItemMenu>
+      <FilesItemMenu>
         <FileActionsMenuItems
           file={file}
           onAddToChat={handleAddToChat}
           variant="dropdown"
         />
-      </ExplorerItemMenu>
+      </FilesItemMenu>
     </SidebarMenuItem>
+  );
+}
+
+function FilesItemMenu({ children }: { children: React.ReactNode }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <SidebarMenuAction showOnHover>
+          <MoreVertical />
+          <span className="sr-only">More</span>
+        </SidebarMenuAction>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom">
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -3,16 +3,9 @@ import {
   type ProjectFileViewerFile,
 } from "@/client/atoms/project-file-viewer";
 import { AppView } from "@/client/components/app-view";
-import { ProjectChat } from "@/client/components/project-chat";
-import { ProjectExplorer } from "@/client/components/project-explorer";
 import { ProjectFileViewer } from "@/client/components/project-file-viewer";
-import { ProjectHeaderToolbar } from "@/client/components/project-header-toolbar";
-import { Button } from "@/client/components/ui/button";
-import { VersionList } from "@/client/components/version-list";
 import { VersionOverlay } from "@/client/components/version-overlay";
-import { useMediaQuery } from "@/client/hooks/use-media-query";
 import { useReload } from "@/client/hooks/use-reload";
-import { hasVisibleProjectFiles } from "@/client/lib/project-file-groups";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
@@ -29,9 +22,10 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
-import { X } from "lucide-react";
 import { useCallback } from "react";
 import { type DividerProps, Pane, SplitPane } from "react-split-pane";
+
+import { ProjectSidebar, type ProjectSidebarMode } from "./project/sidebar";
 
 function SplitDivider({
   className,
@@ -70,34 +64,30 @@ function SplitDivider({
 }
 
 const PANEL_SIZES = {
-  centerMin: 300,
-  chatDefault: 384,
-  explorerDefault: 208,
-  explorerMax: 308,
+  artifactMin: 300,
+  sidebarMin: 300,
 };
 
 export function ProjectView({
   artifactPanel,
   attachedFolders,
-  chatOpen,
-  explorerOpen,
   files,
   hasAppModifications,
   project,
   selectedModelURI,
   selectedSessionId,
   showVersions,
+  sidebar,
 }: {
   artifactPanel: ArtifactPanel | undefined;
   attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
-  chatOpen: boolean;
-  explorerOpen: boolean | undefined;
   files: RPCOutput["workspace"]["project"]["git"]["listFiles"] | undefined;
   hasAppModifications: boolean;
   project: WorkspaceAppProject;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
   showVersions?: boolean;
+  sidebar: ProjectSidebarMode;
 }) {
   const navigate = useNavigate();
   const openFileViewer = useSetAtom(openFileViewerAtom);
@@ -184,13 +174,6 @@ export function ProjectView({
     });
   };
 
-  // tailwind: lg (1024px)
-  const isLargeScreen = useMediaQuery("(min-width: 1024px)");
-  const hasProjectFiles = files ? hasVisibleProjectFiles(files) : false;
-  const chatCollapsed = !chatOpen;
-  const explorerCollapsed =
-    explorerOpen === undefined ? !hasProjectFiles : !explorerOpen;
-
   const handleVersionsToggle = () => {
     void navigate({
       from: "/projects/$subdomain",
@@ -211,30 +194,20 @@ export function ProjectView({
     }, [isViewingApp]),
   );
 
-  const handleToggleChat = () => {
+  const handleSidebarChange = (nextSidebar: ProjectSidebarMode) => {
     void navigate({
       from: "/projects/$subdomain",
       params: { subdomain: project.subdomain },
       replace: true,
-      search: (prev) => ({ ...prev, chatOpen: chatCollapsed }),
+      search: (prev) => ({
+        ...prev,
+        showVersions: undefined,
+        sidebar: nextSidebar === "chat" ? undefined : nextSidebar,
+      }),
     });
   };
 
-  const handleToggleExplorer = () => {
-    void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain: project.subdomain },
-      replace: true,
-      search: (prev) => ({ ...prev, explorerOpen: explorerCollapsed }),
-    });
-  };
-
-  const chatSize = chatCollapsed ? 0 : PANEL_SIZES.chatDefault;
-  const explorerFloating = !isLargeScreen && showArtifactPanel;
-  const explorerSize =
-    explorerCollapsed || explorerFloating ? 0 : PANEL_SIZES.explorerDefault;
-
-  const sidebarProps = {
+  const chatProps = {
     isReplayActive,
     isViewingApp,
     onCancelReplay: handleCancelReplay,
@@ -245,215 +218,86 @@ export function ProjectView({
     versionRef: selectedAppVersion,
   };
 
-  const explorerPaneInner = (
-    <div
-      className={cn(
-        "flex h-full flex-col overflow-hidden bg-background",
-        !showArtifactPanel && "border-l",
+  const sidebarPane = (
+    <ProjectSidebar
+      activeFilePath={
+        artifactPanel?.type === "file" ? artifactPanel.filePath : null
+      }
+      attachedFolders={attachedFolders}
+      chatProps={chatProps}
+      files={files}
+      hasAppModifications={hasAppModifications}
+      isAppViewOpen={isViewingApp}
+      isFullWidth={!showArtifactPanel}
+      onAppSelect={handleAppSelect}
+      onFileSelect={handleFileSelect}
+      onSidebarChange={handleSidebarChange}
+      onVersionsToggle={handleVersionsToggle}
+      project={project}
+      selectedAppVersion={selectedAppVersion}
+      selectedSessionId={selectedSessionId}
+      showVersions={showVersions}
+      sidebar={sidebar}
+    />
+  );
+
+  const artifactPane = (
+    <div className="flex h-full flex-1 flex-col overflow-hidden bg-secondary p-2">
+      {isViewingFile ? (
+        currentFile ? (
+          <div className="flex h-full overflow-hidden">
+            <ProjectFileViewer
+              file={currentFile}
+              fullSize
+              isInPanel
+              onClose={handleArtifactPanelClose}
+              onExpand={() => {
+                openFileViewer({
+                  files: [currentFile],
+                });
+              }}
+            />
+          </div>
+        ) : null
+      ) : (
+        <div className="relative flex flex-1 flex-col">
+          <AppView
+            app={project}
+            className="overflow-hidden rounded-lg"
+            isVersionsOpen={showVersions}
+            onClose={handleArtifactPanelClose}
+            onVersionsToggle={handleVersionsToggle}
+            shouldReload={!selectedAppVersion}
+          />
+
+          {selectedAppVersion && (
+            <VersionOverlay
+              projectSubdomain={project.subdomain}
+              versionRef={selectedAppVersion}
+            />
+          )}
+        </div>
       )}
-    >
-      <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
-        <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Project
-        </h3>
-        <button
-          className="text-muted-foreground hover:text-foreground"
-          onClick={handleToggleExplorer}
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <ProjectExplorer
-          activeFilePath={
-            artifactPanel?.type === "file" ? artifactPanel.filePath : null
-          }
-          attachedFolders={attachedFolders}
-          files={files}
-          isAppViewOpen={isViewingApp}
-          onAppSelect={handleAppSelect}
-          onFileSelect={handleFileSelect}
-          project={project}
-          showAppEntry={hasAppModifications}
-        />
-      </div>
     </div>
   );
-
-  const floatingExplorer = explorerFloating && !explorerCollapsed && (
-    <div className="absolute inset-y-0 right-0 z-20 flex w-56 flex-col border-l">
-      {explorerPaneInner}
-    </div>
-  );
-
-  const explorerPane = explorerFloating ? null : explorerPaneInner;
 
   return (
-    <div className="relative flex h-dvh w-full flex-col overflow-hidden">
-      <ProjectHeaderToolbar
-        canCollapseChat={showArtifactPanel}
-        chatCollapsed={chatCollapsed}
-        explorerCollapsed={explorerCollapsed}
-        onToggleChat={handleToggleChat}
-        onToggleExplorer={handleToggleExplorer}
-        project={project}
-        selectedSessionId={selectedSessionId}
-        showChatToggle={showArtifactPanel || hasAppModifications}
-        versionRef={selectedAppVersion}
-      />
+    <div className="relative h-dvh w-full overflow-hidden">
+      {showArtifactPanel ? (
+        <SplitPane
+          direction="horizontal"
+          divider={SplitDivider}
+          style={{ height: "100%" }}
+        >
+          <Pane minSize={PANEL_SIZES.sidebarMin} size="50%">
+            {sidebarPane}
+          </Pane>
 
-      <div
-        className={cn(
-          "relative min-h-0 flex-1",
-          !showArtifactPanel && "border-t",
-        )}
-      >
-        {floatingExplorer}
-        {showArtifactPanel ? (
-          <SplitPane
-            direction="horizontal"
-            divider={SplitDivider}
-            onResizeEnd={(sizes) => {
-              const [newChat, _center, newExplorer] = sizes;
-              const chatNowOpen = (newChat ?? 0) > 0;
-              const explorerNowOpen = (newExplorer ?? 0) > 0;
-              if (chatNowOpen !== !chatCollapsed) {
-                void navigate({
-                  from: "/projects/$subdomain",
-                  params: { subdomain: project.subdomain },
-                  replace: true,
-                  search: (prev) => ({ ...prev, chatOpen: chatNowOpen }),
-                });
-              }
-              if (explorerNowOpen !== !explorerCollapsed) {
-                void navigate({
-                  from: "/projects/$subdomain",
-                  params: { subdomain: project.subdomain },
-                  replace: true,
-                  search: (prev) => ({
-                    ...prev,
-                    explorerOpen: explorerNowOpen,
-                  }),
-                });
-              }
-            }}
-            style={{ height: "100%" }}
-          >
-            <Pane minSize={PANEL_SIZES.chatDefault} size={chatSize}>
-              {showVersions && (
-                <div className="flex h-full flex-col overflow-hidden bg-background">
-                  <div className="flex items-center justify-between border-b p-2">
-                    <h2 className="px-2 font-semibold">Versions</h2>
-                    <Button
-                      onClick={handleVersionsToggle}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-4">
-                    <VersionList
-                      // Very basic filtering for now
-                      filterByPath="./src"
-                      isViewingApp={isViewingApp}
-                      projectSubdomain={project.subdomain}
-                      versionRef={selectedAppVersion}
-                    />
-                  </div>
-                </div>
-              )}
-              {!showVersions && <ProjectChat {...sidebarProps} />}
-            </Pane>
-
-            <Pane minSize={200}>
-              <div
-                className={cn(
-                  "flex h-full flex-1 flex-col overflow-hidden border-t bg-secondary p-2",
-                  !chatCollapsed && "rounded-tl-lg border-l",
-                  !explorerCollapsed && "rounded-tr-lg border-r",
-                )}
-              >
-                {isViewingFile ? (
-                  currentFile ? (
-                    <div className="flex h-full overflow-hidden">
-                      <ProjectFileViewer
-                        file={currentFile}
-                        fullSize
-                        isInPanel
-                        onClose={handleArtifactPanelClose}
-                        onExpand={() => {
-                          openFileViewer({
-                            files: [currentFile],
-                          });
-                        }}
-                      />
-                    </div>
-                  ) : null
-                ) : (
-                  <div className="relative flex flex-1 flex-col">
-                    <AppView
-                      app={project}
-                      className="overflow-hidden rounded-lg"
-                      isVersionsOpen={showVersions}
-                      onClose={handleArtifactPanelClose}
-                      onVersionsToggle={handleVersionsToggle}
-                      shouldReload={!selectedAppVersion}
-                    />
-
-                    {selectedAppVersion && (
-                      <VersionOverlay
-                        projectSubdomain={project.subdomain}
-                        versionRef={selectedAppVersion}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            </Pane>
-
-            <Pane
-              maxSize={PANEL_SIZES.explorerMax}
-              minSize={PANEL_SIZES.explorerDefault}
-              size={explorerSize}
-            >
-              {explorerPane}
-            </Pane>
-          </SplitPane>
-        ) : (
-          <SplitPane
-            direction="horizontal"
-            divider={SplitDivider}
-            onResizeEnd={(sizes) => {
-              const explorerNowOpen = (sizes[1] ?? 0) > 0;
-              if (explorerNowOpen !== !explorerCollapsed) {
-                void navigate({
-                  from: "/projects/$subdomain",
-                  params: { subdomain: project.subdomain },
-                  replace: true,
-                  search: (prev) => ({
-                    ...prev,
-                    explorerOpen: explorerNowOpen,
-                  }),
-                });
-              }
-            }}
-            style={{ height: "100%" }}
-          >
-            <Pane>
-              <ProjectChat {...sidebarProps} isChatOnly />
-            </Pane>
-
-            <Pane
-              maxSize={PANEL_SIZES.explorerDefault + 100}
-              minSize={PANEL_SIZES.explorerDefault}
-              size={explorerSize}
-            >
-              {explorerPane}
-            </Pane>
-          </SplitPane>
-        )}
-      </div>
+          <Pane minSize={PANEL_SIZES.artifactMin}>{artifactPane}</Pane>
+        </SplitPane>
+      ) : (
+        sidebarPane
+      )}
     </div>
   );
 }

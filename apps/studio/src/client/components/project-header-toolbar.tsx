@@ -26,9 +26,6 @@ import {
   FileArchive,
   Files,
   FolderOpenIcon,
-  MessageCircle,
-  PanelLeftClose,
-  PanelRightClose,
   Terminal,
 } from "lucide-react";
 import { useState } from "react";
@@ -38,7 +35,7 @@ import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { ReplaySessionModal } from "./debug/replay-session-modal";
 import { ExportZipModal } from "./export-zip-modal";
 import { ProjectDebugDialog } from "./project-debug-dialog";
-import { ProjectMenu } from "./project-menu";
+import { ProjectActionsMenu, ProjectChatPicker } from "./project-menu";
 import { ProjectUsageSummary } from "./project-usage-summary";
 import { RestoreVersionModal } from "./restore-version-modal";
 import {
@@ -72,24 +69,18 @@ const EDITOR_ICON_MAP: Record<
 };
 
 export function ProjectHeaderToolbar({
-  canCollapseChat,
-  chatCollapsed,
-  explorerCollapsed,
-  onToggleChat,
-  onToggleExplorer,
+  onSidebarChange,
   project,
   selectedSessionId,
-  showChatToggle,
+  showFilesToggle,
+  sidebar,
   versionRef,
 }: {
-  canCollapseChat: boolean;
-  chatCollapsed: boolean;
-  explorerCollapsed: boolean;
-  onToggleChat: () => void;
-  onToggleExplorer: () => void;
+  onSidebarChange: (sidebar: "chat" | "files") => void;
   project: WorkspaceAppProject;
   selectedSessionId?: StoreId.Session;
-  showChatToggle: boolean;
+  showFilesToggle: boolean;
+  sidebar: "chat" | "files";
   versionRef?: string;
 }) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -145,43 +136,32 @@ export function ProjectHeaderToolbar({
     <>
       <div className="w-full bg-background py-2 pr-2 pl-3">
         <div className="flex items-center gap-2">
-          <ProjectMenu
-            onDebugClick={() => {
-              setDebugDialogOpen(true);
-            }}
-            onReplayClick={() => {
-              setReplayModalOpen(true);
-            }}
-            onSettingsClick={() => {
-              setSettingsDialogOpen(true);
+          <ProjectChatPicker
+            onChatClick={() => {
+              onSidebarChange("chat");
             }}
             project={project}
             selectedSessionId={selectedSessionId}
+            sidebar={sidebar}
           />
 
-          {showChatToggle && (chatCollapsed || canCollapseChat) && (
+          {showFilesToggle && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Toggle
-                  aria-label={chatCollapsed ? "Show chat" : "Hide chat"}
-                  onPressedChange={onToggleChat}
-                  pressed={chatCollapsed}
+                  aria-label="Show files"
+                  onPressedChange={() => {
+                    onSidebarChange("files");
+                  }}
+                  pressed={sidebar === "files"}
                   size="sm"
-                  variant={chatCollapsed ? "outline" : "default"}
+                  variant={sidebar === "files" ? "default" : "outline"}
                 >
-                  {chatCollapsed ? (
-                    <>
-                      <MessageCircle className="size-4" />
-                      <span>Chat</span>
-                    </>
-                  ) : (
-                    <PanelLeftClose className="size-4" />
-                  )}
+                  <Files className="size-4" />
+                  <span>Files</span>
                 </Toggle>
               </TooltipTrigger>
-              <TooltipContent>
-                {chatCollapsed ? "Show chat" : "Hide chat"}
-              </TooltipContent>
+              <TooltipContent>Show files</TooltipContent>
             </Tooltip>
           )}
 
@@ -204,30 +184,6 @@ export function ProjectHeaderToolbar({
                 subdomain={project.subdomain}
               />
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Toggle
-                  aria-label={explorerCollapsed ? "Show files" : "Hide files"}
-                  onPressedChange={onToggleExplorer}
-                  pressed={explorerCollapsed}
-                  size="sm"
-                  variant={explorerCollapsed ? "outline" : "default"}
-                >
-                  {explorerCollapsed ? (
-                    <>
-                      <Files className="size-4" />
-                      <span>Files</span>
-                    </>
-                  ) : (
-                    <PanelRightClose className="size-4" />
-                  )}
-                </Toggle>
-              </TooltipTrigger>
-              <TooltipContent>
-                {explorerCollapsed ? "Show explorer" : "Hide explorer"}
-              </TooltipContent>
-            </Tooltip>
-
             {versionRef ? (
               <div className="flex shrink-0 items-center gap-2">
                 <Button
@@ -345,6 +301,19 @@ export function ProjectHeaderToolbar({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <ProjectActionsMenu
+                  onDebugClick={() => {
+                    setDebugDialogOpen(true);
+                  }}
+                  onReplayClick={() => {
+                    setReplayModalOpen(true);
+                  }}
+                  onSettingsClick={() => {
+                    setSettingsDialogOpen(true);
+                  }}
+                  project={project}
+                  selectedSessionId={selectedSessionId}
+                />
               </div>
             )}
           </div>

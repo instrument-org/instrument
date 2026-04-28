@@ -1,3 +1,4 @@
+import ms from "ms";
 import {
   type ActorRefFrom,
   assign,
@@ -14,9 +15,9 @@ import { type StoreId } from "../schemas/store-id";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { type BrowserConfig, type BrowserTargetId } from "../types";
 
-export const AGENT_IDLE_TIMEOUT_MS = 15 * 60_000;
-export const USER_PRESENCE_TIMEOUT_MS = 30_000;
-export const USER_HEARTBEAT_INTERVAL_MS = 5000;
+export const AGENT_IDLE_TIMEOUT_MS = ms("1 hour");
+export const USER_PRESENCE_TIMEOUT_MS = ms("5 minutes");
+export const USER_HEARTBEAT_INTERVAL_MS = ms("5 seconds");
 
 export interface ProjectBrowserParentEvent {
   type: "projectBrowser.stopped";

@@ -1,0 +1,114 @@
+import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { ProjectChat } from "@/client/components/project-chat";
+import { ProjectFiles } from "@/client/components/project-explorer";
+import { ProjectHeaderToolbar } from "@/client/components/project-header-toolbar";
+import { Button } from "@/client/components/ui/button";
+import { VersionList } from "@/client/components/version-list";
+import { hasVisibleProjectFiles } from "@/client/lib/project-file-groups";
+import { type RPCOutput } from "@/client/rpc/client";
+import {
+  type StoreId,
+  type WorkspaceAppProject,
+} from "@instrument-org/workspace/client";
+import { X } from "lucide-react";
+import { type ComponentProps } from "react";
+import { z } from "zod";
+
+export const ProjectSidebarModeSchema = z.enum(["chat", "files"]);
+export type ProjectSidebarMode = z.output<typeof ProjectSidebarModeSchema>;
+
+export function ProjectSidebar({
+  activeFilePath,
+  attachedFolders,
+  chatProps,
+  files,
+  hasAppModifications,
+  isAppViewOpen,
+  isFullWidth,
+  onAppSelect,
+  onFileSelect,
+  onSidebarChange,
+  onVersionsToggle,
+  project,
+  selectedAppVersion,
+  selectedSessionId,
+  showVersions,
+  sidebar,
+}: {
+  activeFilePath: null | string;
+  attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
+  chatProps: ComponentProps<typeof ProjectChat>;
+  files: RPCOutput["workspace"]["project"]["git"]["listFiles"] | undefined;
+  hasAppModifications: boolean;
+  isAppViewOpen: boolean;
+  isFullWidth: boolean;
+  onAppSelect: () => void;
+  onFileSelect: (file: ProjectFileViewerFile) => void;
+  onSidebarChange: (sidebar: ProjectSidebarMode) => void;
+  onVersionsToggle: () => void;
+  project: WorkspaceAppProject;
+  selectedAppVersion: string | undefined;
+  selectedSessionId?: StoreId.Session;
+  showVersions?: boolean;
+  sidebar: ProjectSidebarMode;
+}) {
+  const showFilesToggle = files ? hasVisibleProjectFiles(files) : false;
+  const visibleSidebar = showFilesToggle ? sidebar : "chat";
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-background">
+      <ProjectHeaderToolbar
+        onSidebarChange={onSidebarChange}
+        project={project}
+        selectedSessionId={selectedSessionId}
+        showFilesToggle={showFilesToggle}
+        sidebar={visibleSidebar}
+        versionRef={selectedAppVersion}
+      />
+
+      <div className="min-h-0 flex-1 overflow-hidden border-t">
+        {showVersions ? (
+          <div className="flex h-full flex-col overflow-hidden bg-background">
+            <div className="flex items-center justify-between border-b p-2">
+              <h2 className="px-2 font-semibold">Versions</h2>
+              <Button onClick={onVersionsToggle} size="icon" variant="ghost">
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <VersionList
+                // Very basic filtering for now
+                filterByPath="./src"
+                isViewingApp={isAppViewOpen}
+                projectSubdomain={project.subdomain}
+                versionRef={selectedAppVersion}
+              />
+            </div>
+          </div>
+        ) : visibleSidebar === "files" ? (
+          <div className="flex h-full flex-col overflow-hidden bg-background">
+            <div className="flex shrink-0 items-center border-b px-3 py-2">
+              <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                Files
+              </h3>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <ProjectFiles
+                activeFilePath={activeFilePath}
+                attachedFolders={attachedFolders}
+                files={files}
+                isAppViewOpen={isAppViewOpen}
+                onAppSelect={onAppSelect}
+                onFileSelect={onFileSelect}
+                project={project}
+                showAppEntry={hasAppModifications}
+              />
+            </div>
+          </div>
+        ) : (
+          <ProjectChat {...chatProps} isChatOnly={isFullWidth} />
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,3 +1,4 @@
+import { ChatsCircle } from "@/client/components/icons/chats-circle";
 import {
   StoreId,
   type WorkspaceAppProject,
@@ -9,6 +10,7 @@ import {
   ChevronDown,
   Copy,
   MessageCircle,
+  MoreVertical,
   Pencil,
   Plus,
   RotateCcw,
@@ -20,7 +22,6 @@ import { getSessionTags } from "../hooks/use-agent-session-status";
 import { useAppState } from "../hooks/use-app-state";
 import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { rpcClient } from "../rpc/client";
-import { AppIcon } from "./app-icon";
 import { SessionStatusIcon } from "./app-status-icon";
 import { Button } from "./ui/button";
 import {
@@ -30,14 +31,11 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-export function ProjectMenu({
+export function ProjectActionsMenu({
   onDebugClick,
   onReplayClick,
   onSettingsClick,
@@ -51,6 +49,104 @@ export function ProjectMenu({
   selectedSessionId?: StoreId.Session;
 }) {
   const navigate = useNavigate();
+  const isDeveloperMode = useDeveloperMode();
+
+  const handleDebugChat = () => {
+    if (!selectedSessionId) {
+      return;
+    }
+    onDebugClick();
+  };
+
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost">
+              <MoreVertical className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Project actions</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" side="bottom">
+        <DropdownMenuItem
+          onClick={() => {
+            void navigate({
+              from: "/projects/$subdomain",
+              params: { subdomain: project.subdomain },
+              search: (prev) => ({ ...prev, showDuplicate: true }),
+            });
+          }}
+        >
+          <Copy className="size-4" />
+          <span>Duplicate</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onSettingsClick}>
+          <Pencil className="size-4" />
+          <span>Rename</span>
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        {isDeveloperMode && (
+          <>
+            <DropdownMenuItem
+              className="text-warning-foreground"
+              disabled={!selectedSessionId}
+              onClick={handleDebugChat}
+            >
+              <Bug className="size-4 text-warning-foreground" />
+              Debug chat
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-warning-foreground"
+              disabled={!selectedSessionId}
+              onClick={() => {
+                if (selectedSessionId) {
+                  onReplayClick();
+                }
+              }}
+            >
+              <RotateCcw className="size-4 text-warning-foreground" />
+              Replay chat
+            </DropdownMenuItem>
+          </>
+        )}
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onSelect={() => {
+            void navigate({
+              from: "/projects/$subdomain",
+              params: { subdomain: project.subdomain },
+              search: (prev) => ({ ...prev, showDelete: true }),
+            });
+          }}
+          variant="destructive"
+        >
+          <TrashIcon />
+          <span>Delete</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function ProjectChatPicker({
+  onChatClick,
+  project,
+  selectedSessionId,
+  sidebar,
+}: {
+  onChatClick: () => void;
+  project: WorkspaceAppProject;
+  selectedSessionId?: StoreId.Session;
+  sidebar: "chat" | "files";
+}) {
+  const navigate = useNavigate();
 
   const { data: sessions = [] } = useQuery(
     rpcClient.workspace.session.live.list.experimental_liveOptions({
@@ -60,7 +156,6 @@ export function ProjectMenu({
 
   const { data: appState } = useAppState({ subdomain: project.subdomain });
   const sessionActors = appState?.sessionActors ?? [];
-  const isDeveloperMode = useDeveloperMode();
 
   const createEmptySession = useMutation(
     rpcClient.workspace.session.create.mutationOptions(),
@@ -84,6 +179,7 @@ export function ProjectMenu({
             search: (prev) => ({
               ...prev,
               selectedSessionId: result.id,
+              sidebar: undefined,
             }),
             to: "/projects/$subdomain",
           });
@@ -92,163 +188,97 @@ export function ProjectMenu({
     );
   };
 
-  const handleDebugChat = () => {
-    if (!selectedSessionId) {
-      return;
-    }
-    onDebugClick();
-  };
+  const button = (
+    <Button
+      className="h-auto max-w-80 min-w-0 justify-start gap-2 py-1 font-semibold text-foreground hover:bg-accent hover:text-accent-foreground has-[>svg]:px-1"
+      onClick={sidebar === "files" ? onChatClick : undefined}
+      variant="ghost"
+    >
+      <ChatsCircle className="size-4 shrink-0" />
+      <span className="truncate">{project.title}</span>
+      {sidebar === "chat" && <ChevronDown className="size-3 shrink-0" />}
+    </Button>
+  );
 
-  const showChatsSubmenu = sessions.length > 1;
+  if (sidebar === "files") {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent>Back to chat</TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
-    <>
-      <DropdownMenu>
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[min(500px,90vw)] break-all">
+          {project.title}
+        </TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="start" side="bottom">
         <Tooltip>
           <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button
-                className="h-auto max-w-80 min-w-0 justify-start gap-2 py-1 font-semibold text-foreground hover:bg-accent hover:text-accent-foreground has-[>svg]:px-1"
-                variant="ghost"
-              >
-                <AppIcon name={project.iconName} size="sm" />
-                <span className="truncate">{project.title}</span>
-                <ChevronDown className="size-3 shrink-0" />
-              </Button>
-            </DropdownMenuTrigger>
+            <DropdownMenuItem
+              disabled={createEmptySession.isPending}
+              onClick={handleNewChat}
+            >
+              <Plus className="size-4" />
+              <span>New chat</span>
+            </DropdownMenuItem>
           </TooltipTrigger>
-          <TooltipContent className="max-w-[min(500px,90vw)] break-all">
-            {project.title}
-          </TooltipContent>
+          <TooltipContent>Start a fresh chat in this project.</TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="end" side="bottom">
-          <DropdownMenuItem
-            onClick={() => {
-              void navigate({
-                from: "/projects/$subdomain",
-                params: { subdomain: project.subdomain },
-                search: (prev) => ({ ...prev, showDuplicate: true }),
-              });
-            }}
-          >
-            <Copy className="size-4" />
-            <span>Duplicate</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onSettingsClick}>
-            <Pencil className="size-4" />
-            <span>Rename</span>
-          </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuItem
-                disabled={createEmptySession.isPending}
-                onClick={handleNewChat}
-              >
-                <Plus className="size-4" />
-                <span>New chat</span>
-              </DropdownMenuItem>
-            </TooltipTrigger>
-            <TooltipContent>Start a fresh chat in this project.</TooltipContent>
-          </Tooltip>
-
-          {showChatsSubmenu && (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <div className="flex items-center gap-2">
-                  <MessageCircle className="size-4" />
-                  Chats
-                </div>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup
-                  onValueChange={(value) => {
-                    const sessionId = StoreId.SessionSchema.parse(value);
-                    void navigate({
-                      params: {
-                        subdomain: project.subdomain,
-                      },
-                      replace: true,
-                      search: (prev) => ({
-                        ...prev,
-                        selectedSessionId: sessionId,
-                      }),
-                      to: "/projects/$subdomain",
-                    });
-                  }}
-                  value={selectedSessionId}
-                >
-                  {sessions.map((session) => {
-                    const tags = getSessionTags({
-                      sessionActors,
-                      sessionId: session.id,
-                    });
-                    return (
-                      <DropdownMenuRadioItem
-                        className="pl-2 data-[state=checked]:bg-black/10 dark:data-[state=checked]:bg-white/10 [&>span:first-child]:hidden"
-                        key={session.id}
-                        value={session.id}
-                      >
-                        <span className="flex-1 truncate">
-                          {session.title || "Untitled Chat"}
-                        </span>
-                        <SessionStatusIcon
-                          className="size-3 shrink-0"
-                          tags={tags}
-                        />
-                      </DropdownMenuRadioItem>
-                    );
-                  })}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
-
-          {isDeveloperMode && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-warning-foreground"
-                disabled={!selectedSessionId}
-                onClick={handleDebugChat}
-              >
-                <Bug className="size-4 text-warning-foreground" />
-                Debug chat
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-warning-foreground"
-                disabled={!selectedSessionId}
-                onClick={() => {
-                  if (selectedSessionId) {
-                    onReplayClick();
-                  }
-                }}
-              >
-                <RotateCcw className="size-4 text-warning-foreground" />
-                Replay chat
-              </DropdownMenuItem>
-            </>
-          )}
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            onSelect={() => {
-              void navigate({
-                from: "/projects/$subdomain",
-                params: { subdomain: project.subdomain },
-                search: (prev) => ({ ...prev, showDelete: true }),
-              });
-            }}
-            variant="destructive"
-          >
-            <TrashIcon />
-            <span>Delete</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
+        {sessions.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup
+              onValueChange={(value) => {
+                const sessionId = StoreId.SessionSchema.parse(value);
+                void navigate({
+                  params: {
+                    subdomain: project.subdomain,
+                  },
+                  replace: true,
+                  search: (prev) => ({
+                    ...prev,
+                    selectedSessionId: sessionId,
+                  }),
+                  to: "/projects/$subdomain",
+                });
+              }}
+              value={selectedSessionId}
+            >
+              {sessions.map((session) => {
+                const tags = getSessionTags({
+                  sessionActors,
+                  sessionId: session.id,
+                });
+                return (
+                  <DropdownMenuRadioItem
+                    className="pl-2 data-[state=checked]:bg-black/10 dark:data-[state=checked]:bg-white/10 [&>span:first-child]:hidden"
+                    key={session.id}
+                    value={session.id}
+                  >
+                    <MessageCircle className="size-4" />
+                    <span className="flex-1 truncate">
+                      {session.title || "Untitled Chat"}
+                    </span>
+                    <SessionStatusIcon
+                      className="size-3 shrink-0"
+                      tags={tags}
+                    />
+                  </DropdownMenuRadioItem>
+                );
+              })}
+            </DropdownMenuRadioGroup>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

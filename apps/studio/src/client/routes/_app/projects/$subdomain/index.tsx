@@ -3,6 +3,7 @@ import { DuplicateProjectModal } from "@/client/components/duplicate-project-mod
 import { ProjectDeleteDialog } from "@/client/components/project-delete-dialog";
 import { ProjectSettingsDialog } from "@/client/components/project-settings-dialog";
 import { ProjectView } from "@/client/components/project-view";
+import { ProjectSidebarModeSchema } from "@/client/components/project/sidebar";
 import { useProjectRouteSync } from "@/client/hooks/use-project-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
@@ -31,13 +32,12 @@ import { z } from "zod";
 
 const projectSearchSchema = z.object({
   artifactPanel: artifactPanelSchema.optional(),
-  chatOpen: z.boolean().optional(),
-  explorerOpen: z.boolean().optional(),
   selectedSessionId: StoreId.SessionSchema.optional(),
   showDelete: z.boolean().optional(),
   showDuplicate: z.boolean().optional(),
   showSettings: z.boolean().optional(),
   showVersions: z.boolean().optional(),
+  sidebar: ProjectSidebarModeSchema.optional(),
 });
 
 // No known lifecycle method in TanStack Router to track when the param changes
@@ -100,20 +100,7 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
         )
       : ([null, false] as const);
 
-    // On the lg breakpoint, the explorer floats and covers content. So we close
-    // it by default if the route is loaded when it would float.
-    const isFloatingScreen = window.innerWidth < 1024;
-    const shouldCloseExplorer =
-      (cause === "enter" || isProjectSwitch) &&
-      isFloatingScreen &&
-      search.explorerOpen !== false &&
-      Boolean(search.artifactPanel);
-
-    if (
-      newestSession ||
-      (hasModifications && needsArtifactPanelDefault) ||
-      shouldCloseExplorer
-    ) {
+    if (newestSession || (hasModifications && needsArtifactPanelDefault)) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({
         params: { subdomain: params.subdomain },
@@ -123,7 +110,6 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
           ...(hasModifications && needsArtifactPanelDefault
             ? { artifactPanel: { type: "app" } }
             : {}),
-          ...(shouldCloseExplorer ? { explorerOpen: false } : {}),
         }),
         to: "/projects/$subdomain",
       });
@@ -157,13 +143,12 @@ function RouteComponent() {
   const { subdomain } = Route.useParams();
   const {
     artifactPanel,
-    chatOpen,
-    explorerOpen,
     selectedSessionId,
     showDelete,
     showDuplicate,
     showSettings,
     showVersions,
+    sidebar,
   } = Route.useSearch();
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
@@ -299,14 +284,13 @@ function RouteComponent() {
       <ProjectView
         artifactPanel={artifactPanel}
         attachedFolders={projectState.attachedFolders}
-        chatOpen={chatOpen ?? true}
-        explorerOpen={explorerOpen}
         files={files}
         hasAppModifications={hasAppModifications ?? false}
         project={project}
         selectedModelURI={projectState.selectedModelURI}
         selectedSessionId={selectedSessionId}
         showVersions={showVersions}
+        sidebar={sidebar ?? "chat"}
       />
 
       <ProjectDeleteDialog

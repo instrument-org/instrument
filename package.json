@@ -34,6 +34,7 @@
     "scripts:delete-dated-dev-folders": "node scripts/delete-dated-dev-folders.ts",
     "scripts:update-registry": "node scripts/update-registry.ts",
     "test": "vitest",
+    "turbo:check:lint:ci": "cross-env CI=true turbo check:lint",
     "turbo:fix:lint": "turbo run fix:lint",
     "update:actions": "actions-up"
   },

@@ -60,7 +60,10 @@ const BROKEN_COMMANDS = new Set<CommandName>([
 ]);
 
 const STATIC_STUB_COMMANDS = [
-  stubCommand("file"),
+  stubCommand(
+    "file",
+    `file is not available. For audio, video, or image inspection, consider \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\`.`,
+  ),
   stubCommand(
     "npm",
     "npm is not available in this environment. Use 'pnpm' instead (e.g. 'pnpm add <package>').",
@@ -238,6 +241,7 @@ export function createBashDescription() {
     "IMPORTANT: Prefer specialized tools over shell equivalents:",
     "  - Use the `read_file` tool instead of `cat`/`head`/`tail`.",
     "  - Use the `edit_file`/`write_file` tools instead of `sed`/`awk`/redirects for editing.",
+    `  - The \`file\` command is unavailable. For audio, video, or image inspection, consider \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\`.`,
     "",
     "TIP: Before using an unfamiliar command, run `<command> --help` to check its argument syntax.",
     "",

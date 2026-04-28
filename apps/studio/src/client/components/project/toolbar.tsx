@@ -3,7 +3,6 @@ import { ShareExport } from "@/client/components/icons/share-export";
 import { ProjectSettingsDialog } from "@/client/components/project-settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
-import { ToolbarFavoriteAction } from "@/client/components/ui/toolbar-favorite-action";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import {
   type StoreId,
@@ -129,7 +128,6 @@ export function ProjectToolbar({
               </div>
             ) : (
               <div className="flex shrink-0 items-center gap-2">
-                <ToolbarFavoriteAction project={project} />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button

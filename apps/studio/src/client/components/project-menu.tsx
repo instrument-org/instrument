@@ -23,6 +23,7 @@ import { useAppState } from "../hooks/use-app-state";
 import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { rpcClient } from "../rpc/client";
 import { SessionStatusIcon } from "./app-status-icon";
+import { ProjectOpenInSubmenu } from "./project/open-in-submenu";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -113,6 +114,7 @@ export function ProjectActionsMenu({
               <RotateCcw className="size-4 text-warning-foreground" />
               Replay chat
             </DropdownMenuItem>
+            <ProjectOpenInSubmenu project={project} />
           </>
         )}
 

@@ -18,7 +18,7 @@ const SUBDOMAIN = ProjectSubdomainSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
 
-vi.mock("../cdp", () => ({
+vi.mock("../lib/cdp", () => ({
   sendCdpCommand: vi.fn(),
 }));
 

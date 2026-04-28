@@ -14,6 +14,8 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  Star,
+  StarOff,
   TrashIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -53,6 +55,19 @@ export function ProjectActionsMenu({
   const navigate = useNavigate();
   const isDeveloperMode = useDeveloperMode();
 
+  const { data: favoriteSubdomains } = useQuery(
+    rpcClient.favorites.live.listSubdomains.experimental_liveOptions(),
+  );
+  const isFavorite = favoriteSubdomains?.includes(project.subdomain) ?? false;
+
+  const { mutateAsync: removeFavorite } = useMutation(
+    rpcClient.favorites.remove.mutationOptions(),
+  );
+
+  const { mutateAsync: addFavorite } = useMutation(
+    rpcClient.favorites.add.mutationOptions(),
+  );
+
   const handleDebugChat = () => {
     if (!selectedSessionId) {
       return;
@@ -89,6 +104,28 @@ export function ProjectActionsMenu({
           <Pencil className="size-4" />
           <span>Rename</span>
         </DropdownMenuItem>
+
+        {isFavorite ? (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.preventDefault();
+              void removeFavorite({ subdomain: project.subdomain });
+            }}
+          >
+            <StarOff className="text-muted-foreground" />
+            <span>Remove favorite</span>
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.preventDefault();
+              void addFavorite({ subdomain: project.subdomain });
+            }}
+          >
+            <Star className="text-muted-foreground" />
+            <span>Favorite</span>
+          </DropdownMenuItem>
+        )}
 
         <DropdownMenuSeparator />
 

@@ -95,7 +95,7 @@ export async function getAISDKWebSearchModel({
       result = {
         model: isCallingModelSameProvider
           ? sdk(callingModel.providerId)
-          : sdk("gpt-5-mini"),
+          : sdk("gpt-5.4-mini"),
         tools: {
           web_search: sdk.tools.webSearch(),
         },

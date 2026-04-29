@@ -149,7 +149,10 @@ export async function createOpenRouterSDK(
   const { createOpenRouter } = await import("@openrouter/ai-sdk-provider");
   const extraConfig =
     config.type === "openrouter"
-      ? { extraBody: { user: config.cacheIdentifier } }
+      ? {
+          // Same `user` every request for this config so OpenRouter-side caching stays consistent.
+          extraBody: { user: config.cacheIdentifier },
+        }
       : {};
   return createOpenRouter({
     apiKey,

@@ -3,7 +3,6 @@ import { ProjectChat } from "@/client/components/project-chat";
 import { ProjectFiles } from "@/client/components/project-explorer";
 import { Button } from "@/client/components/ui/button";
 import { VersionList } from "@/client/components/version-list";
-import { hasVisibleProjectFiles } from "@/client/lib/project-file-groups";
 import { type RPCOutput } from "@/client/rpc/client";
 import {
   type StoreId,
@@ -53,17 +52,13 @@ export function ProjectSidebar({
   showVersions?: boolean;
   sidebar: ProjectSidebarMode;
 }) {
-  const showFilesToggle = files ? hasVisibleProjectFiles(files) : false;
-  const visibleSidebar = showFilesToggle ? sidebar : "chat";
-
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       <ProjectToolbar
         onSidebarChange={onSidebarChange}
         project={project}
         selectedSessionId={selectedSessionId}
-        showFilesToggle={showFilesToggle}
-        sidebar={visibleSidebar}
+        sidebar={sidebar}
         versionRef={selectedAppVersion}
       />
 
@@ -86,14 +81,14 @@ export function ProjectSidebar({
               />
             </div>
           </div>
-        ) : visibleSidebar === "files" ? (
+        ) : sidebar === "files" ? (
           <div className="flex h-full flex-col overflow-hidden bg-background">
             <div className="flex shrink-0 items-center border-b px-3 py-2">
               <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                 Files
               </h3>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <ProjectFiles
                 activeFilePath={activeFilePath}
                 attachedFolders={attachedFolders}

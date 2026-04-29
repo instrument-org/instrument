@@ -16,15 +16,6 @@ const FILTERED_FILENAMES = [
   "vite.config.ts",
 ];
 
-export function hasVisibleProjectFiles(
-  rawFiles: { filePath: string }[],
-): boolean {
-  return rawFiles.some(
-    (f) =>
-      !isProjectFileSrcFile(f.filePath) && !shouldFilterProjectFile(f.filePath),
-  );
-}
-
 export function isProjectFileSrcFile(filePath: string): boolean {
   return filePath.startsWith(`./${APP_FOLDER_NAMES.src}/`);
 }
@@ -39,6 +30,18 @@ const ROOT_SOURCE_EXTENSIONS = [
   ".ts",
   ".tsx",
 ];
+
+export function hasVisibleProjectFiles(
+  rawFiles: undefined | { filePath: string }[],
+): boolean {
+  if (!rawFiles) {
+    return false;
+  }
+  return rawFiles.some(
+    (f) =>
+      !isProjectFileSrcFile(f.filePath) && !shouldFilterProjectFile(f.filePath),
+  );
+}
 
 export function shouldFilterProjectFile(filePath: string): boolean {
   if (filePath.startsWith("./patches/") || filePath.startsWith("./tmp/")) {

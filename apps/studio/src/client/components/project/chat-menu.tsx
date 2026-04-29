@@ -95,12 +95,11 @@ export function ProjectChatMenu({
   const overflowSessions = sessions.slice(CHAT_MENU_PREVIEW_LIMIT);
 
   const selectedSession =
-    selectedSessionId &&
-    sessions.find((s) => s.id === selectedSessionId);
+    selectedSessionId && sessions.find((s) => s.id === selectedSessionId);
   const chatMenuTitle =
-    selectedSession !== undefined
-      ? selectedSession.title || "Untitled Chat"
-      : project.title;
+    selectedSession === undefined
+      ? project.title
+      : selectedSession.title || "Untitled chat";
 
   const handleNewChat = () => {
     skipCloseFocusToTriggerRef.current = true;
@@ -277,7 +276,7 @@ function ProjectChatMenuSessionRadioItem({
         <MessageCircle className="size-4 shrink-0 text-muted-foreground" />
       )}
       <span className="min-w-0 flex-1 truncate">
-        {session.title || "Untitled Chat"}
+        {session.title || "Untitled chat"}
       </span>
       <Check className="ml-auto size-4 shrink-0 text-muted-foreground opacity-0 group-data-[state=checked]:opacity-100" />
     </DropdownMenuRadioItem>

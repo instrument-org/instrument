@@ -1,3 +1,4 @@
+import { promptInputRefAtom } from "@/client/atoms/prompt-value";
 import { ChatsCircle } from "@/client/components/icons/chats-circle";
 import {
   StoreId,
@@ -5,6 +6,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import {
   Bug,
   ChevronDown,
@@ -18,6 +20,7 @@ import {
   StarOff,
   TrashIcon,
 } from "lucide-react";
+import { useRef } from "react";
 import { toast } from "sonner";
 
 import { getSessionTags } from "../hooks/use-agent-session-status";
@@ -200,7 +203,11 @@ export function ProjectChatPicker({
     rpcClient.workspace.session.create.mutationOptions(),
   );
 
+  const skipCloseFocusToTriggerRef = useRef(false);
+  const promptTextarea = useAtomValue(promptInputRefAtom);
+
   const handleNewChat = () => {
+    skipCloseFocusToTriggerRef.current = true;
     createEmptySession.mutate(
       { subdomain: project.subdomain },
       {
@@ -253,6 +260,13 @@ export function ProjectChatPicker({
       <DropdownMenuContent
         align="start"
         className="min-w-(--radix-popper-anchor-width)"
+        onCloseAutoFocus={(e) => {
+          if (skipCloseFocusToTriggerRef.current) {
+            e.preventDefault();
+            skipCloseFocusToTriggerRef.current = false;
+            promptTextarea?.focus();
+          }
+        }}
         side="bottom"
       >
         <Tooltip>
@@ -273,6 +287,7 @@ export function ProjectChatPicker({
             <DropdownMenuSeparator />
             <DropdownMenuRadioGroup
               onValueChange={(value) => {
+                skipCloseFocusToTriggerRef.current = true;
                 const sessionId = StoreId.SessionSchema.parse(value);
                 void navigate({
                   params: {

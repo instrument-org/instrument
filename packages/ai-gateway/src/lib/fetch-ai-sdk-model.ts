@@ -3,6 +3,7 @@ import {
   type CaptureExceptionFunction,
   type WorkspaceServerURL,
 } from "@instrument-org/shared";
+import { wrapLanguageModel } from "ai";
 import { Result } from "typescript-result";
 
 import { AIGatewayModelURI } from "../schemas/model-uri";
@@ -10,6 +11,10 @@ import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { aiSDKForProviderConfig } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
 import { fetchModel } from "./fetch-model";
+import {
+  shouldApplyXaiGrokHtmlEntityMiddleware,
+  xaiGrokHtmlEntityLanguageModelMiddleware,
+} from "./xai-grok-html-entity-middleware";
 
 export const TEST_MODEL_OVERRIDE_KEY = "__testModelOverride";
 
@@ -54,6 +59,14 @@ export async function fetchAISDKModel({
 
     const sdk = await aiSDKForProviderConfig(config, workspaceServerURL);
     const aiSDKModel = sdk(model.providerId);
+    // Workaround for xAI Grok emitting spurious HTML escapes in tools/stream; drop
+    // once the provider fixes it. Broad decode can mangle intentional `&...;` in text.
+    if (shouldApplyXaiGrokHtmlEntityMiddleware(model)) {
+      return wrapLanguageModel({
+        middleware: xaiGrokHtmlEntityLanguageModelMiddleware,
+        model: aiSDKModel,
+      });
+    }
     return aiSDKModel;
   });
 }

@@ -1,6 +1,6 @@
 import { type StoreId } from "../schemas/store-id";
 import { type AppConfigProject } from "./app-config/types";
-import { isDefaultGeneratedSessionTitle } from "./generate-session-title";
+import { isSessionTitleAutoReplaceable } from "./generate-session-title";
 import { Store } from "./store";
 
 export async function updateSessionTitle({
@@ -13,10 +13,14 @@ export async function updateSessionTitle({
   title: string;
 }) {
   const storedSession = await Store.getSession(sessionId, appConfig);
-  if (
-    storedSession.isErr() ||
-    !isDefaultGeneratedSessionTitle(storedSession.value.title)
-  ) {
+  if (storedSession.isErr()) {
+    return;
+  }
+  const canReplace = await isSessionTitleAutoReplaceable({
+    appConfig,
+    title: storedSession.value.title,
+  });
+  if (!canReplace) {
     return;
   }
   const renameResult = await Store.saveSession(

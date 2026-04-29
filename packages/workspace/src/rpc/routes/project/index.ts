@@ -20,6 +20,7 @@ import {
   getProjectManifest,
   updateProjectManifest,
 } from "../../../lib/project-manifest";
+import { Store } from "../../../lib/store";
 import { trashProject } from "../../../lib/trash-project";
 import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
@@ -211,14 +212,37 @@ const create = base
       }
       const message = messageResult.value;
 
+      const initialProjectName = name ?? defaultProjectName(message);
+
       const manifestResult = await updateProjectManifest(projectConfig, {
         iconName,
-        name: name ?? defaultProjectName(message),
+        name: initialProjectName,
       });
 
       if (manifestResult.isErr()) {
         context.workspaceConfig.captureException(manifestResult.error);
         throw toORPCError(manifestResult.error, errors);
+      }
+
+      const sessionForTitle = await Store.getSession(
+        message.metadata.sessionId,
+        projectConfig,
+      );
+      if (sessionForTitle.isErr()) {
+        context.workspaceConfig.captureException(sessionForTitle.error);
+        throw toORPCError(sessionForTitle.error, errors);
+      }
+      const saveSessionTitleResult = await Store.saveSession(
+        {
+          ...sessionForTitle.value,
+          title: initialProjectName,
+          updatedAt: new Date(),
+        },
+        projectConfig,
+      );
+      if (saveSessionTitleResult.isErr()) {
+        context.workspaceConfig.captureException(saveSessionTitleResult.error);
+        throw toORPCError(saveSessionTitleResult.error, errors);
       }
 
       if (!name) {
@@ -232,6 +256,13 @@ const create = base
             templateName === DEFAULT_TEMPLATE_NAME ? undefined : templateName,
         }).then(async (title) => {
           if (title.isOk()) {
+            // Must come before updateProjectManifest so updateSessionTitle can
+            // detect if the title is auto replaceable
+            await updateSessionTitle({
+              appConfig: projectConfig,
+              sessionId: message.metadata.sessionId,
+              title: title.value,
+            });
             const secondManifestResult = await updateProjectManifest(
               projectConfig,
               { name: title.value },
@@ -240,12 +271,6 @@ const create = base
               context.workspaceConfig.captureException(
                 secondManifestResult.error,
               );
-            } else {
-              await updateSessionTitle({
-                appConfig: projectConfig,
-                sessionId: message.metadata.sessionId,
-                title: title.value,
-              });
             }
           } else {
             context.workspaceConfig.captureException(title.error);

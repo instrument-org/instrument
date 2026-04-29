@@ -62,7 +62,11 @@ export function ShellCommandCard({
     parts.push(`Error: ${part.errorText || "Command failed"}`);
   }
 
-  const content = parts.join("\n");
+  const outputTrimmed = hasOutput ? part.output.output.trim() : "";
+  const content =
+    hasOutput && outputTrimmed.length === 0
+      ? `${parts[0] ?? ""}\n(no output)`
+      : parts.join("\n");
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);
@@ -79,6 +83,8 @@ export function ShellCommandCard({
   const reasoning = part.input.explanation;
   const hasContent = hasOutput || isError;
   const showContent = isExpanded || isStreaming;
+  const showNoOutputHint =
+    showContent && !isStreaming && hasOutput && outputTrimmed.length === 0;
 
   const contextItems =
     "contextItems" in part.metadata ? (part.metadata.contextItems ?? []) : [];
@@ -149,6 +155,11 @@ export function ShellCommandCard({
               </span>
               {command}
             </pre>
+            {showNoOutputHint && (
+              <p className="mt-1 font-mono text-xs text-muted-foreground/80 italic">
+                No output
+              </p>
+            )}
           </div>
           <VirtualizedScrollingText
             autoScrollToBottom={isStreaming}

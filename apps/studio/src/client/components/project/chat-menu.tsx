@@ -156,7 +156,7 @@ export function ProjectChatMenu({
     >
       <ChatsCircle className="size-4 shrink-0" />
       <span className="truncate">{chatMenuTitle}</span>
-      {sidebar === "chat" && <ChevronDown className="size-3 shrink-0" />}
+      <ChevronDown className="size-3 shrink-0" />
     </Button>
   );
 

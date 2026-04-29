@@ -442,7 +442,7 @@ export function SessionStream({
         "flex w-full flex-col gap-2",
       )}
     >
-      {contextMessages.length > 0 && (
+      {contextMessages.length > 0 && isDeveloperMode && (
         <ContextMessages messages={contextMessages} />
       )}
       <div className="flex flex-col gap-2">{chatElements}</div>

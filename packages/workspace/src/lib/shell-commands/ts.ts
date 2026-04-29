@@ -91,6 +91,7 @@ export function createTsCommand(appConfig: AppConfig) {
       args: ["dlx", "jiti", filePath, ...scriptArgs],
       cwd: appCwd,
       env,
+      pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
       signal: ctx.signal,
       stdin: ctx.stdin || undefined,
     });

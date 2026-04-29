@@ -2,9 +2,8 @@ import { defineCommand } from "just-bash";
 
 import type { AppConfig } from "../app-config/types";
 
-import { absolutePathJoin } from "../absolute-path-join";
-import { filterShellOutput } from "../filter-shell-output";
-import { runNodeModulesBin } from "../run-node-modules-bin";
+import { runPnpmCommand } from "../run-pnpm";
+import { resolveCommandContext } from "./utils";
 
 export const TSC_COMMAND = {
   description:
@@ -13,31 +12,23 @@ export const TSC_COMMAND = {
 } as const;
 
 export function createTscCommand(appConfig: AppConfig) {
-  return defineCommand("tsc", async (args, ctx) => {
-    const cwd = absolutePathJoin(appConfig.appDir, ctx.cwd);
-    const binResult = await runNodeModulesBin(
+  return defineCommand(TSC_COMMAND.name, async (args, ctx) => {
+    const { appCwd, env } = resolveCommandContext(appConfig, ctx);
+
+    const result = await runPnpmCommand({
       appConfig,
-      "tsc",
-      args,
-      {
-        all: true,
-        cancelSignal: ctx.signal,
-        env: Object.fromEntries(ctx.env),
-        ...(ctx.stdin && { input: ctx.stdin }),
-        // Don't reject so we can filter the output
-        reject: false,
-      },
-      cwd,
-    );
-    if (binResult.isErr()) {
-      return { exitCode: 1, stderr: binResult.error.message, stdout: "" };
-    }
-    const execResult = await binResult.value;
-    const combined = filterShellOutput(execResult.all, appConfig.appDir);
+      args: ["--package=typescript", "dlx", "tsc", ...args],
+      cwd: appCwd,
+      env,
+      pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
+      signal: ctx.signal,
+      stdin: ctx.stdin || undefined,
+    });
+
     return {
-      exitCode: execResult.exitCode ?? 1,
+      exitCode: result.exitCode,
       stderr: "",
-      stdout: combined,
+      stdout: result.combined,
     };
   });
 }

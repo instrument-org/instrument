@@ -127,10 +127,9 @@ export function ProjectActionsMenu({
           </DropdownMenuItem>
         )}
 
-        <DropdownMenuSeparator />
-
         {isDeveloperMode && (
           <>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-warning-foreground"
               disabled={!selectedSessionId}

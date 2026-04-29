@@ -40,6 +40,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -175,11 +176,12 @@ export const PromptInput = ({
     adjustHeight();
   }, [value, adjustHeight]);
 
-  useEffect(() => {
-    if (autoFocus && textareaInnerRef.current) {
-      textareaInnerRef.current.focus();
-      adjustHeight();
+  useLayoutEffect(() => {
+    if (!autoFocus) {
+      return;
     }
+    textareaInnerRef.current?.focus();
+    adjustHeight();
   }, [autoFocus, adjustHeight]);
 
   const processFiles = (files: File[] | FileList) => {

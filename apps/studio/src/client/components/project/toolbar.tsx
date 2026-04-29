@@ -31,14 +31,12 @@ export function ProjectToolbar({
   onSidebarChange,
   project,
   selectedSessionId,
-  showFilesToggle,
   sidebar,
   versionRef,
 }: {
   onSidebarChange: (sidebar: "chat" | "files") => void;
   project: WorkspaceAppProject;
   selectedSessionId?: StoreId.Session;
-  showFilesToggle: boolean;
   sidebar: "chat" | "files";
   versionRef?: string;
 }) {
@@ -80,20 +78,18 @@ export function ProjectToolbar({
             sidebar={sidebar}
           />
 
-          {showFilesToggle && (
-            <Toggle
-              aria-label="Show files"
-              onPressedChange={() => {
-                onSidebarChange("files");
-              }}
-              pressed={sidebar === "files"}
-              size="sm"
-              variant="toolbar"
-            >
-              <Folder className="size-4" />
-              <span>Files</span>
-            </Toggle>
-          )}
+          <Toggle
+            aria-label="Show files"
+            onPressedChange={() => {
+              onSidebarChange("files");
+            }}
+            pressed={sidebar === "files"}
+            size="sm"
+            variant="toolbar"
+          >
+            <Folder className="size-4" />
+            <span>Files</span>
+          </Toggle>
 
           <div className="flex-1" />
 

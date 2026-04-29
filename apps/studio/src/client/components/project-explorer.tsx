@@ -3,6 +3,7 @@ import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { FileIcon } from "@/client/components/file-icon";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import {
+  hasVisibleProjectFiles,
   isProjectFileSrcFile,
   shouldFilterProjectFile,
 } from "@/client/lib/project-file-groups";
@@ -18,7 +19,6 @@ import { useMutation } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import {
   ChevronRight,
-  Files,
   FolderClosed,
   FolderOpen,
   Folders,
@@ -133,7 +133,7 @@ export function ProjectFiles({
 
   if (!computed) {
     return (
-      <div className="flex flex-col gap-1.5 p-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2">
         {Array.from({ length: 6 }).map((_, i) => (
           <div className="h-5 animate-pulse rounded-sm bg-muted" key={i} />
         ))}
@@ -143,15 +143,19 @@ export function ProjectFiles({
 
   const folderEntries = attachedFolders ? Object.values(attachedFolders) : [];
 
+  const hasSrcInProject = computed.hiddenFiles.some((f) =>
+    isProjectFileSrcFile(f.filePath),
+  );
+
   if (
-    computed.visibleFiles.length === 0 &&
-    computed.hiddenTree.length === 0 &&
-    folderEntries.length === 0
+    !hasVisibleProjectFiles(files) &&
+    folderEntries.length === 0 &&
+    !showAppEntry &&
+    !hasSrcInProject
   ) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
-        <Files className="size-6 opacity-40" />
-        <p className="text-xs">No files yet</p>
+      <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+        There are no files yet.
       </div>
     );
   }
@@ -164,7 +168,7 @@ export function ProjectFiles({
 
   return (
     <SidebarProvider
-      className="min-h-0 flex-col px-1 py-1"
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto px-1 py-1"
       style={{ "--sidebar-width": "100%" } as React.CSSProperties}
     >
       {showAppEntry && (

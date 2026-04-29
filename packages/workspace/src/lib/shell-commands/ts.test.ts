@@ -84,7 +84,7 @@ describe("tsCommand", () => {
       appConfig.workspaceConfig.pnpmBinPath,
       expect.arrayContaining([
         "dlx",
-        "jiti",
+        "jiti@2.6.1",
         expect.stringContaining("ts-eval-"),
       ]),
       expect.any(Object),
@@ -112,7 +112,7 @@ describe("tsCommand", () => {
       appConfig.workspaceConfig.pnpmBinPath,
       expect.arrayContaining([
         "dlx",
-        "jiti",
+        "jiti@2.6.1",
         expect.stringContaining("ts-eval-"),
       ]),
       expect.any(Object),
@@ -156,7 +156,7 @@ describe("tsCommand", () => {
       appConfig.workspaceConfig.pnpmBinPath,
       expect.arrayContaining([
         "dlx",
-        "jiti",
+        "jiti@2.6.1",
         expect.stringContaining("convert.ts"),
         "--file",
         "user-provided/test.pdf",

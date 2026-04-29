@@ -5,7 +5,7 @@ import { StoreId } from "../schemas/store-id";
 import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockAppConfig } from "../test/helpers/mock-app-config";
-import { generateProjectTitle } from "./generate-project-title";
+import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
 
 function createMockLanguageModel(text: string) {
   return new MockLanguageModelV3({
@@ -66,7 +66,7 @@ function setupTest(generatedText: string) {
 
   return {
     generate: (message = mockMessage) =>
-      generateProjectTitle({
+      generateTitleFromUserMessage({
         message,
         model,
         workspaceConfig: appConfig.workspaceConfig,
@@ -74,7 +74,7 @@ function setupTest(generatedText: string) {
   };
 }
 
-describe("generateProjectTitle", () => {
+describe("generateTitleFromUserMessage", () => {
   it("should limit generated title to 5 words maximum", async () => {
     const { generate } = setupTest(
       "Very Long Project Title That Exceeds The Five Word Limit",
@@ -125,7 +125,7 @@ describe("generateProjectTitle", () => {
 
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
-      `"Failed to generate project title: No user message"`,
+      `"Failed to generate title: No user message"`,
     );
   });
 

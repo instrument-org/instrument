@@ -3,6 +3,10 @@ import { Store } from "./store";
 
 const DEFAULT_TITLE_PREFIX = "Chat";
 
+const defaultChatTitlePattern = new RegExp(
+  `^\\d{4}-\\d{2}-\\d{2} ${DEFAULT_TITLE_PREFIX}(?: \\d+)?$`,
+);
+
 export async function generateSessionTitle({
   appConfig,
   sessionNamePrefix,
@@ -43,4 +47,8 @@ export async function generateSessionTitle({
   }
 
   return candidateTitle;
+}
+
+export function isDefaultGeneratedSessionTitle(title: string): boolean {
+  return defaultChatTitlePattern.test(title);
 }

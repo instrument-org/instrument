@@ -9,7 +9,7 @@ import { createSession } from "../../../lib/create-session";
 import { defaultProjectName } from "../../../lib/default-project-name";
 import { duplicateProject } from "../../../lib/duplicate-project";
 import { exportProjectZip } from "../../../lib/export-project-zip";
-import { generateProjectTitle } from "../../../lib/generate-project-title";
+import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
 import { getApp, getProjects } from "../../../lib/get-apps";
 import { getWorkspaceAppForSubdomain } from "../../../lib/get-workspace-app-for-subdomain";
 import { importProject as importProjectLib } from "../../../lib/import-project";
@@ -21,6 +21,7 @@ import {
   updateProjectManifest,
 } from "../../../lib/project-manifest";
 import { trashProject } from "../../../lib/trash-project";
+import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
   getProjectUsageSummary,
   UsageSummarySchema,
@@ -222,7 +223,7 @@ const create = base
 
       if (!name) {
         // Intentionally non blocking
-        generateProjectTitle({
+        generateTitleFromUserMessage({
           message,
           model,
           workspaceConfig: context.workspaceConfig,
@@ -239,6 +240,12 @@ const create = base
               context.workspaceConfig.captureException(
                 secondManifestResult.error,
               );
+            } else {
+              await updateSessionTitle({
+                appConfig: projectConfig,
+                sessionId: message.metadata.sessionId,
+                title: title.value,
+              });
             }
           } else {
             context.workspaceConfig.captureException(title.error);

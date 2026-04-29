@@ -14,7 +14,7 @@ import { textForMessage } from "./text-for-message";
 
 const MAX_TITLE_WORDS = 5;
 
-export function generateProjectTitle({
+export function generateTitleFromUserMessage({
   message,
   model,
   templateTitle,
@@ -80,7 +80,7 @@ export function generateProjectTitle({
       return limitedTitle || `${getTimeContext()} Project`;
     })(),
     (error: unknown) => ({
-      message: `Failed to generate project title: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Failed to generate title: ${error instanceof Error ? error.message : String(error)}`,
     }),
   );
 }

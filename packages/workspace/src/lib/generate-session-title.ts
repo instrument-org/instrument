@@ -1,4 +1,5 @@
-import { type AppConfig } from "./app-config/types";
+import { type AppConfig, type AppConfigProject } from "./app-config/types";
+import { getProjectManifest } from "./project-manifest";
 import { Store } from "./store";
 
 const DEFAULT_UNTITLED_BASE = "Untitled chat";
@@ -47,6 +48,20 @@ export async function generateSessionTitle({
   return candidateTitle;
 }
 
-export function isDefaultGeneratedSessionTitle(title: string): boolean {
+export async function isSessionTitleAutoReplaceable({
+  appConfig,
+  title,
+}: {
+  appConfig: Pick<AppConfigProject, "appDir">;
+  title: string;
+}) {
+  if (isUntitledChatSessionTitle(title)) {
+    return true;
+  }
+  const manifest = await getProjectManifest(appConfig.appDir);
+  return manifest?.name === title;
+}
+
+export function isUntitledChatSessionTitle(title: string) {
   return defaultUntitledChatPattern.test(title);
 }

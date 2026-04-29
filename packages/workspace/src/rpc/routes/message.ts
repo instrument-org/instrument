@@ -129,6 +129,7 @@ const create = base
       const message = messageResult.value;
 
       if (isFirstMessageInSession && appConfig.type === "project") {
+        const projectAppConfig = appConfig;
         generateTitleFromUserMessage({
           message,
           model,
@@ -136,7 +137,7 @@ const create = base
         }).then(async (title) => {
           if (title.isOk()) {
             await updateSessionTitle({
-              appConfig,
+              appConfig: projectAppConfig,
               sessionId: message.metadata.sessionId,
               title: title.value,
             });

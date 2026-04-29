@@ -5,19 +5,19 @@ import { cn } from "@/client/lib/utils";
 import { Maximize2, X } from "lucide-react";
 import { useState } from "react";
 
-import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
-import { FileIcon } from "./file-icon";
-import { FilePreviewFallback } from "./file-preview-fallback";
-import { FileVersionBadge } from "./file-version-badge";
-import { FileViewer } from "./file-viewer";
-import { ImageWithFallback } from "./image-with-fallback";
-import { Button } from "./ui/button";
+import { FileActionsMenu, FileActionsMenuItems } from "../file-actions-menu";
+import { FileIcon } from "../file-icon";
+import { FilePreviewFallback } from "../file-preview-fallback";
+import { FileVersionBadge } from "../file-version-badge";
+import { FileViewer } from "../file-viewer";
+import { ImageWithFallback } from "../image-with-fallback";
+import { Button } from "../ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuTrigger,
-} from "./ui/context-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+} from "../ui/context-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 export function ProjectFileViewer({
   file,

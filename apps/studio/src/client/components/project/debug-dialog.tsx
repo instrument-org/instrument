@@ -9,16 +9,16 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { Braces, Download, FileText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
-import { CopyButton } from "./copy-button";
-import { Button } from "./ui/button";
+import { CopyButton } from "../copy-button";
+import { Button } from "../ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "./ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+} from "../ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 
 const MAX_DISPLAY_SIZE = 1_000_000;
 

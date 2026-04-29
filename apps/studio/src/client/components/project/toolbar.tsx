@@ -1,6 +1,6 @@
 import { Folder } from "@/client/components/icons/folder";
 import { ShareExport } from "@/client/components/icons/share-export";
-import { ProjectSettingsDialog } from "@/client/components/project-settings-dialog";
+import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -14,8 +14,6 @@ import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
-import { ProjectDebugDialog } from "../project-debug-dialog";
-import { ProjectUsageSummary } from "../project-usage-summary";
 import { RestoreVersionModal } from "../restore-version-modal";
 import { SessionContextRing } from "../session-context-ring";
 import {
@@ -26,6 +24,8 @@ import {
 } from "../ui/dropdown-menu";
 import { ProjectActionsMenu } from "./actions-menu";
 import { ProjectChatMenu } from "./chat-menu";
+import { ProjectDebugDialog } from "./debug-dialog";
+import { ProjectUsageSummary } from "./usage-summary";
 
 export function ProjectToolbar({
   onSidebarChange,

@@ -1,4 +1,3 @@
-import { ProjectStatsCard } from "@/client/components/project-stats-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,17 +15,17 @@ import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-interface DuplicateProjectModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  project: WorkspaceAppProject;
-}
+import { ProjectStatsCard } from "./stats-card";
 
 export function DuplicateProjectModal({
   isOpen,
   onClose,
   project,
-}: DuplicateProjectModalProps) {
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  project: WorkspaceAppProject;
+}) {
   const { addTab } = useTabActions();
 
   const duplicateMutation = useMutation(

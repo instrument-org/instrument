@@ -10,6 +10,7 @@ import {
 } from "@/client/lib/project-file-groups";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
+import { rpcClient } from "@/client/rpc/client";
 import { APP_AGENT_NAME } from "@instrument-org/shared";
 import {
   APP_FOLDER_NAMES,
@@ -32,34 +33,33 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { rpcClient } from "../rpc/client";
-import { FileActionsMenuItems } from "./file-actions-menu";
+import { FileActionsMenuItems } from "../file-actions-menu";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "./ui/collapsible";
+} from "../ui/collapsible";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from "./ui/context-menu";
+} from "../ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 import {
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-} from "./ui/sidebar";
+} from "../ui/sidebar";
 
 type AttachedFolder = NonNullable<
   RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"]

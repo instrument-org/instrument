@@ -1,9 +1,9 @@
+import { rpcClient } from "@/client/rpc/client";
 import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { sort } from "radashi";
 
-import { rpcClient } from "../rpc/client";
-import { InternalLink } from "./internal-link";
+import { InternalLink } from "../internal-link";
 
 interface ChatZeroStateProps {
   message?: string;

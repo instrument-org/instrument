@@ -9,9 +9,9 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect } from "react";
 
-import { FilePreviewListItem } from "./file-preview-list-item";
-import { ProjectFileViewer } from "./project-file-viewer";
-import { Button } from "./ui/button";
+import { FilePreviewListItem } from "../file-preview-list-item";
+import { Button } from "../ui/button";
+import { ProjectFileViewer } from "./file-viewer";
 
 export function ProjectFileViewerModal() {
   const state = useAtomValue(projectFileViewerAtom);

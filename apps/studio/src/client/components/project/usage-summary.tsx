@@ -2,8 +2,8 @@ import { rpcClient } from "@/client/rpc/client";
 import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
-import { Skeleton } from "./ui/skeleton";
-import { UsageStatsTooltip, UsageSummaryText } from "./usage-stats-tooltip";
+import { Skeleton } from "../ui/skeleton";
+import { UsageStatsTooltip, UsageSummaryText } from "../usage-stats-tooltip";
 
 export function ProjectUsageSummary({
   onClick,

@@ -4,7 +4,7 @@ import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { toast } from "sonner";
 
-import { ProjectStatsCard } from "./project-stats-card";
+import { ProjectStatsCard } from "./stats-card";
 
 export function ProjectDeleteDialog({
   navigateOnDelete,

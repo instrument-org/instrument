@@ -1,3 +1,4 @@
+import { ProjectStatsCard } from "@/client/components/project/stats-card";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -12,8 +13,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-
-import { ProjectStatsCard } from "./project-stats-card";
 
 interface ExportZipModalProps {
   isOpen: boolean;

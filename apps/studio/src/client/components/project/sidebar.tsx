@@ -1,6 +1,6 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
-import { ProjectChat } from "@/client/components/project-chat";
-import { ProjectFiles } from "@/client/components/project-explorer";
+import { ProjectChat } from "@/client/components/project/chat";
+import { ProjectFiles } from "@/client/components/project/explorer";
 import { Button } from "@/client/components/ui/button";
 import { VersionList } from "@/client/components/version-list";
 import { type RPCOutput } from "@/client/rpc/client";

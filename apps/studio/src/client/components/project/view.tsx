@@ -3,7 +3,7 @@ import {
   type ProjectFileViewerFile,
 } from "@/client/atoms/project-file-viewer";
 import { AppView } from "@/client/components/app-view";
-import { ProjectFileViewer } from "@/client/components/project-file-viewer";
+import { ProjectFileViewer } from "@/client/components/project/file-viewer";
 import { VersionOverlay } from "@/client/components/version-overlay";
 import { useReload } from "@/client/hooks/use-reload";
 import { cn } from "@/client/lib/utils";
@@ -25,7 +25,7 @@ import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 import { type DividerProps, Pane, SplitPane } from "react-split-pane";
 
-import { ProjectSidebar, type ProjectSidebarMode } from "./project/sidebar";
+import { ProjectSidebar, type ProjectSidebarMode } from "./sidebar";
 
 function SplitDivider({
   className,

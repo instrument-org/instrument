@@ -1,4 +1,9 @@
 import { promptInputRefAtom } from "@/client/atoms/prompt-value";
+import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
+import { useContinueSession } from "@/client/hooks/use-continue-session";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type StoreId,
@@ -12,17 +17,12 @@ import { useLayoutEffect, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
 
-import { useAgentSessionStatus } from "../hooks/use-agent-session-status";
-import { useContinueSession } from "../hooks/use-continue-session";
-import { useDeveloperMode } from "../hooks/use-developer-mode";
-import { cn } from "../lib/utils";
-import { rpcClient } from "../rpc/client";
+import { PromptInput } from "../prompt-input";
+import { SessionStream } from "../session-stream";
+import { Alert, AlertDescription } from "../ui/alert";
+import { Button } from "../ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
-import { PromptInput } from "./prompt-input";
-import { SessionStream } from "./session-stream";
-import { Alert, AlertDescription } from "./ui/alert";
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ProjectChat({
   isChatOnly = false,

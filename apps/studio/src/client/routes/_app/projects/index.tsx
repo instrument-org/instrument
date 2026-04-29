@@ -3,8 +3,8 @@ import type { RowSelectionState } from "@tanstack/react-table";
 import { CommandMenuCTA } from "@/client/components/command-menu-cta";
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { InternalLink } from "@/client/components/internal-link";
-import { ProjectDeleteDialog } from "@/client/components/project-delete-dialog";
-import { ProjectSettingsDialog } from "@/client/components/project-settings-dialog";
+import { ProjectDeleteDialog } from "@/client/components/project/delete-dialog";
+import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
 import {
   PROJECTS_PAGE_SIZE,
   ProjectsDataTable,

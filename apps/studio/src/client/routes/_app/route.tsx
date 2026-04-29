@@ -1,5 +1,5 @@
 import { FilePreviewModal } from "@/client/components/file-preview-modal";
-import { ProjectFileViewerModal } from "@/client/components/project-file-viewer-modal";
+import { ProjectFileViewerModal } from "@/client/components/project/file-viewer-modal";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInvalidateRouterOnUserChange } from "@/client/hooks/use-invalidate-router-on-user-change";

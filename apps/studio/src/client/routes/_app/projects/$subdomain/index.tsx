@@ -1,9 +1,9 @@
 import { promptValueAtomFamily } from "@/client/atoms/prompt-value";
-import { DuplicateProjectModal } from "@/client/components/duplicate-project-modal";
-import { ProjectDeleteDialog } from "@/client/components/project-delete-dialog";
-import { ProjectSettingsDialog } from "@/client/components/project-settings-dialog";
-import { ProjectView } from "@/client/components/project-view";
+import { ProjectDeleteDialog } from "@/client/components/project/delete-dialog";
+import { DuplicateProjectModal } from "@/client/components/project/duplicate-modal";
+import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
 import { ProjectSidebarModeSchema } from "@/client/components/project/sidebar";
+import { ProjectView } from "@/client/components/project/view";
 import { useProjectRouteSync } from "@/client/hooks/use-project-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";

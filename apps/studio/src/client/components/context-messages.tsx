@@ -5,6 +5,7 @@ import { memo, useMemo, useState } from "react";
 
 import { CopyButton } from "./copy-button";
 import { ContextMessage } from "./session-context-message";
+import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
 import {
   Collapsible,
@@ -60,14 +61,16 @@ export const ContextMessages = memo(function ContextMessages({
       <div className="flex justify-center">
         <CollapsibleTrigger asChild>
           <Button
-            className="h-5 rounded-sm px-2 text-xs text-muted-foreground/50 hover:bg-accent/20 hover:text-muted-foreground"
+            className="h-5 rounded-sm px-2 text-xs text-warning-foreground/80 hover:bg-warning/10 hover:text-warning-foreground"
             variant="ghost"
           >
             <div className="flex items-center gap-1">
               <span className="text-[10px] font-normal">
                 View system prompt
               </span>
-              {isExpanded && <ChevronDown className="size-2" />}
+              {isExpanded && (
+                <ChevronDown className="size-2 text-warning-foreground" />
+              )}
             </div>
           </Button>
         </CollapsibleTrigger>
@@ -75,21 +78,27 @@ export const ContextMessages = memo(function ContextMessages({
 
       <CollapsibleContent>
         <div className="group mt-2">
-          <div className="rounded-r-md border-l-4 border-muted-foreground/30 bg-muted/30 py-2 pl-4">
-            <div className="mb-3 border-b border-muted-foreground/20 pr-4 pb-2">
-              <p className="text-xs text-muted-foreground italic">
-                Instructions given to the agent explaining how to work in
+          <div className="overflow-hidden rounded-r-md border-l-4 border-warning-foreground/50 bg-warning/5">
+            <div className="border-b border-warning-foreground/20 bg-warning/15 px-4 py-2.5 pr-4 backdrop-blur-sm">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <DeveloperModeBadge />
+                <span className="text-[10px] leading-tight text-warning-foreground/75">
+                  This panel only appears when developer mode is on.
+                </span>
+              </div>
+              <p className="text-xs text-warning-foreground/80 italic">
+                Instructions given to the agent explaining how to work in{" "}
                 {APP_NAME}.
               </p>
             </div>
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto px-4 py-2 pr-4">
               <div className="flex flex-col gap-2">{contextElements}</div>
             </div>
           </div>
 
           <div className="flex justify-end pt-2">
             <CopyButton
-              className="rounded-sm p-1 text-muted-foreground opacity-0 transition-colors group-hover:opacity-100 hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
+              className="rounded-sm p-1 text-warning-foreground/70 opacity-0 transition-colors group-hover:opacity-100 hover:bg-warning/10 hover:text-warning-foreground disabled:opacity-50"
               iconSize={12}
               onCopy={handleCopy}
             />

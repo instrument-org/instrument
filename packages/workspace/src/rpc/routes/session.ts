@@ -85,7 +85,10 @@ const list = base
       throw toORPCError(sessions.error, errors);
     }
 
-    return sessions.value;
+    const recency = (s: (typeof sessions.value)[number]) =>
+      (s.updatedAt ?? s.createdAt).getTime();
+
+    return [...sessions.value].sort((a, b) => recency(b) - recency(a));
   });
 
 const remove = base

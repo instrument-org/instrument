@@ -21,12 +21,14 @@ export async function createSession({
     sessionNamePrefix,
     signal,
   });
+  const now = new Date();
   const result = await Store.saveSession(
     {
       ...(parentSessionId ? { parentId: parentSessionId } : {}),
-      createdAt: new Date(),
+      createdAt: now,
       id: sessionId,
       title,
+      updatedAt: now,
     },
     appConfig,
     { signal },

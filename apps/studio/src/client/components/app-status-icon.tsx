@@ -3,7 +3,7 @@ import {
   type SessionTag,
 } from "@instrument-org/workspace/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Check, Loader2, Pause } from "lucide-react";
+import { Loader2, Pause } from "lucide-react";
 
 import { useAppState } from "../hooks/use-app-state";
 import { useDeveloperMode } from "../hooks/use-developer-mode";
@@ -54,13 +54,6 @@ export function SessionStatusIcon({
     }
     case tags.includes("agent.running") || isReplayRunning: {
       return <Loader2 className={cn(className, "animate-spin")} />;
-    }
-    case tags.includes("agent.done"): {
-      return (
-        <Check
-          className={cn(className, "text-green-600 dark:text-green-400")}
-        />
-      );
     }
     default: {
       return null;

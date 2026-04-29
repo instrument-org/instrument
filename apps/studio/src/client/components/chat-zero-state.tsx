@@ -23,7 +23,7 @@ export function ChatZeroState({
 
   const recentOtherSessions = sort(
     allSessions.filter((session) => session.id !== selectedSessionId),
-    (s) => s.createdAt.getTime(),
+    (s) => (s.updatedAt ?? s.createdAt).getTime(),
     true,
   ).slice(0, 10);
 

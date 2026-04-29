@@ -1,35 +1,7 @@
 import { promptInputRefAtom } from "@/client/atoms/prompt-value";
+import { SessionStatusIcon } from "@/client/components/app-status-icon";
 import { ChatsCircle } from "@/client/components/icons/chats-circle";
-import {
-  StoreId,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
-import {
-  Bug,
-  ChevronDown,
-  Copy,
-  MessageCircle,
-  MoreVertical,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Star,
-  StarOff,
-  TrashIcon,
-} from "lucide-react";
-import { useRef } from "react";
-import { toast } from "sonner";
-
-import { getSessionTags } from "../hooks/use-agent-session-status";
-import { useAppState } from "../hooks/use-app-state";
-import { useDeveloperMode } from "../hooks/use-developer-mode";
-import { rpcClient } from "../rpc/client";
-import { SessionStatusIcon } from "./app-status-icon";
-import { ProjectOpenInSubmenu } from "./project/open-in-submenu";
-import { Button } from "./ui/button";
+import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,146 +10,28 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import { toolbarClassName } from "./ui/toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+} from "@/client/components/ui/dropdown-menu";
+import { toolbarClassName } from "@/client/components/ui/toggle";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import { getSessionTags } from "@/client/hooks/use-agent-session-status";
+import { useAppState } from "@/client/hooks/use-app-state";
+import { rpcClient } from "@/client/rpc/client";
+import {
+  StoreId,
+  type WorkspaceAppProject,
+} from "@instrument-org/workspace/client";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
+import { ChevronDown, MessageCircle, Plus } from "lucide-react";
+import { useRef } from "react";
+import { toast } from "sonner";
 
-export function ProjectActionsMenu({
-  onDebugClick,
-  onReplayClick,
-  onSettingsClick,
-  project,
-  selectedSessionId,
-}: {
-  onDebugClick: () => void;
-  onReplayClick: () => void;
-  onSettingsClick: () => void;
-  project: WorkspaceAppProject;
-  selectedSessionId?: StoreId.Session;
-}) {
-  const navigate = useNavigate();
-  const isDeveloperMode = useDeveloperMode();
-
-  const { data: favoriteSubdomains } = useQuery(
-    rpcClient.favorites.live.listSubdomains.experimental_liveOptions(),
-  );
-  const isFavorite = favoriteSubdomains?.includes(project.subdomain) ?? false;
-
-  const { mutateAsync: removeFavorite } = useMutation(
-    rpcClient.favorites.remove.mutationOptions(),
-  );
-
-  const { mutateAsync: addFavorite } = useMutation(
-    rpcClient.favorites.add.mutationOptions(),
-  );
-
-  const handleDebugChat = () => {
-    if (!selectedSessionId) {
-      return;
-    }
-    onDebugClick();
-  };
-
-  return (
-    <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost">
-              <MoreVertical className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Project actions</TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="end" side="bottom">
-        <DropdownMenuItem
-          onClick={() => {
-            void navigate({
-              from: "/projects/$subdomain",
-              params: { subdomain: project.subdomain },
-              search: (prev) => ({ ...prev, showDuplicate: true }),
-            });
-          }}
-        >
-          <Copy className="size-4" />
-          <span>Duplicate</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onSettingsClick}>
-          <Pencil className="size-4" />
-          <span>Rename</span>
-        </DropdownMenuItem>
-
-        {isFavorite ? (
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault();
-              void removeFavorite({ subdomain: project.subdomain });
-            }}
-          >
-            <StarOff className="text-muted-foreground" />
-            <span>Remove favorite</span>
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault();
-              void addFavorite({ subdomain: project.subdomain });
-            }}
-          >
-            <Star className="text-muted-foreground" />
-            <span>Favorite</span>
-          </DropdownMenuItem>
-        )}
-
-        {isDeveloperMode && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-warning-foreground"
-              disabled={!selectedSessionId}
-              onClick={handleDebugChat}
-            >
-              <Bug className="size-4 text-warning-foreground" />
-              Debug chat
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-warning-foreground"
-              disabled={!selectedSessionId}
-              onClick={() => {
-                if (selectedSessionId) {
-                  onReplayClick();
-                }
-              }}
-            >
-              <RotateCcw className="size-4 text-warning-foreground" />
-              Replay chat
-            </DropdownMenuItem>
-            <ProjectOpenInSubmenu project={project} />
-          </>
-        )}
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem
-          onSelect={() => {
-            void navigate({
-              from: "/projects/$subdomain",
-              params: { subdomain: project.subdomain },
-              search: (prev) => ({ ...prev, showDelete: true }),
-            });
-          }}
-          variant="destructive"
-        >
-          <TrashIcon />
-          <span>Delete</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-export function ProjectChatPicker({
+export function ProjectChatMenu({
   onChatClick,
   project,
   selectedSessionId,

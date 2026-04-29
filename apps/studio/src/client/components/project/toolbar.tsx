@@ -15,7 +15,6 @@ import { useState } from "react";
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
 import { ProjectDebugDialog } from "../project-debug-dialog";
-import { ProjectActionsMenu, ProjectChatPicker } from "../project-menu";
 import { ProjectUsageSummary } from "../project-usage-summary";
 import { RestoreVersionModal } from "../restore-version-modal";
 import { SessionContextRing } from "../session-context-ring";
@@ -25,6 +24,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { ProjectActionsMenu } from "./actions-menu";
+import { ProjectChatMenu } from "./chat-menu";
 
 export function ProjectToolbar({
   onSidebarChange,
@@ -70,7 +71,7 @@ export function ProjectToolbar({
     <>
       <div className="w-full bg-background py-2 pr-2 pl-3">
         <div className="flex items-center gap-2">
-          <ProjectChatPicker
+          <ProjectChatMenu
             onChatClick={() => {
               onSidebarChange("chat");
             }}

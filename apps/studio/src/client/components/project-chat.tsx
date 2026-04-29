@@ -1,3 +1,4 @@
+import { promptInputRefAtom } from "@/client/atoms/prompt-value";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type StoreId,
@@ -5,8 +6,9 @@ import {
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import { ChevronDown, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
 
@@ -147,6 +149,11 @@ export function ProjectChat({
       },
     );
   };
+
+  const promptTextarea = useAtomValue(promptInputRefAtom);
+  useLayoutEffect(() => {
+    promptTextarea?.focus();
+  }, [selectedSessionId, promptTextarea]);
 
   return (
     <div

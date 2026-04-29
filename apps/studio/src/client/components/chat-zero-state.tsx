@@ -48,7 +48,7 @@ export function ChatZeroState({
                   })}
                   to="/projects/$subdomain"
                 >
-                  {session.title || "Untitled Chat"}
+                  {session.title || "Untitled chat"}
                 </InternalLink>
               ))}
             </div>

@@ -1,11 +1,9 @@
 import { type AppConfig } from "./app-config/types";
 import { Store } from "./store";
 
-const DEFAULT_TITLE_PREFIX = "Chat";
+const DEFAULT_UNTITLED_BASE = "Untitled chat";
 
-const defaultChatTitlePattern = new RegExp(
-  `^\\d{4}-\\d{2}-\\d{2} ${DEFAULT_TITLE_PREFIX}(?: \\d+)?$`,
-);
+const defaultUntitledChatPattern = /^Untitled chat(?: \d+)?$/;
 
 export async function generateSessionTitle({
   appConfig,
@@ -16,9 +14,9 @@ export async function generateSessionTitle({
   sessionNamePrefix?: string;
   signal?: AbortSignal;
 }): Promise<string> {
-  const currentDate = new Date().toISOString().split("T")[0] ?? "";
-  const prefix = sessionNamePrefix ?? DEFAULT_TITLE_PREFIX;
-  const baseTitle = `${currentDate} ${prefix}`;
+  const baseTitle = sessionNamePrefix
+    ? `Untitled ${sessionNamePrefix}`
+    : DEFAULT_UNTITLED_BASE;
 
   const sessionsResult = await Store.getSessions(appConfig, {
     includeChildSessions: true,
@@ -39,16 +37,16 @@ export async function generateSessionTitle({
   }
 
   let counter = 2;
-  let candidateTitle = `${currentDate} ${prefix} ${counter}`;
+  let candidateTitle = `${baseTitle} ${counter}`;
 
   while (existingTitles.has(candidateTitle)) {
     counter++;
-    candidateTitle = `${currentDate} ${prefix} ${counter}`;
+    candidateTitle = `${baseTitle} ${counter}`;
   }
 
   return candidateTitle;
 }
 
 export function isDefaultGeneratedSessionTitle(title: string): boolean {
-  return defaultChatTitlePattern.test(title);
+  return defaultUntitledChatPattern.test(title);
 }

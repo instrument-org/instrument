@@ -219,6 +219,23 @@ export function ProjectFiles({
             onFileClick={onFileSelect}
           />
         ))}
+        {folderEntries.length > 0 && (
+          <SidebarMenuItem>
+            <CollapsibleTreeSection
+              defaultOpen
+              icon={Folders}
+              label="Attached folders"
+            >
+              {folderEntries.map((folder) => (
+                <AttachedFolderRow
+                  folder={folder}
+                  key={folder.id}
+                  projectSubdomain={project.subdomain}
+                />
+              ))}
+            </CollapsibleTreeSection>
+          </SidebarMenuItem>
+        )}
         {computed.hiddenTree.length > 0 && (
           <SidebarMenuItem>
             <CollapsibleTreeSection
@@ -240,25 +257,6 @@ export function ProjectFiles({
           </SidebarMenuItem>
         )}
       </SidebarMenu>
-      {folderEntries.length > 0 && (
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <CollapsibleTreeSection
-              defaultOpen={false}
-              icon={Folders}
-              label="Attached folders"
-            >
-              {folderEntries.map((folder) => (
-                <AttachedFolderRow
-                  folder={folder}
-                  key={folder.id}
-                  projectSubdomain={project.subdomain}
-                />
-              ))}
-            </CollapsibleTreeSection>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      )}
     </SidebarProvider>
   );
 }

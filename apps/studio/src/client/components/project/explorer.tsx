@@ -680,7 +680,7 @@ function CollapsibleTreeSection({
         >
           {Icon && <Icon className="size-3.5 shrink-0 text-muted-foreground" />}
           <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-          <ChevronRight className="explorer-collapsible-chevron size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-90" />
+          <ChevronRight className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-90" />
         </SidebarMenuButton>
       </CollapsibleTrigger>
       <CollapsibleContent>

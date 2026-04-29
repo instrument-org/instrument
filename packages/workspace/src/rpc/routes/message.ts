@@ -6,8 +6,10 @@ import { z } from "zod";
 
 import { createAppConfig } from "../../lib/app-config/create";
 import { createSession } from "../../lib/create-session";
+import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { newMessage } from "../../lib/new-message";
 import { Store } from "../../lib/store";
+import { updateSessionTitle } from "../../lib/update-session-title";
 import {
   emptyUsageSummary,
   getUsageSummaryFromMessages,
@@ -99,6 +101,16 @@ const create = base
         finalSessionId = sessionResult.value.id;
       }
 
+      const messageIdsBeforeResult = await Store.getMessageIds(
+        finalSessionId,
+        appConfig,
+      );
+      if (messageIdsBeforeResult.isErr()) {
+        context.workspaceConfig.captureException(messageIdsBeforeResult.error);
+        throw toORPCError(messageIdsBeforeResult.error, errors);
+      }
+      const isFirstMessageInSession = messageIdsBeforeResult.value.length === 0;
+
       const messageResult = await newMessage({
         appConfig,
         files,
@@ -115,6 +127,25 @@ const create = base
       }
 
       const message = messageResult.value;
+
+      if (isFirstMessageInSession && appConfig.type === "project") {
+        generateTitleFromUserMessage({
+          message,
+          model,
+          workspaceConfig: context.workspaceConfig,
+        }).then(async (title) => {
+          if (title.isOk()) {
+            await updateSessionTitle({
+              appConfig,
+              sessionId: message.metadata.sessionId,
+              title: title.value,
+            });
+          } else {
+            context.workspaceConfig.captureException(title.error);
+          }
+        });
+      }
+
       context.workspaceRef.send({
         type: "addMessage",
         value: {

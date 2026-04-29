@@ -148,100 +148,102 @@ export function ProjectChatMenu({
     <Button
       className={toolbarClassName({
         className:
-          "h-auto max-w-80 min-w-0 justify-start gap-2 py-1 font-semibold has-[>svg]:px-1",
+          "h-auto min-w-0 w-full max-w-80 shrink justify-start gap-2 py-1 font-semibold has-[>svg]:px-1",
         pressed: sidebar === "chat",
       })}
       onClick={sidebar === "files" ? onChatClick : undefined}
       variant="ghost"
     >
       <ChatsCircle className="size-4 shrink-0" />
-      <span className="truncate">{chatMenuTitle}</span>
+      <span className="min-w-0 flex-1 truncate">{chatMenuTitle}</span>
       <ChevronDown className="size-3 shrink-0" />
     </Button>
   );
 
   if (sidebar === "files") {
-    return button;
+    return <div className="min-w-0 shrink overflow-hidden">{button}</div>;
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="min-w-(--radix-popper-anchor-width)"
-        onCloseAutoFocus={(e) => {
-          if (skipCloseFocusToTriggerRef.current) {
-            e.preventDefault();
-            skipCloseFocusToTriggerRef.current = false;
-            promptTextarea?.focus();
-          }
-        }}
-        side="bottom"
-      >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuItem
-              disabled={createEmptySession.isPending}
-              onClick={handleNewChat}
-            >
-              <Plus className="size-4" />
-              <span>New Chat</span>
-            </DropdownMenuItem>
-          </TooltipTrigger>
-          <TooltipContent>Start a fresh chat in this project.</TooltipContent>
-        </Tooltip>
+    <div className="min-w-0 shrink overflow-hidden">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="min-w-(--radix-popper-anchor-width)"
+          onCloseAutoFocus={(e) => {
+            if (skipCloseFocusToTriggerRef.current) {
+              e.preventDefault();
+              skipCloseFocusToTriggerRef.current = false;
+              promptTextarea?.focus();
+            }
+          }}
+          side="bottom"
+        >
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuItem
+                disabled={createEmptySession.isPending}
+                onClick={handleNewChat}
+              >
+                <Plus className="size-4" />
+                <span>New Chat</span>
+              </DropdownMenuItem>
+            </TooltipTrigger>
+            <TooltipContent>Start a fresh chat in this project.</TooltipContent>
+          </Tooltip>
 
-        {sessions.length > 0 && (
-          <>
-            <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
-              Previous chats
-            </DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              onValueChange={(value) => {
-                const sessionId = StoreId.SessionSchema.parse(value);
-                navigateToSession(sessionId);
-              }}
-              value={selectedSessionId}
-            >
-              {visibleSessions.map((session) => (
-                <ProjectChatMenuSessionRadioItem
-                  activeReplaySessionIds={replayStatus?.activeSessionIds}
-                  key={session.id}
-                  session={session}
-                  sessionActors={sessionActors}
-                />
-              ))}
+          {sessions.length > 0 && (
+            <>
+              <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+                Previous chats
+              </DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                onValueChange={(value) => {
+                  const sessionId = StoreId.SessionSchema.parse(value);
+                  navigateToSession(sessionId);
+                }}
+                value={selectedSessionId}
+              >
+                {visibleSessions.map((session) => (
+                  <ProjectChatMenuSessionRadioItem
+                    activeReplaySessionIds={replayStatus?.activeSessionIds}
+                    key={session.id}
+                    session={session}
+                    sessionActors={sessionActors}
+                  />
+                ))}
 
-              {overflowSessions.length > 0 && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger className="gap-2 text-xs font-semibold text-muted-foreground data-[state=open]:text-muted-foreground">
-                    All chats
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="min-w-(--radix-dropdown-menu-trigger-width) overflow-hidden p-0">
-                    <div
-                      className="overflow-x-hidden overflow-y-auto p-1"
-                      style={allChatsSubListScrollStyle}
-                    >
-                      {overflowSessions.map((session) => (
-                        <ProjectChatMenuSessionRadioItem
-                          activeReplaySessionIds={
-                            replayStatus?.activeSessionIds
-                          }
-                          key={session.id}
-                          session={session}
-                          sessionActors={sessionActors}
-                        />
-                      ))}
-                    </div>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
-            </DropdownMenuRadioGroup>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+                {overflowSessions.length > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2 text-xs font-semibold text-muted-foreground data-[state=open]:text-muted-foreground">
+                      All chats
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="min-w-(--radix-dropdown-menu-trigger-width) overflow-hidden p-0">
+                      <div
+                        className="overflow-x-hidden overflow-y-auto p-1"
+                        style={allChatsSubListScrollStyle}
+                      >
+                        {overflowSessions.map((session) => (
+                          <ProjectChatMenuSessionRadioItem
+                            activeReplaySessionIds={
+                              replayStatus?.activeSessionIds
+                            }
+                            key={session.id}
+                            session={session}
+                            sessionActors={sessionActors}
+                          />
+                        ))}
+                      </div>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+              </DropdownMenuRadioGroup>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 

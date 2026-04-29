@@ -154,6 +154,8 @@ const create = base
 
       const configToSave = {
         ...newConfig,
+        // OpenRouter uses `user` for per-client cache keys; keep one stable id per config.
+        // Prefix with app domain so their dashboard shows which product it is, not a bare uuid.
         cacheIdentifier: `${APP_DOMAIN}-${crypto.randomUUID()}`,
         id: AIProviderConfigIdSchema.parse(ulid()),
       };

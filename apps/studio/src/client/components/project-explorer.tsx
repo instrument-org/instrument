@@ -2,6 +2,7 @@ import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { FileIcon } from "@/client/components/file-icon";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { getFileType } from "@/client/lib/get-file-type";
 import {
   hasVisibleProjectFiles,
   isProjectFileSrcFile,
@@ -9,6 +10,7 @@ import {
 } from "@/client/lib/project-file-groups";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
+import { APP_AGENT_NAME } from "@instrument-org/shared";
 import {
   APP_FOLDER_NAMES,
   type ProjectSubdomain,
@@ -32,7 +34,6 @@ import { toast } from "sonner";
 
 import { rpcClient } from "../rpc/client";
 import { FileActionsMenuItems } from "./file-actions-menu";
-import { FilePreviewCard } from "./file-preview-card";
 import {
   Collapsible,
   CollapsibleContent,
@@ -59,7 +60,6 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "./ui/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type AttachedFolder = NonNullable<
   RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"]
@@ -205,25 +205,6 @@ export function ProjectFiles({
           </SidebarMenuItem>
         </SidebarMenu>
       )}
-      {folderEntries.length > 0 && (
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <CollapsibleTreeSection
-              defaultOpen
-              icon={Folders}
-              label="Attached Folders"
-            >
-              {folderEntries.map((folder) => (
-                <AttachedFolderRow
-                  folder={folder}
-                  key={folder.id}
-                  projectSubdomain={project.subdomain}
-                />
-              ))}
-            </CollapsibleTreeSection>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      )}
       <SidebarMenu>
         {computed.tree.map((node, i) => (
           <TreeNode
@@ -259,6 +240,25 @@ export function ProjectFiles({
           </SidebarMenuItem>
         )}
       </SidebarMenu>
+      {folderEntries.length > 0 && (
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <CollapsibleTreeSection
+              defaultOpen={false}
+              icon={Folders}
+              label="Attached folders"
+            >
+              {folderEntries.map((folder) => (
+                <AttachedFolderRow
+                  folder={folder}
+                  key={folder.id}
+                  projectSubdomain={project.subdomain}
+                />
+              ))}
+            </CollapsibleTreeSection>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      )}
     </SidebarProvider>
   );
 }
@@ -333,27 +333,23 @@ function AttachedFolderRow({
   return (
     <SidebarMenuItem>
       <ContextMenu>
-        <Tooltip delayDuration={400} disableHoverableContent>
-          <TooltipTrigger asChild>
-            <ContextMenuTrigger asChild>
-              <SidebarMenuButton
-                className="h-7 gap-1.5 px-2 text-xs"
-                onClick={() => void handleClick()}
-              >
-                <FolderClosed className="size-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate text-foreground/80">
-                  {folder.name}
-                </span>
-              </SidebarMenuButton>
-            </ContextMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-64" side="left" sideOffset={8}>
-            <p>{getRevealInFolderLabel()}</p>
-            <p className="text-xs break-all text-background/60">
-              {folder.path}
-            </p>
-          </TooltipContent>
-        </Tooltip>
+        <ContextMenuTrigger asChild>
+          <SidebarMenuButton
+            className="h-auto min-h-14 items-stretch gap-2.5 px-3 py-2 text-xs hover:bg-muted/50"
+            isActive={false}
+            onClick={() => void handleClick()}
+          >
+            <ExplorerFolderThumbnail />
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">
+              <span className="truncate font-medium text-foreground/90">
+                {folder.name}
+              </span>
+              <span className="truncate text-muted-foreground">
+                Folder · {explorerStubRelativeDate()}
+              </span>
+            </div>
+          </SidebarMenuButton>
+        </ContextMenuTrigger>
         <ContextMenuContent>
           <AttachedFolderMenuItems
             onAddToChat={handleAddToChat}
@@ -404,6 +400,162 @@ function buildTree(files: ProjectFileViewerFile[]): FileTreeNode[] {
   return root;
 }
 
+function directorySectionLabel(dirName: string) {
+  if (dirName === APP_FOLDER_NAMES.output) {
+    return `Made by ${APP_AGENT_NAME}`;
+  }
+  if (dirName === APP_FOLDER_NAMES.userProvided) {
+    return "Attached files";
+  }
+  return dirName;
+}
+
+function explorerFileKindLabel(file: ProjectFileViewerFile) {
+  switch (getFileType(file)) {
+    case "audio": {
+      return "Audio";
+    }
+    case "code": {
+      return "Code";
+    }
+    case "html": {
+      return "HTML";
+    }
+    case "image": {
+      return "Image";
+    }
+    case "markdown": {
+      return "Markdown";
+    }
+    case "pdf": {
+      return "PDF";
+    }
+    case "text": {
+      return "Text file";
+    }
+    case "video": {
+      return "Video";
+    }
+    default: {
+      return "File";
+    }
+  }
+}
+
+function ExplorerFileThumbnail({
+  file,
+  isActive,
+}: {
+  file: ProjectFileViewerFile;
+  isActive: boolean;
+}) {
+  const kind = getFileType(file);
+  const frameClass = cn(
+    "relative h-10 w-8 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm",
+    isActive &&
+      "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
+  );
+
+  if (kind === "image") {
+    return (
+      <div className={frameClass}>
+        <img
+          alt=""
+          className="size-full object-cover"
+          draggable={false}
+          src={file.url}
+        />
+      </div>
+    );
+  }
+
+  if (kind === "audio") {
+    return (
+      <div
+        className={cn(
+          "flex h-10 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted shadow-sm",
+          isActive &&
+            "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
+        )}
+      >
+        <FileIcon
+          className={cn(
+            "size-3.5",
+            isActive
+              ? "text-sidebar-accent-foreground"
+              : "text-muted-foreground",
+          )}
+          filename={file.filename}
+          mimeType={file.mimeType}
+        />
+      </div>
+    );
+  }
+
+  if (kind === "markdown" || kind === "text" || kind === "code") {
+    return (
+      <div className={cn(frameClass, "flex flex-col p-1")}>
+        <div className="flex flex-1 flex-col justify-center gap-px">
+          {[0.85, 0.72, 0.9, 0.55].map((w) => (
+            <div
+              className={cn(
+                "h-px min-w-0 rounded-full",
+                isActive
+                  ? "bg-sidebar-accent-foreground/35"
+                  : "bg-muted-foreground/20",
+              )}
+              key={w}
+              style={{ width: `${w * 100}%` }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex h-10 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-background shadow-sm",
+        isActive &&
+          "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
+      )}
+    >
+      <FileIcon
+        className={cn(
+          "size-4 shrink-0",
+          isActive ? "text-sidebar-accent-foreground" : "text-muted-foreground",
+        )}
+        filename={file.filename}
+        mimeType={file.mimeType}
+      />
+    </div>
+  );
+}
+
+function ExplorerFolderThumbnail({ isActive }: { isActive?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "flex h-10 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted shadow-sm",
+        isActive &&
+          "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
+      )}
+    >
+      <FolderClosed
+        className={cn(
+          "size-4 shrink-0",
+          isActive ? "text-sidebar-accent-foreground" : "text-muted-foreground",
+        )}
+      />
+    </div>
+  );
+}
+
+function explorerStubRelativeDate() {
+  return "just now";
+}
+
 function FileRow({
   file,
   isActive,
@@ -425,44 +577,33 @@ function FileRow({
   return (
     <SidebarMenuItem>
       <ContextMenu>
-        <Tooltip delayDuration={400} disableHoverableContent>
-          <TooltipTrigger asChild>
-            <ContextMenuTrigger asChild>
-              <SidebarMenuButton
-                className="h-7 gap-1.5 px-2 text-xs"
-                isActive={isActive}
-                onClick={onClick}
+        <ContextMenuTrigger asChild>
+          <SidebarMenuButton
+            className={cn(
+              "h-auto min-h-14 items-stretch gap-2.5 px-3 py-2 text-xs",
+              isActive
+                ? "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                : "hover:bg-muted/50",
+            )}
+            isActive={isActive}
+            onClick={onClick}
+          >
+            <ExplorerFileThumbnail file={file} isActive={isActive} />
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">
+              <span className="truncate font-medium">{file.filename}</span>
+              <span
+                className={cn(
+                  "truncate",
+                  isActive
+                    ? "text-sidebar-accent-foreground/70"
+                    : "text-muted-foreground",
+                )}
               >
-                <FileIcon
-                  className="size-3.5 shrink-0 text-muted-foreground"
-                  filename={file.filename}
-                  mimeType={file.mimeType}
-                />
-                <span className="truncate text-foreground/80">
-                  {file.filename}
-                </span>
-              </SidebarMenuButton>
-            </ContextMenuTrigger>
-          </TooltipTrigger>
-          {isActive ? (
-            <TooltipContent side="left" sideOffset={8}>
-              <p className="text-xs break-all">{file.filePath}</p>
-            </TooltipContent>
-          ) : (
-            <TooltipContent
-              align="end"
-              arrow={
-                <div className="border-x-[5px] border-t-[5px] border-x-transparent border-t-border" />
-              }
-              arrowPadding={8}
-              className="w-96 overflow-visible rounded-lg bg-transparent p-0 shadow-md"
-              side="left"
-              sideOffset={8}
-            >
-              <FilePreviewCard file={file} hideActionsMenu onClick={onClick} />
-            </TooltipContent>
-          )}
-        </Tooltip>
+                {explorerFileKindLabel(file)} · {explorerStubRelativeDate()}
+              </span>
+            </div>
+          </SidebarMenuButton>
+        </ContextMenuTrigger>
         <ContextMenuContent>
           <FileActionsMenuItems
             file={file}
@@ -528,26 +669,24 @@ function CollapsibleTreeSection({
 
   return (
     <Collapsible
-      className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
+      className="group/collapsible"
       onOpenChange={setOpen}
       open={open}
     >
       <CollapsibleTrigger asChild>
         <SidebarMenuButton
           className={cn(
-            "h-7 gap-1 px-2 text-xs text-muted-foreground",
+            "h-auto min-h-8 gap-2 px-3 py-2 text-xs font-medium text-foreground",
             labelClassName,
           )}
         >
-          <ChevronRight className="size-3! shrink-0 transition-transform" />
-          {Icon && <Icon className="size-3.5! shrink-0" />}
-          <span className="truncate">{label}</span>
+          {Icon && <Icon className="size-3.5 shrink-0 text-muted-foreground" />}
+          <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+          <ChevronRight className="explorer-collapsible-chevron size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-90" />
         </SidebarMenuButton>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <ul className="ml-3 flex min-w-0 flex-col overflow-hidden border-l border-border/50 pl-1">
-          {children}
-        </ul>
+        <ul className="flex min-w-0 flex-col overflow-hidden">{children}</ul>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -581,11 +720,13 @@ function TreeNode({
   defaultOpen = false,
   node,
   onFileClick,
+  treeDepth = 0,
 }: {
   activeFilePath: null | string;
   defaultOpen?: boolean;
   node: FileTreeNode;
   onFileClick: (file: ProjectFileViewerFile) => void;
+  treeDepth?: number;
 }) {
   if (node.kind === "file") {
     return (
@@ -600,13 +741,18 @@ function TreeNode({
   }
 
   const containsActive = dirContainsActive(node, activeFilePath);
+  const isTopSpecialSection =
+    treeDepth === 0 &&
+    (node.name === APP_FOLDER_NAMES.output ||
+      node.name === APP_FOLDER_NAMES.userProvided);
 
   return (
     <SidebarMenuItem>
       <CollapsibleTreeSection
         defaultOpen={defaultOpen}
         forceOpen={containsActive}
-        label={node.name}
+        icon={isTopSpecialSection ? undefined : FolderClosed}
+        label={directorySectionLabel(node.name)}
       >
         {node.children.map((child, i) => (
           <TreeNode
@@ -614,6 +760,7 @@ function TreeNode({
             key={i}
             node={child}
             onFileClick={onFileClick}
+            treeDepth={treeDepth + 1}
           />
         ))}
       </CollapsibleTreeSection>

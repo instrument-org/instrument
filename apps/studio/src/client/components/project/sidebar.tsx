@@ -82,24 +82,17 @@ export function ProjectSidebar({
             </div>
           </div>
         ) : sidebar === "files" ? (
-          <div className="flex h-full flex-col overflow-hidden bg-background">
-            <div className="flex shrink-0 items-center border-b px-3 py-2">
-              <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Files
-              </h3>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <ProjectFiles
-                activeFilePath={activeFilePath}
-                attachedFolders={attachedFolders}
-                files={files}
-                isAppViewOpen={isAppViewOpen}
-                onAppSelect={onAppSelect}
-                onFileSelect={onFileSelect}
-                project={project}
-                showAppEntry={hasAppModifications}
-              />
-            </div>
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+            <ProjectFiles
+              activeFilePath={activeFilePath}
+              attachedFolders={attachedFolders}
+              files={files}
+              isAppViewOpen={isAppViewOpen}
+              onAppSelect={onAppSelect}
+              onFileSelect={onFileSelect}
+              project={project}
+              showAppEntry={hasAppModifications}
+            />
           </div>
         ) : (
           <ProjectChat {...chatProps} isChatOnly={isFullWidth} />

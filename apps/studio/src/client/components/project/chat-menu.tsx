@@ -97,9 +97,9 @@ export function ProjectChatMenu({
   const selectedSession =
     selectedSessionId && sessions.find((s) => s.id === selectedSessionId);
   const chatMenuTitle =
-    selectedSession === undefined
+    selectedSessionId === undefined
       ? project.title
-      : selectedSession.title || "Untitled chat";
+      : (selectedSession?.title ?? "Untitled chat");
 
   const handleNewChat = () => {
     skipCloseFocusToTriggerRef.current = true;

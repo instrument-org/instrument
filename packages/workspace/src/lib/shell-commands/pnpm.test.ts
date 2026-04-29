@@ -151,7 +151,7 @@ describe("createPnpmCommand", () => {
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
       appConfig,
       appConfig.workspaceConfig.pnpmBinPath,
-      expect.arrayContaining(["dlx", "jiti"]),
+      expect.arrayContaining(["dlx", "jiti@2.6.1"]),
       expect.any(Object),
       expect.any(String),
     );

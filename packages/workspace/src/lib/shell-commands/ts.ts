@@ -88,7 +88,7 @@ export function createTsCommand(appConfig: AppConfig) {
     // installing all packages eagerly.
     const result = await runPnpmCommand({
       appConfig,
-      args: ["dlx", "jiti", filePath, ...scriptArgs],
+      args: ["dlx", "jiti@2.6.1", filePath, ...scriptArgs],
       cwd: appCwd,
       env,
       pnpmLogLevel: "error", // Suppress Progress-style noise for dlx

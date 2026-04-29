@@ -17,7 +17,7 @@ export function createTscCommand(appConfig: AppConfig) {
 
     const result = await runPnpmCommand({
       appConfig,
-      args: ["--package=typescript", "dlx", "tsc", ...args],
+      args: ["--package=typescript@5.9.3", "dlx", "tsc", ...args],
       cwd: appCwd,
       env,
       pnpmLogLevel: "error", // Suppress Progress-style noise for dlx

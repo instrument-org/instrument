@@ -59,6 +59,7 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "gpt-5.3" },
     { expected: ["coding", "legacy"], modelId: "gpt-5-nano" },
     { expected: ["coding", "legacy"], modelId: "gpt-5-mini" },
+    { expected: ["coding", "recommended"], modelId: "gpt-5.4-mini" },
     { expected: ["coding", "recommended"], modelId: "gpt-6" },
     { expected: ["coding", "recommended"], modelId: "gpt-10" },
     { expected: ["legacy"], modelId: "claude-3-opus" },

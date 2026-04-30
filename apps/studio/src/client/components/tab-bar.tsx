@@ -12,11 +12,11 @@ export default function TabBar() {
   const tabs = allTabs.filter((tab) => !tab.tabBarHidden);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-row items-center overflow-hidden">
+    <div className="flex h-full min-w-0 flex-1 flex-row items-stretch overflow-hidden px-3">
       <Reorder.Group
         as="ul"
         axis="x"
-        className="flex min-w-0 flex-1 flex-nowrap items-center justify-start [-webkit-app-region:drag]"
+        className="flex min-w-0 flex-1 flex-nowrap items-stretch justify-start gap-1 py-1 [-webkit-app-region:drag]"
         onReorder={(values) => {
           // Extract only the IDs of non-pinned tabs for reordering
           const nonPinnedTabIds = values
@@ -30,7 +30,7 @@ export default function TabBar() {
         values={tabs}
       >
         <AnimatePresence initial={false}>
-          {tabs.map((item, index) => (
+          {tabs.map((item) => (
             <Tab
               isSelected={selectedTabId === item.id}
               item={item}
@@ -41,22 +41,20 @@ export default function TabBar() {
               onRemove={() => {
                 void closeTab({ id: item.id });
               }}
-              showSeparator={
-                index !== tabs.findIndex((t) => t.id === selectedTabId) - 1 &&
-                tabs.length > 2
-              }
+              showSeparator
             />
           ))}
         </AnimatePresence>
-        <li className="flex shrink-0 items-center">
+        <li className="flex shrink-0 items-center self-stretch pl-0.5">
           <motion.button
-            className="mx-2 flex size-6 shrink-0 items-center justify-center rounded-full [-webkit-app-region:no-drag] hover:bg-muted/60"
+            className="group inline-flex shrink-0 items-center justify-center rounded-xl px-3 py-2 transition-colors [-webkit-app-region:no-drag] hover:bg-muted/60"
             onClick={() => {
               void addTab({ to: "/new-tab" });
             }}
-            whileTap={{ scale: 0.9 }}
+            type="button"
+            whileTap={{ scale: 0.97 }}
           >
-            <Plus className="size-4 text-muted-foreground opacity-90 transition-colors hover:text-foreground hover:opacity-100" />
+            <Plus className="block size-4 shrink-0 text-muted-foreground opacity-90 transition-colors group-hover:text-foreground group-hover:opacity-100" />
           </motion.button>
         </li>
       </Reorder.Group>

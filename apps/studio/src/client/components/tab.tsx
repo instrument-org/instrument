@@ -5,34 +5,38 @@ import { type Tab as TabData } from "@/shared/tabs";
 import { X } from "lucide-react";
 import { motion, Reorder } from "motion/react";
 
-const SkeletonIcon = ({ isPinned = false }: { isPinned?: boolean }) => {
-  return (
-    <div
-      className={cn(
-        "size-5 shrink-0 rounded-full bg-muted",
-        isPinned ? "mr-0" : "mr-1",
-      )}
-    />
-  );
-};
-
 const SkeletonTitle = () => {
   return (
     <div className="min-w-0 flex-1">
-      <div className="h-3 w-16 animate-pulse rounded-sm bg-muted" />
+      <div className="h-3.5 w-16 animate-pulse rounded-sm bg-muted" />
     </div>
   );
 };
 
-interface Props {
+const tabTitleMaskStyle = {
+  maskImage:
+    "linear-gradient(to right, #000 0%, #000 calc(100% - 1.5rem), transparent 100%)",
+  WebkitMaskImage:
+    "linear-gradient(to right, #000 0%, #000 calc(100% - 1.5rem), transparent 100%)",
+} as const;
+
+export const Tab = ({
+  isSelected,
+  item,
+  onClick,
+  onRemove,
+  showSeparator,
+}: {
   isSelected: boolean;
   item: TabData;
   onClick: () => void;
   onRemove: () => void;
   showSeparator: boolean;
-}
+}) => {
+  const iconSlot = item.iconName ? (
+    <AppIcon isSelected={isSelected} name={item.iconName} size="sm" />
+  ) : null;
 
-export const Tab = ({ isSelected, item, onClick, onRemove }: Props) => {
   return (
     <Reorder.Item
       animate={{
@@ -40,11 +44,25 @@ export const Tab = ({ isSelected, item, onClick, onRemove }: Props) => {
         transition: { duration: 0.1, ease: "easeInOut" },
       }}
       className={cn(
-        "group border-r border-border/50 [-webkit-app-region:no-drag]",
-        isSelected ? "bg-background shadow-sm" : "hover:bg-muted/60",
-        "overflow-hidden",
-        item.pinned ? "px-3" : "w-full max-w-60 flex-1 pl-4",
-        "relative flex h-svh items-center justify-between select-none",
+        "group relative flex min-h-0 min-w-0 select-none [-webkit-app-region:no-drag]",
+        item.pinned ? "shrink-0" : "w-full max-w-60 flex-1 overflow-hidden",
+        item.pinned
+          ? cn(
+              "h-full items-center justify-center px-2.5 py-2 transition-colors duration-150",
+              isSelected
+                ? "rounded-xl bg-background shadow-sm"
+                : "rounded-xl hover:bg-muted/60",
+            )
+          : cn(
+              "h-full items-center transition-[background-color,border-radius,box-shadow] duration-150",
+              isSelected
+                ? "gap-2 rounded-xl bg-background py-2 pr-1.5 pl-3 shadow-sm"
+                : cn(
+                    "py-2 pr-2 pl-3 hover:rounded-xl hover:bg-muted/60 hover:pr-1.5",
+                    showSeparator &&
+                      "after:pointer-events-none after:absolute after:top-1/4 after:right-0 after:h-1/2 after:w-px after:bg-border/50 after:content-['']",
+                  ),
+            ),
       )}
       dragListener={!item.pinned}
       exit={{
@@ -56,7 +74,6 @@ export const Tab = ({ isSelected, item, onClick, onRemove }: Props) => {
       initial={{ opacity: 1 }}
       onPointerDown={(event: React.PointerEvent<HTMLLIElement>) => {
         if (event.button === 1) {
-          // Close tab on middle click
           onRemove();
         } else {
           onClick();
@@ -66,24 +83,25 @@ export const Tab = ({ isSelected, item, onClick, onRemove }: Props) => {
       transition={{ duration: 0.15, ease: "easeOut", type: "tween" }}
       value={item}
     >
-      <motion.div className="flex min-w-0 flex-1 items-center">
-        <div className={cn(item.pinned ? "" : "mr-1.5")}>
-          {item.iconName ? (
-            <AppIcon isSelected={isSelected} name={item.iconName} size="sm" />
-          ) : (
-            <SkeletonIcon isPinned={item.pinned} />
-          )}
-        </div>
+      <motion.div
+        className={cn(
+          "flex min-w-0 flex-1 items-center",
+          iconSlot && "gap-2",
+          item.pinned && "justify-center",
+        )}
+      >
+        {iconSlot ? <div className="shrink-0">{iconSlot}</div> : null}
         {!item.pinned && (
           <>
             {item.title ? (
               <motion.span
                 className={cn(
-                  "flex-1 truncate text-xs font-semibold transition-colors",
+                  "min-w-0 flex-1 overflow-hidden text-sm font-medium text-clip whitespace-nowrap transition-colors",
                   isSelected
                     ? "text-foreground"
                     : "text-muted-foreground group-hover:text-foreground",
                 )}
+                style={tabTitleMaskStyle}
               >
                 {item.title}
               </motion.span>
@@ -94,25 +112,29 @@ export const Tab = ({ isSelected, item, onClick, onRemove }: Props) => {
         )}
       </motion.div>
       {!item.pinned && (
-        <div className="flex items-center gap-1 pr-2 pl-1">
-          <div className="group-hover:hidden">
-            {item.projectSubdomain && !isSelected && (
+        <div className="flex shrink-0 items-center gap-1 pl-1">
+          {item.projectSubdomain && !isSelected ? (
+            <div className="group-hover:hidden">
               <AppStatusIcon
                 className="size-4 shrink-0"
                 subdomain={item.projectSubdomain}
               />
-            )}
-          </div>
+            </div>
+          ) : null}
           <button
-            className="hidden rounded-sm opacity-70 ring-offset-background transition-opacity group-hover:block hover:bg-muted hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+            className={cn(
+              "rounded-md p-1 opacity-70 ring-offset-background transition-opacity hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
+              isSelected ? "flex" : "hidden group-hover:flex",
+            )}
             onClick={(event) => {
               event.stopPropagation();
               onRemove();
             }}
+            type="button"
           >
             <X
               className={cn(
-                "size-4 transition-colors",
+                "size-3.5 transition-colors",
                 isSelected ? "text-foreground" : "text-muted-foreground",
               )}
             />

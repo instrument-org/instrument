@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_app/new-tab")({
   head: () => ({
     meta: [
       {
-        title: "New Tab",
+        title: "New tab",
       },
     ],
   }),

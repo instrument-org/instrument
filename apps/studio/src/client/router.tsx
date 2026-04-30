@@ -8,8 +8,6 @@ import {
   createRouter as createTanStackRouter,
 } from "@tanstack/react-router";
 
-import type { FileRoutesById } from "./routeTree.gen";
-
 import { telemetry } from "./lib/telemetry";
 import { routeTree } from "./routeTree.gen";
 
@@ -64,21 +62,29 @@ const history = createHashHistory({});
 
 export const { queryClient, router } = createRouter({ history });
 
-// Routes where re-navigating to the same path is skipped to preserve query
-// parameters. Without this, clicking an already-open project in the sidebar
-// would strip all search params by navigating to the bare path.
-const NO_REPEAT_NAVIGATE_ROUTE_IDS = new Set<keyof FileRoutesById>([
-  "/_app/projects/$subdomain/",
-]);
-
 window.api.onNavigate((url) => {
   const currentPath = router.state.location.pathname;
   if (currentPath === url) {
     const matches = router.matchRoutes(url, {});
-    const isNoRepeat = matches.some((m) =>
-      NO_REPEAT_NAVIGATE_ROUTE_IDS.has(m.routeId),
+    const projectRouteMatch = matches.find(
+      (m) => m.routeId === "/_app/projects/$subdomain/",
     );
-    if (isNoRepeat) {
+    if (projectRouteMatch) {
+      // Same pathname as IPC: keep search params (bare path would strip them)
+      // except clear `sidebar` so the default chat sidebar shows again.
+      const loc = router.state.location;
+      const subdomain = projectRouteMatch.params.subdomain;
+      if (loc.search.sidebar !== undefined && subdomain) {
+        void router.navigate({
+          params: { subdomain },
+          replace: true,
+          search: (prev) => ({
+            ...prev,
+            sidebar: undefined,
+          }),
+          to: "/projects/$subdomain",
+        });
+      }
       return;
     }
   }

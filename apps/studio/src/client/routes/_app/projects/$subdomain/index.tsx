@@ -130,7 +130,7 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
         },
         ...(project.data?.iconName
           ? [createIconMeta(project.data.iconName)]
-          : [createIconMeta("message-circle")]),
+          : []),
         createProjectSubdomainMeta(params.subdomain),
       ],
     };

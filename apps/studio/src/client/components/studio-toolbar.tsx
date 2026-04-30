@@ -63,7 +63,7 @@ export function StudioToolbar() {
           isLinux() && "pr-24",
         )}
       >
-        <div className="flex h-full min-w-0 flex-1 items-center">
+        <div className="flex h-full min-w-0 flex-1 items-stretch">
           {!isSidebarOpen && (
             <div className="flex items-center">
               <div className={cn(isMacOS() ? "ml-20" : "ml-4")} />

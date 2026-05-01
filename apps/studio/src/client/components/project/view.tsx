@@ -235,7 +235,7 @@ export function ProjectView({
               id="artifact"
               minSize={PANEL_SIZES.artifactMin}
             >
-              <div className="flex h-full flex-1 flex-col overflow-hidden bg-secondary p-2">
+              <div className="flex h-full flex-1 flex-col overflow-hidden bg-background p-2">
                 {isViewingFile ? (
                   currentFile ? (
                     <div className="flex h-full overflow-hidden">

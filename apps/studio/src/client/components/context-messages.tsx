@@ -82,13 +82,9 @@ export const ContextMessages = memo(function ContextMessages({
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <DeveloperModeBadge />
                 <span className="text-[10px] leading-tight text-blue-700/75 dark:text-blue-300/75">
-                  This panel only appears when developer mode is on.
+                  Viewing the system prompt is only available in developer mode.
                 </span>
               </div>
-              <p className="text-xs text-blue-700/80 italic dark:text-blue-300/80">
-                Instructions given to the agent explaining how to work in{" "}
-                {APP_NAME}.
-              </p>
             </div>
             <div className="max-h-96 overflow-y-auto px-4 py-2 pr-4">
               <div className="flex flex-col gap-2">{contextElements}</div>

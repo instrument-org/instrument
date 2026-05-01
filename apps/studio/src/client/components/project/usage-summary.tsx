@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { Skeleton } from "../ui/skeleton";
@@ -7,14 +7,14 @@ import { UsageStatsTooltip, UsageSummaryText } from "../usage-stats-tooltip";
 
 export function ProjectUsageSummary({
   onClick,
-  project,
+  subdomain,
 }: {
   onClick?: () => void;
-  project: WorkspaceAppProject;
+  subdomain: ProjectSubdomain;
 }) {
   const { data } = useQuery(
     rpcClient.workspace.project.live.usageSummary.experimental_liveOptions({
-      input: { subdomain: project.subdomain },
+      input: { subdomain },
     }),
   );
 

@@ -22,12 +22,9 @@ import {
 import { getSessionTags } from "@/client/hooks/use-agent-session-status";
 import { useAppState } from "@/client/hooks/use-app-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useProjectRouteSubdomain } from "@/client/hooks/use-project-route-subdomain";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type SessionTag,
-  StoreId,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
+import { type SessionTag, StoreId } from "@instrument-org/workspace/client";
 import {
   CaretDownIcon,
   ChatCircleIcon,
@@ -63,29 +60,32 @@ const chatSessionRadioItemClassName =
 
 export function ProjectChatMenu({
   onChatClick,
-  project,
+  projectTitle,
   selectedSessionId,
   sidebar,
 }: {
   onChatClick: () => void;
-  project: WorkspaceAppProject;
+  projectTitle: string;
   selectedSessionId?: StoreId.Session;
   sidebar: "chat" | "files";
 }) {
   const navigate = useNavigate();
+  // Use the route subdomain for session data; project may be placeholder data
+  // from the previous project while keepPreviousData is active.
+  const subdomain = useProjectRouteSubdomain();
 
   const { data: sessions = [] } = useQuery(
     rpcClient.workspace.session.live.list.experimental_liveOptions({
-      input: { subdomain: project.subdomain },
+      input: { subdomain },
     }),
   );
 
   const isDeveloperMode = useDeveloperMode();
-  const { data: appState } = useAppState({ subdomain: project.subdomain });
+  const { data: appState } = useAppState({ subdomain });
   const sessionActors = appState?.sessionActors ?? [];
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.debug.live.replayStatusBySubdomain.experimental_liveOptions(
-      { input: isDeveloperMode ? { subdomain: project.subdomain } : skipToken },
+      { input: isDeveloperMode ? { subdomain } : skipToken },
     ),
   );
 
@@ -103,13 +103,13 @@ export function ProjectChatMenu({
     selectedSessionId && sessions.find((s) => s.id === selectedSessionId);
   const chatMenuTitle =
     selectedSessionId === undefined
-      ? project.title
+      ? projectTitle
       : (selectedSession?.title ?? "Untitled chat");
 
   const handleNewChat = () => {
     skipCloseFocusToTriggerRef.current = true;
     createEmptySession.mutate(
-      { subdomain: project.subdomain },
+      { subdomain },
       {
         onError: (error) => {
           toast.error("Failed to create new chat", {
@@ -119,7 +119,7 @@ export function ProjectChatMenu({
         onSuccess: (result) => {
           void navigate({
             params: {
-              subdomain: project.subdomain,
+              subdomain,
             },
             replace: true,
             search: (prev) => ({
@@ -138,7 +138,7 @@ export function ProjectChatMenu({
     skipCloseFocusToTriggerRef.current = true;
     void navigate({
       params: {
-        subdomain: project.subdomain,
+        subdomain,
       },
       replace: true,
       search: (prev) => ({

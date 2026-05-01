@@ -14,8 +14,8 @@ import {
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  type ProjectSubdomain,
   type StoreId,
-  type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import {
   ArrowCounterClockwiseIcon,
@@ -35,14 +35,14 @@ export function ProjectActionsMenu({
   onDebugClick,
   onReplayClick,
   onSettingsClick,
-  project,
   selectedSessionId,
+  subdomain,
 }: {
   onDebugClick: () => void;
   onReplayClick: () => void;
   onSettingsClick: () => void;
-  project: WorkspaceAppProject;
   selectedSessionId?: StoreId.Session;
+  subdomain: ProjectSubdomain;
 }) {
   const navigate = useNavigate();
   const isDeveloperMode = useDeveloperMode();
@@ -50,7 +50,7 @@ export function ProjectActionsMenu({
   const { data: favoriteSubdomains } = useQuery(
     rpcClient.favorites.live.listSubdomains.experimental_liveOptions(),
   );
-  const isFavorite = favoriteSubdomains?.includes(project.subdomain) ?? false;
+  const isFavorite = favoriteSubdomains?.includes(subdomain) ?? false;
 
   const { mutateAsync: removeFavorite } = useMutation(
     rpcClient.favorites.remove.mutationOptions(),
@@ -84,9 +84,9 @@ export function ProjectActionsMenu({
           onClick={(e) => {
             e.preventDefault();
             if (isFavorite) {
-              void removeFavorite({ subdomain: project.subdomain });
+              void removeFavorite({ subdomain });
             } else {
-              void addFavorite({ subdomain: project.subdomain });
+              void addFavorite({ subdomain });
             }
           }}
         >
@@ -100,7 +100,7 @@ export function ProjectActionsMenu({
           onClick={() => {
             void navigate({
               from: "/projects/$subdomain",
-              params: { subdomain: project.subdomain },
+              params: { subdomain },
               search: (prev) => ({ ...prev, showDuplicate: true }),
             });
           }}
@@ -136,7 +136,7 @@ export function ProjectActionsMenu({
               <ArrowCounterClockwiseIcon className="size-4 text-blue-700 dark:text-blue-300" />
               Replay chat
             </DropdownMenuItem>
-            <ProjectOpenInSubmenu project={project} />
+            <ProjectOpenInSubmenu subdomain={subdomain} />
           </>
         )}
 
@@ -146,7 +146,7 @@ export function ProjectActionsMenu({
           onSelect={() => {
             void navigate({
               from: "/projects/$subdomain",
-              params: { subdomain: project.subdomain },
+              params: { subdomain },
               search: (prev) => ({ ...prev, showDelete: true }),
             });
           }}

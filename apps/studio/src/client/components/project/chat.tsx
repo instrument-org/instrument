@@ -2,6 +2,7 @@ import { promptInputRefAtom } from "@/client/atoms/prompt-value";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useProjectRouteSubdomain } from "@/client/hooks/use-project-route-subdomain";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -45,6 +46,9 @@ export function ProjectChat({
   versionRef?: string;
 }) {
   const navigate = useNavigate();
+  // Use the route subdomain for chat data; project may be placeholder data
+  // from the previous project while keepPreviousData is active.
+  const subdomain = useProjectRouteSubdomain();
 
   const { contentRef, isNearBottom, scrollRef, scrollToBottom } =
     // Less animation when sticking to bottom
@@ -76,7 +80,7 @@ export function ProjectChat({
       input: selectedSessionId
         ? {
             sessionId: selectedSessionId,
-            subdomain: project.subdomain,
+            subdomain,
           }
         : skipToken,
       retry: 1,
@@ -93,13 +97,13 @@ export function ProjectChat({
   const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
     isReplayActive,
     sessionId: selectedSessionId,
-    subdomain: project.subdomain,
+    subdomain,
   });
 
   const { handleContinue } = useContinueSession({
     modelURI: selectedModelURI,
     sessionId: selectedSessionId,
-    subdomain: project.subdomain,
+    subdomain,
   });
 
   const handleRetry = (prompt: string) => {
@@ -115,7 +119,7 @@ export function ProjectChat({
       modelURI: selectedModelURI,
       prompt,
       sessionId: selectedSessionId,
-      subdomain: project.subdomain,
+      subdomain,
     });
   };
 
@@ -125,7 +129,7 @@ export function ProjectChat({
 
   const handleNewSession = () => {
     createEmptySessionMutation.mutate(
-      { subdomain: project.subdomain },
+      { subdomain },
       {
         onError: (error) => {
           toast.error("Failed to create new chat", {
@@ -135,7 +139,7 @@ export function ProjectChat({
         onSuccess: (result) => {
           void navigate({
             params: {
-              subdomain: project.subdomain,
+              subdomain,
             },
             replace: true,
             search: (prev) => ({
@@ -165,7 +169,7 @@ export function ProjectChat({
       >
         {selectedSessionId ? (
           isLoadingMessages ? (
-            <div className="flex justify-center py-4">
+            <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
               <Spinner className="size-4 text-muted-foreground" />
             </div>
           ) : messageError ? (
@@ -199,8 +203,8 @@ export function ProjectChat({
             </Alert>
           ) : !isAgentRunning && messages.length === 0 ? (
             <ChatZeroState
-              project={project}
               selectedSessionId={selectedSessionId}
+              subdomain={subdomain}
             />
           ) : (
             <SessionStream
@@ -218,8 +222,8 @@ export function ProjectChat({
           )
         ) : (
           <ChatZeroState
-            project={project}
             selectedSessionId={selectedSessionId}
+            subdomain={subdomain}
           />
         )}
       </div>
@@ -241,7 +245,7 @@ export function ProjectChat({
         )}
         <div className="mx-auto w-full max-w-3xl px-3 pb-3">
           <PromptInput
-            atomKey={project.subdomain}
+            atomKey={subdomain}
             autoFocus
             isLoading={createMessage.isPending}
             isStoppable={isAgentAlive}
@@ -252,7 +256,7 @@ export function ProjectChat({
               if (isReplayActive && onCancelReplay) {
                 onCancelReplay();
               } else {
-                stopSessions.mutate({ subdomain: project.subdomain });
+                stopSessions.mutate({ subdomain });
               }
             }}
             onSubmit={({ files, folders, modelURI, prompt }) => {
@@ -263,7 +267,7 @@ export function ProjectChat({
                   modelURI,
                   prompt,
                   sessionId: selectedSessionId,
-                  subdomain: project.subdomain,
+                  subdomain,
                 },
                 {
                   onSuccess: ({ sessionId }) => {
@@ -271,7 +275,7 @@ export function ProjectChat({
                     if (versionRef || showVersions) {
                       void navigate({
                         params: {
-                          subdomain: project.subdomain,
+                          subdomain,
                         },
                         replace: true,
                         search: (prev) => ({

@@ -72,7 +72,7 @@ export function ProjectToolbar({
             onChatClick={() => {
               onSidebarChange("chat");
             }}
-            project={project}
+            projectTitle={project.title}
             selectedSessionId={selectedSessionId}
             sidebar={sidebar}
           />
@@ -99,7 +99,7 @@ export function ProjectToolbar({
                   onClick={() => {
                     setDebugDialogOpen(true);
                   }}
-                  project={project}
+                  subdomain={project.subdomain}
                 />
               </div>
             )}
@@ -160,8 +160,8 @@ export function ProjectToolbar({
                   onSettingsClick={() => {
                     setSettingsDialogOpen(true);
                   }}
-                  project={project}
                   selectedSessionId={selectedSessionId}
+                  subdomain={project.subdomain}
                 />
               </div>
             )}

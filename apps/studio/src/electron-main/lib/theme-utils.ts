@@ -9,10 +9,6 @@ export function getBackgroundColor() {
 }
 
 export function getMainWindowBackgroundColor() {
-  if (process.platform === "darwin") {
-    return;
-  }
-
   return getBackgroundColor();
 }
 

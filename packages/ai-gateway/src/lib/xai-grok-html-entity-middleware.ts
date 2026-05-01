@@ -4,13 +4,23 @@ import type {
   LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
 
+import { OUR_MODELS } from "@instrument-org/shared";
+
 import { type AIGatewayModel } from "../schemas/model";
 import { decodeHtmlEntities } from "./decode-html-entities";
 
 export function shouldApplyXaiGrokHtmlEntityMiddleware(
   model: AIGatewayModel.Type,
 ) {
-  return model.author === "x-ai" && model.canonicalId.startsWith("grok-");
+  // Direct xAI grok models
+  if (model.author === "x-ai" && model.canonicalId.startsWith("grok-")) {
+    return true;
+  }
+  // Instrument auto model can use xAI grok models
+  if (model.params.provider === OUR_MODELS.providerType) {
+    return true;
+  }
+  return false;
 }
 
 function mapGenerateContent(part: LanguageModelV3Content) {

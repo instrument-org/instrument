@@ -113,6 +113,18 @@ html:has(meta[name="opaque-background"]) body {
   --color-brand-800: var(--brand-800);
   --color-brand-900: var(--brand-900);
   --color-brand-950: var(--brand-950);
+  --color-brown-25: var(--brown-25);
+  --color-brown-50: var(--brown-50);
+  --color-brown-100: var(--brown-100);
+  --color-brown-200: var(--brown-200);
+  --color-brown-300: var(--brown-300);
+  --color-brown-400: var(--brown-400);
+  --color-brown-500: var(--brown-500);
+  --color-brown-600: var(--brown-600);
+  --color-brown-700: var(--brown-700);
+  --color-brown-800: var(--brown-800);
+  --color-brown-900: var(--brown-900);
+  --color-brown-950: var(--brown-950);
 }
 
 /* =========================
@@ -213,6 +225,18 @@ html:has(meta[name="opaque-background"]) body {
   --brand-800: #9b2a19;
   --brand-900: #80291c;
   --brand-950: #461109;
+  --brown-25: #fcfbfa;
+  --brown-50: #f6f4f0;
+  --brown-100: #e8e3da;
+  --brown-200: #d4cab7;
+  --brown-300: #bbaa8e;
+  --brown-400: #a48d6a;
+  --brown-500: #937b5b;
+  --brown-600: #7c644b;
+  --brown-700: #634f3d;
+  --brown-800: #544337;
+  --brown-900: #493b33;
+  --brown-950: #291f1a;
 }
 
 /* =========================

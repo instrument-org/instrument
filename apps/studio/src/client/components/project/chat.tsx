@@ -2,7 +2,6 @@ import { promptInputRefAtom } from "@/client/atoms/prompt-value";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -27,7 +26,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
 
 export function ProjectChat({
-  isChatOnly = false,
   isReplayActive = false,
   isViewingApp = false,
   onCancelReplay,
@@ -37,7 +35,6 @@ export function ProjectChat({
   showVersions,
   versionRef,
 }: {
-  isChatOnly?: boolean;
   isReplayActive?: boolean;
   isViewingApp?: boolean;
   onCancelReplay?: () => void;
@@ -159,14 +156,11 @@ export function ProjectChat({
 
   return (
     <div
-      className="relative flex h-full flex-col overflow-y-auto"
+      className="relative flex h-full min-h-0 flex-col overflow-y-auto"
       ref={scrollRef}
     >
       <div
-        className={cn(
-          "flex w-full flex-col gap-4 p-4",
-          isChatOnly && "mx-auto max-w-3xl",
-        )}
+        className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4"
         ref={contentRef}
       >
         {selectedSessionId ? (
@@ -245,9 +239,7 @@ export function ProjectChat({
             </Button>
           </div>
         )}
-        <div
-          className={cn("w-full px-3 pb-3", isChatOnly && "mx-auto max-w-3xl")}
-        >
+        <div className="mx-auto w-full max-w-3xl px-3 pb-3">
           <PromptInput
             atomKey={project.subdomain}
             autoFocus

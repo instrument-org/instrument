@@ -20,7 +20,7 @@ import { Together } from "@/client/components/icons/together";
 import { XAI } from "@/client/components/icons/x-ai";
 import { ZAI } from "@/client/components/icons/z-ai";
 import { OpenRouter } from "@/client/components/service-icons";
-import { StudioIconGlyph } from "@/client/components/studio-icon";
+import { AppIconGlyph } from "@/client/components/studio-icon";
 import {
   Tooltip,
   TooltipContent,
@@ -61,7 +61,7 @@ const PROVIDER_ICON_MAP: Record<
   openai: SiOpenai,
   "openai-compatible": GrNodes,
   openrouter: OpenRouter,
-  [OUR_MODELS.providerType]: StudioIconGlyph,
+  [OUR_MODELS.providerType]: AppIconGlyph,
   perplexity: Perplexity,
   together: Together,
   vercel: SiVercel,

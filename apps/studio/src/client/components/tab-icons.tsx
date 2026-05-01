@@ -1,4 +1,4 @@
-import { StudioIcon } from "@/client/components/studio-icon";
+import { AppIcon } from "@/client/components/studio-icon";
 import { type TabIconName } from "@instrument-org/shared/icons";
 import {
   BugIcon,
@@ -11,13 +11,13 @@ import {
   TerminalIcon,
 } from "@phosphor-icons/react";
 
-export const IconMap: Record<TabIconName, Icon | typeof StudioIcon> = {
+export const IconMap: Record<TabIconName, Icon | typeof AppIcon> = {
   bug: BugIcon,
   "credit-card": CreditCardIcon,
   "file-text": FileTextIcon,
   "flask-conical": FlaskIcon,
   globe: GlobeIcon,
-  "our-app": StudioIcon,
+  "our-app": AppIcon,
   "table-properties": TableIcon,
   terminal: TerminalIcon,
 } as const;

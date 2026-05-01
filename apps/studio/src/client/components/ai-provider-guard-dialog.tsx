@@ -1,7 +1,7 @@
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
 import { ManualProviderButton } from "@/client/components/manual-provider-button";
-import { StudioIcon } from "@/client/components/studio-icon";
+import { AppIcon } from "@/client/components/studio-icon";
 import { TermsFooter } from "@/client/components/terms-footer";
 import {
   Dialog,
@@ -41,7 +41,7 @@ export function AIProviderGuardDialog({
         <div className="flex flex-col items-center gap-6">
           <div className="flex flex-col items-center gap-4">
             <div className="flex size-16 items-center justify-center rounded-md">
-              <StudioIcon className="size-16" />
+              <AppIcon className="size-16" />
             </div>
             <h2 className="text-center text-2xl font-bold">
               Add an AI provider

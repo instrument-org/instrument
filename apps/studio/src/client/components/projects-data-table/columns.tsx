@@ -4,7 +4,7 @@ import type {
 } from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
-import { AppIcon } from "@/client/components/app-icon";
+import { ProjectIcon } from "@/client/components/app-icon";
 import { AppStatusIcon } from "@/client/components/app-status-icon";
 import { InternalLink } from "@/client/components/internal-link";
 import { Button } from "@/client/components/ui/button";
@@ -97,7 +97,7 @@ export function createColumns({
               params={{ subdomain: project.subdomain }}
               to="/projects/$subdomain"
             >
-              <AppIcon name={project.iconName} size="sm" />
+              <ProjectIcon name={project.iconName} size="sm" />
               <span className="truncate font-medium">{project.title}</span>
               <AppStatusIcon
                 className="ml-auto size-4 shrink-0"

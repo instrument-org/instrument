@@ -1,4 +1,4 @@
-import { AppIcon } from "@/client/components/app-icon";
+import { ProjectIcon } from "@/client/components/app-icon";
 import { AppStatusIcon } from "@/client/components/app-status-icon";
 import { cn } from "@/client/lib/utils";
 import { type Tab as TabData } from "@/shared/tabs";
@@ -34,7 +34,7 @@ export const Tab = ({
   showSeparator: boolean;
 }) => {
   const iconSlot = item.iconName ? (
-    <AppIcon isSelected={isSelected} name={item.iconName} size="sm" />
+    <ProjectIcon isSelected={isSelected} name={item.iconName} size="sm" />
   ) : null;
 
   return (

@@ -46,7 +46,7 @@ export function useSyntaxHighlighting({
   );
 
   return {
-    highlightedHtml,
+    highlightedHtml: validLanguage && code ? highlightedHtml : undefined,
     isLanguageSupported: !!validLanguage,
     supportedLanguages,
   };

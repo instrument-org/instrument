@@ -65,7 +65,7 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
     // Garbage collect project atoms
     promptValueAtomFamily.remove(params.subdomain);
   },
-  beforeLoad: async ({ cause, params, search }) => {
+  beforeLoad: async ({ cause, context, params, search }) => {
     const isProjectSwitch = params.subdomain !== LAST_SUBDOMAIN;
     LAST_SUBDOMAIN = params.subdomain;
 
@@ -73,13 +73,11 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
     const needsArtifactPanelDefault =
       (cause === "enter" || isProjectSwitch) && !search.artifactPanel;
 
-    const [sessionError, sessions, isDefined] = needsSessionDefault
-      ? await safe(
-          rpcClient.workspace.session.list.call({
-            subdomain: params.subdomain,
-          }),
-        )
-      : ([null, [], false] as const);
+    const [sessionError, sessions, isDefined] = await safe(
+      rpcClient.workspace.session.list.call({
+        subdomain: params.subdomain,
+      }),
+    );
 
     if (sessionError) {
       if (isDefined && sessionError.code === "NOT_FOUND") {
@@ -89,6 +87,13 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
       // Allow route to load if not defined or not a NOT_FOUND error
       return;
     }
+
+    context.queryClient.setQueryData(
+      rpcClient.workspace.session.live.list.experimental_liveKey({
+        input: { subdomain: params.subdomain },
+      }),
+      sessions,
+    );
 
     const newestSession = sessions.at(-1);
 
@@ -100,13 +105,18 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
         )
       : ([null, false] as const);
 
-    if (newestSession || (hasModifications && needsArtifactPanelDefault)) {
+    if (
+      (needsSessionDefault && newestSession) ||
+      (hasModifications && needsArtifactPanelDefault)
+    ) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({
         params: { subdomain: params.subdomain },
         search: (prev) => ({
           ...prev,
-          ...(newestSession ? { selectedSessionId: newestSession.id } : {}),
+          ...(needsSessionDefault && newestSession
+            ? { selectedSessionId: newestSession.id }
+            : {}),
           ...(hasModifications && needsArtifactPanelDefault
             ? { artifactPanel: { type: "app" } }
             : {}),

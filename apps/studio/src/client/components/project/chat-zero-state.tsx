@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { sort } from "radashi";
 
@@ -7,17 +7,17 @@ import { InternalLink } from "../internal-link";
 
 interface ChatZeroStateProps {
   message?: string;
-  project: WorkspaceAppProject;
   selectedSessionId?: string;
+  subdomain: ProjectSubdomain;
 }
 
 export function ChatZeroState({
-  project,
   selectedSessionId,
+  subdomain,
 }: ChatZeroStateProps) {
   const { data: allSessions = [] } = useQuery(
     rpcClient.workspace.session.live.list.experimental_liveOptions({
-      input: { subdomain: project.subdomain },
+      input: { subdomain },
     }),
   );
 
@@ -40,7 +40,7 @@ export function ChatZeroState({
                   allowOpenNewTab={false}
                   className="block text-xs underline hover:text-foreground"
                   key={session.id}
-                  params={{ subdomain: project.subdomain }}
+                  params={{ subdomain }}
                   replace
                   search={(prev) => ({
                     ...prev,

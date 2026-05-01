@@ -2,7 +2,7 @@ import type {
   SupportedEditor,
   SupportedEditorId,
 } from "@/shared/schemas/editors";
-import type { WorkspaceAppProject } from "@instrument-org/workspace/client";
+import type { ProjectSubdomain } from "@instrument-org/workspace/client";
 
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
@@ -48,9 +48,9 @@ const devSubItemClass =
   "text-blue-700 focus:bg-blue-500/10 focus:text-blue-700 dark:text-blue-300 dark:focus:text-blue-300 [&_svg]:text-blue-700! dark:[&_svg]:text-blue-300!";
 
 export function ProjectOpenInSubmenu({
-  project,
+  subdomain,
 }: {
-  project: WorkspaceAppProject;
+  subdomain: ProjectSubdomain;
 }) {
   const { data: supportedEditors = [] } = useQuery<SupportedEditor[]>(
     rpcClient.utils.getSupportedEditors.queryOptions(),
@@ -87,7 +87,7 @@ export function ProjectOpenInSubmenu({
           className={devSubItemClass}
           onClick={() => {
             void openAppInMutation.mutateAsync({
-              subdomain: project.subdomain,
+              subdomain,
               type: "show-in-folder",
             });
           }}
@@ -108,7 +108,7 @@ export function ProjectOpenInSubmenu({
                   key={editor.id}
                   onClick={() => {
                     void openAppInMutation.mutateAsync({
-                      subdomain: project.subdomain,
+                      subdomain,
                       type: OpenAppInTypeSchema.parse(editor.id),
                     });
                   }}
@@ -133,7 +133,7 @@ export function ProjectOpenInSubmenu({
                   key={editor.id}
                   onClick={() => {
                     void openAppInMutation.mutateAsync({
-                      subdomain: project.subdomain,
+                      subdomain,
                       type: OpenAppInTypeSchema.parse(editor.id),
                     });
                   }}

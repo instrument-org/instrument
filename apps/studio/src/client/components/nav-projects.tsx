@@ -85,7 +85,10 @@ export function NavProjects({
     <SidebarGroup className="pr-0.5 pl-1 group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel
         asChild
-        className={cn(isActive && "text-sidebar-foreground/90")}
+        className={cn(
+          "font-semibold text-sidebar-foreground/20",
+          isActive && "text-sidebar-foreground/60",
+        )}
       >
         <InternalLink
           openInCurrentTab
@@ -112,7 +115,7 @@ export function NavProjects({
             {hasMoreFavorites && (
               <li className="px-2 pt-0.5 pb-1">
                 <InternalLink
-                  className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
+                  className="flex items-center gap-0.5 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground"
                   openInCurrentTab
                   search={{ filter: "favorites" }}
                   to="/projects"

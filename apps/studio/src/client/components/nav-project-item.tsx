@@ -142,7 +142,7 @@ export const NavProjectItem = memo(function NavProjectItem({
         <DropdownMenu onOpenChange={setIsMenuOpen} open={isMenuOpen}>
           <SidebarMenuButton
             asChild
-            className="h-9 gap-1 group-hover:bg-black/10 data-[active=true]:bg-black/15 data-[active=true]:font-normal data-[active=true]:text-foreground dark:group-hover:bg-white/10 dark:data-[active=true]:bg-white/15"
+            className="h-9 gap-1 text-sidebar-foreground/60 group-hover:bg-sidebar-accent group-hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground"
             isActive={isActive}
             onContextMenu={(e) => {
               e.preventDefault();

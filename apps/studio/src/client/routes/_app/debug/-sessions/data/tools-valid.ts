@@ -35,7 +35,58 @@ registerSession({
       },
       parts: [
         builder.textPart(
-          "I'll help you with all of that. Let me start by finding relevant files using glob.",
+          "I'll help you with all of that. Let me start by asking which framework to use.",
+          assistantMessageId,
+        ),
+        builder.toolPart(assistantMessageId, "output-available", {
+          input: {
+            choices: ["React", "Vue", "Svelte"],
+            explanation: "Ask user which frontend framework to use",
+            question: "Which frontend framework should we use?",
+          },
+          output: {
+            selectedChoice: "React",
+          },
+          type: "tool-choose",
+        }),
+        builder.textPart(
+          "Great, React it is. Let me load the relevant skill first.",
+          assistantMessageId,
+        ),
+        builder.toolPart(assistantMessageId, "output-available", {
+          input: {
+            explanation: "Load the React skill for best practices",
+            name: "react",
+          },
+          output: {
+            content:
+              '<skill_content name="react">\n# React Skill\n\nBest practices for building React applications...\n</skill_content>',
+            name: "react",
+          },
+          type: "tool-load_skill",
+        }),
+        builder.textPart(
+          "Skill loaded. Now let me launch a retrieval agent to search attached folders.",
+          assistantMessageId,
+        ),
+        builder.toolPart(assistantMessageId, "output-available", {
+          input: {
+            explanation: "Launch retrieval agent to search external folder",
+            prompt:
+              "Search the attached folder for any existing TypeScript config files and report what you find.",
+            subagent_type: "retrieval",
+          },
+          output: {
+            result:
+              "Found tsconfig.json and tsconfig.build.json in the root of the attached folder. The base config targets ES2022 with strict mode enabled.",
+            sessionId: StoreId.newSessionId(),
+            status: "done",
+            summary: "read 2 files, 1 search",
+          },
+          type: "tool-task",
+        }),
+        builder.textPart(
+          "Retrieval complete. Now let me find relevant files using glob.",
           assistantMessageId,
         ),
         builder.toolPart(assistantMessageId, "output-available", {
@@ -50,6 +101,8 @@ registerSession({
               "src/config.ts",
               "src/app.ts",
             ],
+            totalFiles: 4,
+            truncated: false,
           },
           type: "tool-glob",
         }),
@@ -155,13 +208,47 @@ registerSession({
             timeoutMs: 30_000,
           },
           output: {
-            combined:
-              "PASS src/utils/helpers.test.ts\n  helpers\n    ✓ should format date (2ms)\n    ✓ should parse JSON (1ms)\n\nTest Suites: 1 passed, 1 total\nTests:       2 passed, 2 total",
             command: "npm test -- helpers.test.ts",
             commands: ["npm"],
+            durationMs: 1200,
             exitCode: 0,
+            output:
+              "PASS src/utils/helpers.test.ts\n  helpers\n    ✓ should format date (2ms)\n    ✓ should parse JSON (1ms)\n\nTest Suites: 1 passed, 1 total\nTests:       2 passed, 2 total",
           },
           type: "tool-bash",
+        }),
+        builder.textPart(
+          "Now let me copy some files from the attached folder into the project.",
+          assistantMessageId,
+        ),
+        builder.toolPart(assistantMessageId, "output-available", {
+          input: {
+            explanation: "Copy TypeScript config from attached folder",
+            path: "/Users/user/external-project",
+            pattern: "tsconfig*.json",
+          },
+          output: {
+            errors: [],
+            files: [
+              {
+                destinationPath: "./.instrument-retrieved/tsconfig.json",
+                size: 512,
+                sourcePath: "/Users/user/external-project/tsconfig.json",
+              },
+            ],
+            truncatedCount: 0,
+            truncationReason: null,
+          },
+          type: "tool-copy_to_project",
+        }),
+        builder.textPart(
+          "Now let me try an unavailable tool to show the fallback.",
+          assistantMessageId,
+        ),
+        builder.toolPart(assistantMessageId, "output-available", {
+          input: {},
+          output: {},
+          type: "tool-unavailable",
         }),
         builder.textPart(
           "Let me search the web for the latest Vitest configuration best practices.",
@@ -241,7 +328,7 @@ registerSession({
           type: "tool-generate_image",
         }),
         builder.textPart(
-          "Perfect! I've successfully demonstrated all the tools:\n1. Found TypeScript files using glob\n2. Searched for formatDate usages with grep\n3. Ran diagnostics to find type errors\n4. Read file contents using read_file\n5. Edited the file using edit_file\n6. Created a new test file using write_file\n7. Ran tests using shell command\n8. Searched the web for best practices\n9. Generated a project icon image",
+          "Perfect! I've successfully demonstrated all the tools:\n1. Asked a multiple-choice question using choose\n2. Loaded a skill using load_skill\n3. Launched a retrieval agent using task\n4. Found TypeScript files using glob\n5. Searched for formatDate usages with grep\n6. Read file contents using read_file\n7. Edited the file using edit_file\n8. Created a new test file using write_file\n9. Ran tests using bash\n10. Copied files from an attached folder using copy_to_project\n11. Showed an unavailable tool fallback\n12. Searched the web for best practices using web_search\n13. Generated a project icon using generate_image",
           assistantMessageId,
         ),
       ],

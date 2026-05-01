@@ -1,5 +1,5 @@
 import { type HeartbeatResponse } from "@instrument-org/workspace/for-shim";
-import { FileX, Loader2 } from "lucide-react";
+import { CircleNotchIcon, FileXIcon } from "@phosphor-icons/react";
 
 import { ErrorOverlay } from "./error-overlay";
 import { RecoveryOverlay } from "./recovery-overlay";
@@ -39,7 +39,7 @@ export function Overlay({
   if (response.status === "loading") {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60">
-        <Loader2 className="size-8 animate-spin text-foreground" />
+        <CircleNotchIcon className="size-8 animate-spin text-foreground" />
       </div>
     );
   }
@@ -58,7 +58,7 @@ export function Overlay({
       <div className="fixed inset-0 flex items-center justify-center bg-background/60">
         <div className="relative max-w-2xl rounded-lg border bg-card p-8 shadow-lg">
           <div className="mb-4 flex items-center">
-            <FileX className="mr-3 size-6 text-muted-foreground" />
+            <FileXIcon className="mr-3 size-6 text-muted-foreground" />
             <h2 className="text-xl font-semibold text-card-foreground">
               {response.status === "not-runnable"
                 ? "App Not Runnable"

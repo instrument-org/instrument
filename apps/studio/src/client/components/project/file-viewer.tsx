@@ -2,7 +2,7 @@ import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { downloadFile, isFileDownloadable } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
-import { Maximize2, X } from "lucide-react";
+import { ArrowsOutSimpleIcon, XIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { FileActionsMenu, FileActionsMenuItems } from "../file-actions-menu";
@@ -78,7 +78,7 @@ export function ProjectFileViewer({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button onClick={onExpand} size="sm" variant="ghost">
-                    <Maximize2 className="size-4" />
+                    <ArrowsOutSimpleIcon className="size-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -87,7 +87,7 @@ export function ProjectFileViewer({
               </Tooltip>
             )}
             <Button onClick={onClose} size="sm" variant="ghost">
-              <X className="size-4" />
+              <XIcon className="size-4" />
             </Button>
           </div>
         </div>

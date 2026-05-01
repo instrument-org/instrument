@@ -1,4 +1,3 @@
-import { Folder } from "@/client/components/icons/folder";
 import { ShareExport } from "@/client/components/icons/share-export";
 import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
 import { Button } from "@/client/components/ui/button";
@@ -8,8 +7,8 @@ import {
   type StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
+import { FileArchiveIcon, FolderIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { FileArchive } from "lucide-react";
 import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
@@ -87,7 +86,7 @@ export function ProjectToolbar({
             size="sm"
             variant="toolbar"
           >
-            <Folder className="size-4" />
+            <FolderIcon className="size-4" />
             <span>Files</span>
           </Toggle>
 
@@ -146,7 +145,7 @@ export function ProjectToolbar({
                         setExportZipModalOpen(true);
                       }}
                     >
-                      <FileArchive className="size-4" />
+                      <FileArchiveIcon className="size-4" />
                       Export as zip
                     </DropdownMenuItem>
                   </DropdownMenuContent>

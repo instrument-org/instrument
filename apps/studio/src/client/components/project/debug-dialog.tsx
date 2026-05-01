@@ -5,8 +5,12 @@ import {
   type StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
+import {
+  ArrowLineDownIcon,
+  BracketsCurlyIcon,
+  FileTextIcon,
+} from "@phosphor-icons/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Braces, Download, FileText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { CopyButton } from "../copy-button";
@@ -140,11 +144,11 @@ export function ProjectDebugDialog({
             >
               <TabsList>
                 <TabsTrigger value="markdown">
-                  <FileText className="size-3.5" />
+                  <FileTextIcon className="size-3.5" />
                   Markdown
                 </TabsTrigger>
                 <TabsTrigger value="json">
-                  <Braces className="size-3.5" />
+                  <BracketsCurlyIcon className="size-3.5" />
                   JSON
                 </TabsTrigger>
               </TabsList>
@@ -171,7 +175,7 @@ export function ProjectDebugDialog({
               title={`Download ${tab}`}
               variant="ghost"
             >
-              <Download className="size-4" />
+              <ArrowLineDownIcon className="size-4" />
             </Button>
           </div>
           <HighlightedContent content={displayContent} language={tab} />

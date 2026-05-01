@@ -5,20 +5,20 @@ import {
   type ToolName,
 } from "@instrument-org/workspace/client";
 import {
-  BookOpen,
-  Eye,
-  FilePlus,
-  FolderInput,
-  Globe,
-  HelpCircle,
-  Image,
-  List,
-  type LucideIcon,
-  Pencil,
-  Search,
-  Terminal,
-  TriangleAlert,
-} from "lucide-react";
+  BookOpenIcon,
+  EyeIcon,
+  FileMagnifyingGlassIcon,
+  FilePlusIcon,
+  FolderSimplePlusIcon,
+  GlobeIcon,
+  type Icon,
+  ImageIcon,
+  ListMagnifyingGlassIcon,
+  PencilIcon,
+  QuestionIcon,
+  TerminalIcon,
+  WarningIcon,
+} from "@phosphor-icons/react";
 
 const TASK_DISPLAY_NAMES: Record<TaskAgentName, string> = {
   retrieval: "Retrieved",
@@ -100,20 +100,20 @@ const TOOL_FAILED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   write_file: "Failed to create file",
 };
 
-export const TOOL_ICONS: Record<ToolName, LucideIcon | undefined> = {
-  bash: Terminal,
-  choose: HelpCircle,
-  copy_to_project: FolderInput,
-  edit_file: Pencil,
-  generate_image: Image,
-  glob: List,
-  grep: Search,
-  load_skill: BookOpen,
-  read_file: Eye,
+export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
+  bash: TerminalIcon,
+  choose: QuestionIcon,
+  copy_to_project: FolderSimplePlusIcon,
+  edit_file: PencilIcon,
+  generate_image: ImageIcon,
+  glob: ListMagnifyingGlassIcon,
+  grep: FileMagnifyingGlassIcon,
+  load_skill: BookOpenIcon,
+  read_file: EyeIcon,
   task: undefined,
-  unavailable: TriangleAlert,
-  web_search: Globe,
-  write_file: FilePlus,
+  unavailable: WarningIcon,
+  web_search: GlobeIcon,
+  write_file: FilePlusIcon,
 };
 
 export function getToolLabel(toolName: ToolName): string {

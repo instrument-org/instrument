@@ -21,8 +21,8 @@
   "dependencies": {
     "@instrument-org/shared": "workspace:*",
     "@instrument-org/workspace": "workspace:*",
+    "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/postcss": "^4.1.18",
-    "lucide-react": "^0.456.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "sprintf-js": "^1.1.3",

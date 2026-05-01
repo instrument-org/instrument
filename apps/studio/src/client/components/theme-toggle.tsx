@@ -6,7 +6,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { ChevronDown, Monitor, Moon, Sun } from "lucide-react";
+import {
+  CaretDownIcon,
+  MonitorIcon,
+  MoonIcon,
+  SunIcon,
+} from "@phosphor-icons/react";
 
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme();
@@ -14,16 +19,16 @@ export function ThemeToggle() {
   const getThemeIcon = () => {
     switch (theme) {
       case "dark": {
-        return <Moon className="size-4" />;
+        return <MoonIcon className="size-4" />;
       }
       case "light": {
-        return <Sun className="size-4" />;
+        return <SunIcon className="size-4" />;
       }
       case "system": {
-        return <Monitor className="size-4" />;
+        return <MonitorIcon className="size-4" />;
       }
       default: {
-        return <Sun className="size-4" />;
+        return <SunIcon className="size-4" />;
       }
     }
   };
@@ -51,7 +56,7 @@ export function ThemeToggle() {
         <Button className="gap-2" variant="outline">
           {getThemeIcon()}
           {getThemeName()}
-          <ChevronDown className="size-4" />
+          <CaretDownIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -60,7 +65,7 @@ export function ThemeToggle() {
             setTheme("light");
           }}
         >
-          <Sun className="mr-2 size-4" />
+          <SunIcon className="mr-2 size-4" />
           Light
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -68,7 +73,7 @@ export function ThemeToggle() {
             setTheme("dark");
           }}
         >
-          <Moon className="mr-2 size-4" />
+          <MoonIcon className="mr-2 size-4" />
           Dark
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -76,7 +81,7 @@ export function ThemeToggle() {
             setTheme("system");
           }}
         >
-          <Monitor className="mr-2 size-4" />
+          <MonitorIcon className="mr-2 size-4" />
           System
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -10,14 +10,14 @@ import {
 } from "@/client/components/ui/sidebar";
 import { Toaster } from "@/client/components/ui/sonner";
 import { type StudioPath } from "@/shared/studio-path";
-import { createFileRoute, Outlet } from "@tanstack/react-router";
 import {
-  BotIcon,
   BugIcon,
   FlagIcon,
-  SettingsIcon,
+  GearIcon,
+  HardDrivesIcon,
   SlidersHorizontalIcon,
-} from "lucide-react";
+} from "@phosphor-icons/react";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { isLinux } from "../lib/utils";
@@ -42,8 +42,8 @@ function SettingsLayout() {
         >;
     title: string;
   }[] = [
-    { icon: SettingsIcon, path: "/settings", title: "General" },
-    { icon: BotIcon, path: "/settings/providers", title: "Providers" },
+    { icon: GearIcon, path: "/settings", title: "General" },
+    { icon: HardDrivesIcon, path: "/settings/providers", title: "Providers" },
     {
       icon: SlidersHorizontalIcon,
       path: "/settings/advanced",

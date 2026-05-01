@@ -1,8 +1,8 @@
 import { Button } from "@/client/components/ui/button";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
+import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export function NavControls() {
   const { mutateAsync: navigateBack } = useMutation(
@@ -38,7 +38,7 @@ export function NavControls() {
         title="Go back"
         variant="ghost"
       >
-        <ChevronLeft className="size-4" />
+        <ArrowLeftIcon className="size-4" />
       </Button>
       <Button
         className="size-6 text-muted-foreground"
@@ -47,7 +47,7 @@ export function NavControls() {
         title="Go forward"
         variant="ghost"
       >
-        <ChevronRight className="size-4" />
+        <ArrowRightIcon className="size-4" />
       </Button>
     </div>
   );

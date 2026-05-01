@@ -8,7 +8,7 @@ import {
   type StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react";
 import { type ComponentProps } from "react";
 import { z } from "zod";
 
@@ -68,7 +68,7 @@ export function ProjectSidebar({
             <div className="flex items-center justify-between border-b p-2">
               <h2 className="px-2 font-semibold">Versions</h2>
               <Button onClick={onVersionsToggle} size="icon" variant="ghost">
-                <X className="size-4" />
+                <XIcon className="size-4" />
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">

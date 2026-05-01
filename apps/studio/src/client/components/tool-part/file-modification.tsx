@@ -1,6 +1,6 @@
 import type { SessionMessagePart } from "@instrument-org/workspace/client";
 
-import { ChevronDown, Loader2Icon } from "lucide-react";
+import { CaretDownIcon } from "@phosphor-icons/react";
 import { throttle } from "radashi";
 import { useEffect, useState } from "react";
 
@@ -14,6 +14,7 @@ import { cn } from "../../lib/utils";
 import { rpcClient } from "../../rpc/client";
 import { FileIcon } from "../file-icon";
 import { useTheme } from "../theme-provider";
+import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ToolPartListItemCompact } from "./list-item-compact";
 import { ToolCard, ToolCardHeader } from "./tool-card";
@@ -111,7 +112,7 @@ export function FileModification({
       <div className="w-full">
         <div className="flex h-6 items-center px-1">
           <ToolPartListItemCompact
-            icon={<Loader2Icon className="size-3 animate-spin" />}
+            icon={<Spinner className="size-3" />}
             label={getToolStreamingLabel(toolName, !!filename)}
             labelClassName="shiny-text"
             reasoning={reasoning}
@@ -152,14 +153,14 @@ export function FileModification({
         }
       >
         {isStreaming ? (
-          <Loader2Icon className="size-3 shrink-0 animate-spin text-accent-foreground/80" />
+          <Spinner className="size-3 shrink-0 text-accent-foreground/80" />
         ) : (
           <span className="relative size-3 shrink-0">
             <FileIcon
               className="size-3 transition-opacity group-hover:opacity-0"
               filename={filename || "file"}
             />
-            <ChevronDown
+            <CaretDownIcon
               className={cn(
                 "absolute inset-0 size-3 text-muted-foreground opacity-0 transition-[opacity,transform] group-hover:opacity-100",
                 isExpanded && "rotate-180",

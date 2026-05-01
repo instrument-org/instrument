@@ -18,16 +18,15 @@ import {
   type ProjectSubdomain,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
-import { useMutation } from "@tanstack/react-query";
 import {
-  ArrowUpRight,
-  Copy,
-  Edit2,
-  MoreVertical,
-  Star,
-  StarOff,
+  ArrowUpRightIcon,
+  CopyIcon,
+  DotsThreeOutlineVerticalIcon,
+  PencilSimpleLineIcon,
+  StarIcon,
   TrashIcon,
-} from "lucide-react";
+} from "@phosphor-icons/react";
+import { useMutation } from "@tanstack/react-query";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { AppStatusIcon } from "./app-status-icon";
@@ -173,7 +172,7 @@ export const NavProjectItem = memo(function NavProjectItem({
 
           <DropdownMenuTrigger asChild>
             <SidebarMenuAction showOnHover>
-              <MoreVertical />
+              <DotsThreeOutlineVerticalIcon weight="fill" />
               <span className="sr-only">More</span>
             </SidebarMenuAction>
           </DropdownMenuTrigger>
@@ -183,15 +182,23 @@ export const NavProjectItem = memo(function NavProjectItem({
             className="w-56 rounded-lg"
             side="bottom"
           >
-            <DropdownMenuItem
-              onClick={() => {
-                onOpenInNewTab(project.subdomain);
-              }}
-            >
-              <ArrowUpRight className="text-muted-foreground" />
-              <span>Open in new tab</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {(isFavorites || !isFavorited) && (
+              <DropdownMenuItem
+                onClick={() => {
+                  if (isFavorites && onRemoveFavorite) {
+                    onRemoveFavorite(project.subdomain);
+                  } else {
+                    void handleAddFavorite();
+                  }
+                }}
+              >
+                <StarIcon
+                  className="text-muted-foreground"
+                  weight={isFavorites ? "fill" : undefined}
+                />
+                <span>{isFavorites ? "Remove favorite" : "Favorite"}</span>
+              </DropdownMenuItem>
+            )}
             <InternalLink
               openInCurrentTab
               params={{ subdomain: project.subdomain }}
@@ -199,34 +206,24 @@ export const NavProjectItem = memo(function NavProjectItem({
               to="/projects/$subdomain"
             >
               <DropdownMenuItem>
-                <Copy className="text-muted-foreground" />
+                <CopyIcon className="text-muted-foreground" />
                 <span>Duplicate</span>
               </DropdownMenuItem>
             </InternalLink>
             <DropdownMenuItem onClick={handleStartEdit}>
-              <Edit2 className="text-muted-foreground" />
+              <PencilSimpleLineIcon className="text-muted-foreground" />
               <span>Rename</span>
             </DropdownMenuItem>
-            {isFavorites && onRemoveFavorite && (
-              <DropdownMenuItem
-                onClick={() => {
-                  onRemoveFavorite(project.subdomain);
-                }}
-              >
-                <StarOff className="text-muted-foreground" />
-                <span>Remove favorite</span>
-              </DropdownMenuItem>
-            )}
-            {!isFavorites && !isFavorited && (
-              <DropdownMenuItem
-                onClick={() => {
-                  void handleAddFavorite();
-                }}
-              >
-                <Star className="text-muted-foreground" />
-                <span>Favorite</span>
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                onOpenInNewTab(project.subdomain);
+              }}
+            >
+              <ArrowUpRightIcon className="text-muted-foreground" />
+              <span>Open in new tab</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <InternalLink
               openInCurrentTab
               params={{ subdomain: project.subdomain }}

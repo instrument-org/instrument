@@ -3,7 +3,6 @@ import {
   type SessionMessagePart,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
-import { Loader2Icon } from "lucide-react";
 import { sift } from "radashi";
 import { useState } from "react";
 
@@ -21,6 +20,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
+import { Spinner } from "../ui/spinner";
 import { DeveloperModeBadge } from "./developer-mode-badge";
 import { ToolPartExpanded } from "./expanded";
 import { FileModification } from "./file-modification";
@@ -192,7 +192,7 @@ export function ToolPart({
     <ToolPartListItemCompact
       icon={
         isStreaming ? (
-          <Loader2Icon className="size-3 animate-spin" />
+          <Spinner className="size-3" />
         ) : isFailed ? undefined : (
           <ToolIcon className="size-3" toolName={toolName} />
         )

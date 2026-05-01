@@ -1,9 +1,14 @@
 import { AppIcon } from "@/client/components/app-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import {
+  CalendarIcon,
+  ChatTextIcon,
+  ClockIcon,
+  FileTextIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { Calendar, Clock, FileText, MessageSquare } from "lucide-react";
 
 export function ProjectStatsCard({
   project,
@@ -31,11 +36,11 @@ export function ProjectStatsCard({
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <Calendar className="size-3" />
+            <CalendarIcon className="size-3" />
             <span>Created {format(project.createdAt, "MMM d, yyyy")}</span>
           </div>
           <div className="flex items-center gap-1">
-            <Clock className="size-3" />
+            <ClockIcon className="size-3" />
             <span>
               Updated{" "}
               {formatDistanceToNow(project.updatedAt, { addSuffix: true })
@@ -45,7 +50,7 @@ export function ProjectStatsCard({
           </div>
           {messageCount !== undefined && messageCount > 0 && (
             <div className="flex items-center gap-1">
-              <MessageSquare className="size-3" />
+              <ChatTextIcon className="size-3" />
               <span>
                 {messageCount} {messageCount === 1 ? "message" : "messages"}
               </span>
@@ -55,7 +60,7 @@ export function ProjectStatsCard({
             filesAddedCount !== undefined &&
             filesAddedCount > 0 && (
               <div className="flex items-center gap-1">
-                <FileText className="size-3" />
+                <FileTextIcon className="size-3" />
                 <span>
                   {filesAddedCount} {filesAddedCount === 1 ? "file" : "files"}{" "}
                   added

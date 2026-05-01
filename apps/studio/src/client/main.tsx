@@ -1,20 +1,27 @@
 import { ThemeProvider } from "@/client/components/theme-provider";
 import { queryClient, router } from "@/client/router";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { IconContext, type IconProps } from "@phosphor-icons/react";
 
 import "./styles/app.css";
 
+import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import { TelemetryProvider } from "./providers/telemetry";
+
+const IconContextValue: IconProps = {
+  weight: "bold",
+};
 
 export function Main() {
   return (
     <TelemetryProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <RouterProvider router={router} />
+          <IconContext.Provider value={IconContextValue}>
+            <RouterProvider router={router} />
+          </IconContext.Provider>
         </ThemeProvider>
       </QueryClientProvider>
     </TelemetryProvider>

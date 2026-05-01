@@ -17,18 +17,17 @@ import {
   type StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
+import {
+  ArrowCounterClockwiseIcon,
+  BugIcon,
+  CopyIcon,
+  DotsThreeOutlineVerticalIcon,
+  PencilSimpleLineIcon,
+  StarIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  Bug,
-  Copy,
-  MoreVertical,
-  Pencil,
-  RotateCcw,
-  Star,
-  StarOff,
-  TrashIcon,
-} from "lucide-react";
 
 import { ProjectOpenInSubmenu } from "./open-in-submenu";
 
@@ -73,14 +72,30 @@ export function ProjectActionsMenu({
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost">
-              <MoreVertical className="size-4" />
+            <Button size="icon-sm" variant="ghost">
+              <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent>Project actions</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" side="bottom">
+        <DropdownMenuItem
+          onClick={(e) => {
+            e.preventDefault();
+            if (isFavorite) {
+              void removeFavorite({ subdomain: project.subdomain });
+            } else {
+              void addFavorite({ subdomain: project.subdomain });
+            }
+          }}
+        >
+          <StarIcon
+            className="text-muted-foreground"
+            weight={isFavorite ? "fill" : undefined}
+          />
+          <span>{isFavorite ? "Remove favorite" : "Favorite"}</span>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             void navigate({
@@ -90,35 +105,13 @@ export function ProjectActionsMenu({
             });
           }}
         >
-          <Copy className="size-4" />
+          <CopyIcon className="size-4" />
           <span>Duplicate</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onSettingsClick}>
-          <Pencil className="size-4" />
+          <PencilSimpleLineIcon className="size-4" />
           <span>Rename</span>
         </DropdownMenuItem>
-
-        {isFavorite ? (
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault();
-              void removeFavorite({ subdomain: project.subdomain });
-            }}
-          >
-            <StarOff className="text-muted-foreground" />
-            <span>Remove favorite</span>
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault();
-              void addFavorite({ subdomain: project.subdomain });
-            }}
-          >
-            <Star className="text-muted-foreground" />
-            <span>Favorite</span>
-          </DropdownMenuItem>
-        )}
 
         {isDeveloperMode && (
           <>
@@ -128,7 +121,7 @@ export function ProjectActionsMenu({
               disabled={!selectedSessionId}
               onClick={handleDebugChat}
             >
-              <Bug className="size-4 text-warning-foreground" />
+              <BugIcon className="size-4 text-warning-foreground" />
               Debug chat
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -140,7 +133,7 @@ export function ProjectActionsMenu({
                 }
               }}
             >
-              <RotateCcw className="size-4 text-warning-foreground" />
+              <ArrowCounterClockwiseIcon className="size-4 text-warning-foreground" />
               Replay chat
             </DropdownMenuItem>
             <ProjectOpenInSubmenu project={project} />

@@ -15,8 +15,8 @@ import {
   getToolNameByType,
   isToolPart,
 } from "@instrument-org/workspace/client";
+import { BrainIcon, ChatTextIcon, QuestionIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Brain, HelpCircle, MessageSquare } from "lucide-react";
 
 export function SessionStatusPreview({
   subdomain,
@@ -97,10 +97,10 @@ function SessionStatusText({
   if (latestPart.type === "text") {
     const textContent = latestPart.text.trim();
     displayText = textContent;
-    Icon = MessageSquare;
+    Icon = ChatTextIcon;
   } else if (isToolPart(latestPart)) {
     const toolName = getToolNameByType(latestPart.type);
-    Icon = TOOL_ICONS[toolName] ?? HelpCircle;
+    Icon = TOOL_ICONS[toolName] ?? QuestionIcon;
 
     if (latestPart.state === "output-available") {
       displayText = getToolLabel(toolName);
@@ -114,7 +114,7 @@ function SessionStatusText({
     displayText = "Done";
   } else if (latestPart.type === "reasoning") {
     displayText = isAgentAlive ? "Thinking" : "Thought";
-    Icon = Brain;
+    Icon = BrainIcon;
     shouldAnimate = isAgentAlive;
   } else {
     displayText = `[${latestPart.type}]`;

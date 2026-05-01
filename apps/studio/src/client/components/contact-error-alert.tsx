@@ -1,5 +1,5 @@
 import { SUPPORT_URL } from "@instrument-org/shared";
-import { AlertCircle } from "lucide-react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 
 import { ExternalLink } from "./external-link";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -18,7 +18,7 @@ export function ContactErrorAlert({
 }) {
   return (
     <Alert className={className} variant="destructive">
-      <AlertCircle className="size-4" />
+      <WarningCircleIcon className="size-4" />
       <div className="col-start-2 flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <AlertTitle>{title}</AlertTitle>

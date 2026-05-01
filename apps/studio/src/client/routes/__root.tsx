@@ -10,9 +10,9 @@ import {
   Outlet,
   useRouterState,
 } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useCallback } from "react";
 
+import { Spinner } from "../components/ui/spinner";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { useReload } from "../hooks/use-reload";
 
@@ -38,7 +38,7 @@ function PendingComponent() {
   return (
     <Root>
       <div className="flex h-dvh items-center justify-center">
-        <Loader2 className="size-8 animate-spin" />
+        <Spinner className="size-8" />
       </div>
     </Root>
   );

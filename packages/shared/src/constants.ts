@@ -1,6 +1,5 @@
 export const AI_GATEWAY_API_PATH = "/ai-gateway";
 export const APP_NAME = "Instrument";
-export const APP_AGENT_NAME = "Instrument";
 export const APP_NAME_SLUG = "instrument";
 export const APP_UPDATER_CACHE_DIR_NAME = `${APP_NAME_SLUG}-desktop-updater`;
 export const APP_PROTOCOL =

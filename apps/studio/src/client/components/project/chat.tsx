@@ -5,14 +5,15 @@ import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   type StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
+import { CaretDownIcon } from "@phosphor-icons/react";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { ChevronDown, Loader2 } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
@@ -21,6 +22,7 @@ import { PromptInput } from "../prompt-input";
 import { SessionStream } from "../session-stream";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
+import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
 
@@ -170,7 +172,7 @@ export function ProjectChat({
         {selectedSessionId ? (
           isLoadingMessages ? (
             <div className="flex justify-center py-4">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              <Spinner className="size-4 text-muted-foreground" />
             </div>
           ) : messageError ? (
             <Alert className="mt-4" variant="warning">
@@ -239,7 +241,7 @@ export function ProjectChat({
               size="icon"
               variant="secondary"
             >
-              <ChevronDown className="size-3" />
+              <CaretDownIcon className="size-3" />
             </Button>
           </div>
         )}
@@ -293,7 +295,7 @@ export function ProjectChat({
                 },
               );
             }}
-            placeholder="Type, paste, or drop some files here…"
+            placeholder={`Talk to ${APP_NAME}`}
           />
         </div>
       </div>

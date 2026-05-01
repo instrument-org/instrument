@@ -10,8 +10,8 @@ import {
 } from "@/client/components/ui/card";
 import { createIconMeta } from "@/shared/tabs";
 import { SUPPORT_URL } from "@instrument-org/shared";
+import { CheckCircleIcon, XCircleIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CheckCircle2, XCircle } from "lucide-react";
 import { z } from "zod";
 
 const checkoutSearchSchema = z.object({
@@ -44,7 +44,7 @@ function CheckoutPage() {
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <div className="mb-4 flex justify-center">
-              <CheckCircle2 className="size-12 text-green-500" />
+              <CheckCircleIcon className="size-12 text-green-500" />
             </div>
             <CardTitle className="text-2xl">Payment Successful!</CardTitle>
           </CardHeader>
@@ -74,7 +74,7 @@ function CheckoutPage() {
         <Card className="w-full max-w-md text-center">
           <CardHeader>
             <div className="mb-4 flex justify-center">
-              <XCircle className="size-12 text-red-500" />
+              <XCircleIcon className="size-12 text-red-500" />
             </div>
             <CardTitle className="text-2xl">Payment Canceled</CardTitle>
             <CardDescription>

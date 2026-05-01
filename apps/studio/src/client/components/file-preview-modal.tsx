@@ -4,10 +4,10 @@ import {
 } from "@/client/atoms/file-preview";
 import { getFileType } from "@/client/lib/get-file-type";
 import { formatBytes } from "@instrument-org/workspace/client";
+import { XIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
-import { X } from "lucide-react";
 import { useEffect } from "react";
 
 import { FileIcon } from "./file-icon";
@@ -89,7 +89,7 @@ export function FilePreviewModal() {
                   size="sm"
                   variant="ghost"
                 >
-                  <X className="size-4" />
+                  <XIcon className="size-4" />
                 </Button>
               </div>
             </div>

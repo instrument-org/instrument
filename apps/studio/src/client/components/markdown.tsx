@@ -1,6 +1,6 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
+import { ImageIcon } from "@phosphor-icons/react";
 import { useSetAtom } from "jotai";
-import { ImageIcon } from "lucide-react";
 import { memo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";

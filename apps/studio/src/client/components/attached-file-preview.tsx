@@ -1,5 +1,5 @@
 import { formatBytes } from "@instrument-org/workspace/client";
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react";
 
 import { AttachedItemPreview } from "./attached-item-preview";
 import { FileIcon } from "./file-icon";
@@ -59,7 +59,7 @@ export function AttachedFilePreview({
                 onClick={onRemove}
                 type="button"
               >
-                <X className="size-3" />
+                <XIcon className="size-3" />
               </button>
             )}
           </div>

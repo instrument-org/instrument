@@ -6,8 +6,8 @@ import {
   type StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { AlertTriangle } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import { cn } from "../lib/utils";
@@ -455,7 +455,7 @@ export function SessionStream({
 
       {shouldShowContinueButton && (
         <Alert className="mt-4" variant="warning">
-          <AlertTriangle />
+          <WarningIcon />
           <AlertDescription className="flex flex-col gap-3">
             <div className="text-xs">
               Agent was stopped due to reaching maximum unattended steps.

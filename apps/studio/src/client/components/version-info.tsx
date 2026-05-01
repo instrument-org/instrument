@@ -1,8 +1,8 @@
 import { type ProjectSubdomain } from "@instrument-org/workspace/client";
+import { GitCommitIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import ColorHash from "color-hash";
-import { GitCommitVertical } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { rpcClient } from "../rpc/client";
@@ -192,7 +192,7 @@ export function VersionHeader({
 
   return (
     <div className="flex items-center gap-1.5">
-      <GitCommitVertical
+      <GitCommitIcon
         className="-mx-1 size-4.5 shrink-0"
         style={{ color: hashColor }}
       />
@@ -234,7 +234,7 @@ export function VersionRef({
   if (isLoading) {
     return (
       <span className={`inline-flex items-center gap-2 ${className}`}>
-        <GitCommitVertical
+        <GitCommitIcon
           className={`${iconSizeClass} -me-1 shrink-0`}
           style={{ color: hashColor }}
         />
@@ -246,7 +246,7 @@ export function VersionRef({
 
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
-      <GitCommitVertical
+      <GitCommitIcon
         className={`${iconSizeClass} -me-1 shrink-0`}
         style={{ color: hashColor }}
       />

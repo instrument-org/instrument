@@ -12,6 +12,7 @@ import {
 import { createColumns } from "@/client/components/projects-data-table/columns";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
+import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import {
   Tooltip,
@@ -34,9 +35,9 @@ import {
   type ProjectSubdomain,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
+import { StopCircleIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { Circle, Loader2, Square, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -472,7 +473,7 @@ function RouteComponent() {
 
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              <Spinner className="size-6 text-muted-foreground" />
             </div>
           ) : isBulkDeleting || isSingleDeleting ? (
             <div className="flex flex-col items-center justify-center gap-y-4 rounded-md border bg-muted/20 py-12">
@@ -492,10 +493,7 @@ function RouteComponent() {
                     size="sm"
                     variant="outline"
                   >
-                    <div className="relative flex items-center justify-center">
-                      <Circle className="size-4" />
-                      <Square className="absolute inset-0 m-auto size-1.5 fill-current" />
-                    </div>
+                    <StopCircleIcon className="size-4" />
                     Stop
                   </Button>
                   <Button
@@ -504,7 +502,7 @@ function RouteComponent() {
                     size="sm"
                     variant="outline"
                   >
-                    <Trash2 className="size-4" />
+                    <TrashIcon className="size-4" />
                     Delete
                   </Button>
                 </>

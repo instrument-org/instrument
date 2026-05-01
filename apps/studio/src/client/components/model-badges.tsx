@@ -4,15 +4,15 @@ import { StudioIconGlyph } from "@/client/components/studio-icon";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
-  AudioLines,
-  Hourglass,
-  Image,
-  type LucideIcon,
-  Target,
-  TextCursorInput,
-  Video,
-  Wrench,
-} from "lucide-react";
+  CrosshairIcon,
+  HourglassIcon,
+  type Icon,
+  ImageIcon,
+  TextTSlashIcon,
+  VideoCameraIcon,
+  WaveformIcon,
+  WrenchIcon,
+} from "@phosphor-icons/react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -61,7 +61,7 @@ const iconVariants = tv({
 
 interface BadgeConfig {
   color?: VariantProps<typeof iconVariants>["color"];
-  icon: ComponentType<{ className?: string }> | LucideIcon;
+  icon: ComponentType<{ className?: string }> | Icon;
   key: string;
   shouldShow: (model: AIGatewayModel.Type) => boolean;
   tooltip: string;
@@ -76,46 +76,46 @@ const BADGE_CONFIGS: BadgeConfig[] = [
     tooltip: "A recently released model",
   },
   {
-    icon: Target,
+    icon: CrosshairIcon,
     key: "exacto",
     shouldShow: (model) => model.tags.includes("exacto"),
     tooltip: "OpenRouter Exacto variant with higher tool-calling accuracy",
   },
   {
-    icon: Image,
+    icon: ImageIcon,
     key: "image",
     shouldShow: (model) => model.features.includes("inputImage"),
     tooltip: "This model can view images",
   },
   {
-    icon: Video,
+    icon: VideoCameraIcon,
     key: "video",
     shouldShow: (model) => model.features.includes("inputVideo"),
     tooltip: "This model can view videos",
   },
   {
-    icon: AudioLines,
+    icon: WaveformIcon,
     key: "audio",
     shouldShow: (model) => model.features.includes("inputAudio"),
     tooltip: "This model can listen to audio",
   },
   {
     color: "warning",
-    icon: Hourglass,
+    icon: HourglassIcon,
     key: "legacy",
     shouldShow: (model) => model.tags.includes("legacy"),
     tooltip: "This model is older and has been superseded by newer models",
   },
   {
     color: "destructive",
-    icon: TextCursorInput,
+    icon: TextTSlashIcon,
     key: "no-text",
     shouldShow: (model) => !model.features.includes("inputText"),
     tooltip: "This model cannot process text prompts",
   },
   {
     color: "destructive",
-    icon: Wrench,
+    icon: WrenchIcon,
     key: "no-tools",
     shouldShow: (model) => !model.features.includes("tools"),
     tooltip: "This model cannot use tools to perform actions",

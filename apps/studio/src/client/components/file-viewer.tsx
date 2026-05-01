@@ -2,8 +2,13 @@ import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { downloadFile, isFileDownloadable } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { getFileType } from "@/client/lib/get-file-type";
+import {
+  ArrowsOutSimpleIcon,
+  CodeIcon,
+  EyeIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Code2, Eye, Loader2, Maximize2, X } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { tv } from "tailwind-variants";
@@ -17,6 +22,7 @@ import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
+import { Spinner } from "./ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -36,7 +42,7 @@ function MarkdownPreview({ url }: { url: string }) {
   if (isLoading) {
     return (
       <div className="flex size-full items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        <Spinner className="size-8 text-muted-foreground" />
       </div>
     );
   }
@@ -89,7 +95,7 @@ function TextView({
   if (isLoading) {
     return (
       <div className="flex size-full items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        <Spinner className="size-8 text-muted-foreground" />
       </div>
     );
   }
@@ -211,7 +217,7 @@ export function FileViewer({
       <Tooltip key="expand">
         <TooltipTrigger asChild>
           <Button onClick={onExpand} size="sm" variant="ghost">
-            <Maximize2 className="size-4" />
+            <ArrowsOutSimpleIcon className="size-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -223,7 +229,7 @@ export function FileViewer({
 
   toolbarActions.push(
     <Button key="close" onClick={onClose} size="sm" variant="ghost">
-      <X className="size-4" />
+      <XIcon className="size-4" />
     </Button>,
   );
 
@@ -271,11 +277,11 @@ export function FileViewer({
             >
               <TabsList>
                 <TabsTrigger value="preview">
-                  <Eye className="size-4" />
+                  <EyeIcon className="size-4" />
                   Preview
                 </TabsTrigger>
                 <TabsTrigger value="raw">
-                  <Code2 className="size-4" />
+                  <CodeIcon className="size-4" />
                   Code
                 </TabsTrigger>
               </TabsList>

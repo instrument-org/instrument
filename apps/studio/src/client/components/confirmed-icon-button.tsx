@@ -1,5 +1,4 @@
-import { Check } from "lucide-react";
-import { type LucideIcon } from "lucide-react";
+import { CheckIcon, type Icon } from "@phosphor-icons/react";
 import { type ComponentProps, useState } from "react";
 
 import { Button } from "./ui/button";
@@ -15,7 +14,7 @@ export function ConfirmedIconButton({
   variant = "ghost",
   ...buttonProps
 }: ComponentProps<typeof Button> & {
-  icon: LucideIcon;
+  icon: Icon;
   successTooltip?: string;
   tooltip: string;
 }) {
@@ -40,7 +39,7 @@ export function ConfirmedIconButton({
           {...buttonProps}
         >
           {actionState === "success" ? (
-            <Check className="size-3.5" />
+            <CheckIcon className="size-3.5" />
           ) : (
             <Icon className="size-3.5" />
           )}

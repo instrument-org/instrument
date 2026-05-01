@@ -22,6 +22,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/client/components/ui/command";
+import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { Textarea } from "@/client/components/ui/textarea";
 import { useHasPlan } from "@/client/hooks/use-has-plan";
@@ -38,11 +39,11 @@ import { createIconMeta } from "@/shared/tabs";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { EVAL_SUBDOMAIN_PREFIX } from "@instrument-org/shared";
 import { type AIProviderType } from "@instrument-org/shared";
+import { XIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { Loader2, X } from "lucide-react";
 import { sift } from "radashi";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -315,7 +316,7 @@ function RouteComponent() {
   if (modelsIsLoading || evalTemplateGroupsIsLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="size-8 animate-spin" />
+        <Spinner className="size-8" />
       </div>
     );
   }
@@ -612,7 +613,7 @@ function RouteComponent() {
                               }}
                               type="button"
                             >
-                              <X className="size-3 text-muted-foreground" />
+                              <XIcon className="size-3 text-muted-foreground" />
                             </button>
                           </div>
                         ))}
@@ -646,7 +647,7 @@ function RouteComponent() {
                                 }}
                                 type="button"
                               >
-                                <X className="size-3 text-muted-foreground" />
+                                <XIcon className="size-3 text-muted-foreground" />
                               </button>
                             </div>
                           ))}

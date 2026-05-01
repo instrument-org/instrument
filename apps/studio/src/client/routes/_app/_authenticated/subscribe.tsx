@@ -4,6 +4,7 @@ import { StudioIcon } from "@/client/components/studio-icon";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
+import { Spinner } from "@/client/components/ui/spinner";
 import { Switch } from "@/client/components/ui/switch";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
@@ -11,9 +12,9 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME, SALES_EMAIL } from "@instrument-org/shared";
+import { CheckCircleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { tv } from "tailwind-variants";
@@ -216,7 +217,7 @@ function SubscribePage() {
 
         {(isPlansLoading || isSubscriptionLoading) && (
           <div className="flex justify-center py-12">
-            <Loader2 className="size-8 animate-spin" />
+            <Spinner className="size-8" />
           </div>
         )}
 
@@ -367,7 +368,7 @@ function SubscribePage() {
                         variant={variant}
                       >
                         {showCheckmark && (
-                          <CheckCircle2 className={cn("size-4")} />
+                          <CheckCircleIcon className={cn("size-4")} />
                         )}
                         {buttonText}
                       </Button>

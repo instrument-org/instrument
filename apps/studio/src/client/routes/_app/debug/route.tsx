@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_app/debug")({
       {
         title: "Debug",
       },
-      createIconMeta("terminal"),
+      createIconMeta("bug"),
     ],
   }),
 });

@@ -1,6 +1,6 @@
 import { cn } from "@/client/lib/utils";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { ChevronUp } from "lucide-react";
+import { CaretUpIcon } from "@phosphor-icons/react";
 import { debounce } from "radashi";
 import { memo, useEffect, useRef, useState } from "react";
 
@@ -96,7 +96,7 @@ export const UserMessage = memo(function UserMessage({
               title="Click to collapse"
             >
               <span>Collapse</span>
-              <ChevronUp className="size-3" />
+              <CaretUpIcon className="size-3" />
             </div>
           </CollapsibleContent>
         </Collapsible>

@@ -1,6 +1,5 @@
 import { promptInputRefAtom } from "@/client/atoms/prompt-value";
 import { SessionStatusIcon } from "@/client/components/app-status-icon";
-import { ChatsCircle } from "@/client/components/icons/chats-circle";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -29,10 +28,16 @@ import {
   StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
+import {
+  CaretDownIcon,
+  ChatCircleIcon,
+  ChatsCircleIcon,
+  CheckIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { Check, ChevronDown, MessageCircle, Plus } from "lucide-react";
 import { useRef } from "react";
 import { toast } from "sonner";
 
@@ -154,9 +159,9 @@ export function ProjectChatMenu({
       onClick={sidebar === "files" ? onChatClick : undefined}
       variant="ghost"
     >
-      <ChatsCircle className="size-4 shrink-0" />
+      <ChatsCircleIcon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{chatMenuTitle}</span>
-      <ChevronDown className="size-3 shrink-0" />
+      <CaretDownIcon className="size-3 shrink-0" />
     </Button>
   );
 
@@ -186,7 +191,7 @@ export function ProjectChatMenu({
                 disabled={createEmptySession.isPending}
                 onClick={handleNewChat}
               >
-                <Plus className="size-4" />
+                <PlusIcon className="size-4" />
                 <span>New Chat</span>
               </DropdownMenuItem>
             </TooltipTrigger>
@@ -275,12 +280,12 @@ function ProjectChatMenuSessionRadioItem({
           tags={tags}
         />
       ) : (
-        <MessageCircle className="size-4 shrink-0 text-muted-foreground" />
+        <ChatCircleIcon className="size-4 shrink-0 text-muted-foreground" />
       )}
       <span className="min-w-0 flex-1 truncate">
         {session.title || "Untitled chat"}
       </span>
-      <Check className="ml-auto size-4 shrink-0 text-muted-foreground opacity-0 group-data-[state=checked]:opacity-100" />
+      <CheckIcon className="ml-auto size-4 shrink-0 text-muted-foreground opacity-0 group-data-[state=checked]:opacity-100" />
     </DropdownMenuRadioItem>
   );
 }

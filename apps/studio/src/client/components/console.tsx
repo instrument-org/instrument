@@ -1,8 +1,14 @@
 import { cn } from "@/client/lib/utils";
 import { type ConsoleLogType } from "@instrument-org/shared/shim";
 import { type WorkspaceApp } from "@instrument-org/workspace/client";
+import {
+  CaretDownIcon,
+  ChatTextIcon,
+  CopyIcon,
+  TrashIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { useSetAtom } from "jotai";
-import { ChevronDown, Copy, MessageSquare, Trash, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
@@ -127,7 +133,7 @@ export function Console({
                 size="icon"
                 variant="ghost"
               >
-                <Trash className="size-4" />
+                <TrashIcon className="size-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -140,7 +146,7 @@ export function Console({
             size="icon"
             variant="ghost"
           >
-            <X />
+            <XIcon />
           </Button>
         </div>
       </div>
@@ -173,7 +179,7 @@ export function Console({
           onClick={() => scrollToBottom()}
           variant="secondary"
         >
-          <ChevronDown className="size-2" />
+          <CaretDownIcon className="size-2" />
         </Button>
       )}
     </div>
@@ -262,7 +268,7 @@ function ConsoleRow({
         {app.type === "project" && (
           <ConfirmedIconButton
             className="size-5 border border-border/50 bg-background hover:bg-accent! dark:hover:bg-accent!"
-            icon={MessageSquare}
+            icon={ChatTextIcon}
             onClick={handleSendToChat}
             successTooltip="Sent to chat!"
             tooltip="Send to chat"
@@ -272,7 +278,7 @@ function ConsoleRow({
 
         <ConfirmedIconButton
           className="size-5 border border-border/50 bg-background hover:bg-accent! dark:hover:bg-accent!"
-          icon={Copy}
+          icon={CopyIcon}
           onClick={handleCopy}
           successTooltip="Copied!"
           tooltip="Copy"

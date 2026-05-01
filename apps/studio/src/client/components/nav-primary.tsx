@@ -7,8 +7,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
+import { type Icon } from "@phosphor-icons/react";
 import { type LinkProps } from "@tanstack/react-router";
-import { type LucideIcon } from "lucide-react";
 import React from "react";
 
 export function NavPrimary({
@@ -17,7 +17,7 @@ export function NavPrimary({
 }: React.ComponentPropsWithoutRef<typeof SidebarGroup> & {
   items: {
     badge?: React.ReactNode;
-    icon: LucideIcon;
+    icon: Icon;
     isActive?: boolean;
     isWarning?: boolean;
     title: string;

@@ -1,7 +1,7 @@
-import { Check, Copy } from "lucide-react";
-import { memo, useState } from "react";
+import { useTimedFlag } from "@/client/hooks/use-timed-flag";
+import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 
-export const CopyButton = memo(function CopyButton({
+export function CopyButton({
   className,
   disabled,
   iconSize = 16,
@@ -13,18 +13,14 @@ export const CopyButton = memo(function CopyButton({
   iconSize?: number;
   onCopy: () => Promise<void> | void;
 }) {
-  const [showCheck, setShowCheck] = useState(false);
+  const { active: showCheck, trigger } = useTimedFlag();
 
   const handleClick = async () => {
-    if (showCheck || disabled) {
+    if (disabled) {
       return;
     }
-
     await onCopy();
-    setShowCheck(true);
-    setTimeout(() => {
-      setShowCheck(false);
-    }, 2000);
+    trigger();
   };
 
   return (
@@ -32,10 +28,10 @@ export const CopyButton = memo(function CopyButton({
       {...props}
       aria-label="Copy"
       className={className}
-      disabled={disabled || showCheck}
-      onClick={handleClick}
+      disabled={disabled}
+      onClick={() => void handleClick()}
     >
-      {showCheck ? <Check size={iconSize} /> : <Copy size={iconSize} />}
+      {showCheck ? <CheckIcon size={iconSize} /> : <CopyIcon size={iconSize} />}
     </button>
   );
-});
+}

@@ -1,5 +1,5 @@
 import { safe } from "@orpc/client";
-import { FolderClosed } from "lucide-react";
+import { FolderSimpleIcon } from "@phosphor-icons/react";
 
 import { folderNameFromPath } from "../lib/path-utils";
 import { rpcClient } from "../rpc/client";
@@ -23,7 +23,9 @@ export function AttachedFolderPreview(props: {
 
   return (
     <AttachedItemPreview
-      icon={<FolderClosed className="size-5 shrink-0 text-muted-foreground" />}
+      icon={
+        <FolderSimpleIcon className="size-5 shrink-0 text-muted-foreground" />
+      }
       label={folderName}
       onClick={handleClick}
       onRemove={onRemove}

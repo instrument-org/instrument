@@ -1,6 +1,8 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { FileIcon } from "@/client/components/file-icon";
+import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { ImageWithFallback } from "@/client/components/image-with-fallback";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import {
@@ -11,25 +13,24 @@ import {
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
-import { APP_AGENT_NAME } from "@instrument-org/shared";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   APP_FOLDER_NAMES,
   type ProjectSubdomain,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
+import {
+  CaretRightIcon,
+  ChatTextIcon,
+  DotsThreeOutlineVerticalIcon,
+  FolderOpenIcon,
+  FolderSimpleIcon,
+  GlobeIcon,
+  type Icon,
+} from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import {
-  ChevronRight,
-  FolderClosed,
-  FolderOpen,
-  Folders,
-  Globe,
-  type LucideIcon,
-  MessageSquare,
-  MoreVertical,
-} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -185,20 +186,20 @@ export function ProjectFiles({
                   )}
                   onClick={onAppSelect}
                 >
-                  <Globe className="size-3.5! shrink-0" />
+                  <GlobeIcon className="size-3.5! shrink-0" />
                   <span className="truncate">App</span>
                 </SidebarMenuButton>
               </ContextMenuTrigger>
               <ContextMenuContent>
                 <ContextMenuItem onClick={handleAppAddToChat}>
-                  <MessageSquare className="size-4" />
+                  <ChatTextIcon className="size-4" />
                   <span>Add to chat</span>
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
             <FilesItemMenu>
               <DropdownMenuItem onClick={handleAppAddToChat}>
-                <MessageSquare className="size-4" />
+                <ChatTextIcon className="size-4" />
                 <span>Add to chat</span>
               </DropdownMenuItem>
             </FilesItemMenu>
@@ -221,11 +222,7 @@ export function ProjectFiles({
         ))}
         {folderEntries.length > 0 && (
           <SidebarMenuItem>
-            <CollapsibleTreeSection
-              defaultOpen
-              icon={Folders}
-              label="Attached folders"
-            >
+            <CollapsibleTreeSection defaultOpen label="Attached folders">
               {folderEntries.map((folder) => (
                 <AttachedFolderRow
                   folder={folder}
@@ -277,12 +274,12 @@ function AttachedFolderMenuItems({
   return (
     <>
       <Item onClick={onAddToChat}>
-        <MessageSquare className="size-4" />
+        <ChatTextIcon className="size-4" />
         <span>Add to chat</span>
       </Item>
       <Separator />
       <Item onClick={onReveal}>
-        <FolderOpen className="size-4" />
+        <RevealInFolderIcon className="size-4" />
         <span>{getRevealInFolderLabel()}</span>
       </Item>
     </>
@@ -400,7 +397,7 @@ function buildTree(files: ProjectFileViewerFile[]): FileTreeNode[] {
 
 function directorySectionLabel(dirName: string) {
   if (dirName === APP_FOLDER_NAMES.output) {
-    return `Made by ${APP_AGENT_NAME}`;
+    return `Made by ${APP_NAME}`;
   }
   if (dirName === APP_FOLDER_NAMES.userProvided) {
     return "Attached files";
@@ -448,51 +445,34 @@ function ExplorerFileThumbnail({
   isActive: boolean;
 }) {
   const kind = getFileType(file);
-  const frameClass = cn(
-    "relative h-10 w-8 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm",
-    isActive &&
-      "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
-  );
 
   if (kind === "image") {
     return (
-      <div className={frameClass}>
-        <img
+      <ThumbnailFrame isActive={isActive}>
+        <ImageWithFallback
           alt=""
-          className="size-full object-cover"
+          className="size-full object-contain"
           draggable={false}
+          fallback={
+            <div className="flex size-full items-center justify-center">
+              <FileIcon
+                className={thumbnailIconClass(isActive)}
+                filename={file.filename}
+                mimeType={file.mimeType}
+              />
+            </div>
+          }
+          filename={file.filename}
+          showCheckerboard
           src={file.url}
         />
-      </div>
-    );
-  }
-
-  if (kind === "audio") {
-    return (
-      <div
-        className={cn(
-          "flex h-10 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted shadow-sm",
-          isActive &&
-            "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
-        )}
-      >
-        <FileIcon
-          className={cn(
-            "size-3.5",
-            isActive
-              ? "text-sidebar-accent-foreground"
-              : "text-muted-foreground",
-          )}
-          filename={file.filename}
-          mimeType={file.mimeType}
-        />
-      </div>
+      </ThumbnailFrame>
     );
   }
 
   if (kind === "markdown" || kind === "text" || kind === "code") {
     return (
-      <div className={cn(frameClass, "flex flex-col p-1")}>
+      <ThumbnailFrame className="flex flex-col p-1" isActive={isActive}>
         <div className="flex flex-1 flex-col justify-center gap-px">
           {[0.85, 0.72, 0.9, 0.55].map((w) => (
             <div
@@ -507,46 +487,32 @@ function ExplorerFileThumbnail({
             />
           ))}
         </div>
-      </div>
+      </ThumbnailFrame>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "flex h-10 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-background shadow-sm",
-        isActive &&
-          "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
-      )}
+    <ThumbnailFrame
+      className="flex items-center justify-center"
+      isActive={isActive}
     >
       <FileIcon
-        className={cn(
-          "size-4 shrink-0",
-          isActive ? "text-sidebar-accent-foreground" : "text-muted-foreground",
-        )}
+        className={thumbnailIconClass(isActive)}
         filename={file.filename}
         mimeType={file.mimeType}
       />
-    </div>
+    </ThumbnailFrame>
   );
 }
 
 function ExplorerFolderThumbnail({ isActive }: { isActive?: boolean }) {
   return (
-    <div
-      className={cn(
-        "flex h-10 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted shadow-sm",
-        isActive &&
-          "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
-      )}
+    <ThumbnailFrame
+      className="flex items-center justify-center"
+      isActive={isActive}
     >
-      <FolderClosed
-        className={cn(
-          "size-4 shrink-0",
-          isActive ? "text-sidebar-accent-foreground" : "text-muted-foreground",
-        )}
-      />
-    </div>
+      <FolderOpenIcon className={thumbnailIconClass(isActive)} />
+    </ThumbnailFrame>
   );
 }
 
@@ -626,7 +592,7 @@ function FilesItemMenu({ children }: { children: React.ReactNode }) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuAction showOnHover>
-          <MoreVertical />
+          <DotsThreeOutlineVerticalIcon weight="fill" />
           <span className="sr-only">More</span>
         </SidebarMenuAction>
       </DropdownMenuTrigger>
@@ -634,6 +600,36 @@ function FilesItemMenu({ children }: { children: React.ReactNode }) {
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function ThumbnailFrame({
+  children,
+  className,
+  isActive,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  isActive?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "h-10 w-8 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm",
+        isActive &&
+          "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function thumbnailIconClass(isActive?: boolean) {
+  return cn(
+    "size-4 shrink-0",
+    isActive ? "text-sidebar-accent-foreground" : "text-muted-foreground",
   );
 }
 
@@ -653,7 +649,7 @@ function CollapsibleTreeSection({
   children: React.ReactNode;
   defaultOpen?: boolean;
   forceOpen?: boolean;
-  icon?: LucideIcon;
+  icon?: Icon;
   label: string;
   labelClassName?: string;
 }) {
@@ -680,7 +676,7 @@ function CollapsibleTreeSection({
         >
           {Icon && <Icon className="size-3.5 shrink-0 text-muted-foreground" />}
           <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-          <ChevronRight className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-90" />
+          <CaretRightIcon className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-90" />
         </SidebarMenuButton>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -749,7 +745,7 @@ function TreeNode({
       <CollapsibleTreeSection
         defaultOpen={defaultOpen}
         forceOpen={containsActive}
-        icon={isTopSpecialSection ? undefined : FolderClosed}
+        icon={isTopSpecialSection ? undefined : FolderSimpleIcon}
         label={directorySectionLabel(node.name)}
       >
         {node.children.map((child, i) => (

@@ -1,4 +1,3 @@
-import { type IconName as LucideIconName } from "lucide-react/dynamic";
 import { z } from "zod";
 
 const TAB_ICONS = [
@@ -8,12 +7,9 @@ const TAB_ICONS = [
   "globe",
   "our-app",
   "table-properties",
-  "message-circle",
-  "square-dashed",
-  "telescope",
-  "squircle",
   "terminal",
-] as const satisfies ("our-app" | LucideIconName)[];
+  "bug",
+] as const;
 
 export const TabIconsSchema = z.enum(TAB_ICONS);
 

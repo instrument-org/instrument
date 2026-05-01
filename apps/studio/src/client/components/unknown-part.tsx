@@ -1,5 +1,5 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { HelpCircle } from "lucide-react";
+import { QuestionIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import {
@@ -22,7 +22,7 @@ export function UnknownPart({ part }: UnknownPartProps) {
 
   const mainContent = (
     <ToolPartListItemCompact
-      icon={<HelpCircle className="size-3" />}
+      icon={<QuestionIcon className="size-3" />}
       isExpanded={isExpanded}
       label="Unknown part"
       labelClassName="text-foreground/60"

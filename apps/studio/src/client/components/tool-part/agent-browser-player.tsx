@@ -1,13 +1,14 @@
 import type { SessionMessagePart } from "@instrument-org/workspace/client";
 
+import { PauseIcon, PlayIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useMachine } from "@xstate/react";
-import { AlertCircle, Loader2Icon, Pause, Play } from "lucide-react";
 import { useEffect } from "react";
 
 import { getAssetUrl } from "../../lib/get-asset-url";
 import { Favicon } from "../favicon";
 import { ImageWithFallback } from "../image-with-fallback";
 import { Slider } from "../ui/slider";
+import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { agentBrowserPlayerMachine } from "./agent-browser-player-machine";
 
@@ -186,7 +187,7 @@ function FrameHeader({
   if (frame.kind === "error") {
     return (
       <div className="flex min-w-0 items-center gap-1.5 px-0.5">
-        <AlertCircle className="size-3.5 shrink-0 text-destructive" />
+        <WarningCircleIcon className="size-3.5 shrink-0 text-destructive" />
         <span className="min-w-0 truncate text-[11px] text-destructive">
           {frame.error ?? "Capture failed"}
         </span>
@@ -199,7 +200,7 @@ function FrameHeader({
   return (
     <div className="flex min-w-0 items-center gap-1.5 px-0.5">
       {showFaviconLoader ? (
-        <Loader2Icon className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+        <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
       ) : (
         <Favicon className="size-3.5" url={frame.screenshot.url} />
       )}
@@ -282,7 +283,11 @@ function PlayerControls({
         onClick={onTogglePlay}
         type="button"
       >
-        {showPause ? <Pause className="size-3" /> : <Play className="size-3" />}
+        {showPause ? (
+          <PauseIcon className="size-5" weight="regular" />
+        ) : (
+          <PlayIcon className="size-5" weight="regular" />
+        )}
       </button>
       <Slider
         className="w-full"

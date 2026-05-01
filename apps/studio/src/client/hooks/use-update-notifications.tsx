@@ -1,8 +1,8 @@
 import { Progress } from "@/client/components/ui/progress";
 import { rpcClient } from "@/client/rpc/client";
 import { MANUAL_DOWNLOAD_URL } from "@instrument-org/shared";
+import { ArrowLineDownIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Download } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -80,7 +80,7 @@ export function useUpdateNotifications() {
             ? "Please allow a few minutes for the update to install. The app will relaunch when complete."
             : "The app will restart to complete the update.",
           duration: Infinity,
-          icon: <Download className="size-5" />,
+          icon: <ArrowLineDownIcon className="size-5" />,
           id: INSTALL_TOAST_ID,
         });
         break;

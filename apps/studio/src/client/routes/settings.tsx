@@ -30,7 +30,7 @@ function SettingsLayout() {
   const isDeveloperMode = useDeveloperMode();
   const sidebarNavItems: {
     icon: React.ElementType;
-    isWarning?: boolean;
+    isDeveloperMode?: boolean;
     path:
       | "/settings/debug"
       | Extract<
@@ -53,13 +53,13 @@ function SettingsLayout() {
       ? [
           {
             icon: FlagIcon,
-            isWarning: true,
+            isDeveloperMode: true,
             path: "/settings/features" as const,
             title: "Features",
           },
           {
             icon: BugIcon,
-            isWarning: true,
+            isDeveloperMode: true,
             path: "/settings/debug" as const,
             title: "Debug",
           },
@@ -95,8 +95,8 @@ function SettingsLayout() {
                         activeProps={{ "data-active": true }}
                         allowOpenNewTab={false}
                         className={
-                          item.isWarning
-                            ? "text-warning-foreground [&>svg]:text-warning-foreground"
+                          item.isDeveloperMode
+                            ? "text-blue-700 dark:text-blue-300 [&>svg]:text-blue-700 dark:[&>svg]:text-blue-300"
                             : undefined
                         }
                         to={item.path}

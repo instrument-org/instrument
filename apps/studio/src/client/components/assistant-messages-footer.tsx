@@ -295,7 +295,7 @@ export function AssistantMessagesFooter({
             }}
           >
             <UsageSummaryText
-              className="min-w-0 text-[10px] text-warning-foreground/60 transition-colors hover:text-warning-foreground"
+              className="min-w-0 text-[10px] text-blue-700/60 transition-colors hover:text-blue-700 dark:text-blue-300/60 dark:hover:text-blue-300"
               messageCount={usageSummary.messageCount}
               totalTokens={usageSummary.totalTokens}
             />
@@ -392,22 +392,16 @@ function getModelInfoRows(model: ModelUsageData): {
 }
 
 function TooltipRow({
-  isWarning,
   label,
   tabular,
   value,
 }: {
-  isWarning?: boolean;
   label: string;
   tabular?: boolean;
   value: string;
 }) {
   return (
-    <div
-      className={cn("flex items-baseline justify-between gap-6", {
-        "text-warning-foreground": isWarning,
-      })}
-    >
+    <div className="flex items-baseline justify-between gap-6">
       <span className="opacity-80">{label}</span>
       <span className={cn("font-medium", { "tabular-nums": tabular })}>
         {value}

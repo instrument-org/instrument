@@ -5,7 +5,7 @@ import { CenteredLayout } from "@/client/components/centered-layout";
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
 import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
 import { ManualProviderButton } from "@/client/components/manual-provider-button";
-import { StudioIcon } from "@/client/components/studio-icon";
+import { AppIcon } from "@/client/components/studio-icon";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -62,11 +62,11 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
             <div className="flex flex-col items-center gap-4">
               <div className="flex size-16 items-center justify-center rounded-md">
                 {isReady ? (
-                  <div className="flex size-12 items-center justify-center rounded-full bg-brand">
+                  <div className="flex size-12 items-center justify-center rounded-full bg-brand-400">
                     <CheckIcon className="size-6 text-brand-foreground" />
                   </div>
                 ) : (
-                  <StudioIcon className="size-16" />
+                  <AppIcon className="size-16" />
                 )}
               </div>
               <span className="sr-only">{APP_NAME}</span>

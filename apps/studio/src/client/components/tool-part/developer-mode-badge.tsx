@@ -7,7 +7,7 @@ export function DeveloperModeBadge() {
   return (
     <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>
-        <Badge className="px-1 py-0 text-[10px] uppercase" variant="warning">
+        <Badge className="px-1 py-0 text-[10px] uppercase" variant="info">
           <EyeIcon className="size-2.5" />
           Dev mode
         </Badge>

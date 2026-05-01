@@ -129,9 +129,9 @@ export function ProviderPicker({
                             ))}
                         </div>
                         {provider.tags.includes("recommended") && (
-                          <div className="flex items-center gap-x-1 text-xs text-brand">
+                          <div className="flex items-center gap-x-1 text-xs text-brand-400">
                             <StarIcon
-                              className="size-2.5 rotate-180 fill-brand"
+                              className="size-2.5 rotate-180 fill-brand-400"
                               weight="fill"
                             />
                             <span>Recommended</span>

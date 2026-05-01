@@ -41,7 +41,7 @@ export function StudioSidebar({
               isActive: matches.some((match) =>
                 match.routeId.startsWith("/_app/evals"),
               ),
-              isWarning: true,
+              isDeveloperMode: true,
               title: "Evals",
               url: "/evals" as const,
             },
@@ -50,7 +50,7 @@ export function StudioSidebar({
               isActive: matches.some((match) =>
                 match.routeId.startsWith("/_app/debug"),
               ),
-              isWarning: true,
+              isDeveloperMode: true,
               title: "Debug",
               url: "/debug" as const,
             },

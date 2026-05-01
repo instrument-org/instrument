@@ -230,7 +230,7 @@ export function ProjectChat({
 
       <div className="flex-1" />
 
-      <div className="sticky bottom-0 flex w-full bg-background">
+      <div className="sticky bottom-0 flex w-full">
         {!isNearBottom && (
           <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-4">
             <Button
@@ -243,10 +243,12 @@ export function ProjectChat({
             </Button>
           </div>
         )}
-        <div className="mx-auto w-full max-w-3xl px-3 pb-3">
+        <div className="relative mx-auto w-full max-w-3xl px-3 pb-3">
+          <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-3xl bg-background" />
           <PromptInput
             atomKey={subdomain}
             autoFocus
+            className="relative z-10"
             isLoading={createMessage.isPending}
             isStoppable={isAgentAlive}
             isSubmittable={!isAgentAlive}

@@ -74,12 +74,17 @@ window.api.onNavigate((url) => {
       // except clear `sidebar` so the default chat sidebar shows again.
       const loc = router.state.location;
       const subdomain = projectRouteMatch.params.subdomain;
-      if (loc.search.sidebar !== undefined && subdomain) {
+      if (
+        (loc.search.sidebar !== undefined ||
+          loc.search.artifactPanel !== undefined) &&
+        subdomain
+      ) {
         void router.navigate({
           params: { subdomain },
           replace: true,
           search: (prev) => ({
             ...prev,
+            artifactPanel: undefined,
             sidebar: undefined,
           }),
           to: "/projects/$subdomain",

@@ -46,8 +46,6 @@ export async function createMainWindow() {
     backgroundColor: getMainWindowBackgroundColor(),
     frame: false,
     titleBarOverlay: getTitleBarOverlay(),
-    vibrancy: "sidebar",
-    visualEffectState: "active",
     webPreferences: {
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
@@ -148,6 +146,13 @@ export async function createMainWindow() {
   resizeViews();
 
   return mainWindow;
+}
+
+export function updateMainWindowBackgroundColor() {
+  const window = getMainWindow();
+  if (window && !window.isDestroyed()) {
+    window.setBackgroundColor(getMainWindowBackgroundColor());
+  }
 }
 
 export function updateTitleBarOverlay() {

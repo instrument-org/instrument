@@ -3,7 +3,7 @@ import TabBar from "@/client/components/tab-bar";
 import { Button } from "@/client/components/ui/button";
 import { cn, isLinux, isMacOS, isWindows } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { SIDEBAR_WIDTH, TOOLBAR_HEIGHT } from "@/shared/constants";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SidebarSimpleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -29,61 +29,56 @@ export function StudioToolbar() {
 
   return (
     <div
-      className="flex w-full items-end overflow-hidden"
+      className="flex w-full items-end overflow-hidden bg-secondary"
       style={{ height: `${TOOLBAR_HEIGHT}px` }}
     >
-      {/* Sidebar region: transparent on macOS (vibrancy shows through), bg-sidebar elsewhere */}
+      {/* Toolbar controls region shares the tab background. */}
       <div
         className={cn(
-          "flex h-full shrink-0 items-center border-r border-border [-webkit-app-region:drag]",
-          !isSidebarOpen && "hidden",
-          isMacOS() ? "pl-20" : "bg-sidebar pl-4",
+          "flex h-full shrink-0 items-center [-webkit-app-region:drag]",
+          isMacOS() ? "pl-20" : "pl-4",
         )}
-        style={{ width: `${SIDEBAR_WIDTH}px` }}
       >
         <div className="flex items-center [-webkit-app-region:no-drag]">
-          <Button
-            className="size-6 pr-1 text-muted-foreground"
-            onClick={() => {
-              closeSidebar();
-            }}
-            size="icon"
-            variant="ghost"
-          >
-            <SidebarSimpleIcon />
-          </Button>
+          {isSidebarOpen ? (
+            <Button
+              className="size-6 pr-1 text-muted-foreground"
+              onClick={() => {
+                closeSidebar();
+              }}
+              size="icon"
+              variant="ghost"
+            >
+              <SidebarSimpleIcon />
+            </Button>
+          ) : (
+            <Button
+              className="relative size-6 shrink-0 pr-1 text-muted-foreground"
+              onClick={() => {
+                openSidebar();
+              }}
+              size="icon"
+              title="Show sidebar"
+              variant="ghost"
+            >
+              <SidebarSimpleIcon />
+              {hasExceptions && (
+                <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-destructive" />
+              )}
+            </Button>
+          )}
           <NavControls />
         </div>
       </div>
-      {/* Main toolbar region: opaque background with tab bar */}
+      {/* Main toolbar region: tab bar */}
       <header
         className={cn(
-          "flex h-full min-w-0 flex-1 items-center bg-secondary inset-shadow-toolbar inset-shadow-(color:--border)",
+          "flex h-full min-w-0 flex-1 items-center",
           isWindows() && "pr-36",
           isLinux() && "pr-24",
         )}
       >
         <div className="flex h-full min-w-0 flex-1 items-stretch">
-          {!isSidebarOpen && (
-            <div className="flex items-center">
-              <div className={cn(isMacOS() ? "ml-20" : "ml-4")} />
-              <Button
-                className="relative size-6 shrink-0 pr-1 text-muted-foreground"
-                onClick={() => {
-                  openSidebar();
-                }}
-                size="icon"
-                title="Show sidebar"
-                variant="ghost"
-              >
-                <SidebarSimpleIcon />
-                {hasExceptions && (
-                  <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-destructive" />
-                )}
-              </Button>
-              <NavControls />
-            </div>
-          )}
           <TabBar />
         </div>
       </header>

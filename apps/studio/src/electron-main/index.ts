@@ -8,6 +8,7 @@ import { createApplicationMenu } from "@/electron-main/menus";
 import { getTabsManager } from "@/electron-main/tabs";
 import {
   createMainWindow,
+  updateMainWindowBackgroundColor,
   updateTitleBarOverlay,
 } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
@@ -137,8 +138,12 @@ void app.whenReady().then(async () => {
   });
 
   createApplicationMenu();
-  watchThemePreferenceAndApply(updateTitleBarOverlay);
+  watchThemePreferenceAndApply(() => {
+    updateMainWindowBackgroundColor();
+    updateTitleBarOverlay();
+  });
   nativeTheme.on("updated", () => {
+    updateMainWindowBackgroundColor();
     updateTitleBarOverlay();
   });
 

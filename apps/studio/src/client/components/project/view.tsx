@@ -196,9 +196,9 @@ export function ProjectView({
   return (
     <div className="relative h-dvh w-full overflow-hidden">
       <ResizablePanelGroup
+        className="h-full"
         defaultLayout={showArtifactPanel ? LAYOUT.open : LAYOUT.closed}
         orientation="horizontal"
-        style={{ height: "100%" }}
       >
         <ResizablePanel
           defaultSize={showArtifactPanel ? "50%" : "100%"}

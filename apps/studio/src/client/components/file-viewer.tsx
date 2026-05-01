@@ -291,7 +291,10 @@ export function FileViewer({
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-auto" ref={contentRef}>
+      <div
+        className="relative min-h-0 flex-1 overflow-auto bg-secondary"
+        ref={contentRef}
+      >
         {mediaLoadError ? (
           <div className="flex size-full items-center justify-center">
             <FilePreviewFallback

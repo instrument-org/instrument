@@ -30,6 +30,7 @@ export function StudioSidebar({
       {
         icon: PlusIcon,
         isActive: matches.some((match) => match.routeId === "/_app/new-tab"),
+        isBrand: true,
         title: "New",
         url: "/new-tab" as const,
       },

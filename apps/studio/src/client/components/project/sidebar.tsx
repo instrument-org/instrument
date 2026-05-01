@@ -60,7 +60,7 @@ export function ProjectSidebar({
         versionRef={selectedAppVersion}
       />
 
-      <div className="min-h-0 flex-1 overflow-hidden border-t">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {showVersions ? (
           <div className="flex h-full flex-col overflow-hidden bg-background">
             <div className="flex items-center justify-between border-b p-2">

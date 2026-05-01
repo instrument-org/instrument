@@ -2,6 +2,9 @@ packages:
   - packages/*
   - apps/*
 
+minimumReleaseAge: 10080
+blockExoticSubdeps: true
+
 allowBuilds:
   "@derhuerst/ffprobe-static": true
   "@swc/core": true

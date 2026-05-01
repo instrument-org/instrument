@@ -53,13 +53,13 @@ export function NavUser() {
       <SidebarMenu>
         <SidebarMenuItem className="group">
           <SidebarMenuButton
-            className="px-1 group-hover:bg-black/10 dark:group-hover:bg-white/10"
+            className="h-auto! gap-3 rounded-none! py-4 pr-5 pl-4 group-hover:bg-black/10 dark:group-hover:bg-white/10"
             onClick={() => {
               void rpcClient.preferences.openSettingsWindow.call({
                 tab: "General",
               });
             }}
-            size="default"
+            size="lg"
           >
             <GearIcon className="size-5" />
             <div className="grid flex-1 text-left text-sm/tight">

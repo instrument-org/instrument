@@ -1,4 +1,4 @@
-import { StudioIcon } from "@/client/components/studio-icon";
+import { AppIcon } from "@/client/components/studio-icon";
 import { useAppState } from "@/client/hooks/use-app-state";
 import { cn } from "@/client/lib/utils";
 import {
@@ -132,7 +132,7 @@ export function VersionList({
                 <Avatar className="size-4">
                   {commit.email === GIT_AUTHOR.email ? (
                     <AvatarFallback>
-                      <StudioIcon className="size-2.5" />
+                      <AppIcon className="size-2.5" />
                     </AvatarFallback>
                   ) : (
                     <>
@@ -196,7 +196,7 @@ function InProgressVersionCard() {
       <div className="flex flex-wrap items-baseline gap-1 text-xs text-muted-foreground">
         <Avatar className="size-4">
           <AvatarFallback>
-            <StudioIcon className="size-2.5" />
+            <AppIcon className="size-2.5" />
           </AvatarFallback>
         </Avatar>
         <span>{GIT_AUTHOR.name}</span>

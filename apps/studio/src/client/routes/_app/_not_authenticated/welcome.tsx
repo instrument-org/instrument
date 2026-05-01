@@ -1,6 +1,6 @@
 import { CenteredLayout } from "@/client/components/centered-layout";
 import { ExternalLink } from "@/client/components/external-link";
-import { StudioIcon } from "@/client/components/studio-icon";
+import { AppIcon } from "@/client/components/studio-icon";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
@@ -66,7 +66,7 @@ function RouteComponent() {
         <div className="flex flex-col items-center gap-6 pb-12">
           <div className="flex flex-col items-center gap-4">
             <div className="flex size-16 items-center justify-center rounded-md">
-              <StudioIcon className="size-16" />
+              <AppIcon className="size-16" />
             </div>
             <h1 className="text-center text-3xl font-bold">
               Welcome to {APP_NAME}

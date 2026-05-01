@@ -1,16 +1,11 @@
 import * as React from "react";
 
-type StudioIconProps = React.SVGProps<SVGSVGElement> & {
+type AppIconProps = React.SVGProps<SVGSVGElement> & {
   ref?: React.Ref<SVGSVGElement>;
   size?: number | string;
 };
 
-export const StudioIcon = ({
-  className,
-  ref,
-  size,
-  ...props
-}: StudioIconProps) => {
+export const AppIcon = ({ className, ref, size, ...props }: AppIconProps) => {
   return (
     <svg
       className={className}
@@ -31,12 +26,12 @@ export const StudioIcon = ({
   );
 };
 
-export const StudioIconGlyph = ({
+export const AppIconGlyph = ({
   className,
   ref,
   size,
   ...props
-}: StudioIconProps) => {
+}: AppIconProps) => {
   return (
     <svg
       className={className}

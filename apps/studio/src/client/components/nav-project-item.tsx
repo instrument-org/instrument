@@ -1,4 +1,4 @@
-import { AppIcon } from "@/client/components/app-icon";
+import { ProjectIcon } from "@/client/components/app-icon";
 import { InternalLink } from "@/client/components/internal-link";
 import {
   DropdownMenu,
@@ -156,7 +156,7 @@ export const NavProjectItem = memo(function NavProjectItem({
               params={{ subdomain: project.subdomain }}
               to="/projects/$subdomain"
             >
-              <AppIcon name={project.iconName} size="xs" />
+              <ProjectIcon name={project.iconName} size="xs" />
               <span>{project.title}</span>
             </InternalLink>
           </SidebarMenuButton>

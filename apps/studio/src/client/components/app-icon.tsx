@@ -2,7 +2,7 @@ import { IconMap } from "@/client/components/tab-icons";
 import { type TabIconName } from "@instrument-org/shared/icons";
 import { tv, type VariantProps } from "tailwind-variants";
 
-const appIconVariants = tv({
+const projectIconVariants = tv({
   base: "shrink-0 transition-colors",
   defaultVariants: {
     isSelected: false,
@@ -23,11 +23,11 @@ const appIconVariants = tv({
   },
 });
 
-export function AppIcon({
+export function ProjectIcon({
   isSelected,
   name,
   size,
-}: VariantProps<typeof appIconVariants> & {
+}: VariantProps<typeof projectIconVariants> & {
   name?: TabIconName;
 }) {
   const IconComponent = name ? IconMap[name] : undefined;
@@ -36,5 +36,7 @@ export function AppIcon({
     return null;
   }
 
-  return <IconComponent className={appIconVariants({ isSelected, size })} />;
+  return (
+    <IconComponent className={projectIconVariants({ isSelected, size })} />
+  );
 }

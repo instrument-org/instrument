@@ -5,10 +5,10 @@ import { ProviderConfigListItem } from "@/client/components/provider-config-list
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
+import { PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { Plus } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 
@@ -47,7 +47,7 @@ function SettingsProvidersPage() {
           }}
           size="sm"
         >
-          <Plus className="size-4" />
+          <PlusIcon className="size-4" />
           Add Provider
         </Button>
       </div>

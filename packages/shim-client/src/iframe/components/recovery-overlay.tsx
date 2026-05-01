@@ -1,5 +1,10 @@
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
-import { AlertTriangle, ExternalLink, RefreshCw, X } from "lucide-react";
+import {
+  ArrowsClockwiseIcon,
+  ArrowSquareOutIcon,
+  WarningIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 
 export function RecoveryOverlay({
   isInsideStudio,
@@ -19,12 +24,12 @@ export function RecoveryOverlay({
           className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none disabled:pointer-events-none"
           onClick={onDismiss}
         >
-          <X className="size-4" />
+          <XIcon className="size-4" />
           <span className="sr-only">Close</span>
         </button>
         <div className="flex flex-col space-y-1.5 text-center sm:text-left">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="size-5 text-destructive" />
+            <WarningIcon className="size-5 text-destructive" />
             <h3 className="text-lg leading-none font-semibold tracking-tight">
               Nothing was rendered
             </h3>
@@ -41,7 +46,7 @@ export function RecoveryOverlay({
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-secondary px-4 py-2 text-sm font-medium whitespace-nowrap text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
             onClick={onReload}
           >
-            <RefreshCw className="size-4" />
+            <ArrowsClockwiseIcon className="size-4" />
             Reload Page
           </button>
           {isInsideStudio ? (
@@ -56,8 +61,8 @@ export function RecoveryOverlay({
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium whitespace-nowrap text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
               onClick={() => window.open(`${APP_PROTOCOL}://`, "_self")}
             >
-              <ExternalLink className="size-4" />
-              Open in ${APP_NAME}
+              <ArrowSquareOutIcon className="size-4" />
+              Open in {APP_NAME}
             </button>
           )}
         </div>

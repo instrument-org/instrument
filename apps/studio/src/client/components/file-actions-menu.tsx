@@ -8,19 +8,19 @@ import {
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectSubdomain } from "@instrument-org/workspace/client";
-import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
-  Check,
-  Copy,
-  Download,
-  FolderOpen,
-  MessageSquare,
-  MoreVertical,
-} from "lucide-react";
-import { useState } from "react";
+  ArrowLineDownIcon,
+  ChatTextIcon,
+  CheckIcon,
+  CopyIcon,
+  DotsThreeOutlineVerticalIcon,
+} from "@phosphor-icons/react";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { useTimedFlag } from "../hooks/use-timed-flag";
 import { getRevealInFolderLabel } from "../lib/utils";
+import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { Button, type ButtonVariant } from "./ui/button";
 import { ContextMenuItem, ContextMenuSeparator } from "./ui/context-menu";
 import {
@@ -63,7 +63,7 @@ export function FileActionsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button size="sm" variant={variant}>
-          <MoreVertical className="size-4" />
+          <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -82,7 +82,6 @@ export function FileActionsMenuItems({
   onAddToChat,
   variant,
 }: FileActionsMenuItemsProps) {
-  const [copied, setCopied] = useState(false);
   const fileActions = useFileActionVisibility(file);
 
   const showProjectFileInFolderMutation = useMutation(
@@ -97,6 +96,8 @@ export function FileActionsMenuItems({
     }),
   );
 
+  const { active: copied, trigger: triggerCopied } = useTimedFlag();
+
   const handleCopy = async () => {
     try {
       await copyFileToClipboard({
@@ -105,10 +106,7 @@ export function FileActionsMenuItems({
         subdomain: file.projectSubdomain,
         versionRef: file.versionRef,
       });
-      setCopied(true);
-      setTimeout(() => {
-        setCopied(false);
-      }, 2000);
+      triggerCopied();
     } catch {
       // copyFileToClipboard already toasts on error
     }
@@ -137,7 +135,7 @@ export function FileActionsMenuItems({
       {onAddToChat && (
         <>
           <Item onClick={onAddToChat}>
-            <MessageSquare className="size-4" />
+            <ChatTextIcon className="size-4" />
             <span>Add to chat</span>
           </Item>
           {hasFileActions && <Separator />}
@@ -145,13 +143,17 @@ export function FileActionsMenuItems({
       )}
       {fileActions.showCopy && (
         <Item onClick={() => void handleCopy()}>
-          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+          {copied ? (
+            <CheckIcon className="size-4" />
+          ) : (
+            <CopyIcon className="size-4" />
+          )}
           <span>Copy</span>
         </Item>
       )}
       {fileActions.showDownload && (
         <Item onClick={() => void handleDownload()}>
-          <Download className="size-4" />
+          <ArrowLineDownIcon className="size-4" />
           <span>Download</span>
         </Item>
       )}
@@ -159,7 +161,7 @@ export function FileActionsMenuItems({
         fileActions.showReveal && <Separator />}
       {fileActions.showReveal && (
         <Item onClick={handleRevealInFolder}>
-          <FolderOpen className="size-4" />
+          <RevealInFolderIcon className="size-4" />
           <span>{getRevealInFolderLabel()}</span>
         </Item>
       )}

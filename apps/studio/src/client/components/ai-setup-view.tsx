@@ -16,10 +16,10 @@ import {
 import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIProviderType, APP_NAME } from "@instrument-org/shared";
+import { CheckIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { Check } from "lucide-react";
 import { useState } from "react";
 
 const FEATURED_PROVIDERS: AIProviderType[] = ["anthropic", "openai", "google"];
@@ -63,7 +63,7 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
               <div className="flex size-16 items-center justify-center rounded-md">
                 {isReady ? (
                   <div className="flex size-12 items-center justify-center rounded-full bg-brand">
-                    <Check className="size-6 text-brand-foreground" />
+                    <CheckIcon className="size-6 text-brand-foreground" />
                   </div>
                 ) : (
                   <StudioIcon className="size-16" />

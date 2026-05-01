@@ -1,6 +1,6 @@
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { FolderClosed } from "lucide-react";
+import { FolderSimpleIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 import { rpcClient } from "../rpc/client";
@@ -25,7 +25,9 @@ export function FolderPreviewListItem({
 
   return (
     <PreviewListItem
-      icon={<FolderClosed className="size-5 shrink-0 text-muted-foreground" />}
+      icon={
+        <FolderSimpleIcon className="size-5 shrink-0 text-muted-foreground" />
+      }
       label={folder.name}
       onClick={handleClick}
       tooltipContent={folder.path}

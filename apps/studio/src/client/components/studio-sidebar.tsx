@@ -10,8 +10,8 @@ import {
 import { useSelectedTab } from "@/client/hooks/use-selected-tab";
 import { useMatchesForPathname } from "@/client/lib/get-route-matches";
 import { rpcClient } from "@/client/rpc/client";
+import { BugIcon, FlaskIcon, PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Bug, FlaskConical, PlusIcon } from "lucide-react";
 import { useMemo } from "react";
 
 import { useDeveloperMode } from "../hooks/use-developer-mode";
@@ -36,7 +36,7 @@ export function StudioSidebar({
       ...(isDeveloperMode
         ? [
             {
-              icon: FlaskConical,
+              icon: FlaskIcon,
               isActive: matches.some((match) =>
                 match.routeId.startsWith("/_app/evals"),
               ),
@@ -45,7 +45,7 @@ export function StudioSidebar({
               url: "/evals" as const,
             },
             {
-              icon: Bug,
+              icon: BugIcon,
               isActive: matches.some((match) =>
                 match.routeId.startsWith("/_app/debug"),
               ),
@@ -106,7 +106,7 @@ export function StudioSidebar({
           />
         )}
       </SidebarContent>
-      <SidebarFooter className="border-t border-black/10 dark:border-white/20">
+      <SidebarFooter className="border-t border-black/10 p-0 dark:border-white/20">
         <NavUser />
       </SidebarFooter>
     </Sidebar>

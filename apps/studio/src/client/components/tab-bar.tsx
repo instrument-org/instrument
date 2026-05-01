@@ -2,7 +2,7 @@ import { Tab } from "@/client/components/tab";
 import { useSelectedTabId } from "@/client/hooks/use-selected-tab-id";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useTabs } from "@/client/hooks/use-tabs";
-import { Plus } from "lucide-react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { AnimatePresence, motion, Reorder } from "motion/react";
 
 export default function TabBar() {
@@ -54,7 +54,7 @@ export default function TabBar() {
             type="button"
             whileTap={{ scale: 0.97 }}
           >
-            <Plus className="block size-4 shrink-0 text-muted-foreground opacity-90 transition-colors group-hover:text-foreground group-hover:opacity-100" />
+            <PlusIcon className="block size-4 shrink-0 text-muted-foreground opacity-90 transition-colors group-hover:text-foreground group-hover:opacity-100" />
           </motion.button>
         </li>
       </Reorder.Group>

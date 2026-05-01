@@ -26,14 +26,14 @@ import {
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
-import { useNavigate } from "@tanstack/react-router";
 import {
-  AlertCircle,
-  AlertTriangle,
-  Check,
-  ChevronDown,
-  Plus,
-} from "lucide-react";
+  CaretDownIcon,
+  CheckIcon,
+  PlusIcon,
+  WarningCircleIcon,
+  WarningIcon,
+} from "@phosphor-icons/react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -129,7 +129,7 @@ export function ModelPicker({
           <TooltipTrigger asChild>
             <div className="shrink-0">
               {isInvalidOurModel ? (
-                <AlertTriangle className="size-3 text-destructive" />
+                <WarningIcon className="size-3 text-destructive" />
               ) : (
                 <AIProviderIcon
                   className="size-3 opacity-90"
@@ -178,7 +178,7 @@ export function ModelPicker({
           <div className="flex w-full min-w-0 items-center text-xs">
             {getModelDisplayValue()}
           </div>
-          <ChevronDown className="size-4 shrink-0 opacity-70" />
+          <CaretDownIcon className="size-4 shrink-0 opacity-70" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
@@ -292,7 +292,7 @@ function AutoModeSwitch({
         }}
       >
         <div className="flex items-start gap-1.5">
-          <AlertTriangle className="mt-0.5 size-3 shrink-0 text-destructive/70" />
+          <WarningIcon className="mt-0.5 size-3 shrink-0 text-destructive/70" />
           <span className="text-xs text-muted-foreground">
             Your selected model is not available without a paid plan.
           </span>
@@ -385,7 +385,7 @@ function ErrorsGroup({
           disabled
           key={error.config.id}
         >
-          <AlertCircle className="mr-2 size-4 shrink-0 text-destructive" />
+          <WarningCircleIcon className="mr-2 size-4 shrink-0 text-destructive" />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex items-center gap-1 text-xs">
               <AIProviderIcon
@@ -441,7 +441,7 @@ function ModelGroups({
                     value={model.uri}
                   >
                     <div className="flex items-center">
-                      <Check
+                      <CheckIcon
                         className={cn(
                           "mr-2 size-4",
                           selectedModel?.uri === model.uri
@@ -482,7 +482,7 @@ function NoMatchingModelsMessage({
     <div className="flex flex-col items-center gap-3 py-6">
       <p className="text-sm text-muted-foreground">No matching models</p>
       <Button onClick={onAddProvider} size="sm" variant="outline">
-        <Plus className="mr-2 size-4" />
+        <PlusIcon className="mr-2 size-4" />
         Add an AI provider
       </Button>
       <p className="max-w-64 text-center text-xs text-muted-foreground">
@@ -500,7 +500,7 @@ function NoProvidersMessage({ onAddProvider }: { onAddProvider: () => void }) {
         Connect a provider to use {APP_NAME}
       </p>
       <Button onClick={onAddProvider} size="sm" variant="outline">
-        <Plus className="mr-2 size-4" />
+        <PlusIcon className="mr-2 size-4" />
         Add an AI provider
       </Button>
     </div>

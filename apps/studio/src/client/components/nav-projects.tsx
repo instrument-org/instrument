@@ -10,10 +10,10 @@ import {
   type ProjectSubdomain,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
+import { CaretRightIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { InternalLink } from "./internal-link";
@@ -118,7 +118,7 @@ export function NavProjects({
                   to="/projects"
                 >
                   View all favorites
-                  <ChevronRight className="size-3" />
+                  <CaretRightIcon className="size-3" />
                 </InternalLink>
               </li>
             )}

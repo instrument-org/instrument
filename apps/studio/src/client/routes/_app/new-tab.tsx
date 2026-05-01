@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/client/components/ui/card";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
+import { GiftIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -17,7 +19,6 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { Gift } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -87,7 +88,7 @@ function RouteComponent() {
               >
                 <div className="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-brand/5 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                 <div className="flex size-10 items-center justify-center rounded-xl bg-brand/20 transition-colors group-hover:bg-brand/30">
-                  <Gift className="size-5 text-brand" />
+                  <GiftIcon className="size-5 text-brand" />
                 </div>
                 <div className="flex flex-col items-start gap-y-0.5">
                   <p className="text-sm font-medium text-foreground">
@@ -147,7 +148,7 @@ function RouteComponent() {
                   },
                 );
               }}
-              placeholder="Type, paste, or drop some files here…"
+              placeholder={`Talk to ${APP_NAME}`}
             />
             <div className="mt-2 flex items-center justify-end">
               <NewTabHelpMessage />

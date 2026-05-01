@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { CaretRightIcon } from "@phosphor-icons/react";
 
 export function ViewIndicator({ isViewing }: { isViewing: boolean }) {
   return (
@@ -10,7 +10,7 @@ export function ViewIndicator({ isViewing }: { isViewing: boolean }) {
       ) : (
         <div className="group flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
           <span className="font-medium">View</span>
-          <ChevronRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+          <CaretRightIcon className="size-3 transition-transform group-hover:translate-x-0.5" />
         </div>
       )}
     </div>

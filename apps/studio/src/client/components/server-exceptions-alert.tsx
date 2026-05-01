@@ -12,8 +12,8 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { rpcClient } from "@/client/rpc/client";
+import { WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertCircle, X } from "lucide-react";
 import { isEqual } from "radashi";
 import { useMemo } from "react";
 
@@ -94,7 +94,7 @@ export function ServerExceptionsAlert() {
   return (
     <div className="border-b bg-background">
       <div className="flex items-center gap-2 border-b bg-muted/30 px-3 py-1.5">
-        <AlertCircle className="size-3.5 shrink-0 text-destructive" />
+        <WarningCircleIcon className="size-3.5 shrink-0 text-destructive" />
         <span className="flex-1 text-xs font-medium text-foreground">
           Server {groupedExceptions.length === 1 ? "Exception" : "Exceptions"}
         </span>
@@ -114,7 +114,7 @@ export function ServerExceptionsAlert() {
               size="icon"
               variant="ghost"
             >
-              <X className="size-3" />
+              <XIcon className="size-3" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>

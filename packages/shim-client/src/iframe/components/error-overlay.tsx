@@ -1,5 +1,5 @@
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
-import { AlertCircle, ExternalLink } from "lucide-react";
+import { ArrowSquareOutIcon, WarningIcon } from "@phosphor-icons/react";
 
 export function ErrorOverlay({
   isInsideStudio,
@@ -13,7 +13,7 @@ export function ErrorOverlay({
       <div className="fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 sm:max-w-lg">
         <div className="flex flex-col space-y-1.5 text-center sm:text-left">
           <div className="flex items-center gap-3">
-            <AlertCircle className="size-5 text-destructive" />
+            <WarningIcon className="size-5 text-destructive" />
             <h3 className="text-lg leading-none font-semibold tracking-tight">
               Error
             </h3>
@@ -38,8 +38,8 @@ export function ErrorOverlay({
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium whitespace-nowrap text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
               onClick={() => window.open(`${APP_PROTOCOL}://`, "_self")}
             >
-              <ExternalLink className="size-4" />
-              Open in ${APP_NAME}
+              <ArrowSquareOutIcon className="size-4" />
+              Open in {APP_NAME}
             </button>
           )}
         </div>

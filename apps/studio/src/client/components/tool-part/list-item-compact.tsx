@@ -1,5 +1,5 @@
 import { cn } from "@/client/lib/utils";
-import { ChevronUp } from "lucide-react";
+import { CaretUpIcon } from "@phosphor-icons/react";
 import { type ReactNode } from "react";
 
 export function ToolPartListItemCompact({
@@ -25,7 +25,7 @@ export function ToolPartListItemCompact({
         {children}
         {isExpanded && (
           <span className="ml-auto flex shrink-0 items-center text-accent-foreground/60">
-            <ChevronUp className="size-3" />
+            <CaretUpIcon className="size-3" />
           </span>
         )}
       </div>
@@ -60,7 +60,7 @@ export function ToolPartListItemCompact({
         )}
         {isExpanded && (
           <span className="flex shrink-0 items-center text-accent-foreground/60">
-            <ChevronUp className="size-3" />
+            <CaretUpIcon className="size-3" />
           </span>
         )}
       </span>

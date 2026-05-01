@@ -4,17 +4,17 @@ import { Toggle } from "@/client/components/ui/toggle";
 import { useShimIFrame } from "@/client/hooks/use-shim-iframe";
 import { cn } from "@/client/lib/utils";
 import { type WorkspaceApp } from "@instrument-org/workspace/client";
+import {
+  ArrowClockwiseIcon,
+  ArrowSquareOutIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  ClockCounterClockwiseIcon,
+  SquareHalfBottomIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type atom, useAtomValue } from "jotai";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ExternalLinkIcon,
-  History,
-  PanelBottom,
-  RotateCw,
-  X,
-} from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { rpcClient } from "../rpc/client";
@@ -151,7 +151,7 @@ export function AppToolbar({
           size="icon"
           variant="ghost"
         >
-          <ChevronLeft className="size-4" />
+          <CaretLeftIcon className="size-4" />
         </Button>
         <Button
           className="size-6"
@@ -160,7 +160,7 @@ export function AppToolbar({
           size="icon"
           variant="ghost"
         >
-          <ChevronRight className="size-4" />
+          <CaretRightIcon className="size-4" />
         </Button>
 
         <TooltipNearIFrame
@@ -174,7 +174,7 @@ export function AppToolbar({
               size="icon"
               variant="ghost"
             >
-              <RotateCw className="size-4" />
+              <ArrowClockwiseIcon className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -199,7 +199,7 @@ export function AppToolbar({
                   size="icon"
                   variant="ghost"
                 >
-                  <ExternalLinkIcon className="size-3 text-muted-foreground/70" />
+                  <ArrowSquareOutIcon className="size-3 text-muted-foreground/70" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -225,7 +225,7 @@ export function AppToolbar({
                   pressed={isVersionsOpen}
                   size="sm"
                 >
-                  <History className="size-4" />
+                  <ClockCounterClockwiseIcon className="size-4" />
                 </Toggle>
               </div>
             </TooltipTrigger>
@@ -246,7 +246,7 @@ export function AppToolbar({
                 pressed={isConsoleOpen}
                 size="sm"
               >
-                <PanelBottom className="size-4" />
+                <SquareHalfBottomIcon className="size-4" weight="fill" />
               </Toggle>
               <ConsoleBadge status={badgeStatus} />
             </div>
@@ -269,7 +269,7 @@ export function AppToolbar({
                 size="icon"
                 variant="ghost"
               >
-                <X className="size-4" />
+                <XIcon className="size-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>

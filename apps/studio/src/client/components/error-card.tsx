@@ -1,6 +1,6 @@
 import { SUPPORT_URL } from "@instrument-org/shared";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { rootRouteId, useMatch, useRouter } from "@tanstack/react-router";
-import { AlertCircle } from "lucide-react";
 
 import { ExternalLink } from "./external-link";
 import { InternalLink } from "./internal-link";
@@ -41,7 +41,7 @@ export function ErrorCard({
       <CardContent className="space-y-4">
         {errorInfos.map((errorInfo, index) => (
           <Alert key={index} variant="destructive">
-            <AlertCircle className="size-4" />
+            <WarningCircleIcon className="size-4" />
             <AlertTitle>
               {errorInfo.code && `[${errorInfo.code}] `}
               {errorInfos.length > 1 ? `Error ${index + 1}` : "Error Details"}

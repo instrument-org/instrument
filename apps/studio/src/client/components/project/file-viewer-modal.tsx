@@ -3,10 +3,10 @@ import {
   projectFileViewerAtom,
   setProjectFileViewerIndexAtom,
 } from "@/client/atoms/project-file-viewer";
+import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect } from "react";
 
 import { FilePreviewListItem } from "../file-preview-list-item";
@@ -139,7 +139,7 @@ export function ProjectFileViewerModal() {
                     size="icon"
                     variant="ghost-overlay"
                   >
-                    <ChevronLeft className="size-6" />
+                    <CaretLeftIcon className="size-6" />
                   </Button>
                   <Button
                     className="absolute top-1/2 right-4 z-10 -translate-y-1/2"
@@ -147,7 +147,7 @@ export function ProjectFileViewerModal() {
                     size="icon"
                     variant="ghost-overlay"
                   >
-                    <ChevronRight className="size-6" />
+                    <CaretRightIcon className="size-6" />
                   </Button>
                 </>
               )}

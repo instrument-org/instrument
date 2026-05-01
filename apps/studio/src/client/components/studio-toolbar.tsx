@@ -4,8 +4,8 @@ import { Button } from "@/client/components/ui/button";
 import { cn, isLinux, isMacOS, isWindows } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { SIDEBAR_WIDTH, TOOLBAR_HEIGHT } from "@/shared/constants";
+import { SidebarSimpleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { SidebarIcon } from "lucide-react";
 
 export function StudioToolbar() {
   const { data: sidebarState } = useQuery(
@@ -50,7 +50,7 @@ export function StudioToolbar() {
             size="icon"
             variant="ghost"
           >
-            <SidebarIcon />
+            <SidebarSimpleIcon />
           </Button>
           <NavControls />
         </div>
@@ -76,7 +76,7 @@ export function StudioToolbar() {
                 title="Show sidebar"
                 variant="ghost"
               >
-                <SidebarIcon />
+                <SidebarSimpleIcon />
                 {hasExceptions && (
                   <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-destructive" />
                 )}

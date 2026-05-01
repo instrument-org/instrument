@@ -16,9 +16,9 @@ import {
   type AIProviderType,
 } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
+import { LockIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { AlertCircle, Lock } from "lucide-react";
 import { type ReactNode, useReducer, useRef, useState } from "react";
 
 import { ProviderPicker } from "../provider-picker";
@@ -335,7 +335,7 @@ export function ProviderConfigScreen({
                 />
 
                 <Alert>
-                  <Lock className="size-4" />
+                  <LockIcon className="size-4" />
                   <AlertDescription className="text-xs">
                     Your API key is encrypted and stored locally on your
                     computer.
@@ -404,7 +404,7 @@ export function ProviderConfigScreen({
 
         {state.errorMessage && (
           <Alert variant="destructive">
-            <AlertCircle />
+            <WarningCircleIcon />
             <AlertDescription className="flex flex-col gap-2">
               <div>{state.errorMessage}</div>
               {state.validationFailed && state.allowBypass && (

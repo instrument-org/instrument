@@ -12,9 +12,9 @@ import {
   CollapsibleTrigger,
 } from "@/client/components/ui/collapsible";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { CaretRightIcon, MonitorIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRightIcon, MonitorIcon } from "lucide-react";
 
 type Entry = Snapshot["entries"][number];
 type ProjectBrowser = Snapshot["projectBrowsers"][number];
@@ -89,7 +89,7 @@ function EntryCard({ entry }: { entry: Entry }) {
 
         <Collapsible>
           <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <ChevronRightIcon className="size-3 transition-transform group-data-[state=open]:rotate-90" />
+            <CaretRightIcon className="size-3 transition-transform group-data-[state=open]:rotate-90" />
             Internals
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">
@@ -208,7 +208,7 @@ function ProjectBrowserCard({
 
         <Collapsible>
           <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <ChevronRightIcon className="size-3 transition-transform group-data-[state=open]:rotate-90" />
+            <CaretRightIcon className="size-3 transition-transform group-data-[state=open]:rotate-90" />
             Internals
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">

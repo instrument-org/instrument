@@ -2,7 +2,7 @@ import { AppIcon } from "@/client/components/app-icon";
 import { AppStatusIcon } from "@/client/components/app-status-icon";
 import { cn } from "@/client/lib/utils";
 import { type Tab as TabData } from "@/shared/tabs";
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react";
 import { motion, Reorder } from "motion/react";
 
 const SkeletonTitle = () => {
@@ -132,7 +132,7 @@ export const Tab = ({
             }}
             type="button"
           >
-            <X
+            <XIcon
               className={cn(
                 "size-3.5 transition-colors",
                 isSelected ? "text-foreground" : "text-muted-foreground",

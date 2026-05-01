@@ -14,17 +14,15 @@ import {
 } from "@/client/components/ui/tooltip";
 import { useAppState } from "@/client/hooks/use-app-state";
 import { rpcClient } from "@/client/rpc/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  ArrowUpRight,
-  Loader2,
-  MoreVertical,
-  Settings,
-  Square,
-  Star,
-  StarOff,
-  Trash2,
-} from "lucide-react";
+  ArrowUpRightIcon,
+  DotsThreeOutlineVerticalIcon,
+  PencilSimpleLineIcon,
+  StarIcon,
+  StopCircleIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 export function ProjectActionsCell({
   onDelete,
@@ -71,10 +69,7 @@ export function ProjectActionsCell({
               size="icon"
               variant="ghost"
             >
-              <div className="relative flex items-center justify-center">
-                <Loader2 className="size-4 animate-spin" />
-                <Square className="absolute inset-0 m-auto size-1.5 fill-current" />
-              </div>
+              <StopCircleIcon className="size-4" weight="fill" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Stop</TooltipContent>
@@ -90,7 +85,7 @@ export function ProjectActionsCell({
             size="icon"
             variant="ghost"
           >
-            <Trash2 className="size-4" />
+            <TrashIcon className="size-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>Delete</TooltipContent>
@@ -98,7 +93,7 @@ export function ProjectActionsCell({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost">
-            <MoreVertical className="size-4" />
+            <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
             <span className="sr-only">More actions</span>
           </Button>
         </DropdownMenuTrigger>
@@ -106,11 +101,18 @@ export function ProjectActionsCell({
           <DropdownMenuItem
             onClick={(e) => {
               e.preventDefault();
-              onOpenInNewTab(subdomain);
+              if (isFavorite) {
+                void removeFavorite({ subdomain });
+              } else {
+                void addFavorite({ subdomain });
+              }
             }}
           >
-            <ArrowUpRight className="text-muted-foreground" />
-            <span>Open in new tab</span>
+            <StarIcon
+              className="text-muted-foreground"
+              weight={isFavorite ? "fill" : undefined}
+            />
+            <span>{isFavorite ? "Remove favorite" : "Favorite"}</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => {
@@ -118,30 +120,18 @@ export function ProjectActionsCell({
               onSettings(subdomain);
             }}
           >
-            <Settings className="text-muted-foreground" />
-            <span>Settings</span>
+            <PencilSimpleLineIcon className="text-muted-foreground" />
+            <span>Rename</span>
           </DropdownMenuItem>
-          {isFavorite ? (
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                void removeFavorite({ subdomain });
-              }}
-            >
-              <StarOff className="text-muted-foreground" />
-              <span>Remove favorite</span>
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                void addFavorite({ subdomain });
-              }}
-            >
-              <Star className="text-muted-foreground" />
-              <span>Favorite</span>
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.preventDefault();
+              onOpenInNewTab(subdomain);
+            }}
+          >
+            <ArrowUpRightIcon className="text-muted-foreground" />
+            <span>Open in new tab</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

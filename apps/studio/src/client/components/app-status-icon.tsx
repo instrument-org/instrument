@@ -2,13 +2,14 @@ import {
   type ProjectSubdomain,
   type SessionTag,
 } from "@instrument-org/workspace/client";
+import { PauseIcon } from "@phosphor-icons/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Loader2, Pause } from "lucide-react";
 
 import { useAppState } from "../hooks/use-app-state";
 import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
+import { Spinner } from "./ui/spinner";
 
 export function AppStatusIcon({
   className,
@@ -50,10 +51,10 @@ export function SessionStatusIcon({
 }) {
   switch (true) {
     case tags.includes("agent.paused"): {
-      return <Pause className={cn(className, "text-warning-foreground")} />;
+      return <PauseIcon className={cn(className, "text-warning-foreground")} />;
     }
     case tags.includes("agent.running") || isReplayRunning: {
-      return <Loader2 className={cn(className, "animate-spin")} />;
+      return <Spinner className={className} />;
     }
     default: {
       return null;

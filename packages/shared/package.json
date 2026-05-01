@@ -31,8 +31,7 @@
     "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
-    "@typescript/native-preview": "catalog:",
-    "lucide-react": "catalog:"
+    "@typescript/native-preview": "catalog:"
   },
   "engines": {
     "node": ">=24.14.1"

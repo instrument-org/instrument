@@ -9,8 +9,8 @@ import { AppStatusIcon } from "@/client/components/app-status-icon";
 import { InternalLink } from "@/client/components/internal-link";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
+import { ArrowsDownUpIcon, StarIcon } from "@phosphor-icons/react";
 import { format, formatDistanceToNow } from "date-fns";
-import { ArrowUpDown, Star } from "lucide-react";
 
 import { ProjectActionsCell } from "./actions";
 import { ModelPreview } from "./model-preview";
@@ -86,7 +86,10 @@ export function createColumns({
         return (
           <div className="flex min-w-0 items-center gap-x-2">
             {isFavorite && (
-              <Star className="size-4 shrink-0 fill-amber-500 text-amber-500" />
+              <StarIcon
+                className="size-4 shrink-0 fill-amber-500 text-amber-500"
+                weight="fill"
+              />
             )}
             <InternalLink
               className="flex min-w-0 flex-1 items-center gap-x-2"
@@ -114,7 +117,7 @@ export function createColumns({
             variant="ghost"
           >
             Project
-            <ArrowUpDown className="ml-2 size-4" />
+            <ArrowsDownUpIcon className="ml-2 size-4" />
           </Button>
         );
       },
@@ -164,7 +167,7 @@ export function createColumns({
             variant="ghost"
           >
             Updated
-            <ArrowUpDown className="ml-2 size-4" />
+            <ArrowsDownUpIcon className="ml-2 size-4" />
           </Button>
         );
       },
@@ -190,7 +193,7 @@ export function createColumns({
             variant="ghost"
           >
             Created
-            <ArrowUpDown className="ml-2 size-4" />
+            <ArrowsDownUpIcon className="ml-2 size-4" />
           </Button>
         );
       },

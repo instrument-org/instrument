@@ -13,9 +13,9 @@ import {
   DISCORD_URL,
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ExternalLink as ExternalLinkIcon } from "lucide-react";
 
 export const Route = createFileRoute("/settings/")({
   component: SettingsGeneralPage,
@@ -268,7 +268,7 @@ function About() {
               >
                 <ExternalLink href={APP_REPO_URL}>
                   View Source on GitHub
-                  <ExternalLinkIcon className="size-3" />
+                  <ArrowSquareOutIcon className="size-3" />
                 </ExternalLink>
               </Button>
             </div>
@@ -289,7 +289,7 @@ function About() {
               >
                 <ExternalLink href={DISCORD_URL}>
                   Join us on Discord
-                  <ExternalLinkIcon className="size-3" />
+                  <ArrowSquareOutIcon className="size-3" />
                 </ExternalLink>
               </Button>
             </div>

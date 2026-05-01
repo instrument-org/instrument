@@ -1,8 +1,8 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -154,7 +154,7 @@ export function MessageError({
     <ToolPartListItemCompact isExpanded={isExpanded}>
       {isDevOnlyVisible && <DeveloperModeBadge />}
       <span className="shrink-0 text-warning-foreground/80">
-        <AlertTriangle className="size-3" />
+        <WarningIcon className="size-3" />
       </span>
       <span className="shrink-0 font-medium text-warning-foreground/80">
         {getErrorTitle()}

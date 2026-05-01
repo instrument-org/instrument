@@ -3,8 +3,8 @@ import {
   type SessionMessage,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
+import { FileTextIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText } from "lucide-react";
 import { sift } from "radashi";
 import { useMemo, useState } from "react";
 
@@ -328,7 +328,7 @@ export function AssistantMessagesFooter({
                   className="flex items-center gap-2 text-sm"
                   key={source.metadata.id}
                 >
-                  <FileText className="size-4 shrink-0 text-muted-foreground" />
+                  <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="font-medium text-foreground">
                       {source.title}

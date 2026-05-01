@@ -1,4 +1,3 @@
-import { AppIcon } from "@/client/components/app-icon";
 import {
   CommandDialog,
   CommandEmpty,
@@ -12,27 +11,15 @@ import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useToggleCommandMenu } from "@/client/hooks/use-toggle-command-menu";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectSubdomain } from "@instrument-org/workspace/client";
-import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import {
+  ArrowsClockwiseIcon,
+  ChatCircleIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
-import {
-  format,
-  formatDistanceToNow,
-  isToday,
-  isWithinInterval,
-  isYesterday,
-  startOfDay,
-  subDays,
-} from "date-fns";
-import {
-  Copy,
-  LayoutGrid,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Star,
-  TrashIcon,
-} from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 export function StudioCommandMenu() {
@@ -64,11 +51,6 @@ export function StudioCommandMenu() {
     from: "/_app/new-tab",
     shouldThrow: false,
   });
-  const projectsRouteMatch = useMatch({
-    from: "/_app/projects/",
-    shouldThrow: false,
-  });
-
   const { data: projectsData, isLoading } = useQuery(
     rpcClient.workspace.project.list.queryOptions({
       enabled: open,
@@ -79,49 +61,13 @@ export function StudioCommandMenu() {
 
   const projects = projectsData?.projects ?? [];
 
-  const { data: favoriteSubdomains } = useQuery(
-    rpcClient.favorites.live.listSubdomains.experimental_liveOptions({
-      enabled: open,
-    }),
-  );
-
-  const favoriteProjectSubdomains = useMemo(
-    () => new Set<ProjectSubdomain>(favoriteSubdomains ?? []),
-    [favoriteSubdomains],
-  );
-
   const currentProjectSubdomain = projectRouteMatch?.params.subdomain;
 
   const filteredProjects = projects.filter(
     (project) => project.subdomain !== currentProjectSubdomain,
   );
 
-  const groupedProjects = useMemo(() => {
-    const groups = {
-      "Last 7 Days": [] as typeof filteredProjects,
-      Older: [] as typeof filteredProjects,
-      Today: [] as typeof filteredProjects,
-      Yesterday: [] as typeof filteredProjects,
-    };
-
-    for (const project of filteredProjects) {
-      const group = getDateGroup(new Date(project.updatedAt));
-      groups[group].push(project);
-    }
-
-    return groups;
-  }, [filteredProjects]);
-
-  const { data: currentProject } = useQuery(
-    rpcClient.workspace.project.bySubdomain.queryOptions({
-      input:
-        open && currentProjectSubdomain
-          ? { subdomain: currentProjectSubdomain }
-          : skipToken,
-    }),
-  );
   const isOnNewTabPage = !!newTabRouteMatch;
-  const isOnProjectsPage = !!projectsRouteMatch;
 
   useToggleCommandMenu(
     useCallback(() => {
@@ -148,25 +94,6 @@ export function StudioCommandMenu() {
   const handleNewProject = () => {
     handleClose();
     void navigate({ to: "/new-tab" });
-  };
-
-  const handleAllProjects = () => {
-    handleClose();
-    void navigate({ to: "/projects" });
-  };
-
-  const openCurrentProjectModal = (
-    searchKey: "showDelete" | "showDuplicate" | "showSettings",
-  ) => {
-    if (!currentProjectSubdomain) {
-      return;
-    }
-    handleClose();
-    void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain: currentProjectSubdomain },
-      search: (prev) => ({ ...prev, [searchKey]: true }),
-    });
   };
 
   return (
@@ -205,64 +132,13 @@ export function StudioCommandMenu() {
             <CommandEmpty>
               <span className="text-muted-foreground">No commands found</span>
             </CommandEmpty>
-            {currentProject && (
-              <CommandGroup
-                heading={
-                  <div className="flex items-center gap-x-1.5">
-                    <AppIcon name={currentProject.iconName} size="xs" />
-                    <span className="truncate">{currentProject.title}</span>
-                  </div>
-                }
-              >
-                <CommandItem
-                  onSelect={() => {
-                    openCurrentProjectModal("showSettings");
-                  }}
-                  value="current-project-rename"
-                >
-                  <Pencil className="size-4" />
-                  <span>Rename</span>
+            <CommandGroup>
+              {!isOnNewTabPage && (
+                <CommandItem onSelect={handleNewProject} value="new-project">
+                  <PlusIcon className="size-4" />
+                  <span>New project</span>
                 </CommandItem>
-                <CommandItem
-                  onSelect={() => {
-                    openCurrentProjectModal("showDuplicate");
-                  }}
-                  value="current-project-duplicate"
-                >
-                  <Copy className="size-4" />
-                  <span>Duplicate</span>
-                </CommandItem>
-                <CommandItem
-                  onSelect={() => {
-                    openCurrentProjectModal("showDelete");
-                  }}
-                  value="current-project-delete"
-                >
-                  <TrashIcon className="size-4" />
-                  <span>Delete</span>
-                </CommandItem>
-              </CommandGroup>
-            )}
-            {(!isOnNewTabPage || !isOnProjectsPage) && (
-              <CommandGroup heading="Pages">
-                {!isOnNewTabPage && (
-                  <CommandItem onSelect={handleNewProject} value="new-project">
-                    <Plus className="size-4" />
-                    <span>New project</span>
-                  </CommandItem>
-                )}
-                {!isOnProjectsPage && (
-                  <CommandItem
-                    onSelect={handleAllProjects}
-                    value="all-projects"
-                  >
-                    <LayoutGrid className="size-4" />
-                    <span>All projects</span>
-                  </CommandItem>
-                )}
-              </CommandGroup>
-            )}
-            <CommandGroup heading="App">
+              )}
               <CommandItem
                 onSelect={() => {
                   handleClose();
@@ -270,7 +146,7 @@ export function StudioCommandMenu() {
                 }}
                 value="check-for-updates"
               >
-                <RefreshCw className="size-4" />
+                <ArrowsClockwiseIcon className="size-4" />
                 <span>Check for updates</span>
               </CommandItem>
               {/* Only renders when "!dev" is typed exactly, so it never appears in the default list. */}
@@ -312,75 +188,31 @@ export function StudioCommandMenu() {
                 </CommandItem>
               )}
             </CommandGroup>
-            {(["Today", "Yesterday", "Last 7 Days", "Older"] as const).map(
-              (groupName) => {
-                const groupProjects = groupedProjects[groupName];
-                if (groupProjects.length === 0) {
-                  return null;
-                }
-
-                return (
-                  <CommandGroup heading={groupName} key={groupName}>
-                    {groupProjects.map((project) => {
-                      const isFavorite = favoriteProjectSubdomains.has(
-                        project.subdomain,
-                      );
-                      return (
-                        <CommandItem
-                          key={project.subdomain}
-                          keywords={[project.title]}
-                          onSelect={() => {
-                            handleSelectProject(project.subdomain);
-                          }}
-                          value={project.subdomain}
-                        >
-                          {isFavorite && (
-                            <Star className="size-4 shrink-0 fill-amber-500 text-amber-500" />
-                          )}
-                          <AppIcon name={project.iconName} size="sm" />
-                          <span className="flex-1 truncate">
-                            {project.title}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {groupName === "Older"
-                              ? format(
-                                  new Date(project.updatedAt),
-                                  "MMM d, yyyy",
-                                )
-                              : getRelativeTime(new Date(project.updatedAt))}
-                          </span>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
-                );
-              },
+            {filteredProjects.length > 0 && (
+              <CommandGroup heading="Projects">
+                {filteredProjects.map((project) => (
+                  <CommandItem
+                    key={project.subdomain}
+                    keywords={[project.title]}
+                    onSelect={() => {
+                      handleSelectProject(project.subdomain);
+                    }}
+                    value={project.subdomain}
+                  >
+                    <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
+                    <span className="flex-1 truncate">{project.title}</span>
+                    <span className="text-xs text-muted-foreground/60">
+                      {formatDistanceToNow(new Date(project.updatedAt), {
+                        addSuffix: true,
+                      }).replace(/^about /, "")}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
             )}
           </>
         )}
       </CommandList>
     </CommandDialog>
   );
-}
-
-function getDateGroup(date: Date) {
-  if (isToday(date)) {
-    return "Today";
-  }
-  if (isYesterday(date)) {
-    return "Yesterday";
-  }
-  if (
-    isWithinInterval(date, {
-      end: new Date(),
-      start: startOfDay(subDays(new Date(), 7)),
-    })
-  ) {
-    return "Last 7 Days";
-  }
-  return "Older";
-}
-
-function getRelativeTime(date: Date) {
-  return formatDistanceToNow(date, { addSuffix: true });
 }

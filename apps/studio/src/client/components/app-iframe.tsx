@@ -3,10 +3,10 @@ import {
   ShimIFrameOutMessageSchema,
 } from "@instrument-org/shared/shim";
 import { type WorkspaceApp } from "@instrument-org/workspace/client";
+import { StopCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import { type atom, useSetAtom } from "jotai";
-import { Circle, Loader2, Square, XIcon } from "lucide-react";
 import ms from "ms";
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { appCoverMachine } from "../machines/app-cover-state";
 import { rpcClient } from "../rpc/client";
 import { type ClientLogLine } from "./console";
 import { Button } from "./ui/button";
+import { Spinner } from "./ui/spinner";
 
 export function AppIFrame({
   app,
@@ -209,7 +210,7 @@ export function AppIFrame({
 
             <div className="flex flex-col space-y-4 text-center sm:text-left">
               <div className="flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" />
+                <Spinner className="size-4" />
                 <h3 className="shiny-text text-lg/6 font-semibold tracking-tight">
                   Agent is working...
                 </h3>
@@ -224,10 +225,7 @@ export function AppIFrame({
                 }}
                 variant="secondary"
               >
-                <div className="relative flex items-center justify-center">
-                  <Circle className="size-4 animate-spin stroke-2" />
-                  <Square className="absolute inset-0 m-auto size-1.5 fill-current" />
-                </div>
+                <StopCircleIcon className="size-4" weight="fill" />
                 {stopSessions.isPending ? "Stopping..." : "Stop agent"}
               </Button>
             </div>

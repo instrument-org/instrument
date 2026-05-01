@@ -8,13 +8,13 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import ColorHash from "color-hash";
 import { format, formatDistanceToNow } from "date-fns";
-import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { rpcClient } from "../rpc/client";
 import { ErrorCard } from "./error-card";
 import { InternalLink } from "./internal-link";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Spinner } from "./ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { ViewIndicator } from "./view-indicator";
 
@@ -59,7 +59,7 @@ export function VersionList({
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <Spinner className="size-4 text-muted-foreground" />
       </div>
     );
   }

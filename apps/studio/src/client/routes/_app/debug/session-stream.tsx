@@ -14,8 +14,8 @@ import {
 } from "@/client/components/ui/command";
 import { Label } from "@/client/components/ui/label";
 import { cn } from "@/client/lib/utils";
+import { CheckIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -77,7 +77,7 @@ function RouteComponent() {
                 }}
                 value={session.id}
               >
-                <Check
+                <CheckIcon
                   className={cn(
                     "mr-2 size-4",
                     isSelected ? "opacity-100" : "opacity-0",

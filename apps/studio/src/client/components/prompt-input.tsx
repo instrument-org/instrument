@@ -25,17 +25,16 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { type FileUpload } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
+import {
+  ArrowUpIcon,
+  FileIcon,
+  FolderIcon,
+  PaperclipIcon,
+  StopIcon,
+  UploadSimpleIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useSetAtom } from "jotai";
-import {
-  ArrowUp,
-  File,
-  Folder,
-  Loader2,
-  Paperclip,
-  Square,
-  Upload,
-} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -53,6 +52,7 @@ import {
   type PromptValueAtomKey,
 } from "../atoms/prompt-value";
 import { rpcClient } from "../rpc/client";
+import { Spinner } from "./ui/spinner";
 
 type AttachedItem =
   | {
@@ -95,7 +95,6 @@ interface PromptInputProps {
   }) => void;
   placeholder?: string;
   ref?: React.Ref<PromptInputRef>;
-  submitButtonContent?: React.ReactNode;
 }
 
 interface PromptInputRef {
@@ -118,7 +117,6 @@ export const PromptInput = ({
   onSubmit,
   placeholder,
   ref,
-  submitButtonContent,
 }: PromptInputProps) => {
   const [showAIProviderGuard, setShowAIProviderGuard] = useState(false);
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
@@ -435,7 +433,7 @@ export const PromptInput = ({
     <>
       <TextareaContainer
         className={cn(
-          "relative overflow-hidden",
+          "relative overflow-hidden rounded-3xl p-4",
           // Equivalent of transparent and dark:bg-input/30, but opaque
           "bg-background dark:bg-[#212226]",
           className,
@@ -445,7 +443,7 @@ export const PromptInput = ({
       >
         {isDragging && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm">
-            <Upload className="size-8 text-primary" />
+            <UploadSimpleIcon className="size-8 text-primary" />
             <span className="text-sm font-medium text-primary">
               Drop files or folders to add them
             </span>
@@ -512,7 +510,7 @@ export const PromptInput = ({
           type="file"
         />
         <div className="flex items-center justify-end gap-2 pt-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 self-end">
             <div className="min-w-0 flex-1">
               <ModelPicker
                 disabled={disabled}
@@ -543,23 +541,23 @@ export const PromptInput = ({
                 size="sm"
                 variant="ghost"
               >
-                <Paperclip className="size-4" />
+                <PaperclipIcon className="size-5" weight="regular" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                <File />
+                <FileIcon />
                 Add files
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void handleFolderPick()}>
-                <Folder />
+                <FolderIcon />
                 Add folder
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
           <Button
-            className={cn(submitButtonContent ? "h-7 px-3" : "size-7 p-0")}
+            className="size-10 rounded-xl p-0 disabled:opacity-100"
             disabled={isStoppable ? false : !canSubmit}
             onClick={(e) => {
               if (isStoppable) {
@@ -570,18 +568,14 @@ export const PromptInput = ({
                 handleSubmit(openInNewTab);
               }
             }}
-            size="sm"
-            variant={isStoppable ? "ghost" : "brand"}
+            variant="brand"
           >
             {isStoppable ? (
-              <div className="relative flex items-center justify-center">
-                <Loader2 className="size-6 animate-spin stroke-2" />
-                <Square className="absolute inset-0 m-auto size-2 fill-current" />
-              </div>
+              <StopIcon className="size-5" weight="fill" />
             ) : isLoading ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Spinner className="size-5" />
             ) : (
-              (submitButtonContent ?? <ArrowUp className="size-4" />)
+              <ArrowUpIcon className="size-5" />
             )}
           </Button>
         </div>

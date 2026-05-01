@@ -3,19 +3,19 @@ import type {
   SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
-import { useSetAtom } from "jotai";
 import {
-  ChevronDown,
-  Copy,
-  Loader2Icon,
-  MessageSquare,
-  Terminal,
-} from "lucide-react";
+  CaretDownIcon,
+  ChatTextIcon,
+  CopyIcon,
+  TerminalIcon,
+} from "@phosphor-icons/react";
+import { useSetAtom } from "jotai";
 import { useState } from "react";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
+import { Spinner } from "../ui/spinner";
 import { AgentBrowserPlayer } from "./agent-browser-player";
 import { ToolCard, ToolCardHeader } from "./tool-card";
 import { VirtualizedScrollingText } from "./virtualized-scrolling-text";
@@ -113,11 +113,11 @@ export function ShellCommandCard({
       >
         <span className="relative size-3 shrink-0">
           {isStreaming ? (
-            <Loader2Icon className="size-3 animate-spin text-accent-foreground/80" />
+            <Spinner className="size-3 text-accent-foreground/80" />
           ) : (
             <>
-              <Terminal className="size-3 text-muted-foreground transition-opacity group-hover:opacity-0" />
-              <ChevronDown
+              <TerminalIcon className="size-3 text-muted-foreground transition-opacity group-hover:opacity-0" />
+              <CaretDownIcon
                 className={cn(
                   "absolute inset-0 size-3 text-muted-foreground opacity-0 transition-[opacity,transform] group-hover:opacity-100",
                   isExpanded && "rotate-180",
@@ -172,7 +172,7 @@ export function ShellCommandCard({
         <div className="absolute top-8 right-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <ConfirmedIconButton
             className="size-5 border border-border/50 bg-muted hover:bg-accent!"
-            icon={MessageSquare}
+            icon={ChatTextIcon}
             onClick={handleSendToChat}
             successTooltip="Sent to chat!"
             tooltip="Send to chat"
@@ -180,7 +180,7 @@ export function ShellCommandCard({
           />
           <ConfirmedIconButton
             className="size-5 border border-border/50 bg-muted hover:bg-accent!"
-            icon={Copy}
+            icon={CopyIcon}
             onClick={handleCopy}
             successTooltip="Copied!"
             tooltip="Copy"

@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { ArrowLineDownIcon } from "@phosphor-icons/react";
 
 import { FileIcon } from "./file-icon";
 import { Button } from "./ui/button";
@@ -31,7 +31,7 @@ export function FilePreviewFallback({
       </div>
       {onDownload && (
         <Button onClick={onDownload} size="sm">
-          <Download className="size-4" />
+          <ArrowLineDownIcon className="size-4" />
           Download
         </Button>
       )}

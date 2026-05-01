@@ -1,10 +1,10 @@
 import { type Button, buttonVariants } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
 import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  MoreHorizontalIcon,
-} from "lucide-react";
+  CaretLeftIcon,
+  CaretRightIcon,
+  DotsThreeOutlineIcon,
+} from "@phosphor-icons/react";
 import * as React from "react";
 
 type PaginationLinkProps = Pick<React.ComponentProps<typeof Button>, "size"> &
@@ -48,7 +48,7 @@ function PaginationEllipsis({
       data-slot="pagination-ellipsis"
       {...props}
     >
-      <MoreHorizontalIcon className="size-4" />
+      <DotsThreeOutlineIcon className="size-4" weight="fill" />
       <span className="sr-only">More pages</span>
     </span>
   );
@@ -94,7 +94,7 @@ function PaginationNext({
       {...props}
     >
       <span className="hidden sm:block">Next</span>
-      <ChevronRightIcon />
+      <CaretRightIcon />
     </PaginationLink>
   );
 }
@@ -110,7 +110,7 @@ function PaginationPrevious({
       size="default"
       {...props}
     >
-      <ChevronLeftIcon />
+      <CaretLeftIcon />
       <span className="hidden sm:block">Previous</span>
     </PaginationLink>
   );

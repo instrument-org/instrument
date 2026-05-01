@@ -3,7 +3,7 @@ import {
   getTrashTerminology,
   PROGRESS_MESSAGES,
 } from "@/client/lib/trash-terminology";
-import { Loader2, Timer } from "lucide-react";
+import { TimerIcon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { Alert, AlertDescription } from "./ui/alert";
@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import { Spinner } from "./ui/spinner";
 
 interface DeleteWithProgressDialogProps<T> {
   content?: ReactNode;
@@ -102,7 +103,7 @@ function DeleteWithProgressDialogBody<T>({
       <>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <Loader2 className="size-5 animate-spin" />
+            <Spinner className="size-5" />
             Moving to {trashTerminology}
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -111,7 +112,7 @@ function DeleteWithProgressDialogBody<T>({
         </AlertDialogHeader>
         {showWarning && (
           <Alert variant="default">
-            <Timer />
+            <TimerIcon />
             <AlertDescription>
               {PROGRESS_MESSAGES[messageIndex]}
             </AlertDescription>

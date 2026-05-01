@@ -1,7 +1,7 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
+import { PlayIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Play } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
@@ -16,6 +16,7 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "./ui/context-menu";
+import { Spinner } from "./ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function FilePreviewCard({
@@ -158,7 +159,10 @@ export function FilePreviewCard({
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity group-hover:opacity-0">
                   <div className="rounded-full bg-white/90 p-2 shadow-lg">
-                    <Play className="size-4 fill-black text-black" />
+                    <PlayIcon
+                      className="size-4 fill-black text-black"
+                      weight="fill"
+                    />
                   </div>
                 </div>
                 {(isPlaying
@@ -232,7 +236,7 @@ function MarkdownPreview({ url }: { url: string }) {
   if (isLoading) {
     return (
       <div className="flex size-full items-center justify-center">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <Spinner className="size-4 text-muted-foreground" />
       </div>
     );
   }
@@ -321,7 +325,7 @@ function TextPreview({ url }: { url: string }) {
   if (isLoading) {
     return (
       <div className="flex size-full items-center justify-center">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <Spinner className="size-4 text-muted-foreground" />
       </div>
     );
   }

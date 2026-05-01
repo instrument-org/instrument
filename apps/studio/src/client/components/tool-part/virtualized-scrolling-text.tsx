@@ -1,5 +1,5 @@
+import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { tv } from "tailwind-variants";
 
@@ -210,7 +210,7 @@ export function VirtualizedScrollingText({
                 setIsExpanded(false);
               }}
             >
-              <ChevronUp className="size-3" />
+              <CaretUpIcon className="size-3" />
             </div>
           </CollapsibleContent>
         </>
@@ -227,7 +227,7 @@ export function VirtualizedScrollingText({
           </div>
           <CollapsibleTrigger asChild>
             <div className={triggerButton()}>
-              <ChevronDown className="size-3" />
+              <CaretDownIcon className="size-3" />
             </div>
           </CollapsibleTrigger>
         </>

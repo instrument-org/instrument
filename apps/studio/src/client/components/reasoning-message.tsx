@@ -1,6 +1,6 @@
 import { formatDurationFromDates } from "@/client/lib/format-time";
 import { cn } from "@/client/lib/utils";
-import { Brain } from "lucide-react";
+import { BrainIcon } from "@phosphor-icons/react";
 import { memo, useEffect, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
@@ -83,7 +83,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
 
   const headerContent = (
     <ToolPartListItemCompact
-      icon={hideIcon ? undefined : <Brain className="size-3" />}
+      icon={hideIcon ? undefined : <BrainIcon className="size-3" />}
       isExpanded={!isLoading && isExpanded}
       label={
         isLoading ? (

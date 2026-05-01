@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react";
 
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -51,7 +51,7 @@ export function AttachedItemPreview({
           onClick={onRemove}
           type="button"
         >
-          <X className="size-3" />
+          <XIcon className="size-3" />
         </button>
       )}
     </div>

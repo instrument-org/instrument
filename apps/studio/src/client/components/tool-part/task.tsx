@@ -5,7 +5,6 @@ import {
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Loader2Icon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
@@ -22,6 +21,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
+import { Spinner } from "../ui/spinner";
 import { ToolPartListItemCompact } from "./list-item-compact";
 
 export type RenderStream = (args: {
@@ -68,7 +68,7 @@ export function TaskToolCard({
     <ToolPartListItemCompact
       icon={
         isStreaming ? (
-          <Loader2Icon className="size-3 animate-spin" />
+          <Spinner className="size-3" />
         ) : (
           <ToolIcon className="size-3" toolName={toolName} />
         )
@@ -160,7 +160,7 @@ function TaskStream({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-4">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <Spinner className="size-4 text-muted-foreground" />
       </div>
     );
   }

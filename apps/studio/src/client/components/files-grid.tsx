@@ -3,8 +3,8 @@ import { getFileType, isReadableText } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
+import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { fork } from "radashi";
 import { useState } from "react";
 
@@ -214,7 +214,7 @@ export function FilesGrid({
                 {hiddenFileCount === 1 ? "" : "s"}
               </span>
             )}
-            <ChevronDown className="size-3.5 text-muted-foreground" />
+            <CaretDownIcon className="size-3.5 text-muted-foreground" />
           </Button>
         </div>
       )}
@@ -255,7 +255,7 @@ export function FilesGrid({
             variant="outline-muted"
           >
             <span className="text-xs">Show less</span>
-            <ChevronUp className="size-3.5 text-muted-foreground" />
+            <CaretUpIcon className="size-3.5 text-muted-foreground" />
           </Button>
         </div>
       )}
@@ -286,9 +286,9 @@ function CategorizedFileSection({
         type="button"
       >
         {isExpanded ? (
-          <ChevronUp className="size-3" />
+          <CaretUpIcon className="size-3" />
         ) : (
-          <ChevronDown className="size-3" />
+          <CaretDownIcon className="size-3" />
         )}
         <span>
           {title} ({files.length})

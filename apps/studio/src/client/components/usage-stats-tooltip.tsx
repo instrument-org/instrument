@@ -3,7 +3,7 @@ import { formatDuration } from "@/client/lib/format-time";
 import { isValidNumber } from "@/client/lib/usage-utils";
 import { cn } from "@/client/lib/utils";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { Coins, MessageCircle } from "lucide-react";
+import { ChatCircleTextIcon, CoinsIcon } from "@phosphor-icons/react";
 import { type ReactNode } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -119,12 +119,12 @@ export function UsageSummaryText({
       onClick={onClick}
     >
       <span className="inline-flex shrink-0 items-center gap-1">
-        <MessageCircle className="size-3 shrink-0" />
+        <ChatCircleTextIcon className="size-3 shrink-0" weight="fill" />
         <span className="tabular-nums">{formatNumber(messageCount)}</span>
       </span>
       {totalTokens > 0 && (
         <span className="inline-flex shrink-0 items-center gap-1">
-          <Coins className="size-3 shrink-0" />
+          <CoinsIcon className="size-3 shrink-0" weight="fill" />
           <span className="tabular-nums">{formatNumber(totalTokens)}</span>
         </span>
       )}

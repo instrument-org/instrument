@@ -17,8 +17,8 @@ import {
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { type ProviderMetadata } from "@instrument-org/ai-gateway/client";
 import { type AIProviderType } from "@instrument-org/shared";
+import { CaretDownIcon, StarIcon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
-import { Award, ChevronDown } from "lucide-react";
 import { useState } from "react";
 
 import { AIProviderIcon } from "./ai-provider-icon";
@@ -82,7 +82,7 @@ export function ProviderPicker({
               <>Choose a provider</>
             )}
           </div>
-          <ChevronDown className="ml-2 size-4 shrink-0 opacity-50" />
+          <CaretDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -116,23 +116,27 @@ export function ProviderPicker({
                           <span className="shrink-0 font-medium">
                             {provider.name}
                           </span>
-                          {provider.tags.map((tag) => (
-                            <Badge
-                              className="shrink-0"
-                              key={tag}
-                              variant={
-                                tag === "recommended"
-                                  ? "brand-outline"
-                                  : "outline"
-                              }
-                            >
-                              {tag === "recommended" && (
-                                <Award className="size-3 stroke-brand" />
-                              )}
-                              {TAG_TO_LABEL[tag]}
-                            </Badge>
-                          ))}
+                          {provider.tags
+                            .filter((tag) => tag !== "recommended")
+                            .map((tag) => (
+                              <Badge
+                                className="shrink-0"
+                                key={tag}
+                                variant="outline"
+                              >
+                                {TAG_TO_LABEL[tag]}
+                              </Badge>
+                            ))}
                         </div>
+                        {provider.tags.includes("recommended") && (
+                          <div className="flex items-center gap-x-1 text-xs text-brand">
+                            <StarIcon
+                              className="size-2.5 rotate-180 fill-brand"
+                              weight="fill"
+                            />
+                            <span>Recommended</span>
+                          </div>
+                        )}
                         <div className="text-xs text-muted-foreground">
                           {provider.description}
                         </div>

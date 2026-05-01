@@ -8,7 +8,7 @@ globs: apps/studio/**/*
 electron-builder copies everything in `dependencies` into the asar's `node_modules`. Packages that are only used in the renderer (React components, UI libraries, Vite-bundled code) **must** be in `devDependencies` — Vite bundles them at build time and they do not need to be present at runtime. Putting renderer-only packages in `dependencies` silently bloats the app by tens of megabytes.
 
 - **`dependencies`**: main-process runtime packages only (e.g. `hono`, `better-auth`, `xstate`, `ws`, native addons)
-- **`devDependencies`**: everything renderer-only (e.g. React, Radix, `motion`, `lucide-react` if only used in the renderer)
+- **`devDependencies`**: everything renderer-only (e.g. React, Radix, `motion if only used in the renderer)
 
 ## Project
 

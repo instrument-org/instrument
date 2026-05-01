@@ -1,6 +1,6 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { ChevronDown } from "lucide-react";
+import { CaretDownIcon } from "@phosphor-icons/react";
 import { memo, useMemo, useState } from "react";
 
 import { CopyButton } from "./copy-button";
@@ -69,7 +69,7 @@ export const ContextMessages = memo(function ContextMessages({
                 View system prompt
               </span>
               {isExpanded && (
-                <ChevronDown className="size-2 text-warning-foreground" />
+                <CaretDownIcon className="size-2 text-warning-foreground" />
               )}
             </div>
           </Button>

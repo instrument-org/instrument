@@ -24,7 +24,6 @@ export function ProjectSidebar({
   files,
   hasAppModifications,
   isAppViewOpen,
-  isFullWidth,
   onAppSelect,
   onFileSelect,
   onSidebarChange,
@@ -41,7 +40,6 @@ export function ProjectSidebar({
   files: RPCOutput["workspace"]["project"]["git"]["listFiles"] | undefined;
   hasAppModifications: boolean;
   isAppViewOpen: boolean;
-  isFullWidth: boolean;
   onAppSelect: () => void;
   onFileSelect: (file: ProjectFileViewerFile) => void;
   onSidebarChange: (sidebar: ProjectSidebarMode) => void;
@@ -95,7 +93,7 @@ export function ProjectSidebar({
             />
           </div>
         ) : (
-          <ProjectChat {...chatProps} isChatOnly={isFullWidth} />
+          <ProjectChat {...chatProps} />
         )}
       </div>
     </div>

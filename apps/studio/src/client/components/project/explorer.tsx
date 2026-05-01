@@ -1,6 +1,7 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { FileIcon } from "@/client/components/file-icon";
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { ImageWithFallback } from "@/client/components/image-with-fallback";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
@@ -24,10 +25,8 @@ import {
   CaretRightIcon,
   ChatTextIcon,
   DotsThreeOutlineVerticalIcon,
-  FolderOpenIcon,
   FolderSimpleIcon,
   GlobeIcon,
-  type Icon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -505,14 +504,11 @@ function ExplorerFileThumbnail({
   );
 }
 
-function ExplorerFolderThumbnail({ isActive }: { isActive?: boolean }) {
+function ExplorerFolderThumbnail() {
   return (
-    <ThumbnailFrame
-      className="flex items-center justify-center"
-      isActive={isActive}
-    >
-      <FolderOpenIcon className={thumbnailIconClass(isActive)} />
-    </ThumbnailFrame>
+    <div className="flex h-10 w-8 shrink-0 items-center justify-center">
+      <MacFolderIcon className="size-8 shrink-0" />
+    </div>
   );
 }
 
@@ -649,7 +645,7 @@ function CollapsibleTreeSection({
   children: React.ReactNode;
   defaultOpen?: boolean;
   forceOpen?: boolean;
-  icon?: Icon;
+  icon?: React.ComponentType<{ className?: string }>;
   label: string;
   labelClassName?: string;
 }) {

@@ -6,11 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
+import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -69,16 +65,19 @@ export function ProjectActionsMenu({
 
   return (
     <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon-sm" variant="ghost">
-              <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Project actions</TooltipContent>
-      </Tooltip>
+      <DropdownMenuTrigger asChild>
+        <Button
+          className={toolbarClassName({
+            className:
+              "size-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+            pressed: false,
+          })}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
+        </Button>
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="bottom">
         <DropdownMenuItem
           onClick={(e) => {

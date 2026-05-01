@@ -1,5 +1,5 @@
-import { NewTabHelpMessage } from "@/client/components/new-tab-help-message";
 import { PromptInput } from "@/client/components/prompt-input";
+import { AppIconGlyph } from "@/client/components/studio-icon";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
@@ -55,63 +55,58 @@ function RouteComponent() {
   }, [router]);
 
   return (
-    <div className="relative flex min-h-screen w-full flex-1 flex-col items-center">
-      <div className="flex w-full items-center justify-center">
-        <div className="w-full max-w-2xl space-y-8 px-8 pt-36">
-          <div>
-            <PromptInput
-              allowOpenInNewTab
-              atomKey="$$new-tab$$"
-              autoFocus
-              autoResizeMaxHeight={300}
-              isLoading={createProjectMutation.isPending}
-              modelURI={selectedModelURI}
-              onModelChange={setSelectedModelURI}
-              onSubmit={({
-                files,
-                folders,
-                modelURI,
-                openInNewTab,
-                prompt,
-              }) => {
-                saveSelectedModelURI(modelURI);
-
-                createProjectMutation.mutate(
-                  { files, folders, modelURI, prompt },
-                  {
-                    onError: (error) => {
-                      toast.error(
-                        `There was an error starting your project: ${error.message}`,
-                      );
-                    },
-                    onSuccess: ({ sessionId, subdomain }) => {
-                      if (openInNewTab) {
-                        void addTab(
-                          {
-                            params: { subdomain },
-                            search: { selectedSessionId: sessionId },
-                            to: "/projects/$subdomain",
-                          },
-                          { select: false },
-                        );
-                      } else {
-                        void navigate({
-                          params: { subdomain },
-                          search: { selectedSessionId: sessionId },
-                          to: "/projects/$subdomain",
-                        });
-                      }
-                    },
-                  },
-                );
-              }}
-              placeholder={`Talk to ${APP_NAME}`}
-            />
-            <div className="mt-2 flex items-center justify-end">
-              <NewTabHelpMessage />
-            </div>
+    <div className="grid min-h-screen w-full flex-1 place-items-center px-8">
+      <div className="relative w-full max-w-2xl">
+        <div className="absolute bottom-full left-1/2 mb-8 flex -translate-x-1/2 flex-col items-center gap-y-5">
+          <div className="text-brown-300/34 dark:text-brown-900/34">
+            <AppIconGlyph className="size-18" />
           </div>
+          <h1 className="font-serif text-2xl leading-none font-normal tracking-[-0.03em] whitespace-nowrap text-foreground sm:text-3xl md:text-4xl">
+            How can I help?
+          </h1>
         </div>
+        <PromptInput
+          allowOpenInNewTab
+          atomKey="$$new-tab$$"
+          autoFocus
+          autoResizeMaxHeight={300}
+          isLoading={createProjectMutation.isPending}
+          modelURI={selectedModelURI}
+          onModelChange={setSelectedModelURI}
+          onSubmit={({ files, folders, modelURI, openInNewTab, prompt }) => {
+            saveSelectedModelURI(modelURI);
+
+            createProjectMutation.mutate(
+              { files, folders, modelURI, prompt },
+              {
+                onError: (error) => {
+                  toast.error(
+                    `There was an error starting your project: ${error.message}`,
+                  );
+                },
+                onSuccess: ({ sessionId, subdomain }) => {
+                  if (openInNewTab) {
+                    void addTab(
+                      {
+                        params: { subdomain },
+                        search: { selectedSessionId: sessionId },
+                        to: "/projects/$subdomain",
+                      },
+                      { select: false },
+                    );
+                  } else {
+                    void navigate({
+                      params: { subdomain },
+                      search: { selectedSessionId: sessionId },
+                      to: "/projects/$subdomain",
+                    });
+                  }
+                },
+              },
+            );
+          }}
+          placeholder={`Talk to ${APP_NAME}`}
+        />
       </div>
     </div>
   );

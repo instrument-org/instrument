@@ -1,12 +1,12 @@
 import { InternalLink } from "@/client/components/internal-link";
-import { ThemeToggle } from "@/client/components/theme-toggle";
 import { createIconMeta } from "@/shared/tabs";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-// Global variables for link styles
+import { debugRoutes } from "./-debug-routes";
+
 const linkBaseClasses =
-  "text-sm font-medium text-muted-foreground hover:text-foreground transition-colors underline";
-const linkActiveClasses = "text-foreground! no-underline!";
+  "rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground";
+const linkActiveClasses = "bg-background text-foreground! shadow-xs";
 
 export const Route = createFileRoute("/_app/debug")({
   component: RouteComponent,
@@ -23,56 +23,29 @@ export const Route = createFileRoute("/_app/debug")({
 function RouteComponent() {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <header className="sticky top-0 z-10 w-full shrink-0 border-b bg-background/95 p-4 backdrop-blur-sm supports-backdrop-filter:bg-background/60">
-        <nav className="flex items-center justify-between">
-          <div className="flex gap-6">
-            <InternalLink
-              activeProps={{
-                className: linkActiveClasses,
-              }}
-              className={linkBaseClasses}
-              to="/debug/components"
-            >
-              Components
-            </InternalLink>
-            <InternalLink
-              activeProps={{
-                className: linkActiveClasses,
-              }}
-              className={linkBaseClasses}
-              to="/debug/colors"
-            >
-              Colors
-            </InternalLink>
-            <InternalLink
-              activeProps={{
-                className: linkActiveClasses,
-              }}
-              className={linkBaseClasses}
-              to="/debug/session-stream"
-            >
-              Session Stream
-            </InternalLink>
-            <InternalLink
-              activeProps={{
-                className: linkActiveClasses,
-              }}
-              className={linkBaseClasses}
-              to="/debug/errors"
-            >
-              Errors
-            </InternalLink>
-            <InternalLink
-              activeProps={{
-                className: linkActiveClasses,
-              }}
-              className={linkBaseClasses}
-              to="/debug/browser-views"
-            >
-              Browser Views
-            </InternalLink>
+      <header className="sticky top-0 z-10 w-full shrink-0 border-b bg-background px-4 py-3">
+        <nav className="flex min-w-0 items-center">
+          <div className="flex min-w-0 gap-1 overflow-x-auto rounded-full border bg-muted/40 p-1">
+            {debugRoutes.map((route) => {
+              if (!route.showNav) {
+                return null;
+              }
+
+              return (
+                <InternalLink
+                  activeOptions={{ exact: route.to === "/debug" }}
+                  activeProps={{
+                    className: linkActiveClasses,
+                  }}
+                  className={linkBaseClasses}
+                  key={route.to}
+                  to={route.to}
+                >
+                  {route.label}
+                </InternalLink>
+              );
+            })}
           </div>
-          <ThemeToggle />
         </nav>
       </header>
       <main className="min-h-0 flex-1 overflow-hidden">

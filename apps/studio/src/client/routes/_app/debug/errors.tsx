@@ -10,8 +10,17 @@ import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { getDebugRoute } from "./-debug-routes";
+
 export const Route = createFileRoute("/_app/debug/errors")({
   component: RouteComponent,
+  head: () => ({
+    meta: [
+      {
+        title: getDebugRoute("errors").title,
+      },
+    ],
+  }),
 });
 
 function RouteComponent() {

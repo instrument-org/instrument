@@ -4,8 +4,17 @@ import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { ProhibitIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { getDebugRoute } from "./-debug-routes";
+
 export const Route = createFileRoute("/_app/debug/browser-view/$targetId")({
   component: RouteComponent,
+  head: () => ({
+    meta: [
+      {
+        title: getDebugRoute("browserView").title,
+      },
+    ],
+  }),
 });
 
 function RouteComponent() {

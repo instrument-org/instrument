@@ -20,6 +20,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { getDebugRoute } from "./-debug-routes";
 import { presetSessions } from "./-sessions";
 
 const searchSchema = z.object({
@@ -28,6 +29,13 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/_app/debug/session-stream")({
   component: RouteComponent,
+  head: () => ({
+    meta: [
+      {
+        title: getDebugRoute("sessionStream").title,
+      },
+    ],
+  }),
   validateSearch: searchSchema,
 });
 

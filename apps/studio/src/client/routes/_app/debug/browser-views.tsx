@@ -16,6 +16,8 @@ import { CaretRightIcon, MonitorIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { getDebugRoute } from "./-debug-routes";
+
 type Entry = Snapshot["entries"][number];
 type ProjectBrowser = Snapshot["projectBrowsers"][number];
 type Snapshot = RPCOutput["debug"]["browserViewManager"]["snapshot"];
@@ -30,6 +32,13 @@ const toneClass: Record<Tone, string> = {
 
 export const Route = createFileRoute("/_app/debug/browser-views")({
   component: RouteComponent,
+  head: () => ({
+    meta: [
+      {
+        title: getDebugRoute("browserViews").title,
+      },
+    ],
+  }),
 });
 
 function EntryCard({ entry }: { entry: Entry }) {

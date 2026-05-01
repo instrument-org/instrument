@@ -51,7 +51,11 @@ export function SessionStatusIcon({
 }) {
   switch (true) {
     case tags.includes("agent.paused"): {
-      return <PauseIcon className={cn(className, "text-warning-foreground")} />;
+      return (
+        <PauseIcon
+          className={cn(className, "text-warning-700 dark:text-warning-300")}
+        />
+      );
     }
     case tags.includes("agent.running") || isReplayRunning: {
       return <Spinner className={className} />;

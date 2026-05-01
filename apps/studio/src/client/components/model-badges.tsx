@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-import { StudioIconGlyph } from "@/client/components/studio-icon";
+import { AppIconGlyph } from "@/client/components/studio-icon";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -51,10 +51,10 @@ const iconVariants = tv({
   },
   variants: {
     color: {
-      brand: "text-brand",
+      brand: "text-brand-400",
       destructive: "text-destructive",
       primary: "text-primary",
-      warning: "text-warning-foreground",
+      warning: "text-warning-700 dark:text-warning-300",
     },
   },
 });
@@ -137,7 +137,7 @@ export function ModelBadges({
         <Badge
           config={{
             color: "brand",
-            icon: StudioIconGlyph,
+            icon: AppIconGlyph,
             key: "premium",
             shouldShow: () => true,
             tooltip: `This model requires a paid ${APP_NAME} plan`,

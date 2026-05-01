@@ -134,7 +134,7 @@ export function ProjectDebugDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="max-h-[90vh] w-[95vw] bg-background sm:max-w-[95vw]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3 text-warning-foreground">
+          <DialogTitle className="flex items-center gap-3 text-blue-700 dark:text-blue-300">
             <span>Debug Chat</span>
             <Tabs
               onValueChange={(v) => {

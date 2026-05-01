@@ -11,9 +11,9 @@ const alertVariants = tv({
     variant: {
       default: "bg-card text-card-foreground",
       destructive:
-        "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current",
+        "bg-card text-error-700 *:data-[slot=alert-description]:text-error-700/90 dark:text-error-300 dark:*:data-[slot=alert-description]:text-error-300/90 [&>svg]:text-current",
       warning:
-        "border-warning-foreground/50 text-warning-foreground [&>svg]:text-warning-foreground",
+        "border-warning-700/50 text-warning-700 dark:border-warning-300/50 dark:text-warning-300 [&>svg]:text-warning-700 dark:[&>svg]:text-warning-300",
     },
   },
 });

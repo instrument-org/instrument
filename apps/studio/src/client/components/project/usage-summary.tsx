@@ -19,7 +19,7 @@ export function ProjectUsageSummary({
   );
 
   return (
-    <div className="flex min-w-0 items-center gap-2 text-[10px] text-warning-foreground/60">
+    <div className="flex min-w-0 items-center gap-2 text-[10px] text-blue-700/60 dark:text-blue-300/60">
       {data ? (
         <UsageStatsTooltip
           messageCount={data.messageCount}
@@ -33,7 +33,7 @@ export function ProjectUsageSummary({
           }}
         >
           <UsageSummaryText
-            className="min-w-0 truncate text-[10px] transition-colors hover:text-warning-foreground"
+            className="min-w-0 truncate text-[10px] transition-colors hover:text-blue-700 dark:hover:text-blue-300"
             messageCount={data.messageCount}
             onClick={onClick}
             totalTokens={data.totalTokens}
@@ -41,8 +41,8 @@ export function ProjectUsageSummary({
         </UsageStatsTooltip>
       ) : (
         <div className="flex shrink-0 items-center gap-2">
-          <Skeleton className="h-3 w-8 rounded-sm bg-warning-foreground/20" />
-          <Skeleton className="h-3 w-10 rounded-sm bg-warning-foreground/20" />
+          <Skeleton className="h-3 w-8 rounded-sm bg-blue-700/20 dark:bg-blue-300/20" />
+          <Skeleton className="h-3 w-10 rounded-sm bg-blue-700/20 dark:bg-blue-300/20" />
         </div>
       )}
     </div>

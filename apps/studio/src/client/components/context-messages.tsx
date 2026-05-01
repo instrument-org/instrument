@@ -1,4 +1,3 @@
-import { APP_NAME } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import { memo, useMemo, useState } from "react";
@@ -61,7 +60,7 @@ export const ContextMessages = memo(function ContextMessages({
       <div className="flex justify-center">
         <CollapsibleTrigger asChild>
           <Button
-            className="h-5 rounded-sm px-2 text-xs text-warning-foreground/80 hover:bg-warning/10 hover:text-warning-foreground"
+            className="h-5 rounded-sm px-2 text-xs text-blue-700/80 hover:bg-blue-500/10 hover:text-blue-700 dark:text-blue-300/80 dark:hover:text-blue-300"
             variant="ghost"
           >
             <div className="flex items-center gap-1">
@@ -69,7 +68,7 @@ export const ContextMessages = memo(function ContextMessages({
                 View system prompt
               </span>
               {isExpanded && (
-                <CaretDownIcon className="size-2 text-warning-foreground" />
+                <CaretDownIcon className="size-2 text-blue-700 dark:text-blue-300" />
               )}
             </div>
           </Button>
@@ -78,15 +77,15 @@ export const ContextMessages = memo(function ContextMessages({
 
       <CollapsibleContent>
         <div className="group mt-2">
-          <div className="overflow-hidden rounded-r-md border-l-4 border-warning-foreground/50 bg-warning/5">
-            <div className="border-b border-warning-foreground/20 bg-warning/15 px-4 py-2.5 pr-4 backdrop-blur-sm">
+          <div className="overflow-hidden rounded-r-md border-l-4 border-blue-700/50 bg-blue-500/5 dark:border-blue-300/50">
+            <div className="border-b border-blue-700/20 bg-blue-500/15 px-4 py-2.5 pr-4 backdrop-blur-sm dark:border-blue-300/20">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <DeveloperModeBadge />
-                <span className="text-[10px] leading-tight text-warning-foreground/75">
+                <span className="text-[10px] leading-tight text-blue-700/75 dark:text-blue-300/75">
                   This panel only appears when developer mode is on.
                 </span>
               </div>
-              <p className="text-xs text-warning-foreground/80 italic">
+              <p className="text-xs text-blue-700/80 italic dark:text-blue-300/80">
                 Instructions given to the agent explaining how to work in{" "}
                 {APP_NAME}.
               </p>
@@ -98,7 +97,7 @@ export const ContextMessages = memo(function ContextMessages({
 
           <div className="flex justify-end pt-2">
             <CopyButton
-              className="rounded-sm p-1 text-warning-foreground/70 opacity-0 transition-colors group-hover:opacity-100 hover:bg-warning/10 hover:text-warning-foreground disabled:opacity-50"
+              className="rounded-sm p-1 text-blue-700/70 opacity-0 transition-colors group-hover:opacity-100 hover:bg-blue-500/10 hover:text-blue-700 disabled:opacity-50 dark:text-blue-300/70 dark:hover:text-blue-300"
               iconSize={12}
               onCopy={handleCopy}
             />

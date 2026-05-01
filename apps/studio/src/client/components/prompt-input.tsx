@@ -434,8 +434,8 @@ export const PromptInput = ({
       <TextareaContainer
         className={cn(
           "relative overflow-hidden rounded-3xl p-4",
-          // Equivalent of transparent and dark:bg-input/30, but opaque
-          "bg-background dark:bg-[#212226]",
+          // Equivalent of opaque light and dark composer surfaces.
+          "bg-card",
           className,
         )}
         ref={textareaRef}

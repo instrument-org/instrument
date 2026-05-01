@@ -42,10 +42,10 @@ const EDITOR_ICON_MAP: Record<
 };
 
 const devSubTriggerClass =
-  "text-warning-foreground focus:bg-warning/10 focus:text-warning-foreground data-[state=open]:bg-warning/10 data-[state=open]:text-warning-foreground [&_svg:not([class*='text-'])]:text-warning-foreground";
+  "text-blue-700 focus:bg-blue-500/10 focus:text-blue-700 data-[state=open]:bg-blue-500/10 data-[state=open]:text-blue-700 dark:text-blue-300 dark:focus:text-blue-300 dark:data-[state=open]:text-blue-300 [&_svg]:text-blue-700! dark:[&_svg]:text-blue-300!";
 
 const devSubItemClass =
-  "text-warning-foreground focus:bg-warning/10 focus:text-warning-foreground [&_svg]:text-warning-foreground";
+  "text-blue-700 focus:bg-blue-500/10 focus:text-blue-700 dark:text-blue-300 dark:focus:text-blue-300 [&_svg]:text-blue-700! dark:[&_svg]:text-blue-300!";
 
 export function ProjectOpenInSubmenu({
   project,

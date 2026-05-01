@@ -4,8 +4,8 @@ import { nativeTheme } from "electron";
 import { getPreferencesStore } from "../stores/preferences";
 
 export function getBackgroundColor() {
-  // Must be manually synced with app.css var(--background)
-  return shouldUseDarkMode() ? "#18191b" : "#f9f9fb";
+  // Must be manually synced with app.css var(--background).
+  return shouldUseDarkMode() ? "#1c1917" : "#fafaf9";
 }
 
 export function getMainWindowBackgroundColor() {
@@ -19,9 +19,11 @@ export function getTitleBarOverlay() {
   const height =
     process.platform === "darwin" ? TOOLBAR_HEIGHT : TOOLBAR_HEIGHT - 1;
   return {
-    color: isDark ? "#272a2d" : "#e7e8ec",
+    // Must be manually synced with app.css var(--card) / var(--border).
+    color: isDark ? "#292524" : "#e7e5e4",
     height,
-    symbolColor: isDark ? "#ffffff" : "#3f3f3f",
+    // Must be manually synced with app.css var(--foreground).
+    symbolColor: isDark ? "#ffffff" : "#171412",
   };
 }
 

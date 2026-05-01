@@ -333,7 +333,7 @@ const sidebarMenuButtonVariants = tv({
     variant: {
       default: "",
       outline:
-        "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+        "bg-background shadow-[0_0_0_1px_var(--sidebar-border)] hover:shadow-[0_0_0_1px_var(--sidebar-accent)]",
     },
   },
 });

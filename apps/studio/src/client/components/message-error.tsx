@@ -153,14 +153,14 @@ export function MessageError({
   const mainContent = (
     <ToolPartListItemCompact isExpanded={isExpanded}>
       {isDevOnlyVisible && <DeveloperModeBadge />}
-      <span className="shrink-0 text-warning-foreground/80">
+      <span className="shrink-0 text-error-700/80 dark:text-error-300/80">
         <WarningIcon className="size-3" />
       </span>
-      <span className="shrink-0 font-medium text-warning-foreground/80">
+      <span className="shrink-0 font-medium text-error-700/80 dark:text-error-300/80">
         {getErrorTitle()}
       </span>
       <span className="flex-1" />
-      <span className="shrink-0 text-warning-foreground/60">
+      <span className="shrink-0 text-error-700/60 dark:text-error-300/60">
         {getErrorTypeLabel()}
       </span>
     </ToolPartListItemCompact>

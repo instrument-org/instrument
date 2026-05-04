@@ -44,6 +44,11 @@ import { AIProviderIcon } from "./ai-provider-icon";
 import { ModelBadges } from "./model-badges";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
+interface MatchedModel {
+  model: AIGatewayModel.Type;
+  nameRanges: null | number[];
+}
+
 interface ModelPickerProps {
   className?: string;
   disabled?: boolean;
@@ -61,7 +66,7 @@ interface ModelPickerProps {
 
 type VirtualRow =
   | { groupName: string; type: "header" }
-  | { model: AIGatewayModel.Type; requiresPremium: boolean; type: "item" };
+  | { matched: MatchedModel; requiresPremium: boolean; type: "item" };
 
 export function ModelPicker({
   className = "",
@@ -97,23 +102,43 @@ export function ModelPicker({
     [modelsWithoutAuto, hasPlan],
   );
 
-  const filteredGroupedModels = useMemo(() => {
+  type GroupedMatchedModels = Record<string, MatchedModel[]>;
+
+  const filteredGroupedModels = useMemo((): GroupedMatchedModels => {
+    const entries = getGroupedModelsEntries(groupedModels);
+
     if (!searchQuery) {
-      return groupedModels;
+      const result: GroupedMatchedModels = {};
+      for (const [groupName, modelGroup] of entries) {
+        result[groupName] = modelGroup.map((model) => ({
+          model,
+          nameRanges: null,
+        }));
+      }
+      return result;
     }
 
-    const result = { ...groupedModels };
-    for (const [groupName, modelGroup] of getGroupedModelsEntries(
-      groupedModels,
-    )) {
-      const haystack = modelGroup.map((m) => `${m.name} ${m.providerName}`);
+    const result: GroupedMatchedModels = {};
+    for (const [groupName, modelGroup] of entries) {
+      const haystack = modelGroup.map((m) => m.name);
 
-      // This isn't an array
       // eslint-disable-next-line unicorn/no-array-method-this-argument
       const indexes = fuzzy.filter(haystack, searchQuery);
-      result[groupName] = indexes
-        ? indexes.flatMap((i) => (modelGroup[i] ? [modelGroup[i]] : []))
-        : [];
+      if (!indexes || indexes.length === 0) {
+        result[groupName] = [];
+        continue;
+      }
+
+      const info = fuzzy.info(indexes, haystack, searchQuery);
+      const order = fuzzy.sort(info, haystack, searchQuery);
+
+      result[groupName] = order.flatMap((orderIdx) => {
+        const model = modelGroup[info.idx[orderIdx] ?? -1];
+        if (model) {
+          return [{ model, nameRanges: info.ranges[orderIdx] ?? null }];
+        }
+        return [];
+      });
     }
     return result;
   }, [groupedModels, searchQuery]);
@@ -450,6 +475,45 @@ function ErrorsGroup({
   );
 }
 
+function HighlightedText({
+  ranges,
+  text,
+}: {
+  ranges: null | number[];
+  text: string;
+}) {
+  if (!ranges) {
+    return <>{text}</>;
+  }
+
+  const parts = uFuzzy.highlight(
+    text,
+    ranges,
+    (part, matched) => ({ matched, part }),
+    [] as { matched: boolean; part: string }[],
+    (acc, item) => {
+      acc.push(item);
+    },
+  );
+
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.matched ? (
+          <mark
+            className="bg-transparent font-semibold text-foreground"
+            key={i}
+          >
+            {p.part}
+          </mark>
+        ) : (
+          <span key={i}>{p.part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 function ModelGroups({
   groupedModels,
   hasPlan,
@@ -457,7 +521,7 @@ function ModelGroups({
   onSelectModel,
   selectedModel,
 }: {
-  groupedModels: ReturnType<typeof groupAndFilterModels>;
+  groupedModels: Record<string, MatchedModel[]>;
   hasPlan: boolean;
   onAddProvider: () => void;
   onSelectModel: (
@@ -471,17 +535,15 @@ function ModelGroups({
 
   const rows = useMemo<VirtualRow[]>(() => {
     const flat: VirtualRow[] = [];
-    for (const [groupName, modelGroup] of getGroupedModelsEntries(
-      groupedModels,
-    )) {
-      if (modelGroup.length === 0) {
+    for (const [groupName, matchedGroup] of Object.entries(groupedModels)) {
+      if (matchedGroup.length === 0) {
         continue;
       }
       flat.push({ groupName, type: "header" });
-      for (const model of modelGroup) {
+      for (const matched of matchedGroup) {
         flat.push({
-          model,
-          requiresPremium: model.tags.includes("premium") && !hasPlan,
+          matched,
+          requiresPremium: matched.model.tags.includes("premium") && !hasPlan,
           type: "item",
         });
       }
@@ -544,7 +606,8 @@ function ModelGroups({
             );
           }
 
-          const { model, requiresPremium } = row;
+          const { matched, requiresPremium } = row;
+          const { model, nameRanges } = matched;
           return (
             <CommandItem
               className="absolute top-0 left-0 flex w-full items-center justify-between px-2 py-2"
@@ -568,7 +631,9 @@ function ModelGroups({
                   )}
                 />
                 <div className="flex flex-col gap-1">
-                  <span className="text-sm">{model.name}</span>
+                  <span className="text-sm">
+                    <HighlightedText ranges={nameRanges} text={model.name} />
+                  </span>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <AIProviderIcon
                       className="size-3 shrink-0"

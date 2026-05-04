@@ -228,7 +228,7 @@ export function ProjectView({
 
         {showArtifactPanel && (
           <>
-            <ResizableHandle disableDoubleClick />
+            <ResizableHandle />
 
             <ResizablePanel
               defaultSize="50%"

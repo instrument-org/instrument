@@ -235,10 +235,10 @@ export function ProjectView({
               id="artifact"
               minSize={PANEL_SIZES.artifactMin}
             >
-              <div className="flex h-full flex-1 flex-col overflow-hidden bg-background p-2">
+              <div className="flex h-full flex-1 flex-col p-2">
                 {isViewingFile ? (
                   currentFile ? (
-                    <div className="flex h-full overflow-hidden">
+                    <div className="flex h-full">
                       <ProjectFileViewer
                         file={currentFile}
                         fullSize

@@ -141,7 +141,7 @@ function TextView({
 }
 
 const fileViewerVariants = tv({
-  base: "flex w-full flex-col overflow-hidden rounded-lg border border-border bg-background",
+  base: "flex w-full flex-col overflow-hidden rounded-[1.25rem] bg-card shadow-panel",
   defaultVariants: {
     error: false,
     fileType: "default",
@@ -241,7 +241,7 @@ export function FileViewer({
         fullSize,
       })}
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-4 py-2">
+      <div className="flex shrink-0 items-center gap-2 px-5 py-4">
         <FileIcon
           className="size-4 shrink-0"
           filename={filename}
@@ -249,9 +249,7 @@ export function FileViewer({
         />
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="truncate text-xs text-muted-foreground">
-              {filePath}
-            </span>
+            <span className="truncate text-xs font-medium">{filePath}</span>
           </TooltipTrigger>
           <TooltipContent
             className="max-w-[min(500px,90vw)] wrap-break-word"
@@ -267,7 +265,7 @@ export function FileViewer({
             versionRef={versionRef}
           />
         )}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-3">
           {hasPreview && (
             <Tabs
               onValueChange={(value) => {
@@ -291,10 +289,7 @@ export function FileViewer({
         </div>
       </div>
 
-      <div
-        className="relative min-h-0 flex-1 overflow-auto bg-secondary"
-        ref={contentRef}
-      >
+      <div className="relative min-h-0 flex-1 overflow-auto" ref={contentRef}>
         {mediaLoadError ? (
           <div className="flex size-full items-center justify-center">
             <FilePreviewFallback

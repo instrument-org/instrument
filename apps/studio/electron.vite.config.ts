@@ -173,7 +173,7 @@ export default defineConfig(({ command }) => {
       },
       plugins: [
         copyVendorAssets(),
-        ...(isAnalyzing ? [analyzer()] : []),
+        ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("main"),
         ValidateEnv({ configFile: "./validate-env" }),
       ],
@@ -188,7 +188,7 @@ export default defineConfig(({ command }) => {
         watch: {}, // Enable hot reloading
       },
       plugins: [
-        ...(isAnalyzing ? [analyzer()] : []),
+        ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("preload"),
       ],
       resolve,
@@ -204,7 +204,7 @@ export default defineConfig(({ command }) => {
         watch: {}, // Enable hot reloading
       },
       plugins: [
-        ...(isAnalyzing ? [analyzer()] : []),
+        ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("renderer"),
         tanstackRouter({
           autoCodeSplitting: true,

@@ -13,7 +13,7 @@ export function FilePreviewFallback({
   onDownload?: () => void;
 }) {
   return (
-    <div className="dark flex w-full max-w-md flex-col items-center justify-center gap-4 p-8 text-center text-foreground">
+    <div className="flex w-full max-w-md flex-col items-center justify-center gap-4 p-8 text-center text-foreground">
       <div className="flex size-32 items-center justify-center rounded-lg bg-accent">
         <FileIcon
           className="size-16"
@@ -22,8 +22,8 @@ export function FilePreviewFallback({
         />
       </div>
       <div>
-        <p className="text-sm font-medium text-white">Preview not available</p>
-        <p className="mt-1 text-xs text-white/60">
+        <p className="text-sm font-medium">Preview not available</p>
+        <p className="mt-1 text-xs text-muted-foreground">
           {onDownload
             ? "Download this file to view it"
             : "This file cannot be previewed"}

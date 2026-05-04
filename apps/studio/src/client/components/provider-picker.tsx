@@ -120,7 +120,7 @@ export function ProviderPicker({
                             .filter((tag) => tag !== "recommended")
                             .map((tag) => (
                               <Badge
-                                className="shrink-0"
+                                className="shrink-0 [*[data-selected=true]_&]:border-foreground/20"
                                 key={tag}
                                 variant="outline"
                               >

@@ -1,29 +1,49 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
-import { downloadFile, isFileDownloadable } from "@/client/lib/file-actions";
+import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { getFileType } from "@/client/lib/get-file-type";
+import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import {
+  ArrowLineDownIcon,
   ArrowsOutSimpleIcon,
+  CheckIcon,
   CodeIcon,
+  CopyIcon,
+  DotsThreeOutlineVerticalIcon,
   EyeIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 
+import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
-import { FileActionsMenu } from "./file-actions-menu";
-import { FileIcon } from "./file-icon";
+import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { FileVersionBadge } from "./file-version-badge";
+import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import { Spinner } from "./ui/spinner";
-import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 function MarkdownPreview({ url }: { url: string }) {
@@ -163,6 +183,22 @@ const fileViewerVariants = tv({
   },
 });
 
+const fileViewerHeaderActionClassName = toolbarClassName({
+  className: "h-7 gap-1.5 px-2 text-xs has-[>svg]:px-2",
+  pressed: false,
+});
+
+const fileViewerHeaderIconActionClassName = toolbarClassName({
+  className: "size-7",
+  pressed: false,
+});
+
+const fileViewerHeaderMenuTriggerClassName = toolbarClassName({
+  className:
+    "size-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+  pressed: false,
+});
+
 export function FileViewer({
   file,
   fullSize = false,
@@ -180,6 +216,18 @@ export function FileViewer({
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const contentRef = useRef<HTMLDivElement>(null);
+  const { active: copied, trigger: triggerCopied } = useTimedFlag();
+  const revealFileMutation = useMutation(
+    rpcClient.utils.showProjectFileInFolder.mutationOptions({
+      onError: (error) => {
+        const label = getRevealInFolderLabel();
+        const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
+        toast.error(`Failed to ${lowercasedLabel}`, {
+          description: error.message,
+        });
+      },
+    }),
+  );
 
   useEffect(() => {
     contentRef.current?.scrollTo({ behavior: "instant", top: 0 });
@@ -187,10 +235,40 @@ export function FileViewer({
 
   const fileType = getFileType(file);
   const hasPreview = fileType === "markdown" || fileType === "html";
-  const isDownloadable = isFileDownloadable(file.url);
+  const fileActions = useFileActionVisibility(file);
+  const hasHeaderMenuActions = onExpand != null || fileActions.showReveal;
+  const showOverflowMenu =
+    fileActions.showReveal || hasPreview || Boolean(onExpand);
 
   const handleDownload = async () => {
     await downloadFile(file);
+  };
+
+  const handleCopy = async () => {
+    try {
+      await copyFileToClipboard({
+        filePath,
+        mimeType,
+        subdomain: projectSubdomain,
+        versionRef,
+      });
+      triggerCopied();
+    } catch {
+      // copyFileToClipboard already toasts on error
+    }
+  };
+
+  const handleViewModeChange = (value: string) => {
+    if (value === "preview" || value === "raw") {
+      setViewMode(value);
+    }
+  };
+
+  const handleRevealInFolder = () => {
+    revealFileMutation.mutate({
+      filePath,
+      subdomain: projectSubdomain,
+    });
   };
 
   const getViewerLayoutType = () => {
@@ -206,33 +284,6 @@ export function FileViewer({
     return "default";
   };
 
-  const toolbarActions: ReactNode[] = [];
-
-  if (filePath && projectSubdomain) {
-    toolbarActions.push(<FileActionsMenu file={file} key="actions" />);
-  }
-
-  if (onExpand) {
-    toolbarActions.push(
-      <Tooltip key="expand">
-        <TooltipTrigger asChild>
-          <Button onClick={onExpand} size="sm" variant="ghost">
-            <ArrowsOutSimpleIcon className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Expand</p>
-        </TooltipContent>
-      </Tooltip>,
-    );
-  }
-
-  toolbarActions.push(
-    <Button key="close" onClick={onClose} size="sm" variant="ghost">
-      <XIcon className="size-4" />
-    </Button>,
-  );
-
   return (
     <div
       className={fileViewerVariants({
@@ -242,14 +293,9 @@ export function FileViewer({
       })}
     >
       <div className="flex shrink-0 items-center gap-2 px-5 py-4">
-        <FileIcon
-          className="size-4 shrink-0"
-          filename={filename}
-          mimeType={mimeType}
-        />
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="truncate text-xs font-medium">{filePath}</span>
+            <span className="truncate text-xs font-medium">{filename}</span>
           </TooltipTrigger>
           <TooltipContent
             className="max-w-[min(500px,90vw)] wrap-break-word"
@@ -265,27 +311,101 @@ export function FileViewer({
             versionRef={versionRef}
           />
         )}
-        <div className="ml-auto flex items-center gap-3">
-          {hasPreview && (
-            <Tabs
-              onValueChange={(value) => {
-                setViewMode(value as "preview" | "raw");
-              }}
-              value={viewMode}
+        <div className="ml-auto flex items-center gap-1">
+          {fileActions.showDownload && (
+            <Button
+              className={fileViewerHeaderActionClassName}
+              onClick={() => void handleDownload()}
+              size="sm"
+              variant="ghost"
             >
-              <TabsList>
-                <TabsTrigger value="preview">
-                  <EyeIcon className="size-4" />
-                  Preview
-                </TabsTrigger>
-                <TabsTrigger value="raw">
-                  <CodeIcon className="size-4" />
-                  Code
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+              <ArrowLineDownIcon className="size-4" />
+              <span>Download</span>
+            </Button>
           )}
-          {toolbarActions}
+          {fileActions.showCopy && (
+            <Button
+              className={fileViewerHeaderActionClassName}
+              onClick={() => void handleCopy()}
+              size="sm"
+              variant="ghost"
+            >
+              {copied ? (
+                <CheckIcon className="size-4" />
+              ) : (
+                <CopyIcon className="size-4" />
+              )}
+              <span>Copy</span>
+            </Button>
+          )}
+          {showOverflowMenu && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className={fileViewerHeaderMenuTriggerClassName}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <DotsThreeOutlineVerticalIcon
+                    className="size-4"
+                    weight="fill"
+                  />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {onExpand && (
+                  <DropdownMenuItem onClick={onExpand}>
+                    <ArrowsOutSimpleIcon className="size-4" />
+                    <span>Expand</span>
+                  </DropdownMenuItem>
+                )}
+                {fileActions.showReveal && (
+                  <DropdownMenuItem onClick={handleRevealInFolder}>
+                    <RevealInFolderIcon className="size-4" />
+                    <span>{getRevealInFolderLabel()}</span>
+                  </DropdownMenuItem>
+                )}
+                {hasHeaderMenuActions && hasPreview && (
+                  <DropdownMenuSeparator />
+                )}
+                {hasPreview && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      {viewMode === "preview" ? (
+                        <EyeIcon className="size-4" />
+                      ) : (
+                        <CodeIcon className="size-4" />
+                      )}
+                      <span>View mode</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="min-w-36">
+                      <DropdownMenuRadioGroup
+                        onValueChange={handleViewModeChange}
+                        value={viewMode}
+                      >
+                        <DropdownMenuRadioItem value="preview">
+                          <EyeIcon className="size-4" />
+                          <span>Preview</span>
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="raw">
+                          <CodeIcon className="size-4" />
+                          <span>Code</span>
+                        </DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <Button
+            className={fileViewerHeaderIconActionClassName}
+            onClick={onClose}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <XIcon className="size-4" />
+          </Button>
         </div>
       </div>
 
@@ -295,7 +415,7 @@ export function FileViewer({
             <FilePreviewFallback
               fallbackExtension={mediaErrorType}
               filename={filename}
-              onDownload={isDownloadable ? handleDownload : undefined}
+              onDownload={fileActions.showDownload ? handleDownload : undefined}
             />
           </div>
         ) : fileType === "markdown" && viewMode === "preview" ? (
@@ -357,7 +477,7 @@ export function FileViewer({
             <FilePreviewFallback
               fallbackExtension="bin"
               filename={filename}
-              onDownload={isDownloadable ? handleDownload : undefined}
+              onDownload={fileActions.showDownload ? handleDownload : undefined}
             />
           </div>
         )}

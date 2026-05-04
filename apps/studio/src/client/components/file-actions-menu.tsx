@@ -1,13 +1,7 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
-import {
-  copyFileToClipboard,
-  downloadFile,
-  isFileCopyable,
-  isFileDownloadable,
-} from "@/client/lib/file-actions";
-import { getFileType } from "@/client/lib/get-file-type";
+import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
+import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import {
   ArrowLineDownIcon,
   ChatTextIcon,
@@ -15,7 +9,7 @@ import {
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
 } from "@phosphor-icons/react";
-import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useTimedFlag } from "../hooks/use-timed-flag";
@@ -30,12 +24,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-
-interface FileActionsMenuItemsProps {
-  file: ProjectFileViewerFile;
-  onAddToChat?: () => void;
-  variant: MenuVariant;
-}
 
 type MenuVariant = "context" | "dropdown";
 
@@ -81,7 +69,11 @@ export function FileActionsMenuItems({
   file,
   onAddToChat,
   variant,
-}: FileActionsMenuItemsProps) {
+}: {
+  file: ProjectFileViewerFile;
+  onAddToChat?: () => void;
+  variant: MenuVariant;
+}) {
   const fileActions = useFileActionVisibility(file);
 
   const showProjectFileInFolderMutation = useMutation(
@@ -126,7 +118,6 @@ export function FileActionsMenuItems({
   const Item = variant === "context" ? ContextMenuItem : DropdownMenuItem;
   const Separator =
     variant === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
-
   const hasFileActions =
     fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
 
@@ -166,50 +157,5 @@ export function FileActionsMenuItems({
         </Item>
       )}
     </>
-  );
-}
-
-function useFileActionVisibility(file: ProjectFileViewerFile) {
-  const isLatestVersion = useIsLatestVersion({
-    filePath: file.filePath,
-    projectSubdomain: file.projectSubdomain,
-    versionRef: file.versionRef,
-  });
-
-  const fileType = getFileType(file);
-  const isDownloadable = isFileDownloadable(file.url);
-  const isCopyableByMime = isFileCopyable(file.mimeType, file.url);
-  const isTextLike =
-    fileType === "code" ||
-    fileType === "text" ||
-    fileType === "markdown" ||
-    fileType === "html";
-
-  return {
-    showCopy: isCopyableByMime || (isTextLike && isDownloadable),
-    showDownload: isDownloadable,
-    showReveal: isLatestVersion,
-  };
-}
-
-function useIsLatestVersion({
-  filePath,
-  projectSubdomain,
-  versionRef,
-}: {
-  filePath: string;
-  projectSubdomain: ProjectSubdomain;
-  versionRef?: string;
-}) {
-  const { data: versionRefs } = useQuery(
-    rpcClient.workspace.project.git.fileVersionRefs.queryOptions({
-      input: versionRef ? { filePath, projectSubdomain } : skipToken,
-    }),
-  );
-  return (
-    !versionRef ||
-    !versionRefs ||
-    versionRefs.length === 0 ||
-    versionRefs.at(-1) === versionRef
   );
 }

@@ -25,6 +25,7 @@ import {
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
+import uFuzzy from "@leeoniya/ufuzzy";
 import {
   CaretDownIcon,
   CheckIcon,
@@ -36,6 +37,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
+const fuzzy = new uFuzzy({ intraMode: 1 });
 
 import { AIProviderIcon } from "./ai-provider-icon";
 import { ModelBadges } from "./model-badges";
@@ -98,16 +101,19 @@ export function ModelPicker({
     if (!searchQuery) {
       return groupedModels;
     }
-    const q = searchQuery.toLowerCase();
+
     const result = { ...groupedModels };
     for (const [groupName, modelGroup] of getGroupedModelsEntries(
       groupedModels,
     )) {
-      result[groupName] = modelGroup.filter(
-        (m) =>
-          m.name.toLowerCase().includes(q) ||
-          m.providerName.toLowerCase().includes(q),
-      );
+      const haystack = modelGroup.map((m) => `${m.name} ${m.providerName}`);
+
+      // This isn't an array
+      // eslint-disable-next-line unicorn/no-array-method-this-argument
+      const indexes = fuzzy.filter(haystack, searchQuery);
+      result[groupName] = indexes
+        ? indexes.flatMap((i) => (modelGroup[i] ? [modelGroup[i]] : []))
+        : [];
     }
     return result;
   }, [groupedModels, searchQuery]);
@@ -186,6 +192,9 @@ export function ModelPicker({
     <Popover
       onOpenChange={(newOpen) => {
         setOpen(newOpen);
+        if (!newOpen) {
+          setSearchQuery("");
+        }
         onOpenChange?.(newOpen);
       }}
       open={open}
@@ -480,6 +489,7 @@ function ModelGroups({
     return flat;
   }, [groupedModels, hasPlan]);
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 56),

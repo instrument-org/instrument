@@ -93,6 +93,7 @@
     "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
     "@julr/vite-plugin-validate-env": "^2.2.0",
+    "@leeoniya/ufuzzy": "^1.0.19",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",

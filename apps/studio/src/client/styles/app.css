@@ -4,7 +4,6 @@
 @import "@fontsource/work-sans/700.css";
 @import "@fontsource/roboto-serif/400.css";
 @import "@fontsource/roboto-serif/500.css";
-@import "@fontsource/roboto-serif/700.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -282,7 +281,7 @@ html:has(meta[name="opaque-background"]) body {
   h5,
   h6 {
     font-family: var(--font-serif);
-    font-weight: 700;
+    font-weight: 500;
   }
 }
 

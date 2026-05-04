@@ -3,7 +3,7 @@ import {
   type ProjectFileViewerFile,
 } from "@/client/atoms/project-file-viewer";
 import { AppView } from "@/client/components/app-view";
-import { ProjectFileViewer } from "@/client/components/project/file-viewer";
+import { FileViewer } from "@/client/components/file-viewer";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -239,10 +239,9 @@ export function ProjectView({
                 {isViewingFile ? (
                   currentFile ? (
                     <div className="flex h-full">
-                      <ProjectFileViewer
+                      <FileViewer
                         file={currentFile}
                         fullSize
-                        isInPanel
                         onClose={handleArtifactPanelClose}
                         onExpand={() => {
                           openFileViewer({ files: [currentFile] });

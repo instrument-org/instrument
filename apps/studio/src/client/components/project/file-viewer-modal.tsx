@@ -10,8 +10,8 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect } from "react";
 
 import { FilePreviewListItem } from "../file-preview-list-item";
+import { FileViewer } from "../file-viewer";
 import { Button } from "../ui/button";
-import { ProjectFileViewer } from "./file-viewer";
 
 export function ProjectFileViewerModal() {
   const state = useAtomValue(projectFileViewerAtom);
@@ -155,10 +155,7 @@ export function ProjectFileViewerModal() {
                 className="flex size-full items-center justify-center"
                 key={currentFile.url}
               >
-                <ProjectFileViewer
-                  file={currentFile}
-                  onClose={collapseViewer}
-                />
+                <FileViewer file={currentFile} onClose={collapseViewer} />
               </div>
             </div>
 

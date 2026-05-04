@@ -169,6 +169,12 @@ importers:
       '@electron-toolkit/utils':
         specifier: ^4.0.0
         version: 4.0.0(electron@41.2.1)
+      '@fontsource/roboto-serif':
+        specifier: ^5.2.9
+        version: 5.2.9
+      '@fontsource/work-sans':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@hono/node-server':
         specifier: ^1.18.1
         version: 1.18.1(hono@4.8.5)
@@ -1824,6 +1830,12 @@ packages:
 
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
+
+  '@fontsource/roboto-serif@5.2.9':
+    resolution: {integrity: sha512-Pv8AmbOwquqcvr0NXBZIViHrhmMdEDSAqZSsggFYPMw+qpBZZ4wj3ylf5G09GB0WPlaG5Ttq+BAS0zRBlOImpw==}
+
+  '@fontsource/work-sans@5.2.8':
+    resolution: {integrity: sha512-6LaHjVVgts+rnrcqvEkP2+iUB/jw1oDSYsGO0+TltAhnWki9Hnf/UGpgMQh2jcm0GEH8VqCPnq4PpmHLFzxXtQ==}
 
   '@hexagon/base64@1.1.28':
     resolution: {integrity: sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw==}
@@ -10098,6 +10110,10 @@ snapshots:
       react-dom: 19.2.1(react@19.2.1)
 
   '@floating-ui/utils@0.2.10': {}
+
+  '@fontsource/roboto-serif@5.2.9': {}
+
+  '@fontsource/work-sans@5.2.8': {}
 
   '@hexagon/base64@1.1.28': {}
 

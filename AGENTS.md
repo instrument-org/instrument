@@ -15,16 +15,14 @@ The `registry/` directory is a **read-only** git submodule (skills). Do not edit
 
 ## Where to look first
 
-| Goal                         | Start here                                              |
-| ---------------------------- | ------------------------------------------------------- |
-| Repo layout and boundaries   | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)            |
-| Local setup and dev commands | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)            |
-| Tests, lint, CI expectations | [docs/QUALITY.md](docs/QUALITY.md)                    |
-| Security and trust boundaries | [docs/SECURITY.md](docs/SECURITY.md)                    |
-| Design principles and index  | [docs/design-docs/index.md](docs/design-docs/index.md) |
-| Product-facing specs (when present) | [docs/product-specs/index.md](docs/product-specs/index.md) |
-| Active or archived execution plans | [docs/exec-plans/](docs/exec-plans/)           |
-| External references (URLs)   | [docs/references/external.md](docs/references/external.md) |
+- **Repo layout and boundaries** — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Local setup and dev commands** — [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **Tests, lint, CI expectations** — [docs/QUALITY.md](docs/QUALITY.md)
+- **Security and trust boundaries** — [docs/SECURITY.md](docs/SECURITY.md)
+- **Design principles and index** — [docs/design-docs/index.md](docs/design-docs/index.md)
+- **Product-facing specs (when present)** — [docs/product-specs/index.md](docs/product-specs/index.md)
+- **Active or archived execution plans** — [docs/exec-plans/](docs/exec-plans/)
+- **External references (URLs)** — [docs/references/external.md](docs/references/external.md)
 
 ## Execution plans (ExecPlans)
 

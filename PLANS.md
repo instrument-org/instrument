@@ -10,15 +10,13 @@ Use an ExecPlan when any of the following apply:
 - There are real design forks or unknowns to resolve in-repo.
 - You need a novice (human or agent) to finish the work without chat history.
 
-For small, localized edits, a ExecPlan is optional.
+For small, localized edits, an ExecPlan is optional.
 
 ## Where plans live
 
-| Location                         | Purpose                                      |
-| -------------------------------- | -------------------------------------------- |
-| `docs/exec-plans/active/`        | In-progress plans                            |
-| `docs/exec-plans/completed/`     | Finished plans kept for history and learning |
-| `docs/exec-plans/tech-debt-tracker.md` | Known gaps that affect reliability or velocity |
+- **`docs/exec-plans/active/`** — In-progress plans
+- **`docs/exec-plans/completed/`** — Finished plans kept for history and learning
+- **`docs/exec-plans/tech-debt-tracker.md`** — Known gaps that affect reliability or velocity
 
 ## Required sections
 
@@ -40,6 +38,4 @@ Add **Context and orientation**, **Plan of work**, **Concrete steps**, **Validat
 
 ## Further reading
 
-OpenAI's cookbook describes the same pattern in depth (ExecPlans and long-running Codex tasks):
-
-https://cookbook.openai.com/articles/codex_exec_plans
+OpenAI’s cookbook describes the same pattern in depth (ExecPlans and long-running Codex tasks): [Using PLANS.md for multi-hour problem solving](https://cookbook.openai.com/articles/codex_exec_plans).

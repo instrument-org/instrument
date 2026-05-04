@@ -3,7 +3,7 @@ import {
   type CaptureEventFunction,
 } from "@instrument-org/shared";
 
-import { telemetry } from "./telemetry";
+import { captureTelemetryEvent } from "./telemetry";
 
 export const captureClientEvent: CaptureEventFunction = function <
   T extends keyof AnalyticsEvents,
@@ -13,9 +13,5 @@ export const captureClientEvent: CaptureEventFunction = function <
     ? []
     : [properties: AnalyticsEvents[T]]
 ) {
-  if (!telemetry) {
-    return;
-  }
-
-  telemetry.capture(type, rest[0]);
+  captureTelemetryEvent(type, rest[0]);
 };

@@ -8,7 +8,7 @@ import {
   createRouter as createTanStackRouter,
 } from "@tanstack/react-router";
 
-import { telemetry } from "./lib/telemetry";
+import { capturePageView } from "./lib/telemetry";
 import { routeTree } from "./routeTree.gen";
 
 const IGNORED_PATHS = new Set<keyof FileRoutesByPath>([
@@ -43,7 +43,7 @@ function createRouter(options?: { history?: RouterHistory }) {
     ) {
       return;
     }
-    telemetry?.capture("$pageview");
+    capturePageView();
   });
 
   return {

@@ -1,5 +1,6 @@
+import type { CaptureResult } from "posthog-js";
+
 import { FAUX_STUDIO_URL } from "@instrument-org/shared";
-import { type CaptureResult, posthog } from "posthog-js";
 
 import { rpcClient } from "../rpc/client";
 
@@ -32,8 +33,11 @@ async function initTelemetry() {
     return null;
   }
 
-  const { id: distinctID } = await rpcClient.telemetry.getId.call();
-  const { version } = await rpcClient.preferences.getAppVersion.call();
+  const [{ posthog }, { id: distinctID }, { version }] = await Promise.all([
+    import("posthog-js"),
+    rpcClient.telemetry.getId.call(),
+    rpcClient.preferences.getAppVersion.call(),
+  ]);
 
   const telemetry = posthog.init(API_KEY, {
     api_host: API_HOST,
@@ -106,6 +110,26 @@ async function initTelemetry() {
   return telemetry;
 }
 
-const telemetry = await initTelemetry();
+let telemetryPromise: null | Promise<
+  Awaited<ReturnType<typeof initTelemetry>>
+> = null;
 
-export { telemetry };
+export function capturePageView() {
+  void getTelemetry().then((telemetry) => {
+    telemetry?.capture("$pageview");
+  });
+}
+
+export function captureTelemetryEvent(
+  type: string,
+  properties?: Record<string, unknown>,
+) {
+  void getTelemetry().then((telemetry) => {
+    telemetry?.capture(type, properties);
+  });
+}
+
+async function getTelemetry() {
+  telemetryPromise ??= initTelemetry();
+  return telemetryPromise;
+}

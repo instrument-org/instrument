@@ -2,7 +2,6 @@ import { AppIconGlyph } from "@/client/components/studio-icon";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -34,7 +33,8 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AIProviderIcon } from "./ai-provider-icon";
@@ -55,6 +55,10 @@ interface ModelPickerProps {
   placeholder?: string;
   selectedModel?: AIGatewayModel.Type;
 }
+
+type VirtualRow =
+  | { groupName: string; type: "header" }
+  | { model: AIGatewayModel.Type; requiresPremium: boolean; type: "item" };
 
 export function ModelPicker({
   className = "",
@@ -89,6 +93,24 @@ export function ModelPicker({
     () => groupAndFilterModels({ hasPlan, models: modelsWithoutAuto }),
     [modelsWithoutAuto, hasPlan],
   );
+
+  const filteredGroupedModels = useMemo(() => {
+    if (!searchQuery) {
+      return groupedModels;
+    }
+    const q = searchQuery.toLowerCase();
+    const result = { ...groupedModels };
+    for (const [groupName, modelGroup] of getGroupedModelsEntries(
+      groupedModels,
+    )) {
+      result[groupName] = modelGroup.filter(
+        (m) =>
+          m.name.toLowerCase().includes(q) ||
+          m.providerName.toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [groupedModels, searchQuery]);
 
   const hasModels = modelsWithoutAuto.length > 0;
   const hasErrors = !!errors?.length;
@@ -195,7 +217,7 @@ export function ModelPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
-        <Command>
+        <Command shouldFilter={false}>
           <AutoModeSwitch
             autoModel={autoModel}
             checked={isAutoMode}
@@ -217,7 +239,12 @@ export function ModelPicker({
             placeholder="Search models..."
             value={searchQuery}
           />
-          <CommandList className={cn("max-h-82", hideModelList && "hidden")}>
+          <CommandList
+            className={cn(
+              "max-h-none! overflow-visible!",
+              hideModelList && "hidden",
+            )}
+          >
             {!hasModels && !hasErrors ? (
               <NoProvidersMessage
                 onAddProvider={() => {
@@ -225,16 +252,7 @@ export function ModelPicker({
                   onAddProvider?.();
                 }}
               />
-            ) : (
-              <CommandEmpty>
-                <NoMatchingModelsMessage
-                  onAddProvider={() => {
-                    setOpen(false);
-                    onAddProvider?.();
-                  }}
-                />
-              </CommandEmpty>
-            )}
+            ) : null}
             {hasErrors && (
               <ErrorsGroup
                 errors={errors}
@@ -248,8 +266,12 @@ export function ModelPicker({
             )}
             {hasModels && (
               <ModelGroups
-                groupedModels={groupedModels}
+                groupedModels={filteredGroupedModels}
                 hasPlan={hasPlan}
+                onAddProvider={() => {
+                  setOpen(false);
+                  onAddProvider?.();
+                }}
                 onSelectModel={(uri, requiresPremium, modelName) => {
                   if (requiresPremium && autoModel) {
                     toast.info("Model requires paid plan", {
@@ -422,11 +444,13 @@ function ErrorsGroup({
 function ModelGroups({
   groupedModels,
   hasPlan,
+  onAddProvider,
   onSelectModel,
   selectedModel,
 }: {
   groupedModels: ReturnType<typeof groupAndFilterModels>;
   hasPlan: boolean;
+  onAddProvider: () => void;
   onSelectModel: (
     uri: AIGatewayModelURI.Type,
     requiresPremium: boolean,
@@ -434,74 +458,123 @@ function ModelGroups({
   ) => void;
   selectedModel?: AIGatewayModel.Type;
 }) {
-  return (
-    <>
-      {getGroupedModelsEntries(groupedModels).map(
-        ([groupName, modelGroup]) =>
-          modelGroup.length > 0 && (
-            <CommandGroup heading={groupName} key={groupName}>
-              {modelGroup.map((model) => {
-                const requiresPremium =
-                  model.tags.includes("premium") && !hasPlan;
+  const parentRef = useRef<HTMLDivElement>(null);
 
-                return (
-                  <CommandItem
-                    className="flex items-center justify-between py-2"
-                    key={model.uri}
-                    onSelect={() => {
-                      onSelectModel(model.uri, requiresPremium, model.name);
-                    }}
-                    value={model.uri}
-                  >
-                    <div className="flex items-center">
-                      <CheckIcon
-                        className={cn(
-                          "mr-2 size-4",
-                          selectedModel?.uri === model.uri
-                            ? "opacity-100"
-                            : "opacity-0",
-                        )}
-                      />
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm">{model.name}</span>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <AIProviderIcon
-                            className="size-3 shrink-0"
-                            type={model.params.provider}
-                          />
-                          <span>{model.providerName}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-1 ml-2 flex gap-1 self-start">
-                      <ModelBadges hasPlan={hasPlan} model={model} />
-                    </div>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          ),
-      )}
-    </>
-  );
-}
+  const rows = useMemo<VirtualRow[]>(() => {
+    const flat: VirtualRow[] = [];
+    for (const [groupName, modelGroup] of getGroupedModelsEntries(
+      groupedModels,
+    )) {
+      if (modelGroup.length === 0) {
+        continue;
+      }
+      flat.push({ groupName, type: "header" });
+      for (const model of modelGroup) {
+        flat.push({
+          model,
+          requiresPremium: model.tags.includes("premium") && !hasPlan,
+          type: "item",
+        });
+      }
+    }
+    return flat;
+  }, [groupedModels, hasPlan]);
 
-function NoMatchingModelsMessage({
-  onAddProvider,
-}: {
-  onAddProvider: () => void;
-}) {
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 56),
+    getScrollElement: () => parentRef.current,
+    overscan: 8,
+  });
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-6">
+        <p className="text-sm text-muted-foreground">No matching models</p>
+        <Button onClick={onAddProvider} size="sm" variant="outline">
+          <PlusIcon className="mr-2 size-4" />
+          Add an AI provider
+        </Button>
+        <p className="max-w-64 text-center text-xs text-muted-foreground">
+          The model you&apos;re looking for might be available from a different
+          provider
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center gap-3 py-6">
-      <p className="text-sm text-muted-foreground">No matching models</p>
-      <Button onClick={onAddProvider} size="sm" variant="outline">
-        <PlusIcon className="mr-2 size-4" />
-        Add an AI provider
-      </Button>
-      <p className="max-w-64 text-center text-xs text-muted-foreground">
-        The model you&apos;re looking for might be available from a different
-        provider
-      </p>
+    <div
+      className="overflow-y-auto"
+      ref={parentRef}
+      style={{ maxHeight: "328px" }}
+    >
+      <div
+        className="relative w-full"
+        style={{ height: `${virtualizer.getTotalSize()}px` }}
+      >
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const row = rows[virtualItem.index];
+          if (!row) {
+            return null;
+          }
+
+          if (row.type === "header") {
+            return (
+              <div
+                className="absolute top-0 left-0 w-full px-2 py-1.5 text-xs font-medium text-muted-foreground"
+                key={virtualItem.key}
+                style={{
+                  height: `${virtualItem.size}px`,
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                {row.groupName}
+              </div>
+            );
+          }
+
+          const { model, requiresPremium } = row;
+          return (
+            <CommandItem
+              className="absolute top-0 left-0 flex w-full items-center justify-between px-2 py-2"
+              key={virtualItem.key}
+              onSelect={() => {
+                onSelectModel(model.uri, requiresPremium, model.name);
+              }}
+              style={{
+                height: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+              value={model.uri}
+            >
+              <div className="flex items-center">
+                <CheckIcon
+                  className={cn(
+                    "mr-2 size-4 shrink-0",
+                    selectedModel?.uri === model.uri
+                      ? "opacity-100"
+                      : "opacity-0",
+                  )}
+                />
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm">{model.name}</span>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <AIProviderIcon
+                      className="size-3 shrink-0"
+                      type={model.params.provider}
+                    />
+                    <span>{model.providerName}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-1 ml-2 flex gap-1 self-start">
+                <ModelBadges hasPlan={hasPlan} model={model} />
+              </div>
+            </CommandItem>
+          );
+        })}
+      </div>
     </div>
   );
 }

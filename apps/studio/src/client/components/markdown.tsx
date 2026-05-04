@@ -1,13 +1,10 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { ImageIcon } from "@phosphor-icons/react";
 import { useSetAtom } from "jotai";
-import { memo, useCallback } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeKatex from "rehype-katex";
-import rehypeRaw from "rehype-raw";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import ReactMarkdown, { type Options } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
@@ -16,12 +13,22 @@ import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
 
-import "katex/dist/katex.min.css";
-
 interface MarkdownProps {
   allowRawHtml?: boolean;
   assetBaseUrl?: string;
   markdown: string;
+}
+
+type PluginList = NonNullable<Options["rehypePlugins"]>;
+type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
+
+const emptyPluginList: PluginList = [];
+const emptyRemarkPluginList: RemarkPluginList = [];
+
+function containsMathSyntax(markdown: string) {
+  return /```math\b|\\\(|\\\[|\\begin\{[a-z*]+\}|\$\$[\s\S]*?\$\$/.test(
+    markdown,
+  );
 }
 
 const CodeWithCopy = ({
@@ -106,6 +113,12 @@ const resolveImageSrc = (
 export const Markdown = memo(
   ({ allowRawHtml, assetBaseUrl, markdown }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
+    const [rehypePlugins, setRehypePlugins] =
+      useState<PluginList>(emptyPluginList);
+    const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
+      emptyRemarkPluginList,
+    );
+    const needsMath = useMemo(() => containsMathSyntax(markdown), [markdown]);
 
     const handleImageClick = useCallback(
       (event: React.MouseEvent<HTMLImageElement>) => {
@@ -120,9 +133,44 @@ export const Markdown = memo(
 
     const handleHashLinkClick = useHashLinkScroll();
 
-    const rehypePlugins = allowRawHtml
-      ? [rehypeRaw, rehypeKatex]
-      : [rehypeKatex];
+    useEffect(() => {
+      let isCancelled = false;
+
+      async function loadPlugins() {
+        const nextRehypePlugins: PluginList = [];
+        const nextRemarkPlugins: RemarkPluginList = [];
+
+        if (allowRawHtml) {
+          const { default: rehypeRaw } = await import("rehype-raw");
+          nextRehypePlugins.push(rehypeRaw);
+        }
+
+        if (needsMath) {
+          const [{ default: rehypeKatex }, { default: remarkMath }] =
+            await Promise.all([
+              import("rehype-katex"),
+              import("remark-math"),
+              import("katex/dist/katex.min.css"),
+            ]);
+
+          nextRehypePlugins.push(rehypeKatex);
+          nextRemarkPlugins.push([remarkMath, { singleDollarTextMath: false }]);
+        }
+
+        if (isCancelled) {
+          return;
+        }
+
+        setRehypePlugins(nextRehypePlugins);
+        setRemarkPlugins(nextRemarkPlugins);
+      }
+
+      void loadPlugins();
+
+      return () => {
+        isCancelled = true;
+      };
+    }, [allowRawHtml, needsMath]);
 
     return (
       <ReactMarkdown
@@ -198,11 +246,7 @@ export const Markdown = memo(
           },
         }}
         rehypePlugins={rehypePlugins}
-        remarkPlugins={[
-          remarkGfm,
-          [remarkMath, { singleDollarTextMath: false }],
-          remarkBreaks,
-        ]}
+        remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
       >
         {remend(markdown)}
       </ReactMarkdown>

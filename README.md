@@ -8,6 +8,10 @@ pnpm install
 pnpm run dev:studio
 ```
 
+## Documentation
+
+See [docs/README.md](docs/README.md) and [AGENTS.md](AGENTS.md) for repository structure and agent-oriented guidance.
+
 ## Dependencies
 
 ### `pnpm-workspace.yaml`

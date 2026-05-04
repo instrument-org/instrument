@@ -365,6 +365,7 @@ export function FileViewer({
         </Tooltip>
         {filePath && projectSubdomain && versionRef && (
           <FileVersionBadge
+            className="dark:bg-background"
             filePath={filePath}
             projectSubdomain={projectSubdomain}
             versionRef={versionRef}

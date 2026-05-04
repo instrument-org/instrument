@@ -24,12 +24,12 @@ This runs Turbo `dev` for `@instrument-org/studio` and `@instrument-org/shim-cli
 
 From the repository root (`package.json`):
 
-| Script | Purpose |
-| ------ | ------- |
+| Script                    | Purpose                                                                 |
+| ------------------------- | ----------------------------------------------------------------------- |
 | `pnpm run check-and-test` | Full validation pipeline (format, lint, types, spelling, builds, tests) |
-| `pnpm run fix:format` | Apply Prettier |
-| `pnpm run fix:lint` | ESLint with fixes |
-| `pnpm test` | Root Vitest |
+| `pnpm run fix:format`     | Apply Prettier                                                          |
+| `pnpm run fix:lint`       | ESLint with fixes                                                       |
+| `pnpm test`               | Root Vitest                                                             |
 
 Package-specific scripts live in each `package.json` (for example `apps/studio`, `packages/workspace`).
 

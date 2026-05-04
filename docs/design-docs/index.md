@@ -4,8 +4,8 @@ Design docs describe **durable** intent: tradeoffs, invariants, and how major su
 
 ## Index
 
-| Document | Status | Summary |
-| -------- | ------ | ------- |
+| Document                           | Status | Summary                                        |
+| ---------------------------------- | ------ | ---------------------------------------------- |
 | [core-beliefs.md](core-beliefs.md) | living | Agent-first operating principles for this repo |
 
 Add new design docs as `docs/design-docs/<topic>.md` and list them here with a one-line summary and status (`draft`, `living`, or `archived`).

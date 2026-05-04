@@ -6,16 +6,16 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md), then open deeper docs as needed (
 
 ## Index
 
-| Document | Description |
-| -------- | ----------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Problem domain, package map, dependency boundaries |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Setup, dev servers, common commands |
-| [QUALITY.md](QUALITY.md) | Formatting, lint, types, tests, spellcheck |
-| [SECURITY.md](SECURITY.md) | Trust boundaries and repo hygiene |
-| [design-docs/index.md](design-docs/index.md) | Design doc catalog and principles |
-| [product-specs/index.md](product-specs/index.md) | Product specs placeholder index |
-| [exec-plans/](exec-plans/) | Active and completed execution plans |
-| [references/external.md](references/external.md) | Curated external articles and tools |
+| Document                                         | Description                                        |
+| ------------------------------------------------ | -------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)               | Problem domain, package map, dependency boundaries |
+| [DEVELOPMENT.md](DEVELOPMENT.md)                 | Setup, dev servers, common commands                |
+| [QUALITY.md](QUALITY.md)                         | Formatting, lint, types, tests, spellcheck         |
+| [SECURITY.md](SECURITY.md)                       | Trust boundaries and repo hygiene                  |
+| [design-docs/index.md](design-docs/index.md)     | Design doc catalog and principles                  |
+| [product-specs/index.md](product-specs/index.md) | Product specs placeholder index                    |
+| [exec-plans/](exec-plans/)                       | Active and completed execution plans               |
+| [references/external.md](references/external.md) | Curated external articles and tools                |
 
 ## Repository map
 

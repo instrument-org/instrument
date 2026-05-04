@@ -14,14 +14,14 @@ This aggregates Turbo tasks for formatting, ESLint, TypeScript, spelling, unused
 
 ## Individual checks
 
-| Check | Command |
-| ----- | ------- |
-| Format | `pnpm run check:format` |
-| ESLint | `pnpm run check:lint` |
-| TypeScript | `pnpm run check:types` |
-| Markdown | `pnpm run check:md` |
-| Spelling | `pnpm run check:spelling` |
-| Unused exports/deps | `pnpm run check:unused` |
+| Check               | Command                   |
+| ------------------- | ------------------------- |
+| Format              | `pnpm run check:format`   |
+| ESLint              | `pnpm run check:lint`     |
+| TypeScript          | `pnpm run check:types`    |
+| Markdown            | `pnpm run check:md`       |
+| Spelling            | `pnpm run check:spelling` |
+| Unused exports/deps | `pnpm run check:unused`   |
 
 Fix helpers: `pnpm run fix:format`, `pnpm run fix:lint`.
 

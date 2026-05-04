@@ -1,17 +1,6 @@
 {
-  "files": [
-    "**",
-    ".github/**",
-    ".vscode/**"
-  ],
-  "dictionaries": [
-    "typescript",
-    "bash",
-    "css",
-    "html",
-    "node",
-    "npm"
-  ],
+  "files": ["**", ".github/**", ".vscode/**"],
+  "dictionaries": ["typescript", "bash", "css", "html", "node", "npm"],
   "ignorePaths": [
     "pnpm-lock.yaml",
     "registry/",

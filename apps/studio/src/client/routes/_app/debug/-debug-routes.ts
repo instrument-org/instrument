@@ -45,6 +45,15 @@ export const debugRoutes = [
     to: "/debug/browser-views",
   },
   {
+    description: "All AI provider icons at every size.",
+    id: "providerIcons",
+    label: "Provider Icons",
+    showCard: true,
+    showNav: true,
+    title: "Debug Provider Icons",
+    to: "/debug/provider-icons",
+  },
+  {
     id: "browserView",
     showCard: false,
     showNav: false,

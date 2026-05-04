@@ -29,6 +29,7 @@ import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/ind
 import { Route as AppEvalsIndexRouteImport } from './routes/_app/evals/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
 import { Route as AppDebugSessionStreamRouteImport } from './routes/_app/debug/session-stream'
+import { Route as AppDebugProviderIconsRouteImport } from './routes/_app/debug/provider-icons'
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
 import { Route as AppDebugColorsRouteImport } from './routes/_app/debug/colors'
 import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
@@ -136,6 +137,11 @@ const AppDebugSessionStreamRoute = AppDebugSessionStreamRouteImport.update({
   path: '/session-stream',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
+const AppDebugProviderIconsRoute = AppDebugProviderIconsRouteImport.update({
+  id: '/provider-icons',
+  path: '/provider-icons',
+  getParentRoute: () => AppDebugRouteRoute,
+} as any)
 const AppDebugErrorsRoute = AppDebugErrorsRouteImport.update({
   id: '/errors',
   path: '/errors',
@@ -202,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/colors': typeof AppDebugColorsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
+  '/debug/provider-icons': typeof AppDebugProviderIconsRoute
   '/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/debug/': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/colors': typeof AppDebugColorsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
+  '/debug/provider-icons': typeof AppDebugProviderIconsRoute
   '/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/debug': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/_app/debug/colors': typeof AppDebugColorsRoute
   '/_app/debug/errors': typeof AppDebugErrorsRoute
+  '/_app/debug/provider-icons': typeof AppDebugProviderIconsRoute
   '/_app/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/evals/': typeof AppEvalsIndexRoute
@@ -287,6 +296,7 @@ export interface FileRouteTypes {
     | '/debug/browser-views'
     | '/debug/colors'
     | '/debug/errors'
+    | '/debug/provider-icons'
     | '/debug/session-stream'
     | '/debug/'
     | '/evals'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/debug/browser-views'
     | '/debug/colors'
     | '/debug/errors'
+    | '/debug/provider-icons'
     | '/debug/session-stream'
     | '/debug'
     | '/evals'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/_app/debug/browser-views'
     | '/_app/debug/colors'
     | '/_app/debug/errors'
+    | '/_app/debug/provider-icons'
     | '/_app/debug/session-stream'
     | '/_app/debug/'
     | '/_app/evals/'
@@ -499,6 +511,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugSessionStreamRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
+    '/_app/debug/provider-icons': {
+      id: '/_app/debug/provider-icons'
+      path: '/provider-icons'
+      fullPath: '/debug/provider-icons'
+      preLoaderRoute: typeof AppDebugProviderIconsRouteImport
+      parentRoute: typeof AppDebugRouteRoute
+    }
     '/_app/debug/errors': {
       id: '/_app/debug/errors'
       path: '/errors'
@@ -591,6 +610,7 @@ interface AppDebugRouteRouteChildren {
   AppDebugBrowserViewsRoute: typeof AppDebugBrowserViewsRoute
   AppDebugColorsRoute: typeof AppDebugColorsRoute
   AppDebugErrorsRoute: typeof AppDebugErrorsRoute
+  AppDebugProviderIconsRoute: typeof AppDebugProviderIconsRoute
   AppDebugSessionStreamRoute: typeof AppDebugSessionStreamRoute
   AppDebugIndexRoute: typeof AppDebugIndexRoute
   AppDebugBrowserViewTargetIdRoute: typeof AppDebugBrowserViewTargetIdRoute
@@ -600,6 +620,7 @@ const AppDebugRouteRouteChildren: AppDebugRouteRouteChildren = {
   AppDebugBrowserViewsRoute: AppDebugBrowserViewsRoute,
   AppDebugColorsRoute: AppDebugColorsRoute,
   AppDebugErrorsRoute: AppDebugErrorsRoute,
+  AppDebugProviderIconsRoute: AppDebugProviderIconsRoute,
   AppDebugSessionStreamRoute: AppDebugSessionStreamRoute,
   AppDebugIndexRoute: AppDebugIndexRoute,
   AppDebugBrowserViewTargetIdRoute: AppDebugBrowserViewTargetIdRoute,

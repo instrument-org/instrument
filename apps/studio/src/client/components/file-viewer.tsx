@@ -2,7 +2,7 @@ import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { getFileType } from "@/client/lib/get-file-type";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowLineDownIcon,
@@ -26,6 +26,7 @@ import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { FileVersionBadge } from "./file-version-badge";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
+import { ImageWithFallback } from "./image-with-fallback";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -213,6 +214,7 @@ export function FileViewer({
   const { filename, filePath, mimeType, projectSubdomain, url, versionRef } =
     file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -269,6 +271,10 @@ export function FileViewer({
       filePath,
       subdomain: projectSubdomain,
     });
+  };
+
+  const handleImageClick = () => {
+    setIsImageZoomed((zoomed) => !zoomed);
   };
 
   const getViewerLayoutType = () => {
@@ -426,6 +432,37 @@ export function FileViewer({
             src={url}
             title={filename}
           />
+        ) : fileType === "image" ? (
+          <div
+            className={cn(
+              "flex size-full items-center justify-center",
+              isImageZoomed && "block",
+            )}
+          >
+            <ImageWithFallback
+              alt={filename}
+              className={cn(
+                "select-none",
+                isImageZoomed
+                  ? "size-auto max-w-none cursor-zoom-out"
+                  : "size-auto max-h-full max-w-full cursor-zoom-in object-contain",
+              )}
+              fallback={
+                <FilePreviewFallback
+                  fallbackExtension="jpg"
+                  filename={filename}
+                  onDownload={
+                    fileActions.showDownload ? handleDownload : undefined
+                  }
+                />
+              }
+              fallbackClassName="size-32 rounded-lg"
+              filename={filename}
+              onClick={handleImageClick}
+              showCheckerboard
+              src={url}
+            />
+          </div>
         ) : fileType === "code" ||
           fileType === "text" ||
           (fileType === "html" && viewMode === "raw") ||
@@ -449,7 +486,7 @@ export function FileViewer({
         ) : fileType === "video" ? (
           <video
             autoPlay
-            className="size-full object-contain p-4"
+            className="size-full object-contain"
             controls
             key={url}
             onError={() => {

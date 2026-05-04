@@ -1,8 +1,8 @@
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
-import { ManualProviderButton } from "@/client/components/manual-provider-button";
 import { AppIcon } from "@/client/components/studio-icon";
 import { TermsFooter } from "@/client/components/terms-footer";
+import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -20,23 +20,34 @@ export function AIProviderGuardDialog({
   onSuccess,
   open,
 }: {
-  description: string;
+  description?: string;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   open: boolean;
 }) {
   const [showAddProviderDialog, setShowAddProviderDialog] = useState(false);
 
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
+
+  const showGoogleSignIn = !hasToken;
+
+  const resolvedDescription =
+    description ??
+    (showGoogleSignIn
+      ? "Connect an AI provider to get started."
+      : "Add an AI provider API key to use a custom model.");
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="max-w-md p-6">
         <DialogHeader className="sr-only">
           <DialogTitle>Add an AI provider to continue</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription>{resolvedDescription}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-6">
           <div className="flex flex-col items-center gap-4">
@@ -47,24 +58,45 @@ export function AIProviderGuardDialog({
               Add an AI provider
             </h2>
             <p className="text-center text-sm text-muted-foreground">
-              {description}
+              {resolvedDescription}
             </p>
           </div>
 
           <div className="flex w-full max-w-xs flex-col gap-4">
-            <GoogleSignInButton
-              className="w-full"
-              onSuccess={() => {
-                onSuccess?.();
-                onOpenChange(false);
-              }}
-            />
-
-            <ManualProviderButton
-              onClick={() => {
-                setShowAddProviderDialog(true);
-              }}
-            />
+            {showGoogleSignIn ? (
+              <>
+                <GoogleSignInButton
+                  className="w-full"
+                  onSuccess={() => {
+                    onSuccess?.();
+                    onOpenChange(false);
+                  }}
+                />
+                <div className="flex flex-col items-center justify-center">
+                  <div className="text-sm text-muted-foreground/50">or</div>
+                  <Button
+                    className="text-muted-foreground/80"
+                    onClick={() => {
+                      setShowAddProviderDialog(true);
+                    }}
+                    type="button"
+                    variant="ghost"
+                  >
+                    Add an AI provider manually
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setShowAddProviderDialog(true);
+                }}
+                type="button"
+              >
+                Add an AI provider manually
+              </Button>
+            )}
           </div>
 
           <AddProviderDialog
@@ -78,7 +110,9 @@ export function AIProviderGuardDialog({
             providers={providerConfigs ?? []}
           />
 
-          <TermsFooter className="text-center text-xs text-muted-foreground/50" />
+          {showGoogleSignIn && (
+            <TermsFooter className="text-center text-xs text-muted-foreground/50" />
+          )}
         </div>
       </DialogContent>
     </Dialog>

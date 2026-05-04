@@ -51,7 +51,7 @@ export function ProjectFileViewer({
     <div
       className={cn(
         "relative flex size-full flex-col",
-        isInPanel && isMediaFile && "rounded-lg bg-black p-4",
+        isInPanel && isMediaFile && "dark rounded-lg bg-black p-4",
       )}
     >
       {isMediaFile && (

@@ -113,9 +113,9 @@ export function NavProjects({
               />
             ))}
             {hasMoreFavorites && (
-              <li className="px-2 pt-0.5 pb-1">
+              <li className="px-2 pt-1.5 pb-1">
                 <InternalLink
-                  className="flex items-center gap-0.5 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                  className="flex items-center gap-0.5 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground/70"
                   openInCurrentTab
                   search={{ filter: "favorites" }}
                   to="/projects"

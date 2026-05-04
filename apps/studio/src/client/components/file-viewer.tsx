@@ -2,27 +2,37 @@ import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { getFileType } from "@/client/lib/get-file-type";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
+import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowLineDownIcon,
+  ArrowsOutIcon,
   ArrowsOutSimpleIcon,
   CheckIcon,
   CodeIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   EyeIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  TransformComponent,
+  TransformWrapper,
+  useControls,
+  useTransformComponent,
+} from "react-zoom-pan-pinch";
 import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTimedFlag } from "../hooks/use-timed-flag";
+import { FileActionsMenuItems } from "./file-actions-menu";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { FileVersionBadge } from "./file-version-badge";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
@@ -31,6 +41,11 @@ import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "./ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +61,47 @@ import {
 import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
+function ImageZoomControls() {
+  const { resetTransform, zoomIn, zoomOut } = useControls();
+  const isZoomed = useTransformComponent(({ state }) => state.scale > 1.01);
+  return (
+    <div className="flex items-center gap-1 rounded-xl bg-black/50 p-1 backdrop-blur-md">
+      <Button
+        className="size-7 text-white hover:bg-white/20 hover:text-white"
+        onClick={() => {
+          zoomOut();
+        }}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <MagnifyingGlassMinusIcon className="size-4" />
+      </Button>
+      <Button
+        className="size-7 text-white hover:bg-white/20 hover:text-white"
+        onClick={() => {
+          zoomIn();
+        }}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <MagnifyingGlassPlusIcon className="size-4" />
+      </Button>
+      {isZoomed && (
+        <Button
+          className="size-7 text-white hover:bg-white/20 hover:text-white"
+          onClick={() => {
+            resetTransform();
+          }}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <ArrowsOutIcon className="size-4" />
+        </Button>
+      )}
+    </div>
+  );
+}
 
 function MarkdownPreview({ url }: { url: string }) {
   const { data, error, isLoading } = useQuery({
@@ -214,9 +270,10 @@ export function FileViewer({
   const { filename, filePath, mimeType, projectSubdomain, url, versionRef } =
     file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
-  const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
+  const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
+  const imageLoadError = imageErrorUrl === url;
   const contentRef = useRef<HTMLDivElement>(null);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
   const revealFileMutation = useMutation(
@@ -271,10 +328,6 @@ export function FileViewer({
       filePath,
       subdomain: projectSubdomain,
     });
-  };
-
-  const handleImageClick = () => {
-    setIsImageZoomed((zoomed) => !zoomed);
   };
 
   const getViewerLayoutType = () => {
@@ -433,36 +486,55 @@ export function FileViewer({
             title={filename}
           />
         ) : fileType === "image" ? (
-          <div
-            className={cn(
-              "flex size-full items-center justify-center",
-              isImageZoomed && "block",
-            )}
-          >
-            <ImageWithFallback
-              alt={filename}
-              className={cn(
-                "select-none",
-                isImageZoomed
-                  ? "size-auto max-w-none cursor-zoom-out"
-                  : "size-auto max-h-full max-w-full cursor-zoom-in object-contain",
-              )}
-              fallback={
-                <FilePreviewFallback
-                  fallbackExtension="jpg"
-                  filename={filename}
-                  onDownload={
-                    fileActions.showDownload ? handleDownload : undefined
-                  }
-                />
-              }
-              fallbackClassName="size-32 rounded-lg"
-              filename={filename}
-              onClick={handleImageClick}
-              showCheckerboard
-              src={url}
-            />
-          </div>
+          imageLoadError ? (
+            <div className="flex size-full items-center justify-center">
+              <FilePreviewFallback
+                fallbackExtension="jpg"
+                filename={filename}
+                onDownload={
+                  fileActions.showDownload ? handleDownload : undefined
+                }
+              />
+            </div>
+          ) : (
+            <ContextMenu>
+              {/* ContextMenuTrigger must render its own div. Using asChild on
+                  TransformWrapper breaks ref forwarding and prevents the
+                  contextmenu event from reaching Radix */}
+              <ContextMenuTrigger className="size-full">
+                <TransformWrapper
+                  centerOnInit
+                  key={url}
+                  panning={{ allowRightClickPan: false }}
+                >
+                  <div className="relative size-full">
+                    <TransformComponent
+                      wrapperStyle={{ height: "100%", width: "100%" }}
+                    >
+                      <ImageWithFallback
+                        alt={filename}
+                        className="select-none"
+                        filename={filename}
+                        onError={() => {
+                          setImageErrorUrl(url);
+                        }}
+                        showCheckerboard
+                        src={url}
+                      />
+                    </TransformComponent>
+                    <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+                      <div className="pointer-events-auto">
+                        <ImageZoomControls />
+                      </div>
+                    </div>
+                  </div>
+                </TransformWrapper>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <FileActionsMenuItems file={file} variant="context" />
+              </ContextMenuContent>
+            </ContextMenu>
+          )
         ) : fileType === "code" ||
           fileType === "text" ||
           (fileType === "html" && viewMode === "raw") ||

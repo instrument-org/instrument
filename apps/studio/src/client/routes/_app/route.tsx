@@ -1,15 +1,28 @@
-import { FilePreviewModal } from "@/client/components/file-preview-modal";
-import { ProjectFileViewerModal } from "@/client/components/project/file-viewer-modal";
+import { filePreviewAtom } from "@/client/atoms/file-preview";
+import { projectFileViewerAtom } from "@/client/atoms/project-file-viewer";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInvalidateRouterOnUserChange } from "@/client/hooks/use-invalidate-router-on-user-change";
 import { useUpdateNotifications } from "@/client/hooks/use-update-notifications";
-import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect } from "react";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
+import { lazy, Suspense } from "react";
 
 const StudioCommandMenu = lazy(() =>
   import("@/client/components/studio-command-menu").then((module) => ({
     default: module.StudioCommandMenu,
+  })),
+);
+
+const LazyFilePreviewModal = lazy(() =>
+  import("@/client/components/file-preview-modal").then((module) => ({
+    default: module.FilePreviewModal,
+  })),
+);
+
+const LazyProjectFileViewerModal = lazy(() =>
+  import("@/client/components/project/file-viewer-modal").then((module) => ({
+    default: module.ProjectFileViewerModal,
   })),
 );
 
@@ -33,26 +46,13 @@ const DevTools = lazy(() =>
 
 function RouteComponent() {
   const isDeveloperMode = useDeveloperMode();
+  const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
+  const isProjectFileViewerOpen = useAtomValue(
+    projectFileViewerAtom,
+  ).isModalOpen;
+
   useUpdateNotifications();
   useInvalidateRouterOnUserChange();
-
-  const router = useRouter();
-
-  useEffect(() => {
-    async function preloadRouteChunks() {
-      try {
-        const projectRoute = router.routesByPath["/projects/$subdomain"];
-        await Promise.all([
-          router.loadRouteChunk(projectRoute),
-          router.loadRouteChunk(projectRoute.parentRoute),
-        ]);
-      } catch {
-        // Failed to preload route chunk
-      }
-    }
-
-    void preloadRouteChunks();
-  }, [router]);
 
   return (
     <div
@@ -70,8 +70,16 @@ function RouteComponent() {
       <Suspense fallback={null}>
         <StudioCommandMenu />
       </Suspense>
-      <ProjectFileViewerModal />
-      <FilePreviewModal />
+      {isProjectFileViewerOpen && (
+        <Suspense fallback={null}>
+          <LazyProjectFileViewerModal />
+        </Suspense>
+      )}
+      {isFilePreviewOpen && (
+        <Suspense fallback={null}>
+          <LazyFilePreviewModal />
+        </Suspense>
+      )}
       <Toaster position="top-center" />
     </div>
   );

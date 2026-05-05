@@ -2,6 +2,7 @@ import {
   getToolNameByType,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
+import { GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
@@ -11,6 +12,7 @@ import {
   TOOL_ICONS,
 } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
+import { Favicon } from "../favicon";
 import {
   Collapsible,
   CollapsibleContent,
@@ -18,24 +20,30 @@ import {
 } from "../ui/collapsible";
 import { Spinner } from "../ui/spinner";
 
+interface BrowserInfo {
+  /** Sorted by visit count, descending. */
+  domains: string[];
+}
+
 export function ToolCallHeader({
   expandedContent,
   isAgentRunning,
   isStreaming,
   part,
-  valueChip,
 }: {
   expandedContent?: React.ReactNode;
   isAgentRunning: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.ToolPart;
-  valueChip?: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isOpen = isExpanded || isStreaming;
 
   const toolName = getToolNameByType(part.type);
-  const Icon = TOOL_ICONS[toolName];
+  const browserInfo = getBrowserInfo(part);
+  const Icon: Icon | undefined = browserInfo
+    ? GlobeIcon
+    : (TOOL_ICONS[toolName] ?? undefined);
 
   const isFileNotFound =
     part.state === "output-available" &&
@@ -87,11 +95,7 @@ export function ToolCallHeader({
         {label}
       </span>
 
-      {!isStreaming && valueChip && (
-        <span className="ml-1 shrink-0 rounded-full bg-foreground/5 px-2 pb-0.5 text-xs font-medium text-foreground/50">
-          {valueChip}
-        </span>
-      )}
+      {!isStreaming && browserInfo && <BrowserChip info={browserInfo} />}
     </div>
   );
 
@@ -103,4 +107,81 @@ export function ToolCallHeader({
       </CollapsibleContent>
     </Collapsible>
   );
+}
+
+export function ToolChip({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "ml-1 flex shrink-0 items-center gap-1.5 rounded-full bg-foreground/5 py-0.5 pr-2.5 pl-1",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function BrowserChip({ info }: { info: BrowserInfo }) {
+  const topDomain = info.domains[0] ?? "";
+  const extra = info.domains.length - 1;
+
+  return (
+    <ToolChip>
+      <Favicon
+        className="size-3.5 border border-muted bg-background"
+        url={`https://${topDomain}`}
+      />
+      <span className="text-xs font-medium text-foreground/50">
+        {topDomain}
+        {extra > 0 && (
+          <span className="text-foreground/30"> & {extra} more</span>
+        )}
+      </span>
+    </ToolChip>
+  );
+}
+
+function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
+  if (part.type !== "tool-bash") {
+    return null;
+  }
+
+  const contextItems =
+    "contextItems" in part.metadata ? (part.metadata.contextItems ?? []) : [];
+  if (contextItems.length === 0) {
+    return null;
+  }
+
+  const domainCounts = new Map<string, number>();
+  for (const item of contextItems) {
+    const urlToken = item.subcommand
+      .split(/\s+/)
+      .find((t) => t.startsWith("http"));
+    if (!urlToken) {
+      continue;
+    }
+    try {
+      const hostname = new URL(urlToken).hostname;
+      domainCounts.set(hostname, (domainCounts.get(hostname) ?? 0) + 1);
+    } catch {
+      // not a valid URL
+    }
+  }
+
+  if (domainCounts.size === 0) {
+    return null;
+  }
+
+  const domains = [...domainCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([domain]) => domain);
+
+  return { domains };
 }

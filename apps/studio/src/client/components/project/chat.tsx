@@ -20,7 +20,6 @@ import { useStickToBottom } from "use-stick-to-bottom";
 
 import { ChatStream } from "../chat-stream";
 import { PromptInput } from "../prompt-input";
-import { SessionStream } from "../session-stream";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
@@ -207,21 +206,8 @@ export function ProjectChat({
               selectedSessionId={selectedSessionId}
               subdomain={subdomain}
             />
-          ) : isDeveloperMode ? (
-            <ChatStream
-              isAgentRunning={isAgentRunning}
-              isDeveloperMode={isDeveloperMode}
-              isViewingApp={isViewingApp}
-              messages={messages}
-              onContinue={handleContinue}
-              onModelChange={setSelectedModelURI}
-              onRetry={handleRetry}
-              onStartNewChat={handleNewSession}
-              project={project}
-              versionRef={versionRef}
-            />
           ) : (
-            <SessionStream
+            <ChatStream
               isAgentRunning={isAgentRunning}
               isDeveloperMode={isDeveloperMode}
               isViewingApp={isViewingApp}

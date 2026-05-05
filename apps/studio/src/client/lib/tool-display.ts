@@ -34,7 +34,7 @@ const TASK_FAILED_DISPLAY_NAMES: Record<TaskAgentName, string> = {
 
 // | undefined ensures runtime type safety
 const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
-  bash: "Ran command",
+  bash: "Ran terminal command",
   choose: "Waiting for answer",
   copy_to_project: "Copied to project",
   edit_file: "Edited",
@@ -50,7 +50,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
 };
 
 const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
-  bash: "Running command",
+  bash: "Running terminal command",
   choose: "Thinking about answer",
   copy_to_project: "Copying to project",
   edit_file: "Editing a file",
@@ -85,7 +85,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
 };
 
 const TOOL_FAILED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
-  bash: "Failed to run command",
+  bash: "Failed to run terminal command",
   choose: "Failed to answer",
   copy_to_project: "Failed to copy to project",
   edit_file: "Failed to edit file",

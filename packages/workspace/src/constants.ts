@@ -47,3 +47,4 @@ export const GIT_TRAILERS = {
 
 // Limit prompt storage to 50KB to avoid blowing up the JSON file
 export const MAX_PROMPT_STORAGE_LENGTH = 50_000;
+export const TOOL_EXPLANATION_PARAM_NAME = "explanation";

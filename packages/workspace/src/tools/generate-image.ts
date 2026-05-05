@@ -7,6 +7,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
@@ -19,7 +20,6 @@ import { RelativePathSchema } from "../schemas/paths";
 import {
   BaseInputSchema,
   ProviderOutputSchema,
-  TOOL_EXPLANATION_PARAM_NAME,
   UsageOutputSchema,
 } from "./base";
 import { setupTool } from "./create-tool";

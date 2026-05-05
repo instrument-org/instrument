@@ -3,13 +3,13 @@ import { ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { webSearch } from "../lib/web-search";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import {
   BaseInputSchema,
   ProviderOutputSchema,
-  TOOL_EXPLANATION_PARAM_NAME,
   UsageOutputSchema,
 } from "./base";
 import { setupTool } from "./create-tool";

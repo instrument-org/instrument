@@ -2,7 +2,10 @@ import { APP_NAME } from "@instrument-org/shared";
 import { err, ok, safeTry } from "neverthrow";
 import { dedent, pick } from "radashi";
 
-import { APP_FOLDER_NAMES as F } from "../constants";
+import {
+  APP_FOLDER_NAMES as F,
+  TOOL_EXPLANATION_PARAM_NAME,
+} from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { buildAIProviderInstructions } from "../lib/build-ai-provider-instructions";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
@@ -23,7 +26,6 @@ import { Store } from "../lib/store";
 import { textForMessage } from "../lib/text-for-message";
 import { StoreId } from "../schemas/store-id";
 import { getToolByType, TOOLS } from "../tools/all";
-import { TOOL_EXPLANATION_PARAM_NAME } from "../tools/base";
 import { setupAgent } from "./create-agent";
 import {
   createContextMessage,

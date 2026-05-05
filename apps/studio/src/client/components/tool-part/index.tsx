@@ -6,6 +6,7 @@ import {
 import { sift } from "radashi";
 import { useState } from "react";
 
+import { getToolExplanation } from "../../lib/get-tool-explanation";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { getToolLabelForPart } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
@@ -132,7 +133,7 @@ export function ToolPart({
   let value: string | undefined;
   const isWebSearch = toolName === "web_search";
   // Omit explanation for web search, since the query is self evident.
-  const reasoning = isWebSearch ? undefined : getExplanation(part.input);
+  const reasoning = isWebSearch ? undefined : getToolExplanation(part);
   const hasCapabilityFailure = hasOutputFailureState(part);
   const isFailed = isError || hasCapabilityFailure;
 
@@ -288,14 +289,6 @@ export function ToolPart({
       </CollapsibleContent>
     </Collapsible>
   );
-}
-
-function getExplanation(input: unknown): string | undefined {
-  if (input && typeof input === "object" && "explanation" in input) {
-    const explanation = (input as { explanation?: unknown }).explanation;
-    return typeof explanation === "string" ? explanation : undefined;
-  }
-  return undefined;
 }
 
 function getGenerateImageSourceImages(

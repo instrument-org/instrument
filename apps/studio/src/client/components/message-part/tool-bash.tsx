@@ -5,13 +5,20 @@ import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
+import { AgentBrowserPlayer } from "../tool-part/agent-browser-player";
 
 type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
+type BrowserCommandObservation = Extract<
+  SessionMessagePart.ToolPartContextItem,
+  { kind: "agent-browser-command" }
+>;
 
 export function ToolBash({
+  assetBaseUrl,
   isStreaming,
   part,
 }: {
+  assetBaseUrl: string;
   isStreaming: boolean;
   part: BashPart;
 }) {
@@ -37,6 +44,9 @@ export function ToolBash({
 
   const hasExitError = hasOutput && part.output.exitCode !== 0;
   const isFailed = isError || hasExitError;
+  const contextItems =
+    "contextItems" in part.metadata ? (part.metadata.contextItems ?? []) : [];
+  const browserObservations: BrowserCommandObservation[] = contextItems;
 
   return (
     <div className="group/card mt-2 overflow-hidden rounded-2xl border border-border bg-card">
@@ -67,27 +77,36 @@ export function ToolBash({
       </Section>
 
       {(hasOutput || isError) && (
-        <Section
-          copyText={isStreaming ? undefined : outputText}
-          maxHeight="max-h-44"
-        >
-          {outputText.length > 0 ? (
-            <pre
-              className={cn(
-                "pr-7 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap",
-                isFailed
-                  ? "text-destructive"
-                  : "text-success-600 dark:text-success-400",
-              )}
-            >
-              {outputText}
-            </pre>
-          ) : (
-            <p className="font-mono text-sm leading-relaxed text-muted-foreground italic">
-              No output
-            </p>
+        <>
+          {browserObservations.length > 0 && (
+            <AgentBrowserPlayer
+              assetBaseUrl={assetBaseUrl}
+              isStreaming={isStreaming}
+              observations={browserObservations}
+            />
           )}
-        </Section>
+          <Section
+            copyText={isStreaming ? undefined : outputText}
+            maxHeight="max-h-44"
+          >
+            {outputText.length > 0 ? (
+              <pre
+                className={cn(
+                  "pr-7 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap",
+                  isFailed
+                    ? "text-destructive"
+                    : "text-success-600 dark:text-success-400",
+                )}
+              >
+                {outputText}
+              </pre>
+            ) : (
+              <p className="font-mono text-sm leading-relaxed text-muted-foreground italic">
+                No output
+              </p>
+            )}
+          </Section>
+        </>
       )}
     </div>
   );

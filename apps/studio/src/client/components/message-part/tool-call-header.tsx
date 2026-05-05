@@ -20,19 +20,20 @@ import { Spinner } from "../ui/spinner";
 
 export function ToolCallHeader({
   expandedContent,
+  isAgentRunning,
   isStreaming,
   part,
   valueChip,
 }: {
   expandedContent?: React.ReactNode;
+  isAgentRunning: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.ToolPart;
-  /**
-   * Short value shown as a secondary pill after the label (filename, count, etc.).
-   */
   valueChip?: string;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isOpen = isExpanded || isStreaming;
+
   const toolName = getToolNameByType(part.type);
   const Icon = TOOL_ICONS[toolName];
 
@@ -46,7 +47,6 @@ export function ToolCallHeader({
     (part.type === "tool-web_search" || part.type === "tool-generate_image") &&
     part.output.state === "failure";
   const isFailed = isError || hasCapabilityFailure;
-  const isExpandable = !isStreaming;
 
   const explanation = getToolExplanation(part);
 
@@ -95,14 +95,12 @@ export function ToolCallHeader({
     </div>
   );
 
-  if (!isExpandable) {
-    return trigger;
-  }
-
   return (
-    <Collapsible onOpenChange={setIsOpen} open={isOpen}>
+    <Collapsible onOpenChange={setIsExpanded} open={isOpen}>
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
-      <CollapsibleContent>{expandedContent}</CollapsibleContent>
+      <CollapsibleContent animated={!isAgentRunning}>
+        {expandedContent}
+      </CollapsibleContent>
     </Collapsible>
   );
 }

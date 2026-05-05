@@ -21,11 +21,13 @@ import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
 
 export function ToolCall({
+  isAgentRunning,
   isStreaming,
   part,
   project,
   renderStream,
 }: {
+  isAgentRunning: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.ToolPart;
   project: WorkspaceAppProject;
@@ -41,6 +43,7 @@ export function ToolCall({
           renderStream={renderStream}
         />
       }
+      isAgentRunning={isAgentRunning}
       isStreaming={isStreaming}
       part={part}
     />
@@ -64,7 +67,13 @@ function ToolCallExpanded({
 
   switch (part.type) {
     case "tool-bash": {
-      return <ToolBash isStreaming={isStreaming} part={part} />;
+      return (
+        <ToolBash
+          assetBaseUrl={project.urls.assetBase}
+          isStreaming={isStreaming}
+          part={part}
+        />
+      );
     }
     case "tool-choose": {
       return <ToolChoose part={part} />;

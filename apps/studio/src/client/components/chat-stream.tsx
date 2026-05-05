@@ -218,6 +218,7 @@ export function ChatStream({
         return (
           <div key={part.metadata.id}>
             <ToolCall
+              isAgentRunning={isAgentRunning}
               isStreaming={streaming}
               part={part}
               project={project}

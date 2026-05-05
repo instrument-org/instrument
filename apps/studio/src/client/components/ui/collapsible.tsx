@@ -8,13 +8,18 @@ function Collapsible({
 }
 
 function CollapsibleContent({
+  animated = false,
   className,
   ...props
-}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
+}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent> & {
+  animated?: boolean;
+}) {
   return (
     <CollapsiblePrimitive.CollapsibleContent
       className={cn(
-        "overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down",
+        "overflow-hidden",
+        animated &&
+          "data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down",
         className,
       )}
       data-slot="collapsible-content"

@@ -106,10 +106,10 @@ export function AgentBrowserPlayer({
         assetBaseUrl={assetBaseUrl}
         frame={currentFrame}
         isStreaming={isStreaming}
+        onTogglePlay={frameCount > 1 ? togglePlay : undefined}
       />
       {frameCount > 1 && (
         <PlayerControls
-          displayedIndex={displayedIndex}
           frameCount={frameCount}
           isStreaming={isStreaming}
           onSliderChange={handleSliderChange}
@@ -225,14 +225,22 @@ function FramePreview({
   assetBaseUrl,
   frame,
   isStreaming,
+  onTogglePlay,
 }: {
   assetBaseUrl: string;
   frame: PlayableFrame;
   isStreaming: boolean;
+  onTogglePlay: (() => void) | undefined;
 }) {
   if (frame.kind === "error") {
     return (
-      <div className="aspect-video w-full rounded-sm border border-border/50 bg-black" />
+      <button
+        aria-label="Toggle playback"
+        className="aspect-video w-full rounded-sm border border-border/50 bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        disabled={!onTogglePlay}
+        onClick={onTogglePlay}
+        type="button"
+      />
     );
   }
   const url = getAssetUrl({
@@ -243,21 +251,26 @@ function FramePreview({
     frame.screenshot.path.split("/").pop() ?? frame.screenshot.path;
   const headerLabel = frame.screenshot.title || frame.screenshot.url;
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-border/50 bg-black">
+    <button
+      aria-label="Toggle playback"
+      className="relative aspect-video w-full overflow-hidden rounded-sm border border-border/50 bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+      disabled={!onTogglePlay}
+      onClick={onTogglePlay}
+      type="button"
+    >
       <ImageWithFallback
         alt={headerLabel}
         className="h-full w-full object-contain"
-        fallback={<div className="h-full w-full bg-black" />}
+        fallback={<div className="h-full w-full bg-muted" />}
         filename={filename}
         src={url}
       />
       {isStreaming && <div className="activity-indicator" />}
-    </div>
+    </button>
   );
 }
 
 function PlayerControls({
-  displayedIndex,
   frameCount,
   isStreaming,
   onSliderChange,
@@ -265,7 +278,6 @@ function PlayerControls({
   playhead,
   showPause,
 }: {
-  displayedIndex: number;
   frameCount: number;
   isStreaming: boolean;
   onSliderChange: (values: number[]) => void;
@@ -276,10 +288,10 @@ function PlayerControls({
   const lastFrameIndex = frameCount - 1;
   const timelineMax = lastFrameIndex + (isStreaming ? 1 : 0);
   return (
-    <div className="flex items-center gap-2 px-0.5">
+    <div className="flex items-center gap-4 px-1 py-0.5">
       <button
         aria-label={showPause ? "Pause" : "Play"}
-        className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={onTogglePlay}
         type="button"
       >
@@ -289,17 +301,18 @@ function PlayerControls({
           <PlayIcon className="size-5" weight="regular" />
         )}
       </button>
-      <Slider
-        className="w-full"
-        max={timelineMax}
-        min={0}
-        onValueChange={onSliderChange}
-        step={SLIDER_STEP}
-        value={[playhead]}
-      />
-      <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
-        {displayedIndex + 1}/{frameCount}
-      </span>
+      <div className="flex flex-1 items-center">
+        <span className="size-1 shrink-0 rounded-full bg-border" />
+        <Slider
+          className="h-5 flex-1 [&_[data-slot=slider-range]]:bg-border [&_[data-slot=slider-thumb]]:size-4 [&_[data-slot=slider-thumb]]:border-[1.5px] [&_[data-slot=slider-thumb]]:border-muted-foreground/60 [&_[data-slot=slider-thumb]]:bg-background [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-track]]:h-px [&_[data-slot=slider-track]]:bg-border"
+          max={timelineMax}
+          min={0}
+          onValueChange={onSliderChange}
+          step={SLIDER_STEP}
+          value={[playhead]}
+        />
+        <span className="size-1 shrink-0 rounded-full bg-border" />
+      </div>
     </div>
   );
 }

@@ -28,15 +28,18 @@ import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authen
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppEvalsIndexRouteImport } from './routes/_app/evals/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
-import { Route as AppDebugSessionStreamRouteImport } from './routes/_app/debug/session-stream'
 import { Route as AppDebugProviderIconsRouteImport } from './routes/_app/debug/provider-icons'
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
+import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
 import { Route as AppDebugColorsRouteImport } from './routes/_app/debug/colors'
 import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
 import { Route as AppNot_authenticatedWelcomeRouteImport } from './routes/_app/_not_authenticated/welcome'
 import { Route as AppNot_authenticatedSignInRouteImport } from './routes/_app/_not_authenticated/sign-in'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
+import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
+import { Route as AppDebugComponentsSessionStreamRouteImport } from './routes/_app/debug/components/session-stream'
+import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
 
 const ShellRoute = ShellRouteImport.update({
@@ -132,11 +135,6 @@ const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
-const AppDebugSessionStreamRoute = AppDebugSessionStreamRouteImport.update({
-  id: '/session-stream',
-  path: '/session-stream',
-  getParentRoute: () => AppDebugRouteRoute,
-} as any)
 const AppDebugProviderIconsRoute = AppDebugProviderIconsRouteImport.update({
   id: '/provider-icons',
   path: '/provider-icons',
@@ -145,6 +143,11 @@ const AppDebugProviderIconsRoute = AppDebugProviderIconsRouteImport.update({
 const AppDebugErrorsRoute = AppDebugErrorsRouteImport.update({
   id: '/errors',
   path: '/errors',
+  getParentRoute: () => AppDebugRouteRoute,
+} as any)
+const AppDebugComponentsRoute = AppDebugComponentsRouteImport.update({
+  id: '/components',
+  path: '/components',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
 const AppDebugColorsRoute = AppDebugColorsRouteImport.update({
@@ -181,6 +184,23 @@ const AppProjectsSubdomainIndexRoute =
     path: '/projects/$subdomain/',
     getParentRoute: () => AppRouteRoute,
   } as any)
+const AppDebugComponentsIndexRoute = AppDebugComponentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppDebugComponentsRoute,
+} as any)
+const AppDebugComponentsSessionStreamRoute =
+  AppDebugComponentsSessionStreamRouteImport.update({
+    id: '/session-stream',
+    path: '/session-stream',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
+const AppDebugComponentsErrorCardRoute =
+  AppDebugComponentsErrorCardRouteImport.update({
+    id: '/error-card',
+    path: '/error-card',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugBrowserViewTargetIdRoute =
   AppDebugBrowserViewTargetIdRouteImport.update({
     id: '/browser-view/$targetId',
@@ -207,13 +227,16 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof AppNot_authenticatedWelcomeRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/colors': typeof AppDebugColorsRoute
+  '/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/provider-icons': typeof AppDebugProviderIconsRoute
-  '/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/debug/': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
+  '/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
+  '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRoutesByTo {
@@ -235,11 +258,13 @@ export interface FileRoutesByTo {
   '/debug/colors': typeof AppDebugColorsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/provider-icons': typeof AppDebugProviderIconsRoute
-  '/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/debug': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
+  '/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
+  '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRoutesById {
@@ -265,13 +290,16 @@ export interface FileRoutesById {
   '/_app/_not_authenticated/welcome': typeof AppNot_authenticatedWelcomeRoute
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/_app/debug/colors': typeof AppDebugColorsRoute
+  '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/_app/debug/errors': typeof AppDebugErrorsRoute
   '/_app/debug/provider-icons': typeof AppDebugProviderIconsRoute
-  '/_app/debug/session-stream': typeof AppDebugSessionStreamRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
+  '/_app/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
+  '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
 }
 export interface FileRouteTypes {
@@ -295,13 +323,16 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/debug/browser-views'
     | '/debug/colors'
+    | '/debug/components'
     | '/debug/errors'
     | '/debug/provider-icons'
-    | '/debug/session-stream'
     | '/debug/'
     | '/evals'
     | '/projects'
     | '/debug/browser-view/$targetId'
+    | '/debug/components/error-card'
+    | '/debug/components/session-stream'
+    | '/debug/components/'
     | '/projects/$subdomain'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -323,11 +354,13 @@ export interface FileRouteTypes {
     | '/debug/colors'
     | '/debug/errors'
     | '/debug/provider-icons'
-    | '/debug/session-stream'
     | '/debug'
     | '/evals'
     | '/projects'
     | '/debug/browser-view/$targetId'
+    | '/debug/components/error-card'
+    | '/debug/components/session-stream'
+    | '/debug/components'
     | '/projects/$subdomain'
   id:
     | '__root__'
@@ -352,13 +385,16 @@ export interface FileRouteTypes {
     | '/_app/_not_authenticated/welcome'
     | '/_app/debug/browser-views'
     | '/_app/debug/colors'
+    | '/_app/debug/components'
     | '/_app/debug/errors'
     | '/_app/debug/provider-icons'
-    | '/_app/debug/session-stream'
     | '/_app/debug/'
     | '/_app/evals/'
     | '/_app/projects/'
     | '/_app/debug/browser-view/$targetId'
+    | '/_app/debug/components/error-card'
+    | '/_app/debug/components/session-stream'
+    | '/_app/debug/components/'
     | '/_app/projects/$subdomain/'
   fileRoutesById: FileRoutesById
 }
@@ -504,13 +540,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugIndexRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
-    '/_app/debug/session-stream': {
-      id: '/_app/debug/session-stream'
-      path: '/session-stream'
-      fullPath: '/debug/session-stream'
-      preLoaderRoute: typeof AppDebugSessionStreamRouteImport
-      parentRoute: typeof AppDebugRouteRoute
-    }
     '/_app/debug/provider-icons': {
       id: '/_app/debug/provider-icons'
       path: '/provider-icons'
@@ -523,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/errors'
       fullPath: '/debug/errors'
       preLoaderRoute: typeof AppDebugErrorsRouteImport
+      parentRoute: typeof AppDebugRouteRoute
+    }
+    '/_app/debug/components': {
+      id: '/_app/debug/components'
+      path: '/components'
+      fullPath: '/debug/components'
+      preLoaderRoute: typeof AppDebugComponentsRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
     '/_app/debug/colors': {
@@ -567,6 +603,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsSubdomainIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/debug/components/': {
+      id: '/_app/debug/components/'
+      path: '/'
+      fullPath: '/debug/components/'
+      preLoaderRoute: typeof AppDebugComponentsIndexRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
+    '/_app/debug/components/session-stream': {
+      id: '/_app/debug/components/session-stream'
+      path: '/session-stream'
+      fullPath: '/debug/components/session-stream'
+      preLoaderRoute: typeof AppDebugComponentsSessionStreamRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
+    '/_app/debug/components/error-card': {
+      id: '/_app/debug/components/error-card'
+      path: '/error-card'
+      fullPath: '/debug/components/error-card'
+      preLoaderRoute: typeof AppDebugComponentsErrorCardRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/browser-view/$targetId': {
       id: '/_app/debug/browser-view/$targetId'
       path: '/browser-view/$targetId'
@@ -606,12 +663,27 @@ const AppNot_authenticatedRouteRouteWithChildren =
     AppNot_authenticatedRouteRouteChildren,
   )
 
+interface AppDebugComponentsRouteChildren {
+  AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
+  AppDebugComponentsSessionStreamRoute: typeof AppDebugComponentsSessionStreamRoute
+  AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
+}
+
+const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
+  AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
+  AppDebugComponentsSessionStreamRoute: AppDebugComponentsSessionStreamRoute,
+  AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
+}
+
+const AppDebugComponentsRouteWithChildren =
+  AppDebugComponentsRoute._addFileChildren(AppDebugComponentsRouteChildren)
+
 interface AppDebugRouteRouteChildren {
   AppDebugBrowserViewsRoute: typeof AppDebugBrowserViewsRoute
   AppDebugColorsRoute: typeof AppDebugColorsRoute
+  AppDebugComponentsRoute: typeof AppDebugComponentsRouteWithChildren
   AppDebugErrorsRoute: typeof AppDebugErrorsRoute
   AppDebugProviderIconsRoute: typeof AppDebugProviderIconsRoute
-  AppDebugSessionStreamRoute: typeof AppDebugSessionStreamRoute
   AppDebugIndexRoute: typeof AppDebugIndexRoute
   AppDebugBrowserViewTargetIdRoute: typeof AppDebugBrowserViewTargetIdRoute
 }
@@ -619,9 +691,9 @@ interface AppDebugRouteRouteChildren {
 const AppDebugRouteRouteChildren: AppDebugRouteRouteChildren = {
   AppDebugBrowserViewsRoute: AppDebugBrowserViewsRoute,
   AppDebugColorsRoute: AppDebugColorsRoute,
+  AppDebugComponentsRoute: AppDebugComponentsRouteWithChildren,
   AppDebugErrorsRoute: AppDebugErrorsRoute,
   AppDebugProviderIconsRoute: AppDebugProviderIconsRoute,
-  AppDebugSessionStreamRoute: AppDebugSessionStreamRoute,
   AppDebugIndexRoute: AppDebugIndexRoute,
   AppDebugBrowserViewTargetIdRoute: AppDebugBrowserViewTargetIdRoute,
 }

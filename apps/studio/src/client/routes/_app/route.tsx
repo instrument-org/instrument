@@ -55,10 +55,7 @@ function RouteComponent() {
   useInvalidateRouterOnUserChange();
 
   return (
-    <div
-      className="relative flex h-full min-h-dvh flex-col"
-      data-testid="app-page"
-    >
+    <div className="relative flex h-dvh flex-col" data-testid="app-page">
       <Outlet />
 
       {isDeveloperMode && (

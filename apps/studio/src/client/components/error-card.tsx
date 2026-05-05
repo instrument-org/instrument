@@ -1,24 +1,31 @@
 import { cn } from "@/client/lib/utils";
 import { SUPPORT_URL } from "@instrument-org/shared";
+import { CaretDownIcon } from "@phosphor-icons/react";
 import {
   rootRouteId,
   useCanGoBack,
   useMatch,
   useRouter,
 } from "@tanstack/react-router";
+import { useState } from "react";
 
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
 import { InternalLink } from "./internal-link";
-import { Button, buttonVariants } from "./ui/button";
+import { Button } from "./ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "./ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ErrorCard({
@@ -41,69 +48,68 @@ export function ErrorCard({
   const errorInfos = errors.map(extractErrorInfo);
   const hasMultiple = errorInfos.length > 1;
 
-  const copyText = errorInfos
-    .map((info) => {
-      const parts = [
-        info.code ? `[${info.code}] ${info.message}` : info.message,
-      ];
-      if (info.cause != null) {
-        parts.push(`Cause: ${formatCause(info.cause)}`);
-      }
-      if (info.stack) {
-        parts.push(info.stack);
-      }
-      return parts.join("\n");
-    })
-    .join("\n\n---\n\n");
-
   return (
     <Card className="w-full max-w-2xl">
       <CardHeader>
-        <CardTitle className="text-xl">{title}</CardTitle>
-        <p className="text-sm text-muted-foreground">{description}</p>
-        <CardAction>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CopyButton
-                className={cn(
-                  buttonVariants({ size: "icon-sm", variant: "ghost" }),
-                  "text-muted-foreground",
-                )}
-                onCopy={() => navigator.clipboard.writeText(copyText)}
-              />
-            </TooltipTrigger>
-            <TooltipContent>Copy error details</TooltipContent>
-          </Tooltip>
-        </CardAction>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         {errorInfos.map((errorInfo, index) => (
           <div
             className={cn(
-              "space-y-1.5 rounded-md bg-muted px-3 py-2.5",
+              "group/error relative rounded-lg bg-muted px-3 py-2.5",
               hasMultiple && "border",
             )}
             key={index}
           >
-            {hasMultiple && (
-              <p className="text-xs font-medium text-muted-foreground">
-                Error {index + 1}
-              </p>
-            )}
-            {errorInfo.code && (
-              <p className="text-xs font-medium text-error-600 dark:text-error-400">
-                <span className="font-normal text-muted-foreground">
-                  Error code:{" "}
+            <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover/error:opacity-100">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CopyButton
+                    className="size-6 rounded-sm p-0.5 text-muted-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
+                    iconSize={13}
+                    onCopy={() => {
+                      const info = errorInfos[index];
+                      if (!info) {
+                        return;
+                      }
+                      const parts = [
+                        info.code
+                          ? `[${info.code}] ${info.message}`
+                          : info.message,
+                      ];
+                      if (info.cause != null) {
+                        parts.push(`Cause: ${formatCause(info.cause)}`);
+                      }
+                      if (info.stack) {
+                        parts.push(info.stack);
+                      }
+                      return navigator.clipboard.writeText(parts.join("\n"));
+                    }}
+                  />
+                </TooltipTrigger>
+                <TooltipContent>Copy error</TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="mb-1.5 flex items-center gap-2">
+              {hasMultiple && (
+                <span className="text-xs font-medium text-muted-foreground">
+                  Error {index + 1}
                 </span>
-                {errorInfo.code}
-              </p>
-            )}
+              )}
+              {errorInfo.code && (
+                <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-mono text-xs font-medium text-destructive">
+                  {errorInfo.code}
+                </span>
+              )}
+            </div>
             <pre className="font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground/90">
               {errorInfo.message}
             </pre>
             {errorInfo.cause != null && (
-              <div className="border-t border-border/50 pt-1">
-                <p className="mb-0.5 text-xs font-medium text-muted-foreground">
+              <div className="mt-2 border-t border-border/40 pt-2">
+                <p className="mb-1 text-xs font-medium tracking-wide text-muted-foreground/70 uppercase">
                   Cause
                 </p>
                 <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap text-muted-foreground">
@@ -113,32 +119,21 @@ export function ErrorCard({
             )}
           </div>
         ))}
-        {errorInfos.some((info) => info.stack) && (
-          <details className="group">
-            <summary className="cursor-pointer text-xs text-muted-foreground select-none hover:text-foreground">
-              Stack trace{hasMultiple ? "s" : ""}
-            </summary>
-            <div className="mt-2 space-y-2">
-              {errorInfos.map(
-                (errorInfo, index) =>
-                  errorInfo.stack && (
-                    <div key={index}>
-                      {hasMultiple && (
-                        <p className="mb-1 text-xs font-medium text-muted-foreground">
-                          Error {index + 1}
-                        </p>
-                      )}
-                      <pre className="max-h-48 overflow-auto rounded-md bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed text-muted-foreground scrollbar-color scrollbar-thin">
-                        {errorInfo.stack}
-                      </pre>
-                    </div>
-                  ),
-              )}
-            </div>
-          </details>
-        )}
+        <StackTraceCollapsible
+          errorInfos={errorInfos}
+          hasMultiple={hasMultiple}
+        />
       </CardContent>
-      <CardFooter className="flex-col items-end gap-y-3">
+      <CardFooter className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Still having trouble?{" "}
+          <ExternalLink
+            className="underline underline-offset-2 hover:text-foreground"
+            href={SUPPORT_URL}
+          >
+            Get help
+          </ExternalLink>
+        </p>
         <div className="flex gap-x-2">
           {isRoot ? (
             <Button asChild variant="outline">
@@ -169,16 +164,6 @@ export function ErrorCard({
             Try again
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Still broken?{" "}
-          <ExternalLink
-            className="underline underline-offset-2 hover:text-foreground"
-            href={SUPPORT_URL}
-          >
-            Get help from our team
-          </ExternalLink>
-          .
-        </p>
       </CardFooter>
     </Card>
   );
@@ -229,4 +214,50 @@ function formatCause(cause: unknown): string {
 
 function normalizeErrors(error: unknown): unknown[] {
   return Array.isArray(error) ? error.filter((e) => e != null) : [error];
+}
+
+function StackTraceCollapsible({
+  errorInfos,
+  hasMultiple,
+}: {
+  errorInfos: ReturnType<typeof extractErrorInfo>[];
+  hasMultiple: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  if (!errorInfos.some((info) => info.stack)) {
+    return null;
+  }
+
+  return (
+    <Collapsible onOpenChange={setIsOpen} open={isOpen}>
+      <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground">
+        <CaretDownIcon
+          className={cn(
+            "size-3 shrink-0 transition-transform duration-150",
+            isOpen && "rotate-180",
+          )}
+        />
+        Stack trace{hasMultiple ? "s" : ""}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-2 space-y-2">
+          {errorInfos.map(
+            (errorInfo, index) =>
+              errorInfo.stack && (
+                <div key={index}>
+                  {hasMultiple && (
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      Error {index + 1}
+                    </p>
+                  )}
+                  <pre className="max-h-48 overflow-auto rounded-lg bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed text-muted-foreground scrollbar-color scrollbar-thin">
+                    {errorInfo.stack}
+                  </pre>
+                </div>
+              ),
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }

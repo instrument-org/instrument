@@ -1,3 +1,4 @@
+import { cn } from "@/client/lib/utils";
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 
 function Collapsible({
@@ -18,12 +19,14 @@ function CollapsibleContent({
 }
 
 function CollapsibleTrigger({
-  ...props
+  className,
+  ...rest
 }: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
   return (
     <CollapsiblePrimitive.CollapsibleTrigger
+      className={cn("cursor-default", className)}
       data-slot="collapsible-trigger"
-      {...props}
+      {...rest}
     />
   );
 }

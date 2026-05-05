@@ -44,8 +44,7 @@ export function ToolBash({
 
   const hasExitError = hasOutput && part.output.exitCode !== 0;
   const isFailed = isError || hasExitError;
-  const contextItems =
-    "contextItems" in part.metadata ? (part.metadata.contextItems ?? []) : [];
+  const contextItems = part.metadata.contextItems ?? [];
   const browserObservations: BrowserCommandObservation[] = contextItems;
 
   return (

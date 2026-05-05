@@ -27,6 +27,19 @@ registerSession({
           },
           type: "tool-choose",
         }),
+
+        // Partial filePath — tests FileChip appearing mid-stream
+        builder.toolPart(assistantMessageId, "input-streaming", {
+          input: {
+            explanation: "Update greeting message",
+            filePath: "./src/hel",
+            newString: "",
+            oldString: "",
+          },
+          type: "tool-edit_file",
+        }),
+
+        // Full filePath — tests FileChip fully resolved while still streaming
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Update greeting message",
@@ -36,6 +49,7 @@ registerSession({
           },
           type: "tool-edit_file",
         }),
+
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Generate a sunset image",
@@ -58,6 +72,17 @@ registerSession({
           },
           type: "tool-grep",
         }),
+
+        // Partial filePath — tests FileChip appearing mid-stream
+        builder.toolPart(assistantMessageId, "input-streaming", {
+          input: {
+            explanation: "Read the helpers file",
+            filePath: "./src/utils/hel",
+          },
+          type: "tool-read_file",
+        }),
+
+        // Full filePath — tests FileChip fully resolved while still streaming
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Read the helpers file",
@@ -65,6 +90,7 @@ registerSession({
           },
           type: "tool-read_file",
         }),
+
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             command: "npm test -- helpers.test.ts",
@@ -73,6 +99,7 @@ registerSession({
           },
           type: "tool-bash",
         }),
+
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {},
           type: "tool-unavailable",
@@ -84,6 +111,18 @@ registerSession({
           },
           type: "tool-web_search",
         }),
+
+        // Partial filePath — tests FileChip appearing mid-stream
+        builder.toolPart(assistantMessageId, "input-streaming", {
+          input: {
+            content: "",
+            explanation: "Create a hello function",
+            filePath: "./src/hel",
+          },
+          type: "tool-write_file",
+        }),
+
+        // Full filePath — tests FileChip fully resolved while still streaming
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             content:

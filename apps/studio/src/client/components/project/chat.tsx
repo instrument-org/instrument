@@ -164,7 +164,7 @@ export function ProjectChat({
       ref={scrollRef}
     >
       <div
-        className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4"
+        className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4"
         ref={contentRef}
       >
         {selectedSessionId ? (
@@ -243,7 +243,7 @@ export function ProjectChat({
             </Button>
           </div>
         )}
-        <div className="relative mx-auto w-full max-w-3xl px-3 pb-3">
+        <div className="relative mx-auto w-full max-w-2xl px-3 pb-3">
           <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-3xl bg-background" />
           <PromptInput
             atomKey={subdomain}

@@ -1,6 +1,7 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { CopyIcon } from "@phosphor-icons/react";
 
+import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
@@ -14,13 +15,18 @@ export function ToolBash({
   isStreaming: boolean;
   part: BashPart;
 }) {
+  const command = part.input?.command ?? "";
+  const hasOutput = part.state === "output-available";
+  const isError = part.state === "output-error";
+
+  const { highlightedHtml } = useSyntaxHighlighting({
+    code: command || undefined,
+    language: "shellscript",
+  });
+
   if (!part.input) {
     return null;
   }
-
-  const command = part.input.command || "";
-  const hasOutput = part.state === "output-available";
-  const isError = part.state === "output-error";
 
   const outputTrimmed = hasOutput ? part.output.output.trim() : "";
   const outputText = hasOutput
@@ -45,10 +51,19 @@ export function ToolBash({
         copyText={isStreaming ? undefined : command}
         maxHeight="max-h-32"
       >
-        <pre className="pr-7 font-mono text-sm leading-relaxed break-all whitespace-pre-wrap">
-          <span className="text-muted-foreground select-none">{"$ "}</span>
-          <span className="text-blue-600 dark:text-blue-400">{command}</span>
-        </pre>
+        <div className="flex pr-7 font-mono text-sm leading-relaxed">
+          <span className="mr-2 shrink-0 text-muted-foreground select-none">
+            $
+          </span>
+          {highlightedHtml ? (
+            <div
+              className="min-w-0 [&_.shiki]:bg-transparent [&_pre]:break-all [&_pre]:whitespace-pre-wrap"
+              dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
+            />
+          ) : (
+            <span className="break-all whitespace-pre-wrap">{command}</span>
+          )}
+        </div>
       </Section>
 
       {(hasOutput || isError) && (
@@ -59,7 +74,7 @@ export function ToolBash({
           {outputText.length > 0 ? (
             <pre
               className={cn(
-                "pr-7 font-mono text-sm leading-relaxed break-all whitespace-pre-wrap",
+                "pr-7 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap",
                 isFailed
                   ? "text-destructive"
                   : "text-success-600 dark:text-success-400",
@@ -110,7 +125,7 @@ function Section({
     <div className={cn("relative", borderBottom && "border-b border-border")}>
       <div
         className={cn(
-          "overflow-y-auto px-4 py-3 scrollbar-color scrollbar-thin",
+          "overflow-auto px-4 py-3 scrollbar-color scrollbar-thin",
           maxHeight,
         )}
       >

@@ -15,7 +15,8 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
 
   const rawInput =
     typeof part.rawInput === "string" ? part.rawInput : undefined;
-  const inputText = rawInput ?? (part.input ? JSON.stringify(part.input, null, 2) : undefined);
+  const inputText =
+    rawInput ?? (part.input ? JSON.stringify(part.input, null, 2) : undefined);
   const inputLabel = rawInput ? "Raw input" : "Input";
 
   return (
@@ -46,7 +47,9 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
               "group/toggle flex w-full items-center gap-2 px-4 py-2.5",
               "text-xs text-muted-foreground transition-colors hover:text-foreground",
             )}
-            onClick={() => { setIsRawOpen((v) => !v); }}
+            onClick={() => {
+              setIsRawOpen((v) => !v);
+            }}
             type="button"
           >
             <CaretDownIcon

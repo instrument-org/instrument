@@ -48,7 +48,7 @@ function RouteComponent() {
           </div>
         </nav>
       </header>
-      <main className="min-h-0 flex-1 overflow-hidden">
+      <main className="flex min-h-0 flex-1 overflow-hidden">
         <Outlet />
       </main>
     </div>

@@ -18,13 +18,13 @@ export const debugRoutes = [
     to: "/debug/colors",
   },
   {
-    description: "Preview stream states and message layouts.",
-    id: "sessionStream",
-    label: "Session Stream",
+    description: "Browse UI component previews.",
+    id: "components",
+    label: "Components",
     showCard: true,
     showNav: true,
-    title: "Debug Session Stream",
-    to: "/debug/session-stream",
+    title: "Debug Components",
+    to: "/debug/components",
   },
   {
     description: "Trigger RPC error states.",
@@ -58,6 +58,19 @@ export const debugRoutes = [
     showCard: false,
     showNav: false,
     title: "Debug Browser View",
+  },
+] as const;
+
+export const componentPages = [
+  {
+    id: "session-stream",
+    label: "Chat",
+    to: "/debug/components/session-stream",
+  },
+  {
+    id: "error-card",
+    label: "Error Card",
+    to: "/debug/components/error-card",
   },
 ] as const;
 

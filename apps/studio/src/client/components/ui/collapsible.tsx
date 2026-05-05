@@ -24,7 +24,7 @@ function CollapsibleTrigger({
 }: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
   return (
     <CollapsiblePrimitive.CollapsibleTrigger
-      className={cn("cursor-default", className)}
+      className={cn("cursor-default select-none", className)}
       data-slot="collapsible-trigger"
       {...rest}
     />

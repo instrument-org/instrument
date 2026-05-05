@@ -167,8 +167,7 @@ function buildReplayMessages(
 
     for (const sourcePart of sourceMessage.parts) {
       const newPartId = StoreId.newPartId();
-      const newMetadata = {
-        ...sourcePart.metadata,
+      const freshMetadata = {
         createdAt: now,
         id: newPartId,
         messageId: newMessageId,
@@ -180,9 +179,12 @@ function buildReplayMessages(
         (sourcePart.state === "output-available" ||
           sourcePart.state === "output-error")
       ) {
+        // Build metadata from scratch: all BaseMetadata fields are fresh and
+        // ToolPartBaseMetadata only adds contextItems, which must be empty so
+        // re-execution starts clean (otherwise copied + new items accumulate).
         const inputPart = {
           ...sourcePart,
-          metadata: newMetadata,
+          metadata: freshMetadata,
           state: "input-available" as const,
         } as SessionMessagePart.ToolPartInputAvailable;
         staticParts.push(inputPart);
@@ -190,7 +192,7 @@ function buildReplayMessages(
       } else {
         staticParts.push({
           ...sourcePart,
-          metadata: newMetadata,
+          metadata: { ...sourcePart.metadata, ...freshMetadata },
         } as SessionMessagePart.Type);
       }
     }

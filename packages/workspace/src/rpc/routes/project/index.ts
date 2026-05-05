@@ -171,8 +171,11 @@ const create = base
         workspaceConfig: context.workspaceConfig,
       });
 
+      const initialProjectName = name ?? defaultProjectName(prompt);
+
       const result = await initializeProject(
         {
+          initialManifest: { iconName, name: initialProjectName },
           projectConfig,
           templateName,
           workspaceConfig: context.workspaceConfig,
@@ -211,18 +214,6 @@ const create = base
         throw toORPCError(messageResult.error, errors);
       }
       const message = messageResult.value;
-
-      const initialProjectName = name ?? defaultProjectName(message);
-
-      const manifestResult = await updateProjectManifest(projectConfig, {
-        iconName,
-        name: initialProjectName,
-      });
-
-      if (manifestResult.isErr()) {
-        context.workspaceConfig.captureException(manifestResult.error);
-        throw toORPCError(manifestResult.error, errors);
-      }
 
       const sessionForTitle = await Store.getSession(
         message.metadata.sessionId,

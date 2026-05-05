@@ -80,7 +80,7 @@ function ToolCallExpanded({
       return <ToolChoose part={part} />;
     }
     case "tool-copy_to_project": {
-      return <ToolCopyToProject part={part} />;
+      return <ToolCopyToProject isStreaming={isStreaming} part={part} />;
     }
     case "tool-edit_file": {
       return (
@@ -101,13 +101,13 @@ function ToolCallExpanded({
       );
     }
     case "tool-glob": {
-      return <ToolGlob part={part} />;
+      return <ToolGlob isStreaming={isStreaming} part={part} />;
     }
     case "tool-grep": {
-      return <ToolGrep part={part} />;
+      return <ToolGrep isStreaming={isStreaming} part={part} />;
     }
     case "tool-load_skill": {
-      return <ToolLoadSkill part={part} />;
+      return <ToolLoadSkill isStreaming={isStreaming} part={part} />;
     }
     case "tool-read_file": {
       return <ToolReadFile part={part} subdomain={project.subdomain} />;
@@ -126,7 +126,7 @@ function ToolCallExpanded({
       return <ToolUnavailable part={part} />;
     }
     case "tool-web_search": {
-      return <ToolWebSearch part={part} />;
+      return <ToolWebSearch isStreaming={isStreaming} part={part} />;
     }
     case "tool-write_file": {
       return (

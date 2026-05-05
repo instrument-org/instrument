@@ -3,7 +3,7 @@ import {
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 import { GlobeIcon, type Icon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import { filenameFromFilePath } from "../../lib/path-utils";
@@ -41,9 +41,32 @@ export function ToolCallHeader({
   part: SessionMessagePart.ToolPart;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isOpen = isExpanded || isStreaming;
-  // Visual "selected" state: open but not actively streaming.
-  const isSelected = isOpen && !isStreaming;
+  // Debounce both edges of isStreaming to avoid flickering open/closed for
+  // tool calls that stream very briefly.
+  // - Opening is delayed: only open after streaming has been true for 300ms.
+  // - Closing is delayed: stay open for 600ms after streaming ends.
+  const [isStreamingDebounced, setIsStreamingDebounced] = useState(false);
+
+  useEffect(() => {
+    if (isStreaming) {
+      const timer = setTimeout(() => {
+        setIsStreamingDebounced(true);
+      }, 500);
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+    const timer = setTimeout(() => {
+      setIsStreamingDebounced(false);
+    }, 1200);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isStreaming]);
+
+  const isOpen = isExpanded || isStreamingDebounced;
+  // Visual "selected" state: open but not actively streaming or running.
+  const isSelected = isOpen && !isStreaming && !isAgentRunning;
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -117,9 +140,7 @@ export function ToolCallHeader({
   return (
     <Collapsible onOpenChange={setIsExpanded} open={isOpen}>
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
-      <CollapsibleContent animated={!isAgentRunning}>
-        {expandedContent}
-      </CollapsibleContent>
+      <CollapsibleContent animated>{expandedContent}</CollapsibleContent>
     </Collapsible>
   );
 }

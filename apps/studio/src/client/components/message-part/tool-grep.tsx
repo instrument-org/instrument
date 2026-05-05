@@ -1,10 +1,17 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
+import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type GrepPart = Extract<SessionMessagePart.ToolPart, { type: "tool-grep" }>;
 
-export function ToolGrep({ part }: { part: GrepPart }) {
+export function ToolGrep({
+  isStreaming,
+  part,
+}: {
+  isStreaming: boolean;
+  part: GrepPart;
+}) {
   if (!part.input) {
     return null;
   }
@@ -14,10 +21,14 @@ export function ToolGrep({ part }: { part: GrepPart }) {
   const matches = hasOutput ? part.output.matches : [];
   const totalMatches = hasOutput ? part.output.totalMatches : 0;
 
+  const label = isStreaming
+    ? getToolStreamingLabel("grep")
+    : getToolLabel("grep");
+
   return (
     <ToolCard>
       <ToolCardHeader>
-        <p className="text-xs font-medium text-muted-foreground">Search</p>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
       </ToolCardHeader>
 
       <ToolCardSection

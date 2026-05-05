@@ -21,7 +21,12 @@ const DEFAULT_TEMPLATE_NAME = "basic";
 export interface ReplayMessage {
   allParts: SessionMessagePart.Type[];
   message: SessionMessage.WithParts;
-  toolPartsToExecute: SessionMessagePart.ToolPartInputAvailable[];
+  replayToolParts: ReplayToolPart[];
+}
+
+interface ReplayToolPart {
+  inputAvailablePart: SessionMessagePart.ToolPartInputAvailable;
+  inputStreamingPart: SessionMessagePart.ToolPartInputStreaming;
 }
 
 export async function createReplaySession({
@@ -76,7 +81,7 @@ export async function executeSessionReplay({
       });
     });
 
-  for (const { allParts, message, toolPartsToExecute } of replayMessages) {
+  for (const { allParts, message, replayToolParts } of replayMessages) {
     if (signal.aborted) {
       return;
     }
@@ -87,24 +92,39 @@ export async function executeSessionReplay({
       await delay();
     }
 
-    const toolPartById = new Map(
-      toolPartsToExecute.map((p) => [p.metadata.id, p]),
+    const replayToolPartById = new Map(
+      replayToolParts.map((p) => [p.inputStreamingPart.metadata.id, p]),
     );
 
     for (const part of allParts) {
-      await Store.savePart(part, appConfig, { signal });
+      const replayToolPart = replayToolPartById.get(part.metadata.id);
 
-      const toolPart = toolPartById.get(part.metadata.id);
-      if (toolPart) {
+      if (replayToolPart) {
+        // Save as input-streaming first to simulate partial JSON streaming,
+        // then delay before transitioning to input-available for re-execution.
+        await Store.savePart(replayToolPart.inputStreamingPart, appConfig, {
+          signal,
+        });
+
+        if (delayMs > 0) {
+          await delay();
+        }
+
+        await Store.savePart(replayToolPart.inputAvailablePart, appConfig, {
+          signal,
+        });
+
         await runToolCall({
           agentName,
           appConfig,
           model,
-          part: toolPart,
+          part: replayToolPart.inputAvailablePart,
           sessionId,
           signal,
           spawnAgent,
         });
+      } else {
+        await Store.savePart(part, appConfig, { signal });
       }
 
       if (delayMs > 0) {
@@ -162,8 +182,8 @@ function buildReplayMessages(
 
   for (const sourceMessage of sourceMessages) {
     const newMessageId = StoreId.newMessageId();
-    const toolPartsToExecute: SessionMessagePart.ToolPartInputAvailable[] = [];
-    const staticParts: SessionMessagePart.Type[] = [];
+    const replayToolParts: ReplayToolPart[] = [];
+    const allParts: SessionMessagePart.Type[] = [];
 
     for (const sourcePart of sourceMessage.parts) {
       const newPartId = StoreId.newPartId();
@@ -182,15 +202,25 @@ function buildReplayMessages(
         // Build metadata from scratch: all BaseMetadata fields are fresh and
         // ToolPartBaseMetadata only adds contextItems, which must be empty so
         // re-execution starts clean (otherwise copied + new items accumulate).
-        const inputPart = {
+        //
+        // The streaming part shares the same ID so the execute loop can find
+        // it by ID in allParts; the input-available part is stored alongside.
+        const inputStreamingPart = {
+          ...sourcePart,
+          metadata: freshMetadata,
+          state: "input-streaming" as const,
+        } as SessionMessagePart.ToolPartInputStreaming;
+        const inputAvailablePart = {
           ...sourcePart,
           metadata: freshMetadata,
           state: "input-available" as const,
         } as SessionMessagePart.ToolPartInputAvailable;
-        staticParts.push(inputPart);
-        toolPartsToExecute.push(inputPart);
+        // Push the streaming part as the allParts sentinel — the execute
+        // loop keys off its ID to find the full ReplayToolPart.
+        allParts.push(inputStreamingPart);
+        replayToolParts.push({ inputAvailablePart, inputStreamingPart });
       } else {
-        staticParts.push({
+        allParts.push({
           ...sourcePart,
           metadata: { ...sourcePart.metadata, ...freshMetadata },
         } as SessionMessagePart.Type);
@@ -208,11 +238,7 @@ function buildReplayMessages(
       parts: [],
     } as SessionMessage.WithParts;
 
-    result.push({
-      allParts: staticParts,
-      message: newMessage,
-      toolPartsToExecute,
-    });
+    result.push({ allParts, message: newMessage, replayToolParts });
   }
 
   return result;

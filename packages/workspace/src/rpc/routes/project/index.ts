@@ -408,6 +408,21 @@ const update = base
       subdomain,
       workspaceConfig: context.workspaceConfig,
     });
+
+    if (updates.name !== undefined) {
+      const sessionsResult = await Store.getSessions(projectConfig);
+      if (sessionsResult.isOk()) {
+        const sessions = sessionsResult.value;
+        const session = sessions[0];
+        if (sessions.length === 1 && session !== undefined) {
+          await Store.saveSession(
+            { ...session, title: updates.name, updatedAt: new Date() },
+            projectConfig,
+          );
+        }
+      }
+    }
+
     const result = await updateProjectManifest(projectConfig, updates);
 
     if (result.isErr()) {

@@ -116,7 +116,7 @@ export async function createMainWindow() {
     initialSidebarWidth,
   });
 
-  void mainWindow.loadURL(studioURL("/sidebar"));
+  void mainWindow.loadURL(studioURL("/shell"));
   await tabsManager.initialize();
   showWindow(mainWindow);
 

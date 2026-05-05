@@ -26,13 +26,11 @@ function Sidebar({
   children,
   className,
   collapsible = "offcanvas",
-  disableBackground = false,
   side = "left",
   variant = "sidebar",
   ...props
 }: React.ComponentProps<"div"> & {
   collapsible?: "icon" | "none" | "offcanvas";
-  disableBackground?: boolean;
   side?: "left" | "right";
   variant?: "floating" | "inset" | "sidebar";
 }) {
@@ -42,8 +40,7 @@ function Sidebar({
     return (
       <div
         className={cn(
-          "flex h-full w-(--sidebar-width) flex-col text-sidebar-foreground",
-          !disableBackground && "bg-sidebar",
+          "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
           className,
         )}
         data-slot="sidebar"
@@ -106,7 +103,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-5 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
         className,
       )}
       data-sidebar="content"

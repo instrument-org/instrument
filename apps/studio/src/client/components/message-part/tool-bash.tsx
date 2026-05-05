@@ -1,11 +1,10 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { CopyIcon } from "@phosphor-icons/react";
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
-import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { AgentBrowserPlayer } from "../tool-part/agent-browser-player";
+import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
 type BrowserCommandObservation = Extract<
@@ -48,14 +47,14 @@ export function ToolBash({
   const browserObservations: BrowserCommandObservation[] = contextItems;
 
   return (
-    <div className="group/card mt-2 overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="border-b border-border bg-muted px-4 py-3">
+    <ToolCard>
+      <ToolCardHeader>
         <p className="text-xs font-medium text-muted-foreground">
           {getToolLabel("bash")}
         </p>
-      </div>
+      </ToolCardHeader>
 
-      <Section
+      <ToolCardSection
         borderBottom={hasOutput || isError}
         copyText={isStreaming ? undefined : command}
         maxHeight="max-h-32"
@@ -73,7 +72,7 @@ export function ToolBash({
             <span className="break-all whitespace-pre-wrap">{command}</span>
           )}
         </div>
-      </Section>
+      </ToolCardSection>
 
       {(hasOutput || isError) && (
         <>
@@ -84,7 +83,7 @@ export function ToolBash({
               observations={browserObservations}
             />
           )}
-          <Section
+          <ToolCardSection
             copyText={isStreaming ? undefined : outputText}
             maxHeight="max-h-44"
           >
@@ -104,56 +103,9 @@ export function ToolBash({
                 No output
               </p>
             )}
-          </Section>
+          </ToolCardSection>
         </>
       )}
-    </div>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-  };
-
-  return (
-    <ConfirmedIconButton
-      className="size-5 shrink-0 p-0 text-muted-foreground/60 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100 hover:text-foreground"
-      icon={CopyIcon}
-      onClick={handleCopy}
-      successTooltip="Copied!"
-      tooltip="Copy"
-      variant="ghost"
-    />
-  );
-}
-
-function Section({
-  borderBottom = false,
-  children,
-  copyText,
-  maxHeight,
-}: {
-  borderBottom?: boolean;
-  children: React.ReactNode;
-  copyText?: string;
-  maxHeight: string;
-}) {
-  return (
-    <div className={cn("relative", borderBottom && "border-b border-border")}>
-      <div
-        className={cn(
-          "overflow-auto px-4 py-3 scrollbar-color scrollbar-thin",
-          maxHeight,
-        )}
-      >
-        {children}
-      </div>
-      {copyText && (
-        <div className="absolute top-2 right-2">
-          <CopyButton text={copyText} />
-        </div>
-      )}
-    </div>
+    </ToolCard>
   );
 }

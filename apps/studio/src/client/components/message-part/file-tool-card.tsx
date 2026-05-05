@@ -10,6 +10,7 @@ import { filenameFromFilePath } from "../../lib/path-utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { VirtualizedScrollingText } from "../tool-part/virtualized-scrolling-text";
+import { ToolCard, ToolCardHeader } from "./tool-card";
 
 export function FileToolCard({
   content,
@@ -56,8 +57,8 @@ export function FileToolCard({
   };
 
   return (
-    <div className="mt-2 overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-3">
+    <ToolCard>
+      <ToolCardHeader className="flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
           <FileIcon
             className="size-3 shrink-0 text-muted-foreground"
@@ -94,7 +95,7 @@ export function FileToolCard({
             variant="ghost"
           />
         </div>
-      </div>
+      </ToolCardHeader>
 
       <div className="px-4 py-3">
         <VirtualizedScrollingText
@@ -107,6 +108,6 @@ export function FileToolCard({
           }
         />
       </div>
-    </div>
+    </ToolCard>
   );
 }

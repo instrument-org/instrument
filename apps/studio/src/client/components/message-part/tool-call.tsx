@@ -1,6 +1,11 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  type SessionMessagePart,
+  type WorkspaceAppProject,
+} from "@instrument-org/workspace/client";
 
+import { type RenderStream } from "../tool-part/task";
 import { ToolBash } from "./tool-bash";
+import { ToolCallError } from "./tool-call-error";
 import { ToolCallHeader } from "./tool-call-header";
 import { ToolChoose } from "./tool-choose";
 import { ToolCopyToProject } from "./tool-copy-to-project";
@@ -18,14 +23,23 @@ import { ToolWriteFile } from "./tool-write-file";
 export function ToolCall({
   isStreaming,
   part,
+  project,
+  renderStream,
 }: {
   isStreaming: boolean;
   part: SessionMessagePart.ToolPart;
+  project: WorkspaceAppProject;
+  renderStream: RenderStream;
 }) {
   return (
     <ToolCallHeader
       expandedContent={
-        <ToolCallExpanded isStreaming={isStreaming} part={part} />
+        <ToolCallExpanded
+          isStreaming={isStreaming}
+          part={part}
+          project={project}
+          renderStream={renderStream}
+        />
       }
       isStreaming={isStreaming}
       part={part}
@@ -36,10 +50,18 @@ export function ToolCall({
 function ToolCallExpanded({
   isStreaming,
   part,
+  project,
+  renderStream,
 }: {
   isStreaming: boolean;
   part: SessionMessagePart.ToolPart;
+  project: WorkspaceAppProject;
+  renderStream: RenderStream;
 }) {
+  if (part.state === "output-error") {
+    return <ToolCallError part={part} />;
+  }
+
   switch (part.type) {
     case "tool-bash": {
       return <ToolBash isStreaming={isStreaming} part={part} />;
@@ -69,7 +91,14 @@ function ToolCallExpanded({
       return <ToolReadFile part={part} />;
     }
     case "tool-task": {
-      return <ToolTask part={part} />;
+      return (
+        <ToolTask
+          isStreaming={isStreaming}
+          part={part}
+          project={project}
+          renderStream={renderStream}
+        />
+      );
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

@@ -217,7 +217,12 @@ export function ChatStream({
 
         return (
           <div key={part.metadata.id}>
-            <ToolCall isStreaming={streaming} part={part} />
+            <ToolCall
+              isStreaming={streaming}
+              part={part}
+              project={project}
+              renderStream={renderStream}
+            />
           </div>
         );
       }
@@ -262,6 +267,7 @@ export function ChatStream({
       lastMessageId,
       isToolStreaming,
       isViewingApp,
+      renderStream,
     ],
   );
 

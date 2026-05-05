@@ -18,6 +18,7 @@ import { useLayoutEffect, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
 
+import { ChatStream } from "../chat-stream";
 import { PromptInput } from "../prompt-input";
 import { SessionStream } from "../session-stream";
 import { Alert, AlertDescription } from "../ui/alert";
@@ -205,6 +206,19 @@ export function ProjectChat({
             <ChatZeroState
               selectedSessionId={selectedSessionId}
               subdomain={subdomain}
+            />
+          ) : isDeveloperMode ? (
+            <ChatStream
+              isAgentRunning={isAgentRunning}
+              isDeveloperMode={isDeveloperMode}
+              isViewingApp={isViewingApp}
+              messages={messages}
+              onContinue={handleContinue}
+              onModelChange={setSelectedModelURI}
+              onRetry={handleRetry}
+              onStartNewChat={handleNewSession}
+              project={project}
+              versionRef={versionRef}
             />
           ) : (
             <SessionStream

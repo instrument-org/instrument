@@ -1,9 +1,27 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  type SessionMessagePart,
+  type WorkspaceAppProject,
+} from "@instrument-org/workspace/client";
+
+import { type RenderStream, TaskToolCard } from "../tool-part/task";
 
 export function ToolTask({
-  part: _part,
+  isStreaming,
+  part,
+  project,
+  renderStream,
 }: {
-  part: SessionMessagePart.ToolPart & { type: "tool-task" };
+  isStreaming: boolean;
+  part: Extract<SessionMessagePart.ToolPart, { type: "tool-task" }>;
+  project: WorkspaceAppProject;
+  renderStream: RenderStream;
 }) {
-  return null;
+  return (
+    <TaskToolCard
+      isStreaming={isStreaming}
+      part={part}
+      project={project}
+      renderStream={renderStream}
+    />
+  );
 }

@@ -177,6 +177,137 @@ registerSession({
           },
           type: "tool-bash",
         }),
+        (() => {
+          const part = builder.toolPart(
+            assistantMessageId,
+            "output-available",
+            {
+              input: {
+                command:
+                  "agent-browser navigate https://github.com/vitest-dev/vitest" +
+                  " && agent-browser click #readme" +
+                  " && agent-browser navigate https://vitest.dev/guide/",
+                explanation: "Browse the Vitest GitHub repo and docs",
+                timeoutMs: 30_000,
+              },
+              output: {
+                command:
+                  "agent-browser navigate https://github.com/vitest-dev/vitest" +
+                  " && agent-browser click #readme" +
+                  " && agent-browser navigate https://vitest.dev/guide/",
+                commands: ["agent-browser"],
+                durationMs: 4800,
+                exitCode: 0,
+                output:
+                  "Navigated to https://github.com/vitest-dev/vitest\n" +
+                  "Clicked #readme\n" +
+                  "Navigated to https://vitest.dev/guide/",
+              },
+              type: "tool-bash",
+            },
+          );
+          part.metadata.contextItems = [
+            {
+              createdAt: builder.nextTime(),
+              endedAt: builder.nextTime(),
+              endScreenshot: {
+                path: "/tmp/instrument-browser/screenshots/abc123-end.png",
+                title: "vitest-dev/vitest: Next Generation testing framework",
+                url: "https://github.com/vitest-dev/vitest",
+              },
+              id: StoreId.newPartContextItemId(),
+              kind: "agent-browser-command" as const,
+              startScreenshot: {
+                path: "/tmp/instrument-browser/screenshots/abc123-start.png",
+                title: "New Tab",
+                url: "about:blank",
+              },
+              status: "complete" as const,
+              subcommand: "navigate https://github.com/vitest-dev/vitest",
+            },
+            {
+              createdAt: builder.nextTime(),
+              endedAt: builder.nextTime(),
+              endScreenshot: {
+                path: "/tmp/instrument-browser/screenshots/def456-end.png",
+                title: "vitest-dev/vitest: Next Generation testing framework",
+                url: "https://github.com/vitest-dev/vitest#readme",
+              },
+              id: StoreId.newPartContextItemId(),
+              kind: "agent-browser-command" as const,
+              startScreenshot: {
+                path: "/tmp/instrument-browser/screenshots/def456-start.png",
+                title: "vitest-dev/vitest: Next Generation testing framework",
+                url: "https://github.com/vitest-dev/vitest",
+              },
+              status: "complete" as const,
+              subcommand: "click #readme",
+            },
+            {
+              createdAt: builder.nextTime(),
+              endedAt: builder.nextTime(),
+              endScreenshot: {
+                path: "/tmp/instrument-browser/screenshots/ghi789-end.png",
+                title: "Getting Started | Guide | Vitest",
+                url: "https://vitest.dev/guide/",
+              },
+              id: StoreId.newPartContextItemId(),
+              kind: "agent-browser-command" as const,
+              startScreenshot: {
+                path: "/tmp/instrument-browser/screenshots/ghi789-start.png",
+                title: "vitest-dev/vitest: Next Generation testing framework",
+                url: "https://github.com/vitest-dev/vitest#readme",
+              },
+              status: "complete" as const,
+              subcommand: "navigate https://vitest.dev/guide/",
+            },
+          ];
+          return part;
+        })(),
+        (() => {
+          const part = builder.toolPart(
+            assistantMessageId,
+            "output-available",
+            {
+              input: {
+                command:
+                  "agent-browser navigate https://npmjs.com/package/vitest",
+                explanation: "Check the Vitest npm package page",
+                timeoutMs: 15_000,
+              },
+              output: {
+                command:
+                  "agent-browser navigate https://npmjs.com/package/vitest",
+                commands: ["agent-browser"],
+                durationMs: 1600,
+                exitCode: 0,
+                output: "Navigated to https://www.npmjs.com/package/vitest",
+              },
+              type: "tool-bash",
+            },
+          );
+          part.metadata.contextItems = [
+            {
+              createdAt: builder.nextTime(),
+              endedAt: builder.nextTime(),
+              endScreenshot: {
+                path: "/tmp/instrument-browser/screenshots/npm001-end.png",
+                title: "vitest - npm",
+                url: "https://www.npmjs.com/package/vitest",
+              },
+              id: StoreId.newPartContextItemId(),
+              kind: "agent-browser-command" as const,
+              startScreenshot: {
+                path: "/tmp/instrument-browser/screenshots/npm001-start.png",
+                title: "New Tab",
+                url: "about:blank",
+              },
+              status: "complete" as const,
+              subcommand: "navigate https://npmjs.com/package/vitest",
+            },
+          ];
+          return part;
+        })(),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation: "Copy TypeScript config from attached folder",

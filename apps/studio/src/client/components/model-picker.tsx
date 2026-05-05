@@ -88,12 +88,14 @@ export function ModelPicker({
   const hasPlan = useHasPlan();
 
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
-  const modelsWithoutAuto =
-    models?.filter((m) => m.providerId !== OUR_MODELS.text.id) ?? [];
-  const groupedModels = groupAndFilterModels({
-    hasPlan,
-    models: modelsWithoutAuto,
-  });
+  const modelsWithoutAuto = useMemo(
+    () => models?.filter((m) => m.providerId !== OUR_MODELS.text.id) ?? [],
+    [models],
+  );
+  const groupedModels = useMemo(
+    () => groupAndFilterModels({ hasPlan, models: modelsWithoutAuto }),
+    [modelsWithoutAuto, hasPlan],
+  );
 
   type GroupedMatchedModels = Record<string, MatchedModel[]>;
 
@@ -527,6 +529,7 @@ function ModelGroups({
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 56),
     getScrollElement: () => parentRef.current,
+    measureElement: (el) => el.getBoundingClientRect().height,
     overscan: 8,
   });
 
@@ -566,11 +569,10 @@ function ModelGroups({
             return (
               <div
                 className="absolute top-0 left-0 w-full px-2 py-1.5 text-xs font-medium text-muted-foreground"
+                data-index={virtualItem.index}
                 key={virtualItem.key}
-                style={{
-                  height: `${virtualItem.size}px`,
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
+                ref={virtualizer.measureElement}
+                style={{ transform: `translateY(${virtualItem.start}px)` }}
               >
                 {row.groupName}
               </div>
@@ -580,44 +582,47 @@ function ModelGroups({
           const { matched, requiresPremium } = row;
           const { model, nameRanges } = matched;
           return (
-            <CommandItem
-              className="absolute top-0 left-0 flex w-full items-center justify-between px-2 py-2"
+            <div
+              className="absolute top-0 left-0 w-full"
+              data-index={virtualItem.index}
               key={virtualItem.key}
-              onSelect={() => {
-                onSelectModel(model.uri, requiresPremium, model.name);
-              }}
-              style={{
-                height: `${virtualItem.size}px`,
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-              value={model.uri}
+              ref={virtualizer.measureElement}
+              style={{ transform: `translateY(${virtualItem.start}px)` }}
             >
-              <div className="flex items-center">
-                <CheckIcon
-                  className={cn(
-                    "mr-2 size-4 shrink-0",
-                    selectedModel?.uri === model.uri
-                      ? "opacity-100"
-                      : "opacity-0",
-                  )}
-                />
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm">
-                    <HighlightedText ranges={nameRanges} text={model.name} />
-                  </span>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <AIProviderIcon
-                      className="size-3 shrink-0"
-                      type={model.params.provider}
-                    />
-                    <span>{model.providerName}</span>
+              <CommandItem
+                className="flex w-full items-center justify-between px-2 py-2"
+                onSelect={() => {
+                  onSelectModel(model.uri, requiresPremium, model.name);
+                }}
+                value={model.uri}
+              >
+                <div className="flex items-center">
+                  <CheckIcon
+                    className={cn(
+                      "mr-2 size-4 shrink-0",
+                      selectedModel?.uri === model.uri
+                        ? "opacity-100"
+                        : "opacity-0",
+                    )}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm">
+                      <HighlightedText ranges={nameRanges} text={model.name} />
+                    </span>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <AIProviderIcon
+                        className="size-3 shrink-0"
+                        type={model.params.provider}
+                      />
+                      <span>{model.providerName}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="mt-1 ml-2 flex gap-1 self-start">
-                <ModelBadges hasPlan={hasPlan} model={model} />
-              </div>
-            </CommandItem>
+                <div className="mt-1 ml-2 flex gap-1 self-start">
+                  <ModelBadges hasPlan={hasPlan} model={model} />
+                </div>
+              </CommandItem>
+            </div>
           );
         })}
       </div>

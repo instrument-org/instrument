@@ -29,7 +29,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ErrorCard({
-  description = "An error occurred. Try again, or go back if the problem persists.",
+  description = "Something didn't work as expected. Try again, or go back if it keeps happening.",
   error,
   title = "Something went wrong",
 }: {
@@ -110,7 +110,7 @@ export function ErrorCard({
             {errorInfo.cause != null && (
               <div className="mt-2 border-t border-border/40 pt-2">
                 <p className="mb-1 text-xs font-medium tracking-wide text-muted-foreground/70 uppercase">
-                  Cause
+                  Caused by
                 </p>
                 <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap text-muted-foreground">
                   {formatCause(errorInfo.cause)}
@@ -180,7 +180,7 @@ function extractErrorInfo(error: unknown): {
       ? error.message
       : typeof error === "string"
         ? error
-        : "An unexpected error occurred";
+        : "An unexpected error occurred. Please try again.";
 
   const stack = error instanceof Error && error.stack ? error.stack : undefined;
 
@@ -237,7 +237,7 @@ function StackTraceCollapsible({
             isOpen && "rotate-180",
           )}
         />
-        Stack trace{hasMultiple ? "s" : ""}
+        Error detail{hasMultiple ? "s" : ""}
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="mt-2 space-y-2">

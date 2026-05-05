@@ -97,8 +97,8 @@ export function ToolCallHeader({
         {label}
       </span>
 
-      {browserInfo && <BrowserChip info={browserInfo} />}
-      <FileChip part={part} />
+      {browserInfo && <BrowserChip info={browserInfo} isOpen={isOpen} />}
+      <FileChip isOpen={isOpen} part={part} />
     </div>
   );
 
@@ -112,31 +112,12 @@ export function ToolCallHeader({
   );
 }
 
-export function ToolChip({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "ml-1 flex shrink-0 items-center gap-1.5 rounded-full bg-foreground/5 py-0.5 pr-2.5 pl-1",
-        className,
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-function BrowserChip({ info }: { info: BrowserInfo }) {
+function BrowserChip({ info, isOpen }: { info: BrowserInfo; isOpen: boolean }) {
   const topDomain = info.domains[0] ?? "";
   const extra = info.domains.length - 1;
 
   return (
-    <ToolChip>
+    <ToolChip isOpen={isOpen}>
       <Favicon
         className="size-3.5 border border-muted bg-background"
         url={`https://${topDomain}`}
@@ -151,7 +132,13 @@ function BrowserChip({ info }: { info: BrowserInfo }) {
   );
 }
 
-function FileChip({ part }: { part: SessionMessagePart.ToolPart }) {
+function FileChip({
+  isOpen,
+  part,
+}: {
+  isOpen: boolean;
+  part: SessionMessagePart.ToolPart;
+}) {
   let filePath: string | undefined;
 
   if (
@@ -175,7 +162,7 @@ function FileChip({ part }: { part: SessionMessagePart.ToolPart }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <ToolChip className="px-2">
+        <ToolChip className="px-2" isOpen={isOpen}>
           <span className="text-xs font-medium text-foreground/50">
             {filename}
           </span>
@@ -221,4 +208,26 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
     .map(([domain]) => domain);
 
   return { domains };
+}
+
+function ToolChip({
+  children,
+  className,
+  isOpen,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  isOpen?: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "ml-1 flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-1",
+        isOpen ? "bg-foreground/10" : "bg-foreground/5",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
 }

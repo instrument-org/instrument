@@ -82,7 +82,13 @@ function ToolCallExpanded({
       return <ToolCopyToProject part={part} />;
     }
     case "tool-edit_file": {
-      return <ToolEditFile part={part} />;
+      return (
+        <ToolEditFile
+          isStreaming={isStreaming}
+          part={part}
+          subdomain={project.subdomain}
+        />
+      );
     }
     case "tool-generate_image": {
       return <ToolGenerateImage part={part} />;
@@ -97,7 +103,7 @@ function ToolCallExpanded({
       return <ToolLoadSkill part={part} />;
     }
     case "tool-read_file": {
-      return <ToolReadFile part={part} />;
+      return <ToolReadFile part={part} subdomain={project.subdomain} />;
     }
     case "tool-task": {
       return (
@@ -116,7 +122,13 @@ function ToolCallExpanded({
       return <ToolWebSearch part={part} />;
     }
     case "tool-write_file": {
-      return <ToolWriteFile part={part} />;
+      return (
+        <ToolWriteFile
+          isStreaming={isStreaming}
+          part={part}
+          subdomain={project.subdomain}
+        />
+      );
     }
   }
 }

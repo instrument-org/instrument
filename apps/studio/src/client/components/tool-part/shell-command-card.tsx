@@ -161,10 +161,12 @@ export function ShellCommandCard({
               </p>
             )}
           </div>
-          <VirtualizedScrollingText
-            autoScrollToBottom={isStreaming}
-            content={hasOutput || isError ? parts.slice(1).join("\n") : ""}
-          />
+          <div className="px-3 py-2">
+            <VirtualizedScrollingText
+              autoScrollToBottom={isStreaming}
+              content={hasOutput || isError ? parts.slice(1).join("\n") : ""}
+            />
+          </div>
         </>
       )}
 

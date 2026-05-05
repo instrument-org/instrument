@@ -42,10 +42,47 @@ registerSession({
         // Full filePath — tests FileChip fully resolved while still streaming
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
-            explanation: "Update greeting message",
-            filePath: "./src/hello.ts",
-            newString: "  console.log('Hello, developer!');",
-            oldString: "  console.log('Hello, world!');",
+            explanation: "Refactor auth middleware to use JWT",
+            filePath: "./src/middleware/auth.ts",
+            newString: `import { verify } from "jsonwebtoken";
+import type { Request, Response, NextFunction } from "express";
+
+const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
+
+export function authMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Missing or invalid Authorization header" });
+    return;
+  }
+
+  const token = authHeader.slice(7);
+  try {
+    const payload = verify(token, JWT_SECRET);
+    (req as Request & { user: unknown }).user = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+}`,
+            oldString: `import type { Request, Response, NextFunction } from "express";
+
+export function authMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const apiKey = req.headers["x-api-key"];
+  if (!apiKey || apiKey !== process.env.API_KEY) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}`,
           },
           type: "tool-edit_file",
         }),
@@ -125,10 +162,49 @@ registerSession({
         // Full filePath — tests FileChip fully resolved while still streaming
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
-            content:
-              "export function hello() {\n  console.log('Hello, world!');\n}",
-            explanation: "Create a hello function",
-            filePath: "./src/hello.ts",
+            content: `import QRCode from "qr-code";
+import { writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
+
+const OUTPUT_DIR = "./output/qr-codes";
+
+interface QROptions {
+  url: string;
+  filename: string;
+  size?: number;
+  margin?: number;
+}
+
+async function generateQR({
+  url,
+  filename,
+  size = 512,
+  margin = 2,
+}: QROptions): Promise<void> {
+  mkdirSync(OUTPUT_DIR, { recursive: true });
+  const outputPath = join(OUTPUT_DIR, filename);
+
+  await QRCode.toFile(outputPath, url, {
+    type: "png",
+    width: size,
+    margin,
+    color: { dark: "#000000", light: "#ffffff" },
+    errorCorrectionLevel: "H",
+  });
+
+  console.log(\`QR code saved to \${outputPath}\`);
+}
+
+const codes: QROptions[] = [
+  { url: "https://tryinstrument.com", filename: "instrument.png" },
+  { url: "https://github.com/instrument-org", filename: "github.png", size: 256 },
+];
+
+for (const code of codes) {
+  await generateQR(code);
+}`,
+            explanation: "Generate QR codes for all project URLs",
+            filePath: "./src/generate-qr.ts",
           },
           type: "tool-write_file",
         }),

@@ -9,7 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SidebarRouteImport } from './routes/sidebar'
+import { Route as ShellRouteImport } from './routes/shell'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -39,9 +39,9 @@ import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_au
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
 
-const SidebarRoute = SidebarRouteImport.update({
-  id: '/sidebar',
-  path: '/sidebar',
+const ShellRoute = ShellRouteImport.update({
+  id: '/shell',
+  path: '/shell',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -191,7 +191,7 @@ const AppDebugBrowserViewTargetIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/sidebar': typeof SidebarRoute
+  '/shell': typeof ShellRoute
   '/debug': typeof AppDebugRouteRouteWithChildren
   '/checkout': typeof AppCheckoutRoute
   '/new-tab': typeof AppNewTabRoute
@@ -218,7 +218,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/sidebar': typeof SidebarRoute
+  '/shell': typeof ShellRoute
   '/checkout': typeof AppCheckoutRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
@@ -247,7 +247,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
-  '/sidebar': typeof SidebarRoute
+  '/shell': typeof ShellRoute
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
   '/_app/_not_authenticated': typeof AppNot_authenticatedRouteRouteWithChildren
   '/_app/debug': typeof AppDebugRouteRouteWithChildren
@@ -279,7 +279,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
-    | '/sidebar'
+    | '/shell'
     | '/debug'
     | '/checkout'
     | '/new-tab'
@@ -306,7 +306,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/sidebar'
+    | '/shell'
     | '/checkout'
     | '/new-tab'
     | '/release-notes'
@@ -334,7 +334,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/settings'
-    | '/sidebar'
+    | '/shell'
     | '/_app/_authenticated'
     | '/_app/_not_authenticated'
     | '/_app/debug'
@@ -366,16 +366,16 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
-  SidebarRoute: typeof SidebarRoute
+  ShellRoute: typeof ShellRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sidebar': {
-      id: '/sidebar'
-      path: '/sidebar'
-      fullPath: '/sidebar'
-      preLoaderRoute: typeof SidebarRouteImport
+    '/shell': {
+      id: '/shell'
+      path: '/shell'
+      fullPath: '/shell'
+      preLoaderRoute: typeof ShellRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -684,7 +684,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
-  SidebarRoute: SidebarRoute,
+  ShellRoute: ShellRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

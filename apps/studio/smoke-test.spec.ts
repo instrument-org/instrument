@@ -35,9 +35,9 @@ function runPnpmScript(
   });
 }
 
-const isSidebarWindow = (url: string) => url.includes("#/sidebar");
+const isShellWindow = (url: string) => url.includes("#/shell");
 const isMainWindow = (url: string) =>
-  url.includes("#/") && !url.includes("#/sidebar");
+  url.includes("#/") && !url.includes("#/shell");
 
 describe("Studio Smoke Test", () => {
   let distPath: string;
@@ -189,42 +189,38 @@ describe("Studio Smoke Test", () => {
     // Playwright surfaces in windows() -- we locate by URL rather than index.
     const startTime = Date.now();
 
-    let sidebarWindow = electronApp
-      .windows()
-      .find((w) => isSidebarWindow(w.url()));
+    let shellWindow = electronApp.windows().find((w) => isShellWindow(w.url()));
     let mainWindow = electronApp.windows().find((w) => isMainWindow(w.url()));
-    while ((!sidebarWindow || !mainWindow) && Date.now() - startTime < 30_000) {
+    while ((!shellWindow || !mainWindow) && Date.now() - startTime < 30_000) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      sidebarWindow = electronApp
-        .windows()
-        .find((w) => isSidebarWindow(w.url()));
+      shellWindow = electronApp.windows().find((w) => isShellWindow(w.url()));
       mainWindow = electronApp.windows().find((w) => isMainWindow(w.url()));
     }
 
     const windowUrls = electronApp.windows().map((w) => w.url());
     expect(
-      sidebarWindow,
-      `sidebar window found (all window URLs: ${windowUrls.join(", ")})`,
+      shellWindow,
+      `shell window found (all window URLs: ${windowUrls.join(", ")})`,
     ).toBeDefined();
     expect(
       mainWindow,
       `main window found (all window URLs: ${windowUrls.join(", ")})`,
     ).toBeDefined();
 
-    if (!sidebarWindow || !mainWindow) {
+    if (!shellWindow || !mainWindow) {
       throw new Error(`windows not found. URLs: ${windowUrls.join(", ")}`);
     }
 
     const windowConfigs = [
-      { name: "sidebar", testId: "sidebar-page", window: sidebarWindow },
+      { name: "shell", testId: "shell-page", window: shellWindow },
       { name: "main", testId: "app-page", window: mainWindow },
     ];
 
     for (const { name, testId, window } of windowConfigs) {
       const locator = window.locator(`[data-testid="${testId}"]`);
       await locator.waitFor({
-        // Sidebar is hidden during initial setup
-        state: name === "sidebar" ? "attached" : "visible",
+        // Shell is hidden during initial setup
+        state: name === "shell" ? "attached" : "visible",
         timeout: 30_000,
       });
       expect(

@@ -40,6 +40,8 @@ export function ToolCallHeader({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isOpen = isExpanded || isStreaming;
+  // Visual "selected" state: open but not actively streaming.
+  const isSelected = isOpen && !isStreaming;
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -75,7 +77,7 @@ export function ToolCallHeader({
     <div
       className={cn(
         "inline-flex max-w-full min-w-0 items-center gap-3 rounded-full border py-2 pr-4 pl-3 transition-colors",
-        isOpen ? "border-foreground/5 bg-accent" : "border-border bg-card",
+        isSelected ? "border-foreground/5 bg-accent" : "border-border bg-card",
       )}
     >
       {isStreaming ? (
@@ -97,8 +99,10 @@ export function ToolCallHeader({
         {label}
       </span>
 
-      {browserInfo && <BrowserChip info={browserInfo} isOpen={isOpen} />}
-      <FileChip isOpen={isOpen} part={part} />
+      {browserInfo && (
+        <BrowserChip info={browserInfo} isSelected={isSelected} />
+      )}
+      <FileChip isSelected={isSelected} part={part} />
     </div>
   );
 
@@ -112,12 +116,18 @@ export function ToolCallHeader({
   );
 }
 
-function BrowserChip({ info, isOpen }: { info: BrowserInfo; isOpen: boolean }) {
+function BrowserChip({
+  info,
+  isSelected,
+}: {
+  info: BrowserInfo;
+  isSelected: boolean;
+}) {
   const topDomain = info.domains[0] ?? "";
   const extra = info.domains.length - 1;
 
   return (
-    <ToolChip isOpen={isOpen}>
+    <ToolChip isSelected={isSelected}>
       <Favicon
         className="size-3.5 border border-muted bg-background"
         url={`https://${topDomain}`}
@@ -133,10 +143,10 @@ function BrowserChip({ info, isOpen }: { info: BrowserInfo; isOpen: boolean }) {
 }
 
 function FileChip({
-  isOpen,
+  isSelected,
   part,
 }: {
-  isOpen: boolean;
+  isSelected: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
   let filePath: string | undefined;
@@ -162,7 +172,7 @@ function FileChip({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <ToolChip className="px-2" isOpen={isOpen}>
+        <ToolChip className="px-2" isSelected={isSelected}>
           <span className="text-xs font-medium text-foreground/50">
             {filename}
           </span>
@@ -213,17 +223,17 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
 function ToolChip({
   children,
   className,
-  isOpen,
+  isSelected,
 }: {
   children: React.ReactNode;
   className?: string;
-  isOpen?: boolean;
+  isSelected?: boolean;
 }) {
   return (
     <span
       className={cn(
         "ml-1 flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-1",
-        isOpen ? "bg-foreground/10" : "bg-foreground/5",
+        isSelected ? "bg-foreground/10" : "bg-foreground/5",
         className,
       )}
     >

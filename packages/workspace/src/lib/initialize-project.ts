@@ -2,6 +2,7 @@ import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
 import { APP_FOLDER_NAMES, GIT_TRAILERS } from "../constants";
+import { type ProjectManifestUpdate } from "../schemas/project-manifest";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { type AppConfigProject } from "./app-config/types";
@@ -15,10 +16,12 @@ import { updateProjectManifest } from "./project-manifest";
 
 export async function initializeProject(
   {
+    initialManifest,
     projectConfig,
     templateName,
     workspaceConfig,
   }: {
+    initialManifest: Omit<ProjectManifestUpdate, "createdWithAppVersion">;
     projectConfig: AppConfigProject;
     templateName: string;
     workspaceConfig: WorkspaceConfig;
@@ -71,6 +74,7 @@ export async function initializeProject(
     });
 
     yield* updateProjectManifest(projectConfig, {
+      ...initialManifest,
       createdWithAppVersion: workspaceConfig.appVersion,
     });
 

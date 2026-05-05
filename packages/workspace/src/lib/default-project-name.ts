@@ -3,11 +3,12 @@ import { textForMessage } from "./text-for-message";
 
 const MAX_CHARS = 50;
 
-export function defaultProjectName(message: SessionMessage.WithParts): string {
-  const text = textForMessage(message).trim();
+export function defaultProjectName(
+  source: SessionMessage.WithParts | string,
+): string {
+  const text = (
+    typeof source === "string" ? source : textForMessage(source)
+  ).trim();
 
-  const truncated =
-    text.length > MAX_CHARS ? `${text.slice(0, MAX_CHARS)}…` : text;
-
-  return truncated;
+  return text.length > MAX_CHARS ? `${text.slice(0, MAX_CHARS)}…` : text;
 }

@@ -12,7 +12,6 @@ import { createSession } from "./create-session";
 import { getCurrentDate } from "./get-current-date";
 import { initializeProject } from "./initialize-project";
 import { isToolPart } from "./is-tool-part";
-import { updateProjectManifest } from "./project-manifest";
 import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
@@ -132,13 +131,14 @@ export async function prepareProjectReplay({
     const projectConfig = await newProjectConfig({ workspaceConfig });
 
     yield* await initializeProject(
-      { projectConfig, templateName: DEFAULT_TEMPLATE_NAME, workspaceConfig },
+      {
+        initialManifest: { name: `Replay of ${sourceProjectName}` },
+        projectConfig,
+        templateName: DEFAULT_TEMPLATE_NAME,
+        workspaceConfig,
+      },
       { signal },
     );
-
-    yield* await updateProjectManifest(projectConfig, {
-      name: `Replay of ${sourceProjectName}`,
-    });
 
     const sessionId = StoreId.newSessionId();
     const replayMessages = yield* await saveAndBuildReplaySession({

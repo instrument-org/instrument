@@ -34,15 +34,20 @@ export function CollapsiblePartMainContent({
 
 export function CollapsiblePartTrigger({
   children,
+  className,
   ref,
   ...props
 }: {
   children: ReactNode;
+  className?: string;
   ref?: React.Ref<HTMLButtonElement>;
 }) {
   return (
     <Button
-      className="h-6 w-full justify-start rounded-sm px-1 py-0 hover:bg-accent/30 disabled:opacity-100"
+      className={cn(
+        "h-6 w-full justify-start rounded-sm px-1 py-0 hover:bg-accent/30 disabled:opacity-100",
+        className,
+      )}
       ref={ref}
       variant="ghost"
       {...props}

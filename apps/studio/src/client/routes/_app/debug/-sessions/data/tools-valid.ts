@@ -34,10 +34,6 @@ registerSession({
         sessionId,
       },
       parts: [
-        builder.textPart(
-          "I'll help you with all of that. Let me start by asking which framework to use.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             choices: ["React", "Vue", "Svelte"],
@@ -49,10 +45,6 @@ registerSession({
           },
           type: "tool-choose",
         }),
-        builder.textPart(
-          "Great, React it is. Let me load the relevant skill first.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation: "Load the React skill for best practices",
@@ -65,10 +57,6 @@ registerSession({
           },
           type: "tool-load_skill",
         }),
-        builder.textPart(
-          "Skill loaded. Now let me launch a retrieval agent to search attached folders.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation: "Launch retrieval agent to search external folder",
@@ -85,10 +73,6 @@ registerSession({
           },
           type: "tool-task",
         }),
-        builder.textPart(
-          "Retrieval complete. Now let me find relevant files using glob.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation: "Find all TypeScript files in the src directory",
@@ -106,10 +90,6 @@ registerSession({
           },
           type: "tool-glob",
         }),
-        builder.textPart(
-          "Found TypeScript files. Now let me search for usages of formatDate using grep.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation: "Search for all usages of the formatDate function",
@@ -141,14 +121,6 @@ registerSession({
           },
           type: "tool-grep",
         }),
-        builder.textPart(
-          "Found usages. Let me run diagnostics to check for any issues.",
-          assistantMessageId,
-        ),
-        builder.textPart(
-          "Found errors. Let me read the helpers file to understand the issue better.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation:
@@ -162,10 +134,6 @@ registerSession({
           },
           type: "tool-read_file",
         }),
-        builder.textPart(
-          "I can see the issue. Let me fix the parseJSON function by adding a generic type parameter.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation: "Add generic type parameter to parseJSON function",
@@ -181,10 +149,6 @@ registerSession({
           },
           type: "tool-edit_file",
         }),
-        builder.textPart(
-          "Now let me create a new test file to verify the changes.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             content:
@@ -197,10 +161,6 @@ registerSession({
           },
           type: "tool-write_file",
         }),
-        builder.textPart(
-          "Let me run tests to verify everything works.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             command: "npm test -- helpers.test.ts",
@@ -217,10 +177,6 @@ registerSession({
           },
           type: "tool-bash",
         }),
-        builder.textPart(
-          "Now let me copy some files from the attached folder into the project.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation: "Copy TypeScript config from attached folder",
@@ -241,19 +197,11 @@ registerSession({
           },
           type: "tool-copy_to_project",
         }),
-        builder.textPart(
-          "Now let me try an unavailable tool to show the fallback.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {},
           output: {},
           type: "tool-unavailable",
         }),
-        builder.textPart(
-          "Let me search the web for the latest Vitest configuration best practices.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation:
@@ -292,10 +240,6 @@ registerSession({
           },
           type: "tool-web_search",
         }),
-        builder.textPart(
-          "Now let me generate an icon for the project.",
-          assistantMessageId,
-        ),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
             explanation: "Generate a project icon for the helpers library",
@@ -327,10 +271,6 @@ registerSession({
           },
           type: "tool-generate_image",
         }),
-        builder.textPart(
-          "Perfect! I've successfully demonstrated all the tools:\n1. Asked a multiple-choice question using choose\n2. Loaded a skill using load_skill\n3. Launched a retrieval agent using task\n4. Found TypeScript files using glob\n5. Searched for formatDate usages with grep\n6. Read file contents using read_file\n7. Edited the file using edit_file\n8. Created a new test file using write_file\n9. Ran tests using bash\n10. Copied files from an attached folder using copy_to_project\n11. Showed an unavailable tool fallback\n12. Searched the web for best practices using web_search\n13. Generated a project icon using generate_image",
-          assistantMessageId,
-        ),
       ],
       role: "assistant",
     },

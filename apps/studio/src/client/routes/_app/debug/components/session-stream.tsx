@@ -31,7 +31,7 @@ function RouteComponent() {
   const { session: sessionParam } = Route.useSearch();
   const [isAgentRunning, setIsAgentRunning] = useState(false);
   const [isDeveloperMode, setIsDeveloperMode] = useState(false);
-  const [useChatStream, setUseChatStream] = useState(false);
+  const [useChatStream, setUseChatStream] = useState(true);
 
   const selectedSessionId = sessionParam ?? presetSessions[0]?.id;
   const selectedSession = presetSessions.find(
@@ -84,36 +84,38 @@ function RouteComponent() {
         </div>
       </div>
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto">
-          {selectedSession ? (
-            useChatStream ? (
-              <ChatStream
-                isAgentRunning={isAgentRunning}
-                isDeveloperMode={isDeveloperMode}
-                messages={selectedSession.messages}
-                onContinue={createEventHandler("Continue")}
-                onModelChange={createEventHandler("Model Change")}
-                onRetry={createEventHandler("Retry")}
-                onStartNewChat={createEventHandler("Start New Chat")}
-                project={mockProject as never}
-              />
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-2xl">
+            {selectedSession ? (
+              useChatStream ? (
+                <ChatStream
+                  isAgentRunning={isAgentRunning}
+                  isDeveloperMode={isDeveloperMode}
+                  messages={selectedSession.messages}
+                  onContinue={createEventHandler("Continue")}
+                  onModelChange={createEventHandler("Model Change")}
+                  onRetry={createEventHandler("Retry")}
+                  onStartNewChat={createEventHandler("Start New Chat")}
+                  project={mockProject as never}
+                />
+              ) : (
+                <SessionStream
+                  isAgentRunning={isAgentRunning}
+                  isDeveloperMode={isDeveloperMode}
+                  messages={selectedSession.messages}
+                  onContinue={createEventHandler("Continue")}
+                  onModelChange={createEventHandler("Model Change")}
+                  onRetry={createEventHandler("Retry")}
+                  onStartNewChat={createEventHandler("Start New Chat")}
+                  project={mockProject as never}
+                />
+              )
             ) : (
-              <SessionStream
-                isAgentRunning={isAgentRunning}
-                isDeveloperMode={isDeveloperMode}
-                messages={selectedSession.messages}
-                onContinue={createEventHandler("Continue")}
-                onModelChange={createEventHandler("Model Change")}
-                onRetry={createEventHandler("Retry")}
-                onStartNewChat={createEventHandler("Start New Chat")}
-                project={mockProject as never}
-              />
-            )
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No session available
-            </div>
-          )}
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No session available
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

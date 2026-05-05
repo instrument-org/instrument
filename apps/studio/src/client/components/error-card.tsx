@@ -2,6 +2,7 @@ import { SUPPORT_URL } from "@instrument-org/shared";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import { rootRouteId, useMatch, useRouter } from "@tanstack/react-router";
 
+import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
 import { InternalLink } from "./internal-link";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -32,13 +33,32 @@ export function ErrorCard({
   const errors = normalizeErrors(error);
   const errorInfos = errors.map(extractErrorInfo);
 
+  const copyText = errorInfos
+    .map((info) => {
+      const parts = [
+        info.code ? `[${info.code}] ${info.message}` : info.message,
+      ];
+      if (info.cause != null) {
+        parts.push(`Cause: ${formatCause(info.cause)}`);
+      }
+      if (info.stack) {
+        parts.push(info.stack);
+      }
+      return parts.join("\n");
+    })
+    .join("\n\n---\n\n");
+
   return (
     <Card className="w-full max-w-2xl">
       <CardHeader>
         <CardTitle className="text-xl">{title}</CardTitle>
         <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="relative space-y-4">
+        <CopyButton
+          className="absolute top-0 right-6 text-muted-foreground hover:text-foreground"
+          onCopy={() => navigator.clipboard.writeText(copyText)}
+        />
         {errorInfos.map((errorInfo, index) => (
           <Alert key={index} variant="destructive">
             <WarningCircleIcon className="size-4" />

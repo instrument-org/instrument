@@ -15,6 +15,7 @@ alwaysApply: false
 - NEVER add comments for sections of JSX like `{/* Header */}<Header />`
 - Prefer objects for functions with many parameters.
 - Don't run `tsc` to check for type errors, use your built-in diagnostics tool.
+- Ignore import sort order linter errors (e.g. "Expected X to come before Y"). They are auto-fixed and do not need manual correction.
 - `"lib": ["es2023", "DOM", "DOM.Iterable"]` is set, so you can use modern features.
 - The `radashi` import is installed. Use it for common lodash-style functions.
 - Prefer inline type declarations when they are short and not exported.

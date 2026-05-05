@@ -1,9 +1,41 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  type ProjectSubdomain,
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
+
+import { FileToolCard } from "./file-tool-card";
+
+type WriteFilePart = Extract<
+  SessionMessagePart.ToolPart,
+  { type: "tool-write_file" }
+>;
 
 export function ToolWriteFile({
-  part: _part,
+  isStreaming,
+  part,
+  subdomain,
 }: {
-  part: SessionMessagePart.ToolPart & { type: "tool-write_file" };
+  isStreaming: boolean;
+  part: WriteFilePart;
+  subdomain: ProjectSubdomain;
 }) {
-  return null;
+  const filePath =
+    part.state === "output-available"
+      ? part.output.filePath
+      : (part.input?.filePath ?? "");
+
+  const content = part.input?.content ?? "";
+
+  if (!filePath) {
+    return null;
+  }
+
+  return (
+    <FileToolCard
+      content={content}
+      filePath={filePath}
+      isStreaming={isStreaming}
+      subdomain={subdomain}
+    />
+  );
 }

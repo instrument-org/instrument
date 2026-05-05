@@ -209,13 +209,15 @@ export function FileModification({
       </ToolCardHeader>
 
       {(isExpanded || isStreaming) && (
-        <VirtualizedScrollingText
-          autoScrollToBottom={isStreaming}
-          content={cleanedContent}
-          highlightedLines={
-            highlightedLines.length > 0 ? highlightedLines : undefined
-          }
-        />
+        <div className="px-2 py-2">
+          <VirtualizedScrollingText
+            autoScrollToBottom={isStreaming}
+            content={cleanedContent}
+            highlightedLines={
+              highlightedLines.length > 0 ? highlightedLines : undefined
+            }
+          />
+        </div>
       )}
     </ToolCard>
   );

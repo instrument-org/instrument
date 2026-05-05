@@ -91,7 +91,7 @@ export function ToolBash({
             {outputText.length > 0 ? (
               <pre
                 className={cn(
-                  "pr-7 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap",
+                  "pr-7 font-mono text-sm break-words whitespace-pre-wrap",
                   isFailed
                     ? "text-destructive"
                     : "text-success-600 dark:text-success-400",

@@ -1,14 +1,14 @@
+import { cn } from "@/client/lib/utils";
 import { SUPPORT_URL } from "@instrument-org/shared";
-import { WarningCircleIcon } from "@phosphor-icons/react";
 import { rootRouteId, useMatch, useRouter } from "@tanstack/react-router";
 
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
 import { InternalLink } from "./internal-link";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
-import { Button } from "./ui/button";
+import { Button, buttonVariants } from "./ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardFooter,
   CardHeader,
@@ -52,39 +52,52 @@ export function ErrorCard({
     <Card className="w-full max-w-2xl">
       <CardHeader>
         <CardTitle className="text-xl">{title}</CardTitle>
-        <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
+        <CardAction>
+          <CopyButton
+            className={cn(
+              buttonVariants({ size: "icon-sm", variant: "ghost" }),
+              "text-muted-foreground",
+            )}
+            onCopy={() => navigator.clipboard.writeText(copyText)}
+          />
+        </CardAction>
       </CardHeader>
-      <CardContent className="relative space-y-4">
-        <CopyButton
-          className="absolute top-0 right-6 text-muted-foreground hover:text-foreground"
-          onCopy={() => navigator.clipboard.writeText(copyText)}
-        />
+      <CardContent className="space-y-3">
         {errorInfos.map((errorInfo, index) => (
-          <Alert key={index} variant="destructive">
-            <WarningCircleIcon className="size-4" />
-            <AlertTitle>
-              {errorInfo.code && `[${errorInfo.code}] `}
-              {errorInfos.length > 1 ? `Error ${index + 1}` : "Error Details"}
-            </AlertTitle>
-            <AlertDescription className="space-y-2">
-              <div>
-                <code className="text-xs">{errorInfo.message}</code>
+          <div
+            className="space-y-1.5 rounded-md border bg-muted/50 px-3 py-2.5"
+            key={index}
+          >
+            {errorInfos.length > 1 && (
+              <p className="text-xs font-medium text-muted-foreground">
+                Error {index + 1}
+              </p>
+            )}
+            {errorInfo.code && (
+              <p className="text-xs font-medium text-error-600 dark:text-error-400">
+                {errorInfo.code}
+              </p>
+            )}
+            <pre className="font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground/80">
+              {errorInfo.message}
+            </pre>
+            {errorInfo.cause != null && (
+              <div className="border-t border-border/50 pt-1">
+                <p className="mb-0.5 text-xs font-medium text-muted-foreground">
+                  Cause
+                </p>
+                <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap text-muted-foreground">
+                  {formatCause(errorInfo.cause)}
+                </pre>
               </div>
-              {errorInfo.cause != null && (
-                <div className="mt-2">
-                  <p className="text-xs font-medium">Cause:</p>
-                  <code className="text-xs">
-                    {formatCause(errorInfo.cause)}
-                  </code>
-                </div>
-              )}
-            </AlertDescription>
-          </Alert>
+            )}
+          </div>
         ))}
         {errorInfos.some((info) => info.stack) && (
           <details className="group">
-            <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-              View stack trace{errorInfos.length > 1 ? "s" : ""}
+            <summary className="cursor-pointer text-xs text-muted-foreground select-none hover:text-foreground">
+              Stack trace{errorInfos.length > 1 ? "s" : ""}
             </summary>
             <div className="mt-2 space-y-2">
               {errorInfos.map(
@@ -93,10 +106,10 @@ export function ErrorCard({
                     <div key={index}>
                       {errorInfos.length > 1 && (
                         <p className="mb-1 text-xs font-medium text-muted-foreground">
-                          Error {index + 1}:
+                          Error {index + 1}
                         </p>
                       )}
-                      <pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs text-muted-foreground">
+                      <pre className="max-h-48 overflow-auto rounded-md bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed text-muted-foreground scrollbar-color scrollbar-thin">
                         {errorInfo.stack}
                       </pre>
                     </div>

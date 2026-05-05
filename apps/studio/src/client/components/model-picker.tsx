@@ -87,43 +87,33 @@ export function ModelPicker({
   const navigate = useNavigate();
   const hasPlan = useHasPlan();
 
-  const autoModel = useMemo(
-    () => models?.find((m) => m.providerId === OUR_MODELS.text.id),
-    [models],
-  );
-
-  const modelsWithoutAuto = useMemo(
-    () => models?.filter((m) => m.providerId !== OUR_MODELS.text.id) ?? [],
-    [models],
-  );
-
-  const groupedModels = useMemo(
-    () => groupAndFilterModels({ hasPlan, models: modelsWithoutAuto }),
-    [modelsWithoutAuto, hasPlan],
-  );
+  const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
+  const modelsWithoutAuto =
+    models?.filter((m) => m.providerId !== OUR_MODELS.text.id) ?? [];
+  const groupedModels = groupAndFilterModels({
+    hasPlan,
+    models: modelsWithoutAuto,
+  });
 
   type GroupedMatchedModels = Record<string, MatchedModel[]>;
 
   const filteredGroupedModels = useMemo((): GroupedMatchedModels => {
     const entries = getGroupedModelsEntries(groupedModels);
+    const result: GroupedMatchedModels = {};
 
-    if (!searchQuery) {
-      const result: GroupedMatchedModels = {};
-      for (const [groupName, modelGroup] of entries) {
+    for (const [groupName, modelGroup] of entries) {
+      if (!searchQuery) {
         result[groupName] = modelGroup.map((model) => ({
           model,
           nameRanges: null,
         }));
+        continue;
       }
-      return result;
-    }
 
-    const result: GroupedMatchedModels = {};
-    for (const [groupName, modelGroup] of entries) {
       const haystack = modelGroup.map((m) => m.name);
-
       // eslint-disable-next-line unicorn/no-array-method-this-argument
       const indexes = fuzzy.filter(haystack, searchQuery);
+
       if (!indexes || indexes.length === 0) {
         result[groupName] = [];
         continue;
@@ -134,84 +124,33 @@ export function ModelPicker({
 
       result[groupName] = order.flatMap((orderIdx) => {
         const model = modelGroup[info.idx[orderIdx] ?? -1];
-        if (model) {
-          return [{ model, nameRanges: info.ranges[orderIdx] ?? null }];
-        }
-        return [];
+        return model
+          ? [{ model, nameRanges: info.ranges[orderIdx] ?? null }]
+          : [];
       });
     }
+
     return result;
   }, [groupedModels, searchQuery]);
 
   const hasModels = modelsWithoutAuto.length > 0;
   const hasErrors = !!errors?.length;
   const isSelectDisabled = disabled || isLoading || isError;
-
-  const hasOurProviderError = useMemo(
-    () =>
-      errors?.some((error) => error.config.type === OUR_MODELS.providerType) ??
-      false,
-    [errors],
-  );
+  const hasOurProviderError =
+    errors?.some((error) => error.config.type === OUR_MODELS.providerType) ??
+    false;
 
   const isAutoMode = selectedModel?.providerId === OUR_MODELS.text.id;
 
   const hideModelList = isAutoMode && !searchQuery;
 
-  const getPlaceholderText = () => {
-    if (isLoading) {
-      return "Loading models...";
-    }
-    if (isError) {
-      return "Failed to load models";
-    }
-    if (!hasModels) {
-      return "No models available";
-    }
-    return placeholder;
-  };
-
-  const getModelDisplayValue = () => {
-    if (!selectedModel) {
-      return getPlaceholderText();
-    }
-
-    const selectedModelClassName = isAutoMode
-      ? "text-brand-400"
-      : "text-foreground";
-
-    return (
-      <div
-        className={cn(
-          "flex min-w-0 items-center gap-2 text-xs leading-4 font-medium",
-          selectedModelClassName,
-        )}
-      >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="shrink-0">
-              {isInvalidOurModel ? (
-                <WarningIcon className="size-4 text-destructive" />
-              ) : (
-                <AIProviderIcon
-                  className="size-4 opacity-90"
-                  type={selectedModel.params.provider}
-                />
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            {isInvalidOurModel ? (
-              <p>Model requires a paid plan.</p>
-            ) : (
-              <p>{selectedModel.providerName}</p>
-            )}
-          </TooltipContent>
-        </Tooltip>
-        <span className="min-w-0 flex-1 truncate">{selectedModel.name}</span>
-      </div>
-    );
-  };
+  const placeholderText = isLoading
+    ? "Loading models..."
+    : isError
+      ? "Failed to load models"
+      : hasModels
+        ? placeholder
+        : "No models available";
 
   return (
     <Popover
@@ -240,7 +179,41 @@ export function ModelPicker({
           variant="ghost"
         >
           <div className="flex w-full min-w-0 items-center">
-            {getModelDisplayValue()}
+            {selectedModel ? (
+              <div
+                className={cn(
+                  "flex min-w-0 items-center gap-2 text-xs leading-4 font-medium",
+                  isAutoMode ? "text-brand-400" : "text-foreground",
+                )}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="shrink-0">
+                      {isInvalidOurModel ? (
+                        <WarningIcon className="size-4 text-destructive" />
+                      ) : (
+                        <AIProviderIcon
+                          className="size-4 opacity-90"
+                          type={selectedModel.params.provider}
+                        />
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isInvalidOurModel ? (
+                      <p>Model requires a paid plan.</p>
+                    ) : (
+                      <p>{selectedModel.providerName}</p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+                <span className="min-w-0 flex-1 truncate">
+                  {selectedModel.name}
+                </span>
+              </div>
+            ) : (
+              placeholderText
+            )}
           </div>
           <CaretDownIcon
             className={cn(
@@ -402,9 +375,7 @@ function AutoModeSwitch({
       }}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Auto</span>
-        </div>
+        <span className="text-sm font-medium">Auto</span>
         <Switch checked={checked} onCheckedChange={onCheckedChange} />
       </div>
       <span className="text-xs text-muted-foreground">

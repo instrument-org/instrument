@@ -249,9 +249,12 @@ html:has(meta[name="opaque-background"]) body {
   --popover-foreground: #ffffff;
   --primary: #ffffff;
   --primary-foreground: #171412;
-  --secondary: #292524;
+  --secondary: rgb(255 255 255 / 5%);
   --secondary-foreground: #ffffff;
-  --muted: #292524;
+  /* In dark mode, muted surfaces need white-opacity layering to be visible
+   * above card (#292524). A solid color identical to card produces zero
+   * contrast. White 8% sits between accent (5%) and border (10%). */
+  --muted: rgb(255 255 255 / 8%);
   --muted-foreground: rgb(255 255 255 / 60%);
   --accent: rgb(255 255 255 / 5%);
   --accent-foreground: #ffffff;

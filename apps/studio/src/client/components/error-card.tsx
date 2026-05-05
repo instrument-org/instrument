@@ -1,6 +1,11 @@
 import { cn } from "@/client/lib/utils";
 import { SUPPORT_URL } from "@instrument-org/shared";
-import { rootRouteId, useMatch, useRouter } from "@tanstack/react-router";
+import {
+  rootRouteId,
+  useCanGoBack,
+  useMatch,
+  useRouter,
+} from "@tanstack/react-router";
 
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
@@ -14,9 +19,10 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ErrorCard({
-  description = "We encountered an error while processing your request",
+  description = "An error occurred. Try again, or go back if the problem persists.",
   error,
   title = "Something went wrong",
 }: {
@@ -29,9 +35,11 @@ export function ErrorCard({
     select: (state) => state.id === rootRouteId,
     strict: false,
   });
+  const canGoBack = useCanGoBack();
 
   const errors = normalizeErrors(error);
   const errorInfos = errors.map(extractErrorInfo);
+  const hasMultiple = errorInfos.length > 1;
 
   const copyText = errorInfos
     .map((info) => {
@@ -54,32 +62,43 @@ export function ErrorCard({
         <CardTitle className="text-xl">{title}</CardTitle>
         <p className="text-sm text-muted-foreground">{description}</p>
         <CardAction>
-          <CopyButton
-            className={cn(
-              buttonVariants({ size: "icon-sm", variant: "ghost" }),
-              "text-muted-foreground",
-            )}
-            onCopy={() => navigator.clipboard.writeText(copyText)}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <CopyButton
+                className={cn(
+                  buttonVariants({ size: "icon-sm", variant: "ghost" }),
+                  "text-muted-foreground",
+                )}
+                onCopy={() => navigator.clipboard.writeText(copyText)}
+              />
+            </TooltipTrigger>
+            <TooltipContent>Copy error details</TooltipContent>
+          </Tooltip>
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-3">
         {errorInfos.map((errorInfo, index) => (
           <div
-            className="space-y-1.5 rounded-md border bg-muted/50 px-3 py-2.5"
+            className={cn(
+              "space-y-1.5 rounded-md bg-muted px-3 py-2.5",
+              hasMultiple && "border",
+            )}
             key={index}
           >
-            {errorInfos.length > 1 && (
+            {hasMultiple && (
               <p className="text-xs font-medium text-muted-foreground">
                 Error {index + 1}
               </p>
             )}
             {errorInfo.code && (
               <p className="text-xs font-medium text-error-600 dark:text-error-400">
+                <span className="font-normal text-muted-foreground">
+                  Error code:{" "}
+                </span>
                 {errorInfo.code}
               </p>
             )}
-            <pre className="font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground/80">
+            <pre className="font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground/90">
               {errorInfo.message}
             </pre>
             {errorInfo.cause != null && (
@@ -97,14 +116,14 @@ export function ErrorCard({
         {errorInfos.some((info) => info.stack) && (
           <details className="group">
             <summary className="cursor-pointer text-xs text-muted-foreground select-none hover:text-foreground">
-              Stack trace{errorInfos.length > 1 ? "s" : ""}
+              Stack trace{hasMultiple ? "s" : ""}
             </summary>
             <div className="mt-2 space-y-2">
               {errorInfos.map(
                 (errorInfo, index) =>
                   errorInfo.stack && (
                     <div key={index}>
-                      {errorInfos.length > 1 && (
+                      {hasMultiple && (
                         <p className="mb-1 text-xs font-medium text-muted-foreground">
                           Error {index + 1}
                         </p>
@@ -119,34 +138,47 @@ export function ErrorCard({
           </details>
         )}
       </CardContent>
-      <CardFooter className="justify-end gap-x-2">
-        <Button asChild variant="ghost">
-          <ExternalLink href={SUPPORT_URL}>Contact us</ExternalLink>
-        </Button>
-        {isRoot ? (
-          <Button asChild variant="outline">
-            <InternalLink to="/">Home</InternalLink>
+      <CardFooter className="flex-col items-end gap-y-3">
+        <div className="flex gap-x-2">
+          {isRoot ? (
+            <Button asChild variant="outline">
+              <InternalLink to="/">Home</InternalLink>
+            </Button>
+          ) : (
+            <Button asChild variant="outline">
+              <InternalLink
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (canGoBack) {
+                    router.history.back();
+                  } else {
+                    void router.navigate({ to: "/" });
+                  }
+                }}
+                to="/"
+              >
+                Go back
+              </InternalLink>
+            </Button>
+          )}
+          <Button
+            onClick={() => {
+              void router.invalidate();
+            }}
+          >
+            Try again
           </Button>
-        ) : (
-          <Button asChild variant="outline">
-            <InternalLink
-              onClick={(e) => {
-                e.preventDefault();
-                window.history.back();
-              }}
-              to="/"
-            >
-              Go back
-            </InternalLink>
-          </Button>
-        )}
-        <Button
-          onClick={() => {
-            void router.invalidate();
-          }}
-        >
-          Try again
-        </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Still broken?{" "}
+          <ExternalLink
+            className="underline underline-offset-2 hover:text-foreground"
+            href={SUPPORT_URL}
+          >
+            Get help from our team
+          </ExternalLink>
+          .
+        </p>
       </CardFooter>
     </Card>
   );

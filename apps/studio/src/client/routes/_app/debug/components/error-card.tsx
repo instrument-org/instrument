@@ -1,9 +1,7 @@
 import { ErrorCard } from "@/client/components/error-card";
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute(
-  "/_app/debug/components/error-card",
-)({
+export const Route = createFileRoute("/_app/debug/components/error-card")({
   component: RouteComponent,
   head: () => ({
     meta: [{ title: "Debug Error Card" }],
@@ -29,12 +27,12 @@ const multipleErrors = [
     code: "PROVIDER_ERROR",
   }),
   Object.assign(new Error("Retry limit exceeded after 3 attempts."), {
-    code: "RETRY_EXHAUSTED",
     cause: "Provider returned 503 on all attempts",
+    code: "RETRY_EXHAUSTED",
   }),
 ];
 
-const variants: { error: unknown; title: string; description?: string }[] = [
+const variants: { description?: string; error: unknown; title: string }[] = [
   {
     error: simpleError,
     title: "Simple error",
@@ -84,10 +82,7 @@ function RouteComponent() {
                   </p>
                 )}
               </div>
-              <ErrorCard
-                description={v.description}
-                error={v.error}
-              />
+              <ErrorCard description={v.description} error={v.error} />
             </section>
           ))}
         </div>

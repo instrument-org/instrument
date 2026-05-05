@@ -29,7 +29,7 @@ const createEventHandler = (eventName: string) => {
 
 function RouteComponent() {
   const { session: sessionParam } = Route.useSearch();
-  const [isAgentRunning, setIsAgentRunning] = useState(false);
+  const [isAgentRunning, setIsAgentRunning] = useState(true);
   const [isDeveloperMode, setIsDeveloperMode] = useState(false);
   const [useChatStream, setUseChatStream] = useState(true);
 

@@ -28,11 +28,13 @@ interface BrowserInfo {
 }
 
 export function ToolCallHeader({
+  assetBaseUrl,
   expandedContent,
   isAgentRunning,
   isStreaming,
   part,
 }: {
+  assetBaseUrl: string;
   expandedContent?: React.ReactNode;
   isAgentRunning: boolean;
   isStreaming: boolean;
@@ -102,6 +104,12 @@ export function ToolCallHeader({
       {browserInfo && (
         <BrowserChip info={browserInfo} isSelected={isSelected} />
       )}
+      <WebSearchChip isSelected={isSelected} part={part} />
+      <SourceImagesChip
+        assetBaseUrl={assetBaseUrl}
+        isSelected={isSelected}
+        part={part}
+      />
       <FileChip isSelected={isSelected} part={part} />
     </div>
   );
@@ -220,6 +228,49 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
   return { domains };
 }
 
+function SourceImagesChip({
+  assetBaseUrl,
+  isSelected,
+  part,
+}: {
+  assetBaseUrl: string;
+  isSelected: boolean;
+  part: SessionMessagePart.ToolPart;
+}) {
+  if (part.type !== "tool-generate_image") {
+    return null;
+  }
+
+  const sourceImages = (part.input?.sourceImages ?? []).filter(
+    (s): s is string => typeof s === "string",
+  );
+
+  if (sourceImages.length === 0) {
+    return null;
+  }
+
+  return (
+    <ToolChip className="gap-0 px-1" isSelected={isSelected}>
+      {sourceImages.slice(0, 3).map((filePath, index) => {
+        const src = `${assetBaseUrl}/${filePath.startsWith("./") ? filePath.slice(2) : filePath}`;
+        return (
+          <img
+            alt="Reference"
+            className="-ml-0.5 size-4 rounded-full border border-border/50 object-cover first:ml-0"
+            key={index}
+            src={src}
+          />
+        );
+      })}
+      {sourceImages.length > 3 && (
+        <span className="ml-1 text-xs text-foreground/40">
+          +{sourceImages.length - 3}
+        </span>
+      )}
+    </ToolChip>
+  );
+}
+
 function ToolChip({
   children,
   className,
@@ -239,5 +290,43 @@ function ToolChip({
     >
       {children}
     </span>
+  );
+}
+
+function WebSearchChip({
+  isSelected,
+  part,
+}: {
+  isSelected: boolean;
+  part: SessionMessagePart.ToolPart;
+}) {
+  if (
+    part.type !== "tool-web_search" ||
+    part.state !== "output-available" ||
+    part.output.state !== "success" ||
+    part.output.sources.length === 0
+  ) {
+    return null;
+  }
+
+  const uniqueUrls = [
+    ...new Map(
+      part.output.sources.map((s) => {
+        const hostname = URL.canParse(s.url) ? new URL(s.url).hostname : s.url;
+        return [hostname, s.url];
+      }),
+    ).values(),
+  ].slice(0, 5);
+
+  return (
+    <ToolChip className="gap-0 px-1" isSelected={isSelected}>
+      {uniqueUrls.map((url, index) => (
+        <Favicon
+          className="-ml-0.5 size-3.5 border border-muted bg-background first:ml-0"
+          key={index}
+          url={url}
+        />
+      ))}
+    </ToolChip>
   );
 }

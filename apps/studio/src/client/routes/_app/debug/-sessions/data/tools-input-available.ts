@@ -215,6 +215,31 @@ describe("slugify", () => {
           },
           type: "tool-generate_image",
         }),
+        builder.toolPart(assistantMessageId, "input-available", {
+          input: {
+            explanation:
+              "Generate a dark variant of the icon based on the existing light version",
+            filePath: "./assets/helpers-icon-dark",
+            prompt:
+              "A dark-theme variant of the helpers library icon. Same interlocking gear and wrench motif but with a deep navy background and glowing cyan accents.",
+            sourceImages: ["./assets/helpers-icon.png"],
+          },
+          type: "tool-generate_image",
+        }),
+        builder.toolPart(assistantMessageId, "input-available", {
+          input: {
+            explanation:
+              "Compose a banner combining all icon variants into a cohesive marketing asset",
+            filePath: "./assets/helpers-banner",
+            prompt:
+              "A wide marketing banner for the helpers library. Arrange the light and dark icon variants side by side with the library name in bold sans-serif typography.",
+            sourceImages: [
+              "./assets/helpers-icon.png",
+              "./assets/helpers-icon-dark.png",
+            ],
+          },
+          type: "tool-generate_image",
+        }),
       ],
       role: "assistant",
     },

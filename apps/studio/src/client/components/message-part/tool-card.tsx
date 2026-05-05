@@ -30,12 +30,7 @@ export function ToolCardHeader({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "border-b border-border bg-muted px-4 py-3",
-        className,
-      )}
-    >
+    <div className={cn("border-b border-border bg-muted px-4 py-3", className)}>
       {children}
     </div>
   );
@@ -71,7 +66,7 @@ export function ToolCardSection({
   );
 }
 
-export function ToolCardCopyButton({ text }: { text: string }) {
+function ToolCardCopyButton({ text }: { text: string }) {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(text);
   };

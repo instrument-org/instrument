@@ -35,6 +35,7 @@ export function ToolCall({
 }) {
   return (
     <ToolCallHeader
+      assetBaseUrl={project.urls.assetBase}
       expandedContent={
         <ToolCallExpanded
           isStreaming={isStreaming}
@@ -91,7 +92,13 @@ function ToolCallExpanded({
       );
     }
     case "tool-generate_image": {
-      return <ToolGenerateImage part={part} />;
+      return (
+        <ToolGenerateImage
+          assetBaseUrl={project.urls.assetBase}
+          part={part}
+          subdomain={project.subdomain}
+        />
+      );
     }
     case "tool-glob": {
       return <ToolGlob part={part} />;

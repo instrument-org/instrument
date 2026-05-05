@@ -551,6 +551,75 @@ describe("slugify", () => {
           },
           type: "tool-generate_image",
         }),
+        builder.toolPart(assistantMessageId, "output-available", {
+          input: {
+            explanation:
+              "Generate a dark variant of the icon based on the existing light version",
+            filePath: "./assets/helpers-icon-dark",
+            prompt:
+              "A dark-theme variant of the helpers library icon. Same interlocking gear and wrench motif but with a deep navy background and glowing cyan accents.",
+            sourceImages: ["./assets/helpers-icon.png"],
+          },
+          output: {
+            images: [
+              {
+                filePath: "./assets/helpers-icon-dark.png",
+                height: 1024,
+                sizeBytes: 198_432,
+                width: 1024,
+              },
+            ],
+            modelId: "gpt-5-image",
+            provider: {
+              displayName: "OpenAI",
+              id: "openai-default",
+              type: "openai",
+            },
+            state: "success",
+            usage: {
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+            },
+          },
+          type: "tool-generate_image",
+        }),
+        builder.toolPart(assistantMessageId, "output-available", {
+          input: {
+            explanation:
+              "Compose a banner combining all icon variants into a cohesive marketing asset",
+            filePath: "./assets/helpers-banner",
+            prompt:
+              "A wide marketing banner for the helpers library. Arrange the light and dark icon variants side by side with the library name in bold sans-serif typography. Clean white background with subtle grid texture.",
+            sourceImages: [
+              "./assets/helpers-icon.png",
+              "./assets/helpers-icon-dark.png",
+            ],
+          },
+          output: {
+            images: [
+              {
+                filePath: "./assets/helpers-banner.png",
+                height: 630,
+                sizeBytes: 312_144,
+                width: 1200,
+              },
+            ],
+            modelId: "gpt-5-image",
+            provider: {
+              displayName: "OpenAI",
+              id: "openai-default",
+              type: "openai",
+            },
+            state: "success",
+            usage: {
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+            },
+          },
+          type: "tool-generate_image",
+        }),
       ],
       role: "assistant",
     },

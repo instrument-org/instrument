@@ -17,7 +17,7 @@ import {
   PencilIcon,
   QuestionIcon,
   TerminalIcon,
-  WarningIcon,
+  WrenchIcon,
 } from "@phosphor-icons/react";
 
 const TASK_DISPLAY_NAMES: Record<TaskAgentName, string> = {
@@ -111,7 +111,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   load_skill: BookOpenIcon,
   read_file: EyeIcon,
   task: undefined,
-  unavailable: WarningIcon,
+  unavailable: WrenchIcon,
   web_search: GlobeIcon,
   write_file: FilePlusIcon,
 };

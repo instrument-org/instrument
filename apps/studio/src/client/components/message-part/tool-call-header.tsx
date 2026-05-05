@@ -6,6 +6,7 @@ import { GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
+import { filenameFromFilePath } from "../../lib/path-utils";
 import {
   getToolLabelForPart,
   getToolStreamingLabel,
@@ -19,6 +20,7 @@ import {
   CollapsibleTrigger,
 } from "../ui/collapsible";
 import { Spinner } from "../ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface BrowserInfo {
   /** Sorted by visit count, descending. */
@@ -95,7 +97,8 @@ export function ToolCallHeader({
         {label}
       </span>
 
-      {!isStreaming && browserInfo && <BrowserChip info={browserInfo} />}
+      {browserInfo && <BrowserChip info={browserInfo} />}
+      <FileChip part={part} />
     </div>
   );
 
@@ -148,13 +151,47 @@ function BrowserChip({ info }: { info: BrowserInfo }) {
   );
 }
 
+function FileChip({ part }: { part: SessionMessagePart.ToolPart }) {
+  let filePath: string | undefined;
+
+  if (
+    (part.type === "tool-edit_file" ||
+      part.type === "tool-write_file" ||
+      part.type === "tool-read_file") &&
+    // typeof guard is intentional: the AI SDK types DeepPartial<string> as
+    // string during streaming, but parsePartialJson can produce null mid-stream.
+    typeof part.input?.filePath === "string" &&
+    part.input.filePath.length > 0
+  ) {
+    filePath = part.input.filePath;
+  }
+
+  if (!filePath) {
+    return null;
+  }
+
+  const filename = filenameFromFilePath(filePath);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <ToolChip className="px-2">
+          <span className="text-xs font-medium text-foreground/50">
+            {filename}
+          </span>
+        </ToolChip>
+      </TooltipTrigger>
+      <TooltipContent>{filePath}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
   if (part.type !== "tool-bash") {
     return null;
   }
 
-  const contextItems =
-    "contextItems" in part.metadata ? (part.metadata.contextItems ?? []) : [];
+  const contextItems = part.metadata.contextItems ?? [];
   if (contextItems.length === 0) {
     return null;
   }

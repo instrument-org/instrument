@@ -1,10 +1,17 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
+import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type GlobPart = Extract<SessionMessagePart.ToolPart, { type: "tool-glob" }>;
 
-export function ToolGlob({ part }: { part: GlobPart }) {
+export function ToolGlob({
+  isStreaming,
+  part,
+}: {
+  isStreaming: boolean;
+  part: GlobPart;
+}) {
   if (!part.input) {
     return null;
   }
@@ -13,10 +20,14 @@ export function ToolGlob({ part }: { part: GlobPart }) {
   const command = buildCommand(part.input);
   const files = hasOutput ? part.output.files : [];
 
+  const label = isStreaming
+    ? getToolStreamingLabel("glob")
+    : getToolLabel("glob");
+
   return (
     <ToolCard>
       <ToolCardHeader>
-        <p className="text-xs font-medium text-muted-foreground">Glob</p>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
       </ToolCardHeader>
 
       <ToolCardSection

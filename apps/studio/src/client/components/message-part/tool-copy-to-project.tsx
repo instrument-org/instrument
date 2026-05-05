@@ -3,7 +3,7 @@ import {
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
-import { getToolLabel } from "../../lib/tool-display";
+import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type CopyToProjectPart = Extract<
@@ -11,19 +11,26 @@ type CopyToProjectPart = Extract<
   { type: "tool-copy_to_project" }
 >;
 
-export function ToolCopyToProject({ part }: { part: CopyToProjectPart }) {
+export function ToolCopyToProject({
+  isStreaming,
+  part,
+}: {
+  isStreaming: boolean;
+  part: CopyToProjectPart;
+}) {
   if (!part.input) {
     return null;
   }
 
   const hasOutput = part.state === "output-available";
+  const label = isStreaming
+    ? getToolStreamingLabel("copy_to_project")
+    : getToolLabel("copy_to_project");
 
   return (
     <ToolCard>
       <ToolCardHeader>
-        <p className="text-xs font-medium text-muted-foreground">
-          {getToolLabel("copy_to_project")}
-        </p>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
       </ToolCardHeader>
 
       <ToolCardSection maxHeight="max-h-64">

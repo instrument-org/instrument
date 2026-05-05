@@ -442,7 +442,7 @@ export const PromptInput = ({
         style={{ maxHeight: `${autoResizeMaxHeight}px` }}
       >
         {isDragging && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-foreground/20 bg-background/70">
             <UploadSimpleIcon className="size-8 text-primary" />
             <span className="text-sm font-medium text-primary">
               Drop files or folders to add them

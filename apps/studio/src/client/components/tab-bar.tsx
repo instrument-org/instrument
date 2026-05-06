@@ -30,7 +30,7 @@ export default function TabBar() {
         values={tabs}
       >
         <AnimatePresence initial={false}>
-          {tabs.map((item) => (
+          {tabs.map((item, index) => (
             <Tab
               isSelected={selectedTabId === item.id}
               item={item}
@@ -41,7 +41,7 @@ export default function TabBar() {
               onRemove={() => {
                 void closeTab({ id: item.id });
               }}
-              showSeparator
+              showSeparator={tabs[index + 1]?.id !== selectedTabId}
             />
           ))}
         </AnimatePresence>

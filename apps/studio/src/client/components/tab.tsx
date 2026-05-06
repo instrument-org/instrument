@@ -60,7 +60,7 @@ export const Tab = ({
                 : cn(
                     "py-2 pr-2 pl-3 hover:rounded-xl hover:bg-muted/60 hover:pr-1.5",
                     showSeparator &&
-                      "after:pointer-events-none after:absolute after:top-1/4 after:right-0 after:h-1/2 after:w-px after:bg-border/50 after:content-['']",
+                      "after:pointer-events-none after:absolute after:top-1/4 after:right-0 after:h-1/2 after:w-px after:bg-border/50 after:content-[''] hover:after:hidden",
                   ),
             ),
       )}

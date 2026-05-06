@@ -15,6 +15,7 @@ import {
   CollapsiblePartMainContent,
   CollapsiblePartTrigger,
 } from "../collapsible-part";
+import { useToolCallSession } from "../message-part/tool-call-session";
 import { ToolIcon } from "../tool-icon";
 import {
   Collapsible,
@@ -30,16 +31,15 @@ export type RenderStream = (args: {
 }) => ReactNode;
 
 export function TaskToolCard({
-  isStreaming,
   part,
   project,
   renderStream,
 }: {
-  isStreaming: boolean;
   part: Extract<SessionMessagePart.ToolPart, { type: "tool-task" }>;
   project: WorkspaceAppProject;
   renderStream: RenderStream;
 }) {
+  const { isStreaming } = useToolCallSession();
   const [isExpanded, setIsExpanded] = useState(false);
   const toolName = getToolNameByType(part.type);
   const isError = part.state === "output-error";

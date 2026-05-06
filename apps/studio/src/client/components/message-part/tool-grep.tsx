@@ -1,17 +1,13 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
+import { useToolCallSession } from "./tool-call-session";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type GrepPart = Extract<SessionMessagePart.ToolPart, { type: "tool-grep" }>;
 
-export function ToolGrep({
-  isStreaming,
-  part,
-}: {
-  isStreaming: boolean;
-  part: GrepPart;
-}) {
+export function ToolGrep({ part }: { part: GrepPart }) {
+  const { isStreaming } = useToolCallSession();
   if (!part.input) {
     return null;
   }

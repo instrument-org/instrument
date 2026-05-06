@@ -4,6 +4,7 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
+import { useToolCallSession } from "./tool-call-session";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type CopyToProjectPart = Extract<
@@ -11,13 +12,8 @@ type CopyToProjectPart = Extract<
   { type: "tool-copy_to_project" }
 >;
 
-export function ToolCopyToProject({
-  isStreaming,
-  part,
-}: {
-  isStreaming: boolean;
-  part: CopyToProjectPart;
-}) {
+export function ToolCopyToProject({ part }: { part: CopyToProjectPart }) {
+  const { isStreaming } = useToolCallSession();
   if (!part.input) {
     return null;
   }

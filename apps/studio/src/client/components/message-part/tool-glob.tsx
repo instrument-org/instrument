@@ -1,17 +1,13 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
+import { useToolCallSession } from "./tool-call-session";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type GlobPart = Extract<SessionMessagePart.ToolPart, { type: "tool-glob" }>;
 
-export function ToolGlob({
-  isStreaming,
-  part,
-}: {
-  isStreaming: boolean;
-  part: GlobPart;
-}) {
+export function ToolGlob({ part }: { part: GlobPart }) {
+  const { isStreaming } = useToolCallSession();
   if (!part.input) {
     return null;
   }

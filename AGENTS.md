@@ -26,12 +26,12 @@
 
 ### Key ports
 
-| Port  | Service                |
-|-------|------------------------|
-| 5173  | Renderer Vite dev      |
-| 48300 | Workspace apps server  |
-| 48350 | Shim-client Vite dev   |
-| 48160 | Electron debug port    |
+| Port  | Service               |
+| ----- | --------------------- |
+| 5173  | Renderer Vite dev     |
+| 48300 | Workspace apps server |
+| 48350 | Shim-client Vite dev  |
+| 48160 | Electron debug port   |
 
 ### Notes
 

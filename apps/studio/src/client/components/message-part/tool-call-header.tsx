@@ -38,7 +38,7 @@ export function ToolCallHeader({
   part: SessionMessagePart.ToolPart;
 }) {
   const { isAgentRunning, isStreaming } = useToolCallSession();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isManuallyOpen, setIsManuallyOpen] = useState(false);
   // Debounce both edges of isStreaming to avoid flickering open/closed for
   // tool calls that stream very briefly.
   // - Opening is delayed: only open after streaming has been true for 300ms.
@@ -62,9 +62,9 @@ export function ToolCallHeader({
     };
   }, [isStreaming]);
 
-  const isOpen = isExpanded || isStreamingDebounced;
-  // Visual "selected" state: open but not actively streaming or running.
-  const isSelected = isOpen && !isStreaming && !isAgentRunning;
+  const isCollapsibleOpen = isManuallyOpen || isStreamingDebounced;
+  const isEmphasized =
+    isCollapsibleOpen && !isStreaming && !isAgentRunning;
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -100,7 +100,7 @@ export function ToolCallHeader({
     <div
       className={cn(
         "inline-flex max-w-full min-w-0 items-center gap-3 rounded-full border py-2 pr-4 pl-3 transition-colors",
-        isSelected ? "border-foreground/5 bg-accent" : "border-border bg-card",
+        isEmphasized ? "border-foreground/5 bg-accent" : "border-border bg-card",
       )}
     >
       {isStreaming ? (
@@ -123,20 +123,20 @@ export function ToolCallHeader({
       </span>
 
       {browserInfo && (
-        <BrowserChip info={browserInfo} isSelected={isSelected} />
+        <BrowserChip info={browserInfo} isEmphasized={isEmphasized} />
       )}
-      <WebSearchChip isSelected={isSelected} part={part} />
+      <WebSearchChip isEmphasized={isEmphasized} part={part} />
       <SourceImagesChip
         assetBaseUrl={assetBaseUrl}
-        isSelected={isSelected}
+        isEmphasized={isEmphasized}
         part={part}
       />
-      <FileChip isSelected={isSelected} part={part} />
+      <FileChip isEmphasized={isEmphasized} part={part} />
     </div>
   );
 
   return (
-    <Collapsible onOpenChange={setIsExpanded} open={isOpen}>
+    <Collapsible onOpenChange={setIsManuallyOpen} open={isCollapsibleOpen}>
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
       <CollapsibleContent animated>{children}</CollapsibleContent>
     </Collapsible>
@@ -145,16 +145,16 @@ export function ToolCallHeader({
 
 function BrowserChip({
   info,
-  isSelected,
+  isEmphasized,
 }: {
   info: BrowserInfo;
-  isSelected: boolean;
+  isEmphasized: boolean;
 }) {
   const topDomain = info.domains[0] ?? "";
   const extra = info.domains.length - 1;
 
   return (
-    <ToolChip isSelected={isSelected}>
+    <ToolChip isEmphasized={isEmphasized}>
       <Favicon
         className="size-3.5 border border-muted bg-background"
         url={`https://${topDomain}`}
@@ -170,10 +170,10 @@ function BrowserChip({
 }
 
 function FileChip({
-  isSelected,
+  isEmphasized,
   part,
 }: {
-  isSelected: boolean;
+  isEmphasized: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
   let filePath: string | undefined;
@@ -199,7 +199,7 @@ function FileChip({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <ToolChip className="px-2" isSelected={isSelected}>
+        <ToolChip className="px-2" isEmphasized={isEmphasized}>
           <span className="text-xs font-medium text-foreground/50">
             {filename}
           </span>
@@ -249,11 +249,11 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
 
 function SourceImagesChip({
   assetBaseUrl,
-  isSelected,
+  isEmphasized,
   part,
 }: {
   assetBaseUrl: string;
-  isSelected: boolean;
+  isEmphasized: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
   if (part.type !== "tool-generate_image") {
@@ -269,7 +269,7 @@ function SourceImagesChip({
   }
 
   return (
-    <ToolChip className="gap-0 px-1" isSelected={isSelected}>
+    <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
       {sourceImages.slice(0, 3).map((filePath, index) => {
         const src = `${assetBaseUrl}/${filePath.startsWith("./") ? filePath.slice(2) : filePath}`;
         return (
@@ -293,17 +293,17 @@ function SourceImagesChip({
 function ToolChip({
   children,
   className,
-  isSelected,
+  isEmphasized,
 }: {
   children: ReactNode;
   className?: string;
-  isSelected?: boolean;
+  isEmphasized?: boolean;
 }) {
   return (
     <span
       className={cn(
         "ml-1 flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-1",
-        isSelected ? "bg-foreground/10" : "bg-foreground/5",
+        isEmphasized ? "bg-foreground/10" : "bg-foreground/5",
         className,
       )}
     >
@@ -313,10 +313,10 @@ function ToolChip({
 }
 
 function WebSearchChip({
-  isSelected,
+  isEmphasized,
   part,
 }: {
-  isSelected: boolean;
+  isEmphasized: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
   if (
@@ -338,7 +338,7 @@ function WebSearchChip({
   ].slice(0, 5);
 
   return (
-    <ToolChip className="gap-0 px-1" isSelected={isSelected}>
+    <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
       {uniqueUrls.map((url, index) => (
         <Favicon
           className="-ml-0.5 size-3.5 border border-muted bg-background first:ml-0"

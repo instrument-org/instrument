@@ -433,7 +433,7 @@ export const PromptInput = ({
     <>
       <TextareaContainer
         className={cn(
-          "relative overflow-hidden rounded-3xl p-4",
+          "relative overflow-hidden rounded-[20px] p-4",
           // Equivalent of opaque light and dark composer surfaces.
           "bg-card dark:bg-card",
           className,
@@ -442,7 +442,7 @@ export const PromptInput = ({
         style={{ maxHeight: `${autoResizeMaxHeight}px` }}
       >
         {isDragging && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-foreground/20 bg-background/70">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
             <UploadSimpleIcon className="size-8 text-primary" />
             <span className="text-sm font-medium text-primary">
               Drop files or folders to add them

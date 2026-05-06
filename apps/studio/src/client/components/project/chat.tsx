@@ -244,7 +244,7 @@ export function ProjectChat({
           </div>
         )}
         <div className="relative mx-auto w-full max-w-2xl px-3 pb-3">
-          <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-3xl bg-background" />
+          <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-[20px] bg-background" />
           <PromptInput
             atomKey={subdomain}
             autoFocus

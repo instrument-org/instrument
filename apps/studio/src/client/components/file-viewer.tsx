@@ -351,7 +351,7 @@ export function FileViewer({
         fullSize,
       })}
     >
-      <div className="flex shrink-0 items-center gap-2 px-5 py-4">
+      <div className="flex shrink-0 items-center gap-2 px-4 py-3">
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="truncate text-xs font-medium">{filename}</span>

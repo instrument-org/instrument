@@ -324,7 +324,7 @@ const sidebarMenuButtonVariants = tv({
   variants: {
     size: {
       default: "h-8",
-      lg: "h-12 text-lg group-data-[collapsible=icon]:p-0!",
+      lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       sm: "h-7 text-xs",
     },
     variant: {

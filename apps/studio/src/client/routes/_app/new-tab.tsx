@@ -61,7 +61,7 @@ function RouteComponent() {
           <div className="text-brown-300/34 dark:text-brown-900/34">
             <AnimatedOutlineAppIconGlyph className="size-18" />
           </div>
-          <h1 className="font-serif text-2xl leading-none font-medium tracking-[-0.03em] whitespace-nowrap text-foreground sm:text-3xl md:text-4xl">
+          <h1 className="font-serif text-2xl leading-none font-normal tracking-[-0.03em] whitespace-nowrap text-foreground sm:text-3xl md:text-4xl">
             How can I help?
           </h1>
         </div>

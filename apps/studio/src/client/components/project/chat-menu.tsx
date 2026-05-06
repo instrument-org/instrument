@@ -153,7 +153,7 @@ export function ProjectChatMenu({
     <Button
       className={toolbarClassName({
         className:
-          "h-auto min-w-0 w-full max-w-80 shrink justify-start gap-2 py-1 font-semibold has-[>svg]:px-1",
+          "h-auto min-w-0 w-full max-w-80 shrink justify-start gap-2 py-1 font-normal has-[>svg]:px-1",
         pressed: sidebar === "chat",
       })}
       onClick={sidebar === "files" ? onChatClick : undefined}

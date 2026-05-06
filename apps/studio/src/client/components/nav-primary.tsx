@@ -37,7 +37,7 @@ export function NavPrimary({
                 className={cn(
                   "group-hover:bg-black/10 data-[active=true]:bg-black/15 data-[active=true]:font-normal data-[active=true]:text-foreground dark:group-hover:bg-white/10 dark:data-[active=true]:bg-white/15",
                   item.isBrand &&
-                    "font-bold data-[active=true]:bg-transparent data-[active=true]:text-brand-400",
+                    "font-medium data-[active=true]:bg-transparent data-[active=true]:text-brand-400",
                 )}
                 isActive={item.isBrand ? false : item.isActive}
               >
@@ -46,7 +46,7 @@ export function NavPrimary({
                     item.isDeveloperMode
                       ? "text-blue-700 dark:text-blue-300 [&>svg]:size-4 [&>svg]:text-blue-700 dark:[&>svg]:text-blue-300"
                       : item.isBrand
-                        ? "font-bold text-brand-400 [&>svg]:size-4 [&>svg]:text-brand-400"
+                        ? "font-medium text-brand-400 [&>svg]:size-4 [&>svg]:text-brand-400"
                         : "[&>svg]:size-4"
                   }
                   openInCurrentTab

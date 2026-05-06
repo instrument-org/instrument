@@ -5,6 +5,7 @@ import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { AgentBrowserPlayer } from "../tool-part/agent-browser-player";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import { useToolCallSession } from "./tool-call-session";
 
 type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
 type BrowserCommandObservation = Extract<
@@ -14,13 +15,12 @@ type BrowserCommandObservation = Extract<
 
 export function ToolBash({
   assetBaseUrl,
-  isStreaming,
   part,
 }: {
   assetBaseUrl: string;
-  isStreaming: boolean;
   part: BashPart;
 }) {
+  const { isStreaming } = useToolCallSession();
   const command = part.input?.command ?? "";
   const hasOutput = part.state === "output-available";
   const isError = part.state === "output-error";

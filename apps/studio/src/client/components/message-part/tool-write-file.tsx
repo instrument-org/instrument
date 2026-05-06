@@ -11,11 +11,9 @@ type WriteFilePart = Extract<
 >;
 
 export function ToolWriteFile({
-  isStreaming,
   part,
   subdomain,
 }: {
-  isStreaming: boolean;
   part: WriteFilePart;
   subdomain: ProjectSubdomain;
 }) {
@@ -34,7 +32,6 @@ export function ToolWriteFile({
     <FileToolCard
       content={content}
       filePath={filePath}
-      isStreaming={isStreaming}
       subdomain={subdomain}
     />
   );

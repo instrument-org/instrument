@@ -23,6 +23,7 @@ import {
 } from "../ui/collapsible";
 import { Spinner } from "../ui/spinner";
 import { ToolPartListItemCompact } from "./list-item-compact";
+import { useToolCallSession } from "../message-part/tool-call-session";
 
 export type RenderStream = (args: {
   isAgentRunning: boolean;
@@ -30,16 +31,15 @@ export type RenderStream = (args: {
 }) => ReactNode;
 
 export function TaskToolCard({
-  isStreaming,
   part,
   project,
   renderStream,
 }: {
-  isStreaming: boolean;
   part: Extract<SessionMessagePart.ToolPart, { type: "tool-task" }>;
   project: WorkspaceAppProject;
   renderStream: RenderStream;
 }) {
+  const { isStreaming } = useToolCallSession();
   const [isExpanded, setIsExpanded] = useState(false);
   const toolName = getToolNameByType(part.type);
   const isError = part.state === "output-error";

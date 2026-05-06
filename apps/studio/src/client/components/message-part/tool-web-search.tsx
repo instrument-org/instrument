@@ -4,19 +4,15 @@ import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import { useToolCallSession } from "./tool-call-session";
 
 type WebSearchPart = Extract<
   SessionMessagePart.ToolPart,
   { type: "tool-web_search" }
 >;
 
-export function ToolWebSearch({
-  isStreaming,
-  part,
-}: {
-  isStreaming: boolean;
-  part: WebSearchPart;
-}) {
+export function ToolWebSearch({ part }: { part: WebSearchPart }) {
+  const { isStreaming } = useToolCallSession();
   if (!part.input) {
     return null;
   }

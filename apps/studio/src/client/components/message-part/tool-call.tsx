@@ -7,6 +7,7 @@ import { type RenderStream } from "../tool-part/task";
 import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallHeader } from "./tool-call-header";
+import { ToolCallSessionProvider } from "./tool-call-session";
 import { ToolChoose } from "./tool-choose";
 import { ToolCopyToProject } from "./tool-copy-to-project";
 import { ToolEditFile } from "./tool-edit-file";
@@ -34,30 +35,26 @@ export function ToolCall({
   renderStream: RenderStream;
 }) {
   return (
-    <ToolCallHeader
-      assetBaseUrl={project.urls.assetBase}
-      expandedContent={
-        <ToolCallExpanded
-          isStreaming={isStreaming}
+    <ToolCallSessionProvider
+      isAgentRunning={isAgentRunning}
+      isStreaming={isStreaming}
+    >
+      <ToolCallHeader assetBaseUrl={project.urls.assetBase} part={part}>
+        <ToolCallBody
           part={part}
           project={project}
           renderStream={renderStream}
         />
-      }
-      isAgentRunning={isAgentRunning}
-      isStreaming={isStreaming}
-      part={part}
-    />
+      </ToolCallHeader>
+    </ToolCallSessionProvider>
   );
 }
 
-function ToolCallExpanded({
-  isStreaming,
+function ToolCallBody({
   part,
   project,
   renderStream,
 }: {
-  isStreaming: boolean;
   part: SessionMessagePart.ToolPart;
   project: WorkspaceAppProject;
   renderStream: RenderStream;
@@ -71,7 +68,6 @@ function ToolCallExpanded({
       return (
         <ToolBash
           assetBaseUrl={project.urls.assetBase}
-          isStreaming={isStreaming}
           part={part}
         />
       );
@@ -80,15 +76,11 @@ function ToolCallExpanded({
       return <ToolChoose part={part} />;
     }
     case "tool-copy_to_project": {
-      return <ToolCopyToProject isStreaming={isStreaming} part={part} />;
+      return <ToolCopyToProject part={part} />;
     }
     case "tool-edit_file": {
       return (
-        <ToolEditFile
-          isStreaming={isStreaming}
-          part={part}
-          subdomain={project.subdomain}
-        />
+        <ToolEditFile part={part} subdomain={project.subdomain} />
       );
     }
     case "tool-generate_image": {
@@ -101,13 +93,13 @@ function ToolCallExpanded({
       );
     }
     case "tool-glob": {
-      return <ToolGlob isStreaming={isStreaming} part={part} />;
+      return <ToolGlob part={part} />;
     }
     case "tool-grep": {
-      return <ToolGrep isStreaming={isStreaming} part={part} />;
+      return <ToolGrep part={part} />;
     }
     case "tool-load_skill": {
-      return <ToolLoadSkill isStreaming={isStreaming} part={part} />;
+      return <ToolLoadSkill part={part} />;
     }
     case "tool-read_file": {
       return <ToolReadFile part={part} subdomain={project.subdomain} />;
@@ -115,7 +107,6 @@ function ToolCallExpanded({
     case "tool-task": {
       return (
         <ToolTask
-          isStreaming={isStreaming}
           part={part}
           project={project}
           renderStream={renderStream}
@@ -126,15 +117,11 @@ function ToolCallExpanded({
       return <ToolUnavailable part={part} />;
     }
     case "tool-web_search": {
-      return <ToolWebSearch isStreaming={isStreaming} part={part} />;
+      return <ToolWebSearch part={part} />;
     }
     case "tool-write_file": {
       return (
-        <ToolWriteFile
-          isStreaming={isStreaming}
-          part={part}
-          subdomain={project.subdomain}
-        />
+        <ToolWriteFile part={part} subdomain={project.subdomain} />
       );
     }
   }

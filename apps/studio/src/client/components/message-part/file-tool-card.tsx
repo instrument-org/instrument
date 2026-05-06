@@ -11,20 +11,24 @@ import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { VirtualizedScrollingText } from "../tool-part/virtualized-scrolling-text";
 import { ToolCard, ToolCardHeader } from "./tool-card";
+import { useToolCallSession } from "./tool-call-session";
 
 export function FileToolCard({
   content,
   filePath,
-  isStreaming,
+  isStreaming: isStreamingOverride,
   language,
   subdomain,
 }: {
   content: string;
   filePath: string;
-  isStreaming: boolean;
+  isStreaming?: boolean;
   language?: string;
   subdomain: ProjectSubdomain;
 }) {
+  const session = useToolCallSession();
+  const isStreaming = isStreamingOverride ?? session.isStreaming;
+
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
   const appendToPrompt = useSetAtom(appendToPromptAtom);

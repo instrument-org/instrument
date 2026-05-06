@@ -11,11 +11,9 @@ type EditFilePart = Extract<
 >;
 
 export function ToolEditFile({
-  isStreaming,
   part,
   subdomain,
 }: {
-  isStreaming: boolean;
   part: EditFilePart;
   subdomain: ProjectSubdomain;
 }) {
@@ -46,7 +44,6 @@ export function ToolEditFile({
     <FileToolCard
       content={content}
       filePath={filePath}
-      isStreaming={isStreaming}
       language={language}
       subdomain={subdomain}
     />

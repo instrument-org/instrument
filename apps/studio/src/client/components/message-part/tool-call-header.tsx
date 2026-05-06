@@ -3,7 +3,7 @@ import {
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 import { GlobeIcon, type Icon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import { filenameFromFilePath } from "../../lib/path-utils";
@@ -21,6 +21,7 @@ import {
 } from "../ui/collapsible";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { useToolCallSession } from "./tool-call-session";
 
 interface BrowserInfo {
   /** Sorted by visit count, descending. */
@@ -29,17 +30,14 @@ interface BrowserInfo {
 
 export function ToolCallHeader({
   assetBaseUrl,
-  expandedContent,
-  isAgentRunning,
-  isStreaming,
+  children,
   part,
 }: {
   assetBaseUrl: string;
-  expandedContent?: React.ReactNode;
-  isAgentRunning: boolean;
-  isStreaming: boolean;
+  children?: ReactNode;
   part: SessionMessagePart.ToolPart;
 }) {
+  const { isAgentRunning, isStreaming } = useToolCallSession();
   const [isExpanded, setIsExpanded] = useState(false);
   // Debounce both edges of isStreaming to avoid flickering open/closed for
   // tool calls that stream very briefly.
@@ -140,7 +138,7 @@ export function ToolCallHeader({
   return (
     <Collapsible onOpenChange={setIsExpanded} open={isOpen}>
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
-      <CollapsibleContent animated>{expandedContent}</CollapsibleContent>
+      <CollapsibleContent animated>{children}</CollapsibleContent>
     </Collapsible>
   );
 }
@@ -297,7 +295,7 @@ function ToolChip({
   className,
   isSelected,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
   isSelected?: boolean;
 }) {

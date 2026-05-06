@@ -3,19 +3,15 @@ import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { SessionMarkdown } from "../session-markdown";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import { useToolCallSession } from "./tool-call-session";
 
 type LoadSkillPart = Extract<
   SessionMessagePart.ToolPart,
   { type: "tool-load_skill" }
 >;
 
-export function ToolLoadSkill({
-  isStreaming,
-  part,
-}: {
-  isStreaming: boolean;
-  part: LoadSkillPart;
-}) {
+export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
+  const { isStreaming } = useToolCallSession();
   if (!part.input) {
     return null;
   }

@@ -67,9 +67,9 @@ function RouteComponent() {
         </div>
         <PromptInput
           allowOpenInNewTab
-          atomKey="$$new-tab$$"
           autoFocus
           autoResizeMaxHeight={300}
+          draft={{ atomKey: "$$new-tab$$", kind: "scratch" }}
           isLoading={createProjectMutation.isPending}
           modelURI={selectedModelURI}
           onModelChange={setSelectedModelURI}

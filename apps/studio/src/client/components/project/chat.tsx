@@ -246,9 +246,9 @@ export function ProjectChat({
         <div className="relative mx-auto w-full max-w-2xl px-3 pb-3">
           <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-3xl bg-background" />
           <PromptInput
-            atomKey={subdomain}
             autoFocus
             className="relative z-10"
+            draft={{ kind: "project", subdomain }}
             isLoading={createMessage.isPending}
             isStoppable={isAgentAlive}
             isSubmittable={!isAgentAlive}

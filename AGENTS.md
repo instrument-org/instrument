@@ -4,8 +4,8 @@
 
 ### Environment
 
-- **Node.js >= 24.14.1** required (uses `node:sqlite` built-in). Install from NodeSource 24.x repo.
-- **pnpm 10.33.0** via `corepack enable && corepack prepare pnpm@10.33.0 --activate`.
+- **pnpm 10.33.0** manages the Node.js version (24.14.1) via `devEngines.runtime` in `package.json` with `onFail: "download"`. Bootstrap with `corepack enable && corepack prepare pnpm@10.33.0 --activate`.
+- A system Node.js 24.x is needed to bootstrap corepack/pnpm; pnpm then ensures the exact version.
 - After `pnpm install`, run `./scripts/setup.sh` or manually: copy `apps/studio/.env.local.example` to `apps/studio/.env.local` and `git submodule update --init --recursive`.
 
 ### Running the Electron app (headless)

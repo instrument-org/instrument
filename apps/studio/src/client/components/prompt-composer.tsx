@@ -1,7 +1,4 @@
-/* eslint-disable @typescript-eslint/consistent-type-definitions -- compound composer context types */
-/* eslint-disable react-refresh/only-export-components -- compound exports share one module */
-/* eslint-disable react-hooks/immutability -- callback refs assign Root-owned refs */
-/* eslint-disable react-hooks/refs -- composer forwards stable RefObjects via context */
+/* eslint-disable react-refresh/only-export-components */
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import {
   promptInputRefAtom,
@@ -30,16 +27,9 @@ import {
   useWindowFileDrop,
 } from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import {
-  type AIGatewayModel,
-  type AIGatewayModelURI,
-} from "@instrument-org/ai-gateway/client";
+import { rpcClient } from "@/client/rpc/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
-import {
-  type FileUpload,
-  type ProjectSubdomain,
-} from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import {
   ArrowUpIcon,
@@ -54,13 +44,10 @@ import { useAtom, useSetAtom } from "jotai";
 import {
   type ChangeEvent,
   type ClipboardEvent,
-  createContext,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
   type Ref,
-  type RefObject,
-  use,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -71,88 +58,29 @@ import {
 import { toast } from "sonner";
 import { ulid } from "ulid";
 
+import {
+  type AttachedItem,
+  PromptComposerContext,
+  type PromptComposerContextValue,
+  type PromptComposerDraft,
+  type PromptComposerSubmitPayload,
+  usePromptComposer,
+} from "./prompt-composer-context";
 import { Spinner } from "./ui/spinner";
 
-type AttachedItem =
-  | {
-      content: string;
-      id: string;
-      mimeType: string;
-      name: string;
-      size: number;
-      type: "file";
-      url?: string;
-    }
-  | {
-      id: string;
-      path: string;
-      type: "folder";
-    };
+export type {
+  PromptComposerDraft,
+  PromptComposerSubmitPayload,
+} from "./prompt-composer-context";
 
 const MAX_PASTE_TEXT_LENGTH = 5000;
 const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 
-export type PromptComposerDraft =
-  | { atomKey: "$$new-tab$$" | "$$template$$"; kind: "scratch" }
-  | { kind: "project"; subdomain: ProjectSubdomain };
-
-export type PromptComposerSubmitPayload = {
-  files?: FileUpload.Type[];
-  folders?: { path: string }[];
-  modelURI: AIGatewayModelURI.Type;
-  openInNewTab?: boolean;
-  prompt: string;
-};
-
-type PromptComposerContextValue = {
-  actions: {
-    handleFileInputChange: (e: ChangeEvent<HTMLInputElement>) => void;
-    handleFolderPick: () => Promise<void>;
-    handleInputChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
-    handleKeyDown: (e: KeyboardEvent) => void;
-    handlePaste: (e: ClipboardEvent<HTMLTextAreaElement>) => void;
-    handleStop: () => void;
-    handleSubmitClick: (e: MouseEvent<HTMLButtonElement>) => void;
-    onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-    openAttachFiles: () => void;
-    removeAttachedItem: (index: number) => void;
-    setShowAIProviderGuard: (open: boolean) => void;
-  };
-  meta: {
-    autoFocus: boolean;
-    fileInputRef: RefObject<HTMLInputElement | null>;
-    placeholder?: string;
-    surfaceClassName?: string;
-    textareaInnerRef: RefObject<HTMLTextAreaElement | null>;
-    textareaRef: RefObject<HTMLDivElement | null>;
-  };
-  state: {
-    attachedItems: AttachedItem[];
-    autoResizeMaxHeight: number;
-    canSubmit: boolean;
-    disabled: boolean;
-    isDragging: boolean;
-    isInvalidOurModel: boolean;
-    isLoading: boolean;
-    isStoppable: boolean;
-    modelsErrors: RPCOutput["gateway"]["models"]["list"]["errors"];
-    modelsIsError: boolean;
-    modelsIsLoading: boolean;
-    modelsList: AIGatewayModel.Type[] | undefined;
-    modelsRefetch: () => void;
-    modelURI: AIGatewayModelURI.Type | undefined;
-    selectedModel: AIGatewayModel.Type | undefined;
-    showAIProviderGuard: boolean;
-    value: string;
-  };
-};
-
-type PromptComposerRootProps = {
+interface PromptComposerRootProps {
   allowOpenInNewTab?: boolean;
   autoFocus?: boolean;
   autoResizeMaxHeight?: number;
   children: ReactNode;
-  className?: string;
   disabled?: boolean;
   draft: PromptComposerDraft;
   isLoading: boolean;
@@ -164,20 +92,7 @@ type PromptComposerRootProps = {
   onSubmit: (value: PromptComposerSubmitPayload) => void;
   placeholder?: string;
   ref?: Ref<{ focus: () => void }>;
-};
-
-function promptComposerDraftToAtomKey(
-  draft: PromptComposerDraft,
-): PromptValueAtomKey {
-  if (draft.kind === "scratch") {
-    return draft.atomKey;
-  }
-  return draft.subdomain;
 }
-
-const PromptComposerContext = createContext<null | PromptComposerContextValue>(
-  null,
-);
 
 function PromptComposerAIProviderGuardDialog() {
   const { actions, state } = usePromptComposer();
@@ -235,6 +150,15 @@ function PromptComposerAttachments() {
   );
 }
 
+function promptComposerDraftToAtomKey(
+  draft: PromptComposerDraft,
+): PromptValueAtomKey {
+  if (draft.kind === "scratch") {
+    return draft.atomKey;
+  }
+  return draft.subdomain;
+}
+
 function PromptComposerDropOverlay() {
   const { state } = usePromptComposer();
   if (!state.isDragging) {
@@ -251,13 +175,22 @@ function PromptComposerDropOverlay() {
 }
 
 function PromptComposerFileInput() {
-  const { actions, meta } = usePromptComposer();
+  const { actions } = usePromptComposer();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    actions.registerFileInputRef(inputRef.current);
+    return () => {
+      actions.registerFileInputRef(null);
+    };
+  }, [actions]);
+
   return (
     <input
       className="hidden"
       multiple
       onChange={actions.handleFileInputChange}
-      ref={meta.fileInputRef}
+      ref={inputRef}
       type="file"
     />
   );
@@ -337,7 +270,6 @@ function PromptComposerRoot({
   autoFocus = false,
   autoResizeMaxHeight = 400,
   children,
-  className,
   disabled = false,
   draft,
   isLoading,
@@ -353,7 +285,6 @@ function PromptComposerRoot({
   const atomKey = promptComposerDraftToAtomKey(draft);
   const [showAIProviderGuard, setShowAIProviderGuard] = useState(false);
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
-  const textareaRef = useRef<HTMLDivElement>(null);
   const textareaInnerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useAtom(promptValueAtomFamily(atomKey));
@@ -372,10 +303,6 @@ function PromptComposerRoot({
   } = useQuery(rpcClient.gateway.models.live.list.experimental_liveOptions());
   const { errors: modelsErrors, models: modelsList } = modelsData ?? {};
 
-  const refetchModelsList = () => {
-    void modelsRefetch();
-  };
-
   const hasPlan = useHasPlan();
 
   const selectedModel = modelsList?.find((model) => model.uri === modelURI);
@@ -389,12 +316,6 @@ function PromptComposerRoot({
     selectedModel.params.provider === OUR_MODELS.providerType &&
     selectedModel.providerId !== OUR_MODELS.text.id &&
     selectedModel.tags.includes("premium");
-
-  const resetTextareaHeight = () => {
-    if (textareaInnerRef.current) {
-      textareaInnerRef.current.style.height = "auto";
-    }
-  };
 
   const adjustHeight = useCallback(() => {
     const el = textareaInnerRef.current;
@@ -490,9 +411,7 @@ function PromptComposerRoot({
     if (!files) {
       return;
     }
-
     processFiles(files);
-
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -591,12 +510,10 @@ function PromptComposerRoot({
     if (!(allowOpenInNewTab && openInNewTab)) {
       setValue("");
       setAttachedItems([]);
-      resetTextareaHeight();
+      if (textareaInnerRef.current) {
+        textareaInnerRef.current.style.height = "auto";
+      }
     }
-  };
-
-  const handleStop = () => {
-    onStop?.();
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -666,7 +583,7 @@ function PromptComposerRoot({
 
   const handleSubmitClick = (e: MouseEvent<HTMLButtonElement>) => {
     if (isStoppable) {
-      handleStop();
+      onStop?.();
     } else {
       const openInNewTab =
         allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
@@ -681,24 +598,26 @@ function PromptComposerRoot({
       handleInputChange,
       handleKeyDown,
       handlePaste,
-      handleStop,
       handleSubmitClick,
       onModelChange,
+      onStop,
       openAttachFiles: () => fileInputRef.current?.click(),
+      registerFileInputRef: (el) => {
+        fileInputRef.current = el;
+      },
+      registerTextareaInnerRef: (el) => {
+        textareaInnerRef.current = el;
+      },
       removeAttachedItem,
       setShowAIProviderGuard,
     },
     meta: {
       autoFocus,
-      fileInputRef,
+      autoResizeMaxHeight,
       placeholder,
-      surfaceClassName: className,
-      textareaInnerRef,
-      textareaRef,
     },
     state: {
       attachedItems,
-      autoResizeMaxHeight,
       canSubmit,
       disabled,
       isDragging,
@@ -709,7 +628,7 @@ function PromptComposerRoot({
       modelsIsError,
       modelsIsLoading,
       modelsList,
-      modelsRefetch: refetchModelsList,
+      modelsRefetch: () => void modelsRefetch(),
       modelURI,
       selectedModel,
       showAIProviderGuard,
@@ -724,17 +643,24 @@ function PromptComposerRoot({
   );
 }
 
-function PromptComposerSurface({ children }: { children: ReactNode }) {
-  const { meta, state } = usePromptComposer();
+function PromptComposerSurface({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const { meta } = usePromptComposer();
+  const containerRef = useRef<HTMLDivElement>(null);
   return (
     <TextareaContainer
       className={cn(
         "relative overflow-hidden rounded-3xl p-4",
         "bg-card dark:bg-card",
-        meta.surfaceClassName,
+        className,
       )}
-      ref={meta.textareaRef}
-      style={{ maxHeight: `${state.autoResizeMaxHeight}px` }}
+      ref={containerRef}
+      style={{ maxHeight: `${meta.autoResizeMaxHeight}px` }}
     >
       {children}
     </TextareaContainer>
@@ -744,6 +670,16 @@ function PromptComposerSurface({ children }: { children: ReactNode }) {
 function PromptComposerTextArea() {
   const { actions, meta, state } = usePromptComposer();
   const setInputRef = useSetAtom(promptInputRefAtom);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    actions.registerTextareaInnerRef(textareaRef.current);
+    setInputRef(textareaRef.current);
+    return () => {
+      actions.registerTextareaInnerRef(null);
+      setInputRef(null);
+    };
+  }, [actions, setInputRef]);
 
   return (
     <TextareaInner
@@ -754,23 +690,10 @@ function PromptComposerTextArea() {
       onKeyDown={actions.handleKeyDown}
       onPaste={actions.handlePaste}
       placeholder={meta.placeholder}
-      ref={(el) => {
-        meta.textareaInnerRef.current = el;
-        setInputRef(el);
-      }}
+      ref={textareaRef}
       value={state.value}
     />
   );
-}
-
-function usePromptComposer() {
-  const value = use(PromptComposerContext);
-  if (!value) {
-    throw new Error(
-      "PromptComposer components must be used within PromptComposer.Root",
-    );
-  }
-  return value;
 }
 
 export const PromptComposer = {
@@ -784,7 +707,4 @@ export const PromptComposer = {
   TextArea: PromptComposerTextArea,
 };
 
-/* eslint-enable @typescript-eslint/consistent-type-definitions */
 /* eslint-enable react-refresh/only-export-components */
-/* eslint-enable react-hooks/immutability */
-/* eslint-enable react-hooks/refs */

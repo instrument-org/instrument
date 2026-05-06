@@ -47,7 +47,6 @@ export function PromptInput({
       allowOpenInNewTab={allowOpenInNewTab}
       autoFocus={autoFocus}
       autoResizeMaxHeight={autoResizeMaxHeight}
-      className={className}
       disabled={disabled}
       draft={draft}
       isLoading={isLoading}
@@ -61,7 +60,7 @@ export function PromptInput({
       ref={ref}
     >
       <>
-        <PromptComposer.Surface>
+        <PromptComposer.Surface className={className}>
           <PromptComposer.Attachments />
           <PromptComposer.DropOverlay />
           <PromptComposer.FileInput />

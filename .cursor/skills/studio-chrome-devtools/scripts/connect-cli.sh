@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+CHROME_DEVTOOLS=(pnpm exec chrome-devtools)
+
 browser_url="${1:-http://127.0.0.1:48160}"
 page_hint="${2:-}"
 
@@ -35,10 +37,10 @@ main().catch((error) => {
 NODE
 
 echo "[info] Starting chrome-devtools bridge for ${browser_url}"
-chrome-devtools start --browserUrl "${browser_url}" > /dev/null
+"${CHROME_DEVTOOLS[@]}" start --browserUrl "${browser_url}" > /dev/null
 
 set +e
-pages_json="$(chrome-devtools list_pages --output-format=json 2>&1)"
+pages_json="$("${CHROME_DEVTOOLS[@]}" list_pages --output-format=json 2>&1)"
 status=$?
 set -e
 
@@ -84,5 +86,5 @@ if [[ -z "${page_id}" ]]; then
 fi
 
 echo "[info] Selecting page ${page_id} matching ${page_hint}"
-chrome-devtools select_page "${page_id}" --bringToFront true > /dev/null
-chrome-devtools take_snapshot
+"${CHROME_DEVTOOLS[@]}" select_page "${page_id}" --bringToFront true > /dev/null
+"${CHROME_DEVTOOLS[@]}" take_snapshot

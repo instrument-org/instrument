@@ -13,19 +13,26 @@ Use it alongside the generic `chrome-devtools` or `chrome-devtools-cli` skill fo
 
 Studio exposes a remote debugging endpoint on port `48160`.
 
-- CLI: start with `chrome-devtools start --browserUrl http://127.0.0.1:48160`
-- MCP config: launch `chrome-devtools-mcp` with `--browserUrl=http://127.0.0.1:48160`
+- CLI: start with `pnpm exec chrome-devtools start --browserUrl http://127.0.0.1:48160`
+- MCP config: launch `pnpm exec chrome-devtools-mcp` with `--browserUrl=http://127.0.0.1:48160`
 
 Useful probe endpoints:
 
 - `http://127.0.0.1:48160/json/version`
 - `http://127.0.0.1:48160/json/list`
 
+The `chrome-devtools-mcp` package is installed as a dev dependency at the monorepo root.
+Always invoke it via `pnpm exec`, never a global install:
+
+```bash
+pnpm exec chrome-devtools <subcommand>
+```
+
 Important CLI nuances:
 
 - `--browserUrl` belongs on `chrome-devtools start`, not on `list_pages`, `take_snapshot`, or other subcommands.
 - After `start`, later subcommands talk to the local CLI daemon and do not need `--browserUrl`.
-- `chrome-devtools start` may print very little on success. Verify with `chrome-devtools list_pages`.
+- `pnpm exec chrome-devtools start` may print very little on success. Verify with `pnpm exec chrome-devtools list_pages`.
 - All subsequent subcommands operate on the currently selected page. Use `select_page <id>` to switch pages.
 - `list_pages --output-format=json` returns `{ pages: [{ id, url, selected }], extensionServiceWorkers: [] }`.
 
@@ -50,8 +57,8 @@ bash .cursor/skills/studio-chrome-devtools/scripts/connect-cli.sh \
 What the script does:
 
 1. Probes `/json/version` and `/json/list` on Studio's Electron debug port.
-2. Runs `chrome-devtools start --browserUrl ...`.
-3. Runs `chrome-devtools list_pages --output-format=json`.
+2. Runs `pnpm exec chrome-devtools start --browserUrl ...`.
+3. Runs `pnpm exec chrome-devtools list_pages --output-format=json`.
 4. If a URL hint was provided, selects the first non-shield page whose URL contains that hint and runs `take_snapshot`.
 
 Run this script outside the sandbox. In Cursor Shell calls, use `required_permissions: ["all"]`. If the raw `/json/*` probes work but the CLI still fails with `ENOENT`, the daemon socket is the problem.
@@ -116,7 +123,7 @@ The smoke test in `apps/studio/smoke-test.spec.ts` is the model to follow: it fi
 Use `evaluate_script` (not `evaluate_js`) to run code in the selected page:
 
 ```bash
-chrome-devtools evaluate_script "function() {
+pnpm exec chrome-devtools evaluate_script "function() {
   return document.title;
 }"
 ```
@@ -129,4 +136,4 @@ expression. The function must return a JSON-serializable value.
 - On Linux, Studio enables Chromium's `allow-pre-commit-input` switch to make CDP mouse input work better with occluded `WebContentsView`s.
 - If an interaction fails, re-run `list_pages` and `take_snapshot` before retrying. A different view may now be selected or exposed.
 - For route-specific work, prefer selecting the page that already has the target route open over trying to navigate the wrong renderer into place.
-- `chrome-devtools list_pages --output-format=json` is useful when a script needs stable page ids for the current CLI session.
+- `pnpm exec chrome-devtools list_pages --output-format=json` is useful when a script needs stable page ids for the current CLI session.

@@ -51,7 +51,6 @@ export function ToolReadFile({
         <FileToolCard
           content={output.content}
           filePath={output.filePath}
-          isStreaming={false}
           subdomain={subdomain}
         />
       );
@@ -75,7 +74,6 @@ export function ToolReadFile({
         <FileToolCard
           content={output.entries.join("\n")}
           filePath={output.filePath}
-          isStreaming={false}
           subdomain={subdomain}
         />
       );

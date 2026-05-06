@@ -3,6 +3,7 @@ import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
+import { useToolCallSession } from "./tool-call-session";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type WebSearchPart = Extract<
@@ -10,13 +11,8 @@ type WebSearchPart = Extract<
   { type: "tool-web_search" }
 >;
 
-export function ToolWebSearch({
-  isStreaming,
-  part,
-}: {
-  isStreaming: boolean;
-  part: WebSearchPart;
-}) {
+export function ToolWebSearch({ part }: { part: WebSearchPart }) {
+  const { isStreaming } = useToolCallSession();
   if (!part.input) {
     return null;
   }

@@ -10,21 +10,22 @@ import { filenameFromFilePath } from "../../lib/path-utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { VirtualizedScrollingText } from "../tool-part/virtualized-scrolling-text";
+import { useToolCallSession } from "./tool-call-session";
 import { ToolCard, ToolCardHeader } from "./tool-card";
 
 export function FileToolCard({
   content,
   filePath,
-  isStreaming,
   language,
   subdomain,
 }: {
   content: string;
   filePath: string;
-  isStreaming: boolean;
   language?: string;
   subdomain: ProjectSubdomain;
 }) {
+  const { isStreaming } = useToolCallSession();
+
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
   const appendToPrompt = useSetAtom(appendToPromptAtom);

@@ -15,6 +15,7 @@ import {
   CollapsiblePartTrigger,
 } from "../collapsible-part";
 import { Favicon } from "../favicon";
+import { ToolCallSessionProvider } from "../message-part/tool-call-session";
 import { ToolIcon } from "../tool-icon";
 import {
   Collapsible,
@@ -120,12 +121,13 @@ export function ToolPart({
 
   if (part.type === "tool-task") {
     return (
-      <TaskToolCard
-        isStreaming={isStreaming}
-        part={part}
-        project={project}
-        renderStream={renderStream}
-      />
+      <ToolCallSessionProvider isAgentRunning={false} isStreaming={isStreaming}>
+        <TaskToolCard
+          part={part}
+          project={project}
+          renderStream={renderStream}
+        />
+      </ToolCallSessionProvider>
     );
   }
 

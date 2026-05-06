@@ -13,10 +13,11 @@ Set `NO_SANDBOX=1` (read by electron-vite's `startElectron`). Turbo doesn't forw
 
 ```bash
 cd packages/shim-client && pnpm dev          # port 48350
-cd apps/studio && NO_SANDBOX=1 pnpm dev      # ports 5173, 48300
+cd apps/studio && NO_SANDBOX=1 REMOTE_DEBUGGING_PORT=48160 pnpm dev
 ```
 
-Ensure `DISPLAY=:1` (Xvfb). D-Bus errors are harmless.
+- `REMOTE_DEBUGGING_PORT=48160` enables the CDP endpoint used by `chrome-devtools-mcp` and the devtools skill. Without it, port 48160 won't be listening.
+- Ensure `DISPLAY=:1` (Xvfb). D-Bus errors are harmless.
 
 ### Quick reference
 

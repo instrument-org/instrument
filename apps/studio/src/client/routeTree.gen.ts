@@ -38,6 +38,7 @@ import { Route as AppNot_authenticatedSignInRouteImport } from './routes/_app/_n
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
+import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
 import { Route as AppDebugComponentsSessionStreamRouteImport } from './routes/_app/debug/components/session-stream'
 import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
@@ -189,6 +190,12 @@ const AppDebugComponentsIndexRoute = AppDebugComponentsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugComponentsRoute,
 } as any)
+const AppDebugComponentsSpinnerRoute =
+  AppDebugComponentsSpinnerRouteImport.update({
+    id: '/spinner',
+    path: '/spinner',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsSessionStreamRoute =
   AppDebugComponentsSessionStreamRouteImport.update({
     id: '/session-stream',
@@ -236,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
+  '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
 }
@@ -264,6 +272,7 @@ export interface FileRoutesByTo {
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
+  '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
 }
@@ -299,6 +308,7 @@ export interface FileRoutesById {
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/_app/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
+  '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
 }
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/debug/browser-view/$targetId'
     | '/debug/components/error-card'
     | '/debug/components/session-stream'
+    | '/debug/components/spinner'
     | '/debug/components/'
     | '/projects/$subdomain'
   fileRoutesByTo: FileRoutesByTo
@@ -360,6 +371,7 @@ export interface FileRouteTypes {
     | '/debug/browser-view/$targetId'
     | '/debug/components/error-card'
     | '/debug/components/session-stream'
+    | '/debug/components/spinner'
     | '/debug/components'
     | '/projects/$subdomain'
   id:
@@ -394,6 +406,7 @@ export interface FileRouteTypes {
     | '/_app/debug/browser-view/$targetId'
     | '/_app/debug/components/error-card'
     | '/_app/debug/components/session-stream'
+    | '/_app/debug/components/spinner'
     | '/_app/debug/components/'
     | '/_app/projects/$subdomain/'
   fileRoutesById: FileRoutesById
@@ -610,6 +623,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsIndexRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/spinner': {
+      id: '/_app/debug/components/spinner'
+      path: '/spinner'
+      fullPath: '/debug/components/spinner'
+      preLoaderRoute: typeof AppDebugComponentsSpinnerRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/session-stream': {
       id: '/_app/debug/components/session-stream'
       path: '/session-stream'
@@ -666,12 +686,14 @@ const AppNot_authenticatedRouteRouteWithChildren =
 interface AppDebugComponentsRouteChildren {
   AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
   AppDebugComponentsSessionStreamRoute: typeof AppDebugComponentsSessionStreamRoute
+  AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
   AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
 }
 
 const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
   AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
   AppDebugComponentsSessionStreamRoute: AppDebugComponentsSessionStreamRoute,
+  AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
   AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
 }
 

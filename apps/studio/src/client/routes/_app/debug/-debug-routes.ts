@@ -72,6 +72,11 @@ export const componentPages = [
     label: "Error Card",
     to: "/debug/components/error-card",
   },
+  {
+    id: "spinner",
+    label: "Spinner",
+    to: "/debug/components/spinner",
+  },
 ] as const;
 
 type DebugRouteId = (typeof debugRoutes)[number]["id"];

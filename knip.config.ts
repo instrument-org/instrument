@@ -9,7 +9,7 @@ const config: KnipConfig = {
         "@posthog/cli", // Used in .github/workflows/release.yml to upload source maps to PostHog
         "tailwindcss", // Required because tailwindcss is loaded in root by Knip because of eslint-plugin-better-tailwindcss
         "markdownlint", // markdownlint used by VSCode Extension for the markdownlint/style/prettier
-        "chrome-devtools", // Used in .cursor/skills/studio-chrome-devtools/scripts/connect-cli.sh
+        "chrome-devtools-mcp", // Used in .cursor/skills/studio-chrome-devtools/scripts/connect-cli.sh
       ],
     },
     "apps/api": {

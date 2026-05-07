@@ -34,6 +34,9 @@ import { createWhichCommand } from "./shell-commands/which";
 
 // cspell:ignore mixmark papaparse
 
+/** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (10 MiB). */
+const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
+
 function stubCommand(
   name: string,
   message = "this command is non-functional in the sandboxed environment",
@@ -264,7 +267,10 @@ export function createBashEnv({
   sessionId: StoreId.Session;
   upsertContextItem: UpsertContextItem;
 }) {
-  const fs = new ReadWriteFs({ root: appConfig.appDir });
+  const fs = new ReadWriteFs({
+    maxFileReadSize: SANDBOX_MAX_BYTES,
+    root: appConfig.appDir,
+  });
 
   const allowedCommands = [
     ...getCommandNames(),
@@ -297,6 +303,10 @@ export function createBashEnv({
       ...STATIC_STUB_COMMANDS,
     ],
     cwd: "/",
+    executionLimits: {
+      maxOutputSize: SANDBOX_MAX_BYTES,
+      maxStringLength: SANDBOX_MAX_BYTES,
+    },
     network: {
       // No per-domain allow-list to maintain; the agent legitimately fetches
       // arbitrary public URLs (downloads, scraping, etc.). Someday: gate this
@@ -305,6 +315,7 @@ export function createBashEnv({
       // SSRF block: loopback/RFC1918/metadata, with DNS check + redirect re-check.
       // Enforced even when the dangerously-allow flag is on.
       denyPrivateRanges: true,
+      maxResponseSize: SANDBOX_MAX_BYTES,
     },
     // Seed with process.env so PATH and other system vars are available to
     // commands that pass ctx.env explicitly (e.g. pnpm, tsx). Provider env

@@ -1,5 +1,6 @@
+import { APICallError } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
 import { ProjectSubdomainSchema } from "../schemas/subdomains";
@@ -56,7 +57,16 @@ function createMockMessage(text: string) {
 
 const mockMessage = createMockMessage("Build a todo app");
 
-function setupTest(generatedText: string) {
+function createMockLanguageModelThatThrows(error: Error) {
+  return new MockLanguageModelV3({
+    doGenerate: () => Promise.reject(error),
+  });
+}
+
+function setupTest(
+  generatedText: string,
+  options: { captureException?: (...args: unknown[]) => void } = {},
+) {
   const mockLanguageModel = createMockLanguageModel(generatedText);
   const model = createMockAIGatewayModel();
   const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("mock"), {
@@ -64,12 +74,46 @@ function setupTest(generatedText: string) {
     model,
   });
 
+  const workspaceConfig = options.captureException
+    ? {
+        ...appConfig.workspaceConfig,
+        captureException: options.captureException,
+      }
+    : appConfig.workspaceConfig;
+
   return {
     generate: (message = mockMessage) =>
       generateTitleFromUserMessage({
         message,
         model,
-        workspaceConfig: appConfig.workspaceConfig,
+        workspaceConfig,
+      }),
+  };
+}
+
+function setupTestWithModel(
+  languageModel: MockLanguageModelV3,
+  options: { captureException?: (...args: unknown[]) => void } = {},
+) {
+  const model = createMockAIGatewayModel();
+  const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("mock"), {
+    aiSDKModel: languageModel,
+    model,
+  });
+
+  const workspaceConfig = options.captureException
+    ? {
+        ...appConfig.workspaceConfig,
+        captureException: options.captureException,
+      }
+    : appConfig.workspaceConfig;
+
+  return {
+    generate: (message = mockMessage) =>
+      generateTitleFromUserMessage({
+        message,
+        model,
+        workspaceConfig,
       }),
   };
 }
@@ -168,5 +212,76 @@ describe("generateTitleFromUserMessage", () => {
 
     expect(title.split(" ")).toHaveLength(5);
     expect(title).toBe("Chat アプリ with ファイル upload");
+  });
+
+  describe("captureException behavior", () => {
+    it("calls captureException for unexpected errors", async () => {
+      const captureException = vi.fn();
+      const unknownError = new Error("Something unexpected");
+      const { generate } = setupTestWithModel(
+        createMockLanguageModelThatThrows(unknownError),
+        { captureException },
+      );
+
+      const result = await generate();
+
+      expect(result.isErr()).toBe(true);
+      expect(captureException).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledWith(unknownError);
+    });
+
+    it("does not call captureException for non-retryable gateway errors", async () => {
+      const captureException = vi.fn();
+      const gatewayError = new APICallError({
+        isRetryable: false,
+        message: "Insufficient credits.",
+        requestBodyValues: {},
+        responseBody: JSON.stringify({
+          error: {
+            code: "insufficient-credits",
+            message: "Insufficient credits.",
+            retryable: false,
+          },
+        }),
+        statusCode: 403,
+        url: "https://example.com",
+      });
+      const { generate } = setupTestWithModel(
+        createMockLanguageModelThatThrows(gatewayError),
+        { captureException },
+      );
+
+      const result = await generate();
+
+      expect(result.isErr()).toBe(true);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("calls captureException for retryable gateway errors", async () => {
+      const captureException = vi.fn();
+      const gatewayError = new APICallError({
+        isRetryable: false, // prevents AI SDK from retrying in test
+        message: "Internal server error.",
+        requestBodyValues: {},
+        responseBody: JSON.stringify({
+          error: {
+            code: "internal-server-error",
+            message: "Internal server error.",
+            retryable: true,
+          },
+        }),
+        statusCode: 500,
+        url: "https://example.com",
+      });
+      const { generate } = setupTestWithModel(
+        createMockLanguageModelThatThrows(gatewayError),
+        { captureException },
+      );
+
+      const result = await generate();
+
+      expect(result.isErr()).toBe(true);
+      expect(captureException).toHaveBeenCalledOnce();
+    });
   });
 });

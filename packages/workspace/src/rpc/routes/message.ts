@@ -141,8 +141,6 @@ const create = base
               sessionId: message.metadata.sessionId,
               title: title.value,
             });
-          } else {
-            context.workspaceConfig.captureException(title.error);
           }
         });
       }

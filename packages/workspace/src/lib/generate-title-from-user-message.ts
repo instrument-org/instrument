@@ -10,6 +10,7 @@ import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
+import { isNonRetryableGatewayError } from "./gateway-response-body";
 import { textForMessage } from "./text-for-message";
 
 const MAX_TITLE_WORDS = 5;
@@ -81,8 +82,13 @@ export function generateTitleFromUserMessage({
     })(),
     (error: unknown) => ({
       message: `Failed to generate title: ${error instanceof Error ? error.message : String(error)}`,
+      originalError: error,
     }),
-  );
+  ).orTee(({ originalError }) => {
+    if (!isNonRetryableGatewayError(originalError)) {
+      workspaceConfig.captureException(originalError);
+    }
+  });
 }
 
 function buildSystemPrompt(templateTitle?: string): string {

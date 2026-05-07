@@ -263,8 +263,6 @@ const create = base
                 secondManifestResult.error,
               );
             }
-          } else {
-            context.workspaceConfig.captureException(title.error);
           }
         });
       }

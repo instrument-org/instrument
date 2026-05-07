@@ -66,7 +66,7 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
       }
     }
 
-    // For Quest provider, check if the response explicitly says not retryable
+    // For our provider, check if the response explicitly says not retryable
     if (
       message.metadata.aiGatewayModel?.params.provider ===
       OUR_PROVIDER_CONFIG.type
@@ -89,7 +89,7 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
       return { type: "retry" };
     }
 
-    // For non-Quest providers with API errors, default to retryable
+    // For other providers with API errors, default to retryable
     return { type: "retry" };
   }
 

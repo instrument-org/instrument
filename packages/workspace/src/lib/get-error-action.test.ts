@@ -148,7 +148,7 @@ describe("getErrorAction", () => {
       });
     });
 
-    describe("non-quest provider", () => {
+    describe("non-our-provider", () => {
       it("returns retry for api-call errors", () => {
         const message = createMessage(
           {

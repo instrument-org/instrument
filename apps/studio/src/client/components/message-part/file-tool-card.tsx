@@ -57,6 +57,10 @@ export function FileToolCard({
     });
   };
 
+  if (!content) {
+    return null;
+  }
+
   return (
     <ToolCard>
       <ToolCardHeader className="flex items-center justify-between">
@@ -70,32 +74,34 @@ export function FileToolCard({
           </span>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
-          <ConfirmedIconButton
-            className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-            icon={ChatIcon}
-            onClick={handleAddToChat}
-            successTooltip="Added!"
-            tooltip="Add to chat"
-            variant="ghost"
-          />
-          <ConfirmedIconButton
-            className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-            icon={ArrowsOutSimpleIcon}
-            onClick={handleExpand}
-            successTooltip="Opened!"
-            tooltip="Open in panel"
-            variant="ghost"
-          />
-          <ConfirmedIconButton
-            className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-            icon={CopyIcon}
-            onClick={handleCopy}
-            successTooltip="Copied!"
-            tooltip="Copy"
-            variant="ghost"
-          />
-        </div>
+        {!isStreaming && (
+          <div className="flex shrink-0 items-center gap-3">
+            <ConfirmedIconButton
+              className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
+              icon={ChatIcon}
+              onClick={handleAddToChat}
+              successTooltip="Added!"
+              tooltip="Add to chat"
+              variant="ghost"
+            />
+            <ConfirmedIconButton
+              className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
+              icon={ArrowsOutSimpleIcon}
+              onClick={handleExpand}
+              successTooltip="Opened!"
+              tooltip="Open in panel"
+              variant="ghost"
+            />
+            <ConfirmedIconButton
+              className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
+              icon={CopyIcon}
+              onClick={handleCopy}
+              successTooltip="Copied!"
+              tooltip="Copy"
+              variant="ghost"
+            />
+          </div>
+        )}
       </ToolCardHeader>
 
       <div className="px-4 py-3">

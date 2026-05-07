@@ -42,17 +42,10 @@ jobs:
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
       - name: Build and run smoke test
         run: pnpm turbo run smoke-test
-      - name: Upload main window screenshot
+      - name: Upload smoke test screenshots
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: apps/studio/smoke-test-screenshots/main-window-${{ runner.os == 'macOS' && 'darwin' || runner.os == 'Windows' && 'win32' || 'linux' }}.png
-          archive: false
-          if-no-files-found: ignore
-      - name: Upload sidebar window screenshot
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          path: apps/studio/smoke-test-screenshots/sidebar-window-${{ runner.os == 'macOS' && 'darwin' || runner.os == 'Windows' && 'win32' || 'linux' }}.png
-          archive: false
+          name: smoke-test-screenshots-${{ runner.os }}
+          path: apps/studio/smoke-test-screenshots/*.png
           if-no-files-found: ignore

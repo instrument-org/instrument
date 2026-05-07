@@ -3,7 +3,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/client/components/ui/avatar";
-import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -99,12 +98,9 @@ export function NavUser() {
                 <span className="truncate font-medium">{user.name}</span>
                 {subscription &&
                   (isOutOfCredits ? (
-                    <Badge
-                      className="w-fit px-1 py-0.5 text-xs"
-                      variant="warning"
-                    >
+                    <span className="truncate text-[10px] tracking-wide text-muted-foreground/70 uppercase">
                       No credits
-                    </Badge>
+                    </span>
                   ) : (
                     <span className="truncate text-xs text-muted-foreground">
                       {planName ?? "Free"}

@@ -102,6 +102,8 @@ export function VirtualizedScrollingText({
     </div>
   );
 
+  const canScrollUp = scrollOffset > 0;
+
   return (
     <div className="relative">
       <div
@@ -116,7 +118,10 @@ export function VirtualizedScrollingText({
       >
         {contentInner}
       </div>
-      {autoScrollToBottom && canScrollDown && (
+      {canScrollUp && (
+        <div className="pointer-events-none absolute top-0 right-0 left-0 z-10 h-6 bg-linear-to-b from-card to-transparent" />
+      )}
+      {canScrollDown && (
         <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10 h-6 bg-linear-to-t from-card to-transparent" />
       )}
     </div>

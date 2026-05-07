@@ -1,32 +1,7 @@
 import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
-import { z } from "zod";
 
 import { type SessionMessage } from "../schemas/session/message";
-
-const responseBodySchema = z
-  .string()
-  .transform((jsonString, ctx) => {
-    try {
-      return JSON.parse(jsonString) as unknown;
-    } catch (error: unknown) {
-      ctx.addIssue({
-        code: "custom",
-        message: error instanceof Error ? error.message : "Invalid JSON",
-      });
-      return z.NEVER;
-    }
-  })
-  .pipe(
-    z.object({
-      error: z
-        .object({
-          code: z.string().optional(),
-          message: z.string().optional(),
-          retryable: z.boolean().optional(),
-        })
-        .optional(),
-    }),
-  );
+import { gatewayResponseBodySchema } from "./gateway-response-body";
 
 type ErrorAction =
   | { error: Error; type: "error" }
@@ -55,7 +30,7 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
   if (error.kind === "api-call") {
     // Check for insufficient balance errors, e.g. DeepSeek does this
     if (error.responseBody) {
-      const result = responseBodySchema.safeParse(error.responseBody);
+      const result = gatewayResponseBodySchema.safeParse(error.responseBody);
       if (
         result.success &&
         result.data.error?.message
@@ -75,7 +50,7 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
         return { type: "retry" };
       }
 
-      const result = responseBodySchema.safeParse(error.responseBody);
+      const result = gatewayResponseBodySchema.safeParse(error.responseBody);
       if (!result.success) {
         return { type: "retry" };
       }

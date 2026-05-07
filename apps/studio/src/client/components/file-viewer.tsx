@@ -6,7 +6,7 @@ import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowLineDownIcon,
-  ArrowsOutIcon,
+  ArrowsInIcon,
   ArrowsOutSimpleIcon,
   CheckIcon,
   CodeIcon,
@@ -66,37 +66,37 @@ function ImageZoomControls() {
   const { resetTransform, zoomIn, zoomOut } = useControls();
   const isZoomed = useTransformComponent(({ state }) => state.scale > 1.01);
   return (
-    <div className="flex items-center gap-1 rounded-xl bg-black/50 p-1 backdrop-blur-md">
+    <div className="flex items-center gap-1 rounded-xl bg-black/10 p-1 backdrop-blur-md">
       <Button
-        className="size-7 text-white hover:bg-white/20 hover:text-white"
+        className="text-muted-foreground hover:bg-white/20 hover:text-muted-foreground"
         onClick={() => {
           zoomOut();
         }}
         size="icon-sm"
         variant="ghost"
       >
-        <MagnifyingGlassMinusIcon className="size-4" />
+        <MagnifyingGlassMinusIcon className="size-5" />
       </Button>
       <Button
-        className="size-7 text-white hover:bg-white/20 hover:text-white"
+        className="text-muted-foreground hover:bg-white/20 hover:text-muted-foreground"
         onClick={() => {
           zoomIn();
         }}
         size="icon-sm"
         variant="ghost"
       >
-        <MagnifyingGlassPlusIcon className="size-4" />
+        <MagnifyingGlassPlusIcon className="size-5" />
       </Button>
       {isZoomed && (
         <Button
-          className="size-7 text-white hover:bg-white/20 hover:text-white"
+          className="text-muted-foreground hover:bg-white/20 hover:text-muted-foreground"
           onClick={() => {
             resetTransform();
           }}
           size="icon-sm"
           variant="ghost"
         >
-          <ArrowsOutIcon className="size-4" />
+          <ArrowsInIcon className="size-5" />
         </Button>
       )}
     </div>

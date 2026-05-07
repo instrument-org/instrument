@@ -12,6 +12,8 @@ export function VirtualizedScrollingText({
 }) {
   "use no memo";
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const fadeTopRef = useRef<HTMLDivElement>(null);
+  const fadeBottomRef = useRef<HTMLDivElement>(null);
 
   // Remove trailing empty line when not auto-scrolling
   const cleanedContent =
@@ -31,10 +33,37 @@ export function VirtualizedScrollingText({
     overscan: 5,
   });
 
-  const scrollOffset = virtualizer.scrollOffset ?? 0;
-  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+  // Directly toggle fade visibility via DOM refs -- no re-render on scroll
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) {
+      return;
+    }
+
+    const update = () => {
+      const canScrollUp = el.scrollTop > 0;
+      const canScrollDown =
+        el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+      if (fadeTopRef.current) {
+        fadeTopRef.current.style.display = canScrollUp ? "block" : "none";
+      }
+      if (fadeBottomRef.current) {
+        fadeBottomRef.current.style.display = canScrollDown ? "block" : "none";
+      }
+    };
+
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, []);
+
   const totalSize = virtualizer.getTotalSize();
-  const canScrollDown = scrollOffset + viewportHeight < totalSize - 1;
 
   // Stick to bottom when autoScrollToBottom is true
   useEffect(() => {
@@ -102,8 +131,6 @@ export function VirtualizedScrollingText({
     </div>
   );
 
-  const canScrollUp = scrollOffset > 0;
-
   return (
     <div className="relative">
       <div
@@ -118,12 +145,16 @@ export function VirtualizedScrollingText({
       >
         {contentInner}
       </div>
-      {canScrollUp && (
-        <div className="pointer-events-none absolute top-0 right-0 left-0 z-10 h-6 bg-linear-to-b from-card to-transparent" />
-      )}
-      {canScrollDown && (
-        <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10 h-6 bg-linear-to-t from-card to-transparent" />
-      )}
+      <div
+        className="pointer-events-none absolute top-0 right-0 left-0 z-10 h-6 bg-linear-to-b from-card to-transparent"
+        ref={fadeTopRef}
+        style={{ display: "none" }}
+      />
+      <div
+        className="pointer-events-none absolute right-0 bottom-0 left-0 z-10 h-6 bg-linear-to-t from-card to-transparent"
+        ref={fadeBottomRef}
+        style={{ display: "none" }}
+      />
     </div>
   );
 }

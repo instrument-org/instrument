@@ -255,7 +255,7 @@ function MarkdownPreview({ url }: { url: string }) {
 
   return (
     <div className="relative">
-      <div className="prose prose-sm size-full overflow-hidden p-3 text-xs dark:prose-invert prose-headings:text-sm prose-h1:text-base prose-h2:text-sm prose-h3:text-sm">
+      <div className="prose prose-sm size-full overflow-hidden p-3 prose-custom text-xs dark:prose-invert prose-headings:text-sm prose-h1:text-base prose-h2:text-sm prose-h3:text-sm prose-figcaption:text-xs prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-xs prose-table:text-xs">
         <Markdown markdown={truncatedContent} />
       </div>
       {isTruncated && (

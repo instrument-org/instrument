@@ -1,10 +1,10 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
-import { getFileType, isReadableText } from "@/client/lib/get-file-type";
+import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { fork } from "radashi";
 import { useState } from "react";
 
@@ -52,6 +52,11 @@ export function FilesGrid({
   prioritizeUserFiles = false,
 }: FilesGridProps) {
   const navigate = useNavigate({ from: "/projects/$subdomain" });
+  const search = useSearch({ from: "/_app/projects/$subdomain/" });
+  const selectedFilePath =
+    search.artifactPanel?.type === "file"
+      ? search.artifactPanel.filePath
+      : null;
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedSections, setExpandedSections] = useState(
     DEFAULT_EXPANDED_SECTIONS,
@@ -123,47 +128,67 @@ export function FilesGrid({
 
   const mainFilesToShow = isExpanded ? mainFiles : visibleMainFiles;
 
-  const richPreviewFiles = compact
+  const mediaPreviewFiles = compact
     ? []
-    : mainFilesToShow.filter(hasRichPreview);
+    : mainFilesToShow.filter(hasMediaPreview);
+  const rowCardFiles = compact ? [] : mainFilesToShow.filter(hasRowCardPreview);
   const otherFiles = compact
     ? mainFilesToShow
-    : mainFilesToShow.filter((file) => !hasRichPreview(file));
+    : mainFilesToShow.filter(
+        (file) => !hasMediaPreview(file) && !hasRowCardPreview(file),
+      );
 
-  const isSingleRichFile = richPreviewFiles.length === 1;
+  const isSingleMediaFile = mediaPreviewFiles.length === 1;
 
   return (
     <div className="flex flex-col gap-2">
-      {richPreviewFiles.length > 0 && (
+      {mediaPreviewFiles.length > 0 && (
         <div className="@container">
           <div
             className={cn("flex flex-wrap gap-2", alignEnd && "justify-end")}
           >
-            {richPreviewFiles.map((file) => {
-              const shouldSpan = isSingleRichFile || isReadableText(file);
+            {mediaPreviewFiles.map((file) => (
+              <div
+                className={cn(
+                  "shrink-0 grow-0",
+                  isSingleMediaFile
+                    ? "w-full @md:w-[calc((100%/3*2)-(0.5rem/3))]"
+                    : "w-[calc((100%/2)-(0.5rem/2))]",
+                  "@2xl:w-[calc((100%/3)-(0.5rem*2/3))]",
+                )}
+                key={file.filePath}
+              >
+                <FilePreviewCard
+                  file={file}
+                  isSelected={file.filePath === selectedFilePath}
+                  onClick={() => {
+                    handleFileClick(file);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-              return (
-                <div
-                  className={cn(
-                    "shrink-0 grow-0",
-                    isSingleRichFile
-                      ? "w-full @md:w-[calc((100%/3*2)-(0.5rem/3))]"
-                      : "w-[calc((100%/2)-(0.5rem/2))]",
-                    shouldSpan
-                      ? "@2xl:w-[calc((100%/3*2)-(0.5rem/3))]"
-                      : "@2xl:w-[calc((100%/3)-(0.5rem*2/3))]",
-                  )}
-                  key={file.filePath}
-                >
-                  <FilePreviewCard
-                    file={file}
-                    onClick={() => {
-                      handleFileClick(file);
-                    }}
-                  />
-                </div>
-              );
-            })}
+      {rowCardFiles.length > 0 && (
+        <div className="@container">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-2 @sm:grid-cols-2",
+              alignEnd && "justify-items-end",
+            )}
+          >
+            {rowCardFiles.map((file) => (
+              <FilePreviewCard
+                file={file}
+                isSelected={file.filePath === selectedFilePath}
+                key={file.filePath}
+                onClick={() => {
+                  handleFileClick(file);
+                }}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -184,6 +209,7 @@ export function FilesGrid({
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
+                isSelected={file.filePath === selectedFilePath}
                 onClick={() => {
                   handleFileClick(file);
                 }}
@@ -238,6 +264,7 @@ export function FilesGrid({
                   [section.key]: !prev[section.key],
                 }));
               }}
+              selectedFilePath={selectedFilePath}
               title={section.title}
             />
           );
@@ -269,6 +296,7 @@ function CategorizedFileSection({
   isExpanded,
   onFileClick,
   onToggle,
+  selectedFilePath,
   title,
 }: {
   alignEnd: boolean;
@@ -276,6 +304,7 @@ function CategorizedFileSection({
   isExpanded: boolean;
   onFileClick: (file: ProjectFileViewerFile) => void;
   onToggle: () => void;
+  selectedFilePath: null | string;
   title: string;
 }) {
   return (
@@ -306,6 +335,7 @@ function CategorizedFileSection({
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
+                isSelected={file.filePath === selectedFilePath}
                 onClick={() => {
                   onFileClick(file);
                 }}
@@ -318,15 +348,21 @@ function CategorizedFileSection({
   );
 }
 
-function hasRichPreview(file: ProjectFileViewerFile) {
+function hasMediaPreview(file: ProjectFileViewerFile) {
+  const fileType = getFileType(file);
+  return fileType === "image" || fileType === "video";
+}
+
+function hasRowCardPreview(file: ProjectFileViewerFile) {
   const fileType = getFileType(file);
   return (
-    fileType === "image" ||
     fileType === "html" ||
     fileType === "pdf" ||
-    fileType === "video" ||
     fileType === "markdown" ||
-    fileType === "text"
+    fileType === "text" ||
+    fileType === "code" ||
+    fileType === "audio" ||
+    fileType === "unknown"
   );
 }
 
@@ -355,8 +391,9 @@ function isUserProvidedFile(file: ProjectFileViewerFile) {
 }
 
 function sortByRichPreview(files: ProjectFileViewerFile[]) {
-  const [rich, nonRich] = fork(files, hasRichPreview);
-  return [...rich, ...nonRich];
+  const [media, rest] = fork(files, hasMediaPreview);
+  const [rowCard, other] = fork(rest, hasRowCardPreview);
+  return [...media, ...rowCard, ...other];
 }
 
 function splitSupportingFiles(files: ProjectFileViewerFile[]) {

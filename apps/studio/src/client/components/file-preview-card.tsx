@@ -1,7 +1,7 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
-import { getFileType } from "@/client/lib/get-file-type";
+import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -11,37 +11,37 @@ import {
   CopyIcon,
   PlayIcon,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
+import { FileThumbnail } from "./file-thumbnail";
 import { FileVersionBadge } from "./file-version-badge";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
-import { Markdown } from "./markdown";
-import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { Badge } from "./ui/badge";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuTrigger,
 } from "./ui/context-menu";
-import { Spinner } from "./ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function FilePreviewCard({
   file,
   hideActionsMenu,
+  isSelected,
   onClick,
 }: {
   file: ProjectFileViewerFile;
   hideActionsMenu?: boolean;
+  isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, mimeType, url } = file;
+  const { filename, mimeType } = file;
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoTimeoutRef = useRef<null | number>(null);
   const [videoProgress, setVideoProgress] = useState(0);
@@ -77,29 +77,109 @@ export function FilePreviewCard({
       <ImagePreviewCard
         file={file}
         hideActionsMenu={hideActionsMenu}
+        isSelected={isSelected}
         onClick={onClick}
       />
     );
   }
 
-  if (fileType === "markdown" || fileType === "text" || fileType === "code") {
+  if (fileType === "video") {
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="group relative overflow-hidden rounded-lg border border-border bg-background">
-            <PreviewHeader
-              file={file}
-              hideActionsMenu={hideActionsMenu}
-              onClick={onClick}
-            />
-            <div className="relative w-full overflow-hidden">
-              <div className="max-h-64 overflow-hidden bg-background">
-                {fileType === "markdown" ? (
-                  <MarkdownPreview url={url} />
-                ) : (
-                  <TextPreview url={url} />
-                )}
+          <div
+            className={cn(
+              "group relative overflow-hidden rounded-lg border border-border bg-background transition-colors hover:bg-muted",
+              isSelected &&
+                "ring-2 ring-primary ring-offset-2 ring-offset-background",
+            )}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
+            <div className="flex w-full items-center gap-2 border-b border-border bg-muted/30 px-2.5 py-1.5">
+              <button
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                onClick={onClick}
+                type="button"
+              >
+                <FileIcon
+                  className="size-4 shrink-0 text-muted-foreground"
+                  filename={filename}
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">
+                      {filename}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <span className="break-all">{file.filePath}</span>
+                  </TooltipContent>
+                </Tooltip>
+                <FileVersionBadge
+                  className="shrink-0 text-[10px]"
+                  filePath={file.filePath}
+                  projectSubdomain={file.projectSubdomain}
+                  versionRef={file.versionRef}
+                />
+              </button>
+              {!hideActionsMenu && <FileActionsMenu file={file} />}
+            </div>
+            <div className="relative aspect-video w-full overflow-hidden">
+              <video
+                className="size-full bg-black object-contain"
+                loop
+                muted
+                onLoadedMetadata={(e) => {
+                  const video = e.currentTarget;
+                  setVideoDuration(video.duration);
+                }}
+                onTimeUpdate={(e) => {
+                  const video = e.currentTarget;
+                  const progress = video.duration
+                    ? (video.currentTime / video.duration) * 100
+                    : 0;
+                  setVideoProgress(progress);
+                  const remaining = video.duration
+                    ? video.duration - video.currentTime
+                    : null;
+                  setTimeRemaining(remaining);
+                }}
+                ref={videoRef}
+                src={file.url}
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity group-hover:opacity-0">
+                <div className="rounded-full bg-white/90 p-2 shadow-lg">
+                  <PlayIcon
+                    className="size-4 fill-black text-black"
+                    weight="fill"
+                  />
+                </div>
               </div>
+              {(isPlaying
+                ? timeRemaining !== null && timeRemaining > 0
+                : videoDuration !== null) && (
+                <div className="absolute right-2 bottom-2">
+                  <Badge
+                    className="bg-black/70 text-white hover:bg-black/70"
+                    variant="secondary"
+                  >
+                    {formatTime(
+                      isPlaying && timeRemaining !== null
+                        ? timeRemaining
+                        : (videoDuration ?? 0),
+                    )}
+                  </Badge>
+                </div>
+              )}
+              {isPlaying && (
+                <div className="absolute right-0 bottom-0 left-0 h-1 bg-black/50">
+                  <div
+                    className="h-full bg-white transition-all duration-100"
+                    style={{ width: `${videoProgress}%` }}
+                  />
+                </div>
+              )}
               <button
                 className="absolute inset-0 size-full"
                 onClick={onClick}
@@ -116,107 +196,83 @@ export function FilePreviewCard({
   }
 
   return (
+    <FileRowCard
+      file={file}
+      hideActionsMenu={hideActionsMenu}
+      isSelected={isSelected}
+      onClick={onClick}
+    />
+  );
+}
+
+function FileRowCard({
+  file,
+  hideActionsMenu,
+  isSelected,
+  onClick,
+}: {
+  file: ProjectFileViewerFile;
+  hideActionsMenu?: boolean;
+  isSelected?: boolean;
+  onClick: () => void;
+}) {
+  const { filename, filePath, projectSubdomain, versionRef } = file;
+
+  return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          className="group relative overflow-hidden rounded-lg border border-border bg-background transition-colors hover:bg-muted"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
+          className={cn(
+            "group relative flex h-auto min-h-14 items-stretch gap-2.5 overflow-hidden rounded-lg border border-border bg-background px-3 py-2 text-xs",
+            "transition-colors hover:bg-muted/50",
+            isSelected && "border-primary/30 bg-primary/10 hover:bg-primary/15",
+          )}
         >
-          <PreviewHeader
+          <FileThumbnail
             file={file}
-            hideActionsMenu={hideActionsMenu}
-            onClick={onClick}
+            isActive={isSelected ?? false}
+            variant="primary"
           />
-          <div className="relative aspect-video w-full overflow-hidden">
-            {fileType === "html" ? (
-              <SandboxedHtmlIframe
-                className="absolute top-0 left-0 size-[300%] origin-top-left border-0"
-                restrictInteractive
-                src={url}
-                style={{ transform: "scale(0.333)" }}
-                title={filename}
+          <button
+            className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left"
+            onClick={onClick}
+            type="button"
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className={cn(
+                    "truncate font-medium",
+                    isSelected ? "text-primary" : "text-foreground",
+                  )}
+                >
+                  {filename}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span className="break-all">{filePath}</span>
+              </TooltipContent>
+            </Tooltip>
+            <span
+              className={cn(
+                "truncate",
+                isSelected ? "text-primary/70" : "text-muted-foreground",
+              )}
+            >
+              {fileKindLabel(getFileType(file))}
+              <FileVersionBadge
+                className="ml-1 inline text-[10px]"
+                filePath={filePath}
+                projectSubdomain={projectSubdomain}
+                versionRef={versionRef}
               />
-            ) : fileType === "pdf" ? (
-              <iframe
-                className="absolute top-0 left-0 size-[300%] origin-top-left border-0"
-                // cspell:ignore navpanes
-                src={`${url}#toolbar=0&navpanes=0&view=Fit`}
-                style={{ transform: "scale(0.333)" }}
-                title={filename}
-              />
-            ) : fileType === "video" ? (
-              <>
-                <video
-                  className="size-full bg-black object-contain"
-                  loop
-                  muted
-                  onLoadedMetadata={(e) => {
-                    const video = e.currentTarget;
-                    setVideoDuration(video.duration);
-                  }}
-                  onTimeUpdate={(e) => {
-                    const video = e.currentTarget;
-                    const progress = video.duration
-                      ? (video.currentTime / video.duration) * 100
-                      : 0;
-                    setVideoProgress(progress);
-                    const remaining = video.duration
-                      ? video.duration - video.currentTime
-                      : null;
-                    setTimeRemaining(remaining);
-                  }}
-                  ref={videoRef}
-                  src={url}
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity group-hover:opacity-0">
-                  <div className="rounded-full bg-white/90 p-2 shadow-lg">
-                    <PlayIcon
-                      className="size-4 fill-black text-black"
-                      weight="fill"
-                    />
-                  </div>
-                </div>
-                {(isPlaying
-                  ? timeRemaining !== null && timeRemaining > 0
-                  : videoDuration !== null) && (
-                  <div className="absolute right-2 bottom-2">
-                    <Badge
-                      className="bg-black/70 text-white hover:bg-black/70"
-                      variant="secondary"
-                    >
-                      {formatTime(
-                        isPlaying && timeRemaining !== null
-                          ? timeRemaining
-                          : (videoDuration ?? 0),
-                      )}
-                    </Badge>
-                  </div>
-                )}
-                {isPlaying && (
-                  <div className="absolute right-0 bottom-0 left-0 h-1 bg-black/50">
-                    <div
-                      className="h-full bg-white transition-all duration-100"
-                      style={{ width: `${videoProgress}%` }}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex size-full items-center justify-center">
-                <FileIcon
-                  className="size-16 text-muted-foreground"
-                  filename={filename}
-                  mimeType={mimeType}
-                />
-              </div>
-            )}
-            <button
-              className="absolute inset-0 size-full"
-              onClick={onClick}
-              type="button"
-            />
-          </div>
+            </span>
+          </button>
+          {!hideActionsMenu && (
+            <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
+              <FileActionsMenu file={file} />
+            </div>
+          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -256,10 +312,12 @@ function ImageOverlayButton({
 function ImagePreviewCard({
   file,
   hideActionsMenu,
+  isSelected,
   onClick,
 }: {
   file: ProjectFileViewerFile;
   hideActionsMenu?: boolean;
+  isSelected?: boolean;
   onClick: () => void;
 }) {
   const { filename, mimeType, url } = file;
@@ -312,7 +370,13 @@ function ImagePreviewCard({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="group relative aspect-square w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted">
+        <div
+          className={cn(
+            "group relative aspect-square w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
+            isSelected &&
+              "ring-2 ring-primary ring-offset-2 ring-offset-background",
+          )}
+        >
           <div className="flex size-full items-center justify-center">
             <ImageWithFallback
               alt={filename}
@@ -392,139 +456,5 @@ function ImagePreviewCard({
         <FileActionsMenuItems file={file} variant="context" />
       </ContextMenuContent>
     </ContextMenu>
-  );
-}
-
-function MarkdownPreview({ url }: { url: string }) {
-  const { data, error, isLoading } = useQuery({
-    queryFn: async () => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
-      }
-      return response.text();
-    },
-    queryKey: ["markdown-preview", url],
-    retry: false,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex size-full items-center justify-center">
-        <Spinner className="size-4 text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex size-full items-center justify-center p-4">
-        <p className="text-xs text-muted-foreground">Failed to load preview</p>
-      </div>
-    );
-  }
-
-  const lines = data ? data.split("\n") : [];
-  const isTruncated = lines.length > 10;
-  const truncatedContent = lines.slice(0, 10).join("\n");
-
-  return (
-    <div className="relative">
-      <div className="prose prose-sm size-full overflow-hidden p-3 prose-custom text-xs dark:prose-invert prose-headings:text-sm prose-h1:text-base prose-h2:text-sm prose-h3:text-sm prose-figcaption:text-xs prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-xs prose-table:text-xs">
-        <Markdown markdown={truncatedContent} />
-      </div>
-      {isTruncated && (
-        <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-16 bg-linear-to-t from-background to-transparent" />
-      )}
-    </div>
-  );
-}
-
-function PreviewHeader({
-  file,
-  hideActionsMenu,
-  onClick,
-}: {
-  file: ProjectFileViewerFile;
-  hideActionsMenu?: boolean;
-  onClick?: () => void;
-}) {
-  const { filename, filePath, projectSubdomain, versionRef } = file;
-
-  return (
-    <div className="flex w-full items-center gap-2 border-b border-border bg-muted/30 px-2.5 py-1.5">
-      <button
-        className="flex min-w-0 flex-1 items-center gap-2 text-left"
-        onClick={onClick}
-        type="button"
-      >
-        <FileIcon
-          className="size-4 shrink-0 text-muted-foreground"
-          filename={filename}
-        />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="min-w-0 truncate text-xs text-muted-foreground">
-              {filename}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span className="break-all">{filePath}</span>
-          </TooltipContent>
-        </Tooltip>
-        <FileVersionBadge
-          className="shrink-0 text-[10px]"
-          filePath={filePath}
-          projectSubdomain={projectSubdomain}
-          versionRef={versionRef}
-        />
-      </button>
-      {!hideActionsMenu && <FileActionsMenu file={file} />}
-    </div>
-  );
-}
-
-function TextPreview({ url }: { url: string }) {
-  const { data, error, isLoading } = useQuery({
-    queryFn: async () => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
-      }
-      return response.text();
-    },
-    queryKey: ["text-preview", url],
-    retry: false,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex size-full items-center justify-center">
-        <Spinner className="size-4 text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex size-full items-center justify-center p-4">
-        <p className="text-xs text-muted-foreground">Failed to load preview</p>
-      </div>
-    );
-  }
-
-  const lines = data ? data.split("\n") : [];
-  const isTruncated = lines.length > 10;
-  const truncatedContent = lines.slice(0, 10).join("\n");
-
-  return (
-    <div className="relative">
-      <pre className="size-full overflow-hidden p-3 font-mono text-xs text-foreground">
-        {truncatedContent}
-      </pre>
-      {isTruncated && (
-        <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-16 bg-linear-to-t from-background to-transparent" />
-      )}
-    </div>
   );
 }

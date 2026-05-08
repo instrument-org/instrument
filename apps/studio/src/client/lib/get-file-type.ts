@@ -11,6 +11,38 @@ type FileType =
   | "unknown"
   | "video";
 
+export function fileKindLabel(fileType: FileType): string {
+  switch (fileType) {
+    case "audio": {
+      return "Audio";
+    }
+    case "code": {
+      return "Code";
+    }
+    case "html": {
+      return "HTML";
+    }
+    case "image": {
+      return "Image";
+    }
+    case "markdown": {
+      return "Markdown";
+    }
+    case "pdf": {
+      return "PDF";
+    }
+    case "text": {
+      return "Text file";
+    }
+    case "video": {
+      return "Video";
+    }
+    default: {
+      return "File";
+    }
+  }
+}
+
 export function getFileType({
   filename,
   mimeType,
@@ -64,26 +96,6 @@ export function getFileType({
   return "unknown";
 }
 
-export function isReadableText({
-  filename,
-  mimeType,
-}: {
-  filename: string;
-  mimeType?: string;
-}): boolean {
-  const lowerFilename = filename.toLowerCase();
-  const hasNoExtension = !lowerFilename.includes(".");
-  const isTextFile =
-    lowerFilename.endsWith(".txt") || lowerFilename.endsWith(".text");
-
-  return (
-    isTextFile ||
-    (hasNoExtension && mimeType === "text/plain") ||
-    isMarkdown({ filename, mimeType }) ||
-    isMarkupFile(filename)
-  );
-}
-
 function isMarkdown({
   filename,
   mimeType,
@@ -102,5 +114,25 @@ function isMarkupFile(filename: string): boolean {
   // cspell:disable-next-line
   return /\.(?:rst|rest|adoc|asciidoc|textile|org|wiki|mediawiki|creole)$/i.test(
     filename.toLowerCase(),
+  );
+}
+
+function isReadableText({
+  filename,
+  mimeType,
+}: {
+  filename: string;
+  mimeType?: string;
+}): boolean {
+  const lowerFilename = filename.toLowerCase();
+  const hasNoExtension = !lowerFilename.includes(".");
+  const isTextFile =
+    lowerFilename.endsWith(".txt") || lowerFilename.endsWith(".text");
+
+  return (
+    isTextFile ||
+    (hasNoExtension && mimeType === "text/plain") ||
+    isMarkdown({ filename, mimeType }) ||
+    isMarkupFile(filename)
   );
 }

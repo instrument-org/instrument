@@ -9,7 +9,7 @@ import {
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react";
-import { type ComponentProps } from "react";
+import { Activity, type ComponentProps } from "react";
 import { z } from "zod";
 
 import { ProjectToolbar } from "./toolbar";
@@ -61,7 +61,7 @@ export function ProjectSidebar({
       />
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {showVersions ? (
+        <Activity mode={showVersions ? "visible" : "hidden"}>
           <div className="flex h-full flex-col overflow-hidden bg-background">
             <div className="flex items-center justify-between border-b p-2">
               <h2 className="px-2 font-semibold">Versions</h2>
@@ -79,7 +79,11 @@ export function ProjectSidebar({
               />
             </div>
           </div>
-        ) : sidebar === "files" ? (
+        </Activity>
+
+        <Activity
+          mode={!showVersions && sidebar === "files" ? "visible" : "hidden"}
+        >
           <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
             <ProjectFiles
               activeFilePath={activeFilePath}
@@ -92,9 +96,13 @@ export function ProjectSidebar({
               showAppEntry={hasAppModifications}
             />
           </div>
-        ) : (
+        </Activity>
+
+        <Activity
+          mode={!showVersions && sidebar === "chat" ? "visible" : "hidden"}
+        >
           <ProjectChat {...chatProps} />
-        )}
+        </Activity>
       </div>
     </div>
   );

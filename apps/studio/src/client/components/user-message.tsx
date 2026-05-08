@@ -66,8 +66,8 @@ export const UserMessage = memo(function UserMessage({
           <div
             className={cn(
               isExpanded
-                ? "max-h-[32rem] overflow-y-auto"
-                : "max-h-48 overflow-hidden",
+                ? "max-h-128 overflow-y-auto"
+                : "max-h-54 overflow-hidden", // h-54 ensures the fade lands in the middle of a line
             )}
             ref={contentRef}
           >
@@ -84,7 +84,7 @@ export const UserMessage = memo(function UserMessage({
           )}
 
           {!isExpanded && isOverflowing && (
-            <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-16 rounded-b-2xl bg-linear-to-t from-card to-transparent" />
+            <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-12 rounded-br-xl rounded-bl-xl bg-linear-to-t from-[#fdfdfc] from-50% to-[#fdfdfc00] dark:from-card dark:to-[#29252400]" />
           )}
 
           <CollapsibleContent>

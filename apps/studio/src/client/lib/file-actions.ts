@@ -9,19 +9,19 @@ import { isTextMimeType } from "./is-text-mime-type";
 
 export async function copyFileToClipboard({
   filePath,
-  mimeType,
+  isImage,
   subdomain,
   versionRef,
 }: {
   filePath: string;
-  mimeType: string;
+  isImage: boolean;
   subdomain: ProjectSubdomain;
   versionRef?: string;
 }) {
   const [error] = await safe(
     rpcClient.utils.copyFileToClipboard.call({
       filePath,
-      mimeType,
+      isImage,
       subdomain,
       versionRef,
     }),

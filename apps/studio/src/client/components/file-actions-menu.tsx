@@ -94,7 +94,7 @@ export function FileActionsMenuItems({
     try {
       await copyFileToClipboard({
         filePath: file.filePath,
-        mimeType: file.mimeType,
+        isImage: file.mimeType.startsWith("image/"),
         subdomain: file.projectSubdomain,
         versionRef: file.versionRef,
       });

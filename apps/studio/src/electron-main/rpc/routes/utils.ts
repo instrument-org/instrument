@@ -446,7 +446,7 @@ const copyFileToClipboard = base
   .input(
     z.object({
       filePath: z.string(),
-      mimeType: z.string(),
+      isImage: z.boolean(),
       subdomain: ProjectSubdomainSchema,
       versionRef: z.string().optional(),
     }),
@@ -468,7 +468,7 @@ const copyFileToClipboard = base
 
     const isBinary = await isBinaryFile(buffer);
 
-    if (input.mimeType.startsWith("image/") && isBinary) {
+    if (input.isImage && isBinary) {
       const image = nativeImage.createFromBuffer(buffer);
       clipboard.writeImage(image);
     } else if (isBinary) {

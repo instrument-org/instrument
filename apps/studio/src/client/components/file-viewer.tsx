@@ -307,7 +307,7 @@ export function FileViewer({
     try {
       await copyFileToClipboard({
         filePath,
-        mimeType,
+        isImage: mimeType.startsWith("image/"),
         subdomain: projectSubdomain,
         versionRef,
       });

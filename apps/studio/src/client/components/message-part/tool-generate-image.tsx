@@ -12,6 +12,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";
+import { copyFileToClipboard } from "../../lib/file-actions";
 import { getAssetUrl } from "../../lib/get-asset-url";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { cn } from "../../lib/utils";
@@ -76,11 +77,7 @@ export function ToolGenerateImage({
         </div>
 
         {successOutput && primaryFilePath && (
-          <ImageActions
-            assetBaseUrl={assetBaseUrl}
-            filePath={primaryFilePath}
-            subdomain={subdomain}
-          />
+          <ImageActions filePath={primaryFilePath} subdomain={subdomain} />
         )}
       </ToolCardHeader>
 
@@ -183,11 +180,9 @@ function GeneratedImage({
 }
 
 function ImageActions({
-  assetBaseUrl,
   filePath,
   subdomain,
 }: {
-  assetBaseUrl: string;
   filePath: string;
   subdomain: ProjectSubdomain;
 }) {
@@ -209,10 +204,7 @@ function ImageActions({
   };
 
   const handleCopy = async () => {
-    const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
-    const response = await fetch(src);
-    const blob = await response.blob();
-    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    await copyFileToClipboard({ filePath, isImage: true, subdomain });
   };
 
   return (

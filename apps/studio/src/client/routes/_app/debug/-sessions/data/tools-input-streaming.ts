@@ -20,6 +20,7 @@ registerSession({
         sessionId,
       },
       parts: [
+        builder.textPart("Calling choose...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             choices: ["React", "Vue", "Svelte"],
@@ -29,6 +30,10 @@ registerSession({
         }),
 
         // Partial filePath — tests FileChip appearing mid-stream
+        builder.textPart(
+          "Calling edit_file (partial path)...",
+          assistantMessageId,
+        ),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Update greeting message",
@@ -40,6 +45,10 @@ registerSession({
         }),
 
         // Full filePath — tests FileChip fully resolved while still streaming
+        builder.textPart(
+          "Calling edit_file (full path)...",
+          assistantMessageId,
+        ),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Refactor auth middleware to use JWT",
@@ -87,6 +96,7 @@ export function authMiddleware(
           type: "tool-edit_file",
         }),
 
+        builder.textPart("Calling generate_image...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Generate a sunset image",
@@ -95,6 +105,33 @@ export function authMiddleware(
           },
           type: "tool-generate_image",
         }),
+        builder.textPart("Calling load_skill...", assistantMessageId),
+        builder.toolPart(assistantMessageId, "input-streaming", {
+          input: {
+            explanation: "Load the React skill for best practices",
+            name: "re",
+          },
+          type: "tool-load_skill",
+        }),
+        builder.textPart("Calling task...", assistantMessageId),
+        builder.toolPart(assistantMessageId, "input-streaming", {
+          input: {
+            explanation: "Launch retrieval agent to search external folder",
+            prompt: "Search the attached folder for any existing TypeScript",
+            subagent_type: "retrieval",
+          },
+          type: "tool-task",
+        }),
+        builder.textPart("Calling copy_to_project...", assistantMessageId),
+        builder.toolPart(assistantMessageId, "input-streaming", {
+          input: {
+            explanation: "Copy TypeScript config from attached folder",
+            path: "/Users/user/external-proj",
+            pattern: "tsconfig",
+          },
+          type: "tool-copy_to_project",
+        }),
+        builder.textPart("Calling glob...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Find all TypeScript files",
@@ -102,6 +139,7 @@ export function authMiddleware(
           },
           type: "tool-glob",
         }),
+        builder.textPart("Calling grep...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Search for formatDate usages",
@@ -111,6 +149,10 @@ export function authMiddleware(
         }),
 
         // Partial filePath — tests FileChip appearing mid-stream
+        builder.textPart(
+          "Calling read_file (partial path)...",
+          assistantMessageId,
+        ),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Read the helpers file",
@@ -120,6 +162,10 @@ export function authMiddleware(
         }),
 
         // Full filePath — tests FileChip fully resolved while still streaming
+        builder.textPart(
+          "Calling read_file (full path)...",
+          assistantMessageId,
+        ),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Read the helpers file",
@@ -128,6 +174,7 @@ export function authMiddleware(
           type: "tool-read_file",
         }),
 
+        builder.textPart("Calling bash...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             command: "npm test -- helpers.test.ts",
@@ -137,10 +184,12 @@ export function authMiddleware(
           type: "tool-bash",
         }),
 
+        builder.textPart("Calling unavailable...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {},
           type: "tool-unavailable",
         }),
+        builder.textPart("Calling web_search...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Search for Vitest best practices",
@@ -150,6 +199,10 @@ export function authMiddleware(
         }),
 
         // Partial filePath — tests FileChip appearing mid-stream
+        builder.textPart(
+          "Calling write_file (partial path)...",
+          assistantMessageId,
+        ),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             content: "",
@@ -160,6 +213,10 @@ export function authMiddleware(
         }),
 
         // Full filePath — tests FileChip fully resolved while still streaming
+        builder.textPart(
+          "Calling write_file (full path)...",
+          assistantMessageId,
+        ),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             content: `import QRCode from "qr-code";

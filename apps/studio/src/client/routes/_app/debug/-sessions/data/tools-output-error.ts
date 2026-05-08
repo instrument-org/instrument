@@ -88,6 +88,33 @@ registerSession({
           type: "tool-bash",
         }),
         builder.toolPart(assistantMessageId, "output-error", {
+          errorText: "Skill 'nonexistent' not found in registry",
+          input: {
+            explanation: "Load a missing skill",
+            name: "nonexistent",
+          },
+          type: "tool-load_skill",
+        }),
+        builder.toolPart(assistantMessageId, "output-error", {
+          errorText: "Subagent timed out after 120s",
+          input: {
+            explanation: "Launch retrieval agent",
+            prompt: "Search for config files",
+            subagent_type: "retrieval",
+          },
+          type: "tool-task",
+        }),
+        builder.toolPart(assistantMessageId, "output-error", {
+          errorText:
+            "Source path does not exist: /Users/user/nonexistent-project",
+          input: {
+            explanation: "Copy files from missing folder",
+            path: "/Users/user/nonexistent-project",
+            pattern: "*.json",
+          },
+          type: "tool-copy_to_project",
+        }),
+        builder.toolPart(assistantMessageId, "output-error", {
           errorText: "Tool 'foobar' is not available",
           input: {},
           type: "tool-unavailable",

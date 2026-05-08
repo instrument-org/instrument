@@ -15,6 +15,7 @@ import { AssistantMessage } from "./assistant-message";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
 import { ContextMessages } from "./context-messages";
+import { AppLogo } from "./logo";
 import { MessageError } from "./message-error";
 import { ToolCall } from "./message-part/tool-call";
 import { ReasoningMessage } from "./reasoning-message";
@@ -308,10 +309,25 @@ export function ChatStream({
         }
       }
 
+      const prevMessage = regularMessages[messageIndex - 1];
       const nextMessage = regularMessages[messageIndex + 1];
+      const isFirstInConsecutiveGroup =
+        message.role === "assistant" &&
+        (!prevMessage || prevMessage.role !== "assistant");
       const isLastInConsecutiveGroup =
         message.role === "assistant" &&
         (!nextMessage || nextMessage.role !== "assistant");
+
+      if (isFirstInConsecutiveGroup) {
+        messageElements.unshift(
+          <div
+            className="flex justify-start"
+            key={`assistant-header-${message.id}`}
+          >
+            <AppLogo className="mt-5 mb-4 h-5.5 text-black/30 dark:text-white/30" />
+          </div>,
+        );
+      }
 
       if (message.role === "user" && fileAttachments.length > 0) {
         const fileAttachmentsPart = fileAttachments.find(
@@ -455,9 +471,10 @@ export function ChatStream({
       )}
       <div className="flex flex-col gap-2">{chatElements}</div>
 
-      {isAgentRunning && (
-        <div className={hasActiveLoadingState ? "invisible" : "visible"}>
-          <ReasoningMessage hideIcon isLoading text="" />
+      {isAgentRunning && !hasActiveLoadingState && (
+        <div className="mt-6 flex animate-in items-center gap-2 delay-500 fill-mode-both fade-in">
+          <span className="size-3 shrink-0 rounded-full bg-brand-500" />
+          <span className="shiny-text text-sm font-medium">Planning...</span>
         </div>
       )}
 

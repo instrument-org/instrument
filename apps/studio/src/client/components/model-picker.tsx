@@ -41,6 +41,7 @@ import { toast } from "sonner";
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
 import { AIProviderIcon } from "./ai-provider-icon";
+import { FuzzyHighlight } from "./fuzzy-highlight";
 import { ModelBadges } from "./model-badges";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -448,45 +449,6 @@ function ErrorsGroup({
   );
 }
 
-function HighlightedText({
-  ranges,
-  text,
-}: {
-  ranges: null | number[];
-  text: string;
-}) {
-  if (!ranges) {
-    return <>{text}</>;
-  }
-
-  const parts = uFuzzy.highlight(
-    text,
-    ranges,
-    (part, matched) => ({ matched, part }),
-    [] as { matched: boolean; part: string }[],
-    (acc, item) => {
-      acc.push(item);
-    },
-  );
-
-  return (
-    <>
-      {parts.map((p, i) =>
-        p.matched ? (
-          <mark
-            className="bg-transparent font-semibold text-foreground"
-            key={i}
-          >
-            {p.part}
-          </mark>
-        ) : (
-          <span key={i}>{p.part}</span>
-        ),
-      )}
-    </>
-  );
-}
-
 function ModelGroups({
   groupedModels,
   hasPlan,
@@ -607,7 +569,7 @@ function ModelGroups({
                   />
                   <div className="flex flex-col gap-1">
                     <span className="text-sm">
-                      <HighlightedText ranges={nameRanges} text={model.name} />
+                      <FuzzyHighlight ranges={nameRanges} text={model.name} />
                     </span>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <AIProviderIcon

@@ -1,6 +1,5 @@
 import {
   CommandDialog,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -9,8 +8,9 @@ import {
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useToggleCommandMenu } from "@/client/hooks/use-toggle-command-menu";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ProjectSubdomain } from "@instrument-org/workspace/client";
+import uFuzzy from "@leeoniya/ufuzzy";
 import {
   ArrowsClockwiseIcon,
   ChatCircleIcon,
@@ -18,9 +18,21 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import { FuzzyHighlight } from "./fuzzy-highlight";
+
+interface MatchedProject {
+  project: Project;
+  titleRanges: null | number[];
+}
+
+type Project = RPCOutput["workspace"]["project"]["list"]["projects"][number];
+
+const fuzzy = new uFuzzy({ intraMode: 1 });
 
 export function StudioCommandMenu() {
   const [open, setOpen] = useState(false);
@@ -63,9 +75,36 @@ export function StudioCommandMenu() {
 
   const currentProjectSubdomain = projectRouteMatch?.params.subdomain;
 
-  const filteredProjects = projects.filter(
+  const candidateProjects = projects.filter(
     (project) => project.subdomain !== currentProjectSubdomain,
   );
+
+  const matchedProjects = useMemo((): MatchedProject[] => {
+    if (!search) {
+      return candidateProjects.map((project) => ({
+        project,
+        titleRanges: null,
+      }));
+    }
+
+    const haystack = candidateProjects.map((p) => p.title);
+    // eslint-disable-next-line unicorn/no-array-method-this-argument
+    const indexes = fuzzy.filter(haystack, search);
+
+    if (!indexes || indexes.length === 0) {
+      return [];
+    }
+
+    const info = fuzzy.info(indexes, haystack, search);
+    const order = fuzzy.sort(info, haystack, search);
+
+    return order.flatMap((orderIdx) => {
+      const project = candidateProjects[info.idx[orderIdx] ?? -1];
+      return project
+        ? [{ project, titleRanges: info.ranges[orderIdx] ?? null }]
+        : [];
+    });
+  }, [candidateProjects, search]);
 
   const isOnNewTabPage = !!newTabRouteMatch;
 
@@ -107,6 +146,7 @@ export function StudioCommandMenu() {
         }
       }}
       open={open}
+      shouldFilter={false}
       title="Open Project"
     >
       <CommandInput
@@ -114,7 +154,7 @@ export function StudioCommandMenu() {
         placeholder="Search projects..."
         value={search}
       />
-      <CommandList className="h-96">
+      <CommandList className="max-h-none! min-h-48 overflow-visible!">
         {isLoading && projects.length === 0 ? (
           <div className="space-y-4 px-2 py-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -129,30 +169,38 @@ export function StudioCommandMenu() {
           </div>
         ) : (
           <>
-            <CommandEmpty>
-              <span className="text-muted-foreground">No commands found</span>
-            </CommandEmpty>
-            <CommandGroup>
-              {!isOnNewTabPage && (
-                <CommandItem onSelect={handleNewProject} value="new-project">
-                  <PlusIcon className="size-4" />
-                  <span>New project</span>
-                </CommandItem>
+            {search &&
+              search !== "!dev" &&
+              search !== "!beta" &&
+              matchedProjects.length === 0 && (
+                <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
+                  No projects found
+                </div>
               )}
-              <CommandItem
-                onSelect={() => {
-                  handleClose();
-                  checkForUpdates({});
-                }}
-                value="check-for-updates"
-              >
-                <ArrowsClockwiseIcon className="size-4" />
-                <span>Check for updates</span>
-              </CommandItem>
-              {/* Only renders when "!dev" is typed exactly, so it never appears in the default list. */}
-              {search === "!dev" && (
+            {!search && (
+              <CommandGroup>
+                {!isOnNewTabPage && (
+                  <CommandItem onSelect={handleNewProject} value="new-project">
+                    <PlusIcon className="size-4" />
+                    <span>New project</span>
+                  </CommandItem>
+                )}
                 <CommandItem
-                  keywords={["!dev"]}
+                  onSelect={() => {
+                    handleClose();
+                    checkForUpdates({});
+                  }}
+                  value="check-for-updates"
+                >
+                  <ArrowsClockwiseIcon className="size-4" />
+                  <span>Check for updates</span>
+                </CommandItem>
+              </CommandGroup>
+            )}
+            {/* Only renders when "!dev" is typed exactly, so it never appears in the default list. */}
+            {search === "!dev" && (
+              <CommandGroup>
+                <CommandItem
                   onSelect={() => {
                     handleClose();
                     const next = !(preferences?.developerMode ?? false);
@@ -167,11 +215,12 @@ export function StudioCommandMenu() {
                 >
                   <span>Toggle developer mode</span>
                 </CommandItem>
-              )}
-              {/* Only renders when "!beta" is typed exactly, so it never appears in the default list. */}
-              {search === "!beta" && (
+              </CommandGroup>
+            )}
+            {/* Only renders when "!beta" is typed exactly, so it never appears in the default list. */}
+            {search === "!beta" && (
+              <CommandGroup>
                 <CommandItem
-                  keywords={["!beta"]}
                   onSelect={() => {
                     handleClose();
                     const isBeta = preferences?.releaseChannel === "beta";
@@ -186,33 +235,88 @@ export function StudioCommandMenu() {
                 >
                   <span>Toggle beta channel</span>
                 </CommandItem>
-              )}
-            </CommandGroup>
-            {filteredProjects.length > 0 && (
-              <CommandGroup heading="Projects">
-                {filteredProjects.map((project) => (
-                  <CommandItem
-                    key={project.subdomain}
-                    keywords={[project.title]}
-                    onSelect={() => {
-                      handleSelectProject(project.subdomain);
-                    }}
-                    value={project.subdomain}
-                  >
-                    <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
-                    <span className="flex-1 truncate">{project.title}</span>
-                    <span className="text-xs text-muted-foreground/60">
-                      {formatDistanceToNow(new Date(project.updatedAt), {
-                        addSuffix: true,
-                      }).replace(/^about /, "")}
-                    </span>
-                  </CommandItem>
-                ))}
               </CommandGroup>
+            )}
+            {matchedProjects.length > 0 && (
+              <VirtualProjectList
+                matchedProjects={matchedProjects}
+                onSelectProject={handleSelectProject}
+              />
             )}
           </>
         )}
       </CommandList>
     </CommandDialog>
+  );
+}
+
+function VirtualProjectList({
+  matchedProjects,
+  onSelectProject,
+}: {
+  matchedProjects: MatchedProject[];
+  onSelectProject: (subdomain: ProjectSubdomain) => void;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const virtualizer = useVirtualizer({
+    count: matchedProjects.length,
+    estimateSize: () => 36,
+    getScrollElement: () => parentRef.current,
+    measureElement: (el) => el.getBoundingClientRect().height,
+    overscan: 8,
+  });
+
+  return (
+    <div className="overflow-hidden p-1">
+      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+        Projects
+      </div>
+      <div
+        className="overflow-y-auto"
+        ref={parentRef}
+        style={{ maxHeight: "280px" }}
+      >
+        <div
+          className="relative w-full"
+          style={{ height: `${virtualizer.getTotalSize()}px` }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const matched = matchedProjects[virtualItem.index];
+            if (!matched) {
+              return null;
+            }
+            const { project, titleRanges } = matched;
+            return (
+              <div
+                className="absolute top-0 left-0 w-full"
+                data-index={virtualItem.index}
+                key={project.subdomain}
+                ref={virtualizer.measureElement}
+                style={{ transform: `translateY(${virtualItem.start}px)` }}
+              >
+                <CommandItem
+                  onSelect={() => {
+                    onSelectProject(project.subdomain);
+                  }}
+                  value={project.subdomain}
+                >
+                  <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
+                  <span className="flex-1 truncate text-sm">
+                    <FuzzyHighlight ranges={titleRanges} text={project.title} />
+                  </span>
+                  <span className="text-xs text-muted-foreground/60">
+                    {formatDistanceToNow(new Date(project.updatedAt), {
+                      addSuffix: true,
+                    }).replace(/^about /, "")}
+                  </span>
+                </CommandItem>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,89 +1,171 @@
 import {
+  FileAudioIcon,
+  FileCIcon,
+  FileCodeIcon,
+  FileCppIcon,
+  FileCSharpIcon,
+  FileCssIcon,
+  FileCsvIcon,
+  FileDocIcon,
+  FileHtmlIcon,
+  FileIniIcon,
+  FileJpgIcon,
+  FileJsIcon,
+  FileJsxIcon,
+  FileMdIcon,
+  FilePdfIcon,
+  FilePngIcon,
+  FilePptIcon,
+  FilePyIcon,
+  FileRsIcon,
+  FileSqlIcon,
+  FileSvgIcon,
+  FileTextIcon,
+  FileTsIcon,
+  FileTsxIcon,
+  FileTxtIcon,
+  FileVideoIcon,
+  FileVueIcon,
+  FileXlsIcon,
+  FileZipIcon,
+  type Icon,
+  FileIcon as PhFileIcon,
+} from "@phosphor-icons/react";
+import {
   BsFileBinary,
   BsFileCode,
   BsFileEarmarkFont,
   BsFileEarmarkImage,
-  BsFileEarmarkMusic,
-  BsFileEarmarkPlay,
   BsFileEarmarkPpt,
   BsFileEarmarkRichtext,
   BsFileEarmarkSpreadsheet,
-  BsFileEarmarkText,
   BsFileEarmarkWord,
-  BsFilePdf,
 } from "react-icons/bs";
 import { type IconType } from "react-icons/lib";
-import { VscFileZip } from "react-icons/vsc";
 
 import { EXTENSION_MAP } from "../lib/file-extension-to-language";
 
-const codeFileExtensions: Record<string, IconType> = {};
-for (const ext of Object.keys(EXTENSION_MAP)) {
-  codeFileExtensions[ext] = BsFileCode;
-}
+type AnyIcon = Icon | IconType;
 
-const EXTENSION_ICON_MAP: Record<string, IconType | null> = {
-  ...codeFileExtensions,
-  // cspell:ignore flac
-  "7z": VscFileZip,
-  aac: BsFileEarmarkMusic,
+const EXTENSION_ICON_MAP: Record<string, AnyIcon | null> = {
+  // --- Phosphor first-class file icons ---
+  c: FileCIcon,
+  cc: FileCppIcon,
+  cjs: FileJsIcon,
+  cpp: FileCppIcon,
+  cs: FileCSharpIcon,
+  css: FileCssIcon,
+  csv: FileCsvIcon,
+  cts: FileTsIcon,
+  cxx: FileCppIcon,
+  doc: FileDocIcon,
+  docx: FileDocIcon,
+  h: FileCIcon,
+  hpp: FileCppIcon,
+  htm: FileHtmlIcon,
+  html: FileHtmlIcon,
+  ini: FileIniIcon,
+  jpeg: FileJpgIcon,
+  jpg: FileJpgIcon,
+  js: FileJsIcon,
+  jsx: FileJsxIcon,
+  md: FileMdIcon,
+  mdx: FileMdIcon,
+  mjs: FileJsIcon,
+  mts: FileTsIcon,
+  pdf: FilePdfIcon,
+  png: FilePngIcon,
+  ppt: FilePptIcon,
+  pptx: FilePptIcon,
+  py: FilePyIcon,
+  rs: FileRsIcon,
+  sql: FileSqlIcon,
+  svg: FileSvgIcon,
+  toml: FileIniIcon,
+  ts: FileTsIcon,
+  tsx: FileTsxIcon,
+  txt: FileTxtIcon,
+  vue: FileVueIcon,
+  xls: FileXlsIcon,
+  xlsx: FileXlsIcon,
+  yaml: FileCodeIcon,
+  yml: FileCodeIcon,
+
+  // --- Archives ---
+  "7z": FileZipIcon,
+  gz: FileZipIcon,
+  rar: FileZipIcon,
+  tar: FileZipIcon,
+  zip: FileZipIcon,
+
+  // --- Audio (Phosphor FileAudioIcon) ---
+  aac: FileAudioIcon,
+  flac: FileAudioIcon,
+  m4a: FileAudioIcon,
+  mp3: FileAudioIcon,
+  ogg: FileAudioIcon,
+  wav: FileAudioIcon,
+
+  // --- Video (Phosphor FileVideoIcon) ---
+  avi: FileVideoIcon,
+  mkv: FileVideoIcon,
+  mov: FileVideoIcon,
+  mp4: FileVideoIcon,
+  webm: FileVideoIcon,
+
+  // --- Images not covered by Phosphor specifics ---
   ai: BsFileEarmarkImage,
-  avi: BsFileEarmarkPlay,
   bmp: BsFileEarmarkImage,
-  csv: BsFileEarmarkSpreadsheet,
-  doc: BsFileEarmarkWord,
-  docx: BsFileEarmarkWord,
-  epub: BsFileEarmarkRichtext,
-  exe: BsFileBinary,
-  flac: BsFileEarmarkMusic,
   gif: BsFileEarmarkImage,
-  gz: VscFileZip,
   heic: BsFileEarmarkImage,
-  jpeg: BsFileEarmarkImage,
-  jpg: BsFileEarmarkImage,
+  psd: BsFileEarmarkImage,
+  raw: BsFileEarmarkImage,
+  tiff: BsFileEarmarkImage,
+  webp: BsFileEarmarkImage,
+
+  // --- Office / docs ---
+  epub: BsFileEarmarkRichtext,
   key: BsFileEarmarkPpt,
-  m4a: BsFileEarmarkMusic,
-  md: BsFileEarmarkText,
-  mkv: BsFileEarmarkPlay,
-  mov: BsFileEarmarkPlay,
-  mp3: BsFileEarmarkMusic,
-  mp4: BsFileEarmarkPlay,
   numbers: BsFileEarmarkSpreadsheet,
   odf: BsFileEarmarkRichtext,
   odp: BsFileEarmarkPpt,
   ods: BsFileEarmarkSpreadsheet,
   odt: BsFileEarmarkWord,
-  ogg: BsFileEarmarkMusic,
-  otf: BsFileEarmarkFont,
+  odw: BsFileEarmarkWord,
   pages: BsFileEarmarkWord,
-  pdf: BsFilePdf,
-  png: BsFileEarmarkImage,
-  ppt: BsFileEarmarkPpt,
-  pptx: BsFileEarmarkPpt,
-  psd: BsFileEarmarkImage,
-  rar: VscFileZip,
-  raw: BsFileEarmarkImage,
   rtf: BsFileEarmarkRichtext,
-  svg: BsFileEarmarkImage,
-  tar: VscFileZip,
-  tiff: BsFileEarmarkImage,
   tsv: BsFileEarmarkSpreadsheet,
+
+  // --- Fonts ---
+  otf: BsFileEarmarkFont,
   ttf: BsFileEarmarkFont,
-  txt: BsFileEarmarkText,
-  wav: BsFileEarmarkMusic,
-  webm: BsFileEarmarkPlay,
   woff: BsFileEarmarkFont,
-  xls: BsFileEarmarkSpreadsheet,
-  xlsx: BsFileEarmarkSpreadsheet,
-  zip: VscFileZip,
+  woff2: BsFileEarmarkFont,
+
+  // --- Binary / executable ---
+  dll: BsFileBinary,
+  // cspell:ignore dylib
+  dylib: BsFileBinary,
+  exe: BsFileBinary,
+  so: BsFileBinary,
 };
 
-const FILENAME_ICON_MAP: Record<string, IconType | null> = {
-  ".gitignore": BsFileCode,
-  changelog: BsFileEarmarkText,
-  dockerfile: BsFileCode,
-  license: BsFileEarmarkText,
-  readme: BsFileEarmarkText,
+// Populate all code-language extensions that aren't already explicitly mapped
+// above with BsFileCode as a generic code fallback.
+for (const ext of Object.keys(EXTENSION_MAP)) {
+  if (!(ext in EXTENSION_ICON_MAP)) {
+    EXTENSION_ICON_MAP[ext] = BsFileCode;
+  }
+}
+
+const FILENAME_ICON_MAP: Record<string, AnyIcon | null> = {
+  ".env": FileIniIcon,
+  ".gitignore": FileCodeIcon,
+  changelog: FileTxtIcon,
+  dockerfile: FileCodeIcon,
+  license: FileTxtIcon,
+  makefile: FileCodeIcon,
+  readme: FileMdIcon,
 };
 
 export function FileIcon({
@@ -97,26 +179,27 @@ export function FileIcon({
   filename: string;
   mimeType?: string;
 }) {
-  let Icon: IconType = BsFileBinary;
   const lowerName = filename.toLowerCase();
+  let IconComponent: AnyIcon = PhFileIcon;
 
   if (FILENAME_ICON_MAP[lowerName]) {
-    Icon = FILENAME_ICON_MAP[lowerName];
+    IconComponent = FILENAME_ICON_MAP[lowerName];
   } else {
     const ext = getFileExtension(filename);
-    if (EXTENSION_ICON_MAP[ext]) {
-      Icon = EXTENSION_ICON_MAP[ext];
+    if (ext && EXTENSION_ICON_MAP[ext]) {
+      IconComponent = EXTENSION_ICON_MAP[ext] ?? IconComponent;
     } else if (
       fallbackExtension &&
       EXTENSION_ICON_MAP[fallbackExtension.toLowerCase()]
     ) {
-      Icon = EXTENSION_ICON_MAP[fallbackExtension.toLowerCase()] ?? Icon;
+      IconComponent =
+        EXTENSION_ICON_MAP[fallbackExtension.toLowerCase()] ?? IconComponent;
     } else if (mimeType?.startsWith("text/")) {
-      Icon = BsFileEarmarkText;
+      IconComponent = FileTextIcon;
     }
   }
 
-  return <Icon className={className} />;
+  return <IconComponent className={className} />;
 }
 
 function getFileExtension(filename: string): string {

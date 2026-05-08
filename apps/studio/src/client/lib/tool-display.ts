@@ -7,14 +7,13 @@ import {
 import {
   BookOpenIcon,
   EyeIcon,
+  FileCodeIcon,
   FileMagnifyingGlassIcon,
-  FilePlusIcon,
   FolderSimplePlusIcon,
   GlobeIcon,
   type Icon,
   ImageIcon,
   ListMagnifyingGlassIcon,
-  PencilIcon,
   QuestionIcon,
   TerminalIcon,
   WrenchIcon,
@@ -104,7 +103,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   bash: TerminalIcon,
   choose: QuestionIcon,
   copy_to_project: FolderSimplePlusIcon,
-  edit_file: PencilIcon,
+  edit_file: FileCodeIcon,
   generate_image: ImageIcon,
   glob: ListMagnifyingGlassIcon,
   grep: FileMagnifyingGlassIcon,
@@ -113,7 +112,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   task: undefined,
   unavailable: WrenchIcon,
   web_search: GlobeIcon,
-  write_file: FilePlusIcon,
+  write_file: FileCodeIcon,
 };
 
 export function getToolLabel(toolName: ToolName): string {

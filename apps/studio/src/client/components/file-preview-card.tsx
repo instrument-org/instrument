@@ -1,12 +1,25 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
+import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
-import { PlayIcon } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
+import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
+import {
+  ArrowLineDownIcon,
+  ArrowsOutSimpleIcon,
+  CheckIcon,
+  CopyIcon,
+  PlayIcon,
+} from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
 import { FileVersionBadge } from "./file-version-badge";
+import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
 import { Markdown } from "./markdown";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
@@ -59,6 +72,16 @@ export function FilePreviewCard({
     }
   };
 
+  if (fileType === "image") {
+    return (
+      <ImagePreviewCard
+        file={file}
+        hideActionsMenu={hideActionsMenu}
+        onClick={onClick}
+      />
+    );
+  }
+
   if (fileType === "markdown" || fileType === "text" || fileType === "code") {
     return (
       <ContextMenu>
@@ -106,18 +129,7 @@ export function FilePreviewCard({
             onClick={onClick}
           />
           <div className="relative aspect-video w-full overflow-hidden">
-            {fileType === "image" ? (
-              <div className="flex size-full items-center justify-center">
-                <ImageWithFallback
-                  alt={filename}
-                  className="max-h-full max-w-full object-contain"
-                  fallbackClassName="size-full"
-                  filename={filename}
-                  showCheckerboard
-                  src={url}
-                />
-              </div>
-            ) : fileType === "html" ? (
+            {fileType === "html" ? (
               <SandboxedHtmlIframe
                 className="absolute top-0 left-0 size-[300%] origin-top-left border-0"
                 restrictInteractive
@@ -218,6 +230,169 @@ function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+function ImageOverlayButton({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <button
+      className="flex items-center gap-1.5 rounded-lg bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm hover:bg-background dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+      onClick={onClick}
+      type="button"
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function ImagePreviewCard({
+  file,
+  hideActionsMenu,
+  onClick,
+}: {
+  file: ProjectFileViewerFile;
+  hideActionsMenu?: boolean;
+  onClick: () => void;
+}) {
+  const { filename, mimeType, url } = file;
+  const fileActions = useFileActionVisibility(file);
+  const { active: copied, trigger: triggerCopied } = useTimedFlag();
+
+  const showProjectFileInFolderMutation = useMutation(
+    rpcClient.utils.showProjectFileInFolder.mutationOptions({
+      onError: (error) => {
+        const label = getRevealInFolderLabel();
+        const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
+        toast.error(`Failed to ${lowercasedLabel}`, {
+          description: error.message,
+        });
+      },
+    }),
+  );
+
+  const handleCopy = async () => {
+    try {
+      await copyFileToClipboard({
+        filePath: file.filePath,
+        isImage: mimeType.startsWith("image/"),
+        subdomain: file.projectSubdomain,
+        versionRef: file.versionRef,
+      });
+      triggerCopied();
+    } catch {
+      // copyFileToClipboard already toasts on error
+    }
+  };
+
+  const handleDownload = async () => {
+    await downloadFile(file);
+  };
+
+  const handleRevealInFolder = () => {
+    showProjectFileInFolderMutation.mutate({
+      filePath: file.filePath,
+      subdomain: file.projectSubdomain,
+    });
+  };
+
+  const hasActions =
+    !hideActionsMenu &&
+    (fileActions.showCopy ||
+      fileActions.showDownload ||
+      fileActions.showReveal);
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div className="group relative aspect-square w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted">
+          <div className="flex size-full items-center justify-center">
+            <ImageWithFallback
+              alt={filename}
+              className="max-h-full max-w-full object-contain"
+              fallbackClassName="size-full"
+              filename={filename}
+              showCheckerboard
+              src={url}
+            />
+          </div>
+
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/75 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+
+          <button
+            className="absolute inset-0 z-0 size-full"
+            onClick={onClick}
+            type="button"
+          />
+
+          {!hideActionsMenu && (
+            <button
+              className={cn(
+                "absolute top-3 right-3 z-10 flex size-7 items-center justify-center rounded-lg",
+                "bg-background/90 text-foreground opacity-0 shadow-sm transition-opacity duration-200",
+                "group-hover:opacity-100 hover:bg-background dark:bg-white/5 dark:text-white dark:hover:bg-white/10",
+              )}
+              onClick={onClick}
+              type="button"
+            >
+              <ArrowsOutSimpleIcon className="size-3.5" />
+            </button>
+          )}
+
+          {hasActions && (
+            <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              {fileActions.showCopy && (
+                <ImageOverlayButton
+                  icon={
+                    copied ? (
+                      <CheckIcon className="size-3.5 shrink-0" />
+                    ) : (
+                      <CopyIcon className="size-3.5 shrink-0" />
+                    )
+                  }
+                  label="Copy"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleCopy();
+                  }}
+                />
+              )}
+              {fileActions.showDownload && (
+                <ImageOverlayButton
+                  icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
+                  label="Download"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDownload();
+                  }}
+                />
+              )}
+              {fileActions.showReveal && (
+                <ImageOverlayButton
+                  icon={<RevealInFolderIcon className="size-3.5 shrink-0" />}
+                  label={getRevealInFolderLabel()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRevealInFolder();
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <FileActionsMenuItems file={file} variant="context" />
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }
 
 function MarkdownPreview({ url }: { url: string }) {

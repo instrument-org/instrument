@@ -1,6 +1,6 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
-import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
+import { getToolLabel } from "../../lib/tool-display";
 import { SessionMarkdown } from "../session-markdown";
 import { useToolCallSession } from "./tool-call-session";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
@@ -12,14 +12,12 @@ type LoadSkillPart = Extract<
 
 export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
   const { isStreaming } = useToolCallSession();
-  if (!part.input) {
+  if (!part.input || isStreaming) {
     return null;
   }
 
   const hasOutput = part.state === "output-available";
-  const label = isStreaming
-    ? getToolStreamingLabel("load_skill")
-    : getToolLabel("load_skill");
+  const label = getToolLabel("load_skill");
 
   return (
     <ToolCard>

@@ -1,11 +1,9 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
-import { FileIcon } from "@/client/components/file-icon";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
-import { ImageWithFallback } from "@/client/components/image-with-fallback";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
-import { getFileType } from "@/client/lib/get-file-type";
+import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import {
   hasVisibleProjectFiles,
   isProjectFileSrcFile,
@@ -34,6 +32,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { FileActionsMenuItems } from "../file-actions-menu";
+import { FileThumbnail } from "../file-thumbnail";
 import {
   Collapsible,
   CollapsibleContent,
@@ -404,106 +403,6 @@ function directorySectionLabel(dirName: string) {
   return dirName;
 }
 
-function explorerFileKindLabel(file: ProjectFileViewerFile) {
-  switch (getFileType(file)) {
-    case "audio": {
-      return "Audio";
-    }
-    case "code": {
-      return "Code";
-    }
-    case "html": {
-      return "HTML";
-    }
-    case "image": {
-      return "Image";
-    }
-    case "markdown": {
-      return "Markdown";
-    }
-    case "pdf": {
-      return "PDF";
-    }
-    case "text": {
-      return "Text file";
-    }
-    case "video": {
-      return "Video";
-    }
-    default: {
-      return "File";
-    }
-  }
-}
-
-function ExplorerFileThumbnail({
-  file,
-  isActive,
-}: {
-  file: ProjectFileViewerFile;
-  isActive: boolean;
-}) {
-  const kind = getFileType(file);
-
-  if (kind === "image") {
-    return (
-      <ThumbnailFrame isActive={isActive}>
-        <ImageWithFallback
-          alt=""
-          className="size-full object-contain"
-          draggable={false}
-          fallback={
-            <div className="flex size-full items-center justify-center">
-              <FileIcon
-                className={thumbnailIconClass(isActive)}
-                filename={file.filename}
-                mimeType={file.mimeType}
-              />
-            </div>
-          }
-          filename={file.filename}
-          showCheckerboard
-          src={file.url}
-        />
-      </ThumbnailFrame>
-    );
-  }
-
-  if (kind === "markdown" || kind === "text" || kind === "code") {
-    return (
-      <ThumbnailFrame className="flex flex-col p-1" isActive={isActive}>
-        <div className="flex flex-1 flex-col justify-center gap-px">
-          {[0.85, 0.72, 0.9, 0.55].map((w) => (
-            <div
-              className={cn(
-                "h-px min-w-0 rounded-full",
-                isActive
-                  ? "bg-sidebar-accent-foreground/35"
-                  : "bg-muted-foreground/20",
-              )}
-              key={w}
-              style={{ width: `${w * 100}%` }}
-            />
-          ))}
-        </div>
-      </ThumbnailFrame>
-    );
-  }
-
-  return (
-    <ThumbnailFrame
-      className="flex items-center justify-center"
-      isActive={isActive}
-    >
-      <FileIcon
-        className={thumbnailIconClass(isActive)}
-        filename={file.filename}
-        mimeType={file.mimeType}
-      />
-    </ThumbnailFrame>
-  );
-}
-
 function ExplorerFolderThumbnail() {
   return (
     <div className="flex h-10 w-8 shrink-0 items-center justify-center">
@@ -548,7 +447,7 @@ function FileRow({
             isActive={isActive}
             onClick={onClick}
           >
-            <ExplorerFileThumbnail file={file} isActive={isActive} />
+            <FileThumbnail file={file} isActive={isActive} />
             <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">
               <span className="truncate font-medium">{file.filename}</span>
               <span
@@ -559,7 +458,8 @@ function FileRow({
                     : "text-muted-foreground",
                 )}
               >
-                {explorerFileKindLabel(file)} · {explorerStubRelativeDate()}
+                {fileKindLabel(getFileType(file))} ·{" "}
+                {explorerStubRelativeDate()}
               </span>
             </div>
           </SidebarMenuButton>
@@ -596,36 +496,6 @@ function FilesItemMenu({ children }: { children: React.ReactNode }) {
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-function ThumbnailFrame({
-  children,
-  className,
-  isActive,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  isActive?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "h-10 w-8 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm",
-        isActive &&
-          "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-function thumbnailIconClass(isActive?: boolean) {
-  return cn(
-    "size-4 shrink-0",
-    isActive ? "text-sidebar-accent-foreground" : "text-muted-foreground",
   );
 }
 

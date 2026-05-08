@@ -1,6 +1,6 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
-import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
+import { getToolLabel } from "../../lib/tool-display";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { useToolCallSession } from "./tool-call-session";
@@ -13,7 +13,7 @@ type WebSearchPart = Extract<
 
 export function ToolWebSearch({ part }: { part: WebSearchPart }) {
   const { isStreaming } = useToolCallSession();
-  if (!part.input) {
+  if (!part.input || isStreaming) {
     return null;
   }
 
@@ -22,9 +22,7 @@ export function ToolWebSearch({ part }: { part: WebSearchPart }) {
       ? part.output
       : null;
 
-  const label = isStreaming
-    ? getToolStreamingLabel("web_search")
-    : getToolLabel("web_search");
+  const label = getToolLabel("web_search");
 
   return (
     <ToolCard>

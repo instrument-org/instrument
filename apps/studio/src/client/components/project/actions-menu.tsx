@@ -80,8 +80,7 @@ export function ProjectActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="bottom">
         <DropdownMenuItem
-          onClick={(e) => {
-            e.preventDefault();
+          onSelect={() => {
             if (isFavorite) {
               void removeFavorite({ subdomain });
             } else {

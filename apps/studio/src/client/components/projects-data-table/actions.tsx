@@ -99,8 +99,7 @@ export function ProjectActionsCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault();
+            onSelect={() => {
               if (isFavorite) {
                 void removeFavorite({ subdomain });
               } else {
@@ -115,8 +114,7 @@ export function ProjectActionsCell({
             <span>{isFavorite ? "Remove favorite" : "Favorite"}</span>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault();
+            onSelect={() => {
               onSettings(subdomain);
             }}
           >
@@ -124,8 +122,7 @@ export function ProjectActionsCell({
             <span>Rename</span>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault();
+            onSelect={() => {
               onOpenInNewTab(subdomain);
             }}
           >

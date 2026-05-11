@@ -16,7 +16,11 @@ export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
     return null;
   }
 
-  const hasOutput = part.state === "output-available";
+  const successOutput =
+    part.state === "output-available" && part.output.state === "success"
+      ? part.output
+      : null;
+
   const label = getToolLabel("load_skill");
 
   return (
@@ -25,14 +29,32 @@ export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
       </ToolCardHeader>
 
-      <ToolCardSection maxHeight="max-h-64">
-        <p className="mb-3 font-mono text-sm text-muted-foreground">
-          {part.input.name}
-        </p>
-        {hasOutput && (
-          <SessionMarkdown className="w-full" markdown={part.output.content} />
-        )}
-      </ToolCardSection>
+      {successOutput && (
+        <ToolCardSection maxHeight="max-h-52">
+          <SessionMarkdown
+            className="w-full"
+            markdown={successOutput.content}
+          />
+
+          {successOutput.files.length > 0 && (
+            <div className="mt-4 space-y-1 border-t border-border pt-3">
+              {successOutput.files.map((file) => (
+                <p
+                  className="font-mono text-xs text-muted-foreground"
+                  key={file}
+                >
+                  {file}
+                </p>
+              ))}
+              {successOutput.truncated && (
+                <p className="font-mono text-xs text-muted-foreground/60">
+                  (truncated)
+                </p>
+              )}
+            </div>
+          )}
+        </ToolCardSection>
+      )}
     </ToolCard>
   );
 }

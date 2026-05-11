@@ -80,7 +80,7 @@ async function createSkill({
 
 /* eslint-disable unicorn/no-await-expression-member */
 describe("LoadSkill", () => {
-  it("returns not-found message when skill does not exist", async () => {
+  it("returns not-found state when skill does not exist", async () => {
     await createSkill({ name: "existing-skill" });
 
     const result = (
@@ -90,12 +90,18 @@ describe("LoadSkill", () => {
       })
     )._unsafeUnwrap();
 
-    expect(result.content).toMatchInlineSnapshot(`
-      "Skill "nonexistent" not found.
-
-      Available skills:
-
-      - existing-skill: A test skill"
+    expect(result.state).toBe("not-found");
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "available": [
+          {
+            "description": "A test skill",
+            "name": "existing-skill",
+          },
+        ],
+        "name": "nonexistent",
+        "state": "not-found",
+      }
     `);
   });
 
@@ -130,7 +136,7 @@ describe("LoadSkill", () => {
     expect(script).toMatchInlineSnapshot(`"console.log('hello')"`);
   });
 
-  it("includes relative file paths in skill_files section", async () => {
+  it("includes relative file paths in files array", async () => {
     await createSkill({
       extraFiles: {
         "references/notes.md": "# Notes",
@@ -147,24 +153,20 @@ describe("LoadSkill", () => {
       })
     )._unsafeUnwrap();
 
-    expect(result.content).toMatchInlineSnapshot(`
-      "<skill_content name="my-skill">
-      # my-skill
-
-      Skill instructions here.
-
-      The skill files below are copied into your project and are yours to edit. Before writing anything new, read the relevant script(s) and run them with \`tsx\` if they fit. Only write a custom script if the existing ones cannot handle the task even with modification.
-
-      <skill_files>
-      <file>skills/my-skill/references/notes.md</file>
-      <file>skills/my-skill/scripts/lib/helper.ts</file>
-      <file>skills/my-skill/scripts/run.ts</file>
-      </skill_files>
-      </skill_content>"
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    expect(result.files).toMatchInlineSnapshot(`
+      [
+        "skills/my-skill/references/notes.md",
+        "skills/my-skill/scripts/lib/helper.ts",
+        "skills/my-skill/scripts/run.ts",
+      ]
     `);
   });
 
-  it("does not re-copy if destination already exists (idempotent)", async () => {
+  it("returns an error and does not re-copy if destination already exists", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "original" },
       name: "my-skill",
@@ -187,16 +189,17 @@ describe("LoadSkill", () => {
 
     await fs.writeFile(destScript, "modified");
 
-    const result = (await runTool(LoadSkill, args))._unsafeUnwrap();
+    const result = await runTool(LoadSkill, args);
 
     const fileContent = await fs.readFile(destScript, "utf8");
     expect(fileContent).toMatchInlineSnapshot(`"modified"`);
-    expect(result.content).toMatchInlineSnapshot(
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
       `"Skill "my-skill" is already loaded. Read skills/my-skill/SKILL.md if you haven't yet -- do not read other files in that folder unless the skill instructs you to."`,
     );
   });
 
-  it("returns skill content wrapped in skill_content tag", async () => {
+  it("returns skill content in content field", async () => {
     await createSkill({ name: "my-skill" });
 
     const result = (
@@ -206,16 +209,18 @@ describe("LoadSkill", () => {
       })
     )._unsafeUnwrap();
 
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
     expect(result.content).toMatchInlineSnapshot(`
-      "<skill_content name="my-skill">
-      # my-skill
+      "# my-skill
 
-      Skill instructions here.
-      </skill_content>"
+      Skill instructions here."
     `);
   });
 
-  it("omits skill_files section when skill has no extra files", async () => {
+  it("returns empty files array when skill has no extra files", async () => {
     await createSkill({ name: "my-skill" });
 
     const result = (
@@ -225,13 +230,11 @@ describe("LoadSkill", () => {
       })
     )._unsafeUnwrap();
 
-    expect(result.content).toMatchInlineSnapshot(`
-      "<skill_content name="my-skill">
-      # my-skill
-
-      Skill instructions here.
-      </skill_content>"
-    `);
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    expect(result.files).toMatchInlineSnapshot(`[]`);
   });
 });
 /* eslint-enable unicorn/no-await-expression-member */

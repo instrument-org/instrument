@@ -52,8 +52,11 @@ registerSession({
           },
           output: {
             content:
-              '<skill_content name="react">\n# React Skill\n\nBest practices for building React applications...\n</skill_content>',
+              "# React Skill\n\nBest practices for building React applications...",
+            files: ["skills/react/SKILL.md"],
             name: "react",
+            state: "success",
+            truncated: false,
           },
           type: "tool-load_skill",
         }),

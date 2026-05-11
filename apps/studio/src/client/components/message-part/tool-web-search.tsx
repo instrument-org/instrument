@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { getToolLabel } from "../../lib/tool-display";
@@ -5,6 +6,7 @@ import { Favicon } from "../favicon";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { useToolCallSession } from "./tool-call-session";
+import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
   ToolCardHeader,
@@ -17,7 +19,13 @@ type WebSearchPart = Extract<
   { type: "tool-web_search" }
 >;
 
-export function ToolWebSearch({ part }: { part: WebSearchPart }) {
+export function ToolWebSearch({
+  onRetry,
+  part,
+}: {
+  onRetry: (prompt: string) => void;
+  part: WebSearchPart;
+}) {
   const { isStreaming } = useToolCallSession();
   if (!part.input || isStreaming) {
     return null;
@@ -27,8 +35,15 @@ export function ToolWebSearch({ part }: { part: WebSearchPart }) {
     part.state === "output-available" && part.output.state === "success"
       ? part.output
       : null;
+  const failureOutput =
+    part.state === "output-available" && part.output.state === "failure"
+      ? part.output
+      : null;
 
-  const label = getToolLabel("web_search");
+  const label = failureOutput
+    ? "Web search unavailable"
+    : getToolLabel("web_search");
+  const query = typeof part.input.query === "string" ? part.input.query : "";
 
   return (
     <ToolCard>
@@ -36,20 +51,35 @@ export function ToolWebSearch({ part }: { part: WebSearchPart }) {
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
       </ToolCardHeader>
 
-      <ToolCardSection
-        borderBottom={!!successOutput}
-        copyText={part.input.query}
-        maxHeight="max-h-16"
-      >
-        <div className="flex font-mono text-sm leading-relaxed">
-          <span className="mr-2 shrink-0 text-muted-foreground select-none">
-            &gt;
-          </span>
-          <span className="break-all whitespace-pre-wrap">
-            {part.input.query}
-          </span>
-        </div>
-      </ToolCardSection>
+      {!failureOutput && (
+        <ToolCardSection
+          borderBottom={!!successOutput}
+          copyText={query}
+          maxHeight="max-h-16"
+        >
+          <div className="flex font-mono text-sm leading-relaxed">
+            <span className="mr-2 shrink-0 text-muted-foreground select-none">
+              &gt;
+            </span>
+            <span className="break-all whitespace-pre-wrap">{query}</span>
+          </div>
+        </ToolCardSection>
+      )}
+
+      {failureOutput && (
+        <ToolCapabilityFailure
+          capabilityLabel="web search"
+          errorMessage={failureOutput.errorMessage}
+          onRetry={onRetry}
+          providerGuardDescription={
+            failureOutput.errorType === "no-web-search-model"
+              ? `Sign up for ${APP_NAME} or add an AI provider that supports web search.`
+              : undefined
+          }
+          responseBody={failureOutput.responseBody}
+          retryMessage={`I added a web search provider. Retry searching for "${query}"`}
+        />
+      )}
 
       {successOutput && (
         <ToolCardSection maxHeight="max-h-[28rem]">

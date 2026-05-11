@@ -25,6 +25,7 @@ export function ToolCall({
   isAgentRunning,
   isDeveloperMode,
   isStreaming,
+  onRetry,
   part,
   project,
   renderStream,
@@ -32,6 +33,7 @@ export function ToolCall({
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isStreaming: boolean;
+  onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
   project: WorkspaceAppProject;
   renderStream: RenderStream;
@@ -57,6 +59,7 @@ export function ToolCall({
           <DeadDevModeBody part={part} />
         ) : (
           <ToolCallBody
+            onRetry={onRetry}
             part={part}
             project={project}
             renderStream={renderStream}
@@ -85,10 +88,12 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
 }
 
 function ToolCallBody({
+  onRetry,
   part,
   project,
   renderStream,
 }: {
+  onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
   project: WorkspaceAppProject;
   renderStream: RenderStream;
@@ -114,6 +119,7 @@ function ToolCallBody({
       return (
         <ToolGenerateImage
           assetBaseUrl={project.urls.assetBase}
+          onRetry={onRetry}
           part={part}
           subdomain={project.subdomain}
         />
@@ -140,7 +146,7 @@ function ToolCallBody({
       return <ToolUnavailable part={part} />;
     }
     case "tool-web_search": {
-      return <ToolWebSearch part={part} />;
+      return <ToolWebSearch onRetry={onRetry} part={part} />;
     }
     case "tool-write_file": {
       return <ToolWriteFile part={part} subdomain={project.subdomain} />;

@@ -88,15 +88,16 @@ export function ToolCallSummary({
   const explanation = getToolExplanation(part);
 
   const label =
-    explanation ??
-    (isStreaming
-      ? getToolStreamingLabel(toolName)
-      : getToolLabelForPart({
-          hasCapabilityFailure,
-          part,
-          state: isFailed ? "failed" : "completed",
-          toolName,
-        }));
+    !isFailed && explanation
+      ? explanation
+      : isStreaming
+        ? getToolStreamingLabel(toolName)
+        : getToolLabelForPart({
+            hasCapabilityFailure,
+            part,
+            state: isFailed ? "failed" : "completed",
+            toolName,
+          });
 
   const deadLabel = isDeadDevMode
     ? `${getToolLabelForPart({ part, state: "streaming", toolName })} stopped while ${part.state}`

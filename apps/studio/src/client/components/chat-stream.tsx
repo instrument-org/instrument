@@ -224,6 +224,7 @@ export function ChatStream({
               isAgentRunning={isAgentRunning}
               isDeveloperMode={isDeveloperMode}
               isStreaming={streaming}
+              onRetry={onRetry}
               part={part}
               project={project}
               renderStream={renderStream}
@@ -274,6 +275,7 @@ export function ChatStream({
       isToolStreaming,
       isViewingApp,
       renderStream,
+      onRetry,
     ],
   );
 

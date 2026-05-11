@@ -52,8 +52,10 @@ changes genuinely span two packages.
 
 **Then write the message:**
 
-1. Pick `type` based on intent -- new behavior → `feat`, broken thing → `fix`,
-   no behavior change → `refactor`/`chore`/`dx`
+1. Pick `type` based on intent -- new or changed user-visible behavior
+   (including UI redesigns, new interactions, visual changes) → `feat`,
+   broken thing → `fix`, pure internal restructuring with zero behavior change
+   → `refactor`, tooling/deps/config → `chore`/`dx`
 2. Pick `scope` from the list above; comma-separate only when changes genuinely
    span two packages
 3. Write the subject as a short imperative: _what does this commit do?_

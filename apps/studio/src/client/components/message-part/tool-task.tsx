@@ -100,23 +100,14 @@ function TaskStream({
     );
   }
 
-  if (isRunning) {
-    return (
-      <div
-        className="overflow-y-auto p-2"
-        ref={scrollRef}
-        style={{ height: "300px" }}
-      >
-        <div ref={contentRef}>
-          {renderStream({ isAgentRunning: true, messages })}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-2">
-      {renderStream({ isAgentRunning: false, messages })}
+    <div
+      className="max-h-72 overflow-y-auto p-4"
+      ref={isRunning ? scrollRef : undefined}
+    >
+      <div ref={isRunning ? contentRef : undefined}>
+        {renderStream({ isAgentRunning: isRunning, messages })}
+      </div>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import {
   type ProjectSubdomain,
   type SessionMessagePart,
@@ -19,6 +20,7 @@ import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { ImageWithFallback } from "../image-with-fallback";
+import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
   ToolCardHeader,
@@ -76,10 +78,12 @@ export function SourceImagesChip({
 
 export function ToolGenerateImage({
   assetBaseUrl,
+  onRetry,
   part,
   subdomain,
 }: {
   assetBaseUrl: string;
+  onRetry: (prompt: string) => void;
   part: GenerateImagePart;
   subdomain: ProjectSubdomain;
 }) {
@@ -93,6 +97,10 @@ export function ToolGenerateImage({
     part.state === "output-available" && part.output.state === "success"
       ? part.output
       : null;
+  const failureOutput =
+    part.state === "output-available" && part.output.state === "failure"
+      ? part.output
+      : null;
   const sourceImages = (part.input.sourceImages ?? []).filter(
     Boolean,
   ) as string[];
@@ -100,6 +108,7 @@ export function ToolGenerateImage({
   const primaryFilePath =
     successOutput?.images[0]?.filePath ?? part.input.filePath;
   const filename = filenameFromFilePath(primaryFilePath ?? "");
+  const prompt = typeof part.input.prompt === "string" ? part.input.prompt : "";
 
   const openInPanel = (filePath: string) => {
     void navigate({
@@ -114,15 +123,21 @@ export function ToolGenerateImage({
   return (
     <ToolCard>
       <ToolCardHeader className="flex items-center justify-between">
-        <div className="flex min-w-0 items-center gap-2">
-          <FileIcon
-            className="size-3 shrink-0 text-muted-foreground"
-            filename={filename}
-          />
-          <span className="truncate text-xs font-medium text-muted-foreground">
-            {filename}
-          </span>
-        </div>
+        {failureOutput ? (
+          <p className="text-xs font-medium text-muted-foreground">
+            Image generation unavailable
+          </p>
+        ) : (
+          <div className="flex min-w-0 items-center gap-2">
+            <FileIcon
+              className="size-3 shrink-0 text-muted-foreground"
+              filename={filename}
+            />
+            <span className="truncate text-xs font-medium text-muted-foreground">
+              {filename}
+            </span>
+          </div>
+        )}
 
         {successOutput && primaryFilePath && (
           <ImageActions filePath={primaryFilePath} subdomain={subdomain} />
@@ -138,37 +153,54 @@ export function ToolGenerateImage({
         />
       ))}
 
-      <ToolCardSection maxHeight="max-h-32">
-        {sourceImages.length > 0 ? (
-          <div className="flex items-start gap-3">
-            <div className="shrink-0">
-              <div
-                className={cn(
-                  "grid gap-1",
-                  sourceImages.length > 1 ? "grid-cols-2" : "grid-cols-1",
-                )}
-              >
-                {sourceImages.slice(0, 4).map((filePath, index) => (
-                  <GeneratedImage
-                    assetBaseUrl={assetBaseUrl}
-                    filePath={filePath}
-                    key={index}
-                    maxHeight="max-h-14"
-                    onOpen={openInPanel}
-                    thumbnail
-                  />
-                ))}
+      {!failureOutput && (
+        <ToolCardSection maxHeight="max-h-32">
+          {sourceImages.length > 0 ? (
+            <div className="flex items-start gap-3">
+              <div className="shrink-0">
+                <div
+                  className={cn(
+                    "grid gap-1",
+                    sourceImages.length > 1 ? "grid-cols-2" : "grid-cols-1",
+                  )}
+                >
+                  {sourceImages.slice(0, 4).map((filePath, index) => (
+                    <GeneratedImage
+                      assetBaseUrl={assetBaseUrl}
+                      filePath={filePath}
+                      key={index}
+                      maxHeight="max-h-14"
+                      onOpen={openInPanel}
+                      thumbnail
+                    />
+                  ))}
+                </div>
+                <p className="mt-1 text-center text-xs text-muted-foreground">
+                  Reference
+                </p>
               </div>
-              <p className="mt-1 text-center text-xs text-muted-foreground">
-                Reference
-              </p>
+              <p className="text-sm text-muted-foreground">{prompt}</p>
             </div>
-            <p className="text-sm text-muted-foreground">{part.input.prompt}</p>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{part.input.prompt}</p>
-        )}
-      </ToolCardSection>
+          ) : (
+            <p className="text-sm text-muted-foreground">{prompt}</p>
+          )}
+        </ToolCardSection>
+      )}
+
+      {failureOutput && (
+        <ToolCapabilityFailure
+          capabilityLabel="image generation"
+          errorMessage={failureOutput.errorMessage}
+          onRetry={onRetry}
+          providerGuardDescription={
+            failureOutput.errorType === "no-image-model"
+              ? `Sign up for ${APP_NAME} or add an AI provider that supports image generation.`
+              : undefined
+          }
+          responseBody={failureOutput.responseBody}
+          retryMessage={`I added an image generation provider. Retry generating an image with "${prompt}"`}
+        />
+      )}
     </ToolCard>
   );
 }

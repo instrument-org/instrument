@@ -22,30 +22,68 @@ import { ToolWriteFile } from "./tool-write-file";
 
 export function ToolCall({
   isAgentRunning,
+  isDeveloperMode,
   isStreaming,
   part,
   project,
   renderStream,
 }: {
   isAgentRunning: boolean;
+  isDeveloperMode: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.ToolPart;
   project: WorkspaceAppProject;
   renderStream: RenderStream;
 }) {
+  const hasTerminalState =
+    part.state === "output-available" || part.state === "output-error";
+
+  // Hide tool calls that haven't reached a terminal state and aren't streaming,
+  // unless developer mode is enabled.
+  if (!hasTerminalState && !isStreaming && !isDeveloperMode) {
+    return null;
+  }
+
+  const isDeadDevMode = !hasTerminalState && !isStreaming && isDeveloperMode;
+
   return (
     <ToolCallSessionProvider
       isAgentRunning={isAgentRunning}
       isStreaming={isStreaming}
     >
-      <ToolCallSummary assetBaseUrl={project.urls.assetBase} part={part}>
-        <ToolCallBody
-          part={part}
-          project={project}
-          renderStream={renderStream}
-        />
+      <ToolCallSummary
+        assetBaseUrl={project.urls.assetBase}
+        isDeadDevMode={isDeadDevMode}
+        part={part}
+      >
+        {isDeadDevMode ? (
+          <DeadDevModeBody part={part} />
+        ) : (
+          <ToolCallBody
+            part={part}
+            project={project}
+            renderStream={renderStream}
+          />
+        )}
       </ToolCallSummary>
     </ToolCallSessionProvider>
+  );
+}
+
+function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
+  return (
+    <div className="mt-2 overflow-hidden rounded-2xl border border-blue-500/20 bg-card">
+      <div className="border-b border-blue-500/20 bg-blue-500/5 px-4 py-2">
+        <span className="text-xs font-medium text-blue-500/80">
+          Stopped while <span className="font-mono">{part.state}</span>
+        </span>
+      </div>
+      <div className="max-h-64 overflow-auto px-4 py-3 scrollbar-color scrollbar-thin">
+        <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap text-foreground/70">
+          {JSON.stringify(part.input, null, 2)}
+        </pre>
+      </div>
+    </div>
   );
 }
 

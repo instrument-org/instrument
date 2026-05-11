@@ -7,6 +7,7 @@ import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallSessionProvider } from "./tool-call-session";
 import { ToolCallSummary } from "./tool-call-summary";
+import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
 import { ToolCopyToProject } from "./tool-copy-to-project";
 import { ToolEditFile } from "./tool-edit-file";
@@ -19,18 +20,6 @@ import { type RenderStream, ToolTask } from "./tool-task";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
-
-export function isToolCallVisible({
-  isDeveloperMode,
-  isStreaming,
-  part,
-}: {
-  isDeveloperMode: boolean;
-  isStreaming: boolean;
-  part: SessionMessagePart.ToolPart;
-}) {
-  return hasTerminalToolState(part) || isStreaming || isDeveloperMode;
-}
 
 export function ToolCall({
   isAgentRunning,
@@ -93,10 +82,6 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
       </div>
     </div>
   );
-}
-
-function hasTerminalToolState(part: SessionMessagePart.ToolPart) {
-  return part.state === "output-available" || part.state === "output-error";
 }
 
 function ToolCallBody({

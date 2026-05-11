@@ -29,6 +29,10 @@ export function createApplicationMenu(): void {
   void publisher.subscribe("sidebar.updated", () => {
     updateApplicationMenu();
   });
+
+  void publisher.subscribe("preferences.updated", () => {
+    updateApplicationMenu();
+  });
 }
 
 function getFocusedWindowType(): "main" | "other" | "settings" | null {

@@ -1,3 +1,5 @@
+import type { RefObject } from "react";
+
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
@@ -6,7 +8,6 @@ import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowLineDownIcon,
-  ArrowsOutSimpleIcon,
   CheckIcon,
   CopyIcon,
   PlayIcon,
@@ -17,12 +18,12 @@ import { toast } from "sonner";
 
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
-import { FileIcon } from "./file-icon";
 import { FileThumbnail } from "./file-thumbnail";
 import { FileVersionBadge } from "./file-version-badge";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
-import { Badge } from "./ui/badge";
+import { MediaCardShell } from "./media-card-shell";
+import { MediaOverlayButton } from "./media-overlay-button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -85,113 +86,27 @@ export function FilePreviewCard({
 
   if (fileType === "video") {
     return (
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div
-            className={cn(
-              "group relative overflow-hidden rounded-lg border border-border bg-background transition-colors hover:bg-muted",
-              isSelected &&
-                "ring-2 ring-primary ring-offset-2 ring-offset-background",
-            )}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-          >
-            <div className="flex w-full items-center gap-2 border-b border-border bg-muted/30 px-2.5 py-1.5">
-              <button
-                className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                onClick={onClick}
-                type="button"
-              >
-                <FileIcon
-                  className="size-4 shrink-0 text-muted-foreground"
-                  filename={filename}
-                />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">
-                      {filename}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <span className="break-all">{file.filePath}</span>
-                  </TooltipContent>
-                </Tooltip>
-                <FileVersionBadge
-                  className="shrink-0 text-[10px]"
-                  filePath={file.filePath}
-                  projectSubdomain={file.projectSubdomain}
-                  versionRef={file.versionRef}
-                />
-              </button>
-              {!hideActionsMenu && <FileActionsMenu file={file} />}
-            </div>
-            <div className="relative aspect-video w-full overflow-hidden">
-              <video
-                className="size-full bg-black object-contain"
-                loop
-                muted
-                onLoadedMetadata={(e) => {
-                  const video = e.currentTarget;
-                  setVideoDuration(video.duration);
-                }}
-                onTimeUpdate={(e) => {
-                  const video = e.currentTarget;
-                  const progress = video.duration
-                    ? (video.currentTime / video.duration) * 100
-                    : 0;
-                  setVideoProgress(progress);
-                  const remaining = video.duration
-                    ? video.duration - video.currentTime
-                    : null;
-                  setTimeRemaining(remaining);
-                }}
-                ref={videoRef}
-                src={file.url}
-              />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity group-hover:opacity-0">
-                <div className="rounded-full bg-white/90 p-2 shadow-lg">
-                  <PlayIcon
-                    className="size-4 fill-black text-black"
-                    weight="fill"
-                  />
-                </div>
-              </div>
-              {(isPlaying
-                ? timeRemaining !== null && timeRemaining > 0
-                : videoDuration !== null) && (
-                <div className="absolute right-2 bottom-2">
-                  <Badge
-                    className="bg-black/70 text-white hover:bg-black/70"
-                    variant="secondary"
-                  >
-                    {formatTime(
-                      isPlaying && timeRemaining !== null
-                        ? timeRemaining
-                        : (videoDuration ?? 0),
-                    )}
-                  </Badge>
-                </div>
-              )}
-              {isPlaying && (
-                <div className="absolute right-0 bottom-0 left-0 h-1 bg-black/50">
-                  <div
-                    className="h-full bg-white transition-all duration-100"
-                    style={{ width: `${videoProgress}%` }}
-                  />
-                </div>
-              )}
-              <button
-                className="absolute inset-0 size-full"
-                onClick={onClick}
-                type="button"
-              />
-            </div>
-          </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <FileActionsMenuItems file={file} variant="context" />
-        </ContextMenuContent>
-      </ContextMenu>
+      <VideoPreviewCard
+        file={file}
+        handleMouseEnter={handleMouseEnter}
+        handleMouseLeave={handleMouseLeave}
+        hideActionsMenu={hideActionsMenu}
+        isPlaying={isPlaying}
+        isSelected={isSelected}
+        onClick={onClick}
+        onLoadedMetadata={(e) => {
+          setVideoDuration(e.currentTarget.duration);
+        }}
+        onTimeUpdate={(e) => {
+          const { currentTime, duration } = e.currentTarget;
+          setVideoProgress(duration ? (currentTime / duration) * 100 : 0);
+          setTimeRemaining(duration ? duration - currentTime : null);
+        }}
+        timeRemaining={timeRemaining}
+        videoDuration={videoDuration}
+        videoProgress={videoProgress}
+        videoRef={videoRef}
+      />
     );
   }
 
@@ -288,27 +203,6 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-function ImageOverlayButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
-}) {
-  return (
-    <button
-      className="flex items-center gap-1.5 rounded-lg bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm hover:bg-background dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-      onClick={onClick}
-      type="button"
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
 function ImagePreviewCard({
   file,
   hideActionsMenu,
@@ -322,19 +216,8 @@ function ImagePreviewCard({
 }) {
   const { filename, mimeType, url } = file;
   const fileActions = useFileActionVisibility(file);
+  const actions = useFileActions(file);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
-
-  const showProjectFileInFolderMutation = useMutation(
-    rpcClient.utils.showProjectFileInFolder.mutationOptions({
-      onError: (error) => {
-        const label = getRevealInFolderLabel();
-        const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
-        toast.error(`Failed to ${lowercasedLabel}`, {
-          description: error.message,
-        });
-      },
-    }),
-  );
 
   const handleCopy = async () => {
     try {
@@ -350,17 +233,6 @@ function ImagePreviewCard({
     }
   };
 
-  const handleDownload = async () => {
-    await downloadFile(file);
-  };
-
-  const handleRevealInFolder = () => {
-    showProjectFileInFolderMutation.mutate({
-      filePath: file.filePath,
-      subdomain: file.projectSubdomain,
-    });
-  };
-
   const hasActions =
     !hideActionsMenu &&
     (fileActions.showCopy ||
@@ -368,93 +240,200 @@ function ImagePreviewCard({
       fileActions.showReveal);
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div
-          className={cn(
-            "group relative aspect-square w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
-            isSelected &&
-              "ring-2 ring-primary ring-offset-2 ring-offset-background",
-          )}
-        >
-          <div className="flex size-full items-center justify-center">
-            <ImageWithFallback
-              alt={filename}
-              className="max-h-full max-w-full object-contain"
-              fallbackClassName="size-full"
-              filename={filename}
-              showCheckerboard
-              src={url}
-            />
-          </div>
+    <MediaCardShell
+      aspectRatio="square"
+      file={file}
+      hideActionsMenu={hideActionsMenu}
+      isSelected={isSelected}
+      onClick={onClick}
+      overlayActions={
+        hasActions ? (
+          <>
+            {fileActions.showCopy && (
+              <MediaOverlayButton
+                icon={
+                  copied ? (
+                    <CheckIcon className="size-3.5 shrink-0" />
+                  ) : (
+                    <CopyIcon className="size-3.5 shrink-0" />
+                  )
+                }
+                label="Copy"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleCopy();
+                }}
+              />
+            )}
+            {fileActions.showDownload && (
+              <MediaOverlayButton
+                icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
+                label="Download"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void actions.download();
+                }}
+              />
+            )}
+            {fileActions.showReveal && (
+              <MediaOverlayButton
+                icon={<RevealInFolderIcon className="size-3.5 shrink-0" />}
+                label={getRevealInFolderLabel()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.revealInFolder();
+                }}
+              />
+            )}
+          </>
+        ) : undefined
+      }
+      scrim={<div className="absolute inset-0 bg-black/20" />}
+    >
+      <div className="flex size-full items-center justify-center">
+        <ImageWithFallback
+          alt={filename}
+          className="max-h-full max-w-full object-contain"
+          fallbackClassName="size-full"
+          filename={filename}
+          showCheckerboard
+          src={url}
+        />
+      </div>
+    </MediaCardShell>
+  );
+}
 
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/75 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+function useFileActions(file: ProjectFileViewerFile) {
+  const showProjectFileInFolderMutation = useMutation(
+    rpcClient.utils.showProjectFileInFolder.mutationOptions({
+      onError: (error) => {
+        const label = getRevealInFolderLabel();
+        const lower = label.charAt(0).toLowerCase() + label.slice(1);
+        toast.error(`Failed to ${lower}`, { description: error.message });
+      },
+    }),
+  );
 
-          <button
-            className="absolute inset-0 z-0 size-full"
-            onClick={onClick}
-            type="button"
-          />
+  return {
+    download: async () => {
+      await downloadFile(file);
+    },
+    revealInFolder: () => {
+      showProjectFileInFolderMutation.mutate({
+        filePath: file.filePath,
+        subdomain: file.projectSubdomain,
+      });
+    },
+  };
+}
 
-          {!hideActionsMenu && (
-            <button
-              className={cn(
-                "absolute top-3 right-3 z-10 flex size-7 items-center justify-center rounded-lg",
-                "bg-background/90 text-foreground opacity-0 shadow-sm transition-opacity duration-200",
-                "group-hover:opacity-100 hover:bg-background dark:bg-white/5 dark:text-white dark:hover:bg-white/10",
-              )}
-              onClick={onClick}
-              type="button"
-            >
-              <ArrowsOutSimpleIcon className="size-3.5" />
-            </button>
-          )}
+function VideoPreviewCard({
+  file,
+  handleMouseEnter,
+  handleMouseLeave,
+  hideActionsMenu,
+  isPlaying,
+  isSelected,
+  onClick,
+  onLoadedMetadata,
+  onTimeUpdate,
+  timeRemaining,
+  videoDuration,
+  videoProgress,
+  videoRef,
+}: {
+  file: ProjectFileViewerFile;
+  handleMouseEnter: () => void;
+  handleMouseLeave: () => void;
+  hideActionsMenu?: boolean;
+  isPlaying: boolean;
+  isSelected?: boolean;
+  onClick: () => void;
+  onLoadedMetadata: React.ReactEventHandler<HTMLVideoElement>;
+  onTimeUpdate: React.ReactEventHandler<HTMLVideoElement>;
+  timeRemaining: null | number;
+  videoDuration: null | number;
+  videoProgress: number;
+  videoRef: RefObject<HTMLVideoElement | null>;
+}) {
+  const fileActions = useFileActionVisibility(file);
+  const actions = useFileActions(file);
 
-          {hasActions && (
-            <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-              {fileActions.showCopy && (
-                <ImageOverlayButton
-                  icon={
-                    copied ? (
-                      <CheckIcon className="size-3.5 shrink-0" />
-                    ) : (
-                      <CopyIcon className="size-3.5 shrink-0" />
-                    )
-                  }
-                  label="Copy"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void handleCopy();
-                  }}
-                />
-              )}
-              {fileActions.showDownload && (
-                <ImageOverlayButton
-                  icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
-                  label="Download"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void handleDownload();
-                  }}
-                />
-              )}
-              {fileActions.showReveal && (
-                <ImageOverlayButton
-                  icon={<RevealInFolderIcon className="size-3.5 shrink-0" />}
-                  label={getRevealInFolderLabel()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRevealInFolder();
-                  }}
-                />
-              )}
+  const hasActions =
+    !hideActionsMenu && (fileActions.showDownload || fileActions.showReveal);
+
+  const displayTime =
+    isPlaying && timeRemaining !== null ? timeRemaining : videoDuration;
+
+  return (
+    <MediaCardShell
+      aspectRatio="video"
+      bottomBar={
+        displayTime === null ? undefined : (
+          <div className="absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <span className="self-end text-xs font-medium text-white tabular-nums drop-shadow-sm">
+              {formatTime(displayTime)}
+            </span>
+            <div className="relative h-1 overflow-hidden rounded-full bg-white/30">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-white transition-all duration-100"
+                style={{ width: `${videoProgress}%` }}
+              />
             </div>
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <FileActionsMenuItems file={file} variant="context" />
-      </ContextMenuContent>
-    </ContextMenu>
+          </div>
+        )
+      }
+      file={file}
+      hideActionsMenu={hideActionsMenu}
+      isSelected={isSelected}
+      onClick={onClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      overlayActions={
+        hasActions ? (
+          <>
+            {fileActions.showDownload && (
+              <MediaOverlayButton
+                icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
+                label="Download"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void actions.download();
+                }}
+              />
+            )}
+            {fileActions.showReveal && (
+              <MediaOverlayButton
+                icon={<RevealInFolderIcon className="size-3.5 shrink-0" />}
+                label={getRevealInFolderLabel()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.revealInFolder();
+                }}
+              />
+            )}
+          </>
+        ) : undefined
+      }
+      scrim={<div className="absolute inset-0 bg-black/20" />}
+    >
+      <video
+        className="size-full bg-black object-contain"
+        loop
+        muted
+        onLoadedMetadata={onLoadedMetadata}
+        onTimeUpdate={onTimeUpdate}
+        ref={videoRef}
+        src={file.url}
+      />
+      <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0">
+        {!isPlaying && (
+          <div className="rounded-full bg-white/90 p-2 shadow-lg">
+            <PlayIcon className="size-4 fill-black text-black" weight="fill" />
+          </div>
+        )}
+      </div>
+    </MediaCardShell>
   );
 }

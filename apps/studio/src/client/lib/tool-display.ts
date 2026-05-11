@@ -16,6 +16,7 @@ import {
   ListMagnifyingGlassIcon,
   QuestionIcon,
   TerminalIcon,
+  TreeStructureIcon,
   WrenchIcon,
 } from "@phosphor-icons/react";
 
@@ -109,7 +110,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   grep: FileMagnifyingGlassIcon,
   load_skill: BookOpenIcon,
   read_file: EyeIcon,
-  task: undefined,
+  task: TreeStructureIcon,
   unavailable: WrenchIcon,
   web_search: GlobeIcon,
   write_file: FileCodeIcon,

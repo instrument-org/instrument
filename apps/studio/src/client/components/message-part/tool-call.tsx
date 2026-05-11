@@ -3,7 +3,6 @@ import {
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 
-import { type RenderStream } from "../tool-part/task";
 import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallHeader } from "./tool-call-header";
@@ -16,7 +15,7 @@ import { ToolGlob } from "./tool-glob";
 import { ToolGrep } from "./tool-grep";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
-import { ToolTask } from "./tool-task";
+import { type RenderStream, ToolTask } from "./tool-task";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";

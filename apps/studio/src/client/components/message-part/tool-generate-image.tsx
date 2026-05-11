@@ -129,19 +129,18 @@ export function ToolGenerateImage({
         )}
       </ToolCardHeader>
 
-      <ToolCardSection maxHeight="max-h-96">
-        {successOutput?.images.map((image, index) => (
-          <div className="mb-3 flex items-center justify-center" key={index}>
-            <GeneratedImage
-              assetBaseUrl={assetBaseUrl}
-              filePath={image.filePath}
-              onOpen={openInPanel}
-            />
-          </div>
-        ))}
+      {successOutput?.images.map((image, index) => (
+        <GeneratedImage
+          assetBaseUrl={assetBaseUrl}
+          filePath={image.filePath}
+          key={index}
+          onOpen={openInPanel}
+        />
+      ))}
 
+      <ToolCardSection maxHeight="max-h-32">
         {sourceImages.length > 0 ? (
-          <div className="mb-3 flex items-start gap-3">
+          <div className="flex items-start gap-3">
             <div className="shrink-0">
               <div
                 className={cn(
@@ -177,7 +176,7 @@ export function ToolGenerateImage({
 function GeneratedImage({
   assetBaseUrl,
   filePath,
-  maxHeight = "max-h-96",
+  maxHeight = "",
   onOpen,
   thumbnail = false,
 }: {
@@ -197,22 +196,26 @@ function GeneratedImage({
   return (
     <button
       className={cn(
-        "block cursor-zoom-in rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        thumbnail ? "rounded-md" : "rounded-lg",
+        "cursor-zoom-in focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        thumbnail ? "block rounded-md" : "block w-full",
       )}
       onClick={handleClick}
       type="button"
     >
       <ImageWithFallback
         alt={filename}
-        className={`${maxHeight} ${thumbnail ? "w-auto rounded-md" : "w-auto rounded-lg"} object-contain`}
+        className={cn(
+          maxHeight,
+          thumbnail ? "w-auto rounded-md" : "w-full",
+          "object-contain",
+        )}
         fallback={
           thumbnail ? (
             <div className="flex size-16 items-center justify-center rounded-md border border-border bg-muted">
               <ImagesIcon className="size-5 text-muted-foreground/50" />
             </div>
           ) : (
-            <div className="flex h-32 w-full flex-col items-center justify-center gap-2 rounded-lg border border-border bg-muted">
+            <div className="flex h-32 w-full flex-col items-center justify-center gap-2 border-y border-border bg-muted">
               <ImagesIcon className="size-6 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">
                 Image not available

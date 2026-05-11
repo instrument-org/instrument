@@ -266,6 +266,70 @@ export function ChatStream({
     ],
   );
 
+  const hasActiveLoadingState = useMemo(() => {
+    if (!isAgentRunning || regularMessages.length === 0) {
+      return false;
+    }
+
+    const lastMessage = regularMessages.at(-1);
+    if (!lastMessage || lastMessage.id !== lastMessageId) {
+      return false;
+    }
+
+    const lastPart = lastMessage.parts.at(-1);
+    if (!lastPart) {
+      return false;
+    }
+
+    if (lastPart.type === "text" && lastPart.state !== "done") {
+      return true;
+    }
+
+    if (isToolPart(lastPart)) {
+      return (
+        lastPart.state === "input-streaming" ||
+        lastPart.state === "input-available" ||
+        (lastPart.state === "output-available" && lastPart.preliminary === true)
+      );
+    }
+
+    if (lastPart.type === "reasoning" && lastPart.state === "streaming") {
+      return true;
+    }
+
+    return false;
+  }, [isAgentRunning, regularMessages, lastMessageId]);
+
+  const isPlanningVisible = isAgentRunning && !hasActiveLoadingState;
+
+  const lastAssistantMessageHasVisibleParts = useMemo(() => {
+    const lastMessage = regularMessages.at(-1);
+    if (!lastMessage || lastMessage.role !== "assistant") {
+      return false;
+    }
+    return lastMessage.parts.some((part) => {
+      if (part.type === "text") {
+        return part.state !== "done" || part.text.trim() !== "";
+      }
+      if (
+        part.type === "step-start" ||
+        part.type === "data-attachments" ||
+        part.type === "source-document" ||
+        part.type === "source-url" ||
+        part.type === "file"
+      ) {
+        return false;
+      }
+      if (isToolPart(part)) {
+        const hasTerminalState =
+          part.state === "output-available" || part.state === "output-error";
+        const streaming = isToolStreaming(part, lastMessage);
+        return hasTerminalState || streaming || isDeveloperMode;
+      }
+      return true;
+    });
+  }, [regularMessages, isDeveloperMode, isToolStreaming]);
+
   const { chatElements } = useMemo(() => {
     const newChatElements: React.ReactNode[] = [];
     let lastFooterIndex = 0;
@@ -311,7 +375,14 @@ export function ChatStream({
         message.role === "assistant" &&
         (!nextMessage || nextMessage.role !== "assistant");
 
-      if (isFirstInConsecutiveGroup) {
+      const isLastMessage = messageIndex === regularMessages.length - 1;
+      const isLogoVisible =
+        isFirstInConsecutiveGroup &&
+        (!isLastMessage ||
+          lastAssistantMessageHasVisibleParts ||
+          isPlanningVisible);
+
+      if (isLogoVisible) {
         messageElements.unshift(
           <div
             className="flex justify-start"
@@ -343,7 +414,6 @@ export function ChatStream({
       }
 
       if (message.role === "assistant" && message.metadata.error) {
-        const isLastMessage = messageIndex === regularMessages.length - 1;
         messageElements.push(
           <MessageError
             isAgentRunning={isAgentRunning}
@@ -372,7 +442,8 @@ export function ChatStream({
         const shouldRenderFooter =
           assistantMessages.length > 0 &&
           visibleAssistantContentCount > 0 &&
-          (!isLastMessageGroup || !isAgentRunning);
+          (!isLastMessageGroup ||
+            (!isAgentRunning && lastAssistantMessageHasVisibleParts));
 
         if (shouldRenderFooter) {
           messageElements.push(
@@ -398,6 +469,8 @@ export function ChatStream({
     regularMessages,
     renderChatPart,
     isAgentRunning,
+    isPlanningVisible,
+    lastAssistantMessageHasVisibleParts,
     isDeveloperMode,
     onContinue,
     onModelChange,
@@ -418,40 +491,6 @@ export function ChatStream({
     );
   }, [messages, isAgentRunning]);
 
-  const hasActiveLoadingState = useMemo(() => {
-    if (!isAgentRunning || regularMessages.length === 0) {
-      return false;
-    }
-
-    const lastMessage = regularMessages.at(-1);
-    if (!lastMessage || lastMessage.id !== lastMessageId) {
-      return false;
-    }
-
-    const lastPart = lastMessage.parts.at(-1);
-    if (!lastPart) {
-      return false;
-    }
-
-    if (lastPart.type === "text" && lastPart.state !== "done") {
-      return true;
-    }
-
-    if (isToolPart(lastPart)) {
-      return (
-        lastPart.state === "input-streaming" ||
-        lastPart.state === "input-available" ||
-        (lastPart.state === "output-available" && lastPart.preliminary === true)
-      );
-    }
-
-    if (lastPart.type === "reasoning" && lastPart.state === "streaming") {
-      return true;
-    }
-
-    return false;
-  }, [isAgentRunning, regularMessages, lastMessageId]);
-
   return (
     <div
       className={cn(
@@ -464,8 +503,13 @@ export function ChatStream({
       )}
       <div className="flex flex-col gap-2">{chatElements}</div>
 
-      {isAgentRunning && !hasActiveLoadingState && (
-        <div className="mt-6 flex animate-in items-center gap-2 delay-500 fill-mode-both fade-in">
+      {isPlanningVisible && (
+        <div
+          className={cn(
+            "flex animate-in items-center gap-2 delay-500 fill-mode-both fade-in",
+            lastAssistantMessageHasVisibleParts && "mt-6",
+          )}
+        >
           <span className="size-3 shrink-0 rounded-full bg-brand-500" />
           <span className="shiny-text text-sm font-medium">Planning...</span>
         </div>

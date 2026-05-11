@@ -6,8 +6,8 @@ import {
 } from "@instrument-org/workspace/client";
 import {
   BookOpenIcon,
+  CodeIcon,
   EyeIcon,
-  FileCodeIcon,
   FileMagnifyingGlassIcon,
   FolderSimplePlusIcon,
   GlobeIcon,
@@ -104,7 +104,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   bash: TerminalIcon,
   choose: QuestionIcon,
   copy_to_project: FolderSimplePlusIcon,
-  edit_file: FileCodeIcon,
+  edit_file: CodeIcon,
   generate_image: ImageIcon,
   glob: ListMagnifyingGlassIcon,
   grep: FileMagnifyingGlassIcon,
@@ -113,7 +113,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   task: TreeStructureIcon,
   unavailable: WrenchIcon,
   web_search: GlobeIcon,
-  write_file: FileCodeIcon,
+  write_file: CodeIcon,
 };
 
 export function getToolLabel(toolName: ToolName): string {

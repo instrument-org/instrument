@@ -234,7 +234,7 @@ export function ProjectChat({
         {!isNearBottom && (
           <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-4">
             <Button
-              className="pointer-events-auto border border-border shadow-lg"
+              className="pointer-events-auto border border-border bg-background shadow-lg hover:bg-background/90"
               onClick={() => scrollToBottom()}
               size="icon"
               variant="secondary"

@@ -429,8 +429,11 @@ function VideoPreviewCard({
       />
       <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0">
         {!isPlaying && (
-          <div className="rounded-full bg-white/90 p-2 shadow-lg">
-            <PlayIcon className="size-4 fill-black text-black" weight="fill" />
+          <div className="rounded-full bg-background/90 p-2 shadow-lg">
+            <PlayIcon
+              className="size-4 fill-foreground text-foreground"
+              weight="fill"
+            />
           </div>
         )}
       </div>

@@ -29,6 +29,8 @@ import { UserMessage } from "./user-message";
 import { VersionAndFilesCard } from "./version-and-files-card";
 
 interface ChatStreamProps {
+  hideLogo?: boolean;
+  hideUserMessages?: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isViewingApp?: boolean;
@@ -42,6 +44,8 @@ interface ChatStreamProps {
 }
 
 export function ChatStream({
+  hideLogo = false,
+  hideUserMessages = false,
   isAgentRunning,
   isDeveloperMode,
   isViewingApp = false,
@@ -88,6 +92,8 @@ export function ChatStream({
   const renderStream: RenderStream = useCallback(
     ({ isAgentRunning: isNestedAgentRunning, messages: nestedMessages }) => (
       <ChatStream
+        hideLogo
+        hideUserMessages
         isAgentRunning={isNestedAgentRunning}
         isDeveloperMode={isDeveloperMode}
         isViewingApp={isViewingApp}
@@ -154,6 +160,9 @@ export function ChatStream({
             );
           }
           case "user": {
+            if (hideUserMessages) {
+              return null;
+            }
             return <UserMessage key={part.metadata.id} part={part} />;
           }
           default: {
@@ -276,6 +285,7 @@ export function ChatStream({
       isViewingApp,
       renderStream,
       onRetry,
+      hideUserMessages,
     ],
   );
 
@@ -374,6 +384,7 @@ export function ChatStream({
 
       const isLastMessage = messageIndex === regularMessages.length - 1;
       const isLogoVisible =
+        !hideLogo &&
         isFirstInConsecutiveGroup &&
         (!isLastMessage ||
           lastAssistantMessageHasVisibleParts ||
@@ -390,7 +401,11 @@ export function ChatStream({
         );
       }
 
-      if (message.role === "user" && fileAttachments.length > 0) {
+      if (
+        !hideUserMessages &&
+        message.role === "user" &&
+        fileAttachments.length > 0
+      ) {
         const fileAttachmentsPart = fileAttachments.find(
           (part) => part.type === "data-attachments",
         );
@@ -461,6 +476,8 @@ export function ChatStream({
 
     return { chatElements: newChatElements };
   }, [
+    hideLogo,
+    hideUserMessages,
     project.urls.assetBase,
     project.subdomain,
     regularMessages,

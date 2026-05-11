@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { APP_FOLDER_NAMES } from "../constants";
 import { copySkill } from "../lib/copy-skill";
+import { executeError } from "../lib/execute-error";
 import { normalizedPathJoin } from "../lib/normalize-path";
 import { runPnpmCommand } from "../lib/run-pnpm";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
@@ -23,11 +24,11 @@ import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 const TAGS = {
   availableSkills: "available_skills",
+  content: "skill_content",
   description: "description",
   file: "file",
   name: "name",
   skill: "skill",
-  skillContent: "skill_content",
   skillFiles: "skill_files",
 } as const;
 
@@ -50,10 +51,32 @@ export const LoadSkill = setupTool({
     }),
   }),
   name: "load_skill",
-  outputSchema: z.object({
-    content: z.string(),
-    name: z.string(),
-  }),
+  outputSchema: z.discriminatedUnion("state", [
+    z.object({
+      content: z.string(),
+      files: z.array(z.string()),
+      installResult: z
+        .discriminatedUnion("state", [
+          z.object({ state: z.literal("success") }),
+          z.object({
+            exitCode: z.number(),
+            output: z.string(),
+            state: z.literal("failure"),
+          }),
+        ])
+        .optional(),
+      name: z.string(),
+      state: z.literal("success"),
+      truncated: z.boolean(),
+    }),
+    z.object({
+      available: z.array(
+        z.object({ description: z.string(), name: z.string() }),
+      ),
+      name: z.string(),
+      state: z.literal("not-found"),
+    }),
+  ]),
 }).create({
   description: async ({ appConfig }) => {
     const sources = getSkillSources(appConfig.workspaceConfig.registryDir);
@@ -88,7 +111,7 @@ export const LoadSkill = setupTool({
       When you recognize that a task matches one of the available skills listed below, use this tool to load the full skill instructions.
 
       The skill will inject detailed instructions and workflows into the conversation context.
-      Tool output includes a <${TAGS.skillContent} name="..."> block with the loaded content.
+      Tool output includes a <${TAGS.content} name="..."> block with the loaded content.
 
       Invoke this tool to load a skill when a task matches one of the available skills listed below${hint}:
 
@@ -102,14 +125,13 @@ export const LoadSkill = setupTool({
     const { all, skill } = await findSkill(registryDir, input.name);
 
     if (!skill) {
-      const listing =
-        all.length === 0
-          ? "No skills are currently available."
-          : all.map((s) => `- ${s.name}: ${s.description}`).join("\n");
-
       return ok({
-        content: `Skill "${input.name}" not found.\n\nAvailable skills:\n\n${listing}`,
+        available: all.map((s) => ({
+          description: s.description,
+          name: s.name,
+        })),
         name: input.name,
+        state: "not-found" as const,
       });
     }
 
@@ -121,10 +143,7 @@ export const LoadSkill = setupTool({
     });
 
     if (copyResult.isErr()) {
-      return ok({
-        content: copyResult.error.message,
-        name: skill.name,
-      });
+      return executeError(copyResult.error.message);
     }
 
     const destDir = copyResult.value;
@@ -139,59 +158,33 @@ export const LoadSkill = setupTool({
 
     const hasPackageJson = copiedFiles.includes("package.json");
 
-    let installSection = "";
+    let installResult:
+      | undefined
+      | { exitCode: number; output: string; state: "failure" }
+      | { state: "success" };
+
     if (hasPackageJson) {
       const { combined, exitCode } = await runPnpmCommand({
         appConfig,
         args: ["install"],
         signal,
       });
-      installSection =
+      installResult =
         exitCode === 0
-          ? [
-              `\`${PNPM_COMMAND.name} install\` was run at the project root.`,
-              `This is a monorepo -- skill dependencies are scoped to this skill's folder and are ready to use.`,
-              `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
-            ].join(" ")
-          : [
-              `\`${PNPM_COMMAND.name} install\` was run at the project root but exited with code ${exitCode}.`,
-              `The skill's dependencies may not be fully installed.`,
-              `Raw output:\n\`\`\`\n${combined}\n\`\`\``,
-            ].join(" ");
-      installSection = `\n\n${installSection}`;
+          ? { state: "success" as const }
+          : { exitCode, output: combined, state: "failure" as const };
     }
 
-    const truncationNote = truncated
-      ? `\nNote: file list truncated at ${FILE_LIST_LIMIT} entries.`
-      : "";
+    const files = copiedFiles.map((f) => `${relativeSkillRoot}/${f}`);
 
-    const fileListXml = [
-      `<${TAGS.skillFiles}>`,
-      ...copiedFiles.map(
-        (f) => `<${TAGS.file}>${relativeSkillRoot}/${f}</${TAGS.file}>`,
-      ),
-      `</${TAGS.skillFiles}>`,
-    ].join("\n");
-
-    const fileSectionText = [
-      `The skill files below are copied into your project and are yours to edit.`,
-      `Before writing anything new, read the relevant script(s) and run them with \`${TS_COMMAND.name}\` if they fit.`,
-      `Only write a custom script if the existing ones cannot handle the task even with modification.`,
-    ].join(" ");
-
-    const fileSection =
-      copiedFiles.length > 0
-        ? `\n\n${fileSectionText}\n\n${fileListXml}${truncationNote}`
-        : "";
-
-    const content =
-      `<${TAGS.skillContent} name="${skill.name}">\n` +
-      skill.content +
-      fileSection +
-      installSection +
-      `\n</${TAGS.skillContent}>`;
-
-    return ok({ content, name: skill.name });
+    return ok({
+      content: skill.content,
+      files,
+      installResult,
+      name: skill.name,
+      state: "success" as const,
+      truncated,
+    });
   },
   readOnly: false,
   timeoutMs: ({ appConfig, input }) => {
@@ -204,8 +197,66 @@ export const LoadSkill = setupTool({
       : 0;
     return base + extra;
   },
-  toModelOutput: ({ output }) => ({
-    type: "text",
-    value: output.content,
-  }),
+  toModelOutput: ({ output }) => {
+    if (output.state === "not-found") {
+      const listing =
+        output.available.length === 0
+          ? "No skills are currently available."
+          : output.available
+              .map((s) => `- ${s.name}: ${s.description}`)
+              .join("\n");
+      return {
+        type: "error-text",
+        value: `Skill "${output.name}" not found.\n\nAvailable skills:\n\n${listing}`,
+      };
+    }
+
+    let fileSection = "";
+    if (output.files.length > 0) {
+      const fileSectionText = [
+        `The skill files below are copied into your project and are yours to edit.`,
+        `Before writing anything new, read the relevant script(s) and run them with \`${TS_COMMAND.name}\` if they fit.`,
+        `Only write a custom script if the existing ones cannot handle the task even with modification.`,
+      ].join(" ");
+
+      const fileListXml = [
+        `<${TAGS.skillFiles}>`,
+        ...output.files.map((f) => `<${TAGS.file}>${f}</${TAGS.file}>`),
+        `</${TAGS.skillFiles}>`,
+      ].join("\n");
+
+      const truncationNote = output.truncated
+        ? `\nNote: file list truncated at ${FILE_LIST_LIMIT} entries.`
+        : "";
+
+      fileSection = `\n\n${fileSectionText}\n\n${fileListXml}${truncationNote}`;
+    }
+
+    let installSection = "";
+    if (output.installResult) {
+      const text =
+        output.installResult.state === "success"
+          ? [
+              `\`${PNPM_COMMAND.name} install\` was run at the project root.`,
+              `This is a monorepo -- skill dependencies are scoped to this skill's folder and are ready to use.`,
+              `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
+            ].join(" ")
+          : [
+              `\`${PNPM_COMMAND.name} install\` was run at the project root but exited with code ${output.installResult.exitCode}.`,
+              `The skill's dependencies may not be fully installed.`,
+              `Raw output:\n\`\`\`\n${output.installResult.output}\n\`\`\``,
+            ].join(" ");
+      installSection = `\n\n${text}`;
+    }
+
+    return {
+      type: "text",
+      value:
+        `<${TAGS.content} name="${output.name}">\n` +
+        output.content +
+        fileSection +
+        installSection +
+        `\n</${TAGS.content}>`,
+    };
+  },
 });

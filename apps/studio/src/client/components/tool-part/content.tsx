@@ -337,6 +337,9 @@ export function ToolContent({
       );
     }
     case "tool-load_skill": {
+      if (part.output.state !== "success") {
+        return null;
+      }
       return (
         <SessionMarkdown className="w-full" markdown={part.output.content} />
       );

@@ -46,9 +46,11 @@ registerSession({
             name: "react",
           },
           output: {
-            content:
-              '<skill_content name="react">\n# React Skill\n</skill_content>',
+            content: "# React Skill",
+            files: [],
             name: "react",
+            state: "success",
+            truncated: false,
           },
           type: "tool-load_skill",
         }),

@@ -19,12 +19,60 @@ import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { ImageWithFallback } from "../image-with-fallback";
-import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardHeader,
+  ToolCardSection,
+  ToolChip,
+} from "./tool-card";
 
 type GenerateImagePart = Extract<
   SessionMessagePart.ToolPart,
   { type: "tool-generate_image" }
 >;
+
+export function SourceImagesChip({
+  assetBaseUrl,
+  isEmphasized,
+  part,
+}: {
+  assetBaseUrl: string;
+  isEmphasized: boolean;
+  part: SessionMessagePart.ToolPart;
+}) {
+  if (part.type !== "tool-generate_image") {
+    return null;
+  }
+
+  const sourceImages = (part.input?.sourceImages ?? []).filter(
+    (s): s is string => typeof s === "string",
+  );
+
+  if (sourceImages.length === 0) {
+    return null;
+  }
+
+  return (
+    <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
+      {sourceImages.slice(0, 3).map((filePath, index) => {
+        const src = `${assetBaseUrl}/${filePath.startsWith("./") ? filePath.slice(2) : filePath}`;
+        return (
+          <img
+            alt="Reference"
+            className="-ml-0.5 size-4 rounded-full border border-border/50 object-cover first:ml-0"
+            key={index}
+            src={src}
+          />
+        );
+      })}
+      {sourceImages.length > 3 && (
+        <span className="ml-1 text-xs text-foreground/40">
+          +{sourceImages.length - 3}
+        </span>
+      )}
+    </ToolChip>
+  );
+}
 
 export function ToolGenerateImage({
   assetBaseUrl,
@@ -81,7 +129,7 @@ export function ToolGenerateImage({
         )}
       </ToolCardHeader>
 
-      <ToolCardSection maxHeight="max-h-[32rem]">
+      <ToolCardSection maxHeight="max-h-96">
         {successOutput?.images.map((image, index) => (
           <div className="mb-3 flex items-center justify-center" key={index}>
             <GeneratedImage

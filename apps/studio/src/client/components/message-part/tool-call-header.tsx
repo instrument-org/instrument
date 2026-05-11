@@ -6,14 +6,12 @@ import { GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
-import { filenameFromFilePath } from "../../lib/path-utils";
 import {
   getToolLabelForPart,
   getToolStreamingLabel,
   TOOL_ICONS,
 } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
-import { Favicon } from "../favicon";
 import {
   Collapsible,
   CollapsibleContent,
@@ -25,13 +23,11 @@ import {
   HoverCardTrigger,
 } from "../ui/hover-card";
 import { Spinner } from "../ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";
-
-interface BrowserInfo {
-  /** Sorted by visit count, descending. */
-  domains: string[];
-}
+import { FileChip } from "./tool-card";
+import { SourceImagesChip } from "./tool-generate-image";
+import { WebSearchChip } from "./tool-web-search";
 
 export function ToolCallHeader({
   assetBaseUrl,
@@ -179,73 +175,6 @@ export function ToolCallHeader({
   );
 }
 
-function BrowserChip({
-  info,
-  isEmphasized,
-}: {
-  info: BrowserInfo;
-  isEmphasized: boolean;
-}) {
-  const topDomain = info.domains[0] ?? "";
-  const extra = info.domains.length - 1;
-
-  return (
-    <ToolChip isEmphasized={isEmphasized}>
-      <Favicon
-        className="size-3.5 border border-muted bg-background"
-        url={`https://${topDomain}`}
-      />
-      <span className="text-xs font-medium text-foreground/50">
-        {topDomain}
-        {extra > 0 && (
-          <span className="text-foreground/30"> & {extra} more</span>
-        )}
-      </span>
-    </ToolChip>
-  );
-}
-
-function FileChip({
-  isEmphasized,
-  part,
-}: {
-  isEmphasized: boolean;
-  part: SessionMessagePart.ToolPart;
-}) {
-  let filePath: string | undefined;
-
-  if (
-    (part.type === "tool-edit_file" ||
-      part.type === "tool-write_file" ||
-      part.type === "tool-read_file") &&
-    // typeof guard is intentional: the AI SDK types DeepPartial<string> as
-    // string during streaming, but parsePartialJson can produce null mid-stream.
-    typeof part.input?.filePath === "string" &&
-    part.input.filePath.length > 0
-  ) {
-    filePath = part.input.filePath;
-  }
-
-  if (!filePath) {
-    return null;
-  }
-
-  const filename = filenameFromFilePath(filePath);
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <ToolChip className="px-2" isEmphasized={isEmphasized}>
-          <span className="text-xs font-medium text-foreground/50">
-            {filename}
-          </span>
-        </ToolChip>
-      </TooltipTrigger>
-      <TooltipContent>{filePath}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
   if (part.type !== "tool-bash") {
     return null;
@@ -281,107 +210,4 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
     .map(([domain]) => domain);
 
   return { domains };
-}
-
-function SourceImagesChip({
-  assetBaseUrl,
-  isEmphasized,
-  part,
-}: {
-  assetBaseUrl: string;
-  isEmphasized: boolean;
-  part: SessionMessagePart.ToolPart;
-}) {
-  if (part.type !== "tool-generate_image") {
-    return null;
-  }
-
-  const sourceImages = (part.input?.sourceImages ?? []).filter(
-    (s): s is string => typeof s === "string",
-  );
-
-  if (sourceImages.length === 0) {
-    return null;
-  }
-
-  return (
-    <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
-      {sourceImages.slice(0, 3).map((filePath, index) => {
-        const src = `${assetBaseUrl}/${filePath.startsWith("./") ? filePath.slice(2) : filePath}`;
-        return (
-          <img
-            alt="Reference"
-            className="-ml-0.5 size-4 rounded-full border border-border/50 object-cover first:ml-0"
-            key={index}
-            src={src}
-          />
-        );
-      })}
-      {sourceImages.length > 3 && (
-        <span className="ml-1 text-xs text-foreground/40">
-          +{sourceImages.length - 3}
-        </span>
-      )}
-    </ToolChip>
-  );
-}
-
-function ToolChip({
-  children,
-  className,
-  isEmphasized,
-}: {
-  children: ReactNode;
-  className?: string;
-  isEmphasized?: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "ml-1 flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-1",
-        isEmphasized ? "bg-foreground/10" : "bg-foreground/5",
-        className,
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-function WebSearchChip({
-  isEmphasized,
-  part,
-}: {
-  isEmphasized: boolean;
-  part: SessionMessagePart.ToolPart;
-}) {
-  if (
-    part.type !== "tool-web_search" ||
-    part.state !== "output-available" ||
-    part.output.state !== "success" ||
-    part.output.sources.length === 0
-  ) {
-    return null;
-  }
-
-  const uniqueUrls = [
-    ...new Map(
-      part.output.sources.map((s) => {
-        const hostname = URL.canParse(s.url) ? new URL(s.url).hostname : s.url;
-        return [hostname, s.url];
-      }),
-    ).values(),
-  ].slice(0, 5);
-
-  return (
-    <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
-      {uniqueUrls.map((url, index) => (
-        <Favicon
-          className="-ml-0.5 size-3.5 border border-muted bg-background first:ml-0"
-          key={index}
-          url={url}
-        />
-      ))}
-    </ToolChip>
-  );
 }

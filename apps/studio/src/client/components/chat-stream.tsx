@@ -244,18 +244,17 @@ export function ChatStream({
 
       if (part.type === "reasoning") {
         return (
-          <div className="py-1" key={part.metadata.id}>
-            <ReasoningMessage
-              createdAt={part.metadata.createdAt}
-              endedAt={part.metadata.endedAt}
-              isLoading={
-                isAgentRunning &&
-                lastMessageId === message.id &&
-                part.state === "streaming"
-              }
-              text={part.text}
-            />
-          </div>
+          <ReasoningMessage
+            createdAt={part.metadata.createdAt}
+            endedAt={part.metadata.endedAt}
+            isLoading={
+              isAgentRunning &&
+              lastMessageId === message.id &&
+              part.state === "streaming"
+            }
+            key={part.metadata.id}
+            text={part.text}
+          />
         );
       }
 
@@ -347,6 +346,10 @@ export function ChatStream({
       const seenSourceIds = new Set<string>();
       const fileAttachments: SessionMessagePart.Type[] = [];
 
+      // Collect rendered parts with tool-call metadata for spacer injection.
+      const renderedParts: { isToolCall: boolean; node: React.ReactNode }[] =
+        [];
+
       for (const [partIndex, part] of message.parts.entries()) {
         if (
           (part.type === "source-document" || part.type === "source-url") &&
@@ -366,10 +369,39 @@ export function ChatStream({
 
         const rendered = renderChatPart(part, message, partIndex);
         if (rendered) {
-          messageElements.push(rendered);
+          const isToolCall =
+            isToolPart(part) &&
+            isToolCallVisible({
+              isDeveloperMode,
+              isStreaming: isToolStreaming(part, message),
+              part,
+            });
+          renderedParts.push({ isToolCall, node: rendered });
           if (message.role === "assistant") {
             visibleAssistantContentCount++;
           }
+        }
+      }
+
+      // Inject spacers around tool-call runs: a small gap before the first
+      // tool call that doesn't immediately follow another tool call, and after
+      // the last tool call that isn't immediately followed by another.
+      for (const [i, item] of renderedParts.entries()) {
+        const prevIsToolCall = renderedParts[i - 1]?.isToolCall ?? false;
+        const nextIsToolCall = renderedParts[i + 1]?.isToolCall ?? false;
+
+        if (item.isToolCall && !prevIsToolCall) {
+          messageElements.push(
+            <div className="mt-2" key={`tool-spacer-before-${i}`} />,
+          );
+        }
+
+        messageElements.push(item.node);
+
+        if (item.isToolCall && !nextIsToolCall) {
+          messageElements.push(
+            <div className="mb-2" key={`tool-spacer-after-${i}`} />,
+          );
         }
       }
 
@@ -396,7 +428,7 @@ export function ChatStream({
             className="flex justify-start"
             key={`assistant-header-${message.id}`}
           >
-            <AppLogo className="mt-5 mb-4 h-5.5 text-black/30 dark:text-white/30" />
+            <AppLogo className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
           </div>,
         );
       }
@@ -486,6 +518,7 @@ export function ChatStream({
     isPlanningVisible,
     lastAssistantMessageHasVisibleParts,
     isDeveloperMode,
+    isToolStreaming,
     onContinue,
     onModelChange,
     onRetry,
@@ -518,14 +551,8 @@ export function ChatStream({
       <div className="flex flex-col gap-2">{chatElements}</div>
 
       {isPlanningVisible && (
-        <div
-          className={cn(
-            "flex animate-in items-center gap-2 delay-500 fill-mode-both fade-in",
-            lastAssistantMessageHasVisibleParts && "mt-6",
-          )}
-        >
-          <span className="size-3 shrink-0 rounded-full bg-brand-500" />
-          <span className="shiny-text text-sm font-medium">Planning...</span>
+        <div className={cn(lastAssistantMessageHasVisibleParts && "mt-1")}>
+          <ReasoningMessage isLoading text="" />
         </div>
       )}
 

@@ -79,7 +79,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
 
   return (
     <Collapsible
-      className="w-full"
+      className="w-full animate-in delay-500 fill-mode-both fade-in"
       onOpenChange={setIsExpanded}
       open={isExpanded || isLoading}
     >

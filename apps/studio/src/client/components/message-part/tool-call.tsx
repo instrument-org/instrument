@@ -5,8 +5,8 @@ import {
 
 import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
-import { ToolCallHeader } from "./tool-call-header";
 import { ToolCallSessionProvider } from "./tool-call-session";
+import { ToolCallSummary } from "./tool-call-summary";
 import { ToolChoose } from "./tool-choose";
 import { ToolCopyToProject } from "./tool-copy-to-project";
 import { ToolEditFile } from "./tool-edit-file";
@@ -38,13 +38,13 @@ export function ToolCall({
       isAgentRunning={isAgentRunning}
       isStreaming={isStreaming}
     >
-      <ToolCallHeader assetBaseUrl={project.urls.assetBase} part={part}>
+      <ToolCallSummary assetBaseUrl={project.urls.assetBase} part={part}>
         <ToolCallBody
           part={part}
           project={project}
           renderStream={renderStream}
         />
-      </ToolCallHeader>
+      </ToolCallSummary>
     </ToolCallSessionProvider>
   );
 }

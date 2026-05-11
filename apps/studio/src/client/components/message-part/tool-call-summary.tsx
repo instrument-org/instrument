@@ -29,7 +29,7 @@ import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
 
-export function ToolCallHeader({
+export function ToolCallSummary({
   assetBaseUrl,
   children,
   part,

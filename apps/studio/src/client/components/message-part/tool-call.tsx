@@ -20,6 +20,18 @@ import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
 
+export function isToolCallVisible({
+  isDeveloperMode,
+  isStreaming,
+  part,
+}: {
+  isDeveloperMode: boolean;
+  isStreaming: boolean;
+  part: SessionMessagePart.ToolPart;
+}) {
+  return hasTerminalToolState(part) || isStreaming || isDeveloperMode;
+}
+
 export function ToolCall({
   isAgentRunning,
   isDeveloperMode,
@@ -35,16 +47,12 @@ export function ToolCall({
   project: WorkspaceAppProject;
   renderStream: RenderStream;
 }) {
-  const hasTerminalState =
-    part.state === "output-available" || part.state === "output-error";
-
-  // Hide tool calls that haven't reached a terminal state and aren't streaming,
-  // unless developer mode is enabled.
-  if (!hasTerminalState && !isStreaming && !isDeveloperMode) {
+  if (!isToolCallVisible({ isDeveloperMode, isStreaming, part })) {
     return null;
   }
 
-  const isDeadDevMode = !hasTerminalState && !isStreaming && isDeveloperMode;
+  const isDeadDevMode =
+    !hasTerminalToolState(part) && !isStreaming && isDeveloperMode;
 
   return (
     <ToolCallSessionProvider
@@ -85,6 +93,10 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
       </div>
     </div>
   );
+}
+
+function hasTerminalToolState(part: SessionMessagePart.ToolPart) {
+  return part.state === "output-available" || part.state === "output-error";
 }
 
 function ToolCallBody({

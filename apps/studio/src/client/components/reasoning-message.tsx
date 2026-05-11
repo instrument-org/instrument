@@ -1,12 +1,10 @@
 import { formatDurationFromDates } from "@/client/lib/format-time";
 import { cn } from "@/client/lib/utils";
-import { BrainIcon } from "@phosphor-icons/react";
+import { CaretUpIcon } from "@phosphor-icons/react";
 import { memo, useEffect, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
-import { CollapsiblePartTrigger } from "./collapsible-part";
 import { SessionMarkdown } from "./session-markdown";
-import { ToolPartListItemCompact } from "./tool-part/list-item-compact";
 import {
   Collapsible,
   CollapsibleContent,
@@ -16,7 +14,6 @@ import {
 interface ReasoningMessageProps {
   createdAt?: Date;
   endedAt?: Date;
-  hideIcon?: boolean;
   isLoading?: boolean;
   text: string;
 }
@@ -24,7 +21,6 @@ interface ReasoningMessageProps {
 export const ReasoningMessage = memo(function ReasoningMessage({
   createdAt,
   endedAt,
-  hideIcon = false,
   isLoading = false,
   text,
 }: ReasoningMessageProps) {
@@ -81,40 +77,34 @@ export const ReasoningMessage = memo(function ReasoningMessage({
     return null;
   }
 
-  const headerContent = (
-    <ToolPartListItemCompact
-      icon={hideIcon ? undefined : <BrainIcon className="size-3" />}
-      isExpanded={!isLoading && isExpanded}
-      label={
-        isLoading ? (
-          "Planning..."
-        ) : duration ? (
-          <>
-            Thought <span className="text-foreground/60">for {duration}</span>
-          </>
-        ) : (
-          "Thought"
-        )
-      }
-      labelClassName={cn(isLoading && "shiny-text")}
-    />
-  );
-
   return (
     <Collapsible
       className="w-full"
       onOpenChange={setIsExpanded}
       open={isExpanded || isLoading}
     >
-      <CollapsibleTrigger asChild disabled={!displayText.trim()}>
-        <CollapsiblePartTrigger>{headerContent}</CollapsiblePartTrigger>
+      <CollapsibleTrigger
+        className="flex cursor-default items-center gap-1.5 text-left"
+        disabled={!displayText.trim()}
+      >
+        {isLoading ? (
+          <div className="flex items-center gap-2">
+            <span className="size-3 shrink-0 rounded-full bg-brand-500" />
+            <span className="shiny-text text-sm font-medium">Planning...</span>
+          </div>
+        ) : (
+          <span className="text-sm text-foreground/40">
+            {duration ? `Thought for ${duration}` : "Thought"}
+            {isExpanded && <CaretUpIcon className="ml-1 inline size-3" />}
+          </span>
+        )}
       </CollapsibleTrigger>
 
       {!(isLoading && !displayText.trim()) && (
         <CollapsibleContent>
-          <div className="relative mt-2 text-xs">
+          <div className="relative mt-2">
             <div
-              className="max-h-44 overflow-y-auto rounded-none border-0 border-l-4 border-muted-foreground/30 bg-muted/30 py-2 pl-4"
+              className="max-h-44 overflow-y-auto"
               ref={(el) => {
                 scrollContainerRef.current = el;
                 if (isLoading) {
@@ -123,7 +113,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
               }}
             >
               <SessionMarkdown
-                className={cn("italic", !isLoading && "opacity-60")}
+                className={cn("italic opacity-50", isLoading && "opacity-100")}
                 markdown={
                   isLoading
                     ? displayText

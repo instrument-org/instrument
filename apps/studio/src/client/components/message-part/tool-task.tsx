@@ -1,14 +1,20 @@
 import {
+  type SessionMessage,
   type SessionMessagePart,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
+import { type ReactNode } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
 import { rpcClient } from "../../rpc/client";
-import { type RenderStream } from "../tool-part/task";
 import { Spinner } from "../ui/spinner";
 import { useToolCallSession } from "./tool-call-session";
+
+export type RenderStream = (args: {
+  isAgentRunning: boolean;
+  messages: SessionMessage.WithParts[];
+}) => ReactNode;
 
 type TaskPart = Extract<SessionMessagePart.ToolPart, { type: "tool-task" }>;
 
@@ -114,5 +120,3 @@ function TaskStream({
     </div>
   );
 }
-
-export { type RenderStream } from "../tool-part/task";

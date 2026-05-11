@@ -16,6 +16,7 @@ import {
 } from "../collapsible-part";
 import { Favicon } from "../favicon";
 import { ToolCallSessionProvider } from "../message-part/tool-call-session";
+import { type RenderStream } from "../message-part/tool-task";
 import { ToolIcon } from "../tool-icon";
 import {
   Collapsible,
@@ -28,7 +29,7 @@ import { ToolPartExpanded } from "./expanded";
 import { FileModification } from "./file-modification";
 import { ToolPartListItemCompact } from "./list-item-compact";
 import { ShellCommandCard } from "./shell-command-card";
-import { type RenderStream, TaskToolCard } from "./task";
+import { TaskToolCard } from "./task";
 
 export function ToolPart({
   isDeveloperMode,

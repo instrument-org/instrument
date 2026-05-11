@@ -1,11 +1,10 @@
 import {
   getToolNameByType,
-  type SessionMessage,
   type SessionMessagePart,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
 import { getToolLabelForPart } from "../../lib/tool-display";
@@ -16,6 +15,7 @@ import {
   CollapsiblePartTrigger,
 } from "../collapsible-part";
 import { useToolCallSession } from "../message-part/tool-call-session";
+import { type RenderStream } from "../message-part/tool-task";
 import { ToolIcon } from "../tool-icon";
 import {
   Collapsible,
@@ -24,11 +24,6 @@ import {
 } from "../ui/collapsible";
 import { Spinner } from "../ui/spinner";
 import { ToolPartListItemCompact } from "./list-item-compact";
-
-export type RenderStream = (args: {
-  isAgentRunning: boolean;
-  messages: SessionMessage.WithParts[];
-}) => ReactNode;
 
 export function TaskToolCard({
   part,

@@ -86,6 +86,14 @@ function TaskStream({
     );
   }
 
+  if (!messages || messages.length === 0) {
+    return (
+      <div className="px-4 py-3 text-sm text-muted-foreground">
+        No messages found.
+      </div>
+    );
+  }
+
   if (isRunning) {
     return (
       <div

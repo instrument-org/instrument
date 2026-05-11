@@ -1,10 +1,16 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { getToolLabel } from "../../lib/tool-display";
+import { Favicon } from "../favicon";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { useToolCallSession } from "./tool-call-session";
-import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardHeader,
+  ToolCardSection,
+  ToolChip,
+} from "./tool-card";
 
 type WebSearchPart = Extract<
   SessionMessagePart.ToolPart,
@@ -59,5 +65,43 @@ export function ToolWebSearch({ part }: { part: WebSearchPart }) {
         </ToolCardSection>
       )}
     </ToolCard>
+  );
+}
+
+export function WebSearchChip({
+  isEmphasized,
+  part,
+}: {
+  isEmphasized: boolean;
+  part: SessionMessagePart.ToolPart;
+}) {
+  if (
+    part.type !== "tool-web_search" ||
+    part.state !== "output-available" ||
+    part.output.state !== "success" ||
+    part.output.sources.length === 0
+  ) {
+    return null;
+  }
+
+  const uniqueUrls = [
+    ...new Map(
+      part.output.sources.map((s) => {
+        const hostname = URL.canParse(s.url) ? new URL(s.url).hostname : s.url;
+        return [hostname, s.url];
+      }),
+    ).values(),
+  ].slice(0, 5);
+
+  return (
+    <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
+      {uniqueUrls.map((url, index) => (
+        <Favicon
+          className="-ml-0.5 size-3.5 border border-muted bg-background first:ml-0"
+          key={index}
+          url={url}
+        />
+      ))}
+    </ToolChip>
   );
 }

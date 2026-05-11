@@ -3,15 +3,52 @@ import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
+import { Favicon } from "../favicon";
 import { AgentBrowserPlayer } from "../tool-part/agent-browser-player";
 import { useToolCallSession } from "./tool-call-session";
-import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardHeader,
+  ToolCardSection,
+  ToolChip,
+} from "./tool-card";
 
+export interface BrowserInfo {
+  /** Sorted by visit count, descending. */
+  domains: string[];
+}
 type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
+
 type BrowserCommandObservation = Extract<
   SessionMessagePart.ToolPartContextItem,
   { kind: "agent-browser-command" }
 >;
+
+export function BrowserChip({
+  info,
+  isEmphasized,
+}: {
+  info: BrowserInfo;
+  isEmphasized: boolean;
+}) {
+  const topDomain = info.domains[0] ?? "";
+  const extra = info.domains.length - 1;
+
+  return (
+    <ToolChip isEmphasized={isEmphasized}>
+      <Favicon
+        className="size-3.5 border border-muted bg-background"
+        url={`https://${topDomain}`}
+      />
+      <span className="text-xs font-medium text-foreground/50">
+        {topDomain}
+        {extra > 0 && (
+          <span className="text-foreground/30"> & {extra} more</span>
+        )}
+      </span>
+    </ToolChip>
+  );
+}
 
 export function ToolBash({
   assetBaseUrl,

@@ -17,10 +17,6 @@ interface PublisherEvents {
     success: true;
   };
   "debug.browser-view-manager.updated": null;
-  "debug.open-analytics-toolbar": null;
-  "debug.open-debug-page": null;
-  "debug.open-query-devtools": null;
-  "debug.open-router-devtools": null;
   "favorites.updated": null;
   "features.updated": null;
   "preferences.updated": null;

@@ -84,43 +84,6 @@ const throwError = base
   });
 
 const live = {
-  openAnalyticsToolbar: base.handler(async function* ({ signal }) {
-    for await (const _payload of publisher.subscribe(
-      "debug.open-analytics-toolbar",
-      {
-        signal,
-      },
-    )) {
-      yield null;
-    }
-  }),
-  openDebugPage: base.handler(async function* ({ signal }) {
-    for await (const _payload of publisher.subscribe("debug.open-debug-page", {
-      signal,
-    })) {
-      yield null;
-    }
-  }),
-  openQueryDevtools: base.handler(async function* ({ signal }) {
-    for await (const _payload of publisher.subscribe(
-      "debug.open-query-devtools",
-      {
-        signal,
-      },
-    )) {
-      yield null;
-    }
-  }),
-  openRouterDevtools: base.handler(async function* ({ signal }) {
-    for await (const _payload of publisher.subscribe(
-      "debug.open-router-devtools",
-      {
-        signal,
-      },
-    )) {
-      yield null;
-    }
-  }),
   testNotification: base.handler(async function* ({ signal }) {
     for await (const _payload of publisher.subscribe("test-notification", {
       signal,
@@ -132,10 +95,75 @@ const live = {
   }),
 };
 
+const trigger = {
+  testDownloadNotification: base.handler(() => {
+    publisher.publish("updates.status", {
+      status: { notifyUser: true, type: "checking" },
+    });
+
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 10;
+
+      if (progress <= 100) {
+        publisher.publish("updates.status", {
+          status: {
+            notifyUser: true,
+            progress: {
+              bytesPerSecond: 1024 * 1024,
+              delta: 1024 * 1024,
+              percent: progress,
+              total: 100 * 1024 * 1024,
+              transferred: progress * 1024 * 1024,
+            },
+            type: "downloading",
+          },
+        });
+      } else {
+        clearInterval(interval);
+        publisher.publish("updates.status", {
+          status: {
+            notifyUser: true,
+            type: "downloaded",
+            updateInfo: {
+              files: [],
+              path: "",
+              releaseDate: new Date().toISOString(),
+              releaseName: "Test Update",
+              releaseNotes: "This is a test update",
+              sha512: "",
+              version: "1.0.0-test",
+            },
+          },
+        });
+      }
+    }, 500);
+  }),
+  testErrorNotification: base.handler(() => {
+    publisher.publish("updates.status", {
+      status: { notifyUser: true, type: "checking" },
+    });
+
+    void new Promise((resolve) => setTimeout(resolve, 1000)).then(() => {
+      publisher.publish("updates.status", {
+        status: {
+          message: "There was an error checking for updates",
+          notifyUser: true,
+          type: "error",
+        },
+      });
+    });
+  }),
+  testNotification: base.handler(() => {
+    publisher.publish("test-notification", null);
+  }),
+};
+
 export const debug = {
   browserViewManager: browserViewManagerDebugRoutes,
   live,
   sessionMarkdown,
   systemInfo,
   throwError,
+  trigger,
 };

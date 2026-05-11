@@ -20,7 +20,7 @@ import {
 import {
   createFileRoute,
   Outlet,
-  useMatchRoute,
+  useLocation,
   useSearch,
 } from "@tanstack/react-router";
 
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_app/debug/components")({
 });
 
 function RouteComponent() {
-  const matchRoute = useMatchRoute();
+  const { pathname } = useLocation();
   const search = useSearch({ strict: false });
   const chatStreamPage = componentPages.find(
     (page) => page.id === "chat-stream",
@@ -43,7 +43,7 @@ function RouteComponent() {
   const defaultSessionId = presetSessions[0]?.id;
   const activeSessionId = search.session ?? defaultSessionId;
   const isChatStreamRoute =
-    chatStreamPage !== undefined && !!matchRoute({ to: chatStreamPage.to });
+    chatStreamPage !== undefined && pathname === chatStreamPage.to;
 
   return (
     <SidebarProvider
@@ -67,7 +67,7 @@ function RouteComponent() {
                       <SidebarMenuButton
                         asChild
                         className="h-auto"
-                        isActive={!!matchRoute({ to: page.to })}
+                        isActive={pathname === page.to}
                       >
                         <InternalLink
                           allowOpenNewTab={false}

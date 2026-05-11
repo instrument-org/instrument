@@ -28,18 +28,20 @@ import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authen
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppEvalsIndexRouteImport } from './routes/_app/evals/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
-import { Route as AppDebugProviderIconsRouteImport } from './routes/_app/debug/provider-icons'
+import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/notifications'
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
 import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
-import { Route as AppDebugColorsRouteImport } from './routes/_app/debug/colors'
 import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
+import { Route as AppNot_authenticatedWelcome2RouteImport } from './routes/_app/_not_authenticated/welcome2'
 import { Route as AppNot_authenticatedWelcomeRouteImport } from './routes/_app/_not_authenticated/welcome'
 import { Route as AppNot_authenticatedSignInRouteImport } from './routes/_app/_not_authenticated/sign-in'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
+import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
 import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
+import { Route as AppDebugComponentsColorsRouteImport } from './routes/_app/debug/components/colors'
 import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/debug/components/chat-stream'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
 
@@ -136,9 +138,9 @@ const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
-const AppDebugProviderIconsRoute = AppDebugProviderIconsRouteImport.update({
-  id: '/provider-icons',
-  path: '/provider-icons',
+const AppDebugNotificationsRoute = AppDebugNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
 const AppDebugErrorsRoute = AppDebugErrorsRouteImport.update({
@@ -151,16 +153,17 @@ const AppDebugComponentsRoute = AppDebugComponentsRouteImport.update({
   path: '/components',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
-const AppDebugColorsRoute = AppDebugColorsRouteImport.update({
-  id: '/colors',
-  path: '/colors',
-  getParentRoute: () => AppDebugRouteRoute,
-} as any)
 const AppDebugBrowserViewsRoute = AppDebugBrowserViewsRouteImport.update({
   id: '/browser-views',
   path: '/browser-views',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
+const AppNot_authenticatedWelcome2Route =
+  AppNot_authenticatedWelcome2RouteImport.update({
+    id: '/welcome2',
+    path: '/welcome2',
+    getParentRoute: () => AppNot_authenticatedRouteRoute,
+  } as any)
 const AppNot_authenticatedWelcomeRoute =
   AppNot_authenticatedWelcomeRouteImport.update({
     id: '/welcome',
@@ -196,10 +199,22 @@ const AppDebugComponentsSpinnerRoute =
     path: '/spinner',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
+const AppDebugComponentsProviderIconsRoute =
+  AppDebugComponentsProviderIconsRouteImport.update({
+    id: '/provider-icons',
+    path: '/provider-icons',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsErrorCardRoute =
   AppDebugComponentsErrorCardRouteImport.update({
     id: '/error-card',
     path: '/error-card',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
+const AppDebugComponentsColorsRoute =
+  AppDebugComponentsColorsRouteImport.update({
+    id: '/colors',
+    path: '/colors',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
 const AppDebugComponentsChatStreamRoute =
@@ -232,17 +247,19 @@ export interface FileRoutesByFullPath {
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/sign-in': typeof AppNot_authenticatedSignInRoute
   '/welcome': typeof AppNot_authenticatedWelcomeRoute
+  '/welcome2': typeof AppNot_authenticatedWelcome2Route
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
-  '/debug/colors': typeof AppDebugColorsRoute
   '/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/debug/errors': typeof AppDebugErrorsRoute
-  '/debug/provider-icons': typeof AppDebugProviderIconsRoute
+  '/debug/notifications': typeof AppDebugNotificationsRoute
   '/debug/': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
+  '/debug/components/colors': typeof AppDebugComponentsColorsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
+  '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
@@ -262,16 +279,18 @@ export interface FileRoutesByTo {
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/sign-in': typeof AppNot_authenticatedSignInRoute
   '/welcome': typeof AppNot_authenticatedWelcomeRoute
+  '/welcome2': typeof AppNot_authenticatedWelcome2Route
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
-  '/debug/colors': typeof AppDebugColorsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
-  '/debug/provider-icons': typeof AppDebugProviderIconsRoute
+  '/debug/notifications': typeof AppDebugNotificationsRoute
   '/debug': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
+  '/debug/components/colors': typeof AppDebugComponentsColorsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
+  '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
@@ -297,17 +316,19 @@ export interface FileRoutesById {
   '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/_app/_not_authenticated/sign-in': typeof AppNot_authenticatedSignInRoute
   '/_app/_not_authenticated/welcome': typeof AppNot_authenticatedWelcomeRoute
+  '/_app/_not_authenticated/welcome2': typeof AppNot_authenticatedWelcome2Route
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
-  '/_app/debug/colors': typeof AppDebugColorsRoute
   '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/_app/debug/errors': typeof AppDebugErrorsRoute
-  '/_app/debug/provider-icons': typeof AppDebugProviderIconsRoute
+  '/_app/debug/notifications': typeof AppDebugNotificationsRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/_app/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
+  '/_app/debug/components/colors': typeof AppDebugComponentsColorsRoute
   '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
+  '/_app/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
@@ -331,17 +352,19 @@ export interface FileRouteTypes {
     | '/subscribe'
     | '/sign-in'
     | '/welcome'
+    | '/welcome2'
     | '/debug/browser-views'
-    | '/debug/colors'
     | '/debug/components'
     | '/debug/errors'
-    | '/debug/provider-icons'
+    | '/debug/notifications'
     | '/debug/'
     | '/evals'
     | '/projects'
     | '/debug/browser-view/$targetId'
     | '/debug/components/chat-stream'
+    | '/debug/components/colors'
     | '/debug/components/error-card'
+    | '/debug/components/provider-icons'
     | '/debug/components/spinner'
     | '/debug/components/'
     | '/projects/$subdomain'
@@ -361,16 +384,18 @@ export interface FileRouteTypes {
     | '/subscribe'
     | '/sign-in'
     | '/welcome'
+    | '/welcome2'
     | '/debug/browser-views'
-    | '/debug/colors'
     | '/debug/errors'
-    | '/debug/provider-icons'
+    | '/debug/notifications'
     | '/debug'
     | '/evals'
     | '/projects'
     | '/debug/browser-view/$targetId'
     | '/debug/components/chat-stream'
+    | '/debug/components/colors'
     | '/debug/components/error-card'
+    | '/debug/components/provider-icons'
     | '/debug/components/spinner'
     | '/debug/components'
     | '/projects/$subdomain'
@@ -395,17 +420,19 @@ export interface FileRouteTypes {
     | '/_app/_authenticated/subscribe'
     | '/_app/_not_authenticated/sign-in'
     | '/_app/_not_authenticated/welcome'
+    | '/_app/_not_authenticated/welcome2'
     | '/_app/debug/browser-views'
-    | '/_app/debug/colors'
     | '/_app/debug/components'
     | '/_app/debug/errors'
-    | '/_app/debug/provider-icons'
+    | '/_app/debug/notifications'
     | '/_app/debug/'
     | '/_app/evals/'
     | '/_app/projects/'
     | '/_app/debug/browser-view/$targetId'
     | '/_app/debug/components/chat-stream'
+    | '/_app/debug/components/colors'
     | '/_app/debug/components/error-card'
+    | '/_app/debug/components/provider-icons'
     | '/_app/debug/components/spinner'
     | '/_app/debug/components/'
     | '/_app/projects/$subdomain/'
@@ -553,11 +580,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugIndexRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
-    '/_app/debug/provider-icons': {
-      id: '/_app/debug/provider-icons'
-      path: '/provider-icons'
-      fullPath: '/debug/provider-icons'
-      preLoaderRoute: typeof AppDebugProviderIconsRouteImport
+    '/_app/debug/notifications': {
+      id: '/_app/debug/notifications'
+      path: '/notifications'
+      fullPath: '/debug/notifications'
+      preLoaderRoute: typeof AppDebugNotificationsRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
     '/_app/debug/errors': {
@@ -574,19 +601,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
-    '/_app/debug/colors': {
-      id: '/_app/debug/colors'
-      path: '/colors'
-      fullPath: '/debug/colors'
-      preLoaderRoute: typeof AppDebugColorsRouteImport
-      parentRoute: typeof AppDebugRouteRoute
-    }
     '/_app/debug/browser-views': {
       id: '/_app/debug/browser-views'
       path: '/browser-views'
       fullPath: '/debug/browser-views'
       preLoaderRoute: typeof AppDebugBrowserViewsRouteImport
       parentRoute: typeof AppDebugRouteRoute
+    }
+    '/_app/_not_authenticated/welcome2': {
+      id: '/_app/_not_authenticated/welcome2'
+      path: '/welcome2'
+      fullPath: '/welcome2'
+      preLoaderRoute: typeof AppNot_authenticatedWelcome2RouteImport
+      parentRoute: typeof AppNot_authenticatedRouteRoute
     }
     '/_app/_not_authenticated/welcome': {
       id: '/_app/_not_authenticated/welcome'
@@ -630,11 +657,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsSpinnerRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/provider-icons': {
+      id: '/_app/debug/components/provider-icons'
+      path: '/provider-icons'
+      fullPath: '/debug/components/provider-icons'
+      preLoaderRoute: typeof AppDebugComponentsProviderIconsRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/error-card': {
       id: '/_app/debug/components/error-card'
       path: '/error-card'
       fullPath: '/debug/components/error-card'
       preLoaderRoute: typeof AppDebugComponentsErrorCardRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
+    '/_app/debug/components/colors': {
+      id: '/_app/debug/components/colors'
+      path: '/colors'
+      fullPath: '/debug/components/colors'
+      preLoaderRoute: typeof AppDebugComponentsColorsRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
     '/_app/debug/components/chat-stream': {
@@ -670,12 +711,14 @@ const AppAuthenticatedRouteRouteWithChildren =
 interface AppNot_authenticatedRouteRouteChildren {
   AppNot_authenticatedSignInRoute: typeof AppNot_authenticatedSignInRoute
   AppNot_authenticatedWelcomeRoute: typeof AppNot_authenticatedWelcomeRoute
+  AppNot_authenticatedWelcome2Route: typeof AppNot_authenticatedWelcome2Route
 }
 
 const AppNot_authenticatedRouteRouteChildren: AppNot_authenticatedRouteRouteChildren =
   {
     AppNot_authenticatedSignInRoute: AppNot_authenticatedSignInRoute,
     AppNot_authenticatedWelcomeRoute: AppNot_authenticatedWelcomeRoute,
+    AppNot_authenticatedWelcome2Route: AppNot_authenticatedWelcome2Route,
   }
 
 const AppNot_authenticatedRouteRouteWithChildren =
@@ -685,14 +728,18 @@ const AppNot_authenticatedRouteRouteWithChildren =
 
 interface AppDebugComponentsRouteChildren {
   AppDebugComponentsChatStreamRoute: typeof AppDebugComponentsChatStreamRoute
+  AppDebugComponentsColorsRoute: typeof AppDebugComponentsColorsRoute
   AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
+  AppDebugComponentsProviderIconsRoute: typeof AppDebugComponentsProviderIconsRoute
   AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
   AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
 }
 
 const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
   AppDebugComponentsChatStreamRoute: AppDebugComponentsChatStreamRoute,
+  AppDebugComponentsColorsRoute: AppDebugComponentsColorsRoute,
   AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
+  AppDebugComponentsProviderIconsRoute: AppDebugComponentsProviderIconsRoute,
   AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
   AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
 }
@@ -702,20 +749,18 @@ const AppDebugComponentsRouteWithChildren =
 
 interface AppDebugRouteRouteChildren {
   AppDebugBrowserViewsRoute: typeof AppDebugBrowserViewsRoute
-  AppDebugColorsRoute: typeof AppDebugColorsRoute
   AppDebugComponentsRoute: typeof AppDebugComponentsRouteWithChildren
   AppDebugErrorsRoute: typeof AppDebugErrorsRoute
-  AppDebugProviderIconsRoute: typeof AppDebugProviderIconsRoute
+  AppDebugNotificationsRoute: typeof AppDebugNotificationsRoute
   AppDebugIndexRoute: typeof AppDebugIndexRoute
   AppDebugBrowserViewTargetIdRoute: typeof AppDebugBrowserViewTargetIdRoute
 }
 
 const AppDebugRouteRouteChildren: AppDebugRouteRouteChildren = {
   AppDebugBrowserViewsRoute: AppDebugBrowserViewsRoute,
-  AppDebugColorsRoute: AppDebugColorsRoute,
   AppDebugComponentsRoute: AppDebugComponentsRouteWithChildren,
   AppDebugErrorsRoute: AppDebugErrorsRoute,
-  AppDebugProviderIconsRoute: AppDebugProviderIconsRoute,
+  AppDebugNotificationsRoute: AppDebugNotificationsRoute,
   AppDebugIndexRoute: AppDebugIndexRoute,
   AppDebugBrowserViewTargetIdRoute: AppDebugBrowserViewTargetIdRoute,
 }

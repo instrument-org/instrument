@@ -7,16 +7,12 @@ import {
 import { cn } from "@/client/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { getDebugRoute } from "./-debug-routes";
+import { getComponentPage } from "../-debug-routes";
 
-export const Route = createFileRoute("/_app/debug/colors")({
+export const Route = createFileRoute("/_app/debug/components/colors")({
   component: RouteComponent,
   head: () => ({
-    meta: [
-      {
-        title: getDebugRoute("colors").title,
-      },
-    ],
+    meta: [{ title: getComponentPage("colors").label }],
   }),
 });
 
@@ -186,15 +182,6 @@ function RouteComponent() {
   return (
     <div className="size-full overflow-y-auto">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
-        <header className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-muted-foreground">
-            Theme Colors
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Token palette
-          </h1>
-        </header>
-
         <div className="flex flex-col gap-4">
           {scaleGroups.map((group) => (
             <ColorGroup

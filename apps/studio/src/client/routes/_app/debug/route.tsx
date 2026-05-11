@@ -25,7 +25,7 @@ function RouteComponent() {
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <header className="sticky top-0 z-10 w-full shrink-0 border-b bg-background px-4 py-3">
         <nav className="flex min-w-0 items-center">
-          <div className="flex min-w-0 gap-1 overflow-x-auto rounded-full border bg-muted/40 p-1">
+          <div className="flex min-w-0 flex-wrap gap-1 rounded-xl border bg-muted/40 p-1">
             {debugRoutes.map((route) => {
               if (!route.showNav) {
                 return null;

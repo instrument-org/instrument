@@ -1,6 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/_not_authenticated")({
   beforeLoad: async () => {
@@ -8,6 +9,11 @@ export const Route = createFileRoute("/_app/_not_authenticated")({
     // Allowing these pages to load even if user errors because maybe it will
     // recover.
     if (hasToken) {
+      const { developerMode } = await rpcClient.preferences.get.call();
+      if (developerMode) {
+        toast.info("Redirect skipped (developer mode)");
+        return;
+      }
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({ to: "/" });
     }

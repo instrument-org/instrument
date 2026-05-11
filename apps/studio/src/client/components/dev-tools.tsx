@@ -1,3 +1,4 @@
+import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -11,14 +12,12 @@ import { Label } from "@/client/components/ui/label";
 import { Sheet, SheetContent, SheetTitle } from "@/client/components/ui/sheet";
 import { Textarea } from "@/client/components/ui/textarea";
 import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
-import { useNavigate } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { useAtom } from "jotai";
 import { posthog } from "posthog-js";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-
-import { rpcClient } from "../rpc/client";
 
 function nullishToUndefined<T>(val: null | T): T | undefined {
   return val ?? undefined;
@@ -48,71 +47,11 @@ interface ValidationResult {
 }
 
 export function DevTools() {
-  const navigate = useNavigate();
-  const [routerPanelIsOpen, setRouterPanelIsOpen] = useState(false);
-  const [queryPanelIsOpen, setQueryPanelIsOpen] = useState(false);
-  const [analyticsDialogIsOpen, setAnalyticsDialogIsOpen] = useState(false);
+  const [activePanel, setActivePanel] = useAtom(devToolsPanelAtom);
   const [toolbarCode, setToolbarCode] = useState("");
   const [validationResult, setValidationResult] = useState<ValidationResult>({
     isValid: false,
   });
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function subscribeToDebugEvents() {
-      const subscriptions = await Promise.all([
-        rpcClient.debug.live.openDebugPage.call(),
-        rpcClient.debug.live.openRouterDevtools.call(),
-        rpcClient.debug.live.openQueryDevtools.call(),
-        rpcClient.debug.live.openAnalyticsToolbar.call(),
-      ]);
-
-      const [debugPageSub, routerSub, querySub, analyticsSub] = subscriptions;
-
-      void (async () => {
-        for await (const _ of debugPageSub) {
-          if (isCancelled) {
-            break;
-          }
-          void navigate({ to: "/debug" });
-        }
-      })();
-
-      void (async () => {
-        for await (const _ of routerSub) {
-          if (isCancelled) {
-            break;
-          }
-          setRouterPanelIsOpen(true);
-        }
-      })();
-
-      void (async () => {
-        for await (const _ of querySub) {
-          if (isCancelled) {
-            break;
-          }
-          setQueryPanelIsOpen(true);
-        }
-      })();
-
-      void (async () => {
-        for await (const _ of analyticsSub) {
-          if (isCancelled) {
-            break;
-          }
-          setAnalyticsDialogIsOpen(true);
-        }
-      })();
-    }
-
-    void subscribeToDebugEvents();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [navigate]);
 
   const validateToolbarCode = (code: string): ValidationResult => {
     if (!code.trim()) {
@@ -196,32 +135,50 @@ export function DevTools() {
     }
 
     posthog.loadToolbar(validationResult.parsedData);
-    setAnalyticsDialogIsOpen(false);
+    setActivePanel(null);
     setToolbarCode("");
     setValidationResult({ isValid: false });
   };
 
   return (
     <>
-      <Sheet onOpenChange={setRouterPanelIsOpen} open={routerPanelIsOpen}>
+      <Sheet
+        onOpenChange={(open) => {
+          if (!open) {
+            setActivePanel(null);
+          }
+        }}
+        open={activePanel === "router-devtools"}
+      >
         <SheetContent className="h-1/2 p-0" side="bottom">
           <SheetTitle className="sr-only">React Router Devtools</SheetTitle>
           <div className="h-full overflow-hidden text-xs">
             <TanStackRouterDevtoolsPanel
               className="h-full"
-              setIsOpen={setRouterPanelIsOpen}
+              setIsOpen={(open) => {
+                if (!open) {
+                  setActivePanel(null);
+                }
+              }}
             />
           </div>
         </SheetContent>
       </Sheet>
 
-      <Sheet onOpenChange={setQueryPanelIsOpen} open={queryPanelIsOpen}>
+      <Sheet
+        onOpenChange={(open) => {
+          if (!open) {
+            setActivePanel(null);
+          }
+        }}
+        open={activePanel === "query-devtools"}
+      >
         <SheetContent className="h-1/2 p-0" side="bottom">
           <SheetTitle className="sr-only">React Query Devtools</SheetTitle>
           <div className="h-full overflow-hidden text-xs">
             <ReactQueryDevtoolsPanel
               onClose={() => {
-                setQueryPanelIsOpen(false);
+                setActivePanel(null);
               }}
             />
           </div>
@@ -229,8 +186,12 @@ export function DevTools() {
       </Sheet>
 
       <Dialog
-        onOpenChange={setAnalyticsDialogIsOpen}
-        open={analyticsDialogIsOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActivePanel(null);
+          }
+        }}
+        open={activePanel === "analytics-toolbar"}
       >
         <DialogContent>
           <DialogHeader>
@@ -266,7 +227,7 @@ export function DevTools() {
           <DialogFooter>
             <Button
               onClick={() => {
-                setAnalyticsDialogIsOpen(false);
+                setActivePanel(null);
                 setToolbarCode("");
               }}
               variant="outline"

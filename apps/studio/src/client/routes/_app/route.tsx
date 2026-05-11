@@ -44,6 +44,12 @@ const DevTools = lazy(() =>
   })),
 );
 
+const DevPanel = lazy(() =>
+  import("@/client/components/dev-panel").then((m) => ({
+    default: m.DevPanel,
+  })),
+);
+
 function RouteComponent() {
   const isDeveloperMode = useDeveloperMode();
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
@@ -61,6 +67,12 @@ function RouteComponent() {
       {isDeveloperMode && (
         <Suspense fallback={null}>
           <DevTools />
+        </Suspense>
+      )}
+
+      {isDeveloperMode && (
+        <Suspense fallback={null}>
+          <DevPanel />
         </Suspense>
       )}
 

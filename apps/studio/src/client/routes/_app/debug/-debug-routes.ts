@@ -9,15 +9,6 @@ export const debugRoutes = [
     to: "/debug",
   },
   {
-    description: "Theme tokens and color swatches.",
-    id: "colors",
-    label: "Colors",
-    showCard: true,
-    showNav: true,
-    title: "Debug Colors",
-    to: "/debug/colors",
-  },
-  {
     description: "Browse UI component previews.",
     id: "components",
     label: "Components",
@@ -45,13 +36,13 @@ export const debugRoutes = [
     to: "/debug/browser-views",
   },
   {
-    description: "All AI provider icons at every size.",
-    id: "providerIcons",
-    label: "Provider Icons",
+    description: "Trigger notification states for testing.",
+    id: "notifications",
+    label: "Notifications",
     showCard: true,
     showNav: true,
-    title: "Debug Provider Icons",
-    to: "/debug/provider-icons",
+    title: "Debug Notifications",
+    to: "/debug/notifications",
   },
   {
     id: "browserView",
@@ -77,9 +68,28 @@ export const componentPages = [
     label: "Spinner",
     to: "/debug/components/spinner",
   },
+  {
+    id: "colors",
+    label: "Colors",
+    to: "/debug/components/colors",
+  },
+  {
+    id: "provider-icons",
+    label: "Provider Icons",
+    to: "/debug/components/provider-icons",
+  },
 ] as const;
 
+type ComponentPageId = (typeof componentPages)[number]["id"];
 type DebugRouteId = (typeof debugRoutes)[number]["id"];
+
+export function getComponentPage(id: ComponentPageId) {
+  const page = componentPages.find((item) => item.id === id);
+  if (!page) {
+    throw new Error(`Unknown component page: ${id}`);
+  }
+  return page;
+}
 
 export function getDebugRoute(id: DebugRouteId) {
   const route = debugRoutes.find((item) => item.id === id);

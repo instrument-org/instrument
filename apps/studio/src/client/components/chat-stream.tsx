@@ -208,18 +208,11 @@ export function ChatStream({
       if (isToolPart(part)) {
         const streaming = isToolStreaming(part, message);
 
-        // Suppress tool calls that haven't reached a terminal state and aren't
-        // streaming, unless developer mode is active.
-        const hasTerminalState =
-          part.state === "output-available" || part.state === "output-error";
-        if (!hasTerminalState && !streaming && !isDeveloperMode) {
-          return null;
-        }
-
         return (
           <div key={part.metadata.id}>
             <ToolCall
               isAgentRunning={isAgentRunning}
+              isDeveloperMode={isDeveloperMode}
               isStreaming={streaming}
               part={part}
               project={project}

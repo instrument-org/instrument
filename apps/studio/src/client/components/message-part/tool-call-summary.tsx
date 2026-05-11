@@ -2,7 +2,7 @@ import {
   getToolNameByType,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
-import { GlobeIcon, type Icon } from "@phosphor-icons/react";
+import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
@@ -32,10 +32,12 @@ import { WebSearchChip } from "./tool-web-search";
 export function ToolCallSummary({
   assetBaseUrl,
   children,
+  isDeadDevMode = false,
   part,
 }: {
   assetBaseUrl: string;
   children?: ReactNode;
+  isDeadDevMode?: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
   const { isAgentRunning, isStreaming } = useToolCallSession();
@@ -96,6 +98,10 @@ export function ToolCallSummary({
           toolName,
         }));
 
+  const deadLabel = isDeadDevMode
+    ? `${getToolLabelForPart({ part, state: "streaming", toolName })} stopped while ${part.state}`
+    : null;
+
   const trigger = (
     <div
       className={cn(
@@ -105,7 +111,12 @@ export function ToolCallSummary({
           : "border-border bg-card",
       )}
     >
-      {isStreaming ? (
+      {isDeadDevMode ? (
+        <span className="flex shrink-0 items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-500 uppercase">
+          <EyeIcon className="size-2.5" />
+          Dev
+        </span>
+      ) : isStreaming ? (
         <Spinner className="size-3 shrink-0 text-foreground/60" />
       ) : (
         Icon && (
@@ -121,7 +132,7 @@ export function ToolCallSummary({
           isStreaming && "shiny-text",
         )}
       >
-        {label}
+        {deadLabel ?? label}
       </span>
 
       {browserInfo && (

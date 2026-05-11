@@ -102,7 +102,7 @@ function TaskStream({
         style={{ height: "300px" }}
       >
         <div ref={contentRef}>
-          {renderStream({ isAgentRunning: true, messages: messages ?? [] })}
+          {renderStream({ isAgentRunning: true, messages })}
         </div>
       </div>
     );
@@ -110,7 +110,7 @@ function TaskStream({
 
   return (
     <div className="p-2">
-      {renderStream({ isAgentRunning: false, messages: messages ?? [] })}
+      {renderStream({ isAgentRunning: false, messages })}
     </div>
   );
 }

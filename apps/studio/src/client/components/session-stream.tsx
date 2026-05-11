@@ -449,7 +449,7 @@ export function SessionStream({
 
       {isAgentRunning && (
         <div className={hasActiveLoadingState ? "invisible" : "visible"}>
-          <ReasoningMessage hideIcon isLoading text="" />
+          <ReasoningMessage isLoading text="" />
         </div>
       )}
 

@@ -234,17 +234,18 @@ export function ChatStream({
 
       if (part.type === "reasoning") {
         return (
-          <ReasoningMessage
-            createdAt={part.metadata.createdAt}
-            endedAt={part.metadata.endedAt}
-            isLoading={
-              isAgentRunning &&
-              lastMessageId === message.id &&
-              part.state === "streaming"
-            }
-            key={part.metadata.id}
-            text={part.text}
-          />
+          <div className="py-1" key={part.metadata.id}>
+            <ReasoningMessage
+              createdAt={part.metadata.createdAt}
+              endedAt={part.metadata.endedAt}
+              isLoading={
+                isAgentRunning &&
+                lastMessageId === message.id &&
+                part.state === "streaming"
+              }
+              text={part.text}
+            />
+          </div>
         );
       }
 

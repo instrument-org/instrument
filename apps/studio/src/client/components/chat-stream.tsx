@@ -17,7 +17,7 @@ import { AttachmentsCard } from "./attachments-card";
 import { ContextMessages } from "./context-messages";
 import { AppLogo } from "./logo";
 import { MessageError } from "./message-error";
-import { ToolCall } from "./message-part/tool-call";
+import { isToolCallVisible, ToolCall } from "./message-part/tool-call";
 import { ReasoningMessage } from "./reasoning-message";
 import { ContextMessage } from "./session-context-message";
 import { type RenderStream } from "./tool-part/task";
@@ -207,6 +207,15 @@ export function ChatStream({
 
       if (isToolPart(part)) {
         const streaming = isToolStreaming(part, message);
+        if (
+          !isToolCallVisible({
+            isDeveloperMode,
+            isStreaming: streaming,
+            part,
+          })
+        ) {
+          return null;
+        }
 
         return (
           <div key={part.metadata.id}>
@@ -286,11 +295,7 @@ export function ChatStream({
     }
 
     if (isToolPart(lastPart)) {
-      return (
-        lastPart.state === "input-streaming" ||
-        lastPart.state === "input-available" ||
-        (lastPart.state === "output-available" && lastPart.preliminary === true)
-      );
+      return isActiveToolPart(lastPart);
     }
 
     if (lastPart.type === "reasoning" && lastPart.state === "streaming") {
@@ -307,27 +312,15 @@ export function ChatStream({
     if (!lastMessage || lastMessage.role !== "assistant") {
       return false;
     }
-    return lastMessage.parts.some((part) => {
-      if (part.type === "text") {
-        return part.state !== "done" || part.text.trim() !== "";
-      }
-      if (
-        part.type === "step-start" ||
-        part.type === "data-attachments" ||
-        part.type === "source-document" ||
-        part.type === "source-url" ||
-        part.type === "file"
-      ) {
-        return false;
-      }
-      if (isToolPart(part)) {
-        const hasTerminalState =
-          part.state === "output-available" || part.state === "output-error";
-        const streaming = isToolStreaming(part, lastMessage);
-        return hasTerminalState || streaming || isDeveloperMode;
-      }
-      return true;
-    });
+    return lastMessage.parts.some((part) =>
+      isVisibleAssistantPart({
+        isDeveloperMode,
+        isStreaming: isToolPart(part)
+          ? isToolStreaming(part, lastMessage)
+          : false,
+        part,
+      }),
+    );
   }, [regularMessages, isDeveloperMode, isToolStreaming]);
 
   const { chatElements } = useMemo(() => {
@@ -529,5 +522,39 @@ export function ChatStream({
         </Alert>
       )}
     </div>
+  );
+}
+
+function isActiveToolPart(part: SessionMessagePart.ToolPart) {
+  return (
+    part.state === "input-streaming" ||
+    part.state === "input-available" ||
+    (part.state === "output-available" && part.preliminary === true)
+  );
+}
+
+function isVisibleAssistantPart({
+  isDeveloperMode,
+  isStreaming,
+  part,
+}: {
+  isDeveloperMode: boolean;
+  isStreaming: boolean;
+  part: SessionMessagePart.Type;
+}) {
+  if (part.type === "text") {
+    return part.state !== "done" || part.text.trim() !== "";
+  }
+
+  if (isToolPart(part)) {
+    return isToolCallVisible({ isDeveloperMode, isStreaming, part });
+  }
+
+  return (
+    part.type !== "step-start" &&
+    part.type !== "data-attachments" &&
+    part.type !== "source-document" &&
+    part.type !== "source-url" &&
+    part.type !== "file"
   );
 }

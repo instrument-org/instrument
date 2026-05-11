@@ -4,6 +4,7 @@ import { CaretUpIcon } from "@phosphor-icons/react";
 import { memo, useEffect, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
+import { PlanningDotIcon } from "./icons/planning-dot";
 import { SessionMarkdown } from "./session-markdown";
 import {
   Collapsible,
@@ -89,7 +90,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
       >
         {isLoading ? (
           <div className="flex items-center gap-2">
-            <span className="size-3 shrink-0 rounded-full bg-brand-500" />
+            <PlanningDotIcon className="size-3 shrink-0" />
             <span className="shiny-text text-sm font-medium">Planning...</span>
           </div>
         ) : (

@@ -39,8 +39,8 @@ import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_au
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
-import { Route as AppDebugComponentsSessionStreamRouteImport } from './routes/_app/debug/components/session-stream'
 import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
+import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/debug/components/chat-stream'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
 
 const ShellRoute = ShellRouteImport.update({
@@ -196,16 +196,16 @@ const AppDebugComponentsSpinnerRoute =
     path: '/spinner',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
-const AppDebugComponentsSessionStreamRoute =
-  AppDebugComponentsSessionStreamRouteImport.update({
-    id: '/session-stream',
-    path: '/session-stream',
-    getParentRoute: () => AppDebugComponentsRoute,
-  } as any)
 const AppDebugComponentsErrorCardRoute =
   AppDebugComponentsErrorCardRouteImport.update({
     id: '/error-card',
     path: '/error-card',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
+const AppDebugComponentsChatStreamRoute =
+  AppDebugComponentsChatStreamRouteImport.update({
+    id: '/chat-stream',
+    path: '/chat-stream',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
 const AppDebugBrowserViewTargetIdRoute =
@@ -241,8 +241,8 @@ export interface FileRoutesByFullPath {
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
-  '/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
@@ -270,8 +270,8 @@ export interface FileRoutesByTo {
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
-  '/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
@@ -306,8 +306,8 @@ export interface FileRoutesById {
   '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/_app/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
-  '/_app/debug/components/session-stream': typeof AppDebugComponentsSessionStreamRoute
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
@@ -340,8 +340,8 @@ export interface FileRouteTypes {
     | '/evals'
     | '/projects'
     | '/debug/browser-view/$targetId'
+    | '/debug/components/chat-stream'
     | '/debug/components/error-card'
-    | '/debug/components/session-stream'
     | '/debug/components/spinner'
     | '/debug/components/'
     | '/projects/$subdomain'
@@ -369,8 +369,8 @@ export interface FileRouteTypes {
     | '/evals'
     | '/projects'
     | '/debug/browser-view/$targetId'
+    | '/debug/components/chat-stream'
     | '/debug/components/error-card'
-    | '/debug/components/session-stream'
     | '/debug/components/spinner'
     | '/debug/components'
     | '/projects/$subdomain'
@@ -404,8 +404,8 @@ export interface FileRouteTypes {
     | '/_app/evals/'
     | '/_app/projects/'
     | '/_app/debug/browser-view/$targetId'
+    | '/_app/debug/components/chat-stream'
     | '/_app/debug/components/error-card'
-    | '/_app/debug/components/session-stream'
     | '/_app/debug/components/spinner'
     | '/_app/debug/components/'
     | '/_app/projects/$subdomain/'
@@ -630,18 +630,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsSpinnerRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
-    '/_app/debug/components/session-stream': {
-      id: '/_app/debug/components/session-stream'
-      path: '/session-stream'
-      fullPath: '/debug/components/session-stream'
-      preLoaderRoute: typeof AppDebugComponentsSessionStreamRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
     '/_app/debug/components/error-card': {
       id: '/_app/debug/components/error-card'
       path: '/error-card'
       fullPath: '/debug/components/error-card'
       preLoaderRoute: typeof AppDebugComponentsErrorCardRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
+    '/_app/debug/components/chat-stream': {
+      id: '/_app/debug/components/chat-stream'
+      path: '/chat-stream'
+      fullPath: '/debug/components/chat-stream'
+      preLoaderRoute: typeof AppDebugComponentsChatStreamRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
     '/_app/debug/browser-view/$targetId': {
@@ -684,15 +684,15 @@ const AppNot_authenticatedRouteRouteWithChildren =
   )
 
 interface AppDebugComponentsRouteChildren {
+  AppDebugComponentsChatStreamRoute: typeof AppDebugComponentsChatStreamRoute
   AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
-  AppDebugComponentsSessionStreamRoute: typeof AppDebugComponentsSessionStreamRoute
   AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
   AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
 }
 
 const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
+  AppDebugComponentsChatStreamRoute: AppDebugComponentsChatStreamRoute,
   AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
-  AppDebugComponentsSessionStreamRoute: AppDebugComponentsSessionStreamRoute,
   AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
   AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
 }

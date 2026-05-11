@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_app/debug/components/")({
     // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw redirect({
       search: defaultSessionId ? { session: defaultSessionId } : undefined,
-      to: "/debug/components/session-stream",
+      to: "/debug/components/chat-stream",
     });
   },
 });

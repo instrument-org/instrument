@@ -37,14 +37,13 @@ export const Route = createFileRoute("/_app/debug/components")({
 function RouteComponent() {
   const matchRoute = useMatchRoute();
   const search = useSearch({ strict: false });
-  const sessionStreamPage = componentPages.find(
-    (page) => page.id === "session-stream",
+  const chatStreamPage = componentPages.find(
+    (page) => page.id === "chat-stream",
   );
   const defaultSessionId = presetSessions[0]?.id;
   const activeSessionId = search.session ?? defaultSessionId;
-  const isSessionStreamRoute =
-    sessionStreamPage !== undefined &&
-    !!matchRoute({ to: sessionStreamPage.to });
+  const isChatStreamRoute =
+    chatStreamPage !== undefined && !!matchRoute({ to: chatStreamPage.to });
 
   return (
     <SidebarProvider
@@ -57,9 +56,9 @@ function RouteComponent() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {componentPages.map((page) => {
-                  const isSessionStreamPage = page.id === "session-stream";
+                  const isChatStreamPage = page.id === "chat-stream";
                   const pageSearch =
-                    isSessionStreamPage && defaultSessionId
+                    isChatStreamPage && defaultSessionId
                       ? { session: defaultSessionId }
                       : undefined;
 
@@ -78,8 +77,8 @@ function RouteComponent() {
                           <span>{page.label}</span>
                         </InternalLink>
                       </SidebarMenuButton>
-                      {isSessionStreamPage && sessionStreamPage && (
-                        <Collapsible open={isSessionStreamRoute}>
+                      {isChatStreamPage && chatStreamPage && (
+                        <Collapsible open={isChatStreamRoute}>
                           <CollapsibleContent>
                             <SidebarMenuSub>
                               {presetSessions.map((session) => (
@@ -87,14 +86,14 @@ function RouteComponent() {
                                   <SidebarMenuSubButton
                                     asChild
                                     isActive={
-                                      isSessionStreamRoute &&
+                                      isChatStreamRoute &&
                                       session.id === activeSessionId
                                     }
                                   >
                                     <InternalLink
                                       allowOpenNewTab={false}
                                       search={{ session: session.id }}
-                                      to={sessionStreamPage.to}
+                                      to={chatStreamPage.to}
                                     >
                                       <span>{session.name}</span>
                                     </InternalLink>

@@ -63,9 +63,9 @@ export const debugRoutes = [
 
 export const componentPages = [
   {
-    id: "session-stream",
+    id: "chat-stream",
     label: "Chat",
-    to: "/debug/components/session-stream",
+    to: "/debug/components/chat-stream",
   },
   {
     id: "error-card",

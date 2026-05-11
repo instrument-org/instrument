@@ -1,5 +1,4 @@
 import { ChatStream } from "@/client/components/chat-stream";
-import { SessionStream } from "@/client/components/session-stream";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import { Label } from "@/client/components/ui/label";
 import { createFileRoute } from "@tanstack/react-router";
@@ -13,10 +12,10 @@ const searchSchema = z.object({
   session: z.string().optional(),
 });
 
-export const Route = createFileRoute("/_app/debug/components/session-stream")({
+export const Route = createFileRoute("/_app/debug/components/chat-stream")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Debug Session Stream" }],
+    meta: [{ title: "Debug Chat Stream" }],
   }),
   validateSearch: searchSchema,
 });
@@ -31,7 +30,6 @@ function RouteComponent() {
   const { session: sessionParam } = Route.useSearch();
   const [isAgentRunning, setIsAgentRunning] = useState(true);
   const [isDeveloperMode, setIsDeveloperMode] = useState(false);
-  const [useChatStream, setUseChatStream] = useState(true);
 
   const selectedSessionId = sessionParam ?? presetSessions[0]?.id;
   const selectedSession = presetSessions.find(
@@ -70,46 +68,21 @@ function RouteComponent() {
             Developer Mode
           </Label>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <Checkbox
-            checked={useChatStream}
-            id="chat-stream"
-            onCheckedChange={(checked) => {
-              setUseChatStream(checked === true);
-            }}
-          />
-          <Label className="cursor-pointer text-sm" htmlFor="chat-stream">
-            New Chat Stream
-          </Label>
-        </div>
       </div>
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl">
             {selectedSession ? (
-              useChatStream ? (
-                <ChatStream
-                  isAgentRunning={isAgentRunning}
-                  isDeveloperMode={isDeveloperMode}
-                  messages={selectedSession.messages}
-                  onContinue={createEventHandler("Continue")}
-                  onModelChange={createEventHandler("Model Change")}
-                  onRetry={createEventHandler("Retry")}
-                  onStartNewChat={createEventHandler("Start New Chat")}
-                  project={mockProject as never}
-                />
-              ) : (
-                <SessionStream
-                  isAgentRunning={isAgentRunning}
-                  isDeveloperMode={isDeveloperMode}
-                  messages={selectedSession.messages}
-                  onContinue={createEventHandler("Continue")}
-                  onModelChange={createEventHandler("Model Change")}
-                  onRetry={createEventHandler("Retry")}
-                  onStartNewChat={createEventHandler("Start New Chat")}
-                  project={mockProject as never}
-                />
-              )
+              <ChatStream
+                isAgentRunning={isAgentRunning}
+                isDeveloperMode={isDeveloperMode}
+                messages={selectedSession.messages}
+                onContinue={createEventHandler("Continue")}
+                onModelChange={createEventHandler("Model Change")}
+                onRetry={createEventHandler("Retry")}
+                onStartNewChat={createEventHandler("Start New Chat")}
+                project={mockProject as never}
+              />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 No session available

@@ -1,11 +1,5 @@
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { Button } from "@/client/components/ui/button";
-import {
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
 import { Label } from "@/client/components/ui/label";
 import { fixURL } from "@/client/lib/fix-url";
@@ -69,12 +63,14 @@ const initialState: AddProviderState = {
   validationFailed: false,
 };
 
-export function ProviderConfigScreen({
+export function AddProviderForm({
   onSuccess,
   providers,
+  submitLabel = "Save",
 }: {
   onSuccess: () => void;
   providers: ClientAIProviderConfig[];
+  submitLabel?: string;
 }) {
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
   const [state, dispatch] = useReducer(addProviderReducer, initialState);
@@ -273,16 +269,11 @@ export function ProviderConfigScreen({
         void handleSave();
       }}
     >
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          Add Provider
-        </DialogTitle>
-        <DialogDescription>
-          {state.selectedProviderType && providerMetadata
-            ? providerMetadata.description
-            : "Select a provider to add for AI model usage."}
-        </DialogDescription>
-      </DialogHeader>
+      <div className="flex flex-col gap-2 text-center sm:text-left">
+        <h2 className="font-serif text-3xl leading-tight font-medium">
+          Add an AI provider
+        </h2>
+      </div>
       <div className="flex flex-col gap-y-3 py-3">
         <div className="flex flex-col gap-y-1">
           <Label>Provider</Label>
@@ -334,13 +325,12 @@ export function ProviderConfigScreen({
                   value={state.apiKey}
                 />
 
-                <Alert>
-                  <LockIcon className="size-4" />
-                  <AlertDescription className="text-xs">
-                    Your API key is encrypted and stored locally on your
-                    computer.
-                  </AlertDescription>
-                </Alert>
+                <div className="flex items-start gap-2">
+                  <LockIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Your API key is encrypted and stored on your device
+                  </p>
+                </div>
               </>
             ) : (
               <ProviderLinks
@@ -357,7 +347,10 @@ export function ProviderConfigScreen({
                 value={advancedOpen}
               >
                 <AccordionItem className="border-b-0" value="advanced">
-                  <AccordionTrigger className="justify-start gap-1.5 py-3 text-xs font-normal text-muted-foreground">
+                  <AccordionTrigger
+                    className="justify-start gap-1.5 py-3 text-xs font-normal
+                      text-muted-foreground"
+                  >
                     Advanced
                   </AccordionTrigger>
                   <AccordionContent>
@@ -370,10 +363,11 @@ export function ProviderConfigScreen({
                       {renderBaseURLField({
                         description: (
                           <>
-                            Only change this if you know what you&apos;re doing.{" "}
+                            Only change this if you know what you&apos;re doing.
                             Use the{" "}
                             <span
-                              className="cursor-pointer underline underline-offset-2 hover:text-foreground"
+                              className="cursor-pointer underline
+                                underline-offset-2 hover:text-foreground"
                               onClick={() => {
                                 handleProviderSelect("openai-compatible");
                               }}
@@ -422,11 +416,15 @@ export function ProviderConfigScreen({
           </Alert>
         )}
       </div>
-      <DialogFooter className="flex gap-2">
-        <Button disabled={saving || !isFormValid} type="submit">
-          {saving ? "Saving..." : "Save"}
+      <div className="flex justify-end">
+        <Button
+          disabled={saving || !isFormValid}
+          type="submit"
+          variant="default"
+        >
+          {saving ? "Saving..." : submitLabel}
         </Button>
-      </DialogFooter>
+      </div>
     </form>
   );
 }

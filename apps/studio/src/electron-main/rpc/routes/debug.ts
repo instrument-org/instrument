@@ -1,6 +1,7 @@
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import {
   AppSubdomainSchema,
   StoreId,
@@ -159,9 +160,14 @@ const trigger = {
   }),
 };
 
+const openOnboarding = base.input(z.void()).handler(() => {
+  openOnboardingWindow();
+});
+
 export const debug = {
   browserViewManager: browserViewManagerDebugRoutes,
   live,
+  openOnboarding,
   sessionMarkdown,
   systemInfo,
   throwError,

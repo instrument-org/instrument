@@ -32,10 +32,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 const PAGES = [
-  { label: "/welcome", to: "/welcome" },
-  { label: "/welcome2", to: "/welcome2" },
+  { label: "/onboarding", to: "/onboarding" },
+  { label: "/onboarding/providers", to: "/onboarding/providers" },
   { label: "/sign-in", to: "/sign-in" },
-  { label: "/setup", to: "/setup" },
   { label: "/subscribe", to: "/subscribe" },
   { label: "/evals", to: "/evals" },
 ] as const satisfies { label: string; to: StudioPath }[];
@@ -61,6 +60,10 @@ export function DevPanel() {
 
   const { mutate: setFeatureEnabled } = useMutation(
     rpcClient.features.setEnabled.mutationOptions(),
+  );
+
+  const { mutate: openOnboarding } = useMutation(
+    rpcClient.debug.openOnboarding.mutationOptions(),
   );
 
   const enabledFlagCount = Object.values(features).filter(Boolean).length;
@@ -106,6 +109,15 @@ export function DevPanel() {
                 }}
               >
                 /debug
+              </MenubarItem>
+              <MenubarSeparator />
+              <MenubarItem
+                className="font-mono text-xs"
+                onSelect={() => {
+                  openOnboarding();
+                }}
+              >
+                Open onboarding window
               </MenubarItem>
             </MenubarContent>
           </MenubarMenu>

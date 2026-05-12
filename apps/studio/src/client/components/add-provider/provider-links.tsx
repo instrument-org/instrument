@@ -1,7 +1,7 @@
 import { ExternalLink } from "@/client/components/external-link";
 
 const S = {
-  link: "inline-flex items-center gap-x-0.5 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline underline-offset-2",
+  link: "inline-flex items-center gap-x-0.5 text-muted-foreground hover:text-foreground underline decoration-solid [text-decoration-skip-ink:none] [text-underline-position:from-font]",
 } as const;
 
 export function ProviderLinks({
@@ -19,7 +19,7 @@ export function ProviderLinks({
         <>
           <span>
             <ExternalLink className={S.link} href={keyURL}>
-              Get API key
+              Get an API key
             </ExternalLink>
           </span>{" "}
           <span>or</span>{" "}

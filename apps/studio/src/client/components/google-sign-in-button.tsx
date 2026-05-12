@@ -1,6 +1,6 @@
 import { Button } from "@/client/components/ui/button";
 import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
-import { SiGoogle } from "react-icons/si";
+import { FcGoogle } from "react-icons/fc";
 
 export function GoogleSignInButton({
   className,
@@ -23,7 +23,7 @@ export function GoogleSignInButton({
       onSubmit={handleSignIn}
     >
       <Button className={className} type="submit" variant="default">
-        <SiGoogle />
+        <FcGoogle />
         Continue with Google
       </Button>
     </form>

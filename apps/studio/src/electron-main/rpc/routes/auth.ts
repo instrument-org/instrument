@@ -4,7 +4,6 @@ import {
 } from "@/electron-main/auth/client";
 import { hasToken as hasTokenUtil } from "@/electron-main/platform-api/utils";
 import { base } from "@/electron-main/rpc/base";
-import { z } from "zod";
 
 import { publisher } from "../publisher";
 
@@ -31,15 +30,9 @@ const live = {
   }),
 };
 
-const signInSocial = base
-  .input(
-    z.object({
-      inviteCode: z.string().optional(),
-    }),
-  )
-  .handler(async ({ input }) => {
-    return signInSocialFn(input.inviteCode);
-  });
+const signInSocial = base.handler(async () => {
+  return signInSocialFn();
+});
 
 export const auth = {
   hasToken,

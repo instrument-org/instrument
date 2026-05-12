@@ -14,9 +14,9 @@ export function FilePreviewFallback({
 }) {
   return (
     <div className="flex w-full max-w-md flex-col items-center justify-center gap-4 p-8 text-center text-foreground">
-      <div className="flex size-32 items-center justify-center rounded-lg bg-accent">
+      <div className="flex h-20 w-16 items-center justify-center rounded-lg bg-accent text-muted-foreground">
         <FileIcon
-          className="size-16"
+          className="size-5"
           fallbackExtension={fallbackExtension}
           filename={filename}
         />

@@ -26,6 +26,11 @@ export function SessionContextRing({
   );
 
   const tokens = data?.inputTokens ?? 0;
+
+  if (tokens === 0) {
+    return null;
+  }
+
   const ratio = Math.min(tokens / CONTEXT_WINDOW, 1);
   const dashOffset = CIRCUMFERENCE * (1 - ratio);
 

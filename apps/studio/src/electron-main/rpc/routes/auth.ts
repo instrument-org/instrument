@@ -30,8 +30,15 @@ const live = {
   }),
 };
 
-const signInSocial = base.handler(async () => {
-  return signInSocialFn();
+const signInSocial = base.handler(async ({ errors }) => {
+  try {
+    return await signInSocialFn();
+  } catch (error) {
+    throw errors.API_ERROR({
+      cause: error,
+      message: error instanceof Error ? error.message : "Sign in failed",
+    });
+  }
 });
 
 export const auth = {

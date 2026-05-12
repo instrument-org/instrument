@@ -10,7 +10,7 @@ export const Route = createFileRoute("/onboarding/")({
 
 function OnboardingIndex() {
   const navigate = useNavigate();
-  const { error } = useSignInSocial();
+  const { error, signIn } = useSignInSocial();
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
@@ -26,6 +26,7 @@ function OnboardingIndex() {
       isSetupComplete={isSetupComplete}
       onAddProvider={() => void navigate({ to: "/onboarding/providers" })}
       onContinue={() => void rpcClient.onboarding.complete.call()}
+      onSignIn={signIn}
     />
   );
 }

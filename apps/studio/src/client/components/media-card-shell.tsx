@@ -50,7 +50,9 @@ export function MediaCardShell({
         >
           {children}
 
-          {scrim}
+          <div className="opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            {scrim}
+          </div>
 
           <button
             className="absolute inset-0 z-0 size-full"

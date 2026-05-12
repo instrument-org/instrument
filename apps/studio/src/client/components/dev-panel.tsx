@@ -1,7 +1,9 @@
 import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
+import { featuresAtom } from "@/client/atoms/features";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   Menubar,
+  MenubarCheckboxItem,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
@@ -11,6 +13,8 @@ import {
   MenubarTrigger,
 } from "@/client/components/ui/menubar";
 import { rpcClient } from "@/client/rpc/client";
+import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
+import { type StudioPath } from "@/shared/studio-path";
 import {
   BugIcon,
   ChartBarIcon,
@@ -23,17 +27,18 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useState } from "react";
 import { toast } from "sonner";
 
 const PAGES = [
-  { label: "/welcome", path: "/welcome" },
-  { label: "/welcome2", path: "/welcome2" },
-  { label: "/sign-in", path: "/sign-in" },
-  { label: "/setup", path: "/setup" },
-  { label: "/subscribe", path: "/subscribe" },
-] as const;
+  { label: "/welcome", to: "/welcome" },
+  { label: "/welcome2", to: "/welcome2" },
+  { label: "/sign-in", to: "/sign-in" },
+  { label: "/setup", to: "/setup" },
+  { label: "/subscribe", to: "/subscribe" },
+  { label: "/evals", to: "/evals" },
+] as const satisfies { label: string; to: StudioPath }[];
 
 const triggerClassName =
   "rounded-sm px-1.5 py-0.5 font-mono text-[10px]" +
@@ -48,12 +53,20 @@ export function DevPanel() {
   const [hidden, setHidden] = useState(false);
   const setDevToolsPanel = useSetAtom(devToolsPanelAtom);
 
+  const features = useAtomValue(featuresAtom);
+
   const { mutate: setDeveloperMode } = useMutation(
     rpcClient.preferences.setDeveloperMode.mutationOptions(),
   );
 
-  function handleNavigate(path: string) {
-    void navigate({ to: path as "/" });
+  const { mutate: setFeatureEnabled } = useMutation(
+    rpcClient.features.setEnabled.mutationOptions(),
+  );
+
+  const enabledFlagCount = Object.values(features).filter(Boolean).length;
+
+  function handleNavigate(to: StudioPath) {
+    void navigate({ to });
   }
 
   if (hidden) {
@@ -74,12 +87,12 @@ export function DevPanel() {
           <MenubarMenu>
             <MenubarTrigger className={triggerClassName}>Pages</MenubarTrigger>
             <MenubarContent>
-              {PAGES.map(({ label, path }) => (
+              {PAGES.map(({ label, to }) => (
                 <MenubarItem
                   className="font-mono text-xs"
-                  key={path}
+                  key={to}
                   onSelect={() => {
-                    handleNavigate(path);
+                    handleNavigate(to);
                   }}
                 >
                   {label}
@@ -154,6 +167,34 @@ export function DevPanel() {
                   System
                 </MenubarRadioItem>
               </MenubarRadioGroup>
+            </MenubarContent>
+          </MenubarMenu>
+
+          <MenubarMenu>
+            <MenubarTrigger className={triggerClassName}>
+              Flags
+              {enabledFlagCount > 0 && (
+                <span className="ml-1 rounded-full bg-blue-500/20 px-1 py-px font-mono text-[9px] leading-none text-blue-700 tabular-nums dark:bg-blue-400/20 dark:text-blue-300">
+                  {enabledFlagCount}
+                </span>
+              )}
+            </MenubarTrigger>
+            <MenubarContent>
+              {(Object.keys(FEATURE_METADATA) as FeatureName[]).map(
+                (feature) => (
+                  <MenubarCheckboxItem
+                    checked={features[feature]}
+                    className="font-mono text-xs"
+                    key={feature}
+                    onCheckedChange={(enabled) => {
+                      setFeatureEnabled({ enabled, feature });
+                    }}
+                    title={FEATURE_METADATA[feature].description}
+                  >
+                    {FEATURE_METADATA[feature].title}
+                  </MenubarCheckboxItem>
+                ),
+              )}
             </MenubarContent>
           </MenubarMenu>
         </Menubar>

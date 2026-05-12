@@ -1,19 +1,18 @@
 import { Button } from "@/client/components/ui/button";
-import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
 import { FcGoogle } from "react-icons/fc";
 
 export function GoogleSignInButton({
   className,
+  onSignIn,
   onSuccess,
 }: {
   className?: string;
+  onSignIn: () => Promise<void>;
   onSuccess?: () => void;
 }) {
-  const { signIn } = useSignInSocial();
-
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await signIn();
+    await onSignIn();
     onSuccess?.();
   };
 

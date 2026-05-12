@@ -26,7 +26,7 @@ const FEATURED_PROVIDERS: AIProviderType[] = ["anthropic", "openai", "google"];
 
 export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
   const [showAddProviderDialog, setShowAddProviderDialog] = useState(false);
-  const { error } = useSignInSocial();
+  const { error, signIn } = useSignInSocial();
   const navigate = useNavigate();
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
   const { data: hasToken } = useQuery(
@@ -127,7 +127,10 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
                   </ContactErrorAlert>
                 )}
 
-                <GoogleSignInButton className="w-full min-w-80" />
+                <GoogleSignInButton
+                  className="w-full min-w-80"
+                  onSignIn={signIn}
+                />
 
                 {mode === "setup" && (
                   <ManualProviderButton

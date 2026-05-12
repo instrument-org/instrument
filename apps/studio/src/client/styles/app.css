@@ -429,6 +429,38 @@ a.cursor-pointer {
   }
 }
 
+/* Planning indicator: core breathe + expanding ring (see PlanningDotIcon). */
+@keyframes planning-dot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+@keyframes planning-dot-shockwave-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+.planning-dot-core {
+  transform-origin: center;
+  animation: planning-dot-breathe 1.5s ease-in-out infinite;
+  will-change: transform;
+}
+.planning-dot-shockwave-ring {
+  transform-origin: center;
+  animation: planning-dot-shockwave-ring 1.5s ease-out infinite;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
 [data-sonner-toast] {
   /* Fixes hover for toast growing to full height of screen */
   height: auto !important;

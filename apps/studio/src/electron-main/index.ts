@@ -222,6 +222,9 @@ function handleDeepLink(url: string) {
 }
 
 function shouldShowOnboarding(): boolean {
+  if (process.env.SKIP_ONBOARDING === "true") {
+    return false;
+  }
   if (hasToken()) {
     return false;
   }

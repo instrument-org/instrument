@@ -294,6 +294,8 @@ export function ProjectChat({
               );
             }}
             placeholder={`Talk to ${APP_NAME}`}
+            selectedSessionId={selectedSessionId}
+            subdomain={subdomain}
           />
         </div>
       </div>

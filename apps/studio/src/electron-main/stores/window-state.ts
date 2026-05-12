@@ -1,39 +1,56 @@
 import { screen } from "electron";
 import Store from "electron-store";
 
+export interface WindowBounds {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+}
+
+interface StoredWindowState {
+  bounds?: Partial<WindowBounds>;
+  isMaximized?: boolean;
+}
+
 interface WindowState {
-  bounds: {
-    height: number;
-    width: number;
-    x?: number;
-    y?: number;
-  };
+  bounds: WindowBounds;
   isMaximized: boolean;
 }
 
 const DEFAULT_WIDTH = 1400;
 const DEFAULT_HEIGHT = 900;
 
-const store = new Store<WindowState>({
+// Full containment is too strict for multi-display restores; users can leave a
+// window slightly over an edge and still expect that position to be restored.
+const MIN_VISIBLE_PX = 100;
+
+const store = new Store<StoredWindowState>({
   name: "window-state",
 });
 
 export function getWindowState() {
-  const stored = store.store as Partial<WindowState> | undefined;
+  const stored = store.store;
   const defaults = getDefaultState();
 
   // Merge stored state with defaults to handle partial/corrupted data
   const merged: WindowState = {
     bounds: {
-      height: stored?.bounds?.height ?? defaults.bounds.height,
-      width: stored?.bounds?.width ?? defaults.bounds.width,
-      x: stored?.bounds?.x,
-      y: stored?.bounds?.y,
+      height: stored.bounds?.height ?? defaults.bounds.height,
+      width: stored.bounds?.width ?? defaults.bounds.width,
+      x: stored.bounds?.x ?? defaults.bounds.x,
+      y: stored.bounds?.y ?? defaults.bounds.y,
     },
-    isMaximized: stored?.isMaximized ?? defaults.isMaximized,
+    isMaximized: stored.isMaximized ?? defaults.isMaximized,
   };
 
   return ensureWindowVisible(merged);
+}
+
+export function isWindowBoundsVisible(bounds: WindowBounds) {
+  return screen.getAllDisplays().some((display) => {
+    return isWindowWithinBounds(bounds, display.bounds);
+  });
 }
 
 export function setWindowState(value: WindowState) {
@@ -41,18 +58,10 @@ export function setWindowState(value: WindowState) {
 }
 
 function ensureWindowVisible(state: WindowState) {
-  const bounds = state.bounds;
-
-  if (bounds.x === undefined || bounds.y === undefined) {
-    return state;
-  }
-
-  const visible = screen.getAllDisplays().some((display) => {
-    return isWindowWithinBounds(bounds, display.bounds);
-  });
-
-  if (!visible) {
+  if (!isWindowBoundsVisible(state.bounds)) {
     const defaultState = getDefaultState();
+    // Handles unplugged/rearranged monitors by moving only the origin while
+    // preserving the user's saved window size.
     return {
       ...state,
       bounds: {
@@ -81,19 +90,20 @@ function getDefaultState(): WindowState {
 }
 
 function isWindowWithinBounds(
-  windowBounds: { height: number; width: number; x?: number; y?: number },
+  windowBounds: WindowBounds,
   displayBounds: { height: number; width: number; x: number; y: number },
 ) {
-  if (windowBounds.x === undefined || windowBounds.y === undefined) {
-    return false;
-  }
+  const overlapX =
+    Math.min(
+      windowBounds.x + windowBounds.width,
+      displayBounds.x + displayBounds.width,
+    ) - Math.max(windowBounds.x, displayBounds.x);
 
-  return (
-    windowBounds.x >= displayBounds.x &&
-    windowBounds.y >= displayBounds.y &&
-    windowBounds.x + windowBounds.width <=
-      displayBounds.x + displayBounds.width &&
-    windowBounds.y + windowBounds.height <=
-      displayBounds.y + displayBounds.height
-  );
+  const overlapY =
+    Math.min(
+      windowBounds.y + windowBounds.height,
+      displayBounds.y + displayBounds.height,
+    ) - Math.max(windowBounds.y, displayBounds.y);
+
+  return overlapX >= MIN_VISIBLE_PX && overlapY >= MIN_VISIBLE_PX;
 }

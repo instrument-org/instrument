@@ -10,7 +10,9 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { getSidebarWidth } from "@/electron-main/stores/app-state";
 import {
   getWindowState,
+  isWindowBoundsVisible,
   setWindowState,
+  type WindowBounds,
 } from "@/electron-main/stores/window-state";
 import { createTabsManager, getTabsManager } from "@/electron-main/tabs";
 import {
@@ -54,18 +56,20 @@ export async function createMainWindow() {
   });
 
   setMainWindow(mainWindow);
+  // Keep the last normal, visible bounds so maximize/fullscreen/minimize and
+  // bogus cross-display move events don't overwrite the restorable position.
+  let lastVisibleBounds: WindowBounds = mainWindow.getBounds();
 
   const saveState = () => {
     try {
       const isMaximized = mainWindow.isMaximized();
       const bounds = mainWindow.getBounds();
-      const isNormal =
-        !mainWindow.isMaximized() &&
-        !mainWindow.isMinimized() &&
-        !mainWindow.isFullScreen();
 
       setWindowState({
-        bounds: isNormal ? bounds : getWindowState().bounds,
+        bounds:
+          isWindowNormal(mainWindow) && isWindowBoundsVisible(bounds)
+            ? bounds
+            : lastVisibleBounds,
         isMaximized,
       });
     } catch {
@@ -127,6 +131,17 @@ export async function createMainWindow() {
   setupWindowEventListeners({
     mainWindow,
     onResize: () => {
+      const bounds = mainWindow.getBounds();
+      const isNormal = isWindowNormal(mainWindow);
+
+      if (isNormal && isWindowBoundsVisible(bounds)) {
+        lastVisibleBounds = bounds;
+      } else if (isNormal) {
+        // Mission Control can briefly report an invalid post-drop position.
+        mainWindow.setBounds(lastVisibleBounds);
+        return;
+      }
+
       debouncedSaveState();
       resizeViews();
     },
@@ -164,6 +179,14 @@ export function updateTitleBarOverlay() {
   ) {
     window.setTitleBarOverlay(getTitleBarOverlay());
   }
+}
+
+function isWindowNormal(mainWindow: BrowserWindow) {
+  return (
+    !mainWindow.isMaximized() &&
+    !mainWindow.isMinimized() &&
+    !mainWindow.isFullScreen()
+  );
 }
 
 function resizeViews() {

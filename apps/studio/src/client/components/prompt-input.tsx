@@ -23,7 +23,11 @@ import {
 import { cn, isMacOS } from "@/client/lib/utils";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
-import { type FileUpload } from "@instrument-org/workspace/client";
+import {
+  type AppSubdomain,
+  type FileUpload,
+  type StoreId,
+} from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import {
   ArrowUpIcon,
@@ -34,7 +38,7 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   useCallback,
   useEffect,
@@ -46,12 +50,14 @@ import {
 import { toast } from "sonner";
 import { ulid } from "ulid";
 
+import { featuresAtom } from "../atoms/features";
 import {
   promptInputRefAtom,
   promptValueAtomFamily,
   type PromptValueAtomKey,
 } from "../atoms/prompt-value";
 import { rpcClient } from "../rpc/client";
+import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
 
 type AttachedItem =
@@ -95,6 +101,8 @@ interface PromptInputProps {
   }) => void;
   placeholder?: string;
   ref?: React.Ref<PromptInputRef>;
+  selectedSessionId?: StoreId.Session;
+  subdomain?: AppSubdomain;
 }
 
 interface PromptInputRef {
@@ -117,7 +125,10 @@ export const PromptInput = ({
   onSubmit,
   placeholder,
   ref,
+  selectedSessionId,
+  subdomain,
 }: PromptInputProps) => {
+  const features = useAtomValue(featuresAtom);
   const [showAIProviderGuard, setShowAIProviderGuard] = useState(false);
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
   const openFilePreview = useSetAtom(openFilePreviewAtom);
@@ -532,6 +543,13 @@ export const PromptInput = ({
               />
             </div>
           </div>
+
+          {features.context_ring && subdomain && selectedSessionId && (
+            <SessionContextRing
+              selectedSessionId={selectedSessionId}
+              subdomain={subdomain}
+            />
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -6,7 +6,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { atomWithRefresh } from "jotai/utils";
 
 const defaultFeatures: Features = {
-  na: false,
+  context_ring: false,
 };
 
 async function listen(setAtom: () => void) {

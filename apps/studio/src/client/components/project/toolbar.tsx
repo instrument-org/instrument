@@ -14,7 +14,6 @@ import { useState } from "react";
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
 import { RestoreVersionModal } from "../restore-version-modal";
-import { SessionContextRing } from "../session-context-ring";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,12 +101,6 @@ export function ProjectToolbar({
                   subdomain={project.subdomain}
                 />
               </div>
-            )}
-            {isDeveloperMode && selectedSessionId && (
-              <SessionContextRing
-                selectedSessionId={selectedSessionId}
-                subdomain={project.subdomain}
-              />
             )}
             {versionRef ? (
               <div className="flex shrink-0 items-center gap-2">

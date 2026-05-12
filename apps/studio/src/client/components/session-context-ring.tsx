@@ -31,11 +31,11 @@ export function SessionContextRing({
 
   const percentUsed = Math.round(ratio * 100);
 
-  let strokeColor = "text-blue-700/60 dark:text-blue-300/60";
+  let strokeColor = "text-foreground/30";
   if (ratio >= 0.9) {
     strokeColor = "text-destructive";
   } else if (ratio >= 0.7) {
-    strokeColor = "text-blue-700 dark:text-blue-300";
+    strokeColor = "text-foreground/70";
   }
 
   return (

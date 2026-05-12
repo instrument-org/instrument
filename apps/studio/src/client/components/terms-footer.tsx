@@ -1,18 +1,19 @@
 import { ExternalLink } from "@/client/components/external-link";
+import { cn } from "@/client/lib/utils";
 import { APP_URL } from "@instrument-org/shared";
 
 export function TermsFooter({ className }: { className?: string }) {
   return (
-    <p className={className}>
+    <p
+      className={cn(
+        "text-center text-xs text-foreground/50 [&_a]:underline [&_a]:underline-offset-4",
+        className,
+      )}
+    >
       By clicking continue, you agree to our{" "}
-      <ExternalLink className="underline" href={`${APP_URL}/terms`}>
-        Terms of Service
-      </ExternalLink>{" "}
+      <ExternalLink href={`${APP_URL}/terms`}>Terms of Service</ExternalLink>{" "}
       and{" "}
-      <ExternalLink className="underline" href={`${APP_URL}/privacy`}>
-        Privacy Policy
-      </ExternalLink>
-      .
+      <ExternalLink href={`${APP_URL}/privacy`}>Privacy Policy</ExternalLink>.
     </p>
   );
 }

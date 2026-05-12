@@ -240,7 +240,7 @@ function MenubarSubTrigger({
       {...props}
     >
       {children}
-      <CaretRightIcon className="cn-rtl-flip ml-auto size-4" />
+      <CaretRightIcon className="ml-auto size-4" />
     </MenubarPrimitive.SubTrigger>
   );
 }

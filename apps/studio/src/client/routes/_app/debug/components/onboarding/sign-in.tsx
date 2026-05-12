@@ -15,7 +15,10 @@ function RouteComponent() {
     <div className="flex flex-wrap gap-8">
       <OnboardingWindowFrame>
         <OnboardingLayout showBack={false}>
-          <OnboardingWelcomeScreen isSetupComplete={false} />
+          <OnboardingWelcomeScreen
+            isSetupComplete={false}
+            onSignIn={() => Promise.resolve()}
+          />
         </OnboardingLayout>
       </OnboardingWindowFrame>
 
@@ -24,6 +27,7 @@ function RouteComponent() {
           <OnboardingWelcomeScreen
             error={new Error("Sign in failed")}
             isSetupComplete={false}
+            onSignIn={() => Promise.resolve()}
           />
         </OnboardingLayout>
       </OnboardingWindowFrame>

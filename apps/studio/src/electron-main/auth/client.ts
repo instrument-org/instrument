@@ -16,16 +16,13 @@ export const auth = createAuthClient({
 
 export const store: {
   codeVerifier: null | string;
-  inviteCode: null | string;
   state: null | string;
 } = {
   codeVerifier: null,
-  inviteCode: null,
   state: null,
 };
 
 interface OAuthState {
-  inviteCode?: string;
   state: string;
 }
 
@@ -50,7 +47,7 @@ export function decodeOAuthState(encodedState: string): null | OAuthState {
   }
 }
 
-export async function signInSocial(inviteCode?: string) {
+export async function signInSocial() {
   const authServerPort = getAuthServerPort();
   if (authServerPort === null) {
     throw new Error("Auth server port is not set");
@@ -59,19 +56,12 @@ export async function signInSocial(inviteCode?: string) {
   const google = createGoogleProvider({ port: authServerPort });
 
   const baseState = arctic.generateState();
-
-  const stateData = {
-    state: baseState,
-    ...(inviteCode && { inviteCode }),
-  };
-
-  const encodedState = Buffer.from(JSON.stringify(stateData)).toString(
-    "base64",
-  );
+  const encodedState = Buffer.from(
+    JSON.stringify({ state: baseState }),
+  ).toString("base64");
 
   store.state = encodedState;
   store.codeVerifier = arctic.generateCodeVerifier();
-  store.inviteCode = inviteCode || null;
 
   const scopes = ["email", "profile", "openid"];
   const url = google.createAuthorizationURL(

@@ -3,7 +3,6 @@ import {
   isToolPart,
   type SessionMessage,
   type SessionMessagePart,
-  type StoreId,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react";
@@ -11,22 +10,25 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 
 import { cn } from "../lib/utils";
-import { AssistantMessage } from "./assistant-message";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
+import {
+  renderChatPart,
+  type RenderPartContext,
+  selectGitCommitParts,
+} from "./chat-stream-render-part";
+import {
+  buildToolBoundaryMap,
+  isActiveToolPart,
+  isVisibleAssistantPart,
+} from "./chat-stream-utils";
 import { ContextMessages } from "./context-messages";
 import { AppLogo } from "./logo";
 import { MessageError } from "./message-error";
-import { ToolCall } from "./message-part/tool-call";
-import { isToolCallVisible } from "./message-part/tool-call-utils";
 import { type RenderStream } from "./message-part/tool-task";
 import { ReasoningMessage } from "./reasoning-message";
-import { ContextMessage } from "./session-context-message";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
-import { UnknownPart } from "./unknown-part";
-import { UserMessage } from "./user-message";
-import { VersionAndFilesCard } from "./version-and-files-card";
 
 interface ChatStreamProps {
   hideLogo?: boolean;
@@ -59,18 +61,16 @@ export function ChatStream({
 }: ChatStreamProps) {
   const navigate = useNavigate();
 
-  const gitCommitParts = useMemo(() => {
-    return messages.flatMap((message) =>
-      message.parts.filter((part) => part.type === "data-gitCommit"),
-    );
-  }, [messages]);
+  const gitCommitParts = useMemo(
+    () => selectGitCommitParts(messages),
+    [messages],
+  );
 
   const { contextMessages, regularMessages } = useMemo(() => {
     const result = {
       contextMessages: [] as SessionMessage.ContextWithParts[],
       regularMessages: [] as SessionMessage.WithParts[],
     };
-
     for (const message of messages) {
       if (message.role === "session-context") {
         result.contextMessages.push(message);
@@ -78,16 +78,10 @@ export function ChatStream({
         result.regularMessages.push(message);
       }
     }
-
     return result;
   }, [messages]);
 
-  const lastMessageId = useMemo((): StoreId.Message | undefined => {
-    if (regularMessages.length === 0) {
-      return;
-    }
-    return regularMessages.at(-1)?.id;
-  }, [regularMessages]);
+  const lastMessageId = regularMessages.at(-1)?.id;
 
   const renderStream: RenderStream = useCallback(
     ({ isAgentRunning: isNestedAgentRunning, messages: nestedMessages }) => (
@@ -117,204 +111,32 @@ export function ChatStream({
   );
 
   const isToolStreaming = useCallback(
-    (part: SessionMessagePart.ToolPart, message: SessionMessage.WithParts) => {
-      return (
-        isAgentRunning &&
-        lastMessageId === message.id &&
-        (part.state === "input-streaming" ||
-          part.state === "input-available" ||
-          (part.state === "output-available" && part.preliminary === true))
-      );
-    },
+    (part: SessionMessagePart.ToolPart, message: SessionMessage.WithParts) =>
+      isAgentRunning && lastMessageId === message.id && isActiveToolPart(part),
     [isAgentRunning, lastMessageId],
-  );
-
-  const renderChatPart = useCallback(
-    (
-      part: SessionMessagePart.Type,
-      message: SessionMessage.WithParts,
-      partIndex: number,
-    ): null | React.ReactNode => {
-      if (part.type === "text") {
-        if (part.state === "done" && part.text.trim() === "") {
-          return null;
-        }
-
-        switch (message.role) {
-          case "assistant": {
-            return (
-              <AssistantMessage
-                assetBaseUrl={project.urls.assetBase}
-                key={part.metadata.id}
-                part={part}
-              />
-            );
-          }
-          case "session-context": {
-            return (
-              <ContextMessage
-                key={part.metadata.id}
-                message={message}
-                part={part}
-              />
-            );
-          }
-          case "user": {
-            if (hideUserMessages) {
-              return null;
-            }
-            return <UserMessage key={part.metadata.id} part={part} />;
-          }
-          default: {
-            return null;
-          }
-        }
-      }
-
-      if (part.type === "step-start") {
-        return null;
-      }
-
-      if (part.type === "data-gitCommit") {
-        const lastGitCommitPart = gitCommitParts.at(-1);
-        const isLastVersion = lastGitCommitPart?.data.ref === part.data.ref;
-        const isSelected =
-          versionRef === part.data.ref || (isLastVersion && !versionRef);
-        const shouldSetVersion = !isSelected && !isLastVersion;
-
-        return (
-          <VersionAndFilesCard
-            assetBaseUrl={project.urls.assetBase}
-            className="mt-2"
-            isLastGitCommit={isLastVersion}
-            isSelected={isSelected}
-            isViewingApp={isViewingApp}
-            key={part.metadata.id}
-            onVersionClick={() => {
-              void navigate({
-                from: "/projects/$subdomain",
-                params: { subdomain: project.subdomain },
-                replace: true,
-                search: (prev) => ({
-                  ...prev,
-                  artifactPanel: {
-                    type: "app",
-                    versionRef: shouldSetVersion ? part.data.ref : undefined,
-                  },
-                }),
-              });
-            }}
-            projectSubdomain={project.subdomain}
-            restoredFromRef={part.data.restoredFromRef}
-            versionRef={part.data.ref}
-          />
-        );
-      }
-
-      if (part.type === "data-attachments") {
-        return null;
-      }
-
-      if (isToolPart(part)) {
-        const streaming = isToolStreaming(part, message);
-        if (
-          !isToolCallVisible({
-            isDeveloperMode,
-            isStreaming: streaming,
-            part,
-          })
-        ) {
-          return null;
-        }
-
-        return (
-          <div key={part.metadata.id}>
-            <ToolCall
-              isAgentRunning={isAgentRunning}
-              isDeveloperMode={isDeveloperMode}
-              isStreaming={streaming}
-              onRetry={onRetry}
-              part={part}
-              project={project}
-              renderStream={renderStream}
-            />
-          </div>
-        );
-      }
-
-      if (part.type === "reasoning") {
-        return (
-          <ReasoningMessage
-            createdAt={part.metadata.createdAt}
-            endedAt={part.metadata.endedAt}
-            isLoading={
-              isAgentRunning &&
-              lastMessageId === message.id &&
-              part.state === "streaming"
-            }
-            key={part.metadata.id}
-            text={part.text}
-          />
-        );
-      }
-
-      if (part.type === "source-document" || part.type === "source-url") {
-        return null;
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (part.type === "file") {
-        // eslint-disable-next-line no-console
-        console.warn("File part not supported yet", part);
-        return null;
-      }
-
-      const _exhaustiveCheck: never = part;
-      return <UnknownPart key={partIndex} part={_exhaustiveCheck} />;
-    },
-    [
-      gitCommitParts,
-      versionRef,
-      project,
-      navigate,
-      isDeveloperMode,
-      isAgentRunning,
-      lastMessageId,
-      isToolStreaming,
-      isViewingApp,
-      renderStream,
-      onRetry,
-      hideUserMessages,
-    ],
   );
 
   const hasActiveLoadingState = useMemo(() => {
     if (!isAgentRunning || regularMessages.length === 0) {
       return false;
     }
-
     const lastMessage = regularMessages.at(-1);
     if (!lastMessage || lastMessage.id !== lastMessageId) {
       return false;
     }
-
     const lastPart = lastMessage.parts.at(-1);
     if (!lastPart) {
       return false;
     }
-
     if (lastPart.type === "text" && lastPart.state !== "done") {
       return true;
     }
-
     if (isToolPart(lastPart)) {
       return isActiveToolPart(lastPart);
     }
-
     if (lastPart.type === "reasoning" && lastPart.state === "streaming") {
       return true;
     }
-
     return false;
   }, [isAgentRunning, regularMessages, lastMessageId]);
 
@@ -336,28 +158,76 @@ export function ChatStream({
     );
   }, [regularMessages, isDeveloperMode, isToolStreaming]);
 
-  const { chatElements } = useMemo(() => {
-    const newChatElements: React.ReactNode[] = [];
+  // Precomputed so tool-run edges can span message boundaries.
+  const toolBoundaryMap = useMemo(
+    () =>
+      buildToolBoundaryMap({
+        hideUserMessages,
+        isDeveloperMode,
+        isToolStreaming,
+        regularMessages,
+      }),
+    [hideUserMessages, isDeveloperMode, isToolStreaming, regularMessages],
+  );
+
+  const renderCtx: RenderPartContext = useMemo(
+    () => ({
+      gitCommitParts,
+      hideUserMessages,
+      isAgentRunning,
+      isDeveloperMode,
+      isToolStreaming,
+      isViewingApp,
+      lastMessageId,
+      navigate,
+      onRetry,
+      project,
+      renderStream,
+      versionRef,
+    }),
+    [
+      gitCommitParts,
+      hideUserMessages,
+      isAgentRunning,
+      isDeveloperMode,
+      isToolStreaming,
+      isViewingApp,
+      lastMessageId,
+      navigate,
+      onRetry,
+      project,
+      renderStream,
+      versionRef,
+    ],
+  );
+
+  const chatElements = useMemo(() => {
+    const elements: React.ReactNode[] = [];
     let lastFooterIndex = 0;
     let visibleAssistantContentCount = 0;
 
     for (const [messageIndex, message] of regularMessages.entries()) {
       const messageElements: React.ReactNode[] = [];
-      const seenSourceIds = new Set<string>();
-      const fileAttachments: SessionMessagePart.Type[] = [];
 
-      // Collect rendered parts with tool-call metadata for spacer injection.
-      const renderedParts: { isToolCall: boolean; node: React.ReactNode }[] =
-        [];
+      const prevMessage = regularMessages[messageIndex - 1];
+      const nextMessage = regularMessages[messageIndex + 1];
+      const isFirstInConsecutiveAssistantGroup =
+        message.role === "assistant" &&
+        (!prevMessage || prevMessage.role !== "assistant");
+      const isLastInConsecutiveAssistantGroup =
+        message.role === "assistant" &&
+        (!nextMessage || nextMessage.role !== "assistant");
+      const isLastMessage = messageIndex === regularMessages.length - 1;
+
+      // Attachments are hoisted into per-message chrome below.
+      const fileAttachments: SessionMessagePart.Type[] = [];
+      const seenSourceIds = new Set<string>();
 
       for (const [partIndex, part] of message.parts.entries()) {
-        if (
-          (part.type === "source-document" || part.type === "source-url") &&
-          seenSourceIds.has(part.sourceId)
-        ) {
-          continue;
-        }
         if (part.type === "source-document" || part.type === "source-url") {
+          if (seenSourceIds.has(part.sourceId)) {
+            continue;
+          }
           seenSourceIds.add(part.sourceId);
           continue;
         }
@@ -367,57 +237,43 @@ export function ChatStream({
           continue;
         }
 
-        const rendered = renderChatPart(part, message, partIndex);
-        if (rendered) {
-          const isToolCall =
-            isToolPart(part) &&
-            isToolCallVisible({
-              isDeveloperMode,
-              isStreaming: isToolStreaming(part, message),
-              part,
-            });
-          renderedParts.push({ isToolCall, node: rendered });
-          if (message.role === "assistant") {
-            visibleAssistantContentCount++;
-          }
+        const node = renderChatPart({
+          ctx: renderCtx,
+          message,
+          part,
+          partIndex,
+        });
+        if (!node) {
+          continue;
+        }
+
+        const boundary = toolBoundaryMap.get(part.metadata.id);
+        if (boundary?.isToolCall) {
+          messageElements.push(
+            <div
+              className={cn(
+                !boundary.prevIsToolCall && "mt-2",
+                !boundary.nextIsToolCall && "mb-2",
+              )}
+              key={`tool-wrap-${part.metadata.id}`}
+            >
+              {node}
+            </div>,
+          );
+        } else {
+          messageElements.push(node);
+        }
+
+        if (message.role === "assistant") {
+          visibleAssistantContentCount++;
         }
       }
 
-      // Inject spacers around tool-call runs: a small gap before the first
-      // tool call that doesn't immediately follow another tool call, and after
-      // the last tool call that isn't immediately followed by another.
-      for (const [i, item] of renderedParts.entries()) {
-        const prevIsToolCall = renderedParts[i - 1]?.isToolCall ?? false;
-        const nextIsToolCall = renderedParts[i + 1]?.isToolCall ?? false;
+      // --- Per-message chrome ---
 
-        if (item.isToolCall && !prevIsToolCall) {
-          messageElements.push(
-            <div className="mt-2" key={`tool-spacer-before-${i}`} />,
-          );
-        }
-
-        messageElements.push(item.node);
-
-        if (item.isToolCall && !nextIsToolCall) {
-          messageElements.push(
-            <div className="mb-2" key={`tool-spacer-after-${i}`} />,
-          );
-        }
-      }
-
-      const prevMessage = regularMessages[messageIndex - 1];
-      const nextMessage = regularMessages[messageIndex + 1];
-      const isFirstInConsecutiveGroup =
-        message.role === "assistant" &&
-        (!prevMessage || prevMessage.role !== "assistant");
-      const isLastInConsecutiveGroup =
-        message.role === "assistant" &&
-        (!nextMessage || nextMessage.role !== "assistant");
-
-      const isLastMessage = messageIndex === regularMessages.length - 1;
       const isLogoVisible =
         !hideLogo &&
-        isFirstInConsecutiveGroup &&
+        isFirstInConsecutiveAssistantGroup &&
         (!isLastMessage ||
           lastAssistantMessageHasVisibleParts ||
           isPlanningVisible);
@@ -441,14 +297,11 @@ export function ChatStream({
         const fileAttachmentsPart = fileAttachments.find(
           (part) => part.type === "data-attachments",
         );
-
-        if (fileAttachmentsPart) {
-          const files = fileAttachmentsPart.data.files;
-
+        if (fileAttachmentsPart?.type === "data-attachments") {
           messageElements.unshift(
             <AttachmentsCard
               assetBaseUrl={project.urls.assetBase}
-              files={files}
+              files={fileAttachmentsPart.data.files}
               folders={fileAttachmentsPart.data.folders}
               key={`attachments-${message.id}`}
               projectSubdomain={project.subdomain}
@@ -473,20 +326,15 @@ export function ChatStream({
         );
       }
 
-      if (isLastInConsecutiveGroup) {
-        const assistantMessagesForFooter = regularMessages.slice(
-          lastFooterIndex,
-          messageIndex + 1,
-        );
-        const assistantMessages = assistantMessagesForFooter.filter(
-          (m) => m.role === "assistant",
-        );
+      if (isLastInConsecutiveAssistantGroup) {
+        const assistantMessages = regularMessages
+          .slice(lastFooterIndex, messageIndex + 1)
+          .filter((m) => m.role === "assistant");
 
-        const isLastMessageGroup = messageIndex === regularMessages.length - 1;
         const shouldRenderFooter =
           assistantMessages.length > 0 &&
           visibleAssistantContentCount > 0 &&
-          (!isLastMessageGroup ||
+          (!isLastMessage ||
             (!isAgentRunning && lastAssistantMessageHasVisibleParts));
 
         if (shouldRenderFooter) {
@@ -503,22 +351,22 @@ export function ChatStream({
         visibleAssistantContentCount = 0;
       }
 
-      newChatElements.push(...messageElements);
+      elements.push(...messageElements);
     }
 
-    return { chatElements: newChatElements };
+    return elements;
   }, [
+    regularMessages,
+    renderCtx,
+    toolBoundaryMap,
     hideLogo,
     hideUserMessages,
     project.urls.assetBase,
     project.subdomain,
-    regularMessages,
-    renderChatPart,
     isAgentRunning,
+    isDeveloperMode,
     isPlanningVisible,
     lastAssistantMessageHasVisibleParts,
-    isDeveloperMode,
-    isToolStreaming,
     onContinue,
     onModelChange,
     onRetry,
@@ -529,7 +377,6 @@ export function ChatStream({
     if (messages.length === 0 || isAgentRunning) {
       return false;
     }
-
     const lastMessage = messages.at(-1);
     return (
       lastMessage &&
@@ -570,39 +417,5 @@ export function ChatStream({
         </Alert>
       )}
     </div>
-  );
-}
-
-function isActiveToolPart(part: SessionMessagePart.ToolPart) {
-  return (
-    part.state === "input-streaming" ||
-    part.state === "input-available" ||
-    (part.state === "output-available" && part.preliminary === true)
-  );
-}
-
-function isVisibleAssistantPart({
-  isDeveloperMode,
-  isStreaming,
-  part,
-}: {
-  isDeveloperMode: boolean;
-  isStreaming: boolean;
-  part: SessionMessagePart.Type;
-}) {
-  if (part.type === "text") {
-    return part.state !== "done" || part.text.trim() !== "";
-  }
-
-  if (isToolPart(part)) {
-    return isToolCallVisible({ isDeveloperMode, isStreaming, part });
-  }
-
-  return (
-    part.type !== "step-start" &&
-    part.type !== "data-attachments" &&
-    part.type !== "source-document" &&
-    part.type !== "source-url" &&
-    part.type !== "file"
   );
 }

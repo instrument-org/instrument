@@ -1,0 +1,153 @@
+import {
+  isToolPart,
+  type SessionMessage,
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
+
+import { isToolCallVisible } from "./message-part/tool-call-utils";
+
+interface ToolBoundaryInfo {
+  isToolCall: boolean;
+  nextIsToolCall: boolean;
+  prevIsToolCall: boolean;
+}
+
+// Per-part adjacency for tool-call runs, keyed by part id. Skips non-inline
+// parts so they don't artificially split a run.
+export function buildToolBoundaryMap({
+  hideUserMessages,
+  isDeveloperMode,
+  isToolStreaming,
+  regularMessages,
+}: {
+  hideUserMessages: boolean;
+  isDeveloperMode: boolean;
+  isToolStreaming: (
+    part: SessionMessagePart.ToolPart,
+    message: SessionMessage.WithParts,
+  ) => boolean;
+  regularMessages: SessionMessage.WithParts[];
+}): Map<string, ToolBoundaryInfo> {
+  const flat: { id: string; isToolCall: boolean }[] = [];
+  const seenSourceIds = new Set<string>();
+
+  for (const message of regularMessages) {
+    for (const part of message.parts) {
+      if (part.type === "source-document" || part.type === "source-url") {
+        if (seenSourceIds.has(part.sourceId)) {
+          continue;
+        }
+        seenSourceIds.add(part.sourceId);
+        continue;
+      }
+
+      const isStreaming = isToolPart(part)
+        ? isToolStreaming(part, message)
+        : false;
+      if (
+        !isRenderableInlinePart({
+          hideUserMessages,
+          isDeveloperMode,
+          isStreaming,
+          message,
+          part,
+        })
+      ) {
+        continue;
+      }
+
+      flat.push({
+        id: part.metadata.id,
+        isToolCall: isToolPart(part),
+      });
+    }
+  }
+
+  const result = new Map<string, ToolBoundaryInfo>();
+  for (const [i, item] of flat.entries()) {
+    result.set(item.id, {
+      isToolCall: item.isToolCall,
+      nextIsToolCall: flat[i + 1]?.isToolCall ?? false,
+      prevIsToolCall: flat[i - 1]?.isToolCall ?? false,
+    });
+  }
+
+  return result;
+}
+
+export function isActiveToolPart(part: SessionMessagePart.ToolPart) {
+  return (
+    part.state === "input-streaming" ||
+    part.state === "input-available" ||
+    (part.state === "output-available" && part.preliminary === true)
+  );
+}
+
+export function isVisibleAssistantPart({
+  isDeveloperMode,
+  isStreaming,
+  part,
+}: {
+  isDeveloperMode: boolean;
+  isStreaming: boolean;
+  part: SessionMessagePart.Type;
+}) {
+  if (part.type === "text") {
+    return part.state !== "done" || part.text.trim() !== "";
+  }
+
+  if (isToolPart(part)) {
+    return isToolCallVisible({ isDeveloperMode, isStreaming, part });
+  }
+
+  return (
+    part.type !== "step-start" &&
+    part.type !== "data-attachments" &&
+    part.type !== "source-document" &&
+    part.type !== "source-url" &&
+    part.type !== "file"
+  );
+}
+
+// Whether a part renders inline. Must mirror `renderChatPart`'s null cases.
+function isRenderableInlinePart({
+  hideUserMessages,
+  isDeveloperMode,
+  isStreaming,
+  message,
+  part,
+}: {
+  hideUserMessages: boolean;
+  isDeveloperMode: boolean;
+  isStreaming: boolean;
+  message: SessionMessage.WithParts;
+  part: SessionMessagePart.Type;
+}) {
+  if (part.type === "text") {
+    if (part.state === "done" && part.text.trim() === "") {
+      return false;
+    }
+    if (message.role === "user" && hideUserMessages) {
+      return false;
+    }
+    return true;
+  }
+
+  if (part.type === "step-start" || part.type === "data-attachments") {
+    return false;
+  }
+
+  if (part.type === "source-document" || part.type === "source-url") {
+    return false;
+  }
+
+  if (part.type === "file") {
+    return false;
+  }
+
+  if (isToolPart(part)) {
+    return isToolCallVisible({ isDeveloperMode, isStreaming, part });
+  }
+
+  return true;
+}

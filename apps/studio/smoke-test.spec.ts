@@ -158,6 +158,7 @@ describe("Studio Smoke Test", () => {
         ELECTRON_ENABLE_CONSOLE_LOGGING: "true",
         ELECTRON_USER_DATA_DIR: tempUserDataDir,
         SKIP_MOVE_TO_APPLICATIONS: "true",
+        SKIP_ONBOARDING: "true",
       },
       executablePath,
       timeout: 60_000,

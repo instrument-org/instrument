@@ -21,6 +21,7 @@
         "NODE_ENV",
         "PATH",
         "SKIP_MOVE_TO_APPLICATIONS",
+        "SKIP_ONBOARDING",
         "SIGNTOOL_PATH",
         "MAIN_VITE_APP_API_BASE_URL",
         "MAIN_VITE_APP_REGISTRY_DIR_PATH",

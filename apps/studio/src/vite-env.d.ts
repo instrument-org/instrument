@@ -42,6 +42,7 @@ declare namespace NodeJS {
       PATH: string | undefined;
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
+      SKIP_ONBOARDING: string | undefined;
       WIN_CERT_PATH: string | undefined;
       WIN_GCP_KMS_KEY_VERSION: string | undefined;
       WIN_TIMESTAMP_URL: string | undefined;

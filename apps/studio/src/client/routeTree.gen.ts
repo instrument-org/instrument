@@ -11,14 +11,16 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShellRouteImport } from './routes/shell'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as SettingsProvidersRouteImport } from './routes/settings/providers'
 import { Route as SettingsFeaturesRouteImport } from './routes/settings/features'
 import { Route as SettingsDebugRouteImport } from './routes/settings/debug'
 import { Route as SettingsAdvancedRouteImport } from './routes/settings/advanced'
-import { Route as AppSetupRouteImport } from './routes/_app/setup'
+import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppCheckoutRouteImport } from './routes/_app/checkout'
@@ -32,18 +34,21 @@ import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/n
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
 import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
 import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
-import { Route as AppNot_authenticatedWelcome2RouteImport } from './routes/_app/_not_authenticated/welcome2'
-import { Route as AppNot_authenticatedWelcomeRouteImport } from './routes/_app/_not_authenticated/welcome'
 import { Route as AppNot_authenticatedSignInRouteImport } from './routes/_app/_not_authenticated/sign-in'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
 import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
+import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/debug/components/onboarding'
 import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
 import { Route as AppDebugComponentsColorsRouteImport } from './routes/_app/debug/components/colors'
 import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/debug/components/chat-stream'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
+import { Route as AppDebugComponentsOnboardingIndexRouteImport } from './routes/_app/debug/components/onboarding/index'
+import { Route as AppDebugComponentsOnboardingSignInRouteImport } from './routes/_app/debug/components/onboarding/sign-in'
+import { Route as AppDebugComponentsOnboardingProvidersRouteImport } from './routes/_app/debug/components/onboarding/providers'
+import { Route as AppDebugComponentsOnboardingCompleteRouteImport } from './routes/_app/debug/components/onboarding/complete'
 
 const ShellRoute = ShellRouteImport.update({
   id: '/shell',
@@ -53,6 +58,11 @@ const ShellRoute = ShellRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRouteRoute = AppRouteRouteImport.update({
@@ -68,6 +78,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SettingsRoute,
+} as any)
+const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OnboardingRouteRoute,
 } as any)
 const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
   id: '/providers',
@@ -89,10 +104,10 @@ const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
   path: '/advanced',
   getParentRoute: () => SettingsRoute,
 } as any)
-const AppSetupRoute = AppSetupRouteImport.update({
-  id: '/setup',
-  path: '/setup',
-  getParentRoute: () => AppRouteRoute,
+const OnboardingProvidersRoute = OnboardingProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => OnboardingRouteRoute,
 } as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
   id: '/release-notes',
@@ -158,18 +173,6 @@ const AppDebugBrowserViewsRoute = AppDebugBrowserViewsRouteImport.update({
   path: '/browser-views',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
-const AppNot_authenticatedWelcome2Route =
-  AppNot_authenticatedWelcome2RouteImport.update({
-    id: '/welcome2',
-    path: '/welcome2',
-    getParentRoute: () => AppNot_authenticatedRouteRoute,
-  } as any)
-const AppNot_authenticatedWelcomeRoute =
-  AppNot_authenticatedWelcomeRouteImport.update({
-    id: '/welcome',
-    path: '/welcome',
-    getParentRoute: () => AppNot_authenticatedRouteRoute,
-  } as any)
 const AppNot_authenticatedSignInRoute =
   AppNot_authenticatedSignInRouteImport.update({
     id: '/sign-in',
@@ -205,6 +208,12 @@ const AppDebugComponentsProviderIconsRoute =
     path: '/provider-icons',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
+const AppDebugComponentsOnboardingRoute =
+  AppDebugComponentsOnboardingRouteImport.update({
+    id: '/onboarding',
+    path: '/onboarding',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsErrorCardRoute =
   AppDebugComponentsErrorCardRouteImport.update({
     id: '/error-card',
@@ -229,25 +238,49 @@ const AppDebugBrowserViewTargetIdRoute =
     path: '/browser-view/$targetId',
     getParentRoute: () => AppDebugRouteRoute,
   } as any)
+const AppDebugComponentsOnboardingIndexRoute =
+  AppDebugComponentsOnboardingIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+  } as any)
+const AppDebugComponentsOnboardingSignInRoute =
+  AppDebugComponentsOnboardingSignInRouteImport.update({
+    id: '/sign-in',
+    path: '/sign-in',
+    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+  } as any)
+const AppDebugComponentsOnboardingProvidersRoute =
+  AppDebugComponentsOnboardingProvidersRouteImport.update({
+    id: '/providers',
+    path: '/providers',
+    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+  } as any)
+const AppDebugComponentsOnboardingCompleteRoute =
+  AppDebugComponentsOnboardingCompleteRouteImport.update({
+    id: '/complete',
+    path: '/complete',
+    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/shell': typeof ShellRoute
   '/debug': typeof AppDebugRouteRouteWithChildren
   '/checkout': typeof AppCheckoutRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
-  '/setup': typeof AppSetupRoute
+  '/onboarding/providers': typeof OnboardingProvidersRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/debug': typeof SettingsDebugRoute
   '/settings/features': typeof SettingsFeaturesRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/onboarding/': typeof OnboardingIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/sign-in': typeof AppNot_authenticatedSignInRoute
-  '/welcome': typeof AppNot_authenticatedWelcomeRoute
-  '/welcome2': typeof AppNot_authenticatedWelcome2Route
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/debug/errors': typeof AppDebugErrorsRoute
@@ -259,10 +292,15 @@ export interface FileRoutesByFullPath {
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
+  '/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
+  '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
+  '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
+  '/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
+  '/debug/components/onboarding/': typeof AppDebugComponentsOnboardingIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -270,16 +308,15 @@ export interface FileRoutesByTo {
   '/checkout': typeof AppCheckoutRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
-  '/setup': typeof AppSetupRoute
+  '/onboarding/providers': typeof OnboardingProvidersRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/debug': typeof SettingsDebugRoute
   '/settings/features': typeof SettingsFeaturesRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/onboarding': typeof OnboardingIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/sign-in': typeof AppNot_authenticatedSignInRoute
-  '/welcome': typeof AppNot_authenticatedWelcomeRoute
-  '/welcome2': typeof AppNot_authenticatedWelcome2Route
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
@@ -294,11 +331,16 @@ export interface FileRoutesByTo {
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
+  '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
+  '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
+  '/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
+  '/debug/components/onboarding': typeof AppDebugComponentsOnboardingIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteRouteWithChildren
+  '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/shell': typeof ShellRoute
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
@@ -307,16 +349,15 @@ export interface FileRoutesById {
   '/_app/checkout': typeof AppCheckoutRoute
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
-  '/_app/setup': typeof AppSetupRoute
+  '/onboarding/providers': typeof OnboardingProvidersRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/debug': typeof SettingsDebugRoute
   '/settings/features': typeof SettingsFeaturesRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/onboarding/': typeof OnboardingIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/_app/_not_authenticated/sign-in': typeof AppNot_authenticatedSignInRoute
-  '/_app/_not_authenticated/welcome': typeof AppNot_authenticatedWelcomeRoute
-  '/_app/_not_authenticated/welcome2': typeof AppNot_authenticatedWelcome2Route
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/_app/debug/errors': typeof AppDebugErrorsRoute
@@ -328,31 +369,36 @@ export interface FileRoutesById {
   '/_app/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/_app/debug/components/colors': typeof AppDebugComponentsColorsRoute
   '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
+  '/_app/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
   '/_app/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
+  '/_app/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
+  '/_app/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
+  '/_app/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
+  '/_app/debug/components/onboarding/': typeof AppDebugComponentsOnboardingIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/onboarding'
     | '/settings'
     | '/shell'
     | '/debug'
     | '/checkout'
     | '/new-tab'
     | '/release-notes'
-    | '/setup'
+    | '/onboarding/providers'
     | '/settings/advanced'
     | '/settings/debug'
     | '/settings/features'
     | '/settings/providers'
+    | '/onboarding/'
     | '/settings/'
     | '/subscribe'
     | '/sign-in'
-    | '/welcome'
-    | '/welcome2'
     | '/debug/browser-views'
     | '/debug/components'
     | '/debug/errors'
@@ -364,10 +410,15 @@ export interface FileRouteTypes {
     | '/debug/components/chat-stream'
     | '/debug/components/colors'
     | '/debug/components/error-card'
+    | '/debug/components/onboarding'
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
     | '/debug/components/'
     | '/projects/$subdomain'
+    | '/debug/components/onboarding/complete'
+    | '/debug/components/onboarding/providers'
+    | '/debug/components/onboarding/sign-in'
+    | '/debug/components/onboarding/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -375,16 +426,15 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/new-tab'
     | '/release-notes'
-    | '/setup'
+    | '/onboarding/providers'
     | '/settings/advanced'
     | '/settings/debug'
     | '/settings/features'
     | '/settings/providers'
+    | '/onboarding'
     | '/settings'
     | '/subscribe'
     | '/sign-in'
-    | '/welcome'
-    | '/welcome2'
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
@@ -399,10 +449,15 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components'
     | '/projects/$subdomain'
+    | '/debug/components/onboarding/complete'
+    | '/debug/components/onboarding/providers'
+    | '/debug/components/onboarding/sign-in'
+    | '/debug/components/onboarding'
   id:
     | '__root__'
     | '/'
     | '/_app'
+    | '/onboarding'
     | '/settings'
     | '/shell'
     | '/_app/_authenticated'
@@ -411,16 +466,15 @@ export interface FileRouteTypes {
     | '/_app/checkout'
     | '/_app/new-tab'
     | '/_app/release-notes'
-    | '/_app/setup'
+    | '/onboarding/providers'
     | '/settings/advanced'
     | '/settings/debug'
     | '/settings/features'
     | '/settings/providers'
+    | '/onboarding/'
     | '/settings/'
     | '/_app/_authenticated/subscribe'
     | '/_app/_not_authenticated/sign-in'
-    | '/_app/_not_authenticated/welcome'
-    | '/_app/_not_authenticated/welcome2'
     | '/_app/debug/browser-views'
     | '/_app/debug/components'
     | '/_app/debug/errors'
@@ -432,15 +486,21 @@ export interface FileRouteTypes {
     | '/_app/debug/components/chat-stream'
     | '/_app/debug/components/colors'
     | '/_app/debug/components/error-card'
+    | '/_app/debug/components/onboarding'
     | '/_app/debug/components/provider-icons'
     | '/_app/debug/components/spinner'
     | '/_app/debug/components/'
     | '/_app/projects/$subdomain/'
+    | '/_app/debug/components/onboarding/complete'
+    | '/_app/debug/components/onboarding/providers'
+    | '/_app/debug/components/onboarding/sign-in'
+    | '/_app/debug/components/onboarding/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
+  OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
   ShellRoute: typeof ShellRoute
 }
@@ -459,6 +519,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -481,6 +548,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/'
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRoute
+    }
+    '/onboarding/': {
+      id: '/onboarding/'
+      path: '/'
+      fullPath: '/onboarding/'
+      preLoaderRoute: typeof OnboardingIndexRouteImport
+      parentRoute: typeof OnboardingRouteRoute
     }
     '/settings/providers': {
       id: '/settings/providers'
@@ -510,12 +584,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAdvancedRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/_app/setup': {
-      id: '/_app/setup'
-      path: '/setup'
-      fullPath: '/setup'
-      preLoaderRoute: typeof AppSetupRouteImport
-      parentRoute: typeof AppRouteRoute
+    '/onboarding/providers': {
+      id: '/onboarding/providers'
+      path: '/providers'
+      fullPath: '/onboarding/providers'
+      preLoaderRoute: typeof OnboardingProvidersRouteImport
+      parentRoute: typeof OnboardingRouteRoute
     }
     '/_app/release-notes': {
       id: '/_app/release-notes'
@@ -608,20 +682,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugBrowserViewsRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
-    '/_app/_not_authenticated/welcome2': {
-      id: '/_app/_not_authenticated/welcome2'
-      path: '/welcome2'
-      fullPath: '/welcome2'
-      preLoaderRoute: typeof AppNot_authenticatedWelcome2RouteImport
-      parentRoute: typeof AppNot_authenticatedRouteRoute
-    }
-    '/_app/_not_authenticated/welcome': {
-      id: '/_app/_not_authenticated/welcome'
-      path: '/welcome'
-      fullPath: '/welcome'
-      preLoaderRoute: typeof AppNot_authenticatedWelcomeRouteImport
-      parentRoute: typeof AppNot_authenticatedRouteRoute
-    }
     '/_app/_not_authenticated/sign-in': {
       id: '/_app/_not_authenticated/sign-in'
       path: '/sign-in'
@@ -664,6 +724,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsProviderIconsRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/onboarding': {
+      id: '/_app/debug/components/onboarding'
+      path: '/onboarding'
+      fullPath: '/debug/components/onboarding'
+      preLoaderRoute: typeof AppDebugComponentsOnboardingRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/error-card': {
       id: '/_app/debug/components/error-card'
       path: '/error-card'
@@ -692,6 +759,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugBrowserViewTargetIdRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
+    '/_app/debug/components/onboarding/': {
+      id: '/_app/debug/components/onboarding/'
+      path: '/'
+      fullPath: '/debug/components/onboarding/'
+      preLoaderRoute: typeof AppDebugComponentsOnboardingIndexRouteImport
+      parentRoute: typeof AppDebugComponentsOnboardingRoute
+    }
+    '/_app/debug/components/onboarding/sign-in': {
+      id: '/_app/debug/components/onboarding/sign-in'
+      path: '/sign-in'
+      fullPath: '/debug/components/onboarding/sign-in'
+      preLoaderRoute: typeof AppDebugComponentsOnboardingSignInRouteImport
+      parentRoute: typeof AppDebugComponentsOnboardingRoute
+    }
+    '/_app/debug/components/onboarding/providers': {
+      id: '/_app/debug/components/onboarding/providers'
+      path: '/providers'
+      fullPath: '/debug/components/onboarding/providers'
+      preLoaderRoute: typeof AppDebugComponentsOnboardingProvidersRouteImport
+      parentRoute: typeof AppDebugComponentsOnboardingRoute
+    }
+    '/_app/debug/components/onboarding/complete': {
+      id: '/_app/debug/components/onboarding/complete'
+      path: '/complete'
+      fullPath: '/debug/components/onboarding/complete'
+      preLoaderRoute: typeof AppDebugComponentsOnboardingCompleteRouteImport
+      parentRoute: typeof AppDebugComponentsOnboardingRoute
+    }
   }
 }
 
@@ -710,15 +805,11 @@ const AppAuthenticatedRouteRouteWithChildren =
 
 interface AppNot_authenticatedRouteRouteChildren {
   AppNot_authenticatedSignInRoute: typeof AppNot_authenticatedSignInRoute
-  AppNot_authenticatedWelcomeRoute: typeof AppNot_authenticatedWelcomeRoute
-  AppNot_authenticatedWelcome2Route: typeof AppNot_authenticatedWelcome2Route
 }
 
 const AppNot_authenticatedRouteRouteChildren: AppNot_authenticatedRouteRouteChildren =
   {
     AppNot_authenticatedSignInRoute: AppNot_authenticatedSignInRoute,
-    AppNot_authenticatedWelcomeRoute: AppNot_authenticatedWelcomeRoute,
-    AppNot_authenticatedWelcome2Route: AppNot_authenticatedWelcome2Route,
   }
 
 const AppNot_authenticatedRouteRouteWithChildren =
@@ -726,10 +817,35 @@ const AppNot_authenticatedRouteRouteWithChildren =
     AppNot_authenticatedRouteRouteChildren,
   )
 
+interface AppDebugComponentsOnboardingRouteChildren {
+  AppDebugComponentsOnboardingCompleteRoute: typeof AppDebugComponentsOnboardingCompleteRoute
+  AppDebugComponentsOnboardingProvidersRoute: typeof AppDebugComponentsOnboardingProvidersRoute
+  AppDebugComponentsOnboardingSignInRoute: typeof AppDebugComponentsOnboardingSignInRoute
+  AppDebugComponentsOnboardingIndexRoute: typeof AppDebugComponentsOnboardingIndexRoute
+}
+
+const AppDebugComponentsOnboardingRouteChildren: AppDebugComponentsOnboardingRouteChildren =
+  {
+    AppDebugComponentsOnboardingCompleteRoute:
+      AppDebugComponentsOnboardingCompleteRoute,
+    AppDebugComponentsOnboardingProvidersRoute:
+      AppDebugComponentsOnboardingProvidersRoute,
+    AppDebugComponentsOnboardingSignInRoute:
+      AppDebugComponentsOnboardingSignInRoute,
+    AppDebugComponentsOnboardingIndexRoute:
+      AppDebugComponentsOnboardingIndexRoute,
+  }
+
+const AppDebugComponentsOnboardingRouteWithChildren =
+  AppDebugComponentsOnboardingRoute._addFileChildren(
+    AppDebugComponentsOnboardingRouteChildren,
+  )
+
 interface AppDebugComponentsRouteChildren {
   AppDebugComponentsChatStreamRoute: typeof AppDebugComponentsChatStreamRoute
   AppDebugComponentsColorsRoute: typeof AppDebugComponentsColorsRoute
   AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
+  AppDebugComponentsOnboardingRoute: typeof AppDebugComponentsOnboardingRouteWithChildren
   AppDebugComponentsProviderIconsRoute: typeof AppDebugComponentsProviderIconsRoute
   AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
   AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
@@ -739,6 +855,8 @@ const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
   AppDebugComponentsChatStreamRoute: AppDebugComponentsChatStreamRoute,
   AppDebugComponentsColorsRoute: AppDebugComponentsColorsRoute,
   AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
+  AppDebugComponentsOnboardingRoute:
+    AppDebugComponentsOnboardingRouteWithChildren,
   AppDebugComponentsProviderIconsRoute: AppDebugComponentsProviderIconsRoute,
   AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
   AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
@@ -776,7 +894,6 @@ interface AppRouteRouteChildren {
   AppCheckoutRoute: typeof AppCheckoutRoute
   AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
-  AppSetupRoute: typeof AppSetupRoute
   AppEvalsIndexRoute: typeof AppEvalsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppProjectsSubdomainIndexRoute: typeof AppProjectsSubdomainIndexRoute
@@ -789,7 +906,6 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppCheckoutRoute: AppCheckoutRoute,
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
-  AppSetupRoute: AppSetupRoute,
   AppEvalsIndexRoute: AppEvalsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppProjectsSubdomainIndexRoute: AppProjectsSubdomainIndexRoute,
@@ -797,6 +913,20 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
   AppRouteRouteChildren,
+)
+
+interface OnboardingRouteRouteChildren {
+  OnboardingProvidersRoute: typeof OnboardingProvidersRoute
+  OnboardingIndexRoute: typeof OnboardingIndexRoute
+}
+
+const OnboardingRouteRouteChildren: OnboardingRouteRouteChildren = {
+  OnboardingProvidersRoute: OnboardingProvidersRoute,
+  OnboardingIndexRoute: OnboardingIndexRoute,
+}
+
+const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
+  OnboardingRouteRouteChildren,
 )
 
 interface SettingsRouteChildren {
@@ -822,6 +952,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
+  OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
   ShellRoute: ShellRoute,
 }

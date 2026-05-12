@@ -1,13 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_app/debug/components/onboarding/")({
   beforeLoad: () => {
     // eslint-disable-next-line @typescript-eslint/only-throw-error
-    throw redirect({ to: "/new-tab" });
+    throw redirect({ to: "/debug/components/onboarding/sign-in" });
   },
-  component: RouteComponent,
 });
-
-function RouteComponent() {
-  return null;
-}

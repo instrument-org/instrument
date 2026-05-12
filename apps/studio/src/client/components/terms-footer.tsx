@@ -6,7 +6,7 @@ export function TermsFooter({ className }: { className?: string }) {
   return (
     <p
       className={cn(
-        "text-center text-xs text-foreground/50 [&_a]:underline [&_a]:underline-offset-4",
+        "text-center text-xs text-balance text-foreground/50 [&_a]:underline [&_a]:underline-offset-4",
         className,
       )}
     >

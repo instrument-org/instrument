@@ -7,6 +7,7 @@ import { evals } from "./evals";
 import { favorites } from "./favorites";
 import { features } from "./features";
 import { gateway } from "./gateway";
+import { onboarding } from "./onboarding";
 import { plans } from "./plans";
 import { preferences } from "./preferences";
 import { providerConfig } from "./provider-config";
@@ -28,6 +29,7 @@ export const router = {
   favorites,
   features,
   gateway,
+  onboarding,
   plans,
   preferences,
   providerConfig,

@@ -5,6 +5,8 @@ import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { StudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
+import { hasToken } from "@/electron-main/platform-api/utils";
+import { getAppStateStore } from "@/electron-main/stores/app-state";
 import { getTabsManager } from "@/electron-main/tabs";
 import {
   createMainWindow,
@@ -12,6 +14,7 @@ import {
   updateTitleBarOverlay,
 } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -167,7 +170,11 @@ void app.whenReady().then(async () => {
     workspaceRef,
   });
 
-  await createMainWindow();
+  if (shouldShowOnboarding()) {
+    openOnboardingWindow();
+  } else {
+    await createMainWindow();
+  }
 
   void startAuthCallbackServer();
 
@@ -175,7 +182,11 @@ void app.whenReady().then(async () => {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
-      void createMainWindow();
+      if (shouldShowOnboarding()) {
+        openOnboardingWindow();
+      } else {
+        void createMainWindow();
+      }
     }
   });
   app.on("open-url", (event, url) => {
@@ -208,6 +219,17 @@ function handleDeepLink(url: string) {
       tabsManager.focusCurrentTab();
     }
   }
+}
+
+function shouldShowOnboarding(): boolean {
+  if (hasToken()) {
+    return false;
+  }
+  const appStateStore = getAppStateStore();
+  if (appStateStore.get("hasCompletedProviderSetup")) {
+    return false;
+  }
+  return true;
 }
 
 // Quit when all windows are closed, except on macOS. There, it's common

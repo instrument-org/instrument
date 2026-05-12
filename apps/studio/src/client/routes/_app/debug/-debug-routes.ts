@@ -78,6 +78,29 @@ export const componentPages = [
     label: "Provider Icons",
     to: "/debug/components/provider-icons",
   },
+  {
+    id: "onboarding",
+    label: "Onboarding",
+    to: "/debug/components/onboarding",
+  },
+] as const;
+
+export const onboardingScreens = [
+  {
+    id: "sign-in",
+    label: "Sign in",
+    to: "/debug/components/onboarding/sign-in",
+  },
+  {
+    id: "providers",
+    label: "Add provider",
+    to: "/debug/components/onboarding/providers",
+  },
+  {
+    id: "complete",
+    label: "Complete",
+    to: "/debug/components/onboarding/complete",
+  },
 ] as const;
 
 type ComponentPageId = (typeof componentPages)[number]["id"];

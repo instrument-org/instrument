@@ -1,7 +1,12 @@
-import { Dialog, DialogContent } from "@/client/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
 
-import { ProviderConfigScreen } from "./provider-config-screen";
+import { AddProviderForm } from "./form";
 
 const EMPTY_PROVIDERS: ClientAIProviderConfig[] = [];
 
@@ -19,8 +24,12 @@ export function AddProviderDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="transition-none sm:max-w-lg">
+        <DialogTitle className="sr-only">Add Provider</DialogTitle>
+        <DialogDescription className="sr-only">
+          Select a provider to add for AI model usage.
+        </DialogDescription>
         {open && (
-          <ProviderConfigScreen onSuccess={onSuccess} providers={providers} />
+          <AddProviderForm onSuccess={onSuccess} providers={providers} />
         )}
       </DialogContent>
     </Dialog>

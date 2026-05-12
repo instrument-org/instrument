@@ -8,7 +8,6 @@ import { publisher } from "../rpc/publisher";
 
 const SessionStateSchema = z.object({
   apiBearerToken: z.string().nullish(),
-  inviteCode: z.string().nullish(),
   provider: z.enum(["google"]).nullish(),
   providerAccessToken: z.string().nullish(),
   providerIdToken: z.string().nullish(),

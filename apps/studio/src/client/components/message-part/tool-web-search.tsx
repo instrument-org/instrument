@@ -51,21 +51,6 @@ export function ToolWebSearch({
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
       </ToolCardHeader>
 
-      {!failureOutput && (
-        <ToolCardSection
-          borderBottom={!!successOutput}
-          copyText={query}
-          maxHeight="max-h-16"
-        >
-          <div className="flex font-mono text-sm leading-relaxed">
-            <span className="mr-2 shrink-0 text-muted-foreground select-none">
-              &gt;
-            </span>
-            <span className="break-all whitespace-pre-wrap">{query}</span>
-          </div>
-        </ToolCardSection>
-      )}
-
       {failureOutput && (
         <ToolCapabilityFailure
           capabilityLabel="web search"

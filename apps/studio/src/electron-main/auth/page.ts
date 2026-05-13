@@ -5,8 +5,8 @@ import { html, raw } from "hono/html";
 const defaultBtn = [
   "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5",
   "text-sm font-medium whitespace-nowrap transition-all outline-none h-10 min-w-36",
-  "bg-white text-[#171412] shadow-sm hover:bg-[#f5f5f4]",
-  "dark:bg-[#f96b55] dark:text-black dark:hover:bg-[#f15942]",
+  "bg-white text-stone-900 shadow-sm hover:bg-stone-100",
+  "dark:bg-stone-200 dark:text-stone-900 dark:hover:bg-stone-300",
 ].join(" ");
 
 const outlineBtn = [

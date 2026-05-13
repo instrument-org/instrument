@@ -61,7 +61,7 @@ export const UserMessage = memo(function UserMessage({
 
   return (
     <div className="group flex w-full flex-col items-end">
-      <div className="relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-gradient-to-b from-card to-[#fdfdfc] px-4 py-2 text-foreground shadow-sm dark:from-card dark:to-card">
+      <div className="relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-gradient-to-b from-card to-gray-25 px-4 py-2 text-foreground shadow-sm dark:from-card dark:to-card">
         <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
           <div
             className={cn(
@@ -84,7 +84,7 @@ export const UserMessage = memo(function UserMessage({
           )}
 
           {!isExpanded && isOverflowing && (
-            <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-12 rounded-br-xl rounded-bl-xl bg-linear-to-t from-[#fdfdfc] from-50% to-[#fdfdfc00] dark:from-card dark:to-[#29252400]" />
+            <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-12 rounded-br-xl rounded-bl-xl bg-linear-to-t from-gray-25 from-50% to-gray-25/0 dark:from-card dark:to-card/0" />
           )}
 
           <CollapsibleContent>

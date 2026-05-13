@@ -117,6 +117,10 @@ const scaleGroups = [
     colors: scaleTokens("brown"),
     title: "Brown",
   },
+  {
+    colors: scaleTokens("gray"),
+    title: "Gray",
+  },
 ] satisfies {
   colors: ColorToken[];
   title: string;

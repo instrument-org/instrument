@@ -49,6 +49,7 @@ export async function createMainWindow() {
     frame: false,
     titleBarOverlay: getTitleBarOverlay(),
     webPreferences: {
+      additionalArguments: ["--windowType=shell"],
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,

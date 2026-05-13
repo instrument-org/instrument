@@ -34,6 +34,7 @@ export function openSettingsWindow(
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {
+      additionalArguments: ["--windowType=settings"],
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,

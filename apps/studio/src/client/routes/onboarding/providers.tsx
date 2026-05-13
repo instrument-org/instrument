@@ -2,20 +2,22 @@ import { AddProviderForm } from "@/client/components/add-provider/form";
 import { OnboardingSuccessScreen } from "@/client/components/onboarding/success-screen";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 
 export const Route = createFileRoute("/onboarding/providers")({
   component: OnboardingProviders,
+  validateSearch: z.object({ success: z.boolean().optional() }),
 });
 
 function OnboardingProviders() {
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
-  const [isSuccess, setIsSuccess] = useState(false);
+  const navigate = useNavigate();
+  const { success } = Route.useSearch();
 
-  if (isSuccess) {
+  if (success) {
     return (
       <OnboardingSuccessScreen
         onContinue={() => void rpcClient.onboarding.complete.call()}
@@ -27,7 +29,10 @@ function OnboardingProviders() {
     <div className="flex-1 overflow-y-auto px-11 pt-6 pb-11">
       <AddProviderForm
         onSuccess={() => {
-          setIsSuccess(true);
+          void navigate({
+            search: { success: true },
+            to: "/onboarding/providers",
+          });
         }}
         providers={providerConfigs ?? []}
         submitLabel="Next"

@@ -51,6 +51,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 const PAGES = [
+  { label: "/", to: "/" },
   { label: "/sign-in", to: "/sign-in" },
   { label: "/subscribe", to: "/subscribe" },
   { label: "/projects", to: "/projects" },

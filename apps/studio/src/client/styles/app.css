@@ -356,40 +356,6 @@ a.cursor-pointer {
   cursor: pointer;
 }
 
-@media (prefers-color-scheme: light) {
-  .shiny-text {
-    color: #4a4a4a;
-    background: linear-gradient(
-      120deg,
-      #4a4a4a 40%,
-      rgba(180, 180, 180, 0.8) 50%,
-      #4a4a4a 60%
-    );
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    display: inline-block;
-    animation: shine 3s linear infinite;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .shiny-text {
-    color: #b5b5b5a4;
-    background: linear-gradient(
-      120deg,
-      rgba(255, 255, 255, 0) 40%,
-      rgba(255, 255, 255, 0.8) 50%,
-      rgba(255, 255, 255, 0) 60%
-    );
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    display: inline-block;
-    animation: shine 3s linear infinite;
-  }
-}
 @keyframes shine {
   0% {
     background-position: 100%;
@@ -399,24 +365,8 @@ a.cursor-pointer {
   }
 }
 
-.shiny-text.disabled {
-  animation: none;
-}
-
 /* Activity indicator that lives along the top edge of a container. A short
  * pill bounces left to right to signal "agent is still working." */
-.activity-indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 3px;
-  width: 30%;
-  border-radius: 9999px;
-  background: var(--brand-400);
-  animation: activity-bounce 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-  pointer-events: none;
-  will-change: left, transform;
-}
 @keyframes activity-bounce {
   0%,
   100% {
@@ -450,16 +400,75 @@ a.cursor-pointer {
     opacity: 0;
   }
 }
-.planning-dot-core {
-  transform-origin: center;
-  animation: planning-dot-breathe 1.5s ease-in-out infinite;
-  will-change: transform;
-}
-.planning-dot-shockwave-ring {
-  transform-origin: center;
-  animation: planning-dot-shockwave-ring 1.5s ease-out infinite;
-  pointer-events: none;
-  will-change: transform, opacity;
+
+/* Semantic component classes. Defined in @layer components so the
+ * better-tailwindcss/no-unknown-classes ESLint rule recognizes them
+ * automatically via detectComponentClasses — no manual ignore entries needed. */
+@layer components {
+  @media (prefers-color-scheme: light) {
+    .shiny-text {
+      color: #4a4a4a;
+      background: linear-gradient(
+        120deg,
+        #4a4a4a 40%,
+        rgba(180, 180, 180, 0.8) 50%,
+        #4a4a4a 60%
+      );
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+      animation: shine 3s linear infinite;
+    }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .shiny-text {
+      color: #b5b5b5a4;
+      background: linear-gradient(
+        120deg,
+        rgba(255, 255, 255, 0) 40%,
+        rgba(255, 255, 255, 0.8) 50%,
+        rgba(255, 255, 255, 0) 60%
+      );
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      display: inline-block;
+      animation: shine 3s linear infinite;
+    }
+  }
+
+  .shiny-text.disabled {
+    animation: none;
+  }
+
+  .activity-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 3px;
+    width: 30%;
+    border-radius: 9999px;
+    background: var(--brand-400);
+    animation: activity-bounce 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    pointer-events: none;
+    will-change: left, transform;
+  }
+
+  .planning-dot-core {
+    transform-origin: center;
+    animation: planning-dot-breathe 1.5s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .planning-dot-shockwave-ring {
+    transform-origin: center;
+    animation: planning-dot-shockwave-ring 1.5s ease-out infinite;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
 }
 
 [data-sonner-toast] {

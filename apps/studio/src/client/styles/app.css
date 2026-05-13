@@ -128,6 +128,18 @@ html:has(meta[name="opaque-background"]) body {
   --color-brown-800: var(--brown-800);
   --color-brown-900: var(--brown-900);
   --color-brown-950: var(--brown-950);
+  --color-gray-25: var(--gray-25);
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-900: var(--gray-900);
+  --color-gray-950: var(--gray-950);
 }
 
 /* =========================
@@ -135,32 +147,32 @@ html:has(meta[name="opaque-background"]) body {
    ========================= */
 :root {
   --radius: 0.5rem;
-  --background: #fafaf9;
-  --foreground: #171412;
+  --background: var(--gray-50);
+  --foreground: var(--gray-950);
   --card: #ffffff;
-  --card-foreground: #171412;
+  --card-foreground: var(--gray-950);
   --popover: #ffffff;
-  --popover-foreground: #171412;
-  --primary: #171412;
+  --popover-foreground: var(--gray-950);
+  --primary: var(--gray-950);
   --primary-foreground: #ffffff;
-  --secondary: #f5f5f4;
-  --secondary-foreground: #292524;
-  --muted: #f5f5f4;
-  --muted-foreground: #79716b;
-  --accent: #e7e5e4;
-  --accent-foreground: #292524;
+  --secondary: var(--gray-100);
+  --secondary-foreground: var(--gray-800);
+  --muted: var(--gray-100);
+  --muted-foreground: var(--gray-500);
+  --accent: var(--gray-200);
+  --accent-foreground: var(--gray-800);
   --destructive: var(--error-600);
-  --border: #e7e5e4;
-  --input: #e7e5e4;
-  --ring: #a9a29d;
-  --sidebar: #f5f5f4;
-  --sidebar-foreground: #171412;
+  --border: var(--gray-200);
+  --input: var(--gray-200);
+  --ring: var(--gray-400);
+  --sidebar: var(--gray-100);
+  --sidebar-foreground: var(--gray-950);
   --sidebar-primary: #f96b55;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e7e5e4;
-  --sidebar-accent-foreground: #292524;
-  --sidebar-border: #e7e5e4;
-  --sidebar-ring: #a9a29d;
+  --sidebar-accent: var(--gray-200);
+  --sidebar-accent-foreground: var(--gray-800);
+  --sidebar-border: var(--gray-200);
+  --sidebar-ring: var(--gray-400);
   --warning-25: #fffcf5;
   --warning-50: #fffaeb;
   --warning-100: #fef0c7;
@@ -235,24 +247,36 @@ html:has(meta[name="opaque-background"]) body {
   --brown-800: #544337;
   --brown-900: #493b33;
   --brown-950: #291f1a;
+  --gray-25: #fdfdfc;
+  --gray-50: #fafaf9;
+  --gray-100: #f5f5f4;
+  --gray-200: #e7e5e4;
+  --gray-300: #d7d3d0;
+  --gray-400: #a9a29d;
+  --gray-500: #79716b;
+  --gray-600: #57534e;
+  --gray-700: #44403c;
+  --gray-800: #292524;
+  --gray-900: #1c1917;
+  --gray-950: #171412;
 }
 
 /* =========================
    DARK MODE THEME 🌙
    ========================= */
 .dark {
-  --background: #1c1917;
+  --background: var(--gray-900);
   --foreground: #ffffff;
-  --card: #292524;
+  --card: var(--gray-800);
   --card-foreground: #ffffff;
-  --popover: #292524;
+  --popover: var(--gray-800);
   --popover-foreground: #ffffff;
   --primary: #ffffff;
-  --primary-foreground: #171412;
+  --primary-foreground: var(--gray-950);
   --secondary: rgb(255 255 255 / 5%);
   --secondary-foreground: #ffffff;
   /* In dark mode, muted surfaces need white-opacity layering to be visible
-   * above card (#292524). A solid color identical to card produces zero
+   * above card (gray-800). A solid color identical to card produces zero
    * contrast. White 8% sits between accent (5%) and border (10%). */
   --muted: rgb(255 255 255 / 8%);
   --muted-foreground: rgb(255 255 255 / 60%);
@@ -262,7 +286,7 @@ html:has(meta[name="opaque-background"]) body {
   --border: rgb(255 255 255 / 10%);
   --input: rgb(255 255 255 / 10%);
   --ring: rgb(255 255 255 / 30%);
-  --sidebar: #171412;
+  --sidebar: var(--gray-900);
   --sidebar-foreground: #ffffff;
   --sidebar-primary: #f96b55;
   --sidebar-primary-foreground: #ffffff;

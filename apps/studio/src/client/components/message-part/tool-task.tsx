@@ -39,7 +39,7 @@ export function ToolTask({
   return (
     // Opaque composites of bg-muted/40 and dark:bg-muted/20 over card --
     // transparent values bleed through the hover card popover surface.
-    <div className="mt-2 overflow-hidden rounded-2xl bg-[#f5f5f4] dark:bg-[#211d1b]">
+    <div className="mt-2 overflow-hidden rounded-2xl bg-gray-100 dark:bg-[#211d1b]">
       <TaskStream
         isRunning={isTaskRunning}
         project={project}

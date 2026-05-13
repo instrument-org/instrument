@@ -17,6 +17,14 @@ if (tabId) {
   api.tabId = tabId;
 }
 
+const windowType = process.argv
+  .find((arg) => arg.startsWith("--windowType="))
+  ?.split("=")[1] as Window["api"]["windowType"];
+
+if (windowType) {
+  api.windowType = windowType;
+}
+
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
 // just add to the DOM global.

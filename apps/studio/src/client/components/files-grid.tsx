@@ -1,5 +1,6 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
+import { isUnknownTopLevelDirFile } from "@/client/lib/project-file-groups";
 import { cn } from "@/client/lib/utils";
 import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
@@ -24,6 +25,7 @@ interface FilesGridProps {
 
 type SupportingSectionKey =
   | "agentRetrieved"
+  | "other"
   | "scripts"
   | "skills"
   | "temporary";
@@ -32,12 +34,14 @@ const DEFAULT_INITIAL_VISIBLE_COUNT = 6;
 const EMPTY_FOLDERS: SessionMessageDataPart.FolderAttachmentDataPart[] = [];
 const DEFAULT_EXPANDED_SECTIONS: Record<SupportingSectionKey, boolean> = {
   agentRetrieved: false,
+  other: false,
   scripts: false,
   skills: false,
   temporary: false,
 };
 const EXPANDED_SECTIONS: Record<SupportingSectionKey, boolean> = {
   agentRetrieved: true,
+  other: true,
   scripts: true,
   skills: true,
   temporary: true,
@@ -113,6 +117,11 @@ export function FilesGrid({
       files: supportingFilesByKey.agentRetrieved,
       key: "agentRetrieved" as const,
       title: "Agent Retrieved",
+    },
+    {
+      files: supportingFilesByKey.other,
+      key: "other" as const,
+      title: "Other Files",
     },
   ];
   const supportingFileCount = supportingSections.reduce((count, section) => {
@@ -224,7 +233,10 @@ export function FilesGrid({
           <Button
             onClick={() => {
               setIsExpanded(true);
-              if (outputFiles.length === 0) {
+              const nonEmptySections = supportingSections.filter(
+                (s) => s.files.length > 0,
+              );
+              if (outputFiles.length === 0 || nonEmptySections.length === 1) {
                 setExpandedSections(EXPANDED_SECTIONS);
               }
             }}
@@ -402,6 +414,7 @@ function splitSupportingFiles(files: ProjectFileViewerFile[]) {
     ProjectFileViewerFile[]
   > = {
     agentRetrieved: [],
+    other: [],
     scripts: [],
     skills: [],
     temporary: [],
@@ -416,6 +429,7 @@ function splitSupportingFiles(files: ProjectFileViewerFile[]) {
     { key: "skills", matches: isSkillFile },
     { key: "temporary", matches: isTempFile },
     { key: "agentRetrieved", matches: isAgentRetrievedFile },
+    { key: "other", matches: (f) => isUnknownTopLevelDirFile(f.filePath) },
   ];
 
   for (const { key, matches } of matchingOrder) {

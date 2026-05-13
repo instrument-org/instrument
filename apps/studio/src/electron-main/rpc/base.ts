@@ -1,6 +1,7 @@
 import { type ErrorMap, os } from "@orpc/server";
 
 import { hasToken } from "../platform-api/utils";
+import { isDeveloperMode } from "../stores/preferences";
 import { getTabsManager } from "../tabs";
 import { type InitialRPCContext } from "./context";
 
@@ -26,3 +27,12 @@ const authRequired = osBase.middleware(async ({ errors, next }) => {
 });
 
 export const authenticated = base.use(authRequired);
+
+const devOnlyMiddleware = osBase.middleware(({ errors, next }) => {
+  if (!isDeveloperMode()) {
+    throw errors.UNAUTHORIZED({ message: "Developer mode required" });
+  }
+  return next();
+});
+
+export const devOnly = base.use(devOnlyMiddleware);

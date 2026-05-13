@@ -25,6 +25,11 @@ import {
   MenubarSubTrigger,
   MenubarTrigger,
 } from "@/client/components/ui/menubar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
 import { type StudioPath } from "@/shared/studio-path";
@@ -39,7 +44,7 @@ import {
   SunIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useState } from "react";
@@ -78,6 +83,14 @@ export function DevPanel() {
     rpcClient.debug.openOnboarding.mutationOptions(),
   );
 
+  const { mutate: openAuthTestPage } = useMutation(
+    rpcClient.debug.openAuthTestPage.mutationOptions(),
+  );
+
+  const { data: appEnvironment } = useQuery(
+    rpcClient.debug.getAppEnvironment.queryOptions(),
+  );
+
   const { mutate: openUserDataFolder } = useMutation(
     rpcClient.debug.openUserDataFolder.mutationOptions(),
   );
@@ -102,10 +115,42 @@ export function DevPanel() {
     return null;
   }
 
+  const envLabel = appEnvironment?.isPackaged === true ? "prod" : "dev";
+  const envTooltip =
+    appEnvironment?.isPackaged === true
+      ? "Node: production (packaged app)"
+      : "Node: development (unpackaged)";
+
   return (
     <div className="absolute right-0 bottom-0 rounded-tl-md border-t border-l border-blue-300/30 bg-blue-50/80 shadow-sm dark:border-blue-400/20 dark:bg-blue-950">
-      <div className="flex items-center gap-x-2 px-3 py-1.5">
-        <BugIcon className="size-3 shrink-0 text-blue-500/60 dark:text-blue-400" />
+      <div className="flex items-center gap-x-1.5 px-2 py-1.5">
+        <div className="flex shrink-0 items-center gap-x-0.5">
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <div className="flex cursor-default items-center gap-x-1 rounded-full bg-blue-500/10 px-1.5 py-0.5 dark:bg-blue-400/10">
+                <BugIcon className="size-2.5 text-blue-500/70 dark:text-blue-400/70" />
+                <span className="font-mono text-[9px] leading-none text-blue-700/60 dark:text-blue-300/60">
+                  {envLabel}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top">{envTooltip}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <span className="cursor-default font-mono text-[9px] leading-none text-blue-700/40 dark:text-blue-300/40">
+                <span className="sm:hidden">&lt;sm</span>
+                <span className="hidden sm:inline md:hidden">:sm</span>
+                <span className="hidden md:inline lg:hidden">:md</span>
+                <span className="hidden lg:inline xl:hidden">:lg</span>
+                <span className="hidden xl:inline 2xl:hidden">:xl</span>
+                <span className="hidden 2xl:inline">:2xl</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">Tailwind breakpoint</TooltipContent>
+          </Tooltip>
+        </div>
 
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
@@ -153,6 +198,14 @@ export function DevPanel() {
                   >
                     <AppWindowIcon className="size-3" />
                     Onboarding window
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      openAuthTestPage();
+                    }}
+                  >
+                    Auth test page ↗
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
@@ -232,7 +285,24 @@ export function DevPanel() {
           </MenubarMenu>
 
           <MenubarMenu>
-            <MenubarTrigger className={triggerClassName}>Theme</MenubarTrigger>
+            <MenubarTrigger
+              className={
+                theme === "system"
+                  ? triggerClassName
+                  : triggerClassName + " gap-1"
+              }
+            >
+              {theme === "light" ? (
+                <SunIcon className="size-3" />
+              ) : theme === "dark" ? (
+                <MoonIcon className="size-3" />
+              ) : null}
+              {theme === "light"
+                ? "Light"
+                : theme === "dark"
+                  ? "Dark"
+                  : "Theme"}
+            </MenubarTrigger>
             <MenubarContent>
               <MenubarRadioGroup
                 onValueChange={(v) => {

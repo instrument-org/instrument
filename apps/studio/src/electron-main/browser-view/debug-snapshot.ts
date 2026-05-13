@@ -1,7 +1,7 @@
 // Debug-only snapshot of the browser view manager and the projectBrowser
 // XState machines that reap it.
 
-import { base } from "@/electron-main/rpc/base";
+import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
 import { type StudioPath } from "@/shared/studio-path";
@@ -155,7 +155,7 @@ function buildSnapshot({
 // timer wakes up every active subscriber.
 const BROWSER_VIEW_HEARTBEAT_MS = 1000;
 
-const snapshot = base
+const snapshot = devOnly
   .output(BrowserViewManagerDebugSnapshotSchema)
   .handler(({ context }) => {
     return buildSnapshot({
@@ -164,7 +164,7 @@ const snapshot = base
     });
   });
 
-const snapshotLive = base
+const snapshotLive = devOnly
   .output(eventIterator(BrowserViewManagerDebugSnapshotSchema))
   .handler(async function* ({ context, signal }) {
     const build = () =>
@@ -239,7 +239,7 @@ const snapshotLive = base
     }
   });
 
-const openAsTab = base
+const openAsTab = devOnly
   .input(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(({ context, input }) => {
     const entry = context.browserViewManager

@@ -1,8 +1,9 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
-import { base } from "@/electron-main/rpc/base";
+import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
+import { PORTS } from "@instrument-org/shared";
 import {
   AppSubdomainSchema,
   StoreId,
@@ -37,7 +38,7 @@ function buildSystemFrontMatter() {
   };
 }
 
-const systemInfo = base.handler(async ({ context }) => {
+const systemInfo = devOnly.handler(async ({ context }) => {
   const pnpmVersionValue = await pnpmVersion();
   return [
     {
@@ -55,7 +56,7 @@ const systemInfo = base.handler(async ({ context }) => {
   ];
 });
 
-const sessionMarkdown = base
+const sessionMarkdown = devOnly
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
@@ -72,7 +73,7 @@ const sessionMarkdown = base
     );
   });
 
-const throwError = base
+const throwError = devOnly
   .input(
     z.object({
       type: z.enum(["known", "unknown"]),
@@ -87,7 +88,7 @@ const throwError = base
   });
 
 const live = {
-  testNotification: base.handler(async function* ({ signal }) {
+  testNotification: devOnly.handler(async function* ({ signal }) {
     for await (const _payload of publisher.subscribe("test-notification", {
       signal,
     })) {
@@ -99,7 +100,7 @@ const live = {
 };
 
 const trigger = {
-  testDownloadNotification: base.handler(() => {
+  testDownloadNotification: devOnly.handler(() => {
     publisher.publish("updates.status", {
       status: { notifyUser: true, type: "checking" },
     });
@@ -142,7 +143,7 @@ const trigger = {
       }
     }, 500);
   }),
-  testErrorNotification: base.handler(() => {
+  testErrorNotification: devOnly.handler(() => {
     publisher.publish("updates.status", {
       status: { notifyUser: true, type: "checking" },
     });
@@ -157,16 +158,27 @@ const trigger = {
       });
     });
   }),
-  testNotification: base.handler(() => {
+  testNotification: devOnly.handler(() => {
     publisher.publish("test-notification", null);
   }),
 };
 
-const openOnboarding = base.input(z.void()).handler(() => {
+const openOnboarding = devOnly.input(z.void()).handler(() => {
   openOnboardingWindow();
 });
 
-const relaunchWithNewUserFolder = base.input(z.void()).handler(() => {
+const openAuthTestPage = devOnly.input(z.void()).handler(() => {
+  const port = app.isPackaged
+    ? PORTS.authCallback.prod
+    : PORTS.authCallback.dev;
+  void shell.openExternal(`http://localhost:${port}/test`);
+});
+
+const getAppEnvironment = devOnly
+  .output(z.object({ isPackaged: z.boolean() }))
+  .handler(() => ({ isPackaged: app.isPackaged }));
+
+const relaunchWithNewUserFolder = devOnly.input(z.void()).handler(() => {
   // app.relaunch() has no env option and the spawned child inherits the
   // parent's environment snapshot, so mutations to process.env here don't
   // carry over. Spawn the new instance directly with the env var set.
@@ -186,17 +198,19 @@ async function openFolder(folderPath: string) {
   }
 }
 
-const openUserDataFolder = base.input(z.void()).handler(() => {
+const openUserDataFolder = devOnly.input(z.void()).handler(() => {
   return openFolder(app.getPath("userData"));
 });
 
-const openWorkspaceFolder = base.input(z.void()).handler(() => {
+const openWorkspaceFolder = devOnly.input(z.void()).handler(() => {
   return openFolder(getWorkspaceFolder());
 });
 
 export const debug = {
   browserViewManager: browserViewManagerDebugRoutes,
+  getAppEnvironment,
   live,
+  openAuthTestPage,
   openOnboarding,
   openUserDataFolder,
   openWorkspaceFolder,

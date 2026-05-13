@@ -3,6 +3,23 @@ import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import { filenameFromFilePath } from "./path-utils";
 
+/**
+ * Dirs that should surface prominently in the explorer and files grid.
+ * Files in any other top-level dir are collapsed into an "Other" section.
+ */
+const PROMINENT_TOP_LEVEL_DIRS = new Set([
+  APP_FOLDER_NAMES.output,
+  APP_FOLDER_NAMES.userProvided,
+]);
+
+export function isUnknownTopLevelDirFile(filePath: string): boolean {
+  const parts = filePath.replace(/^\.\//, "").split("/");
+  if (parts.length < 2) {
+    return false;
+  }
+  return !PROMINENT_TOP_LEVEL_DIRS.has(parts[0] as never);
+}
+
 const FILTERED_FILENAMES = [
   PROJECT_MANIFEST_FILE_NAME,
   "AGENTS.md",

@@ -7,6 +7,7 @@ import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import {
   hasVisibleProjectFiles,
   isProjectFileSrcFile,
+  isUnknownTopLevelDirFile,
   shouldFilterProjectFile,
 } from "@/client/lib/project-file-groups";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
@@ -111,7 +112,8 @@ export function ProjectFiles({
     for (const f of files) {
       if (
         isProjectFileSrcFile(f.filePath) ||
-        shouldFilterProjectFile(f.filePath)
+        shouldFilterProjectFile(f.filePath) ||
+        isUnknownTopLevelDirFile(f.filePath)
       ) {
         hiddenFiles.push(toViewerFile(f));
       } else {

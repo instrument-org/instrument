@@ -2,6 +2,16 @@ import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { featuresAtom } from "@/client/atoms/features";
 import { useTheme } from "@/client/components/theme-provider";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/client/components/ui/alert-dialog";
+import {
   Menubar,
   MenubarCheckboxItem,
   MenubarContent,
@@ -10,12 +20,16 @@ import {
   MenubarRadioGroup,
   MenubarRadioItem,
   MenubarSeparator,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
   MenubarTrigger,
 } from "@/client/components/ui/menubar";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
 import { type StudioPath } from "@/shared/studio-path";
 import {
+  AppWindowIcon,
   BugIcon,
   ChartBarIcon,
   DatabaseIcon,
@@ -32,11 +46,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 const PAGES = [
-  { label: "/onboarding", to: "/onboarding" },
-  { label: "/onboarding/providers", to: "/onboarding/providers" },
   { label: "/sign-in", to: "/sign-in" },
   { label: "/subscribe", to: "/subscribe" },
-  { label: "/evals", to: "/evals" },
+  { label: "/projects", to: "/projects" },
 ] as const satisfies { label: string; to: StudioPath }[];
 
 const triggerClassName =
@@ -66,6 +78,20 @@ export function DevPanel() {
     rpcClient.debug.openOnboarding.mutationOptions(),
   );
 
+  const { mutate: openUserDataFolder } = useMutation(
+    rpcClient.debug.openUserDataFolder.mutationOptions(),
+  );
+
+  const { mutate: openWorkspaceFolder } = useMutation(
+    rpcClient.debug.openWorkspaceFolder.mutationOptions(),
+  );
+
+  const { mutate: relaunchWithNewUserFolder } = useMutation(
+    rpcClient.debug.relaunchWithNewUserFolder.mutationOptions(),
+  );
+
+  const [relaunchDialogOpen, setRelaunchDialogOpen] = useState(false);
+
   const enabledFlagCount = Object.values(features).filter(Boolean).length;
 
   function handleNavigate(to: StudioPath) {
@@ -79,81 +105,129 @@ export function DevPanel() {
   return (
     <div className="absolute right-0 bottom-0 rounded-tl-md border-t border-l border-blue-300/30 bg-blue-50/80 shadow-sm dark:border-blue-400/20 dark:bg-blue-950">
       <div className="flex items-center gap-x-2 px-3 py-1.5">
-        <div className="flex items-center gap-x-1.5">
-          <BugIcon className="size-3 shrink-0 text-blue-500/60 dark:text-blue-400" />
-          <span className="text-[10px] font-semibold tracking-widest text-blue-600/60 uppercase dark:text-blue-400">
-            Dev
-          </span>
-        </div>
+        <BugIcon className="size-3 shrink-0 text-blue-500/60 dark:text-blue-400" />
 
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
-            <MenubarTrigger className={triggerClassName}>Pages</MenubarTrigger>
+            <MenubarTrigger className={triggerClassName}>App</MenubarTrigger>
             <MenubarContent>
-              {PAGES.map(({ label, to }) => (
-                <MenubarItem
-                  className="font-mono text-xs"
-                  key={to}
-                  onSelect={() => {
-                    handleNavigate(to);
-                  }}
-                >
-                  {label}
-                </MenubarItem>
-              ))}
-              <MenubarSeparator />
-              <MenubarItem
-                className="font-mono text-xs"
-                onSelect={() => {
-                  handleNavigate("/debug");
-                }}
-              >
-                /debug
-              </MenubarItem>
-              <MenubarSeparator />
-              <MenubarItem
-                className="font-mono text-xs"
-                onSelect={() => {
-                  openOnboarding();
-                }}
-              >
-                Open onboarding window
-              </MenubarItem>
-            </MenubarContent>
-          </MenubarMenu>
-
-          <MenubarMenu>
-            <MenubarTrigger className={triggerClassName}>
-              DevTools
-            </MenubarTrigger>
-            <MenubarContent>
-              <MenubarItem
-                className="font-mono text-xs"
-                onSelect={() => {
-                  setDevToolsPanel("router-devtools");
-                }}
-              >
-                <NavigationArrowIcon className="size-3" />
-                Router
-              </MenubarItem>
-              <MenubarItem
-                className="font-mono text-xs"
-                onSelect={() => {
-                  setDevToolsPanel("query-devtools");
-                }}
-              >
-                <DatabaseIcon className="size-3" />
-                Query
-              </MenubarItem>
-              <MenubarItem
-                className="font-mono text-xs"
-                onSelect={() => {
-                  setDevToolsPanel("analytics-toolbar");
-                }}
-              >
-                <ChartBarIcon className="size-3" />
-                Analytics
-              </MenubarItem>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Pages
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  {PAGES.map(({ label, to }) => (
+                    <MenubarItem
+                      className="font-mono text-xs"
+                      key={to}
+                      onSelect={() => {
+                        handleNavigate(to);
+                      }}
+                    >
+                      {label}
+                    </MenubarItem>
+                  ))}
+                  <MenubarSeparator />
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      handleNavigate("/debug");
+                    }}
+                  >
+                    /debug
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      handleNavigate("/evals");
+                    }}
+                  >
+                    /evals
+                  </MenubarItem>
+                  <MenubarSeparator />
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      openOnboarding();
+                    }}
+                  >
+                    <AppWindowIcon className="size-3" />
+                    Onboarding window
+                  </MenubarItem>
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Tools
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      setDevToolsPanel("router-devtools");
+                    }}
+                  >
+                    <NavigationArrowIcon className="size-3" />
+                    Router
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      setDevToolsPanel("query-devtools");
+                    }}
+                  >
+                    <DatabaseIcon className="size-3" />
+                    Query
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      setDevToolsPanel("analytics-toolbar");
+                    }}
+                  >
+                    <ChartBarIcon className="size-3" />
+                    Analytics
+                  </MenubarItem>
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Open folder
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      openUserDataFolder();
+                    }}
+                  >
+                    User data
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      openWorkspaceFolder();
+                    }}
+                  >
+                    Workspace
+                  </MenubarItem>
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Relaunch
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  <MenubarItem
+                    className="font-mono text-xs text-amber-600 dark:text-amber-400"
+                    onSelect={() => {
+                      setRelaunchDialogOpen(true);
+                    }}
+                  >
+                    With new user folder...
+                  </MenubarItem>
+                </MenubarSubContent>
+              </MenubarSub>
             </MenubarContent>
           </MenubarMenu>
 
@@ -241,6 +315,31 @@ export function DevPanel() {
           </Menubar>
         </div>
       </div>
+
+      <AlertDialog
+        onOpenChange={setRelaunchDialogOpen}
+        open={relaunchDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Relaunch with new user folder?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The app will quit and restart using a fresh user data folder. Your
+              current session and preferences will not carry over.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                relaunchWithNewUserFolder();
+              }}
+            >
+              Relaunch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

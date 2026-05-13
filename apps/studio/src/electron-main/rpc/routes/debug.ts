@@ -1,3 +1,4 @@
+import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -8,7 +9,8 @@ import {
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call } from "@orpc/server";
-import { app } from "electron";
+import { app, shell } from "electron";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import { z } from "zod";
 
@@ -164,10 +166,41 @@ const openOnboarding = base.input(z.void()).handler(() => {
   openOnboardingWindow();
 });
 
+const relaunchWithNewUserFolder = base.input(z.void()).handler(() => {
+  // app.relaunch() has no env option and the spawned child inherits the
+  // parent's environment snapshot, so mutations to process.env here don't
+  // carry over. Spawn the new instance directly with the env var set.
+  const child = spawn(process.execPath, process.argv.slice(1), {
+    detached: true,
+    env: { ...process.env, ELECTRON_USE_NEW_USER_FOLDER: "true" },
+    stdio: "ignore",
+  });
+  child.unref();
+  app.quit();
+});
+
+async function openFolder(folderPath: string) {
+  const errorMessage = await shell.openPath(folderPath);
+  if (errorMessage) {
+    shell.showItemInFolder(folderPath);
+  }
+}
+
+const openUserDataFolder = base.input(z.void()).handler(() => {
+  return openFolder(app.getPath("userData"));
+});
+
+const openWorkspaceFolder = base.input(z.void()).handler(() => {
+  return openFolder(getWorkspaceFolder());
+});
+
 export const debug = {
   browserViewManager: browserViewManagerDebugRoutes,
   live,
   openOnboarding,
+  openUserDataFolder,
+  openWorkspaceFolder,
+  relaunchWithNewUserFolder,
   sessionMarkdown,
   systemInfo,
   throwError,

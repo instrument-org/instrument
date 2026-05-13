@@ -429,7 +429,8 @@ a.cursor-pointer {
   }
 }
 
-/* Planning indicator: core breathe + expanding ring (see PlanningDotIcon). */
+/* Planning indicator: A gentle pulsing dot with an expanding ring
+* to signal "agent is planning" */
 @keyframes planning-dot-breathe {
   0%,
   100% {

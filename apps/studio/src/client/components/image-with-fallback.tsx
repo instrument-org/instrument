@@ -44,7 +44,7 @@ export function ImageWithFallback({
         className={cn("flex items-center justify-center", fallbackClassName)}
       >
         <FileIcon
-          className="size-[70%] text-muted-foreground"
+          className="size-6 text-muted-foreground"
           fallbackExtension="jpg"
           filename={filename}
         />

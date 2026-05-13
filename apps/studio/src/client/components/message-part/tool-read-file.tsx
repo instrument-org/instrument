@@ -10,6 +10,7 @@ import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
+import { ImageWithFallback } from "../image-with-fallback";
 import { FileToolCard } from "./file-tool-card";
 
 type ReadFilePart = Extract<
@@ -57,12 +58,15 @@ export function ToolReadFile({
     }
     case "image": {
       const src = `data:${output.mimeType};base64,${output.base64Data}`;
+      const filename = filenameFromFilePath(output.filePath);
       return (
         <ReadFileCard filePath={output.filePath} subdomain={subdomain}>
           <div className="flex items-center justify-center">
-            <img
+            <ImageWithFallback
               alt={output.filePath}
               className="max-h-96 w-auto rounded-lg object-contain"
+              fallbackClassName="min-h-32 w-full"
+              filename={filename}
               src={src}
             />
           </div>

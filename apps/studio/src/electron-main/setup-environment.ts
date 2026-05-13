@@ -19,13 +19,23 @@ function configureUserDataDirectory() {
       `Using custom user data dir: ${process.env.ELECTRON_USER_DATA_DIR}`,
     );
     app.setPath("userData", process.env.ELECTRON_USER_DATA_DIR);
-  } else if (is.dev) {
+    return;
+  }
+
+  if (process.env.ELECTRON_USE_NEW_USER_FOLDER === "true") {
+    const folderName = `${APP_NAME} (${Date.now().toString()})`;
+    const newDir = path.join(app.getPath("userData"), "..", folderName);
+    // eslint-disable-next-line no-console
+    console.log(`Using new user folder: ${newDir}`);
+    app.setPath("userData", newDir);
+    app.setName(folderName);
+    return;
+  }
+
+  if (is.dev) {
     let suffix = "";
     if (process.env.ELECTRON_DEV_USER_FOLDER_SUFFIX) {
       suffix = ` (${process.env.ELECTRON_DEV_USER_FOLDER_SUFFIX})`;
-    }
-    if (process.env.ELECTRON_USE_NEW_USER_FOLDER === "true") {
-      suffix = ` (${Date.now().toString()})`;
     }
     const DEV_APP_NAME = `${APP_NAME} (Dev${suffix})`;
     if (suffix) {

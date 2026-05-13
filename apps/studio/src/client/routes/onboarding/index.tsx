@@ -25,7 +25,7 @@ function OnboardingIndex() {
       error={error}
       isSetupComplete={isSetupComplete}
       onAddProvider={() => void navigate({ to: "/onboarding/providers" })}
-      onContinue={() => void rpcClient.onboarding.complete.call()}
+      onContinue={() => void navigate({ to: "/onboarding/theme" })}
       onSignIn={signIn}
     />
   );

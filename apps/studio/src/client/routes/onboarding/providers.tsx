@@ -20,7 +20,7 @@ function OnboardingProviders() {
   if (success) {
     return (
       <OnboardingSuccessScreen
-        onContinue={() => void rpcClient.onboarding.complete.call()}
+        onContinue={() => void navigate({ to: "/onboarding/theme" })}
       />
     );
   }

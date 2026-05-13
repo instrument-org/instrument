@@ -101,6 +101,11 @@ export const onboardingScreens = [
     label: "Complete",
     to: "/debug/components/onboarding/complete",
   },
+  {
+    id: "theme",
+    label: "Pick a theme",
+    to: "/debug/components/onboarding/theme",
+  },
 ] as const;
 
 type ComponentPageId = (typeof componentPages)[number]["id"];

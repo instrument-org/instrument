@@ -20,6 +20,7 @@ import { Route as SettingsProvidersRouteImport } from './routes/settings/provide
 import { Route as SettingsFeaturesRouteImport } from './routes/settings/features'
 import { Route as SettingsDebugRouteImport } from './routes/settings/debug'
 import { Route as SettingsAdvancedRouteImport } from './routes/settings/advanced'
+import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
@@ -46,6 +47,7 @@ import { Route as AppDebugComponentsColorsRouteImport } from './routes/_app/debu
 import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/debug/components/chat-stream'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
 import { Route as AppDebugComponentsOnboardingIndexRouteImport } from './routes/_app/debug/components/onboarding/index'
+import { Route as AppDebugComponentsOnboardingThemeRouteImport } from './routes/_app/debug/components/onboarding/theme'
 import { Route as AppDebugComponentsOnboardingSignInRouteImport } from './routes/_app/debug/components/onboarding/sign-in'
 import { Route as AppDebugComponentsOnboardingProvidersRouteImport } from './routes/_app/debug/components/onboarding/providers'
 import { Route as AppDebugComponentsOnboardingCompleteRouteImport } from './routes/_app/debug/components/onboarding/complete'
@@ -103,6 +105,11 @@ const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
   id: '/advanced',
   path: '/advanced',
   getParentRoute: () => SettingsRoute,
+} as any)
+const OnboardingThemeRoute = OnboardingThemeRouteImport.update({
+  id: '/theme',
+  path: '/theme',
+  getParentRoute: () => OnboardingRouteRoute,
 } as any)
 const OnboardingProvidersRoute = OnboardingProvidersRouteImport.update({
   id: '/providers',
@@ -244,6 +251,12 @@ const AppDebugComponentsOnboardingIndexRoute =
     path: '/',
     getParentRoute: () => AppDebugComponentsOnboardingRoute,
   } as any)
+const AppDebugComponentsOnboardingThemeRoute =
+  AppDebugComponentsOnboardingThemeRouteImport.update({
+    id: '/theme',
+    path: '/theme',
+    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+  } as any)
 const AppDebugComponentsOnboardingSignInRoute =
   AppDebugComponentsOnboardingSignInRouteImport.update({
     id: '/sign-in',
@@ -273,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
+  '/onboarding/theme': typeof OnboardingThemeRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/debug': typeof SettingsDebugRoute
   '/settings/features': typeof SettingsFeaturesRoute
@@ -300,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
   '/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
+  '/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
   '/debug/components/onboarding/': typeof AppDebugComponentsOnboardingIndexRoute
 }
 export interface FileRoutesByTo {
@@ -309,6 +324,7 @@ export interface FileRoutesByTo {
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
+  '/onboarding/theme': typeof OnboardingThemeRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/debug': typeof SettingsDebugRoute
   '/settings/features': typeof SettingsFeaturesRoute
@@ -334,6 +350,7 @@ export interface FileRoutesByTo {
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
   '/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
+  '/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
   '/debug/components/onboarding': typeof AppDebugComponentsOnboardingIndexRoute
 }
 export interface FileRoutesById {
@@ -350,6 +367,7 @@ export interface FileRoutesById {
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
+  '/onboarding/theme': typeof OnboardingThemeRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/debug': typeof SettingsDebugRoute
   '/settings/features': typeof SettingsFeaturesRoute
@@ -377,6 +395,7 @@ export interface FileRoutesById {
   '/_app/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/_app/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
   '/_app/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
+  '/_app/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
   '/_app/debug/components/onboarding/': typeof AppDebugComponentsOnboardingIndexRoute
 }
 export interface FileRouteTypes {
@@ -391,6 +410,7 @@ export interface FileRouteTypes {
     | '/new-tab'
     | '/release-notes'
     | '/onboarding/providers'
+    | '/onboarding/theme'
     | '/settings/advanced'
     | '/settings/debug'
     | '/settings/features'
@@ -418,6 +438,7 @@ export interface FileRouteTypes {
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/providers'
     | '/debug/components/onboarding/sign-in'
+    | '/debug/components/onboarding/theme'
     | '/debug/components/onboarding/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -427,6 +448,7 @@ export interface FileRouteTypes {
     | '/new-tab'
     | '/release-notes'
     | '/onboarding/providers'
+    | '/onboarding/theme'
     | '/settings/advanced'
     | '/settings/debug'
     | '/settings/features'
@@ -452,6 +474,7 @@ export interface FileRouteTypes {
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/providers'
     | '/debug/components/onboarding/sign-in'
+    | '/debug/components/onboarding/theme'
     | '/debug/components/onboarding'
   id:
     | '__root__'
@@ -467,6 +490,7 @@ export interface FileRouteTypes {
     | '/_app/new-tab'
     | '/_app/release-notes'
     | '/onboarding/providers'
+    | '/onboarding/theme'
     | '/settings/advanced'
     | '/settings/debug'
     | '/settings/features'
@@ -494,6 +518,7 @@ export interface FileRouteTypes {
     | '/_app/debug/components/onboarding/complete'
     | '/_app/debug/components/onboarding/providers'
     | '/_app/debug/components/onboarding/sign-in'
+    | '/_app/debug/components/onboarding/theme'
     | '/_app/debug/components/onboarding/'
   fileRoutesById: FileRoutesById
 }
@@ -583,6 +608,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/advanced'
       preLoaderRoute: typeof SettingsAdvancedRouteImport
       parentRoute: typeof SettingsRoute
+    }
+    '/onboarding/theme': {
+      id: '/onboarding/theme'
+      path: '/theme'
+      fullPath: '/onboarding/theme'
+      preLoaderRoute: typeof OnboardingThemeRouteImport
+      parentRoute: typeof OnboardingRouteRoute
     }
     '/onboarding/providers': {
       id: '/onboarding/providers'
@@ -766,6 +798,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsOnboardingIndexRouteImport
       parentRoute: typeof AppDebugComponentsOnboardingRoute
     }
+    '/_app/debug/components/onboarding/theme': {
+      id: '/_app/debug/components/onboarding/theme'
+      path: '/theme'
+      fullPath: '/debug/components/onboarding/theme'
+      preLoaderRoute: typeof AppDebugComponentsOnboardingThemeRouteImport
+      parentRoute: typeof AppDebugComponentsOnboardingRoute
+    }
     '/_app/debug/components/onboarding/sign-in': {
       id: '/_app/debug/components/onboarding/sign-in'
       path: '/sign-in'
@@ -821,6 +860,7 @@ interface AppDebugComponentsOnboardingRouteChildren {
   AppDebugComponentsOnboardingCompleteRoute: typeof AppDebugComponentsOnboardingCompleteRoute
   AppDebugComponentsOnboardingProvidersRoute: typeof AppDebugComponentsOnboardingProvidersRoute
   AppDebugComponentsOnboardingSignInRoute: typeof AppDebugComponentsOnboardingSignInRoute
+  AppDebugComponentsOnboardingThemeRoute: typeof AppDebugComponentsOnboardingThemeRoute
   AppDebugComponentsOnboardingIndexRoute: typeof AppDebugComponentsOnboardingIndexRoute
 }
 
@@ -832,6 +872,8 @@ const AppDebugComponentsOnboardingRouteChildren: AppDebugComponentsOnboardingRou
       AppDebugComponentsOnboardingProvidersRoute,
     AppDebugComponentsOnboardingSignInRoute:
       AppDebugComponentsOnboardingSignInRoute,
+    AppDebugComponentsOnboardingThemeRoute:
+      AppDebugComponentsOnboardingThemeRoute,
     AppDebugComponentsOnboardingIndexRoute:
       AppDebugComponentsOnboardingIndexRoute,
   }
@@ -917,11 +959,13 @@ const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
 
 interface OnboardingRouteRouteChildren {
   OnboardingProvidersRoute: typeof OnboardingProvidersRoute
+  OnboardingThemeRoute: typeof OnboardingThemeRoute
   OnboardingIndexRoute: typeof OnboardingIndexRoute
 }
 
 const OnboardingRouteRouteChildren: OnboardingRouteRouteChildren = {
   OnboardingProvidersRoute: OnboardingProvidersRoute,
+  OnboardingThemeRoute: OnboardingThemeRoute,
   OnboardingIndexRoute: OnboardingIndexRoute,
 }
 

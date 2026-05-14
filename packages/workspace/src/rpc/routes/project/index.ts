@@ -434,7 +434,7 @@ const update = base
 const exportZip = base
   .errors({
     EXPORT_FAILED: {
-      message: "Failed to export project",
+      message: "Failed to export task",
     },
   })
   .input(

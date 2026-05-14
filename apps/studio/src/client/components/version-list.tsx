@@ -68,7 +68,7 @@ export function VersionList({
     return (
       <div className="flex items-center justify-center py-8">
         <ErrorCard
-          description="We couldn't load the version history for this project"
+          description="We couldn't load the version history for this task"
           error={error}
           title="Failed to load versions"
         />

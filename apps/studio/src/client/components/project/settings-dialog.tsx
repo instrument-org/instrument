@@ -48,7 +48,7 @@ function RenameForm({
   const { isPending, mutateAsync: updateProject } = useMutation(
     rpcClient.workspace.project.update.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to rename project", {
+        toast.error("Failed to rename task", {
           description: error.message,
         });
       },
@@ -71,9 +71,9 @@ function RenameForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Rename Project</DialogTitle>
+        <DialogTitle>Rename task</DialogTitle>
         <DialogDescription className="sr-only">
-          Rename your project
+          Rename your task
         </DialogDescription>
       </DialogHeader>
       <form
@@ -113,7 +113,7 @@ function RenameForm({
                     onChange={(e) => {
                       field.handleChange(e.target.value);
                     }}
-                    placeholder="Enter project title..."
+                    placeholder="Enter task title..."
                     value={field.state.value}
                   />
                   {isInvalid && <FieldError errors={field.state.meta.errors} />}

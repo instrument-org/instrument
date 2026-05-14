@@ -133,7 +133,7 @@ export function RestoreVersionModal({
         <DialogHeader>
           <DialogTitle>Restore Version</DialogTitle>
           <DialogDescription>
-            You are about to restore your project to this version:
+            You are about to restore your task to this version:
           </DialogDescription>
         </DialogHeader>
 

@@ -137,7 +137,7 @@ export function StudioCommandMenu() {
 
   return (
     <CommandDialog
-      description="Search for a project to open..."
+      description="Search for a task to open..."
       onOpenChange={(value) => {
         if (value) {
           setOpen(true);
@@ -147,11 +147,11 @@ export function StudioCommandMenu() {
       }}
       open={open}
       shouldFilter={false}
-      title="Open Project"
+      title="Open Task"
     >
       <CommandInput
         onValueChange={setSearch}
-        placeholder="Search projects..."
+        placeholder="Search tasks..."
         value={search}
       />
       <CommandList className="max-h-none! min-h-48 overflow-visible!">
@@ -174,7 +174,7 @@ export function StudioCommandMenu() {
               search !== "!beta" &&
               matchedProjects.length === 0 && (
                 <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
-                  No projects found
+                  No tasks found
                 </div>
               )}
             {!search && (
@@ -182,7 +182,7 @@ export function StudioCommandMenu() {
                 {!isOnNewTabPage && (
                   <CommandItem onSelect={handleNewProject} value="new-project">
                     <PlusIcon className="size-4" />
-                    <span>New project</span>
+                    <span>New task</span>
                   </CommandItem>
                 )}
                 <CommandItem
@@ -271,7 +271,7 @@ function VirtualProjectList({
   return (
     <div className="overflow-hidden p-1">
       <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-        Projects
+        Tasks
       </div>
       <div
         className="overflow-y-auto"

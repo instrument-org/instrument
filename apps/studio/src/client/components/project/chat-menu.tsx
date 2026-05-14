@@ -195,7 +195,7 @@ export function ProjectChatMenu({
                 <span>New Chat</span>
               </DropdownMenuItem>
             </TooltipTrigger>
-            <TooltipContent>Start a fresh chat in this project.</TooltipContent>
+            <TooltipContent>Start a fresh chat in this task.</TooltipContent>
           </Tooltip>
 
           {sessions.length > 0 && (

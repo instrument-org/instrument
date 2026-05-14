@@ -58,7 +58,7 @@ function DarkContent() {
           <div className="h-0.5 w-3/5 rounded-sm bg-[#292524]" />
           <div className="h-0.5 w-full rounded-sm bg-[#44403c]" />
           {/* Input bar */}
-          <div className="mt-auto flex h-[7px] items-center justify-end rounded-sm bg-[#292524] px-0.5">
+          <div className="mt-auto flex h-[7px] items-center justify-end rounded-sm bg-[#3c3835] px-0.5">
             <div className="size-[5px] rounded-full bg-brand" />
           </div>
         </div>
@@ -94,7 +94,7 @@ function LightContent() {
           <div className="h-0.5 w-3/5 rounded-sm bg-[#e7e5e4]" />
           <div className="h-0.5 w-full rounded-sm bg-[#e7e5e4]" />
           {/* Input bar */}
-          <div className="mt-auto flex h-[7px] items-center justify-end rounded-sm bg-[#f5f5f4] px-0.5 shadow-[0_0.2px_0.8px_rgba(0,0,0,0.06)]">
+          <div className="mt-auto flex h-[7px] items-center justify-end rounded-sm bg-[#e7e5e4] px-0.5 shadow-[0_0.2px_0.8px_rgba(0,0,0,0.06)]">
             <div className="size-[5px] rounded-full bg-brand" />
           </div>
         </div>

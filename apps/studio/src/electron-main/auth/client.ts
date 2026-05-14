@@ -72,13 +72,13 @@ export async function signInSocial() {
   await openExternal(url.toString());
 
   const promise = new Promise((resolve, reject) => {
-    const onError = publisher.subscribe("auth.sign-in-error");
-    const onSuccess = publisher.subscribe("auth.sign-in-success");
+    const onError = publisher.subscribe("auth.login-error");
+    const onSuccess = publisher.subscribe("auth.login-success");
 
     async function waitForAuthUpdate() {
       for await (const payload of mergeGenerators([onError, onSuccess])) {
         if ("error" in payload) {
-          reject(new Error("Sign in failed", { cause: payload.error }));
+          reject(new Error("Login failed", { cause: payload.error }));
           break;
         } else {
           resolve(payload);
@@ -103,7 +103,7 @@ export async function signOut() {
   });
   if (response.error) {
     captureServerException(
-      new Error("Sign out failed", { cause: response.error }),
+      new Error("Logout failed", { cause: response.error }),
       { scopes: ["auth"] },
     );
   }

@@ -24,8 +24,8 @@ import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
 
 function focusAppWindow() {
-  // Prefer the onboarding window if it's currently open (first-run sign-in).
-  // Otherwise fall back to the main window (sign-in from inside the app).
+  // Prefer the onboarding window if it's currently open (first-run login).
+  // Otherwise fall back to the main window (login from inside the app).
   const onboardingWindow = getOnboardingWindow();
   const target =
     onboardingWindow && !onboardingWindow.isDestroyed()
@@ -167,10 +167,10 @@ export async function startAuthCallbackServer() {
 
       if (res.error) {
         captureServerException(
-          new Error("Sign in failed", { cause: res.error }),
+          new Error("Login failed", { cause: res.error }),
           { scopes: ["auth"] },
         );
-        publisher.publish("auth.sign-in-error", {
+        publisher.publish("auth.login-error", {
           error: res.error,
         });
         focusAppWindow();
@@ -185,9 +185,9 @@ export async function startAuthCallbackServer() {
     }
 
     void setDefaultModel();
-    publisher.publish("auth.sign-in-success", { success: true });
+    publisher.publish("auth.login-success", { success: true });
     focusAppWindow();
-    captureServerEvent("auth.signed_in");
+    captureServerEvent("auth.logged_in");
     return c.html(renderAuthPage({}));
   });
 

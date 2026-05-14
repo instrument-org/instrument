@@ -3,7 +3,7 @@ import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { CenteredLayout } from "@/client/components/centered-layout";
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
-import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
+import { GoogleLoginButton } from "@/client/components/google-login-button";
 import { ManualProviderButton } from "@/client/components/manual-provider-button";
 import { AppIcon } from "@/client/components/studio-icon";
 import { TermsFooter } from "@/client/components/terms-footer";
@@ -13,7 +13,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
+import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIProviderType, APP_NAME } from "@instrument-org/shared";
 import { CheckIcon } from "@phosphor-icons/react";
@@ -24,9 +24,9 @@ import { useState } from "react";
 
 const FEATURED_PROVIDERS: AIProviderType[] = ["anthropic", "openai", "google"];
 
-export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
+export function AISetupView({ mode }: { mode: "login" | "setup" }) {
   const [showAddProviderDialog, setShowAddProviderDialog] = useState(false);
-  const { error, signIn } = useSignInSocial();
+  const { error, login } = useLoginSocial();
   const navigate = useNavigate();
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
   const { data: hasToken } = useQuery(
@@ -49,7 +49,7 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
   };
 
   const title =
-    mode === "setup" ? `Sign in to ${APP_NAME}` : `Sign in to ${APP_NAME}`;
+    mode === "setup" ? `Log in to ${APP_NAME}` : `Log in to ${APP_NAME}`;
   const readyTitle = mode === "setup" ? "You're all set!" : "You're signed in!";
   const subtitle = "Claim your free AI credits, no card required";
   const readySubtitle = "You're now ready to start building!";
@@ -121,15 +121,15 @@ export function AISetupView({ mode }: { mode: "setup" | "sign-in" }) {
                 {error && (
                   <ContactErrorAlert
                     className="w-full min-w-80"
-                    title="Sign in failed"
+                    title="Login failed"
                   >
-                    There was an error signing in. Please try again.
+                    There was an error logging in. Please try again.
                   </ContactErrorAlert>
                 )}
 
-                <GoogleSignInButton
+                <GoogleLoginButton
                   className="w-full min-w-80"
-                  onSignIn={signIn}
+                  onLogin={login}
                 />
 
                 {mode === "setup" && (

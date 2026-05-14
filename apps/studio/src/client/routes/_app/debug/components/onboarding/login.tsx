@@ -4,11 +4,11 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { OnboardingWindowFrame } from "../onboarding";
 
-export const Route = createFileRoute(
-  "/_app/debug/components/onboarding/sign-in",
-)({
-  component: RouteComponent,
-});
+export const Route = createFileRoute("/_app/debug/components/onboarding/login")(
+  {
+    component: RouteComponent,
+  },
+);
 
 function RouteComponent() {
   return (
@@ -17,7 +17,7 @@ function RouteComponent() {
         <OnboardingLayout showBack={false}>
           <OnboardingWelcomeScreen
             isSetupComplete={false}
-            onSignIn={() => Promise.resolve()}
+            onLogin={() => Promise.resolve()}
           />
         </OnboardingLayout>
       </OnboardingWindowFrame>
@@ -25,9 +25,9 @@ function RouteComponent() {
       <OnboardingWindowFrame>
         <OnboardingLayout showBack={false}>
           <OnboardingWelcomeScreen
-            error={new Error("Sign in failed")}
+            error={new Error("Login failed")}
             isSetupComplete={false}
-            onSignIn={() => Promise.resolve()}
+            onLogin={() => Promise.resolve()}
           />
         </OnboardingLayout>
       </OnboardingWindowFrame>

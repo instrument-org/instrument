@@ -22,9 +22,8 @@ import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getInitials } from "@/client/lib/get-initials";
 import { isLowOnCredits } from "@/client/lib/is-low-on-credits";
-import { signOut } from "@/client/lib/sign-out";
 import { rpcClient } from "@/client/rpc/client";
-import { CaretDownIcon, GearIcon, SignOutIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, GearIcon } from "@phosphor-icons/react";
 import { startTransition } from "react";
 
 import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status";
@@ -168,16 +167,6 @@ export function NavUser() {
                 <span>Settings</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                void signOut();
-              }}
-            >
-              <SignOutIcon className="size-4" />
-              <span>Sign out</span>
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

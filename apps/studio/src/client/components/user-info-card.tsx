@@ -7,7 +7,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { getInitials } from "@/client/lib/get-initials";
-import { signOut } from "@/client/lib/sign-out";
+import { logOut } from "@/client/lib/log-out";
 
 export function UserInfoCard() {
   const { data: user } = useLiveUser();
@@ -36,12 +36,12 @@ export function UserInfoCard() {
         <Button
           className="shrink-0 font-medium"
           onClick={() => {
-            void signOut();
+            void logOut();
           }}
           size="sm"
           variant="outline"
         >
-          Sign out
+          Log out
         </Button>
       </div>
     </Card>

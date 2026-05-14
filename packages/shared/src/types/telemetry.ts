@@ -13,9 +13,9 @@ export interface AnalyticsEvents {
   };
   "app.sidebar_closed": never;
   "app.sidebar_opened": never;
-  "auth.sign_up_started": never;
-  "auth.signed_in": never;
-  "auth.signed_out": never;
+  "auth.logged_in": never;
+  "auth.logged_out": never;
+  "auth.login_started": never;
   "eval.created": {
     eval_names: string[];
     model_ids: string[];

@@ -52,7 +52,7 @@ import { toast } from "sonner";
 
 const PAGES = [
   { label: "/", to: "/" },
-  { label: "/sign-in", to: "/sign-in" },
+  { label: "/login", to: "/login" },
   { label: "/subscribe", to: "/subscribe" },
   { label: "/projects", to: "/projects" },
 ] as const satisfies { label: string; to: StudioPath }[];

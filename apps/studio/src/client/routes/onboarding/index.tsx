@@ -1,5 +1,5 @@
 import { OnboardingWelcomeScreen } from "@/client/components/onboarding/welcome-screen";
-import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
+import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -10,7 +10,7 @@ export const Route = createFileRoute("/onboarding/")({
 
 function OnboardingIndex() {
   const navigate = useNavigate();
-  const { error, signIn } = useSignInSocial();
+  const { error, login } = useLoginSocial();
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
@@ -26,7 +26,7 @@ function OnboardingIndex() {
       isSetupComplete={isSetupComplete}
       onAddProvider={() => void navigate({ to: "/onboarding/providers" })}
       onContinue={() => void navigate({ to: "/onboarding/theme" })}
-      onSignIn={signIn}
+      onLogin={login}
     />
   );
 }

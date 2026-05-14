@@ -35,7 +35,7 @@ import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/n
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
 import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
 import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
-import { Route as AppNot_authenticatedSignInRouteImport } from './routes/_app/_not_authenticated/sign-in'
+import { Route as AppNot_authenticatedLoginRouteImport } from './routes/_app/_not_authenticated/login'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
@@ -48,8 +48,8 @@ import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
 import { Route as AppDebugComponentsOnboardingIndexRouteImport } from './routes/_app/debug/components/onboarding/index'
 import { Route as AppDebugComponentsOnboardingThemeRouteImport } from './routes/_app/debug/components/onboarding/theme'
-import { Route as AppDebugComponentsOnboardingSignInRouteImport } from './routes/_app/debug/components/onboarding/sign-in'
 import { Route as AppDebugComponentsOnboardingProvidersRouteImport } from './routes/_app/debug/components/onboarding/providers'
+import { Route as AppDebugComponentsOnboardingLoginRouteImport } from './routes/_app/debug/components/onboarding/login'
 import { Route as AppDebugComponentsOnboardingCompleteRouteImport } from './routes/_app/debug/components/onboarding/complete'
 
 const ShellRoute = ShellRouteImport.update({
@@ -180,10 +180,10 @@ const AppDebugBrowserViewsRoute = AppDebugBrowserViewsRouteImport.update({
   path: '/browser-views',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
-const AppNot_authenticatedSignInRoute =
-  AppNot_authenticatedSignInRouteImport.update({
-    id: '/sign-in',
-    path: '/sign-in',
+const AppNot_authenticatedLoginRoute =
+  AppNot_authenticatedLoginRouteImport.update({
+    id: '/login',
+    path: '/login',
     getParentRoute: () => AppNot_authenticatedRouteRoute,
   } as any)
 const AppAuthenticatedSubscribeRoute =
@@ -257,16 +257,16 @@ const AppDebugComponentsOnboardingThemeRoute =
     path: '/theme',
     getParentRoute: () => AppDebugComponentsOnboardingRoute,
   } as any)
-const AppDebugComponentsOnboardingSignInRoute =
-  AppDebugComponentsOnboardingSignInRouteImport.update({
-    id: '/sign-in',
-    path: '/sign-in',
-    getParentRoute: () => AppDebugComponentsOnboardingRoute,
-  } as any)
 const AppDebugComponentsOnboardingProvidersRoute =
   AppDebugComponentsOnboardingProvidersRouteImport.update({
     id: '/providers',
     path: '/providers',
+    getParentRoute: () => AppDebugComponentsOnboardingRoute,
+  } as any)
+const AppDebugComponentsOnboardingLoginRoute =
+  AppDebugComponentsOnboardingLoginRouteImport.update({
+    id: '/login',
+    path: '/login',
     getParentRoute: () => AppDebugComponentsOnboardingRoute,
   } as any)
 const AppDebugComponentsOnboardingCompleteRoute =
@@ -294,7 +294,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/': typeof OnboardingIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/sign-in': typeof AppNot_authenticatedSignInRoute
+  '/login': typeof AppNot_authenticatedLoginRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/debug/errors': typeof AppDebugErrorsRoute
@@ -312,8 +312,8 @@ export interface FileRoutesByFullPath {
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
+  '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
   '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
-  '/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
   '/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
   '/debug/components/onboarding/': typeof AppDebugComponentsOnboardingIndexRoute
 }
@@ -332,7 +332,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/sign-in': typeof AppNot_authenticatedSignInRoute
+  '/login': typeof AppNot_authenticatedLoginRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
@@ -348,8 +348,8 @@ export interface FileRoutesByTo {
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
+  '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
   '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
-  '/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
   '/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
   '/debug/components/onboarding': typeof AppDebugComponentsOnboardingIndexRoute
 }
@@ -375,7 +375,7 @@ export interface FileRoutesById {
   '/onboarding/': typeof OnboardingIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/_app/_not_authenticated/sign-in': typeof AppNot_authenticatedSignInRoute
+  '/_app/_not_authenticated/login': typeof AppNot_authenticatedLoginRoute
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/_app/debug/errors': typeof AppDebugErrorsRoute
@@ -393,8 +393,8 @@ export interface FileRoutesById {
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
   '/_app/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
+  '/_app/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
   '/_app/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
-  '/_app/debug/components/onboarding/sign-in': typeof AppDebugComponentsOnboardingSignInRoute
   '/_app/debug/components/onboarding/theme': typeof AppDebugComponentsOnboardingThemeRoute
   '/_app/debug/components/onboarding/': typeof AppDebugComponentsOnboardingIndexRoute
 }
@@ -418,7 +418,7 @@ export interface FileRouteTypes {
     | '/onboarding/'
     | '/settings/'
     | '/subscribe'
-    | '/sign-in'
+    | '/login'
     | '/debug/browser-views'
     | '/debug/components'
     | '/debug/errors'
@@ -436,8 +436,8 @@ export interface FileRouteTypes {
     | '/debug/components/'
     | '/projects/$subdomain'
     | '/debug/components/onboarding/complete'
+    | '/debug/components/onboarding/login'
     | '/debug/components/onboarding/providers'
-    | '/debug/components/onboarding/sign-in'
     | '/debug/components/onboarding/theme'
     | '/debug/components/onboarding/'
   fileRoutesByTo: FileRoutesByTo
@@ -456,7 +456,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/settings'
     | '/subscribe'
-    | '/sign-in'
+    | '/login'
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
@@ -472,8 +472,8 @@ export interface FileRouteTypes {
     | '/debug/components'
     | '/projects/$subdomain'
     | '/debug/components/onboarding/complete'
+    | '/debug/components/onboarding/login'
     | '/debug/components/onboarding/providers'
-    | '/debug/components/onboarding/sign-in'
     | '/debug/components/onboarding/theme'
     | '/debug/components/onboarding'
   id:
@@ -498,7 +498,7 @@ export interface FileRouteTypes {
     | '/onboarding/'
     | '/settings/'
     | '/_app/_authenticated/subscribe'
-    | '/_app/_not_authenticated/sign-in'
+    | '/_app/_not_authenticated/login'
     | '/_app/debug/browser-views'
     | '/_app/debug/components'
     | '/_app/debug/errors'
@@ -516,8 +516,8 @@ export interface FileRouteTypes {
     | '/_app/debug/components/'
     | '/_app/projects/$subdomain/'
     | '/_app/debug/components/onboarding/complete'
+    | '/_app/debug/components/onboarding/login'
     | '/_app/debug/components/onboarding/providers'
-    | '/_app/debug/components/onboarding/sign-in'
     | '/_app/debug/components/onboarding/theme'
     | '/_app/debug/components/onboarding/'
   fileRoutesById: FileRoutesById
@@ -714,11 +714,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugBrowserViewsRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
-    '/_app/_not_authenticated/sign-in': {
-      id: '/_app/_not_authenticated/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof AppNot_authenticatedSignInRouteImport
+    '/_app/_not_authenticated/login': {
+      id: '/_app/_not_authenticated/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof AppNot_authenticatedLoginRouteImport
       parentRoute: typeof AppNot_authenticatedRouteRoute
     }
     '/_app/_authenticated/subscribe': {
@@ -805,18 +805,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsOnboardingThemeRouteImport
       parentRoute: typeof AppDebugComponentsOnboardingRoute
     }
-    '/_app/debug/components/onboarding/sign-in': {
-      id: '/_app/debug/components/onboarding/sign-in'
-      path: '/sign-in'
-      fullPath: '/debug/components/onboarding/sign-in'
-      preLoaderRoute: typeof AppDebugComponentsOnboardingSignInRouteImport
-      parentRoute: typeof AppDebugComponentsOnboardingRoute
-    }
     '/_app/debug/components/onboarding/providers': {
       id: '/_app/debug/components/onboarding/providers'
       path: '/providers'
       fullPath: '/debug/components/onboarding/providers'
       preLoaderRoute: typeof AppDebugComponentsOnboardingProvidersRouteImport
+      parentRoute: typeof AppDebugComponentsOnboardingRoute
+    }
+    '/_app/debug/components/onboarding/login': {
+      id: '/_app/debug/components/onboarding/login'
+      path: '/login'
+      fullPath: '/debug/components/onboarding/login'
+      preLoaderRoute: typeof AppDebugComponentsOnboardingLoginRouteImport
       parentRoute: typeof AppDebugComponentsOnboardingRoute
     }
     '/_app/debug/components/onboarding/complete': {
@@ -843,12 +843,12 @@ const AppAuthenticatedRouteRouteWithChildren =
   )
 
 interface AppNot_authenticatedRouteRouteChildren {
-  AppNot_authenticatedSignInRoute: typeof AppNot_authenticatedSignInRoute
+  AppNot_authenticatedLoginRoute: typeof AppNot_authenticatedLoginRoute
 }
 
 const AppNot_authenticatedRouteRouteChildren: AppNot_authenticatedRouteRouteChildren =
   {
-    AppNot_authenticatedSignInRoute: AppNot_authenticatedSignInRoute,
+    AppNot_authenticatedLoginRoute: AppNot_authenticatedLoginRoute,
   }
 
 const AppNot_authenticatedRouteRouteWithChildren =
@@ -858,8 +858,8 @@ const AppNot_authenticatedRouteRouteWithChildren =
 
 interface AppDebugComponentsOnboardingRouteChildren {
   AppDebugComponentsOnboardingCompleteRoute: typeof AppDebugComponentsOnboardingCompleteRoute
+  AppDebugComponentsOnboardingLoginRoute: typeof AppDebugComponentsOnboardingLoginRoute
   AppDebugComponentsOnboardingProvidersRoute: typeof AppDebugComponentsOnboardingProvidersRoute
-  AppDebugComponentsOnboardingSignInRoute: typeof AppDebugComponentsOnboardingSignInRoute
   AppDebugComponentsOnboardingThemeRoute: typeof AppDebugComponentsOnboardingThemeRoute
   AppDebugComponentsOnboardingIndexRoute: typeof AppDebugComponentsOnboardingIndexRoute
 }
@@ -868,10 +868,10 @@ const AppDebugComponentsOnboardingRouteChildren: AppDebugComponentsOnboardingRou
   {
     AppDebugComponentsOnboardingCompleteRoute:
       AppDebugComponentsOnboardingCompleteRoute,
+    AppDebugComponentsOnboardingLoginRoute:
+      AppDebugComponentsOnboardingLoginRoute,
     AppDebugComponentsOnboardingProvidersRoute:
       AppDebugComponentsOnboardingProvidersRoute,
-    AppDebugComponentsOnboardingSignInRoute:
-      AppDebugComponentsOnboardingSignInRoute,
     AppDebugComponentsOnboardingThemeRoute:
       AppDebugComponentsOnboardingThemeRoute,
     AppDebugComponentsOnboardingIndexRoute:

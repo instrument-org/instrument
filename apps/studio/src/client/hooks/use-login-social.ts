@@ -2,15 +2,15 @@ import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
 
-export function useSignInSocial() {
-  const { mutateAsync: signInSocial, ...rest } = useMutation(
+export function useLoginSocial() {
+  const { mutateAsync: loginSocial, ...rest } = useMutation(
     rpcClient.auth.signInSocial.mutationOptions(),
   );
 
-  const signIn = async () => {
-    captureClientEvent("auth.sign_up_started");
-    await signInSocial({});
+  const login = async () => {
+    captureClientEvent("auth.login_started");
+    await loginSocial({});
   };
 
-  return { signIn, ...rest };
+  return { login, ...rest };
 }

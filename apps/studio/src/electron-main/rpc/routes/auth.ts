@@ -36,7 +36,7 @@ const signInSocial = base.handler(async ({ errors }) => {
   } catch (error) {
     throw errors.API_ERROR({
       cause: error,
-      message: error instanceof Error ? error.message : "Sign in failed",
+      message: error instanceof Error ? error.message : "Login failed",
     });
   }
 });

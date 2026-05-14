@@ -87,9 +87,9 @@ export const componentPages = [
 
 export const onboardingScreens = [
   {
-    id: "sign-in",
-    label: "Sign in",
-    to: "/debug/components/onboarding/sign-in",
+    id: "login",
+    label: "Log in",
+    to: "/debug/components/onboarding/login",
   },
   {
     id: "providers",

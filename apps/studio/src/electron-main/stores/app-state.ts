@@ -46,9 +46,8 @@ export const getAppStateStore = (): Store<AppState> => {
     });
 
     if (!APP_STATE_STORE.get("hasCompletedProviderSetup")) {
-      const providersStore = getProviderConfigsStore();
-      const providers = providersStore.get("providers");
-      const hasAnyProvider = providers.length > 0;
+      const hasAnyProvider =
+        getProviderConfigsStore().get("providers").length > 0;
 
       if (hasAnyProvider) {
         APP_STATE_STORE.set("hasCompletedProviderSetup", true);

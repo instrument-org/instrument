@@ -5,7 +5,6 @@ import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { StudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
-import { hasToken } from "@/electron-main/platform-api/utils";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
 import { getTabsManager } from "@/electron-main/tabs";
 import {
@@ -225,14 +224,8 @@ function shouldShowOnboarding(): boolean {
   if (process.env.SKIP_ONBOARDING === "true") {
     return false;
   }
-  if (hasToken()) {
-    return false;
-  }
   const appStateStore = getAppStateStore();
-  if (appStateStore.get("hasCompletedProviderSetup")) {
-    return false;
-  }
-  return true;
+  return !appStateStore.get("hasCompletedProviderSetup");
 }
 
 // Quit when all windows are closed, except on macOS. There, it's common

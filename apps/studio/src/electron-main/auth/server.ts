@@ -14,6 +14,7 @@ import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { getAppStateStore } from "@/electron-main/stores/app-state";
 import { getSessionStore } from "@/electron-main/stores/session";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
@@ -161,6 +162,7 @@ export async function startAuthCallbackServer() {
           onSuccess(ctx) {
             const authToken = ctx.response.headers.get("set-auth-token");
             sessionStore.set("apiBearerToken", authToken);
+            getAppStateStore().set("hasCompletedProviderSetup", true);
           },
         },
       );

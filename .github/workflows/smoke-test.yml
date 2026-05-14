@@ -42,6 +42,25 @@ jobs:
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
       - name: Build and run smoke test
         run: pnpm turbo run smoke-test
+      - name: Summarize smoke test screenshots
+        if: always()
+        shell: bash
+        run: |
+          SCREENSHOTS_DIR="apps/studio/smoke-test-screenshots"
+          PNGS=("$SCREENSHOTS_DIR"/*.png)
+          if [ ! -e "${PNGS[0]}" ]; then
+            echo "No screenshots captured." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Smoke Test Screenshots (${{ runner.os }})" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            for f in "${PNGS[@]}"; do
+              echo "**\`$(basename "$f")\`**" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              B64=$(base64 < "$f" | tr -d '\n')
+              echo "<img src=\"data:image/png;base64,${B64}\" width=\"800\" />" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+            done
+          fi
       - name: Upload smoke test screenshots
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -1,11 +1,8 @@
-import { AddProviderDialog } from "@/client/components/add-provider/dialog";
-import { ContactErrorAlert } from "@/client/components/contact-error-alert";
-import { GoogleLoginButton } from "@/client/components/google-login-button";
-import { AppIcon } from "@/client/components/studio-icon";
-import { TermsFooter } from "@/client/components/terms-footer";
+import { ProviderSetupFlow } from "@/client/components/onboarding/provider-setup-flow";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -13,21 +10,18 @@ import {
 } from "@/client/components/ui/dialog";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
+import { XIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 
 export function AIProviderGuardDialog({
-  description,
   onOpenChange,
   onSuccess,
   open,
 }: {
-  description?: string;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   open: boolean;
 }) {
-  const [showAddProviderDialog, setShowAddProviderDialog] = useState(false);
   const { error, login } = useLoginSocial();
 
   const { data: hasToken } = useQuery(
@@ -37,92 +31,46 @@ export function AIProviderGuardDialog({
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
 
-  const showGoogleSignIn = !hasToken;
-
-  const resolvedDescription =
-    description ??
-    (showGoogleSignIn
-      ? "Connect an AI provider to get started."
-      : "Add an AI provider API key to use a custom model.");
+  const hasProvider = (providerConfigs?.length ?? 0) > 0;
+  const isSetupComplete = hasToken === true || hasProvider;
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-w-md p-6">
+      <DialogContent
+        className="flex h-[640px] max-h-[85vh] w-full max-w-[472px] flex-col
+          overflow-hidden rounded-3xl border-0 p-0
+          shadow-[inset_0_0_0_2px_rgba(0,0,0,0.05)]
+          [background:linear-gradient(180deg,var(--brand-200)_0%,var(--brown-50)_100%)]
+          dark:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.05)]
+          dark:[background:linear-gradient(180deg,color-mix(in_srgb,var(--brand-950)_60%,var(--background))_0%,var(--background)_50%)]"
+        showCloseButton={false}
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>Add an AI provider to continue</DialogTitle>
-          <DialogDescription>{resolvedDescription}</DialogDescription>
+          <DialogDescription>
+            Log in with Google or add an AI provider API key to get started.
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center gap-6">
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex size-16 items-center justify-center rounded-md">
-              <AppIcon className="size-16" />
-            </div>
-            <h2 className="text-center text-2xl font-bold">
-              Add an AI provider
-            </h2>
-            <p className="text-center text-sm text-muted-foreground">
-              {resolvedDescription}
-            </p>
-          </div>
-
-          <div className="flex w-full max-w-xs flex-col gap-4">
-            {showGoogleSignIn ? (
-              <>
-                {error && (
-                  <ContactErrorAlert title="Login failed">
-                    There was an error logging in. Please try again.
-                  </ContactErrorAlert>
-                )}
-                <GoogleLoginButton
-                  className="w-full"
-                  onLogin={login}
-                  onSuccess={() => {
-                    onSuccess?.();
-                    onOpenChange(false);
-                  }}
-                />
-                <div className="flex flex-col items-center justify-center">
-                  <div className="text-sm text-muted-foreground/50">or</div>
-                  <Button
-                    className="text-muted-foreground/80"
-                    onClick={() => {
-                      setShowAddProviderDialog(true);
-                    }}
-                    type="button"
-                    variant="ghost"
-                  >
-                    Add an AI provider manually
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <Button
-                className="w-full"
-                onClick={() => {
-                  setShowAddProviderDialog(true);
-                }}
-                type="button"
-              >
-                Add an AI provider manually
-              </Button>
-            )}
-          </div>
-
-          <AddProviderDialog
-            onOpenChange={setShowAddProviderDialog}
-            onSuccess={() => {
-              setShowAddProviderDialog(false);
-              onSuccess?.();
-              onOpenChange(false);
-            }}
-            open={showAddProviderDialog}
-            providers={providerConfigs ?? []}
-          />
-
-          {showGoogleSignIn && (
-            <TermsFooter className="text-center text-xs text-muted-foreground/50" />
-          )}
+        <div className="absolute top-3 right-3 z-10">
+          <DialogClose asChild>
+            <Button aria-label="Close" type="button" variant="nav-overlay">
+              <XIcon className="size-4" />
+            </Button>
+          </DialogClose>
         </div>
+        <ProviderSetupFlow
+          error={error}
+          isSetupComplete={isSetupComplete}
+          onContinue={() => {
+            onSuccess?.();
+            onOpenChange(false);
+          }}
+          onLogin={login}
+          onLoginSuccess={() => {
+            onSuccess?.();
+            onOpenChange(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

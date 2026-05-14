@@ -21,7 +21,6 @@ export const REGISTRY_REPO_URL = `https://github.com/${GITHUB_ORG}/${REGISTRY_RE
 export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;
 export const X_HANDLE = "@tryinstrument";
 export const X_URL = `https://x.com/${X_HANDLE}`;
-export const DISCORD_URL = `${APP_URL}/discord`;
 export const SUPPORT_URL = `https://${APP_DOMAIN}/support`;
 export const MANUAL_DOWNLOAD_URL = `${APP_URL}/download`;
 export const AI_GATEWAY_API_KEY_NOT_NEEDED = "NOT_NEEDED";

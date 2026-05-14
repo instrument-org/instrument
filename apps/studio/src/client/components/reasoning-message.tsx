@@ -16,6 +16,7 @@ interface ReasoningMessageProps {
   createdAt?: Date;
   endedAt?: Date;
   isLoading?: boolean;
+  noDelay?: boolean;
   text: string;
 }
 
@@ -23,6 +24,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   createdAt,
   endedAt,
   isLoading = false,
+  noDelay = false,
   text,
 }: ReasoningMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -82,7 +84,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
     <Collapsible
       className={cn(
         "w-full animate-in fill-mode-both fade-in",
-        !displayText.trim() && "delay-500",
+        !displayText.trim() && !noDelay && "delay-500",
       )}
       onOpenChange={setIsExpanded}
       open={isExpanded || isLoading}

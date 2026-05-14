@@ -193,7 +193,7 @@ export function MessageError({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Starts a fresh chat in this project</p>
+                      <p>Starts a fresh chat in this task</p>
                     </TooltipContent>
                   </Tooltip>
                   <Button

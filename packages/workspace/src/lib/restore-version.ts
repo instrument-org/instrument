@@ -160,7 +160,7 @@ export async function restoreVersion({
             messageId: assistantMessage.id,
             sessionId,
           },
-          text: "Your project has been restored to the selected version.",
+          text: "Your task has been restored to the selected version.",
           type: "text" as const,
         },
         {

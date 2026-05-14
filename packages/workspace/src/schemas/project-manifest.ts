@@ -6,7 +6,7 @@ export const ProjectManifestSchema = z.object({
   description: z.string().optional(),
   // eslint-disable-next-line unicorn/prefer-top-level-await
   iconName: TabIconsSchema.optional().catch(undefined),
-  name: z.string().default("Untitled Project"),
+  name: z.string().default("Untitled task"),
 });
 
 export const ProjectManifestUpdateSchema =

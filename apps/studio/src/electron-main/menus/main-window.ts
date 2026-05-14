@@ -37,7 +37,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             currentTab.webView.webContents?.focus();
           }
         },
-        label: "New Project",
+        label: "New Task",
       },
       { type: "separator" as const },
       {

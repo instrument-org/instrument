@@ -32,12 +32,12 @@ export function ExportZipModal({
   const exportZipMutation = useMutation(
     rpcClient.utils.exportZip.mutationOptions({
       onError: (error: Error) => {
-        toast.error("Failed to export project", {
+        toast.error("Failed to export task", {
           description: error.message,
         });
       },
       onSuccess: (result) => {
-        toast.success("Project exported to Downloads", {
+        toast.success("Task exported to Downloads", {
           action: {
             label: getRevealInFolderLabel(),
             onClick: () => {
@@ -64,7 +64,7 @@ export function ExportZipModal({
     <Dialog onOpenChange={onClose} open={isOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Export Project</DialogTitle>
+          <DialogTitle>Export Task</DialogTitle>
           <DialogDescription className="text-left">
             The export will include:
           </DialogDescription>

@@ -87,7 +87,7 @@ function RouteComponent() {
               {
                 onError: (error) => {
                   toast.error(
-                    `There was an error starting your project: ${error.message}`,
+                    `There was an error starting your task: ${error.message}`,
                   );
                 },
                 onSuccess: ({ sessionId, subdomain }) => {

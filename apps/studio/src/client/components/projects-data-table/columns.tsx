@@ -116,7 +116,7 @@ export function createColumns({
             }}
             variant="ghost"
           >
-            Project
+            Task
             <ArrowsDownUpIcon className="ml-2 size-4" />
           </Button>
         );

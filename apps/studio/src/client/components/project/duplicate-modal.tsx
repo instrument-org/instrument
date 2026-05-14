@@ -31,7 +31,7 @@ export function DuplicateProjectModal({
   const duplicateMutation = useMutation(
     rpcClient.workspace.project.duplicate.mutationOptions({
       onError: (error: Error) => {
-        toast.error("Failed to duplicate project", {
+        toast.error("Failed to duplicate task", {
           description: error.message,
         });
       },
@@ -58,10 +58,10 @@ export function DuplicateProjectModal({
     <AlertDialog onOpenChange={onClose} open={isOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Duplicate Project?</AlertDialogTitle>
+          <AlertDialogTitle>Duplicate Task?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will create a copy of the project with all of its messages and
-            files as a new project.
+            This will create a copy of the task with all of its messages and
+            files as a new task.
           </AlertDialogDescription>
           <ProjectStatsCard project={project} />
         </AlertDialogHeader>
@@ -74,7 +74,7 @@ export function DuplicateProjectModal({
             >
               {duplicateMutation.isPending
                 ? "Duplicating..."
-                : "Duplicate project"}
+                : "Duplicate task"}
             </Button>
           </AlertDialogAction>
         </AlertDialogFooter>

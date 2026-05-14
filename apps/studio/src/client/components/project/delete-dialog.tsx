@@ -29,7 +29,7 @@ export function ProjectDeleteDialog({
       onDeleteStart?.();
       await trashApp(project.subdomain);
     } catch {
-      toast.error("Failed to delete project", {
+      toast.error("Failed to delete task", {
         description:
           "Please close any external applications that might be using this folder (editors, terminals, servers, etc.) and try again.",
       });
@@ -42,12 +42,12 @@ export function ProjectDeleteDialog({
   return (
     <DeleteWithProgressDialog
       content={<ProjectStatsCard project={project} />}
-      description={`This project will be moved to your system ${trashTerminology}. You can restore it from there if needed.`}
+      description={`This task will be moved to your system ${trashTerminology}. You can restore it from there if needed.`}
       items={[project]}
       onDelete={handleDelete}
       onOpenChange={onOpenChange}
       open={open}
-      title="Delete Project?"
+      title="Delete task?"
     />
   );
 }

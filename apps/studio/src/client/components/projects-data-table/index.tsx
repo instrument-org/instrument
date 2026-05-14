@@ -99,7 +99,7 @@ export function ProjectsDataTable({
           autoFocus
           className="max-w-sm"
           onChange={(event) => titleColumn?.setFilterValue(event.target.value)}
-          placeholder="Filter projects..."
+          placeholder="Filter tasks..."
           value={typeof titleFilterValue === "string" ? titleFilterValue : ""}
         />
         {bulkActions && (
@@ -182,7 +182,7 @@ export function ProjectsDataTable({
           ) : (
             <>
               {filteredRowModel.rows.length}{" "}
-              {filteredRowModel.rows.length === 1 ? "project" : "projects"}
+              {filteredRowModel.rows.length === 1 ? "task" : "tasks"}
             </>
           )}
         </div>

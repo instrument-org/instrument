@@ -56,7 +56,7 @@ export const Route = createFileRoute("/_app/projects/")({
     return {
       meta: [
         {
-          title: "Your Projects",
+          title: "Your Tasks",
         },
         createIconMeta("table-properties"),
       ],
@@ -212,12 +212,12 @@ function RouteComponent() {
           { zipFileData: base64 },
           {
             onError: (error) => {
-              toast.error("Failed to import project", {
+              toast.error("Failed to import task", {
                 description: error.message,
               });
             },
             onSuccess: (data) => {
-              toast.success("Project imported successfully");
+              toast.success("Task imported successfully");
               void router.navigate({
                 params: { subdomain: data.subdomain },
                 to: "/projects/$subdomain",
@@ -300,14 +300,14 @@ function RouteComponent() {
           await trashApp(project.subdomain);
           successCount++;
         } catch {
-          toast.error(`Failed to delete project ${project.title}`);
+          toast.error(`Failed to delete task ${project.title}`);
           hasError = true;
         }
       }
 
       if (successCount > 0) {
         toast.success(
-          `Moved ${successCount} ${successCount === 1 ? "project" : "projects"} to ${trashTerminology}`,
+          `Moved ${successCount} ${successCount === 1 ? "task" : "tasks"} to ${trashTerminology}`,
         );
         captureClientEvent("project.bulk_deleted", {
           project_count: successCount,
@@ -383,7 +383,7 @@ function RouteComponent() {
         <div className="mx-auto px-4 pt-10 sm:px-6 lg:px-8 lg:pt-20 lg:pb-4">
           <div className="flex flex-col items-center gap-y-4 text-center">
             <h1 className="text-3xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
-              Your Projects
+              Your Tasks
             </h1>
             <CommandMenuCTA />
           </div>
@@ -450,7 +450,7 @@ function RouteComponent() {
                     size="sm"
                     variant="secondary"
                   >
-                    Import project
+                    Import task
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -466,7 +466,7 @@ function RouteComponent() {
                 type="file"
               />
               <Button asChild size="sm">
-                <InternalLink to="/new-tab">New project</InternalLink>
+                <InternalLink to="/new-tab">New task</InternalLink>
               </Button>
             </div>
           </div>
@@ -479,8 +479,8 @@ function RouteComponent() {
             <div className="flex flex-col items-center justify-center gap-y-4 rounded-md border bg-muted/20 py-12">
               <div className="text-sm text-muted-foreground">
                 {isBulkDeleting
-                  ? `Deleting ${selectedProjects.length} ${selectedProjects.length === 1 ? "project" : "projects"}...`
-                  : "Deleting project..."}
+                  ? `Deleting ${selectedProjects.length} ${selectedProjects.length === 1 ? "task" : "tasks"}...`
+                  : "Deleting task..."}
               </div>
             </div>
           ) : (
@@ -521,12 +521,12 @@ function RouteComponent() {
       </div>
 
       <DeleteWithProgressDialog
-        description={`${selectedProjects.length === 1 ? "This project" : "These projects"} will be moved to your system ${trashTerminology}.`}
+        description={`${selectedProjects.length === 1 ? "This task" : "These tasks"} will be moved to your system ${trashTerminology}.`}
         items={selectedProjects}
         onDelete={confirmDeleteSelected}
         onOpenChange={setDeleteSelectedDialogOpen}
         open={deleteSelectedDialogOpen}
-        title={`Move ${selectedProjects.length} ${selectedProjects.length === 1 ? "project" : "projects"} to ${trashTerminology}?`}
+        title={`Move ${selectedProjects.length} ${selectedProjects.length === 1 ? "task" : "tasks"} to ${trashTerminology}?`}
       />
 
       {projectToDelete && (

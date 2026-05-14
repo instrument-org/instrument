@@ -1,5 +1,6 @@
 import { NavPrimary } from "@/client/components/nav-primary";
 import { NavProjects } from "@/client/components/nav-projects";
+import { NavSupport } from "@/client/components/nav-support";
 import { NavUser } from "@/client/components/nav-user";
 import { ServerExceptionsAlert } from "@/client/components/server-exceptions-alert";
 import {
@@ -103,7 +104,7 @@ export function StudioSidebar({
             isFavorites={false}
             matches={matches}
             projects={filteredProjects}
-            title="Projects"
+            title="Tasks"
           />
         )}
       </SidebarContent>

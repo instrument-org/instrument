@@ -4,7 +4,7 @@ import { isMacOS } from "@/client/lib/utils";
 export function CommandMenuCTA() {
   return (
     <p className="text-xs text-muted-foreground">
-      Press <Kbd>{isMacOS() ? "⌘" : "Ctrl"}+K</Kbd> to quickly switch projects
+      Press <Kbd>{isMacOS() ? "⌘" : "Ctrl"}+K</Kbd> to quickly switch tasks
     </p>
   );
 }

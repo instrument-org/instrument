@@ -107,6 +107,7 @@ export function StudioSidebar({
           />
         )}
       </SidebarContent>
+      <NavSupport />
       <SidebarFooter className="border-t border-black/10 p-0 dark:border-white/20">
         <NavUser />
       </SidebarFooter>

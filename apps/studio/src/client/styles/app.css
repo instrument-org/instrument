@@ -4,6 +4,8 @@
 @import "@fontsource/work-sans/700.css";
 @import "@fontsource/roboto-serif/400.css";
 @import "@fontsource/roboto-serif/500.css";
+/* cspell:ignore wght */
+@import "@fontsource-variable/jetbrains-mono/wght.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -24,6 +26,7 @@ html:has(meta[name="opaque-background"]) body {
 @theme inline {
   --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Roboto Serif", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

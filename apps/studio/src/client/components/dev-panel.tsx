@@ -106,6 +106,8 @@ export function DevPanel() {
 
   const [relaunchDialogOpen, setRelaunchDialogOpen] = useState(false);
 
+  const isPackaged = appEnvironment?.isPackaged === true;
+
   const enabledFlagCount = Object.values(features).filter(Boolean).length;
 
   function handleNavigate(to: StudioPath) {
@@ -267,21 +269,23 @@ export function DevPanel() {
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Relaunch
-                </MenubarSubTrigger>
-                <MenubarSubContent>
-                  <MenubarItem
-                    className="font-mono text-xs text-amber-600 dark:text-amber-400"
-                    onSelect={() => {
-                      setRelaunchDialogOpen(true);
-                    }}
-                  >
-                    With new user folder...
-                  </MenubarItem>
-                </MenubarSubContent>
-              </MenubarSub>
+              {isPackaged && (
+                <MenubarSub>
+                  <MenubarSubTrigger className="font-mono text-xs">
+                    Relaunch
+                  </MenubarSubTrigger>
+                  <MenubarSubContent>
+                    <MenubarItem
+                      className="font-mono text-xs text-amber-600 dark:text-amber-400"
+                      onSelect={() => {
+                        setRelaunchDialogOpen(true);
+                      }}
+                    >
+                      With new user folder...
+                    </MenubarItem>
+                  </MenubarSubContent>
+                </MenubarSub>
+              )}
             </MenubarContent>
           </MenubarMenu>
 
@@ -389,7 +393,7 @@ export function DevPanel() {
 
       <AlertDialog
         onOpenChange={setRelaunchDialogOpen}
-        open={relaunchDialogOpen}
+        open={isPackaged && relaunchDialogOpen}
       >
         <AlertDialogContent>
           <AlertDialogHeader>

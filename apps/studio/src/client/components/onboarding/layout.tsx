@@ -15,7 +15,7 @@ export function OnboardingLayout({
   return (
     <div
       className={cn(
-        "flex h-svh w-full flex-col overflow-hidden select-none",
+        "flex h-svh max-h-full w-full flex-col overflow-hidden select-none",
         showBack
           ? [
               "[background:linear-gradient(180deg,var(--brand-100)_0%,var(--brown-50)_40%)]",
@@ -39,13 +39,10 @@ export function OnboardingLayout({
         {showBack && (
           <Button
             aria-label="Back"
-            className="h-8 w-10 rounded-xl border border-black/5 text-muted-foreground
-              [-webkit-app-region:no-drag] hover:bg-black/5 dark:border-white/10
-              dark:hover:bg-white/10"
+            className="[-webkit-app-region:no-drag]"
             onClick={onBack}
-            size="icon"
             type="button"
-            variant="ghost"
+            variant="nav-overlay"
           >
             <ArrowLeftIcon className="size-4" />
           </Button>

@@ -55,7 +55,6 @@ export function ToolCapabilityFailure({
               </Button>
             )}
             <AIProviderGuardDialog
-              description={providerGuardDescription}
               onOpenChange={setShowProviderGuard}
               onSuccess={() => {
                 setProviderAdded(true);

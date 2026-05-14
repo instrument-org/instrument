@@ -10,7 +10,6 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   APP_NAME,
   APP_REPO_URL,
-  DISCORD_URL,
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
@@ -268,27 +267,6 @@ function About() {
               >
                 <ExternalLink href={APP_REPO_URL}>
                   View Source on GitHub
-                  <ArrowSquareOutIcon className="size-3" />
-                </ExternalLink>
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-lg border bg-accent/30 p-4 shadow-sm">
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Community</div>
-            <p className="text-sm text-muted-foreground">
-              Join us on Discord so you can tell us how much you like {APP_NAME}
-              . Definitely not to yell at us about bugs. Definitely.
-            </p>
-            <div>
-              <Button
-                asChild
-                className="h-auto px-0! text-blue-600 dark:text-blue-400"
-                variant="link"
-              >
-                <ExternalLink href={DISCORD_URL}>
-                  Join us on Discord
                   <ArrowSquareOutIcon className="size-3" />
                 </ExternalLink>
               </Button>

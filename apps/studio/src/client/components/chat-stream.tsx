@@ -399,7 +399,11 @@ export function ChatStream({
 
       {isPlanningVisible && (
         <div className={cn(lastAssistantMessageHasVisibleParts && "mt-1")}>
-          <ReasoningMessage isLoading text="" />
+          <ReasoningMessage
+            isLoading
+            noDelay={!lastAssistantMessageHasVisibleParts}
+            text=""
+          />
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
-import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
+import { GoogleLoginButton } from "@/client/components/google-login-button";
 import { AppIcon } from "@/client/components/studio-icon";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
+import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -28,7 +28,7 @@ export function AIProviderGuardDialog({
   open: boolean;
 }) {
   const [showAddProviderDialog, setShowAddProviderDialog] = useState(false);
-  const { error, signIn } = useSignInSocial();
+  const { error, login } = useLoginSocial();
 
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
@@ -69,13 +69,13 @@ export function AIProviderGuardDialog({
             {showGoogleSignIn ? (
               <>
                 {error && (
-                  <ContactErrorAlert title="Sign in failed">
-                    There was an error signing in. Please try again.
+                  <ContactErrorAlert title="Login failed">
+                    There was an error logging in. Please try again.
                   </ContactErrorAlert>
                 )}
-                <GoogleSignInButton
+                <GoogleLoginButton
                   className="w-full"
-                  onSignIn={signIn}
+                  onLogin={login}
                   onSuccess={() => {
                     onSuccess?.();
                     onOpenChange(false);

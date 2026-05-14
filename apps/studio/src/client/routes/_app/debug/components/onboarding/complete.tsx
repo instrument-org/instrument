@@ -16,7 +16,7 @@ function RouteComponent() {
       <OnboardingLayout showBack={false}>
         <OnboardingWelcomeScreen
           isSetupComplete
-          onSignIn={() => Promise.resolve()}
+          onLogin={() => Promise.resolve()}
         />
       </OnboardingLayout>
     </OnboardingWindowFrame>

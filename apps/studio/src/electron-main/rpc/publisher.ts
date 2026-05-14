@@ -5,7 +5,7 @@ import { EventPublisher } from "@orpc/server";
 interface PublisherEvents {
   "app.reload": { webContentsId: number };
   "app.toggle-command-menu": { webContentsId: number };
-  "auth.sign-in-error": {
+  "auth.login-error": {
     error: {
       code?: string | undefined;
       message?: string | undefined;
@@ -13,7 +13,7 @@ interface PublisherEvents {
       statusText: string;
     };
   };
-  "auth.sign-in-success": {
+  "auth.login-success": {
     success: true;
   };
   "debug.browser-view-manager.updated": null;

@@ -1,6 +1,6 @@
 import { AppIconStylized } from "@/client/components/app-icon-stylized";
 import { ExternalLink } from "@/client/components/external-link";
-import { GoogleSignInButton } from "@/client/components/google-sign-in-button";
+import { GoogleLoginButton } from "@/client/components/google-login-button";
 import { OnboardingSuccessScreen } from "@/client/components/onboarding/success-screen";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
@@ -12,13 +12,13 @@ export function OnboardingWelcomeScreen({
   isSetupComplete,
   onAddProvider,
   onContinue,
-  onSignIn,
+  onLogin,
 }: {
   error?: Error | null;
   isSetupComplete: boolean;
   onAddProvider?: () => void;
   onContinue?: () => void;
-  onSignIn: () => Promise<void>;
+  onLogin: () => Promise<void>;
 }) {
   if (isSetupComplete) {
     return <OnboardingSuccessScreen onContinue={onContinue} />;
@@ -32,7 +32,7 @@ export function OnboardingWelcomeScreen({
 
           <div className="flex flex-col items-center gap-2 text-center">
             <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
-              {`Sign in to ${APP_NAME}`}
+              {`Log in to ${APP_NAME}`}
             </h1>
             <p className="text-sm text-foreground/80">
               A guided AI workspace for ambitious work
@@ -46,11 +46,11 @@ export function OnboardingWelcomeScreen({
               <div className="mb-1.5 flex items-center gap-1.5">
                 <WarningCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 <span className="text-xs font-medium text-foreground/80">
-                  Sign in failed
+                  Login failed
                 </span>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                There was an error signing in. Please try again, or{" "}
+                There was an error logging in. Please try again, or{" "}
                 <ExternalLink
                   className="underline underline-offset-2 hover:text-foreground"
                   href={SUPPORT_URL}
@@ -62,9 +62,9 @@ export function OnboardingWelcomeScreen({
             </div>
           )}
 
-          <GoogleSignInButton
+          <GoogleLoginButton
             className="w-full justify-center"
-            onSignIn={onSignIn}
+            onLogin={onLogin}
           />
 
           <Button

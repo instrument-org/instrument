@@ -52,7 +52,7 @@ export function renderAuthPage({
           Auth Page States
         </h1>
         <p class="text-sm text-stone-600 dark:text-white/60 text-center">
-          Preview each state of the sign-in callback page.
+          Preview each state of the login callback page.
         </p>
         <div class="flex flex-col gap-3 w-full">
           ${states.map((s) => button("outline", s.href, s.label))}
@@ -115,7 +115,7 @@ export function renderAuthPage({
             }
           }
         </style>
-        <title>${title ?? `Sign in to ${APP_NAME}`}</title>
+        <title>${title ?? `Log in to ${APP_NAME}`}</title>
       </head>
       <body class="min-h-svh">
         <div

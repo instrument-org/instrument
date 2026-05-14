@@ -1,25 +1,25 @@
 import { Button } from "@/client/components/ui/button";
 import { FcGoogle } from "react-icons/fc";
 
-export function GoogleSignInButton({
+export function GoogleLoginButton({
   className,
-  onSignIn,
+  onLogin,
   onSuccess,
 }: {
   className?: string;
-  onSignIn: () => Promise<void>;
+  onLogin: () => Promise<void>;
   onSuccess?: () => void;
 }) {
-  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await onSignIn();
+    await onLogin();
     onSuccess?.();
   };
 
   return (
     <form
       className="flex w-full items-center justify-center"
-      onSubmit={handleSignIn}
+      onSubmit={handleLogin}
     >
       <Button className={className} type="submit" variant="default">
         <FcGoogle />

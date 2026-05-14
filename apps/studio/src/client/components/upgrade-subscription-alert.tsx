@@ -1,5 +1,5 @@
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
-import { useSignInSocial } from "@/client/hooks/use-sign-in-social";
+import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -22,7 +22,7 @@ export function UpgradeSubscriptionAlert({
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
-  const { signIn } = useSignInSocial();
+  const { login } = useLoginSocial();
 
   if (error) {
     return (
@@ -59,12 +59,12 @@ export function UpgradeSubscriptionAlert({
   if (!hasToken || !subscription) {
     return (
       <Alert>
-        <AlertTitle>Sign in required</AlertTitle>
+        <AlertTitle>Log in required</AlertTitle>
         <AlertDescription className="flex flex-col gap-3">
-          <span>Sign in to {APP_NAME} to continue.</span>
+          <span>Log in to {APP_NAME} to continue.</span>
           <div className="flex">
-            <Button onClick={() => void signIn()} size="sm" variant="brand">
-              Sign in
+            <Button onClick={() => void login()} size="sm" variant="brand">
+              Log in
             </Button>
           </div>
         </AlertDescription>

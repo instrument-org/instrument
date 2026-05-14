@@ -2,13 +2,13 @@ import { AISetupView } from "@/client/components/ai-setup-view";
 import { createIconMeta } from "@/shared/tabs";
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_app/_not_authenticated/sign-in")({
+export const Route = createFileRoute("/_app/_not_authenticated/login")({
   component: RouteComponent,
   head: () => {
     return {
       meta: [
         {
-          title: "Sign in",
+          title: "Log in",
         },
         createIconMeta("our-app"),
       ],
@@ -17,5 +17,5 @@ export const Route = createFileRoute("/_app/_not_authenticated/sign-in")({
 });
 
 function RouteComponent() {
-  return <AISetupView mode="sign-in" />;
+  return <AISetupView mode="login" />;
 }

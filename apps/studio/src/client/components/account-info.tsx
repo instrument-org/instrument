@@ -2,7 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { signOut } from "@/client/lib/sign-out";
+import { logOut } from "@/client/lib/log-out";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -52,12 +52,12 @@ export function AccountInfo() {
                     <Button
                       className="font-medium"
                       onClick={() => {
-                        void signOut();
+                        void logOut();
                       }}
                       size="sm"
                       variant="outline"
                     >
-                      Sign out
+                      Log out
                     </Button>
                   </div>
                 )}
@@ -75,12 +75,12 @@ export function AccountInfo() {
                       <Button
                         className="font-medium"
                         onClick={() => {
-                          void signOut();
+                          void logOut();
                         }}
                         size="sm"
                         variant="outline"
                       >
-                        Sign out
+                        Log out
                       </Button>
                     </div>
                   </>
@@ -90,12 +90,12 @@ export function AccountInfo() {
                     <Button
                       className="font-medium"
                       onClick={() => {
-                        void signOut();
+                        void logOut();
                       }}
                       size="sm"
                       variant="outline"
                     >
-                      Sign out
+                      Log out
                     </Button>
                   </div>
                 )}
@@ -112,12 +112,12 @@ export function AccountInfo() {
                 </div>
                 <Button
                   onClick={() => {
-                    void addTab({ to: "/sign-in" });
+                    void addTab({ to: "/login" });
                     window.close();
                   }}
                   variant="brand"
                 >
-                  Sign in
+                  Log in
                 </Button>
               </div>
             )}

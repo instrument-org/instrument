@@ -14,10 +14,12 @@ import { XIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
 export function AIProviderGuardDialog({
+  hideManualProvider,
   onOpenChange,
   onSuccess,
   open,
 }: {
+  hideManualProvider?: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   open: boolean;
@@ -60,6 +62,7 @@ export function AIProviderGuardDialog({
         </div>
         <ProviderSetupFlow
           error={error}
+          hideManualProvider={hideManualProvider}
           isSetupComplete={isSetupComplete}
           onContinue={() => {
             onSuccess?.();

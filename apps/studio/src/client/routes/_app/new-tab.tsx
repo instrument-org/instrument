@@ -1,3 +1,4 @@
+import { AIProviderGuardDialog } from "@/client/components/ai-provider-guard-dialog";
 import { PromptInput } from "@/client/components/prompt-input";
 import { AnimatedOutlineAppIconGlyph } from "@/client/components/studio-icon";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
@@ -12,13 +13,14 @@ import {
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 export const Route = createFileRoute("/_app/new-tab")({
   component: RouteComponent,
-  head: () => ({
+  head: ({ match }) => ({
     meta: [
       {
-        title: "New tab",
+        title: match.search.showLoginDialog ? "Log in" : "New tab",
       },
     ],
   }),
@@ -32,9 +34,13 @@ export const Route = createFileRoute("/_app/new-tab")({
       hasToken,
     );
   },
+  validateSearch: z.object({
+    showLoginDialog: z.boolean().optional(),
+  }),
 });
 
 function RouteComponent() {
+  const { showLoginDialog } = Route.useSearch();
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const navigate = useNavigate({ from: "/new-tab" });
@@ -108,6 +114,15 @@ function RouteComponent() {
           placeholder={`Talk to ${APP_NAME}`}
         />
       </div>
+      <AIProviderGuardDialog
+        hideManualProvider
+        onOpenChange={(open) => {
+          if (!open) {
+            void navigate({ search: {} });
+          }
+        }}
+        open={showLoginDialog === true}
+      />
     </div>
   );
 }

@@ -1,21 +1,8 @@
-import { AISetupView } from "@/client/components/ai-setup-view";
-import { createIconMeta } from "@/shared/tabs";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/_not_authenticated/login")({
-  component: RouteComponent,
-  head: () => {
-    return {
-      meta: [
-        {
-          title: "Log in",
-        },
-        createIconMeta("our-app"),
-      ],
-    };
+  beforeLoad: () => {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    throw redirect({ search: { showLoginDialog: true }, to: "/new-tab" });
   },
 });
-
-function RouteComponent() {
-  return <AISetupView mode="login" />;
-}

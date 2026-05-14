@@ -17,6 +17,7 @@ type Page = "add-provider" | "welcome";
 export function ProviderSetupFlow({
   className,
   error,
+  hideManualProvider,
   isSetupComplete,
   onAddProvider,
   onContinue,
@@ -25,6 +26,7 @@ export function ProviderSetupFlow({
 }: {
   className?: string;
   error?: Error | null;
+  hideManualProvider?: boolean;
   isSetupComplete: boolean;
   onAddProvider?: () => void;
   onContinue?: () => void;
@@ -114,20 +116,22 @@ export function ProviderSetupFlow({
               onSuccess={onLoginSuccess}
             />
 
-            <Button
-              className="w-full justify-center bg-white/30 text-foreground/70
-                hover:bg-white/40 dark:bg-white/5 dark:hover:bg-white/10"
-              onClick={
-                onAddProvider ??
-                (() => {
-                  setPage("add-provider");
-                })
-              }
-              type="button"
-              variant="ghost"
-            >
-              Or add an AI provider manually
-            </Button>
+            {!hideManualProvider && (
+              <Button
+                className="w-full justify-center bg-white/30 text-foreground/70
+                  hover:bg-white/40 dark:bg-white/5 dark:hover:bg-white/10"
+                onClick={
+                  onAddProvider ??
+                  (() => {
+                    setPage("add-provider");
+                  })
+                }
+                type="button"
+                variant="ghost"
+              >
+                Or add an AI provider manually
+              </Button>
+            )}
           </div>
         </div>
       </div>

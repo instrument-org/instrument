@@ -49,12 +49,18 @@ export async function setDefaultModel(options?: {
     model.tags.includes("default"),
   );
 
+  const recommendedModel = models.find((model) =>
+    model.tags.includes("recommended"),
+  );
+
   // When replacing one of our models, select our default model
   // Otherwise:
   // 1. Our auto model
   // 2. Our authored model (ours/*)
   // 3. Our provider model (any/model?provider=ours)
   // 4. First default model
+  // 5. First recommended model
+  // 6. First available model
   const selectedModel = options?.onlyIfOurModel
     ? defaultModels.find((m) => m.author !== OUR_MODELS.author)
     : (defaultModels.find((m) => m.providerId === OUR_MODELS.text.id) ??
@@ -62,7 +68,9 @@ export async function setDefaultModel(options?: {
       defaultModels.find(
         (m) => m.params.provider === OUR_MODELS.providerType,
       ) ??
-      defaultModels[0]);
+      defaultModels[0] ??
+      recommendedModel ??
+      models[0]);
 
   if (selectedModel) {
     setDefaultModelURI(selectedModel.uri);

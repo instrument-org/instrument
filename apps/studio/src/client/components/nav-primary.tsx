@@ -21,7 +21,6 @@ export function NavPrimary({
     icon: Icon;
     isActive?: boolean;
     isBrand?: boolean;
-    isDeveloperMode?: boolean;
     title: string;
     url: LinkProps["to"];
   }[];
@@ -43,11 +42,9 @@ export function NavPrimary({
               >
                 <InternalLink
                   className={
-                    item.isDeveloperMode
-                      ? "text-blue-700 dark:text-blue-300 [&>svg]:size-4 [&>svg]:text-blue-700 dark:[&>svg]:text-blue-300"
-                      : item.isBrand
-                        ? "font-medium text-brand-400 [&>svg]:size-4 [&>svg]:text-brand-400"
-                        : "[&>svg]:size-4"
+                    item.isBrand
+                      ? "font-medium text-brand-400 [&>svg]:size-4 [&>svg]:text-brand-400"
+                      : "[&>svg]:size-4"
                   }
                   openInCurrentTab
                   to={item.url}

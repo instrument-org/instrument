@@ -1,9 +1,19 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
 import { rpcClient } from "@/client/rpc/client";
+import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/onboarding/providers")({
+  beforeLoad: async () => {
+    const { data: providers } = await safe(
+      rpcClient.providerConfig.list.call(),
+    );
+    if (providers && providers.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: "/onboarding/theme" });
+    }
+  },
   component: OnboardingProviders,
 });
 

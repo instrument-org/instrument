@@ -25,7 +25,7 @@ const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
   google: ["gemini-3.1-pro", "gemini-3.1-pro-preview"],
   groq: ["gpt-oss-120b"],
   openai: ["gpt-5.3-codex"],
-  "x-ai": ["grok-4.1-fast"],
+  "x-ai": ["grok-4.3"],
   "z-ai": ["glm-4.6"],
 };
 

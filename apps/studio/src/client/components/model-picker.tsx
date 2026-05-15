@@ -436,7 +436,6 @@ function ErrorsGroup({
           disabled
           key={error.config.id}
         >
-          <WarningCircleIcon className="mr-2 size-4 shrink-0 text-destructive" />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex items-center gap-1 text-xs">
               <AIProviderIcon
@@ -451,6 +450,7 @@ function ErrorsGroup({
               {error.message}
             </span>
           </div>
+          <WarningCircleIcon className="mt-0.5 ml-2 size-4 shrink-0 self-start text-destructive" />
         </CommandItem>
       ))}
     </CommandGroup>
@@ -602,7 +602,7 @@ function ModelGroups({
 
 function NoProvidersMessage({ onAddProvider }: { onAddProvider: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 py-6">
+    <div className="flex flex-col items-center gap-3 border-t py-6">
       <p className="text-sm text-muted-foreground">
         Connect a provider to use {APP_NAME}
       </p>

@@ -188,7 +188,9 @@ export async function startAuthCallbackServer() {
 
     void setDefaultModel();
     publisher.publish("auth.login-success", { success: true });
-    focusAppWindow();
+    // Delay focus so the renderer has time to navigate to the success screen
+    // before the window comes to front -- keeps the entrance animation visible.
+    setTimeout(focusAppWindow, 400);
     captureServerEvent("auth.logged_in");
     return c.html(renderAuthPage({}));
   });

@@ -152,6 +152,7 @@ export const mainAgent = setupAgent({
     - Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter for tools instead of replying when possible.
     - Use the \`${agentTools.BashTool.name}\` tool to install dependencies when needed. When a skill has been loaded, check the skill's package.json before installing anything -- its dependencies are already available.
     - You have access to a full Chromium browser via the \`${AGENT_BROWSER_COMMAND.name}\` bash command. Load the \`${AGENT_BROWSER_COMMAND.name}\` skill for full usage instructions.
+    - IMPORTANT: Before writing a custom script or installing packages, check \`${agentTools.LoadSkill.name}\` for a matching skill -- even for simple tasks. A matching skill may already include scripts and pre-installed dependencies for your use case.
     - IMPORTANT: When a skill provides scripts, use \`${agentTools.ReadFile.name}\` to read the relevant script source before writing a custom alternative. The script may already support your use case or be easily extended. Never bypass a skill script without reading it first.
     - IMPORTANT: You do not automatically see files written to disk. To inspect any image or media you create, read it back with \`${agentTools.ReadFile.name}\`.
     - Only stop calling tools when you are done with the task. When you stop calling tools, the task will end and the user will be required to start a new task.

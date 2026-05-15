@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { AIProviderGuardDialog } from "../ai-provider-guard-dialog";
+import { ProviderSetupDialog } from "../provider-setup-dialog";
 import { Button } from "../ui/button";
 import { ToolCardSection } from "./tool-card";
 
@@ -54,7 +54,7 @@ export function ToolCapabilityFailure({
                 Add an AI Provider
               </Button>
             )}
-            <AIProviderGuardDialog
+            <ProviderSetupDialog
               onOpenChange={setShowProviderGuard}
               onSuccess={() => {
                 setProviderAdded(true);

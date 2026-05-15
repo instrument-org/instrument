@@ -1,8 +1,8 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
-import { AIProviderGuardDialog } from "@/client/components/ai-provider-guard-dialog";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
 import { AttachedFolderPreview } from "@/client/components/attached-folder-preview";
 import { ModelPicker } from "@/client/components/model-picker";
+import { ProviderSetupDialog } from "@/client/components/provider-setup-dialog";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -599,7 +599,7 @@ export const PromptInput = ({
         </div>
       </TextareaContainer>
 
-      <AIProviderGuardDialog
+      <ProviderSetupDialog
         onOpenChange={setShowAIProviderGuard}
         open={showAIProviderGuard}
       />

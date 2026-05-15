@@ -1,4 +1,4 @@
-import { ProviderSetupFlow } from "@/client/components/onboarding/provider-setup-flow";
+import { ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -24,7 +24,7 @@ function OnboardingIndex() {
   const { error, login } = useLoginSocial();
 
   return (
-    <ProviderSetupFlow
+    <ProviderSetupScreen
       error={error}
       onAddProvider={() => void navigate({ to: "/onboarding/providers" })}
       onContinue={() => void navigate({ to: "/onboarding/theme" })}

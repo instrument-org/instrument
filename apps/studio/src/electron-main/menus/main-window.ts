@@ -154,6 +154,17 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         label: "Zoom In",
       },
       {
+        // Ctrl+= is what Windows users physically press for zoom
+        // in. Electron only matches CmdOrCtrl+Plus on macOS, so we need this
+        // duplicate entry for Windows/Linux.
+        accelerator: "CmdOrCtrl+=",
+        click: () => {
+          getTabsManager()?.zoomIn();
+        },
+        label: "Zoom In",
+        visible: false,
+      },
+      {
         accelerator: "CmdOrCtrl+-",
         click: () => {
           getTabsManager()?.zoomOut();
@@ -193,9 +204,14 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       },
       { type: "separator" as const },
       { role: "minimize" as const },
-      { role: "zoom" as const },
-      { type: "separator" as const },
-      { role: "front" as const },
+      // zoom and front are macOS-only roles; silently no-ops on Windows/Linux
+      ...(process.platform === "darwin"
+        ? ([
+            { role: "zoom" as const },
+            { type: "separator" as const },
+            { role: "front" as const },
+          ] satisfies MenuItemConstructorOptions[])
+        : []),
       {
         accelerator: "CmdOrCtrl+1",
         click: () => {

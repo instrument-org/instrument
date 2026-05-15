@@ -16,16 +16,16 @@ function OnboardingTheme() {
   if (success) {
     return (
       <OnboardingSuccessScreen
-        onContinue={() => void rpcClient.onboarding.complete.call()}
+        onContinue={() =>
+          void navigate({ replace: true, search: {}, to: "/onboarding/theme" })
+        }
       />
     );
   }
 
   return (
     <OnboardingThemeScreen
-      onContinue={() =>
-        void navigate({ search: { success: true }, to: "/onboarding/theme" })
-      }
+      onContinue={() => void rpcClient.onboarding.complete.call()}
     />
   );
 }

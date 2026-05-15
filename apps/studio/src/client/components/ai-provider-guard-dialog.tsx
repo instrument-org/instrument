@@ -9,9 +9,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
-import { rpcClient } from "@/client/rpc/client";
 import { XIcon } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
 
 export function AIProviderGuardDialog({
   hideManualProvider,
@@ -25,16 +23,6 @@ export function AIProviderGuardDialog({
   open: boolean;
 }) {
   const { error, login } = useLoginSocial();
-
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
-  );
-  const { data: providerConfigs } = useQuery(
-    rpcClient.providerConfig.live.list.experimental_liveOptions(),
-  );
-
-  const hasProvider = (providerConfigs?.length ?? 0) > 0;
-  const isSetupComplete = hasToken === true || hasProvider;
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -63,7 +51,6 @@ export function AIProviderGuardDialog({
         <ProviderSetupFlow
           error={error}
           hideManualProvider={hideManualProvider}
-          isSetupComplete={isSetupComplete}
           onContinue={() => {
             onSuccess?.();
             onOpenChange(false);

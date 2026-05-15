@@ -1,32 +1,35 @@
-import { OnboardingWelcomeScreen } from "@/client/components/onboarding/welcome-screen";
+import { ProviderSetupFlow } from "@/client/components/onboarding/provider-setup-flow";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { safe } from "@orpc/client";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/onboarding/")({
+  beforeLoad: async () => {
+    const [{ data: hasToken }, { data: providers }] = await Promise.all([
+      safe(rpcClient.auth.hasToken.call()),
+      safe(rpcClient.providerConfig.list.call()),
+    ]);
+    // Skip welcome if already set up (e.g. user navigated back)
+    if (hasToken === true || (providers && providers.length > 0)) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: "/onboarding/theme" });
+    }
+  },
   component: OnboardingIndex,
 });
 
 function OnboardingIndex() {
   const navigate = useNavigate();
   const { error, login } = useLoginSocial();
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
-  );
-  const { data: providerConfigs } = useQuery(
-    rpcClient.providerConfig.live.list.experimental_liveOptions(),
-  );
-  const hasProvider = (providerConfigs?.length ?? 0) > 0;
-  const isSetupComplete = hasToken === true || hasProvider;
 
   return (
-    <OnboardingWelcomeScreen
+    <ProviderSetupFlow
       error={error}
-      isSetupComplete={isSetupComplete}
       onAddProvider={() => void navigate({ to: "/onboarding/providers" })}
       onContinue={() => void navigate({ to: "/onboarding/theme" })}
       onLogin={login}
+      onLoginSuccess={() => void navigate({ to: "/onboarding/theme" })}
     />
   );
 }

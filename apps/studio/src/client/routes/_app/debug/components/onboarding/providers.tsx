@@ -14,7 +14,7 @@ export const Route = createFileRoute(
 function RouteComponent() {
   return (
     <OnboardingWindowFrame>
-      <OnboardingLayout showBack>
+      <OnboardingLayout>
         <div className="flex-1 overflow-y-auto px-11 pt-6 pb-11">
           <AddProviderForm onSuccess={noop} providers={[]} submitLabel="Next" />
         </div>

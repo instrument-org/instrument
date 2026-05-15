@@ -5,7 +5,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const buttonVariants = tv({
-  base: "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  base: "inline-flex shrink-0 items-center justify-center gap-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   defaultVariants: {
     size: "default",
     variant: "default",
@@ -16,8 +16,8 @@ export const buttonVariants = tv({
       icon: "size-9",
       "icon-lg": "size-10",
       "icon-sm": "size-8",
-      lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-      sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
+      lg: "h-10 rounded-2xl px-6 has-[>svg]:px-4",
+      sm: "h-8 gap-1.5 rounded-lg px-3 has-[>svg]:px-2.5",
     },
     variant: {
       brand: "bg-brand-400 text-brand-foreground shadow-xs hover:bg-brand-500",
@@ -31,10 +31,8 @@ export const buttonVariants = tv({
         "text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20",
       "ghost-overlay": "text-white hover:bg-white/20 hover:text-white",
       link: "text-primary underline-offset-4 hover:underline",
-      "nav-overlay":
-        "h-8 w-10 rounded-xl border border-black/5 text-muted-foreground hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10",
       outline:
-        "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        "border border-black/5 text-muted-foreground hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10",
       "outline-muted":
         "border bg-background shadow-xs hover:bg-muted dark:border-input",
       secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",

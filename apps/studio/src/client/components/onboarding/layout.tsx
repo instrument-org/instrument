@@ -11,7 +11,7 @@ export function OnboardingLayout({ children }: { children: ReactNode }) {
       )}
     >
       {isMacOS() && (
-        <div className="h-10 shrink-0 pl-20 [-webkit-app-region:drag]" />
+        <div className="absolute top-0 right-0 left-0 h-10 pl-20 [-webkit-app-region:drag]" />
       )}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {children}

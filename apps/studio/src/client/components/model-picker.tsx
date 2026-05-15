@@ -85,6 +85,11 @@ export function ModelPicker({
 }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const closePopover = () => {
+    setOpen(false);
+    setSearchQuery("");
+  };
   const navigate = useNavigate();
   const hasPlan = useHasPlan();
 
@@ -158,9 +163,10 @@ export function ModelPicker({
   return (
     <Popover
       onOpenChange={(newOpen) => {
-        setOpen(newOpen);
-        if (!newOpen) {
-          setSearchQuery("");
+        if (newOpen) {
+          setOpen(true);
+        } else {
+          closePopover();
         }
         onOpenChange?.(newOpen);
       }}
@@ -241,32 +247,34 @@ export function ModelPicker({
             }}
           />
           {autoModel && <hr className="border-t" />}
-          <CommandInput
-            autoFocus
-            className="h-9"
-            containerClassName={cn(isAutoMode && "border-b-0")}
-            onValueChange={setSearchQuery}
-            placeholder="Search models..."
-            value={searchQuery}
-          />
+          {hasModels && (
+            <CommandInput
+              autoFocus
+              className="h-9"
+              containerClassName={cn(isAutoMode && "border-b-0")}
+              onValueChange={setSearchQuery}
+              placeholder="Search models..."
+              value={searchQuery}
+            />
+          )}
           <CommandList
             className={cn(
               "max-h-none! overflow-visible!",
               hideModelList && "hidden",
             )}
           >
-            {!hasModels && !hasErrors ? (
-              <NoProvidersMessage
-                onAddProvider={() => {
-                  setOpen(false);
-                  onAddProvider?.();
-                }}
-              />
-            ) : null}
             {hasErrors && (
               <ErrorsGroup
                 errors={errors}
                 hasOurProviderError={hasOurProviderError}
+              />
+            )}
+            {hasModels ? null : (
+              <NoProvidersMessage
+                onAddProvider={() => {
+                  closePopover();
+                  onAddProvider?.();
+                }}
               />
             )}
             {isError && (
@@ -279,7 +287,7 @@ export function ModelPicker({
                 groupedModels={filteredGroupedModels}
                 hasPlan={hasPlan}
                 onAddProvider={() => {
-                  setOpen(false);
+                  closePopover();
                   onAddProvider?.();
                 }}
                 onSelectModel={(uri, requiresPremium, modelName) => {
@@ -299,7 +307,7 @@ export function ModelPicker({
                   } else {
                     onValueChange(uri);
                   }
-                  setOpen(false);
+                  closePopover();
                 }}
                 selectedModel={selectedModel}
               />

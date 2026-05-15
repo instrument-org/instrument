@@ -7,31 +7,32 @@ import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 
 import { Button } from "../ui/button";
 
-type Page = "add-provider" | "welcome";
+export type ProviderSetupPage = "add-provider" | "welcome";
 
 export function ProviderSetupScreen({
   error,
   hideManualProvider,
   onAddProvider,
+  onBack,
   onContinue,
   onLogin,
   onLoginSuccess,
+  onPageChange,
+  page,
 }: {
   error?: Error | null;
   hideManualProvider?: boolean;
   onAddProvider?: () => void;
+  onBack?: () => void;
   onContinue: () => void;
   onLogin: () => Promise<void>;
   onLoginSuccess: () => void;
+  onPageChange: (page: ProviderSetupPage) => void;
+  page: ProviderSetupPage;
 }) {
-  const [page, setPage] = useState<Page>("welcome");
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
-  );
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
@@ -41,11 +42,9 @@ export function ProviderSetupScreen({
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto px-11 pt-6 pb-11">
           <AddProviderForm
-            onBack={() => {
-              setPage("welcome");
-            }}
+            onBack={onBack}
             onSuccess={() => {
-              setPage("welcome");
+              onPageChange("welcome");
               onContinue();
             }}
             providers={providerConfigs ?? []}
@@ -74,36 +73,32 @@ export function ProviderSetupScreen({
           </div>
 
           <div className="flex w-full max-w-xs flex-col items-center gap-2.5">
-            {!hasToken && (
-              <>
-                {error && (
-                  <div className="w-full rounded-lg bg-muted px-3 py-2.5">
-                    <div className="mb-1.5 flex items-center gap-1.5">
-                      <WarningCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                      <span className="text-xs font-medium text-foreground/80">
-                        Login failed
-                      </span>
-                    </div>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      There was an error logging in. Please try again, or{" "}
-                      <ExternalLink
-                        className="underline underline-offset-2 hover:text-foreground"
-                        href={SUPPORT_URL}
-                      >
-                        contact support
-                      </ExternalLink>
-                      .
-                    </p>
-                  </div>
-                )}
-
-                <GoogleLoginButton
-                  className="w-full justify-center"
-                  onLogin={onLogin}
-                  onSuccess={onLoginSuccess}
-                />
-              </>
+            {error && (
+              <div className="w-full rounded-lg bg-muted px-3 py-2.5">
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <WarningCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="text-xs font-medium text-foreground/80">
+                    Login failed
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  There was an error logging in. Please try again, or{" "}
+                  <ExternalLink
+                    className="underline underline-offset-2 hover:text-foreground"
+                    href={SUPPORT_URL}
+                  >
+                    contact support
+                  </ExternalLink>
+                  .
+                </p>
+              </div>
             )}
+
+            <GoogleLoginButton
+              className="w-full justify-center"
+              onLogin={onLogin}
+              onSuccess={onLoginSuccess}
+            />
 
             {!hideManualProvider && (
               <Button
@@ -112,7 +107,7 @@ export function ProviderSetupScreen({
                 onClick={
                   onAddProvider ??
                   (() => {
-                    setPage("add-provider");
+                    onPageChange("add-provider");
                   })
                 }
                 type="button"
@@ -125,11 +120,9 @@ export function ProviderSetupScreen({
         </div>
       </div>
 
-      {!hasToken && (
-        <div className="shrink-0 px-6 pb-6">
-          <TermsFooter />
-        </div>
-      )}
+      <div className="shrink-0 px-6 pb-6">
+        <TermsFooter />
+      </div>
     </div>
   );
 }

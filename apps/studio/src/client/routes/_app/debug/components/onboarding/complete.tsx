@@ -1,5 +1,5 @@
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
-import { ProviderSetupFlow } from "@/client/components/onboarding/provider-setup-flow";
+import { ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
 import { createFileRoute } from "@tanstack/react-router";
 import { noop } from "radashi";
 
@@ -17,7 +17,7 @@ function RouteComponent() {
   return (
     <OnboardingWindowFrame>
       <OnboardingLayout>
-        <ProviderSetupFlow
+        <ProviderSetupScreen
           onContinue={noop}
           onLogin={noopAsync}
           onLoginSuccess={noop}

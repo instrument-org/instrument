@@ -1,5 +1,5 @@
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
-import { ProviderSetupFlow } from "@/client/components/onboarding/provider-setup-flow";
+import { ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
 import { createFileRoute } from "@tanstack/react-router";
 import { noop } from "radashi";
 
@@ -18,7 +18,7 @@ function RouteComponent() {
     <div className="flex flex-wrap gap-8">
       <OnboardingWindowFrame>
         <OnboardingLayout>
-          <ProviderSetupFlow
+          <ProviderSetupScreen
             onContinue={noop}
             onLogin={noopAsync}
             onLoginSuccess={noop}
@@ -28,7 +28,7 @@ function RouteComponent() {
 
       <OnboardingWindowFrame>
         <OnboardingLayout>
-          <ProviderSetupFlow
+          <ProviderSetupScreen
             error={new Error("Login failed")}
             onContinue={noop}
             onLogin={noopAsync}

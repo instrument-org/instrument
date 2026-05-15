@@ -1,5 +1,5 @@
-import { AIProviderGuardDialog } from "@/client/components/ai-provider-guard-dialog";
 import { PromptInput } from "@/client/components/prompt-input";
+import { ProviderSetupDialog } from "@/client/components/provider-setup-dialog";
 import { AnimatedOutlineAppIconGlyph } from "@/client/components/studio-icon";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
@@ -114,7 +114,7 @@ function RouteComponent() {
           placeholder={`Talk to ${APP_NAME}`}
         />
       </div>
-      <AIProviderGuardDialog
+      <ProviderSetupDialog
         hideManualProvider
         onOpenChange={(open) => {
           if (!open) {

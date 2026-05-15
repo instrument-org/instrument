@@ -13,7 +13,7 @@ import { Button } from "../ui/button";
 
 type Page = "add-provider" | "welcome";
 
-export function ProviderSetupFlow({
+export function ProviderSetupScreen({
   error,
   hideManualProvider,
   onAddProvider,

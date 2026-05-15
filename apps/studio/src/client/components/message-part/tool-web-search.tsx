@@ -102,7 +102,9 @@ export function WebSearchChip({
   const uniqueUrls = [
     ...new Map(
       part.output.sources.map((s) => {
-        const hostname = URL.canParse(s.url) ? new URL(s.url).hostname : s.url;
+        const hostname = URL.canParse(s.url)
+          ? new URL(s.url).hostname.replace(/^www\./, "")
+          : s.url;
         return [hostname, s.url];
       }),
     ).values(),

@@ -16,6 +16,7 @@ function OnboardingProviders() {
   return (
     <div className="flex-1 overflow-y-auto px-11 pt-6 pb-11">
       <AddProviderForm
+        onBack={() => void navigate({ to: "/onboarding" })}
         onSuccess={() => void navigate({ to: "/onboarding/theme" })}
         providers={providerConfigs ?? []}
         submitLabel="Next"

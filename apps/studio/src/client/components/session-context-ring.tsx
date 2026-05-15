@@ -28,10 +28,7 @@ const MODEL_CONTEXT_WINDOW_PREFIXES: [string, number][] = [
   // Google — gemini 2.5+ and 3+ are all 1M
   ["gemini-2.5", 1_000_000],
   ["gemini-3", 1_000_000],
-  // xAI — grok-4.1-fast and grok-4-fast are 2M; base grok-4 is 256k
-  ["grok-4-fast", 2_000_000],
-  ["grok-4.1-fast", 2_000_000],
-  ["grok-4", 256_000],
+  ["grok-4.3", 1_000_000],
   // Moonshot / Kimi
   ["kimi-k2", 131_000],
   // Qwen — coder-plus is 128k; coder base is 262k

@@ -63,7 +63,7 @@ const MODEL_URI =
   // "openai/gpt-5-mini?provider=openai&providerConfigId=openai-config-id";
   // "google/gemini-2.5-pro?provider=google&providerConfigId=google-config-id";
   // "google/gemini-2.5-flash?provider=google&providerConfigId=google-config-id";
-  "x-ai/grok-4.1-fast?provider=openrouter&providerConfigId=openrouter-config-id";
+  "x-ai/grok-4.3?provider=openrouter&providerConfigId=openrouter-config-id";
 // "google/gemini-3-pro-preview?provider=openrouter&providerConfigId=openrouter-config-id";
 // "openai/gpt-5.2?provider=openrouter&providerConfigId=openrouter-config-id";
 

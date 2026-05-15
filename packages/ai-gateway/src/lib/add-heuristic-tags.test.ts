@@ -100,7 +100,7 @@ describe("addHeuristicTags", () => {
     { expected: [], modelId: "grok-3.5" },
     { expected: ["coding", "recommended"], modelId: "grok-4" },
     { expected: ["coding", "recommended"], modelId: "grok-4.1" },
-    { expected: ["coding", "recommended"], modelId: "grok-4.1-fast" },
+    { expected: ["coding", "recommended"], modelId: "grok-4.3" },
     { expected: ["coding", "recommended"], modelId: "grok-4.2" },
     { expected: ["coding", "recommended"], modelId: "grok-5" },
     { expected: [], modelId: "glm-3.5" },

@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_app/debug/components/onboarding/theme")(
 function RouteComponent() {
   return (
     <OnboardingWindowFrame>
-      <OnboardingLayout showBack>
+      <OnboardingLayout>
         <OnboardingThemeScreen />
       </OnboardingLayout>
     </OnboardingWindowFrame>

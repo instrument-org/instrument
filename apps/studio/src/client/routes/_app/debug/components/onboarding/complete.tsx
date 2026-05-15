@@ -1,6 +1,7 @@
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
-import { OnboardingWelcomeScreen } from "@/client/components/onboarding/welcome-screen";
+import { ProviderSetupFlow } from "@/client/components/onboarding/provider-setup-flow";
 import { createFileRoute } from "@tanstack/react-router";
+import { noop } from "radashi";
 
 import { OnboardingWindowFrame } from "../onboarding";
 
@@ -10,13 +11,16 @@ export const Route = createFileRoute(
   component: RouteComponent,
 });
 
+const noopAsync = () => Promise.resolve();
+
 function RouteComponent() {
   return (
     <OnboardingWindowFrame>
-      <OnboardingLayout showBack={false}>
-        <OnboardingWelcomeScreen
-          isSetupComplete
-          onLogin={() => Promise.resolve()}
+      <OnboardingLayout>
+        <ProviderSetupFlow
+          onContinue={noop}
+          onLogin={noopAsync}
+          onLoginSuccess={noop}
         />
       </OnboardingLayout>
     </OnboardingWindowFrame>

@@ -1,53 +1,16 @@
-import { Button } from "@/client/components/ui/button";
-import { cn, isMacOS } from "@/client/lib/utils";
-import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { isMacOS } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
-export function OnboardingLayout({
-  children,
-  onBack,
-  showBack = false,
-}: {
-  children: ReactNode;
-  onBack?: () => void;
-  showBack?: boolean;
-}) {
+export function OnboardingLayout({ children }: { children: ReactNode }) {
   return (
     <div
-      className={cn(
-        "flex h-svh max-h-full w-full flex-col overflow-hidden select-none",
-        showBack
-          ? [
-              "[background:linear-gradient(180deg,var(--brand-100)_0%,var(--brown-50)_40%)]",
-              "dark:[background:var(--background)]",
-            ]
-          : [
-              "[background:linear-gradient(180deg,var(--brand-200)_0%,var(--brown-50)_100%)]",
-              "dark:[background:linear-gradient(180deg,color-mix(in_srgb,var(--brand-950)_60%,var(--background))_0%,var(--background)_50%)]",
-            ],
-      )}
+      className="flex h-svh max-h-full w-full flex-col overflow-hidden select-none
+        [background:linear-gradient(180deg,var(--brand-200)_0%,var(--brown-50)_100%)]
+        dark:[background:linear-gradient(180deg,color-mix(in_srgb,var(--brand-950)_60%,var(--background))_0%,var(--background)_50%)]"
     >
-      {showBack && (
-        <div className="pointer-events-none absolute inset-0 hidden opacity-[0.04] [background:linear-gradient(180deg,var(--brand-600)_0%,transparent_100%)] dark:block" />
+      {isMacOS() && (
+        <div className="h-10 shrink-0 pl-20 [-webkit-app-region:drag]" />
       )}
-      <div
-        className={cn(
-          "relative z-20 flex h-10 shrink-0 items-center [-webkit-app-region:drag]",
-          isMacOS() ? "pl-20" : "pl-3",
-        )}
-      >
-        {showBack && (
-          <Button
-            aria-label="Back"
-            className="[-webkit-app-region:no-drag]"
-            onClick={onBack}
-            type="button"
-            variant="nav-overlay"
-          >
-            <ArrowLeftIcon className="size-4" />
-          </Button>
-        )}
-      </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {children}
       </div>

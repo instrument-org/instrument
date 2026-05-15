@@ -64,10 +64,12 @@ const initialState: AddProviderState = {
 };
 
 export function AddProviderForm({
+  onBack,
   onSuccess,
   providers,
   submitLabel = "Save",
 }: {
+  onBack?: () => void;
   onSuccess: () => void;
   providers: ClientAIProviderConfig[];
   submitLabel?: string;
@@ -416,7 +418,12 @@ export function AddProviderForm({
           </Alert>
         )}
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onBack && (
+          <Button onClick={onBack} type="button" variant="ghost">
+            Back
+          </Button>
+        )}
         <Button
           disabled={saving || !isFormValid}
           type="submit"

@@ -11,17 +11,13 @@ import {
 import { useSelectedTab } from "@/client/hooks/use-selected-tab";
 import { useMatchesForPathname } from "@/client/lib/get-route-matches";
 import { rpcClient } from "@/client/rpc/client";
-import { BugIcon, FlaskIcon, PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-
-import { useDeveloperMode } from "../hooks/use-developer-mode";
 
 export function StudioSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  const isDeveloperMode = useDeveloperMode();
-
   const selectedTab = useSelectedTab();
 
   const matches = useMatchesForPathname(selectedTab?.pathname ?? "");
@@ -35,30 +31,8 @@ export function StudioSidebar({
         title: "New",
         url: "/new-tab" as const,
       },
-      ...(isDeveloperMode
-        ? [
-            {
-              icon: FlaskIcon,
-              isActive: matches.some((match) =>
-                match.routeId.startsWith("/_app/evals"),
-              ),
-              isDeveloperMode: true,
-              title: "Evals",
-              url: "/evals" as const,
-            },
-            {
-              icon: BugIcon,
-              isActive: matches.some((match) =>
-                match.routeId.startsWith("/_app/debug"),
-              ),
-              isDeveloperMode: true,
-              title: "Debug",
-              url: "/debug" as const,
-            },
-          ]
-        : []),
     ],
-    [isDeveloperMode, matches],
+    [matches],
   );
 
   const { data: favorites } = useQuery(

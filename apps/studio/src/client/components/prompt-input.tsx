@@ -546,6 +546,7 @@ export const PromptInput = ({
 
           {features.context_ring && subdomain && selectedSessionId && (
             <SessionContextRing
+              model={selectedModel}
               selectedSessionId={selectedSessionId}
               subdomain={subdomain}
             />

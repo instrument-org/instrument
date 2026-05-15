@@ -43,6 +43,11 @@ export function ProviderSetupDialog({
   const effectivePage: Page =
     hasToken && page === "welcome" ? "add-provider" : page;
 
+  function close() {
+    setPage("welcome");
+    onOpenChange(false);
+  }
+
   function handleSuccess() {
     setPage("success");
     onSuccess?.();
@@ -51,10 +56,11 @@ export function ProviderSetupDialog({
   return (
     <Dialog
       onOpenChange={(next) => {
-        if (!next) {
-          setPage("welcome");
+        if (next) {
+          onOpenChange(true);
+        } else {
+          close();
         }
-        onOpenChange(next);
       }}
       open={open}
     >
@@ -82,11 +88,7 @@ export function ProviderSetupDialog({
           </DialogClose>
         </div>
         {effectivePage === "success" ? (
-          <OnboardingSuccessScreen
-            onContinue={() => {
-              onOpenChange(false);
-            }}
-          />
+          <OnboardingSuccessScreen onContinue={close} />
         ) : (
           <ProviderSetupScreen
             error={error}
@@ -100,7 +102,7 @@ export function ProviderSetupDialog({
             }
             onContinue={() => {
               onSuccess?.();
-              onOpenChange(false);
+              close();
             }}
             onLogin={login}
             onLoginSuccess={handleSuccess}

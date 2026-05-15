@@ -1,4 +1,7 @@
+import type { ProviderSetupPage } from "@/client/components/onboarding/provider-setup-screen";
+
 import { ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
+import { OnboardingSuccessScreen } from "@/client/components/onboarding/success-screen";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -11,7 +14,14 @@ import {
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { XIcon } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+
+type Page = "success" | ProviderSetupPage;
+
+const FIXED_HEIGHT_PAGES = new Set<Page>(["success", "welcome"]);
 
 export function ProviderSetupDialog({
   hideManualProvider,
@@ -25,15 +35,35 @@ export function ProviderSetupDialog({
   open: boolean;
 }) {
   const { error, login } = useLoginSocial();
+  const [page, setPage] = useState<Page>("welcome");
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
+
+  const effectivePage: Page =
+    hasToken && page === "welcome" ? "add-provider" : page;
+
+  function handleSuccess() {
+    setPage("success");
+    onSuccess?.();
+  }
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog
+      onOpenChange={(next) => {
+        if (!next) {
+          setPage("welcome");
+        }
+        onOpenChange(next);
+      }}
+      open={open}
+    >
       <DialogContent
         className={cn(
-          `flex h-[640px] max-h-[85vh] w-full max-w-[472px] flex-col
-          overflow-hidden rounded-3xl border-0 p-0
-          shadow-[inset_0_0_0_2px_rgba(0,0,0,0.05)]
+          `flex w-full max-w-[472px] flex-col overflow-hidden rounded-3xl
+          border-0 p-0 shadow-[inset_0_0_0_2px_rgba(0,0,0,0.05)]
           dark:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.05)]`,
+          FIXED_HEIGHT_PAGES.has(effectivePage) && "h-[640px] max-h-[85vh]",
           SHARED.brandGradient,
         )}
         showCloseButton={false}
@@ -46,24 +76,38 @@ export function ProviderSetupDialog({
         </DialogHeader>
         <div className="absolute top-3 right-3 z-10">
           <DialogClose asChild>
-            <Button aria-label="Close" type="button" variant="nav-overlay">
+            <Button aria-label="Close" type="button" variant="outline">
               <XIcon className="size-4" />
             </Button>
           </DialogClose>
         </div>
-        <ProviderSetupScreen
-          error={error}
-          hideManualProvider={hideManualProvider}
-          onContinue={() => {
-            onSuccess?.();
-            onOpenChange(false);
-          }}
-          onLogin={login}
-          onLoginSuccess={() => {
-            onSuccess?.();
-            onOpenChange(false);
-          }}
-        />
+        {effectivePage === "success" ? (
+          <OnboardingSuccessScreen
+            onContinue={() => {
+              onOpenChange(false);
+            }}
+          />
+        ) : (
+          <ProviderSetupScreen
+            error={error}
+            hideManualProvider={hideManualProvider}
+            onBack={
+              hasToken
+                ? undefined
+                : () => {
+                    setPage("welcome");
+                  }
+            }
+            onContinue={() => {
+              onSuccess?.();
+              onOpenChange(false);
+            }}
+            onLogin={login}
+            onLoginSuccess={handleSuccess}
+            onPageChange={setPage}
+            page={effectivePage}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

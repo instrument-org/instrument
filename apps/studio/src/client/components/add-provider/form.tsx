@@ -420,7 +420,7 @@ export function AddProviderForm({
       </div>
       <div className="flex justify-end gap-2">
         {onBack && (
-          <Button onClick={onBack} type="button" variant="ghost">
+          <Button onClick={onBack} type="button" variant="outline">
             Back
           </Button>
         )}

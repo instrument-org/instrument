@@ -39,10 +39,10 @@ export function StudioToolbar() {
           isMacOS() ? "pl-20" : "pl-4",
         )}
       >
-        <div className="flex items-center [-webkit-app-region:no-drag]">
+        <div className="flex items-center gap-4 [-webkit-app-region:no-drag]">
           {isSidebarOpen ? (
             <Button
-              className="size-6 pr-1 text-muted-foreground"
+              className="size-6 text-foreground/80"
               onClick={() => {
                 closeSidebar();
               }}
@@ -53,7 +53,7 @@ export function StudioToolbar() {
             </Button>
           ) : (
             <Button
-              className="relative size-6 shrink-0 pr-1 text-muted-foreground"
+              className="relative size-6 shrink-0 text-foreground/80"
               onClick={() => {
                 openSidebar();
               }}

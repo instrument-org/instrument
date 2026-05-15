@@ -32,7 +32,7 @@ export function NavControls() {
   return (
     <div className="flex items-center gap-1 pr-1">
       <Button
-        className="size-6 text-muted-foreground"
+        className="size-6 text-foreground/80"
         onClick={handleBack}
         size="icon"
         title="Go back"
@@ -41,7 +41,7 @@ export function NavControls() {
         <ArrowLeftIcon className="size-4" />
       </Button>
       <Button
-        className="size-6 text-muted-foreground"
+        className="size-6 text-foreground/80"
         onClick={handleForward}
         size="icon"
         title="Go forward"

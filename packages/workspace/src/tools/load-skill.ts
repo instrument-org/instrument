@@ -107,13 +107,13 @@ export const LoadSkill = setupTool({
     const hint = examples.length > 0 ? ` (e.g., ${examples})` : "";
 
     return dedent`
-      Load a specialized skill that provides domain-specific instructions and workflows for a specific task.
-      When you recognize that a task matches one of the available skills listed below, use this tool to load the full skill instructions.
+      Load a specialized skill that provides domain-specific instructions, pre-built scripts, and dependencies for a specific task.
+      Check for a matching skill before writing custom code or installing packages -- even for tasks that seem simple.
 
       The skill will inject detailed instructions and workflows into the conversation context.
       Tool output includes a <${TAGS.content} name="..."> block with the loaded content.
 
-      Invoke this tool to load a skill when a task matches one of the available skills listed below${hint}:
+      Available skills${hint}:
 
       ${skillsBlock}
 

@@ -206,7 +206,7 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
       continue;
     }
     try {
-      const hostname = new URL(urlToken).hostname;
+      const hostname = new URL(urlToken).hostname.replace(/^www\./, "");
       domainCounts.set(hostname, (domainCounts.get(hostname) ?? 0) + 1);
     } catch {
       // not a valid URL

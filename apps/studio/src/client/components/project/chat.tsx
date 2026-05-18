@@ -14,7 +14,7 @@ import { CaretDownIcon } from "@phosphor-icons/react";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
 
@@ -56,6 +56,7 @@ export function ProjectChat({
   const { contentRef, isNearBottom, scrollRef, scrollToBottom } =
     // Less animation when sticking to bottom
     useStickToBottom({ mass: 0.8 });
+  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions({
       onError: (error) => {
@@ -272,6 +273,7 @@ export function ProjectChat({
               }
             }}
             onSubmit={({ files, folders, modelURI, prompt }) => {
+              promptInputRef.current?.clear();
               createMessage.mutate(
                 {
                   files,
@@ -304,6 +306,7 @@ export function ProjectChat({
               );
             }}
             placeholder={`Talk to ${APP_NAME}`}
+            ref={promptInputRef}
             selectedSessionId={selectedSessionId}
             subdomain={subdomain}
           />

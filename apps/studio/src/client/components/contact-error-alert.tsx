@@ -36,12 +36,7 @@ export function ContactErrorAlert({
           </AlertDescription>
         </div>
         {onRetry && (
-          <Button
-            className="text-primary"
-            onClick={onRetry}
-            size="sm"
-            variant="outline"
-          >
+          <Button onClick={onRetry} size="sm" variant="secondary">
             Retry
           </Button>
         )}

@@ -39,7 +39,6 @@ export function UserInfoCard() {
             void logOut();
           }}
           size="sm"
-          variant="outline"
         >
           Log out
         </Button>

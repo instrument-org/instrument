@@ -53,7 +53,7 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className="gap-2" variant="outline">
+        <Button className="gap-2">
           {getThemeIcon()}
           {getThemeName()}
           <CaretDownIcon className="size-4" />

@@ -502,7 +502,7 @@ export const PromptInput = ({
         <TextareaInner
           autoFocus={autoFocus}
           className="min-h-12 overflow-y-auto"
-          disabled={disabled}
+          disabled={disabled || isLoading}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
@@ -525,7 +525,7 @@ export const PromptInput = ({
           <div className="flex min-w-0 flex-1 items-center gap-2 self-end">
             <div className="min-w-0 flex-1">
               <ModelPicker
-                disabled={disabled}
+                disabled={disabled || isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
                 isInvalidOurModel={!!isInvalidOurModel}
@@ -557,7 +557,7 @@ export const PromptInput = ({
             <DropdownMenuTrigger asChild>
               <Button
                 className="size-7 p-0"
-                disabled={disabled}
+                disabled={disabled || isLoading}
                 size="sm"
                 variant="ghost"
               >

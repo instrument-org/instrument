@@ -106,6 +106,7 @@ interface PromptInputProps {
 }
 
 interface PromptInputRef {
+  clear: () => void;
   focus: () => void;
 }
 
@@ -138,12 +139,6 @@ export const PromptInput = ({
   const [value, setValue] = useAtom(promptValueAtomFamily(atomKey));
   const setInputRef = useSetAtom(promptInputRefAtom);
 
-  useImperativeHandle(ref, () => ({
-    focus: () => {
-      textareaInnerRef.current?.focus();
-    },
-  }));
-
   const {
     data: modelsData,
     isError: modelsIsError,
@@ -169,6 +164,17 @@ export const PromptInput = ({
       textareaInnerRef.current.style.height = "auto";
     }
   }, []);
+
+  useImperativeHandle(ref, () => ({
+    clear: () => {
+      setValue("");
+      setAttachedItems([]);
+      resetTextareaHeight();
+    },
+    focus: () => {
+      textareaInnerRef.current?.focus();
+    },
+  }));
 
   const adjustHeight = useCallback(() => {
     if (textareaInnerRef.current) {
@@ -364,11 +370,6 @@ export const PromptInput = ({
       openInNewTab,
       prompt,
     });
-    if (!(allowOpenInNewTab && openInNewTab)) {
-      setValue("");
-      setAttachedItems([]);
-      resetTextareaHeight();
-    }
   };
 
   const handleStop = () => {

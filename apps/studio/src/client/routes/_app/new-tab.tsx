@@ -11,7 +11,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -46,6 +46,7 @@ function RouteComponent() {
   const navigate = useNavigate({ from: "/new-tab" });
   const router = useRouter();
   const { addTab } = useTabActions();
+  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
   const createProjectMutation = useMutation(
     rpcClient.workspace.project.create.mutationOptions(),
   );
@@ -91,6 +92,7 @@ function RouteComponent() {
                   );
                 },
                 onSuccess: ({ sessionId, subdomain }) => {
+                  promptInputRef.current?.clear();
                   if (openInNewTab) {
                     void addTab(
                       {
@@ -112,6 +114,7 @@ function RouteComponent() {
             );
           }}
           placeholder={`Talk to ${APP_NAME}`}
+          ref={promptInputRef}
         />
       </div>
       <ProviderSetupDialog

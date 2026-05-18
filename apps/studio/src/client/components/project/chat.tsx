@@ -49,6 +49,9 @@ export function ProjectChat({
   // Use the route subdomain for chat data; project may be placeholder data
   // from the previous project while keepPreviousData is active.
   const subdomain = useProjectRouteSubdomain();
+  // TODO: Stop passing the entire project object down and rely just on the
+  // subdomain as much as possible to keep this from being an issue.
+  const isProjectRouteSettled = project.subdomain === subdomain;
 
   const { contentRef, isNearBottom, scrollRef, scrollToBottom } =
     // Less animation when sticking to bottom
@@ -77,12 +80,13 @@ export function ProjectChat({
 
   const messagesQuery = useQuery(
     rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
-      input: selectedSessionId
-        ? {
-            sessionId: selectedSessionId,
-            subdomain,
-          }
-        : skipToken,
+      input:
+        selectedSessionId && isProjectRouteSettled
+          ? {
+              sessionId: selectedSessionId,
+              subdomain,
+            }
+          : skipToken,
       retry: 1,
     }),
   );
@@ -168,57 +172,63 @@ export function ProjectChat({
         ref={contentRef}
       >
         {selectedSessionId ? (
-          isLoadingMessages ? (
+          isProjectRouteSettled ? (
+            isLoadingMessages ? (
+              <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
+                <Spinner className="size-4 text-muted-foreground" />
+              </div>
+            ) : messageError ? (
+              <Alert className="mt-4" variant="warning">
+                <AlertDescription className="flex flex-col gap-4">
+                  <div className="font-semibold">Failed to load messages</div>
+                  <div className="text-sm">
+                    {messageError.message || "Unknown error occurred"}
+                  </div>
+                  <div className="flex gap-2">
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        <Button onClick={handleNewSession} variant="secondary">
+                          Start new chat
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Starts a fresh chat in this task</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        <Button onClick={() => refetch()}>Retry</Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Retry loading messages</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : !isAgentRunning && messages.length === 0 ? (
+              <ChatZeroState
+                selectedSessionId={selectedSessionId}
+                subdomain={subdomain}
+              />
+            ) : (
+              <ChatStream
+                isAgentRunning={isAgentRunning}
+                isDeveloperMode={isDeveloperMode}
+                isViewingApp={isViewingApp}
+                messages={messages}
+                onContinue={handleContinue}
+                onModelChange={setSelectedModelURI}
+                onRetry={handleRetry}
+                onStartNewChat={handleNewSession}
+                project={project}
+                versionRef={versionRef}
+              />
+            )
+          ) : (
             <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
               <Spinner className="size-4 text-muted-foreground" />
             </div>
-          ) : messageError ? (
-            <Alert className="mt-4" variant="warning">
-              <AlertDescription className="flex flex-col gap-4">
-                <div className="font-semibold">Failed to load messages</div>
-                <div className="text-sm">
-                  {messageError.message || "Unknown error occurred"}
-                </div>
-                <div className="flex gap-2">
-                  <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <Button onClick={handleNewSession} variant="secondary">
-                        Start new chat
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Starts a fresh chat in this task</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <Button onClick={() => refetch()}>Retry</Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Retry loading messages</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </AlertDescription>
-            </Alert>
-          ) : !isAgentRunning && messages.length === 0 ? (
-            <ChatZeroState
-              selectedSessionId={selectedSessionId}
-              subdomain={subdomain}
-            />
-          ) : (
-            <ChatStream
-              isAgentRunning={isAgentRunning}
-              isDeveloperMode={isDeveloperMode}
-              isViewingApp={isViewingApp}
-              messages={messages}
-              onContinue={handleContinue}
-              onModelChange={setSelectedModelURI}
-              onRetry={handleRetry}
-              onStartNewChat={handleNewSession}
-              project={project}
-              versionRef={versionRef}
-            />
           )
         ) : (
           <ChatZeroState

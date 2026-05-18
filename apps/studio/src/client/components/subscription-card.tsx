@@ -3,28 +3,11 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { tv } from "tailwind-variants";
 
 import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status";
-
-const planBadgeVariants = tv({
-  base: "px-2 py-0.5 text-xs",
-  defaultVariants: {
-    plan: "free",
-  },
-  variants: {
-    plan: {
-      basic:
-        "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/30",
-      free: "",
-      pro: "bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/30",
-    },
-  },
-});
 
 export function SubscriptionCard() {
   const { addTab } = useTabActions();
@@ -58,7 +41,7 @@ export function SubscriptionCard() {
 
   if (error) {
     return (
-      <Card className="bg-accent/30 p-4 shadow-sm">
+      <Card className="p-4 shadow-sm">
         <div className="space-y-4">
           <div>
             <h4 className="mb-1 font-medium">Subscription & Usage</h4>
@@ -76,7 +59,7 @@ export function SubscriptionCard() {
 
   if (isLoading || !subscription) {
     return (
-      <Card className="bg-accent/30 p-4 shadow-sm">
+      <Card className="p-4 shadow-sm">
         <div className="space-y-6">
           <div>
             <h4 className="mb-1 font-medium">Subscription & Usage</h4>
@@ -94,23 +77,16 @@ export function SubscriptionCard() {
     ? subscription.usagePercent
     : subscription.freeUsagePercent;
 
-  const planVariant =
-    subscription.plan === "Basic"
-      ? "basic"
-      : subscription.plan === "Pro"
-        ? "pro"
-        : "free";
-
   return (
-    <Card className="bg-accent/30 p-4 shadow-sm">
+    <Card className="p-4 shadow-sm">
       <div className="space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="mb-1 flex flex-wrap items-center gap-2">
               <h4 className="font-medium">Subscription & Usage</h4>
               <Badge
-                className={cn(planBadgeVariants({ plan: planVariant }))}
-                variant="secondary"
+                className="border-gray-200/80 bg-transparent px-2 py-1 text-[0.625rem] leading-none text-gray-500 dark:border-white/10 dark:text-muted-foreground"
+                variant="outline"
               >
                 {subscription.plan ?? "Free"} Plan
               </Badge>

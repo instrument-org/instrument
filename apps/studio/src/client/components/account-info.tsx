@@ -55,7 +55,6 @@ export function AccountInfo() {
                         void logOut();
                       }}
                       size="sm"
-                      variant="outline"
                     >
                       Log out
                     </Button>
@@ -78,7 +77,6 @@ export function AccountInfo() {
                           void logOut();
                         }}
                         size="sm"
-                        variant="outline"
                       >
                         Log out
                       </Button>
@@ -93,7 +91,6 @@ export function AccountInfo() {
                         void logOut();
                       }}
                       size="sm"
-                      variant="outline"
                     >
                       Log out
                     </Button>

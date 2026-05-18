@@ -66,7 +66,7 @@ export function SubscriptionCard() {
               Failed to load subscription status
             </p>
           </div>
-          <Button onClick={() => void refetch()} size="sm" variant="outline">
+          <Button onClick={() => void refetch()} size="sm">
             Retry
           </Button>
         </div>
@@ -158,7 +158,6 @@ export function SubscriptionCard() {
                 className="font-medium"
                 onClick={handleManageSubscription}
                 size="sm"
-                variant="outline"
               >
                 Manage Subscription
               </Button>

@@ -35,7 +35,8 @@ export const buttonVariants = tv({
         "border border-black/5 text-muted-foreground hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10",
       "outline-muted":
         "border bg-background shadow-xs hover:bg-muted dark:border-input",
-      secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      secondary:
+        "border border-transparent bg-secondary text-secondary-foreground shadow-xs hover:bg-muted hover:text-secondary-foreground dark:hover:bg-muted",
     },
   },
 });

@@ -73,12 +73,7 @@ export function ProviderConfigListItem({
             )}
           </div>
         </div>
-        <Button
-          className="shrink-0"
-          onClick={onConfigure}
-          size="sm"
-          variant="outline"
-        >
+        <Button className="shrink-0" onClick={onConfigure} size="sm">
           Manage
         </Button>
       </div>

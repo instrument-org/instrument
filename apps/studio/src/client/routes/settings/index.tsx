@@ -178,11 +178,7 @@ function About() {
         );
       }
       case "cancelled": {
-        return (
-          <Button onClick={handleCheckForUpdates} variant="secondary">
-            Try again
-          </Button>
-        );
+        return <Button onClick={handleCheckForUpdates}>Try again</Button>;
       }
       case "downloaded": {
         return <Button onClick={handleInstallUpdate}>Install now</Button>;
@@ -190,10 +186,8 @@ function About() {
       case "error": {
         return (
           <div className="flex gap-2">
-            <Button onClick={handleCheckForUpdates} variant="ghost">
-              Try again
-            </Button>
-            <Button asChild variant="outline">
+            <Button onClick={handleCheckForUpdates}>Try again</Button>
+            <Button asChild>
               <ExternalLink
                 href={`${MANUAL_DOWNLOAD_URL}?ref=studio-settings-error`}
               >
@@ -211,7 +205,6 @@ function About() {
           <Button
             disabled={checkForUpdatesMutation.isPending}
             onClick={handleCheckForUpdates}
-            variant="secondary"
           >
             {checkForUpdatesMutation.isPending
               ? "Checking..."

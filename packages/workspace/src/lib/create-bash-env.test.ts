@@ -34,7 +34,7 @@ describe("createBashDescription", () => {
         xan - Fast CSV processing, filtering, aggregation, and visualization
         agent-browser - Control a built-in Chromium browser to navigate the web, interact with pages, and extract content.
       IMPORTANT: You MUST load the \`agent-browser\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
-      IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, discover the URL with search first.
+      IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`web_search\` first to discover the correct URL before opening the browser.
       Do NOT pass connection, provider, profile, or state flags; the browser session is managed automatically.
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.

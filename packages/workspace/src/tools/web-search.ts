@@ -51,9 +51,15 @@ export const WebSearch = setupTool({
     Search the web for real-time information. Returns relevant snippets and source URLs.
 
     Good for:
+    - Discovering URLs before browser navigation — use this to find a product page,
+      search result, or deep link rather than guessing or manually browsing
+    - Finding top results for any query without opening a browser
     - Verifying facts or getting up-to-date data
     - Current events, recent news, technology updates
     - Any topic where recent information would improve your response
+
+    Prefer this over navigating the browser manually when the goal is to discover
+    URLs or find ranked/popular results for a topic.
   `,
   execute: async ({ appConfig, input, model, signal }) => {
     const result = await webSearch({

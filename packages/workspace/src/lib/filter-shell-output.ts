@@ -1,7 +1,24 @@
 import { type AppDir } from "../schemas/paths";
+import { normalizePath } from "./normalize-path";
 
 export function filterShellOutput(output: string, appDir: AppDir): string {
-  let filtered = output.replaceAll(appDir, ".");
+  const normalizedAppDir = normalizePath(appDir);
+  const appDirVariants = new Set([
+    appDir,
+    normalizedAppDir,
+    normalizedAppDir.replaceAll("/", "\\"),
+  ]);
+
+  let filtered = output;
+  for (const variant of appDirVariants) {
+    filtered = filtered.replaceAll(
+      new RegExp(escapeRegExp(variant), "gi"),
+      ".",
+    );
+  }
+
+  // Keep agent-facing shell output consistent with tool path inputs.
+  filtered = filtered.replaceAll("\\", "/");
 
   if (
     process.env.NODE_ENV === "development" ||
@@ -22,6 +39,10 @@ export function shouldFilterDebuggerMessage(message: string): boolean {
     (message.includes("Debugger attached.") ||
       message.includes("Waiting for the debugger to disconnect..."))
   );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function shouldFilter() {

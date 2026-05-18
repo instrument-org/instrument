@@ -129,6 +129,24 @@ describe("extractFileAndScriptArgs", () => {
         scriptArgs: ["--output", "./output/result.png", "--quality", "80"],
       },
       {
+        cwd: "/",
+        expected: ["--output", "output/result.png"],
+        label: "backslash path args are normalized and resolved",
+        scriptArgs: ["--output", ".\\output\\result.png"],
+      },
+      {
+        cwd: "/",
+        expected: ["output/result.png"],
+        label: "bare Windows-style relative path args are normalized",
+        scriptArgs: ["output\\result.png"],
+      },
+      {
+        cwd: "/",
+        expected: ["C:/Users/user/Downloads/smiley.svg"],
+        label: "Windows drive paths are treated as sandbox-relative paths",
+        scriptArgs: ["C:\\Users\\user\\Downloads\\smiley.svg"],
+      },
+      {
         cwd: "/skills/sharp-images",
         expected: ["../../output/result.png"],
         label:

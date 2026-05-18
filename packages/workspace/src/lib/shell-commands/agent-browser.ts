@@ -12,6 +12,7 @@ import { APP_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
+import { WebSearch } from "../../tools/web-search";
 import { absolutePathJoin } from "../absolute-path-join";
 import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
 import {
@@ -31,7 +32,7 @@ export const AGENT_BROWSER_COMMAND = {
   description: dedent`
     Control a built-in Chromium browser to navigate the web, interact with pages, and extract content.
     IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
-    IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, discover the URL with search first.
+    IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.
     Do NOT pass connection, provider, profile, or state flags; the browser session is managed automatically.
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,

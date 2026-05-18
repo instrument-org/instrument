@@ -23,6 +23,8 @@ import { tryCaptureError } from "../lib/try-capture-error";
 import { unsafe_studioURL } from "../lib/urls";
 import { getPreferencesStore } from "../stores/preferences";
 
+const REVEAL_TAB_FALLBACK_DELAY_MS = 2000;
+
 interface TabStore {
   root?: TabState;
 }
@@ -587,6 +589,36 @@ export class TabsManager {
     );
   };
 
+  private revealTabWhenReady(tab: TabWithView) {
+    const webContents = tab.webView.webContents;
+    if (!webContents) {
+      return;
+    }
+
+    let fallback: ReturnType<typeof setTimeout> | undefined;
+    const reveal = () => {
+      webContents.off("did-stop-loading", reveal);
+      if (fallback) {
+        clearTimeout(fallback);
+        fallback = undefined;
+      }
+
+      if (this.selectedTabId !== tab.id || webContents.isDestroyed()) {
+        return;
+      }
+
+      tryCaptureError("addChildView failed revealing loaded tab", () => {
+        this.baseWindow.contentView.addChildView(tab.webView);
+      });
+    };
+
+    webContents.once("did-stop-loading", reveal);
+    fallback = setTimeout(reveal, REVEAL_TAB_FALLBACK_DELAY_MS);
+    if (!webContents.isLoading()) {
+      reveal();
+    }
+  }
+
   private selectNeighborByVisibleIndex(
     tab: Tab,
     visibleIndex: number,
@@ -633,6 +665,9 @@ export class TabsManager {
 
     this.updateTabBounds(tab);
 
+    const shouldShieldUntilReady =
+      !tab.keepMounted && tab.webView.webContents?.isLoading() === true;
+
     const currentTab = this.getCurrentTab();
     tryCaptureError("addChildView failed selecting tab", () => {
       // Add the incoming tab to the top of the z-stack BEFORE removing the
@@ -646,12 +681,20 @@ export class TabsManager {
           this.baseWindow.contentView.removeChildView(currentTab.webView);
         }
       }
+
+      if (shouldShieldUntilReady) {
+        this.baseWindow.contentView.addChildView(this.shield);
+      }
     });
 
+    this.selectedTabId = tab.id;
     // electron/electron#50249: webContents is undefined after destruction in Electron 41+
     tab.webView.webContents?.focus();
-    this.selectedTabId = tab.id;
+    if (shouldShieldUntilReady) {
+      this.revealTabWhenReady(tab);
+    }
   }
+
   /** Pushes `view` to z=0 then re-asserts the shield at z=1, atomically. */
   private sinkBehindShield(view: WebContentsView) {
     this.baseWindow.contentView.addChildView(view, 0);

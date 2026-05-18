@@ -25,6 +25,7 @@ import path from "node:path";
 import { debounce } from "radashi";
 
 let wasWindowBlurred = false;
+const LINUX_RESIZE_FOLLOW_UP_DELAY_MS = 100;
 
 export async function createMainWindow() {
   let icon: string | undefined;
@@ -79,16 +80,42 @@ export async function createMainWindow() {
   };
 
   const debouncedSaveState = debounce({ delay: 500 }, saveState);
+  let deferredResizeViews: ReturnType<typeof setTimeout> | undefined;
+  const resizeViewsAfterNativeBoundsSettle = () => {
+    if (process.platform !== "linux") {
+      return;
+    }
+
+    if (deferredResizeViews) {
+      clearTimeout(deferredResizeViews);
+    }
+
+    // Linux can emit maximize before getContentBounds() reflects the new size.
+    deferredResizeViews = setTimeout(() => {
+      deferredResizeViews = undefined;
+      resizeViews();
+    }, LINUX_RESIZE_FOLLOW_UP_DELAY_MS);
+  };
+  const resizeViewsNow = () => {
+    resizeViews();
+    resizeViewsAfterNativeBoundsSettle();
+  };
 
   mainWindow.on("close", () => {
     const tabsManager = getTabsManager();
     debouncedSaveState.cancel();
+    if (deferredResizeViews) {
+      clearTimeout(deferredResizeViews);
+    }
     saveState();
     tabsManager?.teardown();
   });
 
   mainWindow.on("closed", () => {
     debouncedSaveState.cancel();
+    if (deferredResizeViews) {
+      clearTimeout(deferredResizeViews);
+    }
     saveState();
   });
 
@@ -144,7 +171,7 @@ export async function createMainWindow() {
       }
 
       debouncedSaveState();
-      resizeViews();
+      resizeViewsNow();
     },
   });
 
@@ -159,7 +186,7 @@ export async function createMainWindow() {
   });
 
   // Required or the initial size may be wrong
-  resizeViews();
+  resizeViewsNow();
 
   return mainWindow;
 }

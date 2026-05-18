@@ -51,7 +51,7 @@ function SettingsFeaturesPage() {
           ][]
         ).map(([feature, { description, title }]) => (
           <div
-            className="flex items-start justify-between gap-4 rounded-lg border bg-accent/30 p-4 shadow-sm"
+            className="flex items-start justify-between gap-4 rounded-lg border bg-card p-4 shadow-sm"
             key={feature}
           >
             <div className="flex-1 space-y-1">

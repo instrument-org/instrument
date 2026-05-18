@@ -48,7 +48,7 @@ function UsageMetrics() {
       <div>
         <h3 className="text-base font-semibold">Usage</h3>
       </div>
-      <div className="rounded-lg border bg-accent/30 p-4 shadow-sm">
+      <div className="rounded-lg border bg-card p-4 shadow-sm">
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
             <Switch

@@ -197,7 +197,7 @@ export function AIProviderEditDialog({
             {removeMutation.isPending ? "Removing..." : "Remove"}
           </Button>
           <div className="flex-1" />
-          <Button onClick={handleClose} type="button" variant="secondary">
+          <Button onClick={handleClose} type="button" variant="outline">
             Cancel
           </Button>
           <Button

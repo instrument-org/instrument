@@ -39,7 +39,7 @@ export function ProviderConfigListItem({
   return (
     <div
       className={cn(
-        "rounded-lg border bg-accent/30 p-4 shadow-sm transition-colors hover:bg-accent/50",
+        "rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-muted",
         className,
       )}
     >

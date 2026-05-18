@@ -36,7 +36,7 @@ export function AccountInfo() {
           <SubscriptionCard />
         </>
       ) : (
-        <div className="rounded-lg border bg-accent/30 p-4 shadow-sm">
+        <div className="rounded-lg border bg-card p-4 shadow-sm">
           <div className="space-y-3">
             {hasToken ? (
               <>

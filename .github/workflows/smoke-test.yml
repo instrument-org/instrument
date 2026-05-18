@@ -42,6 +42,14 @@ jobs:
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
       - name: Build and run smoke test
         run: pnpm turbo run smoke-test
+      - name: Upload smoke test screenshots
+        if: always()
+        id: upload-screenshots
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: smoke-test-screenshots-${{ runner.os }}
+          path: apps/studio/smoke-test-screenshots/*.png
+          if-no-files-found: ignore
       - name: Summarize smoke test screenshots
         if: always()
         shell: bash
@@ -53,18 +61,12 @@ jobs:
           else
             echo "### Smoke Test Screenshots (${{ runner.os }})" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
+            ARTIFACT_URL="${{ steps.upload-screenshots.outputs.artifact-url }}"
+            if [ -n "$ARTIFACT_URL" ]; then
+              echo "[View all screenshots]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+            fi
             for f in "${PNGS[@]}"; do
-              echo "**\`$(basename "$f")\`**" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              B64=$(base64 < "$f" | tr -d '\n')
-              echo "<img src=\"data:image/png;base64,${B64}\" width=\"800\" />" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "- \`$(basename "$f")\`" >> "$GITHUB_STEP_SUMMARY"
             done
           fi
-      - name: Upload smoke test screenshots
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: smoke-test-screenshots-${{ runner.os }}
-          path: apps/studio/smoke-test-screenshots/*.png
-          if-no-files-found: ignore

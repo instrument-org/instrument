@@ -4,6 +4,7 @@ import { parseArgs, type ParseArgsConfig } from "node:util";
 import type { AppConfig } from "../app-config/types";
 
 import { absolutePathJoin } from "../absolute-path-join";
+import { normalizePath } from "../normalize-path";
 
 /**
  * Extract the resolved file path and trailing script args from positionals + original args.
@@ -133,7 +134,14 @@ export function stringArray(
  * starts with `/` (virtual absolute) or starts with `.` or contains `/` (relative traversal).
  */
 function looksLikePath(arg: string): boolean {
-  return arg.startsWith("/") || arg.startsWith(".") || arg.includes("/");
+  return (
+    arg.startsWith("/") ||
+    arg.startsWith("\\") ||
+    arg.startsWith(".") ||
+    /^[a-z]:[\\/]/i.test(arg) ||
+    arg.includes("/") ||
+    arg.includes("\\")
+  );
 }
 
 /**
@@ -146,6 +154,10 @@ function virtualToRealRelative(
   appCwd: string,
   resolvePath: (p: string) => string,
 ): string {
-  const realAbs = absolutePathJoin(appConfig.appDir, resolvePath(virtualPath));
+  const normalizedVirtualPath = normalizePath(virtualPath);
+  const realAbs = absolutePathJoin(
+    appConfig.appDir,
+    resolvePath(normalizedVirtualPath),
+  );
   return path.relative(appCwd, realAbs);
 }

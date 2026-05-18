@@ -51,6 +51,26 @@ ${appDir}/file3.ts`;
     `);
   });
 
+  it("normalizes backslash paths in output", () => {
+    const output = String.raw`Converted -> output\smiley.png
+${appDir}\output\rainbow.pdf`;
+
+    const result = filterShellOutput(output, appDir);
+
+    expect(result).toMatchInlineSnapshot(`
+      "Converted -> output/smiley.png
+      ./output/rainbow.pdf"
+    `);
+  });
+
+  it("redacts app dir variants case-insensitively", () => {
+    const output = `${appDir.toUpperCase()}/output/file.png`;
+
+    const result = filterShellOutput(output, appDir);
+
+    expect(result).toMatchInlineSnapshot(`"./output/file.png"`);
+  });
+
   it("handles output without absolute path", () => {
     const output = `$ pnpm test
 

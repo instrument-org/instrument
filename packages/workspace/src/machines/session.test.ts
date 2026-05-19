@@ -163,7 +163,6 @@ describe("sessionMachine", () => {
   beforeEach(async () => {
     const { execa } = await import("execa");
     (execa as unknown as Mock).mockImplementation(
-      // eslint-disable-next-line unicorn/consistent-function-scoping
       () => () =>
         Promise.resolve({
           exitCode: 0,

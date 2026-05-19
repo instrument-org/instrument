@@ -222,6 +222,7 @@ export default tseslint.config(
       // These on-by-default rules aren't useful in test files.
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-call": "off",
+      "unicorn/consistent-function-scoping": "off", // Don't care in tests
       "vitest/no-focused-tests": "error",
     },
   },

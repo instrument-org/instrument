@@ -3,7 +3,7 @@ import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useMatchRoute } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 
 export const Route = createFileRoute("/onboarding")({
@@ -28,9 +28,16 @@ const DevPanel = lazy(() =>
 
 function OnboardingRoute() {
   const isDeveloperMode = useDeveloperMode();
+  const matchRoute = useMatchRoute();
+  const isWelcomePage = Boolean(matchRoute({ to: "/onboarding" }));
+  const successMatch = matchRoute({ to: "/onboarding/theme" });
+  const isSuccessPage =
+    successMatch !== false &&
+    (successMatch as { success?: boolean }).success === true;
+  const isBrandPage = isWelcomePage || isSuccessPage;
 
   return (
-    <OnboardingLayout>
+    <OnboardingLayout variant={isBrandPage ? "brand" : "subtle"}>
       <Outlet />
       <Toaster position="top-center" />
       {isDeveloperMode && (

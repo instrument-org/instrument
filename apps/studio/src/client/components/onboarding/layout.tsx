@@ -2,12 +2,18 @@ import { SHARED } from "@/client/lib/styles";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
-export function OnboardingLayout({ children }: { children: ReactNode }) {
+export function OnboardingLayout({
+  children,
+  variant = "subtle",
+}: {
+  children: ReactNode;
+  variant?: "brand" | "subtle";
+}) {
   return (
     <div
       className={cn(
         "flex h-svh max-h-full w-full flex-col overflow-hidden select-none",
-        SHARED.brandGradient,
+        variant === "brand" ? SHARED.brandGradient : SHARED.subtleGradient,
       )}
     >
       {isMacOS() && (

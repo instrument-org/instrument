@@ -28,6 +28,7 @@ alwaysApply: false
 
 - Use `size-` over `w-` and `h-` when width and height are the same.
 - Use `gap-x-` or `gap-y-` over `space-x` or `space-y` for gap.
+- Tailwind v4 scale utilities (`pt-17`, `gap-11`, `w-17`, etc.) are valid (4px × n). Prefer over arbitrary `[...]`.
 
 ## Zod Rules
 

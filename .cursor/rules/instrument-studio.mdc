@@ -20,6 +20,7 @@ Studio is an Electron app. The renderer is a React 19 app using TanStack Router 
 - Queries: `useQuery` and `rpcClient.method.name.queryOptions({ input: { ... } })`. To conditionally skip, pass `skipToken` as `input`: `rpcClient.foo.queryOptions({ input: value ?? skipToken })`.
 - External links: `<ExternalLink href="..." />` or `rpcClient.utils.openExternalLink`.
 - Use the `cn` helper from `@/client/lib/utils` for conditional or composed Tailwind classes.
+- Route matching: `useMatchRoute` — never pathname strings. `Boolean(matchRoute({ to: "/route" }))`.
 - For types derived from RPC calls, always use `RPCInput` / `RPCOutput` from `@/client/rpc/client` (e.g. `RPCOutput["workspace"]["project"]["list"]`). Never manually redeclare types that can be inferred this way.
 
 ## Where things are

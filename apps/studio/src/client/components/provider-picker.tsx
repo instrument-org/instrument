@@ -67,7 +67,7 @@ export function ProviderPicker({
           className="justify-between"
           role="combobox"
           type="button"
-          variant="outline"
+          variant="input-select"
         >
           <div className="flex items-center gap-2">
             {selectedProviderData ? (

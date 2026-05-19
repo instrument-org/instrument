@@ -439,7 +439,6 @@ describe("executeToolCallMachine", () => {
   });
 
   describe("with blocked pnpm commands", () => {
-    // eslint-disable-next-line unicorn/consistent-function-scoping
     async function testBlockedCommand(command: string) {
       const part = createShellCommandPart(command);
       await Store.savePart(part, projectAppConfig);

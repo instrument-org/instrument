@@ -24,7 +24,7 @@ import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
-import { Route as AppCheckoutRouteImport } from './routes/_app/checkout'
+import { Route as AppGetLifetimeRouteImport } from './routes/_app/get-lifetime'
 import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
 import { Route as AppNot_authenticatedRouteRouteImport } from './routes/_app/_not_authenticated/route'
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
@@ -45,6 +45,7 @@ import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/
 import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
 import { Route as AppDebugComponentsColorsRouteImport } from './routes/_app/debug/components/colors'
 import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/debug/components/chat-stream'
+import { Route as AppDebugComponentsAlertsRouteImport } from './routes/_app/debug/components/alerts'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
 import { Route as AppDebugComponentsOnboardingIndexRouteImport } from './routes/_app/debug/components/onboarding/index'
 import { Route as AppDebugComponentsOnboardingThemeRouteImport } from './routes/_app/debug/components/onboarding/theme'
@@ -126,9 +127,9 @@ const AppNewTabRoute = AppNewTabRouteImport.update({
   path: '/new-tab',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppCheckoutRoute = AppCheckoutRouteImport.update({
-  id: '/checkout',
-  path: '/checkout',
+const AppGetLifetimeRoute = AppGetLifetimeRouteImport.update({
+  id: '/get-lifetime',
+  path: '/get-lifetime',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppDebugRouteRoute = AppDebugRouteRouteImport.update({
@@ -239,6 +240,12 @@ const AppDebugComponentsChatStreamRoute =
     path: '/chat-stream',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
+const AppDebugComponentsAlertsRoute =
+  AppDebugComponentsAlertsRouteImport.update({
+    id: '/alerts',
+    path: '/alerts',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugBrowserViewTargetIdRoute =
   AppDebugBrowserViewTargetIdRouteImport.update({
     id: '/browser-view/$targetId',
@@ -282,7 +289,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteWithChildren
   '/shell': typeof ShellRoute
   '/debug': typeof AppDebugRouteRouteWithChildren
-  '/checkout': typeof AppCheckoutRoute
+  '/get-lifetime': typeof AppGetLifetimeRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
@@ -303,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
@@ -320,7 +328,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/shell': typeof ShellRoute
-  '/checkout': typeof AppCheckoutRoute
+  '/get-lifetime': typeof AppGetLifetimeRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
@@ -340,6 +348,7 @@ export interface FileRoutesByTo {
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
@@ -363,7 +372,7 @@ export interface FileRoutesById {
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
   '/_app/_not_authenticated': typeof AppNot_authenticatedRouteRouteWithChildren
   '/_app/debug': typeof AppDebugRouteRouteWithChildren
-  '/_app/checkout': typeof AppCheckoutRoute
+  '/_app/get-lifetime': typeof AppGetLifetimeRoute
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
@@ -384,6 +393,7 @@ export interface FileRoutesById {
   '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
+  '/_app/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/_app/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/_app/debug/components/colors': typeof AppDebugComponentsColorsRoute
   '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
@@ -406,7 +416,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shell'
     | '/debug'
-    | '/checkout'
+    | '/get-lifetime'
     | '/new-tab'
     | '/release-notes'
     | '/onboarding/providers'
@@ -427,6 +437,7 @@ export interface FileRouteTypes {
     | '/evals'
     | '/projects'
     | '/debug/browser-view/$targetId'
+    | '/debug/components/alerts'
     | '/debug/components/chat-stream'
     | '/debug/components/colors'
     | '/debug/components/error-card'
@@ -444,7 +455,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/shell'
-    | '/checkout'
+    | '/get-lifetime'
     | '/new-tab'
     | '/release-notes'
     | '/onboarding/providers'
@@ -464,6 +475,7 @@ export interface FileRouteTypes {
     | '/evals'
     | '/projects'
     | '/debug/browser-view/$targetId'
+    | '/debug/components/alerts'
     | '/debug/components/chat-stream'
     | '/debug/components/colors'
     | '/debug/components/error-card'
@@ -486,7 +498,7 @@ export interface FileRouteTypes {
     | '/_app/_authenticated'
     | '/_app/_not_authenticated'
     | '/_app/debug'
-    | '/_app/checkout'
+    | '/_app/get-lifetime'
     | '/_app/new-tab'
     | '/_app/release-notes'
     | '/onboarding/providers'
@@ -507,6 +519,7 @@ export interface FileRouteTypes {
     | '/_app/evals/'
     | '/_app/projects/'
     | '/_app/debug/browser-view/$targetId'
+    | '/_app/debug/components/alerts'
     | '/_app/debug/components/chat-stream'
     | '/_app/debug/components/colors'
     | '/_app/debug/components/error-card'
@@ -637,11 +650,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNewTabRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/checkout': {
-      id: '/_app/checkout'
-      path: '/checkout'
-      fullPath: '/checkout'
-      preLoaderRoute: typeof AppCheckoutRouteImport
+    '/_app/get-lifetime': {
+      id: '/_app/get-lifetime'
+      path: '/get-lifetime'
+      fullPath: '/get-lifetime'
+      preLoaderRoute: typeof AppGetLifetimeRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/debug': {
@@ -784,6 +797,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsChatStreamRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/alerts': {
+      id: '/_app/debug/components/alerts'
+      path: '/alerts'
+      fullPath: '/debug/components/alerts'
+      preLoaderRoute: typeof AppDebugComponentsAlertsRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/browser-view/$targetId': {
       id: '/_app/debug/browser-view/$targetId'
       path: '/browser-view/$targetId'
@@ -884,6 +904,7 @@ const AppDebugComponentsOnboardingRouteWithChildren =
   )
 
 interface AppDebugComponentsRouteChildren {
+  AppDebugComponentsAlertsRoute: typeof AppDebugComponentsAlertsRoute
   AppDebugComponentsChatStreamRoute: typeof AppDebugComponentsChatStreamRoute
   AppDebugComponentsColorsRoute: typeof AppDebugComponentsColorsRoute
   AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
@@ -894,6 +915,7 @@ interface AppDebugComponentsRouteChildren {
 }
 
 const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
+  AppDebugComponentsAlertsRoute: AppDebugComponentsAlertsRoute,
   AppDebugComponentsChatStreamRoute: AppDebugComponentsChatStreamRoute,
   AppDebugComponentsColorsRoute: AppDebugComponentsColorsRoute,
   AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
@@ -933,7 +955,7 @@ interface AppRouteRouteChildren {
   AppAuthenticatedRouteRoute: typeof AppAuthenticatedRouteRouteWithChildren
   AppNot_authenticatedRouteRoute: typeof AppNot_authenticatedRouteRouteWithChildren
   AppDebugRouteRoute: typeof AppDebugRouteRouteWithChildren
-  AppCheckoutRoute: typeof AppCheckoutRoute
+  AppGetLifetimeRoute: typeof AppGetLifetimeRoute
   AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppEvalsIndexRoute: typeof AppEvalsIndexRoute
@@ -945,7 +967,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppAuthenticatedRouteRoute: AppAuthenticatedRouteRouteWithChildren,
   AppNot_authenticatedRouteRoute: AppNot_authenticatedRouteRouteWithChildren,
   AppDebugRouteRoute: AppDebugRouteRouteWithChildren,
-  AppCheckoutRoute: AppCheckoutRoute,
+  AppGetLifetimeRoute: AppGetLifetimeRoute,
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppEvalsIndexRoute: AppEvalsIndexRoute,

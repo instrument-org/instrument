@@ -4,9 +4,11 @@ import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
+import { HeartIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { useHasLifetime } from "../hooks/use-entitlements";
 import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status";
 
 export function SubscriptionCard() {
@@ -19,6 +21,7 @@ export function SubscriptionCard() {
   } = useLiveSubscriptionStatus({
     input: { staleTime: 0 },
   });
+  const hasLifetime = useHasLifetime();
   const { mutateAsync: createPortalSession } = useMutation(
     rpcClient.stripe.createPortalSession.mutationOptions(),
   );
@@ -26,9 +29,14 @@ export function SubscriptionCard() {
     rpcClient.utils.openExternalLink.mutationOptions(),
   );
 
+  const openLifetimeTab = () => {
+    void addTab({ to: "/get-lifetime" });
+    window.close();
+  };
+
   const handleManageSubscription = async () => {
     try {
-      const { url } = await createPortalSession({});
+      const { url } = await createPortalSession();
       if (url) {
         await openExternalLink({ url });
       } else {
@@ -44,9 +52,9 @@ export function SubscriptionCard() {
       <Card className="p-4 shadow-sm">
         <div className="space-y-4">
           <div>
-            <h4 className="mb-1 font-medium">Subscription & Usage</h4>
+            <h4 className="mb-1 font-medium">Account</h4>
             <p className="text-sm text-destructive">
-              Failed to load subscription status
+              Failed to load account status
             </p>
           </div>
           <Button onClick={() => void refetch()} size="sm">
@@ -62,20 +70,92 @@ export function SubscriptionCard() {
       <Card className="p-4 shadow-sm">
         <div className="space-y-6">
           <div>
-            <h4 className="mb-1 font-medium">Subscription & Usage</h4>
-            <p className="text-sm text-muted-foreground">
-              Loading subscription status...
-            </p>
+            <h4 className="mb-1 font-medium">Account</h4>
+            <p className="text-sm text-muted-foreground">Loading status...</p>
           </div>
         </div>
       </Card>
     );
   }
 
-  const hasPaidPlan = subscription.plan !== null;
-  const displayUsagePercent = hasPaidPlan
+  const hasSubscription =
+    subscription.plan !== null &&
+    subscription.plan !== "Lifetime" &&
+    subscription.plan !== "Credits";
+  const hasPaidEntitlement = hasLifetime || hasSubscription;
+  const displayUsagePercent = hasPaidEntitlement
     ? subscription.usagePercent
     : subscription.freeUsagePercent;
+  const isLifetimeOutOfCredits = hasLifetime && !subscription.hasEnoughCredits;
+
+  // Lifetime users get a license-first layout. If they happen to also have a
+  // paid subscription, surface it secondarily below the license.
+  if (hasLifetime) {
+    return (
+      <Card className="p-4 shadow-sm">
+        <div className="space-y-4">
+          <div>
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <h4 className="font-medium">Lifetime license</h4>
+              <Badge variant="outline">
+                <HeartIcon
+                  className="size-3 text-muted-foreground"
+                  weight="fill"
+                />
+                Founding User
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Thanks for backing us early.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium">Credits</span>
+              <span className="text-muted-foreground">
+                {displayUsagePercent.toFixed(0)}% used
+              </span>
+            </div>
+            <Progress value={displayUsagePercent} />
+            {subscription.nextAllocation && (
+              <p className="text-xs text-muted-foreground">
+                Next credit allocation on{" "}
+                {new Date(subscription.nextAllocation).toLocaleDateString()}
+              </p>
+            )}
+            {isLifetimeOutOfCredits && !subscription.nextAllocation && (
+              <p className="text-xs text-muted-foreground">
+                You&apos;ve used your included credits.
+              </p>
+            )}
+          </div>
+
+          {hasSubscription && (
+            <div
+              className="flex flex-wrap items-center justify-between gap-2
+                border-t pt-3"
+            >
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Subscription</span>
+                <Badge variant="outline">{subscription.plan}</Badge>
+              </div>
+              <Button
+                className="font-medium"
+                onClick={handleManageSubscription}
+                size="sm"
+                variant="outline"
+              >
+                Manage
+              </Button>
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
+  const planLabel = subscription.plan ?? "Free";
 
   return (
     <Card className="p-4 shadow-sm">
@@ -83,25 +163,21 @@ export function SubscriptionCard() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="mb-1 flex flex-wrap items-center gap-2">
-              <h4 className="font-medium">Subscription & Usage</h4>
-              <Badge
-                className="border-gray-200/80 bg-transparent px-2 py-1 text-[0.625rem] leading-none text-gray-500 dark:border-white/10 dark:text-muted-foreground"
-                variant="outline"
-              >
-                {subscription.plan ?? "Free"} Plan
-              </Badge>
+              <h4 className="font-medium">
+                {hasSubscription ? "Subscription & Usage" : "Plan & Usage"}
+              </h4>
+              <Badge variant="outline">{planLabel}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              Manage your plan and view credit usage
+              {hasSubscription
+                ? "Manage your plan and view credit usage"
+                : "Sign up for a plan to unlock more credits"}
             </p>
           </div>
-          {!hasPaidPlan && (
+          {!hasPaidEntitlement && (
             <Button
               className="shrink-0 gap-1.5 font-semibold"
-              onClick={() => {
-                void addTab({ to: "/subscribe" });
-                window.close();
-              }}
+              onClick={openLifetimeTab}
               size="sm"
               variant="brand"
             >
@@ -114,7 +190,7 @@ export function SubscriptionCard() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="font-medium">
-                {hasPaidPlan ? "Monthly Usage" : "Free Usage"}
+                {hasPaidEntitlement ? "Credit Usage" : "Free Usage"}
               </span>
               <span className="text-muted-foreground">
                 {displayUsagePercent.toFixed(0)}% used
@@ -128,7 +204,7 @@ export function SubscriptionCard() {
               {new Date(subscription.nextAllocation).toLocaleDateString()}
             </p>
           )}
-          {hasPaidPlan && (
+          {hasSubscription && (
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <Button
                 className="font-medium"
@@ -137,19 +213,6 @@ export function SubscriptionCard() {
               >
                 Manage Subscription
               </Button>
-              {subscription.plan === "Basic" && (
-                <Button
-                  className="shrink-0 gap-1.5 font-semibold"
-                  onClick={() => {
-                    void addTab({ to: "/subscribe" });
-                    window.close();
-                  }}
-                  size="sm"
-                  variant="brand"
-                >
-                  Upgrade to Pro
-                </Button>
-              )}
             </div>
           )}
         </div>

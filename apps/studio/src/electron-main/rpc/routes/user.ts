@@ -15,6 +15,15 @@ const hasAIProviderConfig = base.handler(() => {
   return hasToken() || hasConfig;
 });
 
+const entitlements = base.handler(async () => {
+  if (!hasToken()) {
+    return null;
+  }
+  return platformApiQueryClient.fetchQuery(
+    platformApiRpcClient.users.getEntitlements.queryOptions(),
+  );
+});
+
 const me = base.handler(async () => {
   if (!hasToken()) {
     return null;
@@ -25,6 +34,26 @@ const me = base.handler(async () => {
 });
 
 const live = {
+  entitlements: base
+    .input(z.object({ staleTime: z.number().optional().default(30_000) }))
+    .handler(async function* ({ errors, input, signal }) {
+      try {
+        yield* createAuthenticatedLiveQuery({
+          getOptions: (enabled) =>
+            platformApiRpcClient.users.getEntitlements.queryOptions({
+              enabled,
+              staleTime: input.staleTime,
+            }),
+          queryKey: platformApiRpcClient.users.getEntitlements.queryKey(),
+          signal,
+        });
+      } catch (error) {
+        throw errors.API_ERROR({
+          cause: error,
+          message: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }),
   me: base
     .input(z.object({ staleTime: z.number().optional().default(30_000) }))
     .handler(async function* ({ errors, input, signal }) {
@@ -68,6 +97,7 @@ const live = {
 };
 
 export const user = {
+  entitlements,
   hasAIProviderConfig,
   live,
   me,

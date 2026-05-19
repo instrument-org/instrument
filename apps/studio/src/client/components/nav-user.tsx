@@ -41,7 +41,7 @@ export function NavUser() {
     captureClientEvent("upgrade.clicked", {
       source: "nav_user",
     });
-    void addTab({ to: "/subscribe" });
+    void addTab({ to: "/get-lifetime" });
   };
 
   const isOutOfCredits = subscription && !subscription.hasEnoughCredits;

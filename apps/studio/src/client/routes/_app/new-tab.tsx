@@ -1,3 +1,4 @@
+import { LifetimeUpgradeDialog } from "@/client/components/lifetime-upgrade-dialog";
 import { PromptInput } from "@/client/components/prompt-input";
 import { ProviderSetupDialog } from "@/client/components/provider-setup-dialog";
 import { AnimatedOutlineAppIconGlyph } from "@/client/components/studio-icon";
@@ -15,12 +16,19 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+const DIALOG_TITLES = {
+  lifetime: "Get lifetime access",
+  login: "Log in",
+} as const;
+
 export const Route = createFileRoute("/_app/new-tab")({
   component: RouteComponent,
   head: ({ match }) => ({
     meta: [
       {
-        title: match.search.showLoginDialog ? "Log in" : "New tab",
+        title: match.search.dialog
+          ? DIALOG_TITLES[match.search.dialog]
+          : "New tab",
       },
     ],
   }),
@@ -35,12 +43,12 @@ export const Route = createFileRoute("/_app/new-tab")({
     );
   },
   validateSearch: z.object({
-    showLoginDialog: z.boolean().optional(),
+    dialog: z.enum(["login", "lifetime"]).optional(),
   }),
 });
 
 function RouteComponent() {
-  const { showLoginDialog } = Route.useSearch();
+  const { dialog } = Route.useSearch();
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const navigate = useNavigate({ from: "/new-tab" });
@@ -124,7 +132,15 @@ function RouteComponent() {
             void navigate({ search: {} });
           }
         }}
-        open={showLoginDialog === true}
+        open={dialog === "login"}
+      />
+      <LifetimeUpgradeDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            void navigate({ search: {} });
+          }
+        }}
+        open={dialog === "lifetime"}
       />
     </div>
   );

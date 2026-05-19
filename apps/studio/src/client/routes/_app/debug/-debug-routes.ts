@@ -83,6 +83,11 @@ export const componentPages = [
     label: "Onboarding",
     to: "/debug/components/onboarding",
   },
+  {
+    id: "alerts",
+    label: "Alerts",
+    to: "/debug/components/alerts",
+  },
 ] as const;
 
 export const onboardingScreens = [

@@ -22,13 +22,13 @@ export function getGroupedModelsEntries(
 }
 
 export function groupAndFilterModels({
-  hasPlan,
+  hasPremium,
   models,
 }: {
-  hasPlan: boolean;
+  hasPremium: boolean;
   models: AIGatewayModel.Type[];
 }): GroupedModels {
-  const shouldSeparatePremium = !hasPlan;
+  const shouldSeparatePremium = !hasPremium;
 
   const [recommended, notRecommended] = fork(
     models,

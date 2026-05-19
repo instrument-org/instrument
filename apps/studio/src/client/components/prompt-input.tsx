@@ -14,7 +14,7 @@ import {
   TextareaContainer,
   TextareaInner,
 } from "@/client/components/ui/textarea-container";
-import { useHasPlan } from "@/client/hooks/use-has-plan";
+import { useHasPremium } from "@/client/hooks/use-entitlements";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import {
   type DroppedFolder,
@@ -147,13 +147,13 @@ export const PromptInput = ({
   } = useQuery(rpcClient.gateway.models.live.list.experimental_liveOptions());
   const { errors: modelsErrors, models } = modelsData ?? {};
 
-  const hasPlan = useHasPlan();
+  const hasPremium = useHasPremium();
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
 
   const isInvalidOurModel =
-    !hasPlan &&
+    !hasPremium &&
     selectedModel &&
     selectedModel.params.provider === OUR_MODELS.providerType &&
     selectedModel.providerId !== OUR_MODELS.text.id &&

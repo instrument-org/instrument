@@ -25,7 +25,7 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { Textarea } from "@/client/components/ui/textarea";
-import { useHasPlan } from "@/client/hooks/use-has-plan";
+import { useHasPremium } from "@/client/hooks/use-entitlements";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import {
@@ -140,11 +140,11 @@ function RouteComponent() {
     return models.filter((m) => m.params.provider === selectedProvider);
   }, [models, selectedProvider]);
 
-  const hasPlan = useHasPlan();
+  const hasPremium = useHasPremium();
 
   const groupedModels: GroupedModels = useMemo(
-    () => groupAndFilterModels({ hasPlan, models: filteredModels }),
-    [filteredModels, hasPlan],
+    () => groupAndFilterModels({ hasPremium, models: filteredModels }),
+    [filteredModels, hasPremium],
   );
 
   const handleToggleEvalTemplate = (templateName: string) => {
@@ -508,7 +508,8 @@ function RouteComponent() {
                               {groupModels.map((model) => (
                                 <CommandItem
                                   disabled={
-                                    model.tags.includes("premium") && !hasPlan
+                                    model.tags.includes("premium") &&
+                                    !hasPremium
                                   }
                                   key={model.uri}
                                   onSelect={() => {
@@ -531,7 +532,7 @@ function RouteComponent() {
                                   </div>
                                   <div className="ml-2 flex items-center gap-1">
                                     <ModelBadges
-                                      hasPlan={hasPlan}
+                                      hasPremium={hasPremium}
                                       model={model}
                                     />
                                   </div>

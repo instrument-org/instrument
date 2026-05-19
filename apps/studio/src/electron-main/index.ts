@@ -194,7 +194,7 @@ void app.whenReady().then(async () => {
   });
 });
 
-function handleDeepLink(url: string) {
+function handleDeepLink(_url: string) {
   const mainWindow = getMainWindow();
   if (mainWindow) {
     if (mainWindow.isMinimized()) {
@@ -204,17 +204,6 @@ function handleDeepLink(url: string) {
 
     const tabsManager = getTabsManager();
     if (tabsManager) {
-      if (url.includes("checkout?success=true")) {
-        tabsManager.addTab({
-          params: { success: "true" },
-          urlPath: "/checkout",
-        });
-      } else if (url.includes("checkout?canceled=true")) {
-        tabsManager.addTab({
-          params: { canceled: "true" },
-          urlPath: "/checkout",
-        });
-      }
       tabsManager.focusCurrentTab();
     }
   }

@@ -95,6 +95,7 @@ export interface AnalyticsEvents {
     billing_cycle: "monthly" | "yearly";
   };
   "subscribe.contact_us_clicked": never;
+  "subscribe.lifetime_clicked": never;
   "subscribe.subscribe_clicked": {
     billing_cycle: "monthly" | "yearly";
     plan_name: string;

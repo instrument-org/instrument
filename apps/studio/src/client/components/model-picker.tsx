@@ -13,7 +13,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
-import { useHasPlan } from "@/client/hooks/use-has-plan";
+import { useHasPremium } from "@/client/hooks/use-entitlements";
 import {
   getGroupedModelsEntries,
   groupAndFilterModels,
@@ -91,7 +91,7 @@ export function ModelPicker({
     setSearchQuery("");
   };
   const navigate = useNavigate();
-  const hasPlan = useHasPlan();
+  const hasPremium = useHasPremium();
 
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
   const modelsWithoutAuto = useMemo(
@@ -99,8 +99,8 @@ export function ModelPicker({
     [models],
   );
   const groupedModels = useMemo(
-    () => groupAndFilterModels({ hasPlan, models: modelsWithoutAuto }),
-    [modelsWithoutAuto, hasPlan],
+    () => groupAndFilterModels({ hasPremium, models: modelsWithoutAuto }),
+    [modelsWithoutAuto, hasPremium],
   );
 
   type GroupedMatchedModels = Record<string, MatchedModel[]>;
@@ -285,7 +285,7 @@ export function ModelPicker({
             {hasModels && (
               <ModelGroups
                 groupedModels={filteredGroupedModels}
-                hasPlan={hasPlan}
+                hasPremium={hasPremium}
                 onAddProvider={() => {
                   closePopover();
                   onAddProvider?.();
@@ -296,7 +296,7 @@ export function ModelPicker({
                       action: {
                         label: "Upgrade",
                         onClick: () => {
-                          void navigate({ to: "/subscribe" });
+                          void navigate({ to: "/get-lifetime" });
                         },
                       },
                       description: `${modelName} is available with a paid ${APP_NAME} plan.`,
@@ -366,7 +366,7 @@ function AutoModeSwitch({
             className="flex-1"
             onClick={(e) => {
               e.stopPropagation();
-              void navigate({ to: "/subscribe" });
+              void navigate({ to: "/get-lifetime" });
             }}
             size="sm"
             variant="default"
@@ -459,13 +459,13 @@ function ErrorsGroup({
 
 function ModelGroups({
   groupedModels,
-  hasPlan,
+  hasPremium,
   onAddProvider,
   onSelectModel,
   selectedModel,
 }: {
   groupedModels: Record<string, MatchedModel[]>;
-  hasPlan: boolean;
+  hasPremium: boolean;
   onAddProvider: () => void;
   onSelectModel: (
     uri: AIGatewayModelURI.Type,
@@ -486,13 +486,14 @@ function ModelGroups({
       for (const matched of matchedGroup) {
         flat.push({
           matched,
-          requiresPremium: matched.model.tags.includes("premium") && !hasPlan,
+          requiresPremium:
+            matched.model.tags.includes("premium") && !hasPremium,
           type: "item",
         });
       }
     }
     return flat;
-  }, [groupedModels, hasPlan]);
+  }, [groupedModels, hasPremium]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
@@ -589,7 +590,7 @@ function ModelGroups({
                   </div>
                 </div>
                 <div className="mt-1 ml-2 flex gap-1 self-start">
-                  <ModelBadges hasPlan={hasPlan} model={model} />
+                  <ModelBadges hasPremium={hasPremium} model={model} />
                 </div>
               </CommandItem>
             </div>

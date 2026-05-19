@@ -285,7 +285,7 @@ function ProjectChatMenuSessionRadioItem({
       <span className="min-w-0 flex-1 truncate">
         {session.title || "Untitled chat"}
       </span>
-      <CheckIcon className="ml-auto size-4 shrink-0 text-muted-foreground opacity-0 group-data-[state=checked]:opacity-100" />
+      <CheckIcon className="ml-auto size-3 shrink-0 text-black/30 opacity-0 group-data-[state=checked]:opacity-100 dark:text-white/30" />
     </DropdownMenuRadioItem>
   );
 }

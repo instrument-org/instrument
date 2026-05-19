@@ -70,7 +70,9 @@ export function ProviderSetupDialog({
           border-0 p-0 shadow-[inset_0_0_0_2px_rgba(0,0,0,0.05)]
           dark:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.05)]`,
           FIXED_HEIGHT_PAGES.has(effectivePage) && "h-[640px] max-h-[85vh]",
-          SHARED.brandGradient,
+          effectivePage === "add-provider"
+            ? SHARED.subtleGradient
+            : SHARED.brandGradient,
         )}
         showCloseButton={false}
       >

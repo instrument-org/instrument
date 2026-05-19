@@ -17,11 +17,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "../ui/hover-card";
 import { Spinner } from "../ui/spinner";
 import { BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";
@@ -149,39 +144,9 @@ export function ToolCallSummary({
     </div>
   );
 
-  // Only show preview when output is available (not mid-stream).
-  const hasHoverPreview =
-    !isCollapsibleOpen && part.state === "output-available";
-
   return (
     <Collapsible onOpenChange={setIsManuallyOpen} open={isCollapsibleOpen}>
-      {hasHoverPreview ? (
-        <HoverCard closeDelay={100} openDelay={400}>
-          {/*
-           * Use asChild on a <span> so HoverCardTrigger doesn't render a
-           * <button>, which would be invalid nested inside CollapsibleTrigger's
-           * own <button>. The <span> receives Radix's hover listeners; the
-           * CollapsibleTrigger asChild then merges the click handler onto the
-           * inner pill div.
-           */}
-          <HoverCardTrigger asChild>
-            <span className="inline-flex max-w-full min-w-0">
-              <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
-            </span>
-          </HoverCardTrigger>
-          <HoverCardContent
-            align="start"
-            className="w-[min(42rem,var(--radix-hover-card-content-available-width))] border-none bg-transparent p-0 shadow-none"
-            collisionPadding={12}
-            side="bottom"
-            sideOffset={6}
-          >
-            <div className="max-h-96 overflow-y-auto">{children}</div>
-          </HoverCardContent>
-        </HoverCard>
-      ) : (
-        <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
-      )}
+      <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
       <CollapsibleContent animated>{children}</CollapsibleContent>
     </Collapsible>
   );

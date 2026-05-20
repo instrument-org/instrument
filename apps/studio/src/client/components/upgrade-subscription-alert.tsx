@@ -1,16 +1,20 @@
+import { useHasLifetime } from "@/client/hooks/use-entitlements";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { ExternalLink } from "./external-link";
+import { LifetimeUpgradeDialog } from "./lifetime-upgrade-dialog";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
 
 export type UpgradeSubscriptionAlertState =
   | "credits-available"
+  | "free-plan"
   | "loading"
   | "logged-out"
   | "out-of-credits"
@@ -19,6 +23,7 @@ export type UpgradeSubscriptionAlertState =
 interface UpgradeSubscriptionAlertViewProps {
   onContinue: () => void;
   onLogin: () => void;
+  onUpgrade: () => void;
   state: UpgradeSubscriptionAlertState;
 }
 
@@ -36,6 +41,9 @@ export function UpgradeSubscriptionAlert({
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
   const { login } = useLoginSocial();
+  const hasLifetime = useHasLifetime();
+
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
 
   let state: UpgradeSubscriptionAlertState;
   if (error) {
@@ -46,16 +54,32 @@ export function UpgradeSubscriptionAlert({
     state = "logged-out";
   } else if (subscription.hasEnoughCredits) {
     state = "credits-available";
+  } else if (
+    !hasLifetime &&
+    (!subscription.plan || subscription.plan === "Free")
+  ) {
+    state = "free-plan";
   } else {
     state = "out-of-credits";
   }
 
   return (
-    <UpgradeSubscriptionAlertView
-      onContinue={onContinue}
-      onLogin={() => void login()}
-      state={state}
-    />
+    <>
+      <UpgradeSubscriptionAlertView
+        onContinue={onContinue}
+        onLogin={() => {
+          void login();
+        }}
+        onUpgrade={() => {
+          setUpgradeDialogOpen(true);
+        }}
+        state={state}
+      />
+      <LifetimeUpgradeDialog
+        onOpenChange={setUpgradeDialogOpen}
+        open={upgradeDialogOpen}
+      />
+    </>
   );
 }
 
@@ -63,6 +87,7 @@ export function UpgradeSubscriptionAlert({
 export function UpgradeSubscriptionAlertView({
   onContinue,
   onLogin,
+  onUpgrade,
   state,
 }: UpgradeSubscriptionAlertViewProps) {
   if (state === "status-error") {
@@ -125,6 +150,24 @@ export function UpgradeSubscriptionAlertView({
           <div className="flex">
             <Button onClick={onContinue} size="sm">
               Continue
+            </Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (state === "free-plan") {
+    return (
+      <Alert>
+        <AlertTitle>Get lifetime access</AlertTitle>
+        <AlertDescription className="flex flex-col gap-3">
+          <span>
+            Unlock {APP_NAME} forever with a one-time Founding User purchase.
+          </span>
+          <div className="flex">
+            <Button onClick={onUpgrade} size="sm" variant="brand">
+              Become a Founding User
             </Button>
           </div>
         </AlertDescription>

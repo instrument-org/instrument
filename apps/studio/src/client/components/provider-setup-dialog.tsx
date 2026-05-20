@@ -40,8 +40,11 @@ export function ProviderSetupDialog({
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
 
+  // If already logged in and manual provider is hidden, there's nothing to show
   const effectivePage: Page =
-    hasToken && page === "welcome" ? "add-provider" : page;
+    hasToken && page === "welcome" && !hideManualProvider
+      ? "add-provider"
+      : page;
 
   function close() {
     setPage("welcome");

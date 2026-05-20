@@ -24,10 +24,10 @@ type Snapshot = RPCOutput["debug"]["browserViewManager"]["snapshot"];
 type Tone = "danger" | "muted" | "ok" | "warn";
 
 const toneClass: Record<Tone, string> = {
-  danger: "bg-red-500/15 text-red-700 dark:text-red-400",
+  danger: "bg-error-500/15 text-error-700 dark:text-error-300",
   muted: "bg-muted text-muted-foreground",
-  ok: "bg-green-500/15 text-green-700 dark:text-green-400",
-  warn: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400",
+  ok: "bg-success-500/15 text-success-700 dark:text-success-300",
+  warn: "bg-warning-500/15 text-warning-700 dark:text-warning-300",
 };
 
 export const Route = createFileRoute("/_app/debug/browser-views")({

@@ -160,7 +160,7 @@ function OfferContent({
     <div className="flex flex-1 flex-col items-center justify-center px-6">
       <div className="flex w-full flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-5">
-          <AppIconStylized className="size-20" />
+          <AppIconStylized className="size-20 drop-shadow-md" />
 
           <div className="flex flex-col items-center gap-1 text-center">
             <h1
@@ -226,7 +226,7 @@ function SuccessContent({ onClose }: { onClose: () => void }) {
             initial={fadeInitial}
             transition={{ ...fadeTransition, delay: 0.1 }}
           >
-            <AppIconStylized className="size-20" />
+            <AppIconStylized className="size-20 drop-shadow-md" />
           </motion.div>
 
           <motion.div

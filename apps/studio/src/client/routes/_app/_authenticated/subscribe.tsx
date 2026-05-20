@@ -64,23 +64,14 @@ interface PricingPlan {
 
 const planCardVariants = tv({
   slots: {
-    card: "relative flex flex-col overflow-hidden border border-border/50 p-6 shadow-none transition-all",
+    card: "relative flex flex-col overflow-hidden border border-border/50 bg-card p-6 shadow-none transition-all",
     title: "text-4xl font-bold",
   },
   variants: {
     plan: {
-      Basic: {
-        card: "bg-radial-[at_15%_25%] from-emerald-200/50 from-30% via-emerald-100/20 to-background to-80% dark:from-emerald-500/20 dark:from-25% dark:via-emerald-900/10 dark:to-background dark:to-75%",
-        title: "text-emerald-700 dark:text-emerald-400",
-      },
-      Free: {
-        card: "bg-card",
-        title: "",
-      },
-      Pro: {
-        card: "bg-radial-[at_85%_75%] from-blue-200/40 from-30% via-indigo-100/20 to-background to-80% dark:from-blue-400/20 dark:from-25% dark:via-indigo-500/10 dark:to-background dark:to-75%",
-        title: "text-blue-700 dark:text-blue-400",
-      },
+      Basic: { card: "", title: "" },
+      Free: { card: "", title: "" },
+      Pro: { card: "", title: "" },
     },
   },
 });
@@ -388,11 +379,9 @@ function SubscribePage() {
             </div>
 
             <div className="mx-auto mt-12 max-w-4xl">
-              <Card className="relative overflow-hidden border border-border/50 bg-radial-[at_50%_50%] from-violet-200/40 from-35% to-background to-80% p-8 dark:from-violet-500/8 dark:from-35% dark:to-background dark:to-80%">
+              <Card className="relative overflow-hidden border border-border/50 bg-card p-8">
                 <div className="text-center">
-                  <h2 className="mb-2 text-2xl font-bold text-violet-600 dark:text-violet-400">
-                    Custom Plans
-                  </h2>
+                  <h2 className="mb-2 text-2xl font-bold">Custom Plans</h2>
                   <p className="mx-auto mb-6 max-w-xl text-sm text-muted-foreground">
                     Whether you&apos;re a team, agency, or enterprise,
                     we&apos;ll build a plan that fits your needs.

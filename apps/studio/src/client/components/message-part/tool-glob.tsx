@@ -45,7 +45,7 @@ export function ToolGlob({ part }: { part: GlobPart }) {
             <div className="space-y-0.5">
               {files.map((file, index) => (
                 <p
-                  className="font-mono text-sm text-success-600 dark:text-success-400"
+                  className="font-mono text-sm text-success-700 dark:text-success-300"
                   key={index}
                 >
                   {file}

@@ -53,8 +53,8 @@ export const AppIcon = ({ className, ref, size, ...props }: AppIconProps) => {
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-      <rect fill="#F96B55" height="520" rx="136" width="520" />
-      <path d={appIconGlyphPath} fill="#E8E2DA" />
+      <rect fill="var(--brand-500)" height="520" rx="136" width="520" />
+      <path d={appIconGlyphPath} fill="var(--brown-300)" />
     </svg>
   );
 };

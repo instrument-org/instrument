@@ -24,6 +24,10 @@ html:has(meta[name="opaque-background"]) body {
    BASELINE THEME VARIABLES 🎨
    ========================= */
 @theme inline {
+  /* Disable Tailwind's default color palette so accidental utilities like
+   * `text-red-500` or `bg-emerald-200` fail. */
+  --color-*: initial;
+
   --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Roboto Serif", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
@@ -31,6 +35,13 @@ html:has(meta[name="opaque-background"]) body {
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-inherit: inherit;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -57,54 +68,42 @@ html:has(meta[name="opaque-background"]) body {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --color-warning-25: var(--warning-25);
-  --color-warning-50: var(--warning-50);
-  --color-warning-100: var(--warning-100);
-  --color-warning-200: var(--warning-200);
-  --color-warning-300: var(--warning-300);
-  --color-warning-400: var(--warning-400);
-  --color-warning-500: var(--warning-500);
-  --color-warning-600: var(--warning-600);
-  --color-warning-700: var(--warning-700);
-  --color-warning-800: var(--warning-800);
-  --color-warning-900: var(--warning-900);
-  --color-warning-950: var(--warning-950);
-  --color-success-25: var(--success-25);
-  --color-success-50: var(--success-50);
-  --color-success-100: var(--success-100);
-  --color-success-200: var(--success-200);
-  --color-success-300: var(--success-300);
-  --color-success-400: var(--success-400);
-  --color-success-500: var(--success-500);
-  --color-success-600: var(--success-600);
-  --color-success-700: var(--success-700);
-  --color-success-800: var(--success-800);
-  --color-success-900: var(--success-900);
-  --color-success-950: var(--success-950);
-  --color-blue-25: var(--blue-25);
-  --color-blue-50: var(--blue-50);
-  --color-blue-100: var(--blue-100);
-  --color-blue-200: var(--blue-200);
-  --color-blue-300: var(--blue-300);
-  --color-blue-400: var(--blue-400);
-  --color-blue-500: var(--blue-500);
-  --color-blue-600: var(--blue-600);
-  --color-blue-700: var(--blue-700);
-  --color-blue-800: var(--blue-800);
-  --color-blue-900: var(--blue-900);
-  --color-blue-950: var(--blue-950);
-  --color-error-25: var(--error-25);
+
+  /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
   --color-error-50: var(--error-50);
   --color-error-100: var(--error-100);
-  --color-error-200: var(--error-200);
   --color-error-300: var(--error-300);
-  --color-error-400: var(--error-400);
   --color-error-500: var(--error-500);
-  --color-error-600: var(--error-600);
   --color-error-700: var(--error-700);
-  --color-error-800: var(--error-800);
   --color-error-900: var(--error-900);
-  --color-error-950: var(--error-950);
+  --color-warning-50: var(--warning-50);
+  --color-warning-100: var(--warning-100);
+  --color-warning-300: var(--warning-300);
+  --color-warning-500: var(--warning-500);
+  --color-warning-700: var(--warning-700);
+  --color-warning-900: var(--warning-900);
+  --color-success-50: var(--success-50);
+  --color-success-100: var(--success-100);
+  --color-success-300: var(--success-300);
+  --color-success-500: var(--success-500);
+  --color-success-700: var(--success-700);
+  --color-success-900: var(--success-900);
+
+  /* Accents — 6 stops per Figma. */
+  --color-yellow-50: var(--yellow-50);
+  --color-yellow-100: var(--yellow-100);
+  --color-yellow-300: var(--yellow-300);
+  --color-yellow-500: var(--yellow-500);
+  --color-yellow-700: var(--yellow-700);
+  --color-yellow-900: var(--yellow-900);
+  --color-brown-50: var(--brown-50);
+  --color-brown-100: var(--brown-100);
+  --color-brown-300: var(--brown-300);
+  --color-brown-500: var(--brown-500);
+  --color-brown-700: var(--brown-700);
+  --color-brown-900: var(--brown-900);
+
+  /* Brand — full 12-stop ramp (in heavy use across the product). */
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-25: var(--brand-25);
@@ -119,18 +118,8 @@ html:has(meta[name="opaque-background"]) body {
   --color-brand-800: var(--brand-800);
   --color-brand-900: var(--brand-900);
   --color-brand-950: var(--brand-950);
-  --color-brown-25: var(--brown-25);
-  --color-brown-50: var(--brown-50);
-  --color-brown-100: var(--brown-100);
-  --color-brown-200: var(--brown-200);
-  --color-brown-300: var(--brown-300);
-  --color-brown-400: var(--brown-400);
-  --color-brown-500: var(--brown-500);
-  --color-brown-600: var(--brown-600);
-  --color-brown-700: var(--brown-700);
-  --color-brown-800: var(--brown-800);
-  --color-brown-900: var(--brown-900);
-  --color-brown-950: var(--brown-950);
+
+  /* Neutrals — full 12-stop ramp per Figma. */
   --color-gray-25: var(--gray-25);
   --color-gray-50: var(--gray-50);
   --color-gray-100: var(--gray-100);
@@ -143,6 +132,22 @@ html:has(meta[name="opaque-background"]) body {
   --color-gray-800: var(--gray-800);
   --color-gray-900: var(--gray-900);
   --color-gray-950: var(--gray-950);
+
+  /* Dev accent — not part of Figma's color system. Reserved for
+   * developer-only UI (debug panels, dev sub-menus, system-prompt viewer,
+   * replay/debug chat, etc.) to visually mark these surfaces as outside
+   * the user-facing product. */
+  --color-dev-50: var(--dev-50);
+  --color-dev-100: var(--dev-100);
+  --color-dev-200: var(--dev-200);
+  --color-dev-300: var(--dev-300);
+  --color-dev-400: var(--dev-400);
+  --color-dev-500: var(--dev-500);
+  --color-dev-600: var(--dev-600);
+  --color-dev-700: var(--dev-700);
+  --color-dev-800: var(--dev-800);
+  --color-dev-900: var(--dev-900);
+  --color-dev-950: var(--dev-950);
 }
 
 /* =========================
@@ -164,92 +169,70 @@ html:has(meta[name="opaque-background"]) body {
   --muted-foreground: var(--gray-500);
   --accent: var(--gray-200);
   --accent-foreground: var(--gray-800);
-  --destructive: var(--error-600);
+  --destructive: var(--error-500);
   --border: var(--gray-200);
   --input: var(--gray-200);
   --ring: var(--gray-400);
   --sidebar: var(--gray-100);
   --sidebar-foreground: var(--gray-950);
-  --sidebar-primary: #f96b55;
+  --sidebar-primary: var(--brand-500);
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--gray-200);
   --sidebar-accent-foreground: var(--gray-800);
   --sidebar-border: var(--gray-200);
   --sidebar-ring: var(--gray-400);
-  --warning-25: #fffcf5;
+
+  /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
+  --error-50: #fbeef0;
+  --error-100: #f8e4e8;
+  --error-300: #e197a6;
+  --error-500: #b4324f;
+  --error-700: #7a1f30;
+  --error-900: #3f121a;
   --warning-50: #fffaeb;
   --warning-100: #fef0c7;
-  --warning-200: #fedf89;
   --warning-300: #fec84b;
-  --warning-400: #fdb022;
   --warning-500: #f79009;
-  --warning-600: #dc6803;
   --warning-700: #b54708;
-  --warning-800: #93370d;
   --warning-900: #7a2e0e;
-  --warning-950: #4e1d09;
-  --success-25: #fafdf7;
-  --success-50: #f5fbee;
-  --success-100: #e6f4d7;
-  --success-200: #ceeab0;
-  --success-300: #acdc79;
-  --success-400: #86cb3c;
-  --success-500: #669f2a;
-  --success-600: #4f7a21;
-  --success-700: #3f621a;
-  --success-800: #335015;
-  --success-900: #2b4212;
-  --success-950: #1a280b;
-  --blue-25: #f5faff;
-  --blue-50: #eff8ff;
-  --blue-100: #d1e9ff;
-  --blue-200: #b2ddff;
-  --blue-300: #84caff;
-  --blue-400: #53b1fd;
-  --blue-500: #2e90fa;
-  --blue-600: #1570ef;
-  --blue-700: #175cd3;
-  --blue-800: #1849a9;
-  --blue-900: #194185;
-  --blue-950: #102a56;
-  --error-25: #fff5f6;
-  --error-50: #fff1f3;
-  --error-100: #ffe4e8;
-  --error-200: #fecdd6;
-  --error-300: #fea3b4;
-  --error-400: #fd6f8e;
-  --error-500: #f63d68;
-  --error-600: #e31b54;
-  --error-700: #c01048;
-  --error-800: #a11043;
-  --error-900: #89123e;
-  --error-950: #510b24;
-  --brand: var(--brand-400);
+  --success-50: #e9f5eb;
+  --success-100: #d9f1db;
+  --success-300: #7dcb87;
+  --success-500: #29a845;
+  --success-700: #176229;
+  --success-900: #0b3216;
+
+  /* Accents — 6 stops per Figma. */
+  --yellow-50: #fdf6e2;
+  --yellow-100: #fbebc9;
+  --yellow-300: #f1cc8e;
+  --yellow-500: #d58f4f;
+  --yellow-700: #b26747;
+  --yellow-900: #59301e;
+  --brown-50: #fcfbf8;
+  --brown-100: #f6f4f0;
+  --brown-300: #e8e3da;
+  --brown-500: #bbaa8e;
+  --brown-700: #937b5b;
+  --brown-900: #564538;
+
+  /* Brand — Figma's teal "Scaffold" brand ramp. */
+  --brand: var(--brand-500);
   --brand-foreground: #ffffff;
-  --brand-25: #fff9f8;
-  --brand-50: #fef4f2;
-  --brand-100: #fee6e2;
-  --brand-200: #ffd0c9;
-  --brand-300: #fdb0a4;
-  --brand-400: #f96b55;
-  --brand-500: #f15942;
-  --brand-600: #df3c23;
-  --brand-700: #bb301a;
-  --brand-800: #9b2a19;
-  --brand-900: #80291c;
-  --brand-950: #461109;
-  --brown-25: #fcfbfa;
-  --brown-50: #f6f4f0;
-  --brown-100: #e8e3da;
-  --brown-200: #d4cab7;
-  --brown-300: #bbaa8e;
-  --brown-400: #a48d6a;
-  --brown-500: #937b5b;
-  --brown-600: #7c644b;
-  --brown-700: #634f3d;
-  --brown-800: #544337;
-  --brown-900: #493b33;
-  --brown-950: #291f1a;
+  --brand-25: #f1f4f2;
+  --brand-50: #e2eae7;
+  --brand-100: #c5d5d0;
+  --brand-200: #9dbfb6;
+  --brand-300: #6ca89c;
+  --brand-400: #338c81;
+  --brand-500: #0e7869;
+  --brand-600: #0b6056;
+  --brand-700: #0a4a42;
+  --brand-800: #093a34;
+  --brand-900: #082c28;
+  --brand-950: #051b18;
+
+  /* Neutrals — Figma's 12-stop gray ramp. */
   --gray-25: #fdfdfc;
   --gray-50: #fafaf9;
   --gray-100: #f5f5f4;
@@ -262,6 +245,20 @@ html:has(meta[name="opaque-background"]) body {
   --gray-800: #292524;
   --gray-900: #1c1917;
   --gray-950: #171412;
+
+  /* Dev accent — internal-only blue, not from Figma. Used to flag
+   * developer-mode UI surfaces. Values inherited from the legacy blue ramp. */
+  --dev-50: #eff8ff;
+  --dev-100: #d1e9ff;
+  --dev-200: #b2ddff;
+  --dev-300: #84caff;
+  --dev-400: #53b1fd;
+  --dev-500: #2e90fa;
+  --dev-600: #1570ef;
+  --dev-700: #175cd3;
+  --dev-800: #1849a9;
+  --dev-900: #194185;
+  --dev-950: #102a56;
 }
 
 /* =========================
@@ -285,19 +282,18 @@ html:has(meta[name="opaque-background"]) body {
   --muted-foreground: rgb(255 255 255 / 60%);
   --accent: rgb(255 255 255 / 5%);
   --accent-foreground: #ffffff;
-  --destructive: #e31b54;
+  --destructive: var(--error-500);
   --border: rgb(255 255 255 / 10%);
   --input: rgb(255 255 255 / 10%);
   --ring: rgb(255 255 255 / 30%);
   --sidebar: var(--gray-900);
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #f96b55;
+  --sidebar-primary: var(--brand-500);
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(255 255 255 / 5%);
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgb(255 255 255 / 10%);
   --sidebar-ring: rgb(255 255 255 / 30%);
-  --brand-foreground: #000000;
 }
 
 @utility prose-custom {

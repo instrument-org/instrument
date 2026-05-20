@@ -60,7 +60,7 @@ export function ProviderSetupScreen({
       <div className="flex flex-1 flex-col items-center justify-center px-6">
         <div className="flex w-full flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-6">
-            <AppIconStylized className="size-20" />
+            <AppIconStylized className="size-20 drop-shadow-md" />
 
             <div className="flex flex-col items-center gap-2 text-center">
               <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">

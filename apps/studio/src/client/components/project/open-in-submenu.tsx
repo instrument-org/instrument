@@ -42,10 +42,10 @@ const EDITOR_ICON_MAP: Record<
 };
 
 const devSubTriggerClass =
-  "text-blue-700 focus:bg-blue-500/10 focus:text-blue-700 data-[state=open]:bg-blue-500/10 data-[state=open]:text-blue-700 dark:text-blue-300 dark:focus:text-blue-300 dark:data-[state=open]:text-blue-300 [&_svg]:text-blue-700! dark:[&_svg]:text-blue-300!";
+  "text-dev-700 focus:bg-dev-500/10 focus:text-dev-700 data-[state=open]:bg-dev-500/10 data-[state=open]:text-dev-700 dark:text-dev-300 dark:focus:text-dev-300 dark:data-[state=open]:text-dev-300 [&_svg]:text-dev-700! dark:[&_svg]:text-dev-300!";
 
 const devSubItemClass =
-  "text-blue-700 focus:bg-blue-500/10 focus:text-blue-700 dark:text-blue-300 dark:focus:text-blue-300 [&_svg]:text-blue-700! dark:[&_svg]:text-blue-300!";
+  "text-dev-700 focus:bg-dev-500/10 focus:text-dev-700 dark:text-dev-300 dark:focus:text-dev-300 [&_svg]:text-dev-700! dark:[&_svg]:text-dev-300!";
 
 export function ProjectOpenInSubmenu({
   subdomain,

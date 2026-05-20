@@ -96,7 +96,7 @@ function SettingsLayout() {
                         allowOpenNewTab={false}
                         className={
                           item.isDeveloperMode
-                            ? "text-blue-700 dark:text-blue-300 [&>svg]:text-blue-700 dark:[&>svg]:text-blue-300"
+                            ? "text-dev-700 dark:text-dev-300 [&>svg]:text-dev-700 dark:[&>svg]:text-dev-300"
                             : undefined
                         }
                         to={item.path}

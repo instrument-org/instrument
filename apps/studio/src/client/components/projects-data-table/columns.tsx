@@ -87,7 +87,7 @@ export function createColumns({
           <div className="flex min-w-0 items-center gap-x-2">
             {isFavorite && (
               <StarIcon
-                className="size-4 shrink-0 fill-amber-500 text-amber-500"
+                className="size-4 shrink-0 fill-warning-500 text-warning-500"
                 weight="fill"
               />
             )}

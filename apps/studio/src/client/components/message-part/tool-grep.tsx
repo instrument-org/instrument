@@ -49,7 +49,7 @@ export function ToolGrep({ part }: { part: GrepPart }) {
                   <p className="font-mono text-sm text-muted-foreground">
                     {match.path}:{match.lineNum}
                   </p>
-                  <p className="font-mono text-sm text-success-600 dark:text-success-400">
+                  <p className="font-mono text-sm text-success-700 dark:text-success-300">
                     {match.lineText}
                   </p>
                 </div>

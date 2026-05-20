@@ -81,3 +81,9 @@ export function openOnboardingWindow(): BrowserWindow {
 
   return onboardingWindow;
 }
+
+export function updateOnboardingWindowBackgroundColor() {
+  if (onboardingWindow && !onboardingWindow.isDestroyed()) {
+    onboardingWindow.setBackgroundColor(getBackgroundColor());
+  }
+}

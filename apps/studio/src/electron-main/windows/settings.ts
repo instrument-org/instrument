@@ -91,3 +91,9 @@ export function openSettingsWindow(
 
   createContextMenu({ windowOrWebContentsView: settingsWindow });
 }
+
+export function updateSettingsWindowBackgroundColor() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.setBackgroundColor(getBackgroundColor());
+  }
+}

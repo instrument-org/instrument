@@ -13,7 +13,11 @@ import {
   updateTitleBarOverlay,
 } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
+import {
+  openOnboardingWindow,
+  updateOnboardingWindowBackgroundColor,
+} from "@/electron-main/windows/onboarding";
+import { updateSettingsWindowBackgroundColor } from "@/electron-main/windows/settings";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -140,14 +144,8 @@ void app.whenReady().then(async () => {
   });
 
   createApplicationMenu();
-  watchThemePreferenceAndApply(() => {
-    updateMainWindowBackgroundColor();
-    updateTitleBarOverlay();
-  });
-  nativeTheme.on("updated", () => {
-    updateMainWindowBackgroundColor();
-    updateTitleBarOverlay();
-  });
+  watchThemePreferenceAndApply(applyThemeToWindows);
+  nativeTheme.on("updated", applyThemeToWindows);
 
   await setupBinDirectory();
 
@@ -225,3 +223,10 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
+
+function applyThemeToWindows() {
+  updateMainWindowBackgroundColor();
+  updateOnboardingWindowBackgroundColor();
+  updateSettingsWindowBackgroundColor();
+  updateTitleBarOverlay();
+}

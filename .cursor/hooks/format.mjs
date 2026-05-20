@@ -23,6 +23,28 @@ function fileExists(filePath) {
   return true;
 }
 
+function findEslintConfigDirectory(repoRoot, filePath) {
+  // Walk up from the file's directory to find the nearest eslint.config.*,
+  // stopping at the repo root. ESLint must run from this directory so that
+  // package-level settings (e.g. better-tailwindcss entryPoint) apply.
+  let directory = path.dirname(path.resolve(filePath));
+  const root = path.resolve(repoRoot);
+  while (directory.startsWith(root) && directory !== root) {
+    for (const name of [
+      "eslint.config.ts",
+      "eslint.config.mts",
+      "eslint.config.js",
+      "eslint.config.mjs",
+    ]) {
+      if (fileExists(path.join(directory, name))) {
+        return directory;
+      }
+    }
+    directory = path.dirname(directory);
+  }
+  return root;
+}
+
 function formatDirtyFiles(repoRoot) {
   if (!isInstrumentRepoRoot(repoRoot)) {
     return;
@@ -187,11 +209,32 @@ function runEslint(repoRoot, files) {
   if (!fileExists(eslintPath)) {
     return;
   }
-  execFileSync(eslintPath, ["--no-ignore", "--fix", ...files], {
-    cwd: repoRoot,
-    maxBuffer: 50 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+
+  // Group files by their nearest eslint.config directory so each group runs
+  // with the correct cwd (and thus the correct package-level config).
+  const groups = new Map();
+  for (const relativePath of files) {
+    const configDirectory = findEslintConfigDirectory(
+      repoRoot,
+      path.join(repoRoot, relativePath),
+    );
+    if (!groups.has(configDirectory)) {
+      groups.set(configDirectory, []);
+    }
+    groups.get(configDirectory).push(path.resolve(repoRoot, relativePath));
+  }
+
+  for (const [configDirectory, absolutePaths] of groups) {
+    try {
+      execFileSync(eslintPath, ["--no-ignore", "--fix", ...absolutePaths], {
+        cwd: configDirectory,
+        maxBuffer: 50 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch {
+      // ESLint exits 1 for unfixable lint errors -- that's expected, ignore.
+    }
+  }
 }
 
 function runPrettier(repoRoot, files) {

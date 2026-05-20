@@ -1,4 +1,4 @@
-import "./styles/app.css";
+import "./styles/globals.css";
 
 import ReactDOM, { type Root } from "react-dom/client";
 

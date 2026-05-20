@@ -1,37 +1,125 @@
+import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
+
 import { registerSession, SessionBuilder } from "../helpers";
 
 const builder = new SessionBuilder();
+const GIT_REF = "debug-files-grid-001";
 
-// Using type assertions for RelativePath since these are mock debug values
-// and we can't use the runtime schema validation in client code
-const userMessageWithFiles = builder.userMessage(
-  "Can you review these files and suggest improvements?",
+// Mock paths only; RelativePath assertions avoid client-side schema validation.
+function mockFile({
+  filename,
+  filePath,
+  mimeType,
+  size = 1024,
+}: {
+  filename: string;
+  filePath: string;
+  mimeType: string;
+  size?: number;
+}) {
+  return {
+    filename,
+    filePath: filePath as never,
+    gitRef: GIT_REF,
+    mimeType,
+    size,
+  };
+}
+
+const userMessageGridShowcase = builder.userMessage(
+  "Here is a full attachment grid: types, folders, and the expand control.",
   {
     parts: [
       {
         data: {
           files: [
-            {
+            // user-provided (shown first; image list thumbnail when asset URL resolves)
+            mockFile({
+              filename: "hero.png",
+              filePath: `${APP_FOLDER_NAMES.userProvided}/hero.png`,
+              mimeType: "image/png",
+              size: 245_760,
+            }),
+            mockFile({
+              filename: "brief.md",
+              filePath: `${APP_FOLDER_NAMES.userProvided}/brief.md`,
+              mimeType: "text/markdown",
+            }),
+            mockFile({
+              filename: "data.csv",
+              filePath: `${APP_FOLDER_NAMES.userProvided}/data.csv`,
+              mimeType: "text/csv",
+              size: 4096,
+            }),
+            mockFile({
+              filename: "voice.mp3",
+              filePath: `${APP_FOLDER_NAMES.userProvided}/voice.mp3`,
+              mimeType: "audio/mpeg",
+              size: 512_000,
+            }),
+            // output
+            mockFile({
+              filename: "summary.pdf",
+              filePath: `${APP_FOLDER_NAMES.output}/summary.pdf`,
+              mimeType: "application/pdf",
+              size: 88_000,
+            }),
+            mockFile({
+              filename: "demo.mp4",
+              filePath: `${APP_FOLDER_NAMES.output}/demo.mp4`,
+              mimeType: "video/mp4",
+              size: 1_024_000,
+            }),
+            // root-level regular (visible after expanding past the first six)
+            mockFile({
+              filename: "NOTES.txt",
+              filePath: "NOTES.txt",
+              mimeType: "text/plain",
+            }),
+            mockFile({
+              filename: "index.html",
+              filePath: "index.html",
+              mimeType: "text/html",
+              size: 2048,
+            }),
+            // supporting sections (collapsed until "Show more")
+            mockFile({
+              filename: "deploy.sh",
+              filePath: `${APP_FOLDER_NAMES.scripts}/deploy.sh`,
+              mimeType: "text/plain",
+            }),
+            mockFile({
+              filename: "SKILL.md",
+              filePath: `${APP_FOLDER_NAMES.skills}/pdf/SKILL.md`,
+              mimeType: "text/markdown",
+            }),
+            mockFile({
+              filename: "draft.json",
+              filePath: `${APP_FOLDER_NAMES.tmp}/draft.json`,
+              mimeType: "application/json",
+            }),
+            mockFile({
+              filename: "page.html",
+              filePath: `${APP_FOLDER_NAMES.agentRetrieved}/page.html`,
+              mimeType: "text/html",
+            }),
+            mockFile({
+              filename: "API.md",
+              filePath: "docs/API.md",
+              mimeType: "text/markdown",
+            }),
+            mockFile({
               filename: "auth.ts",
-              filePath: "src/lib/auth.ts" as never,
-              gitRef: "abc123def456",
+              filePath: "src/lib/auth.ts",
               mimeType: "text/plain",
               size: 2048,
-            },
-            {
-              filename: "database.ts",
-              filePath: "src/lib/database.ts" as never,
-              gitRef: "abc123def456",
+            }),
+            mockFile({
+              filename: "Button.tsx",
+              filePath: "src/components/Button.tsx",
               mimeType: "text/plain",
-              size: 4096,
-            },
-            {
-              filename: "config.json",
-              filePath: "src/config.json" as never,
-              gitRef: "abc123def456",
-              mimeType: "application/json",
-              size: 512,
-            },
+              size: 1536,
+            }),
           ],
         },
         type: "data-attachments" as const,
@@ -41,22 +129,34 @@ const userMessageWithFiles = builder.userMessage(
 );
 
 const assistantMessage1 = builder.assistantMessage(
-  "I'll review these files and provide suggestions for improvement.",
+  "Six files show initially; expand to see root files and each supporting group.",
 );
 
-const userMessageWithFolder = builder.userMessage(
-  "Now look at this entire components folder",
+const userMessageWithFolders = builder.userMessage(
+  "Folder chips render beside compact file list items.",
   {
     parts: [
       {
         data: {
-          files: [],
+          files: [
+            mockFile({
+              filename: "one-off.txt",
+              filePath: `${APP_FOLDER_NAMES.userProvided}/one-off.txt`,
+              mimeType: "text/plain",
+            }),
+          ],
           folders: [
             {
               createdAt: 1_718_198_400_000,
               id: "components" as never,
               name: "components",
-              path: "/tmp" as never,
+              path: "/tmp/workspace/components" as never,
+            },
+            {
+              createdAt: 1_718_198_401_000,
+              id: "research" as never,
+              name: "research",
+              path: "/tmp/workspace/research" as never,
             },
           ],
         },
@@ -67,50 +167,15 @@ const userMessageWithFolder = builder.userMessage(
 );
 
 const assistantMessage2 = builder.assistantMessage(
-  "I see you've shared the components folder. Let me analyze the structure and patterns.",
-);
-
-const userMessageMixed = builder.userMessage(
-  "Compare these test files with the implementation",
-  {
-    parts: [
-      {
-        data: {
-          files: [
-            {
-              filename: "auth.test.ts",
-              filePath: "tests/auth.test.ts" as never,
-              gitRef: "ghi345jkl678",
-              mimeType: "text/plain",
-              size: 2560,
-            },
-            {
-              filename: "auth.ts",
-              filePath: "src/lib/auth.ts" as never,
-              gitRef: "ghi345jkl678",
-              mimeType: "text/plain",
-              size: 2048,
-            },
-          ],
-        },
-        type: "data-attachments",
-      },
-    ],
-  },
-);
-
-const assistantMessage3 = builder.assistantMessage(
-  "I'll compare the test coverage with the implementation to identify any gaps.",
+  "Folders use list chips; files stay in the compact attachment grid.",
 );
 
 registerSession({
   messages: [
-    userMessageWithFiles,
+    userMessageGridShowcase,
     assistantMessage1,
-    userMessageWithFolder,
+    userMessageWithFolders,
     assistantMessage2,
-    userMessageMixed,
-    assistantMessage3,
   ],
   name: "File and Folder Attachments",
 });

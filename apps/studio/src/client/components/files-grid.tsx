@@ -56,11 +56,32 @@ export function FilesGrid({
   prioritizeUserFiles = false,
 }: FilesGridProps) {
   const navigate = useNavigate({ from: "/projects/$subdomain" });
-  const search = useSearch({ from: "/_app/projects/$subdomain/" });
+  const search = useSearch({
+    from: "/_app/projects/$subdomain/",
+    shouldThrow: false,
+  });
   const selectedFilePath =
-    search.artifactPanel?.type === "file"
+    search?.artifactPanel?.type === "file"
       ? search.artifactPanel.filePath
       : null;
+
+  const handleFileClick = (file: ProjectFileViewerFile) => {
+    if (!search) {
+      return;
+    }
+    void navigate({
+      replace: true,
+      search: (prev) => ({
+        ...prev,
+        artifactPanel: {
+          filePath: file.filePath,
+          fileVersion: file.versionRef,
+          type: "file",
+        },
+      }),
+    });
+  };
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedSections, setExpandedSections] = useState(
     DEFAULT_EXPANDED_SECTIONS,
@@ -77,20 +98,6 @@ export function FilesGrid({
   const sortedOutputFiles = sortByRichPreview(outputFiles);
   const sortedRegularFiles = sortByRichPreview(regularFiles);
   const sortedUserProvidedFiles = sortByRichPreview(userProvidedFiles);
-
-  const handleFileClick = (file: ProjectFileViewerFile) => {
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: {
-          filePath: file.filePath,
-          fileVersion: file.versionRef,
-          type: "file",
-        },
-      }),
-    });
-  };
 
   const mainFiles = prioritizeUserFiles
     ? [...sortedUserProvidedFiles, ...sortedOutputFiles, ...sortedRegularFiles]

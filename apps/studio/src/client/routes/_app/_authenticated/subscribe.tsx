@@ -11,7 +11,7 @@ import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { APP_NAME, SALES_EMAIL } from "@instrument-org/shared";
+import { APP_NAME, CONTACT_EMAIL } from "@instrument-org/shared";
 import { CheckCircleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
@@ -395,7 +395,7 @@ function SubscribePage() {
                   </div>
                   <Button asChild size="lg" variant="outline">
                     <EmailLink
-                      email={SALES_EMAIL}
+                      email={CONTACT_EMAIL}
                       onClick={() => {
                         captureClientEvent("subscribe.contact_us_clicked");
                       }}

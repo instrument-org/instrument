@@ -6,7 +6,7 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
   useNavigate,
@@ -49,6 +49,9 @@ export const Route = createFileRoute("/_app/new-tab")({
 
 function RouteComponent() {
   const { dialog } = Route.useSearch();
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const navigate = useNavigate({ from: "/new-tab" });
@@ -132,7 +135,7 @@ function RouteComponent() {
             void navigate({ search: {} });
           }
         }}
-        open={dialog === "login"}
+        open={dialog === "login" && !hasToken}
       />
       <LifetimeUpgradeDialog
         onOpenChange={(open) => {

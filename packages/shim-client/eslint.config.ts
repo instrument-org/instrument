@@ -9,7 +9,7 @@ export default [
   {
     settings: {
       "better-tailwindcss": {
-        entryPoint: "./src/iframe/styles.css",
+        entryPoint: "./src/iframe/globals.css",
       },
     },
   },

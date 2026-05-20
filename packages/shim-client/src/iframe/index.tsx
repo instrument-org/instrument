@@ -1,6 +1,6 @@
 import { createRoot, type Root } from "react-dom/client";
 
-import "./styles.css";
+import "./globals.css";
 import { App } from "./app";
 
 declare global {

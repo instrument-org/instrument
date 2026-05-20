@@ -23,7 +23,7 @@ export default [
   {
     settings: {
       "better-tailwindcss": {
-        entryPoint: "./src/client/styles/app.css",
+        entryPoint: "./src/client/styles/globals.css",
       },
     },
   },

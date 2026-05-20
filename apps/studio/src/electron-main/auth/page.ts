@@ -102,14 +102,16 @@ export function renderAuthPage({
           .auth-serif {
             font-family: "Roboto Serif", ui-serif, Georgia, serif;
           }
+          /* brandGradient light: --brand-200 → --brown-50 */
           html {
-            background: linear-gradient(180deg, #ffd0c9 0%, #f6f4f0 100%);
+            background: linear-gradient(180deg, #9dbfb6 0%, #fcfbf8 100%);
           }
+          /* brandGradient dark: color-mix(--brand-700 50%, --background) → --background */
           @media (prefers-color-scheme: dark) {
             html {
               background: linear-gradient(
                 180deg,
-                color-mix(in srgb, #461109 60%, #09090b) 0%,
+                color-mix(in srgb, #0a4a42 50%, #09090b) 0%,
                 #09090b 50%
               );
             }
@@ -126,7 +128,7 @@ export function renderAuthPage({
               id="app-icon"
               src="/app-icon-stylized.png"
               alt="${APP_NAME}"
-              class="size-20"
+              class="size-20 drop-shadow-md"
             />
           </div>
           <div class="flex flex-col items-center gap-6 text-center">

@@ -72,9 +72,9 @@ export function ToolCall({
 
 function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
   return (
-    <div className="mt-2 overflow-hidden rounded-2xl border border-blue-500/20 bg-card">
-      <div className="border-b border-blue-500/20 bg-blue-500/5 px-4 py-2">
-        <span className="text-xs font-medium text-blue-500/80">
+    <div className="mt-2 overflow-hidden rounded-2xl border border-dev-500/20 bg-card">
+      <div className="border-b border-dev-500/20 bg-dev-500/5 px-4 py-2">
+        <span className="text-xs font-medium text-dev-500/80">
           Stopped while <span className="font-mono">{part.state}</span>
         </span>
       </div>

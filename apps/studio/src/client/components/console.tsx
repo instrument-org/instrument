@@ -54,8 +54,8 @@ const getLogLineStyles = (log: UnifiedLogLine) => {
 
   if (type === "warn") {
     return {
-      message: cn(baseStyles, "text-yellow-800 dark:text-yellow-300"),
-      row: "bg-yellow-50 dark:bg-yellow-900/20",
+      message: cn(baseStyles, "text-warning-700 dark:text-warning-300"),
+      row: "bg-warning-50 dark:bg-warning-900/20",
     };
   }
 
@@ -226,8 +226,8 @@ function ConsoleRow({
         "group relative border-l-2 px-1 py-px",
         index > 0 && "border-t border-border/40",
         line.source === "server"
-          ? "border-l-blue-200 dark:border-l-blue-800"
-          : "border-l-green-200 dark:border-l-green-800",
+          ? "border-l-dev-200 dark:border-l-dev-800"
+          : "border-l-success-300 dark:border-l-success-700",
         styles.row,
       )}
     >
@@ -236,8 +236,8 @@ function ConsoleRow({
           className={cn(
             "mt-0.5 flex h-4 min-w-[52px] shrink-0 items-center justify-center px-1 py-0 text-[10px]",
             line.source === "server"
-              ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
-              : "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300",
+              ? "border-dev-200 bg-dev-50 text-dev-700 dark:border-dev-800 dark:bg-dev-950/50 dark:text-dev-300"
+              : "border-success-300 bg-success-50 text-success-700 dark:border-success-700 dark:bg-success-900/50 dark:text-success-300",
           )}
           variant="secondary"
         >

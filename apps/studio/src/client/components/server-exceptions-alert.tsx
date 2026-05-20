@@ -150,12 +150,12 @@ export function ServerExceptionsAlert() {
               <AccordionContent className="px-3 pt-0 pb-2">
                 <div className="mb-2 rounded-sm border bg-muted/50 p-1.5 font-mono text-[11px] leading-relaxed wrap-break-word text-foreground/90">
                   {exception.rpcPath && (
-                    <span className="text-blue-600 dark:text-blue-400">
+                    <span className="text-dev-700 dark:text-dev-300">
                       [{exception.rpcPath}]{" "}
                     </span>
                   )}
                   {exception.code && (
-                    <span className="text-orange-600 dark:text-orange-400">
+                    <span className="text-warning-700 dark:text-warning-300">
                       [{exception.code}]{" "}
                     </span>
                   )}

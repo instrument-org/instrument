@@ -16,8 +16,8 @@ export function MediaOverlayButton({
       className={cn(
         "flex items-center gap-1.5 rounded-lg px-2.5 py-1",
         "text-xs font-medium shadow-sm",
-        "bg-white text-stone-950 hover:bg-stone-50",
-        "dark:bg-neutral-800 dark:text-white dark:hover:bg-neutral-700",
+        "bg-card text-foreground hover:bg-muted",
+        "dark:bg-card dark:hover:bg-muted",
         className,
       )}
       onClick={onClick}

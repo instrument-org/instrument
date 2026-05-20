@@ -115,15 +115,15 @@ export function ProjectActionsMenu({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-blue-700 dark:text-blue-300"
+              className="text-dev-700 dark:text-dev-300"
               disabled={!selectedSessionId}
               onClick={handleDebugChat}
             >
-              <BugIcon className="size-4 text-blue-700 dark:text-blue-300" />
+              <BugIcon className="size-4 text-dev-700 dark:text-dev-300" />
               Debug chat
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="text-blue-700 dark:text-blue-300"
+              className="text-dev-700 dark:text-dev-300"
               disabled={!selectedSessionId}
               onClick={() => {
                 if (selectedSessionId) {
@@ -131,7 +131,7 @@ export function ProjectActionsMenu({
                 }
               }}
             >
-              <ArrowCounterClockwiseIcon className="size-4 text-blue-700 dark:text-blue-300" />
+              <ArrowCounterClockwiseIcon className="size-4 text-dev-700 dark:text-dev-300" />
               Replay chat
             </DropdownMenuItem>
             <ProjectOpenInSubmenu subdomain={subdomain} />

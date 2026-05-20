@@ -130,7 +130,7 @@ export function ToolBash({
                   "pr-7 font-mono text-sm break-words whitespace-pre-wrap",
                   isFailed
                     ? "text-destructive"
-                    : "text-success-600 dark:text-success-400",
+                    : "text-success-700 dark:text-success-300",
                 )}
               >
                 {outputText}

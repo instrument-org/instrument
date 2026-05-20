@@ -17,8 +17,7 @@ const badgeVariants = tv({
       default:
         "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
       destructive:
-        "border-transparent bg-error-600 text-white focus-visible:ring-error-600/20 dark:bg-error-600/60 dark:focus-visible:ring-error-600/40 [a&]:hover:bg-error-600/90",
-      info: "border border-blue-700 text-blue-700 dark:border-transparent dark:bg-blue-500 dark:text-blue-300 [a&]:hover:bg-blue-500/90",
+        "border-transparent bg-error-500 text-white focus-visible:ring-error-500/20 dark:bg-error-500/60 dark:focus-visible:ring-error-500/40 [a&]:hover:bg-error-500/90",
       outline:
         "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
       secondary:

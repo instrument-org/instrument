@@ -22,7 +22,7 @@ export function OnboardingSuccessScreen({
               initial={initial}
               transition={{ ...fade, delay: 0.5 }}
             >
-              <AppIconStylized className="size-20" />
+              <AppIconStylized className="size-20 drop-shadow-md" />
             </motion.div>
 
             <motion.div

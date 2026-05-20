@@ -60,7 +60,7 @@ export const ContextMessages = memo(function ContextMessages({
       <div className="flex justify-center">
         <CollapsibleTrigger asChild>
           <Button
-            className="h-5 rounded-sm px-2 text-xs text-blue-700/80 hover:bg-blue-500/10 hover:text-blue-700 dark:text-blue-300/80 dark:hover:text-blue-300"
+            className="h-5 rounded-sm px-2 text-xs text-dev-700/80 hover:bg-dev-500/10 hover:text-dev-700 dark:text-dev-300/80 dark:hover:text-dev-300"
             variant="ghost"
           >
             <div className="flex items-center gap-1">
@@ -68,7 +68,7 @@ export const ContextMessages = memo(function ContextMessages({
                 View system prompt
               </span>
               {isExpanded && (
-                <CaretDownIcon className="size-2 text-blue-700 dark:text-blue-300" />
+                <CaretDownIcon className="size-2 text-dev-700 dark:text-dev-300" />
               )}
             </div>
           </Button>
@@ -77,11 +77,11 @@ export const ContextMessages = memo(function ContextMessages({
 
       <CollapsibleContent>
         <div className="group mt-2">
-          <div className="overflow-hidden rounded-r-md border-l-4 border-blue-700/50 bg-blue-500/5 dark:border-blue-300/50">
-            <div className="border-b border-blue-700/20 bg-blue-500/15 px-4 py-2.5 pr-4 backdrop-blur-sm dark:border-blue-300/20">
+          <div className="overflow-hidden rounded-r-md border-l-4 border-dev-700/50 bg-dev-500/5 dark:border-dev-300/50">
+            <div className="border-b border-dev-700/20 bg-dev-500/15 px-4 py-2.5 pr-4 backdrop-blur-sm dark:border-dev-300/20">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <DeveloperModeBadge />
-                <span className="text-[10px] leading-tight text-blue-700/75 dark:text-blue-300/75">
+                <span className="text-[10px] leading-tight text-dev-700/75 dark:text-dev-300/75">
                   Viewing the system prompt is only available in developer mode.
                 </span>
               </div>
@@ -93,7 +93,7 @@ export const ContextMessages = memo(function ContextMessages({
 
           <div className="flex justify-end pt-2">
             <CopyButton
-              className="rounded-sm p-1 text-blue-700/70 opacity-0 transition-colors group-hover:opacity-100 hover:bg-blue-500/10 hover:text-blue-700 disabled:opacity-50 dark:text-blue-300/70 dark:hover:text-blue-300"
+              className="rounded-sm p-1 text-dev-700/70 opacity-0 transition-colors group-hover:opacity-100 hover:bg-dev-500/10 hover:text-dev-700 disabled:opacity-50 dark:text-dev-300/70 dark:hover:text-dev-300"
               iconSize={12}
               onCopy={handleCopy}
             />

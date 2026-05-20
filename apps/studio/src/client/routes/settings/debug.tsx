@@ -27,7 +27,7 @@ function SafeStorage() {
             Encryption Available
           </span>
           <span
-            className={`text-sm font-medium ${safeStorageInfo.isAvailable ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+            className={`text-sm font-medium ${safeStorageInfo.isAvailable ? "text-success-700 dark:text-success-300" : "text-error-700 dark:text-error-300"}`}
           >
             {safeStorageInfo.isAvailable ? "Yes" : "No"}
           </span>

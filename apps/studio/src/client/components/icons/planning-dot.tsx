@@ -13,7 +13,7 @@ export function PlanningDotIcon({ className }: { className?: string }) {
     >
       <span
         aria-hidden
-        className="planning-dot-shockwave-ring col-start-1 row-start-1 size-full rounded-full border-2 border-[#F96B55]/55"
+        className="planning-dot-shockwave-ring col-start-1 row-start-1 size-full rounded-full border-2 border-brand-400/55"
       />
       <svg
         className="planning-dot-core relative z-10 col-start-1 row-start-1 size-full"
@@ -31,8 +31,8 @@ export function PlanningDotIcon({ className }: { className?: string }) {
             id={gradientId}
             r="1"
           >
-            <stop stopColor="#DF3C23" />
-            <stop offset="1" stopColor="#F96B55" />
+            <stop stopColor="var(--brand-600)" />
+            <stop offset="1" stopColor="var(--brand-400)" />
           </radialGradient>
         </defs>
       </svg>

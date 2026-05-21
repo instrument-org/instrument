@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./base": "./base.ts",
+    "./format": "./format.ts",
     "./react": "./react.ts",
     "./react-with-tailwind": "./react-with-tailwind.ts"
   },

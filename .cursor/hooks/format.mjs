@@ -209,6 +209,13 @@ function runEslint(repoRoot, files) {
   if (!fileExists(eslintPath)) {
     return;
   }
+  const formatConfigPath = path.join(
+    repoRoot,
+    "packages/eslint-config/format.ts",
+  );
+  const configArguments = fileExists(formatConfigPath)
+    ? ["--config", formatConfigPath]
+    : [];
 
   // Group files by their nearest eslint.config directory so each group runs
   // with the correct cwd (and thus the correct package-level config).

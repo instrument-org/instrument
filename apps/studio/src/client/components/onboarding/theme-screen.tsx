@@ -59,7 +59,7 @@ function DarkContent() {
           <div className="h-0.5 w-full rounded-sm bg-[#44403c]" />
           {/* Input bar */}
           <div className="mt-auto flex h-[7px] items-center justify-end rounded-sm bg-[#3c3835] px-0.5">
-            <div className="size-[5px] rounded-full bg-brand" />
+            <div className="size-[5px] rounded-full bg-brand-600" />
           </div>
         </div>
         {/* Right col */}
@@ -95,7 +95,7 @@ function LightContent() {
           <div className="h-0.5 w-full rounded-sm bg-[#e7e5e4]" />
           {/* Input bar */}
           <div className="mt-auto flex h-[7px] items-center justify-end rounded-sm bg-[#e7e5e4] px-0.5 shadow-[0_0.2px_0.8px_rgba(0,0,0,0.06)]">
-            <div className="size-[5px] rounded-full bg-brand" />
+            <div className="size-[5px] rounded-full bg-brand-600" />
           </div>
         </div>
         {/* Right col */}
@@ -189,7 +189,7 @@ function ThemeCard({
           "rounded-xl p-1 shadow-[0_1px_3px_0_rgba(10,13,18,0.1),0_1px_2px_0_rgba(10,13,18,0.06)]",
           "bg-white transition-all duration-150 dark:bg-white/10",
           isSelected
-            ? "outline-[3px] outline-brand"
+            ? "outline-[3px] outline-brand-600"
             : "outline-[1px] outline-black/8 dark:outline-white/10",
         )}
       >

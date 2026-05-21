@@ -90,11 +90,7 @@ const coreGroups = [
 
 const scaleGroups = [
   {
-    colors: [
-      ...tokens(["brand"]),
-      ...scaleTokens("brand"),
-      ...tokens(["brand-foreground"]),
-    ],
+    colors: [...scaleTokens("brand"), ...tokens(["brand-foreground"])],
     title: "Brand",
   },
   {

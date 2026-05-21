@@ -11,6 +11,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { isNonRetryableGatewayError } from "./gateway-response-body";
+import { PROJECT_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { textForMessage } from "./text-for-message";
 
 const MAX_TITLE_WORDS = 5;
@@ -49,6 +50,7 @@ export function generateTitleFromUserMessage({
       const aiSDKModel = aiSDKModelResult.value;
 
       const title = await generateText({
+        maxOutputTokens: PROJECT_NAME_MAX_OUTPUT_TOKENS,
         model: aiSDKModel,
         prompt: userMessage,
         system: buildSystemPrompt(templateTitle),

@@ -86,6 +86,55 @@ function formatEditedFile({ filePath, repoRoot }) {
   }
 }
 
+function formatEditedFiles({ cwd, filePaths, repoRoot }) {
+  const relativePaths = filePaths
+    .map((filePath) =>
+      getSafeRelativePath({
+        filePath: path.resolve(cwd, filePath),
+        repoRoot,
+      }),
+    )
+    .filter(
+      (relativePath) =>
+        relativePath && fileExists(path.join(repoRoot, relativePath)),
+    );
+
+  if (relativePaths.length === 0 || !isInstrumentRepoRoot(repoRoot)) {
+    return;
+  }
+
+  const prettierFiles = relativePaths.filter((relativePath) =>
+    PRETTIER_EXT.test(relativePath),
+  );
+  const eslintFiles = relativePaths.filter((relativePath) =>
+    ESLINT_EXT.test(relativePath),
+  );
+
+  runBatched(repoRoot, prettierFiles, runPrettier);
+  runBatched(repoRoot, eslintFiles, runEslint);
+  runBatched(repoRoot, prettierFiles, runPrettier);
+}
+
+function getCodexEditedPaths(data) {
+  const command =
+    typeof data.tool_input?.command === "string" ? data.tool_input.command : "";
+  const paths = new Set();
+
+  for (const line of command.split("\n")) {
+    const match = /^\*\*\* (?:Add|Update) File: (.+)$/.exec(line);
+    if (match) {
+      paths.add(match[1].trim());
+    }
+  }
+
+  return [...paths];
+}
+
+function getRepoRoot(cwd) {
+  const root = readGitPaths(cwd, ["rev-parse", "--show-toplevel"]).trim();
+  return root || cwd;
+}
+
 function getSafeRelativePath({ filePath, repoRoot }) {
   const relativePath = path.relative(repoRoot, filePath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
@@ -233,11 +282,15 @@ function runEslint(repoRoot, files) {
 
   for (const [configDirectory, absolutePaths] of groups) {
     try {
-      execFileSync(eslintPath, ["--no-ignore", "--fix", ...absolutePaths], {
-        cwd: configDirectory,
-        maxBuffer: 50 * 1024 * 1024,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      execFileSync(
+        eslintPath,
+        [...configArguments, "--no-ignore", "--fix", ...absolutePaths],
+        {
+          cwd: configDirectory,
+          maxBuffer: 50 * 1024 * 1024,
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
     } catch {
       // ESLint exits 1 for unfixable lint errors -- that's expected, ignore.
     }
@@ -280,6 +333,9 @@ try {
 }
 
 try {
+  const cwd = process.cwd();
+  const repoRoot = getRepoRoot(cwd);
+
   if (
     data.hook_event_name === "afterFileEdit" &&
     typeof data.file_path === "string" &&
@@ -287,14 +343,29 @@ try {
   ) {
     formatEditedFile({
       filePath: path.resolve(data.file_path),
-      repoRoot: process.cwd(),
+      repoRoot,
     });
   }
 
   if (data.hook_event_name === "stop" && data.status === "completed") {
-    for (const root of getStopRoots({ data, repoRoot: process.cwd() })) {
+    for (const root of getStopRoots({ data, repoRoot })) {
       formatDirtyFiles(root);
     }
+  }
+
+  if (
+    data.hook_event_name === "PostToolUse" &&
+    data.tool_name === "apply_patch"
+  ) {
+    formatEditedFiles({
+      cwd,
+      filePaths: getCodexEditedPaths(data),
+      repoRoot,
+    });
+  }
+
+  if (data.hook_event_name === "Stop") {
+    formatDirtyFiles(repoRoot);
   }
 } catch (error) {
   console.error("[format-hook]", error?.message ?? error);

@@ -21,16 +21,11 @@ const DIALOG_TITLES = {
   login: "Log in",
 } as const;
 
+/* eslint-disable perfectionist/sort-objects */
 export const Route = createFileRoute("/_app/new-tab")({
   component: RouteComponent,
-  head: ({ match }) => ({
-    meta: [
-      {
-        title: match.search.dialog
-          ? DIALOG_TITLES[match.search.dialog]
-          : "New tab",
-      },
-    ],
+  validateSearch: z.object({
+    dialog: z.enum(["login", "lifetime"]).optional(),
   }),
   loader: async ({ context }) => {
     const hasToken = await rpcClient.auth.hasToken.call();
@@ -41,11 +36,18 @@ export const Route = createFileRoute("/_app/new-tab")({
       rpcClient.auth.live.hasToken.experimental_liveKey(),
       hasToken,
     );
+    return { hasToken };
   },
-  validateSearch: z.object({
-    dialog: z.enum(["login", "lifetime"]).optional(),
-  }),
+  head: ({ loaderData, match }) => {
+    const { dialog } = match.search;
+    const showLoginDialog = dialog === "login" && !loaderData?.hasToken;
+    const showLifetimeDialog = dialog === "lifetime";
+    const title =
+      showLoginDialog || showLifetimeDialog ? DIALOG_TITLES[dialog] : "New tab";
+    return { meta: [{ title }] };
+  },
 });
+/* eslint-enable perfectionist/sort-objects */
 
 function RouteComponent() {
   const { dialog } = Route.useSearch();

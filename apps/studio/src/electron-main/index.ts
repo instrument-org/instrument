@@ -29,6 +29,7 @@ import {
   session,
 } from "electron";
 
+import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { logger } from "./lib/electron-logger";
 import { generateUserAgent } from "./lib/generate-user-agent";
@@ -86,6 +87,12 @@ if (gotTheLock) {
 
 // eslint-disable-next-line unicorn/prefer-top-level-await
 void app.whenReady().then(async () => {
+  const canContinueLaunch = await warnIfRunningX64BuildUnderARM64Translation();
+  if (!canContinueLaunch) {
+    app.quit();
+    return;
+  }
+
   if (
     process.platform === "darwin" &&
     !is.dev &&

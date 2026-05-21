@@ -4,7 +4,6 @@ import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { HeartIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -94,22 +93,6 @@ export function SubscriptionCard() {
     return (
       <Card className="p-4 shadow-sm">
         <div className="space-y-4">
-          <div>
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <h4 className="font-medium">Lifetime license</h4>
-              <Badge variant="outline">
-                <HeartIcon
-                  className="size-3 text-muted-foreground"
-                  weight="fill"
-                />
-                Founding User
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Thanks for backing us early.
-            </p>
-          </div>
-
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="font-medium">Credits</span>
@@ -132,10 +115,7 @@ export function SubscriptionCard() {
           </div>
 
           {hasSubscription && (
-            <div
-              className="flex flex-wrap items-center justify-between gap-2
-                border-t pt-3"
-            >
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Subscription</span>
                 <Badge variant="outline">{subscription.plan}</Badge>

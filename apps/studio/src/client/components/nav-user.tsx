@@ -1,3 +1,4 @@
+import { FoundingUserLabel } from "@/client/components/founding-user-label";
 import {
   Avatar,
   AvatarFallback,
@@ -18,6 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
+import { useHasLifetime } from "@/client/hooks/use-entitlements";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getInitials } from "@/client/lib/get-initials";
@@ -35,6 +37,7 @@ export function NavUser() {
   const { data: subscription, refetch: refetchSubscription } =
     useLiveSubscriptionStatus();
 
+  const hasLifetime = useHasLifetime();
   const planName = subscription?.plan ?? null;
 
   const onUpgrade = () => {
@@ -100,6 +103,8 @@ export function NavUser() {
                     <span className="truncate text-[10px] tracking-wide text-muted-foreground/70 uppercase">
                       No credits
                     </span>
+                  ) : hasLifetime ? (
+                    <FoundingUserLabel className="truncate" />
                   ) : (
                     <span className="truncate text-xs text-muted-foreground">
                       {planName ?? "Free"}
@@ -128,11 +133,14 @@ export function NavUser() {
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm/tight">
                   <span className="truncate font-medium">{user.name}</span>
-                  {subscription && (
-                    <span className="truncate text-xs">
-                      {planName ?? "Free"}
-                    </span>
-                  )}
+                  {subscription &&
+                    (hasLifetime ? (
+                      <FoundingUserLabel className="truncate" />
+                    ) : (
+                      <span className="truncate text-xs">
+                        {planName ?? "Free"}
+                      </span>
+                    ))}
                 </div>
               </div>
             </DropdownMenuLabel>

@@ -231,7 +231,7 @@ function About() {
                   : appVersion?.version || "Unknown"}
               </div>
               <Button
-                className="h-auto p-0 text-brand-600"
+                className="h-auto p-0 text-brand-400 hover:text-brand-500 dark:text-brand-300 dark:hover:text-brand-200"
                 onClick={() => {
                   void addTab({ to: "/release-notes" });
                   window.close();
@@ -255,7 +255,7 @@ function About() {
             <div>
               <Button
                 asChild
-                className="h-auto px-0! text-brand-600"
+                className="h-auto px-0! text-brand-400 hover:text-brand-500 dark:text-brand-300 dark:hover:text-brand-200"
                 variant="link"
               >
                 <ExternalLink href={APP_REPO_URL}>

@@ -20,6 +20,7 @@ import { type AnyAgent } from "../agents/types";
 import { type AppConfig } from "../lib/app-config/types";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
 import { getWorkspaceServerURL } from "../logic/server/url";
@@ -179,6 +180,7 @@ export const llmRequestLogic = fromPromise<
     const startTimestampMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
+      maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       maxRetries: 0, // Handled outside this function
       messages: messagesResult.value,
       model: aiSDKModel,

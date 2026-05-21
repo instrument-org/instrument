@@ -7,6 +7,7 @@ import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockAppConfig } from "../test/helpers/mock-app-config";
 import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
+import { PROJECT_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 
 function createMockLanguageModel(text: string) {
   return new MockLanguageModelV3({
@@ -88,6 +89,7 @@ function setupTest(
         model,
         workspaceConfig,
       }),
+    mockLanguageModel,
   };
 }
 
@@ -159,6 +161,18 @@ describe("generateTitleFromUserMessage", () => {
 
     expect(title.split(" ")).toHaveLength(1);
     expect(title).toBe("Todos");
+  });
+
+  it("should cap max output tokens for project-name generation", async () => {
+    const { generate, mockLanguageModel } = setupTest("Todo List Manager");
+
+    const result = await generate();
+
+    expect(result.isOk()).toBe(true);
+    expect(mockLanguageModel.doGenerateCalls).toHaveLength(1);
+    expect(mockLanguageModel.doGenerateCalls[0]?.maxOutputTokens).toBe(
+      PROJECT_NAME_MAX_OUTPUT_TOKENS,
+    );
   });
 
   it("should handle empty message gracefully", async () => {

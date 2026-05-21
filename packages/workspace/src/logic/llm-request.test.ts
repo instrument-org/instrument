@@ -18,6 +18,7 @@ import {
   waitFor,
 } from "xstate";
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { Store } from "../lib/store";
 import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -173,8 +174,7 @@ describe("llmRequestLogic", () => {
       on: {
         "*": {
           actions: ({ event }) => {
-            // eslint-disable-next-line no-console
-            console.warn("Unknown event", event);
+            throw new Error(`Unknown event ${event.type}`);
           },
         },
         stop: ".Stopped",
@@ -206,9 +206,7 @@ describe("llmRequestLogic", () => {
             }),
             onDone: "Done",
             onError: {
-              actions: ({ event }) => {
-                // eslint-disable-next-line no-console
-                console.error("State machine error", event);
+              actions: () => {
                 throw new Error("Error");
               },
             },
@@ -219,13 +217,16 @@ describe("llmRequestLogic", () => {
       },
     });
 
-    return { appConfig: projectAppConfig, machine };
+    return { appConfig: projectAppConfig, machine, mockLanguageModel };
   }
 
   async function runTestMachine({
     appConfig,
     machine,
-  }: Awaited<ReturnType<typeof createTestMachine>>) {
+  }: Pick<
+    Awaited<ReturnType<typeof createTestMachine>>,
+    "appConfig" | "machine"
+  >) {
     const actor = createActor(machine);
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
@@ -2328,5 +2329,22 @@ describe("llmRequestLogic", () => {
         ]
       `);
     });
+  });
+
+  it("should cap max output tokens for normal LLM requests", async () => {
+    const testMachine = await createTestMachine({
+      chunks: [
+        { id: "1", type: "text-start" },
+        { delta: "Hello", id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+      ],
+    });
+
+    await runTestMachine(testMachine);
+
+    expect(testMachine.mockLanguageModel.doStreamCalls).toHaveLength(1);
+    expect(
+      testMachine.mockLanguageModel.doStreamCalls[0]?.maxOutputTokens,
+    ).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
   });
 });

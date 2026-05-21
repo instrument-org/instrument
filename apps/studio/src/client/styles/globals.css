@@ -104,7 +104,6 @@ html:has(meta[name="opaque-background"]) body {
   --color-brown-900: var(--brown-900);
 
   /* Brand — full 12-stop ramp (in heavy use across the product). */
-  --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-25: var(--brand-25);
   --color-brand-50: var(--brand-50);
@@ -175,7 +174,7 @@ html:has(meta[name="opaque-background"]) body {
   --ring: var(--gray-400);
   --sidebar: var(--gray-100);
   --sidebar-foreground: var(--gray-950);
-  --sidebar-primary: var(--brand-500);
+  --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--gray-200);
   --sidebar-accent-foreground: var(--gray-800);
@@ -217,7 +216,6 @@ html:has(meta[name="opaque-background"]) body {
   --brown-900: #564538;
 
   /* Brand — Figma's teal "Scaffold" brand ramp. */
-  --brand: var(--brand-500);
   --brand-foreground: #ffffff;
   --brand-25: #f1f4f2;
   --brand-50: #e2eae7;
@@ -288,7 +286,7 @@ html:has(meta[name="opaque-background"]) body {
   --ring: rgb(255 255 255 / 30%);
   --sidebar: var(--gray-900);
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: var(--brand-500);
+  --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(255 255 255 / 5%);
   --sidebar-accent-foreground: #ffffff;

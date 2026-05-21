@@ -20,7 +20,7 @@ export const buttonVariants = tv({
       sm: "h-8 gap-1.5 rounded-lg px-3 has-[>svg]:px-2.5",
     },
     variant: {
-      brand: "bg-brand-400 text-brand-foreground shadow-xs hover:bg-brand-500",
+      brand: "bg-brand-600 text-brand-foreground shadow-xs hover:bg-brand-700",
       default:
         "bg-card text-card-foreground shadow-sm hover:bg-secondary dark:bg-gray-200 dark:text-gray-900 dark:hover:bg-gray-300",
       destructive:

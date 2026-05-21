@@ -144,6 +144,7 @@ export const llmRequestLogic = fromPromise<
   const abortListener = () => {
     saveAbortMessage();
   };
+  const isSignalAborted = () => signal.aborted;
 
   signal.addEventListener("abort", abortListener);
 
@@ -152,8 +153,7 @@ export const llmRequestLogic = fromPromise<
   let msToFirstChunk: number | undefined;
   let msToFinish: number | undefined;
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (signal.aborted) {
+  if (isSignalAborted()) {
     saveAbortMessage();
     return { message: assistantMessage, parts: await getCurrentParts() };
   }
@@ -194,8 +194,7 @@ export const llmRequestLogic = fromPromise<
     });
 
     for await (const part of result.fullStream) {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (signal.aborted || part.type === "abort") {
+      if (isSignalAborted() || part.type === "abort") {
         // Ensures we don't try to process any more parts
         break;
       }

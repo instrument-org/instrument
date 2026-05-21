@@ -27,7 +27,7 @@ Pnpm monorepo for the Instrument desktop app platform.
 - NEVER add comments for sections of JSX like `{/* Header */}<Header />`.
 - Prefer objects for functions with many parameters.
 - Don't run `tsc` to check for type errors, use your built-in diagnostics tool.
-- Ignore import sort order linter errors (e.g. "Expected X to come before Y"). They are auto-fixed and do not need manual correction.
+- Objects, interfaces, types, imports, and other sortable structures are sorted by perfectionist and import-x. Do not fix "Expected {thing} to come before {thing}" or import-order errors; they are auto-fixed after your work is done.
 - `"lib": ["es2023", "DOM", "DOM.Iterable"]` is set, so you can use modern features.
 - The `radashi` import is installed. Use it for common lodash-style functions.
 - Prefer inline type declarations when they are short and not exported.

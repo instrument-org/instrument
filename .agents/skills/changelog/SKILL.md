@@ -1,6 +1,6 @@
 ---
 name: changelog
-description: Generate changelog from git commits
+description: Approach
 disable-model-invocation: true
 ---
 
@@ -66,11 +66,11 @@ More will follow.
 - Linux: Fixed DBus safe storage issues by setting up direct DBus communication.
 - Workspace: Ensured runtime starts when agent session spawns to prevent missing dependencies.
 - AI Gateway: Fixed handling of `:latest` style model names (e.g., `gpt-oss:latest`).
-- Workspace: Blocked `pnpm dev`, `pnpm start`, and `pnpm run` variants since the app already manages app lifecycle.
+- Workspace: Blocked `pnpm dev`, `pnpm start`, and `pnpm run` variants since Quests already manages app lifecycle.
 
 ## Water Vehicle
 
-<!-- Image placeholder -->
+<img width="512" height="512" alt="create_an_art_deco_abstract_painting_of_a_streamlined_boat_gliding_through_geometric_luxury_incorpo_2zoya69fyv6xzft55rlj_1" src="https://github.com/user-attachments/assets/51ee86dc-f5d8-4489-b9ba-fc308d932b90" />
 
 _23 commits since v1.4.2_
 ```

@@ -1,18 +1,17 @@
----
-description: Rules for the Studio.
-globs: apps/studio/**/*
----
+# Studio
 
-## ⚠️ WARNING: Studio `dependencies` vs `devDependencies`
+Electron desktop app.
 
-electron-builder copies everything in `dependencies` into the asar's `node_modules`. Packages that are only used in the renderer (React components, UI libraries, Vite-bundled code) **must** be in `devDependencies` — Vite bundles them at build time and they do not need to be present at runtime. Putting renderer-only packages in `dependencies` silently bloats the app by tens of megabytes.
+## Dependencies vs devDependencies
+
+electron-builder copies everything in `dependencies` into the asar's `node_modules`. Packages that are only used in the renderer (React components, UI libraries, Vite-bundled code) **must** be in `devDependencies`. Vite bundles them at build time and they do not need to be present at runtime. Putting renderer-only packages in `dependencies` silently bloats the app by tens of megabytes.
 
 - **`dependencies`**: main-process runtime packages only (e.g. `hono`, `better-auth`, `xstate`, `ws`, native addons)
-- **`devDependencies`**: everything renderer-only (e.g. React, Radix, `motion if only used in the renderer)
+- **`devDependencies`**: everything renderer-only (e.g. React, Radix, `motion` if only used in the renderer)
 
 ## Project
 
-Studio is an Electron app. The renderer is a React 19 app using TanStack Router (file-based routes), shadcn UI components, and oRPC to talk to the main process. The main process also calls a remote API (accounts, plans, Stripe); that is only exposed to the UI via main-process RPC, not by the client calling HTTP directly.
+The renderer is a React 19 app using TanStack Router (file-based routes), shadcn UI components, and oRPC to talk to the main process. The main process also calls a remote API (accounts, plans, Stripe); that is only exposed to the UI via main-process RPC, not by the client calling HTTP directly.
 
 - React 19: use the newer APIs. Because we behave as a desktop app, we don't use `cursor: pointer` for links.
 - Use shadcn Tailwind colors (e.g. `bg-background`), not raw colors like `bg-white`.

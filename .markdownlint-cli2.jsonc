@@ -4,6 +4,7 @@
     "**/out/**",
     "**/dist/**",
     "registry/**",
-    "**/*.local/**"
+    "**/*.local/**",
+    ".cursor/plans/**"
   ]
 }

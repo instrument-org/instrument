@@ -9,7 +9,6 @@ import { ImageWithFallback } from "./image-with-fallback";
 const thumbnailIcon = tv({
   base: "size-4 shrink-0",
   compoundVariants: [
-    { class: "text-primary", isActive: true, variant: "primary" },
     {
       class: "text-sidebar-accent-foreground",
       isActive: true,
@@ -23,7 +22,7 @@ const thumbnailIcon = tv({
   variants: {
     isActive: {
       false: "text-muted-foreground",
-      true: "",
+      true: "text-foreground",
     },
     variant: {
       primary: "",
@@ -78,12 +77,10 @@ export function FileThumbnail({
           {[0.85, 0.72, 0.9, 0.55].map((w) => (
             <div
               className={cn(
-                "h-px min-w-0 rounded-full",
-                isActive
-                  ? variant === "primary"
-                    ? "bg-primary/35"
-                    : "bg-sidebar-accent-foreground/35"
-                  : "bg-muted-foreground/20",
+                "h-px min-w-0 rounded-full bg-muted-foreground/20",
+                isActive &&
+                  variant === "sidebar" &&
+                  "bg-sidebar-accent-foreground/35",
               )}
               key={w}
               style={{ width: `${w * 100}%` }}
@@ -123,11 +120,13 @@ function ThumbnailFrame({
   return (
     <div
       className={cn(
-        "h-10 w-8 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm",
-        isActive &&
-          (variant === "primary"
-            ? "border-primary/20 bg-primary/10"
-            : "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10"),
+        "shrink-0 overflow-hidden shadow-xs",
+        variant === "primary"
+          ? "h-11.5 w-9 rounded-sm border border-black/5 bg-card dark:border-white/5 dark:bg-white/5"
+          : "h-10 w-8 rounded-md border border-border bg-background shadow-sm",
+        variant === "sidebar" &&
+          isActive &&
+          "border-sidebar-accent-foreground/20 bg-sidebar-accent-foreground/10",
         className,
       )}
     >

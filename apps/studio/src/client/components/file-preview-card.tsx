@@ -138,9 +138,10 @@ function FileRowCard({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group relative flex h-auto min-h-14 items-stretch gap-2.5 overflow-hidden rounded-lg border border-border bg-background px-3 py-2 text-xs",
-            "transition-colors hover:bg-muted/50",
-            isSelected && "border-primary/30 bg-primary/10 hover:bg-primary/15",
+            "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 transition-colors",
+            isSelected
+              ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
+              : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
           )}
         >
           <FileThumbnail
@@ -149,18 +150,13 @@ function FileRowCard({
             variant="primary"
           />
           <button
-            className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left"
+            className="flex min-w-0 flex-1 flex-col justify-center text-left"
             onClick={onClick}
             type="button"
           >
             <Tooltip>
               <TooltipTrigger asChild>
-                <span
-                  className={cn(
-                    "truncate font-medium",
-                    isSelected ? "text-primary" : "text-foreground",
-                  )}
-                >
+                <span className="truncate text-sm leading-5 text-foreground">
                   {filename}
                 </span>
               </TooltipTrigger>
@@ -168,12 +164,7 @@ function FileRowCard({
                 <span className="break-all">{filePath}</span>
               </TooltipContent>
             </Tooltip>
-            <span
-              className={cn(
-                "truncate",
-                isSelected ? "text-primary/70" : "text-muted-foreground",
-              )}
-            >
+            <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
               {fileKindLabel(getFileType(file))}
               <FileVersionBadge
                 className="ml-1 inline text-[10px]"

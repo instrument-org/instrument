@@ -53,6 +53,15 @@ Pnpm monorepo for the Instrument desktop app platform.
 - React Compiler is setup for the Studio, so basic memoization like memo, useMemo, and useCallback are not needed.
 - Ignore "Incorrect class order" errors from eslint-plugin-better-tailwindcss. They are auto-fixed and do not need manual correction.
 
+## Monorepo checks (Turbo)
+
+From repo root for lint/types/tests across packages (cached). Not per-package loops.
+
+- `pnpm check-and-test` — full CI
+- `turbo run check:types check:lint` — all packages; add `--filter=@instrument-org/<pkg>` for one
+- `pnpm turbo:fix:lint` — fix lint
+- Single test file only: `cd packages/<name> && pnpm test run <file>`
+
 ## Tests
 
 - Use `it.each` for testing repetitive cases.

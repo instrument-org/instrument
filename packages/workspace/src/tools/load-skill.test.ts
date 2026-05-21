@@ -105,7 +105,7 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("copies skill directory to .agents/skills/<name> on load", async () => {
+  it("copies skill directory to skills/<name> on load", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "console.log('hello')" },
       name: "my-skill",

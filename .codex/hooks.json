@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.cursor/hooks/format.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Formatting edited files"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.cursor/hooks/format.mjs\"",
+            "timeout": 180,
+            "statusMessage": "Formatting dirty files"
+          }
+        ]
+      }
+    ]
+  }
+}

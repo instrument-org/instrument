@@ -690,8 +690,24 @@ export const llmRequestLogic = fromPromise<
     const parts = await getCurrentParts();
     for (const part of parts) {
       if (isToolPart(part) && part.state === "input-streaming") {
-        // eslint-disable-next-line no-console
-        console.error("Unhandled tool input streaming part", part);
+        const inputStreamText = toolCallInputText[part.toolCallId];
+        input.appConfig.workspaceConfig.captureException(
+          new Error("Unhandled tool input streaming part"),
+          {
+            assistant_error_kind: assistantMessage.metadata.error.kind,
+            input_stream_char_count: inputStreamText?.length,
+            message_id: assistantMessage.id,
+            modelId,
+            part_has_input: part.input !== undefined,
+            part_id: part.metadata.id,
+            provider_executed: part.providerExecuted,
+            providerId,
+            scopes: ["workspace", "llm-request"],
+            session_id: input.sessionId,
+            tool_call_id: part.toolCallId,
+            tool_type: part.type,
+          },
+        );
       }
     }
 

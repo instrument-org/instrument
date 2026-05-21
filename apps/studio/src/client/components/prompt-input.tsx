@@ -577,7 +577,7 @@ export const PromptInput = ({
           </DropdownMenu>
 
           <Button
-            className="size-10 rounded-xl p-0 disabled:opacity-100"
+            className="size-10 rounded-full p-0 disabled:opacity-100"
             disabled={isStoppable ? false : !canSubmit}
             onClick={(e) => {
               if (isStoppable) {

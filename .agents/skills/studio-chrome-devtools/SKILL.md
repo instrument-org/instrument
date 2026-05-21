@@ -1,6 +1,8 @@
 ---
 name: studio-chrome-devtools
 description: Use when working with Chrome DevTools against the Studio Electron app in this repo. Load this for Studio-specific connection details, page selection, and multi-WebContentsView behavior. Especially relevant when the user mentions Electron, `chrome-devtools`, `chrome-devtools-cli`, shell window, main window, browser views, smoke tests, or debug routes.
+paths:
+  - "apps/studio/**"
 ---
 
 # Studio Chrome DevTools
@@ -43,13 +45,13 @@ If the CLI wrapper reports an `ENOENT` socket error under the sandbox, retry out
 Use the helper script in this skill to probe Studio, start the CLI bridge, and list pages:
 
 ```bash
-bash .cursor/skills/studio-chrome-devtools/scripts/connect-cli.sh
+bash .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh
 ```
 
 To also select a likely page by URL fragment and immediately snapshot it:
 
 ```bash
-bash .cursor/skills/studio-chrome-devtools/scripts/connect-cli.sh \
+bash .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh \
   http://127.0.0.1:48160 \
   '#/debug/components'
 ```
@@ -112,7 +114,7 @@ The smoke test in `apps/studio/smoke-test.spec.ts` is the model to follow: it fi
 ## Recommended Workflow
 
 1. Ensure Studio is already running with the debug port available.
-2. Prefer `bash .cursor/skills/studio-chrome-devtools/scripts/connect-cli.sh`.
+2. Prefer `bash .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh`.
 3. Ignore the shield `data:` page.
 4. Choose the correct page by URL fragment such as `#/shell` or `#/debug/...`.
 5. Run `take_snapshot`.

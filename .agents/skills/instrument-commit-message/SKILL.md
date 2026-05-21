@@ -1,6 +1,9 @@
 ---
 name: instrument-commit-message
 description: Generate a git commit message matching the Instrument monorepo's conventional commit style. Use when the user asks for a commit message, wants to commit changes, or asks how to describe their changes. Knows the repo's scopes (studio, workspace, shim-client), types (feat, fix, dx, refactor, chore, release), and real examples from the commit history.
+paths:
+  - "apps/studio/**"
+  - "packages/**"
 ---
 
 # Commit Message

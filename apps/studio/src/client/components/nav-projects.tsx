@@ -21,6 +21,8 @@ import { NavProjectItem } from "./nav-project-item";
 
 const FAVORITES_LIMIT = 5;
 const PROJECT_ITEM_HEIGHT = 36;
+const PROJECT_ITEM_GAP = 2;
+const PROJECT_ROW_HEIGHT = PROJECT_ITEM_HEIGHT + PROJECT_ITEM_GAP;
 
 export function NavProjects({
   favoriteSubdomains,
@@ -82,7 +84,7 @@ export function NavProjects({
     );
 
   return (
-    <SidebarGroup className="pr-0.5 pl-1 group-data-[collapsible=icon]:hidden">
+    <SidebarGroup className="px-3 group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel
         asChild
         className={cn(
@@ -98,7 +100,7 @@ export function NavProjects({
           {title}
         </InternalLink>
       </SidebarGroupLabel>
-      <SidebarMenu className="gap-0">
+      <SidebarMenu className="gap-0.5">
         {isFavorites ? (
           <>
             {visibleFavorites.map((project) => (
@@ -180,7 +182,7 @@ function ProjectsList({
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: projects.length,
-    estimateSize: () => PROJECT_ITEM_HEIGHT,
+    estimateSize: () => PROJECT_ROW_HEIGHT,
     getScrollElement: () => scrollElement,
     overscan: 5,
     scrollMargin,

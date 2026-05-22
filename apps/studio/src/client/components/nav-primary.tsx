@@ -26,7 +26,7 @@ export function NavPrimary({
   }[];
 }) {
   return (
-    <SidebarGroup {...props} className="pb-1 pl-1">
+    <SidebarGroup {...props} className="px-3 pb-1">
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (
@@ -34,7 +34,7 @@ export function NavPrimary({
               <SidebarMenuButton
                 asChild
                 className={cn(
-                  "group-hover:bg-black/10 data-[active=true]:bg-black/15 data-[active=true]:font-normal data-[active=true]:text-foreground dark:group-hover:bg-white/10 dark:data-[active=true]:bg-white/15",
+                  "group-hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:font-normal data-[active=true]:text-foreground",
                   item.isBrand &&
                     "font-medium data-[active=true]:bg-transparent data-[active=true]:text-brand-400",
                 )}

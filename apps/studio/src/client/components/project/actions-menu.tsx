@@ -69,7 +69,7 @@ export function ProjectActionsMenu({
         <Button
           className={toolbarClassName({
             className:
-              "size-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+              "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
             pressed: false,
           })}
           size="icon-sm"

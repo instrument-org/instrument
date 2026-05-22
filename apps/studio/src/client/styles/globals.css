@@ -172,7 +172,7 @@ html:has(meta[name="opaque-background"]) body {
   --border: var(--gray-200);
   --input: var(--gray-200);
   --ring: var(--gray-400);
-  --sidebar: var(--gray-100);
+  --sidebar: var(--background);
   --sidebar-foreground: var(--gray-950);
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;

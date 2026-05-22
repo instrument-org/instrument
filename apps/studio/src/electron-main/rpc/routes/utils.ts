@@ -21,6 +21,8 @@ import {
   createAppConfig,
   ProjectSubdomainSchema,
   readProjectFile,
+  RelativePathSchema,
+  resolvePathWithinAppDir,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
@@ -219,28 +221,6 @@ const openExternalLink = base
     }
   });
 
-const imageDataURI = base
-  .input(z.object({ filePath: z.string() }))
-  .handler(async ({ input }) => {
-    try {
-      const resourcesPath = app.isPackaged
-        ? path.join(process.resourcesPath, "app.asar.unpacked", "resources")
-        : path.join(process.cwd(), "resources");
-
-      const fullPath = path.join(resourcesPath, input.filePath);
-      const fileBuffer = await fs.readFile(fullPath);
-      const base64 = fileBuffer.toString("base64");
-
-      // Determine MIME type based on file extension
-      const ext = path.extname(input.filePath).toLowerCase();
-      const mimeType = ext === ".svg" ? "image/svg+xml" : "image/png";
-
-      return `data:${mimeType};base64,${base64}`;
-    } catch {
-      return null;
-    }
-  });
-
 const openAppIn = base
   .errors({
     ERROR_OPENING_APP: {
@@ -309,10 +289,13 @@ const showProjectFileInFolder = base
     FILE_NOT_FOUND: {
       message: "File not found",
     },
+    INVALID_PATH: {
+      message: "Invalid file path",
+    },
   })
   .input(
     z.object({
-      filePath: z.string(),
+      filePath: RelativePathSchema,
       subdomain: ProjectSubdomainSchema,
     }),
   )
@@ -323,7 +306,10 @@ const showProjectFileInFolder = base
       workspaceConfig: snapshot.context.config,
     });
 
-    const fullPath = path.join(appConfig.appDir, input.filePath);
+    const fullPath = resolvePathWithinAppDir(appConfig.appDir, input.filePath);
+    if (!fullPath) {
+      throw errors.INVALID_PATH();
+    }
 
     try {
       await fs.access(fullPath);
@@ -496,7 +482,6 @@ export const utils = {
   copyFileToClipboard,
   exportZip,
   getSupportedEditors,
-  imageDataURI,
   live,
   openAppIn,
   openExternalLink,

@@ -56,7 +56,7 @@ const allChatsSubListScrollStyle = {
 } as const;
 
 const chatSessionRadioItemClassName =
-  "group pl-2 data-[state=checked]:bg-black/10 dark:data-[state=checked]:bg-white/10 [&>span:first-child]:hidden";
+  "group rounded-lg pl-2 data-[state=checked]:bg-black/10 dark:data-[state=checked]:bg-white/10 [&>span:first-child]:hidden";
 
 export function ProjectChatMenu({
   onChatClick,
@@ -153,10 +153,11 @@ export function ProjectChatMenu({
     <Button
       className={toolbarClassName({
         className:
-          "h-auto min-w-0 w-full max-w-80 shrink justify-start gap-2 py-1 font-normal has-[>svg]:px-1",
+          "min-w-0 w-full max-w-80 shrink justify-start gap-2 px-2 has-[>svg]:px-2",
         pressed: sidebar === "chat",
       })}
       onClick={sidebar === "files" ? onChatClick : undefined}
+      size="sm"
       variant="ghost"
     >
       <ChatsCircleIcon className="size-4 shrink-0" />
@@ -204,6 +205,7 @@ export function ProjectChatMenu({
                 Previous chats
               </DropdownMenuLabel>
               <DropdownMenuRadioGroup
+                className="flex flex-col gap-0.5"
                 onValueChange={(value) => {
                   const sessionId = StoreId.SessionSchema.parse(value);
                   navigateToSession(sessionId);
@@ -226,7 +228,7 @@ export function ProjectChatMenu({
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className="min-w-(--radix-dropdown-menu-trigger-width) overflow-hidden p-0">
                       <div
-                        className="overflow-x-hidden overflow-y-auto p-1"
+                        className="flex flex-col gap-0.5 overflow-x-hidden overflow-y-auto p-1"
                         style={allChatsSubListScrollStyle}
                       >
                         {overflowSessions.map((session) => (

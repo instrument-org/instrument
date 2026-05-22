@@ -77,7 +77,7 @@ function RouteComponent() {
   return (
     <div className="grid min-h-screen w-full flex-1 place-items-center px-8">
       <div className="relative w-full max-w-2xl">
-        <div className="absolute bottom-full left-1/2 mb-8 flex -translate-x-1/2 flex-col items-center gap-y-5">
+        <div className="absolute bottom-full left-1/2 mb-12 flex -translate-x-1/2 flex-col items-center gap-y-5">
           <div className="text-brown-300/34 dark:text-brown-900/34">
             <AnimatedOutlineAppIconGlyph className="size-18" />
           </div>

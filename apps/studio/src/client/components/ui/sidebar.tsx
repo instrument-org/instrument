@@ -127,7 +127,7 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
 function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
+      className={cn("relative flex w-full min-w-0 flex-col p-3", className)}
       data-sidebar="group"
       data-slot="sidebar-group"
       {...props}
@@ -246,7 +246,11 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
 function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
   return (
     <li
-      className={cn("group/menu-item relative", className)}
+      className={cn(
+        "group/menu-item relative",
+        "[&:has([data-sidebar=menu-action])_[data-sidebar=menu-button]]:pr-8",
+        className,
+      )}
       data-sidebar="menu-item"
       data-slot="sidebar-menu-item"
       {...props}
@@ -316,7 +320,7 @@ function useSidebar() {
 }
 
 const sidebarMenuButtonVariants = tv({
-  base: "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-[width,height,padding] group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  base: "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-lg p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-[width,height,padding] group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground [&>span:last-child]:min-w-0 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   defaultVariants: {
     size: "default",
     variant: "default",
@@ -349,12 +353,12 @@ function SidebarMenuAction({
   return (
     <Comp
       className={cn(
-        "absolute top-1/2 right-1 flex aspect-square w-5 -translate-y-1/2 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform peer-hover/menu-button:bg-sidebar-accent peer-hover/menu-button:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "absolute top-1/2 right-1 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-muted-foreground ring-sidebar-ring outline-hidden transition-transform hover:bg-sidebar-accent focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         // Increases the hit area of the button on mobile.
         "after:absolute after:-inset-2 md:after:hidden",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-          "opacity-0 peer-hover/menu-button:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground hover:opacity-100 aria-expanded:bg-sidebar-accent aria-expanded:opacity-100 md:opacity-0",
+          "opacity-0 peer-hover/menu-button:opacity-100 hover:opacity-100 aria-expanded:bg-sidebar-accent aria-expanded:opacity-100 md:opacity-0",
         className,
       )}
       data-sidebar="menu-action"

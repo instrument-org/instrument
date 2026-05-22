@@ -65,8 +65,8 @@ export function ProjectToolbar({
 
   return (
     <>
-      <div className="w-full bg-background py-2 pr-2 pl-3">
-        <div className="flex items-center gap-2">
+      <div className="w-full bg-background p-3">
+        <div className="flex items-center gap-1">
           <ProjectChatMenu
             onChatClick={() => {
               onSidebarChange("chat");
@@ -78,6 +78,7 @@ export function ProjectToolbar({
 
           <Toggle
             aria-label="Show files"
+            className="px-2"
             onPressedChange={() => {
               onSidebarChange("files");
             }}
@@ -122,7 +123,7 @@ export function ProjectToolbar({
                     <Button
                       className={toolbarClassName({
                         className:
-                          "h-7 gap-1.5 px-2.5 has-[>svg]:px-2.5 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                          "gap-2 px-2 has-[>svg]:px-2 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
                         pressed: false,
                       })}
                       size="sm"

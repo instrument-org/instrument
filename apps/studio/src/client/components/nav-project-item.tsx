@@ -150,7 +150,6 @@ export const NavProjectItem = memo(function NavProjectItem({
             }}
           >
             <InternalLink
-              className="pr-6"
               onDoubleClick={handleStartEdit}
               openInCurrentTab
               params={{ subdomain: project.subdomain }}
@@ -177,11 +176,7 @@ export const NavProjectItem = memo(function NavProjectItem({
             </SidebarMenuAction>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent
-            align="end"
-            className="w-56 rounded-lg"
-            side="bottom"
-          >
+          <DropdownMenuContent align="end" className="w-50" side="bottom">
             {(isFavorites || !isFavorited) && (
               <DropdownMenuItem
                 onClick={() => {

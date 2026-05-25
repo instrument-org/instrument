@@ -61,69 +61,76 @@ export const WebSearch = setupTool({
     Prefer this over navigating the browser manually when the goal is to discover
     URLs or find ranked/popular results for a topic.
   `,
-  execute: async ({ appConfig, input, model, signal }) => {
-    const result = await webSearch({
+  async *execute({ appConfig, input, model, signal }) {
+    for await (const result of webSearch({
       callingModel: model,
       configs: appConfig.workspaceConfig.getAIProviderConfigs(),
       prompt: input.query,
       signal,
       workspaceConfig: appConfig.workspaceConfig,
       workspaceServerURL: getWorkspaceServerURL(),
-    });
+    })) {
+      if (signal.aborted) {
+        return;
+      }
 
-    if (result.isErr()) {
-      const searchError = result.error;
+      if (result.isErr()) {
+        const searchError = result.error;
 
-      switch (searchError.type) {
-        case "gateway-not-found-error": {
-          return ok({
-            errorMessage:
-              "No AI provider with web search capability is available.",
-            errorType: "no-web-search-model" as const,
-            state: "failure" as const,
-          });
-        }
-        case "workspace-api-call-error": {
-          return ok({
-            errorMessage: searchError.message,
-            errorType: "api-call" as const,
-            responseBody: searchError.responseBody,
-            state: "failure" as const,
-          });
-        }
-        default: {
-          searchError satisfies never;
-          return executeError(JSON.stringify(searchError));
+        switch (searchError.type) {
+          case "gateway-not-found-error": {
+            yield ok({
+              errorMessage:
+                "No AI provider with web search capability is available.",
+              errorType: "no-web-search-model" as const,
+              state: "failure" as const,
+            });
+            return;
+          }
+          case "workspace-api-call-error": {
+            yield ok({
+              errorMessage: searchError.message,
+              errorType: "api-call" as const,
+              responseBody: searchError.responseBody,
+              state: "failure" as const,
+            });
+            return;
+          }
+          default: {
+            searchError satisfies never;
+            yield executeError(JSON.stringify(searchError));
+            return;
+          }
         }
       }
+
+      const { modelId, provider, sources, text, usage } = result.value;
+
+      yield ok({
+        modelId,
+        provider: {
+          displayName: provider.displayName,
+          id: provider.id,
+          type: provider.type,
+        },
+        sources: sources
+          .filter(
+            (s): s is Extract<typeof s, { sourceType: "url" }> =>
+              s.sourceType === "url",
+          )
+          .map((s) => ({
+            title: s.title,
+            url: s.url,
+          })),
+        state: "success" as const,
+        text,
+        usage: {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+        },
+      });
     }
-
-    const { modelId, provider, sources, text, usage } = result.value;
-
-    return ok({
-      modelId,
-      provider: {
-        displayName: provider.displayName,
-        id: provider.id,
-        type: provider.type,
-      },
-      sources: sources
-        .filter(
-          (s): s is Extract<typeof s, { sourceType: "url" }> =>
-            s.sourceType === "url",
-        )
-        .map((s) => ({
-          title: s.title,
-          url: s.url,
-        })),
-      state: "success" as const,
-      text,
-      usage: {
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        totalTokens: usage.totalTokens,
-      },
-    });
   },
   readOnly: true,
   timeoutMs: ms("2 minutes"),

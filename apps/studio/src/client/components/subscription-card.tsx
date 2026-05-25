@@ -56,9 +56,7 @@ export function SubscriptionCard() {
               Failed to load account status
             </p>
           </div>
-          <Button onClick={() => void refetch()} size="sm">
-            Retry
-          </Button>
+          <Button onClick={() => void refetch()}>Retry</Button>
         </div>
       </Card>
     );
@@ -120,12 +118,7 @@ export function SubscriptionCard() {
                 <span className="text-muted-foreground">Subscription</span>
                 <Badge variant="outline">{subscription.plan}</Badge>
               </div>
-              <Button
-                className="font-medium"
-                onClick={handleManageSubscription}
-                size="sm"
-                variant="outline"
-              >
+              <Button onClick={handleManageSubscription} variant="outline">
                 Manage
               </Button>
             </div>
@@ -156,9 +149,8 @@ export function SubscriptionCard() {
           </div>
           {!hasPaidEntitlement && (
             <Button
-              className="shrink-0 gap-1.5 font-semibold"
+              className="shrink-0 gap-1.5"
               onClick={openLifetimeTab}
-              size="sm"
               variant="brand"
             >
               Get more credits
@@ -186,11 +178,7 @@ export function SubscriptionCard() {
           )}
           {hasSubscription && (
             <div className="flex flex-wrap justify-end gap-2 pt-2">
-              <Button
-                className="font-medium"
-                onClick={handleManageSubscription}
-                size="sm"
-              >
+              <Button onClick={handleManageSubscription}>
                 Manage Subscription
               </Button>
             </div>

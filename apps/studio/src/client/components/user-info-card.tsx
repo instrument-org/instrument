@@ -41,11 +41,10 @@ export function UserInfoCard() {
           </div>
         </div>
         <Button
-          className="shrink-0 font-medium"
+          className="shrink-0"
           onClick={() => {
             void logOut();
           }}
-          size="sm"
         >
           Log out
         </Button>

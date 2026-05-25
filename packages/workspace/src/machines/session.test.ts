@@ -222,7 +222,6 @@ describe("sessionMachine", () => {
               ...currentChunks,
               {
                 finishReason: { raw: "stop", unified: "stop" },
-                logprobs: undefined,
                 type: "finish",
                 usage: {
                   inputTokens: {
@@ -657,33 +656,46 @@ describe("sessionMachine", () => {
     ] as const satisfies LanguageModelV3StreamPart[];
 
     const mockWebSearchModel = new MockLanguageModelV3({
-      doGenerate: {
-        content: [
-          { text: "TypeScript 5.7 introduces new features.", type: "text" },
-          {
-            id: "source-1",
-            sourceType: "url",
-            title: "TypeScript Blog",
-            type: "source",
-            url: "https://devblogs.microsoft.com/typescript",
-          },
-        ],
-        finishReason: { raw: "stop", unified: "stop" },
-        usage: {
-          inputTokens: {
-            cacheRead: undefined,
-            cacheWrite: undefined,
-            noCache: undefined,
-            total: 5,
-          },
-          outputTokens: {
-            reasoning: undefined,
-            text: undefined,
-            total: 15,
-          },
-        },
-        warnings: [],
-      },
+      // eslint-disable-next-line @typescript-eslint/require-await
+      doStream: async () => ({
+        rawCall: { rawPrompt: null, rawSettings: {} },
+        stream: simulateReadableStream({
+          chunks: [
+            { id: "1", type: "text-start" },
+            {
+              delta: "TypeScript 5.7 introduces new features.",
+              id: "1",
+              type: "text-delta",
+            },
+            {
+              id: "source-1",
+              sourceType: "url",
+              title: "TypeScript Blog",
+              type: "source",
+              url: "https://devblogs.microsoft.com/typescript",
+            },
+            { id: "1", type: "text-end" },
+            {
+              finishReason: { raw: "stop", unified: "stop" },
+              type: "finish",
+              usage: {
+                inputTokens: {
+                  cacheRead: undefined,
+                  cacheWrite: undefined,
+                  noCache: undefined,
+                  total: 5,
+                },
+                outputTokens: {
+                  reasoning: undefined,
+                  text: undefined,
+                  total: 15,
+                },
+              },
+            },
+          ] satisfies LanguageModelV3StreamPart[],
+          initialDelayInMs: 0,
+        }),
+      }),
     });
 
     const session = await createAndRunTestMachine({

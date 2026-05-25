@@ -27,7 +27,7 @@ export function ToolWebSearch({
   part: WebSearchPart;
 }) {
   const { isStreaming } = useToolCallSession();
-  if (!part.input || isStreaming) {
+  if (!part.input) {
     return null;
   }
 
@@ -39,10 +39,19 @@ export function ToolWebSearch({
     part.state === "output-available" && part.output.state === "failure"
       ? part.output
       : null;
+  const hasSearchContent =
+    successOutput !== null &&
+    (successOutput.text.trim().length > 0 || successOutput.sources.length > 0);
+
+  if (!failureOutput && !hasSearchContent) {
+    return null;
+  }
 
   const label = failureOutput
     ? "Web search unavailable"
-    : getToolLabel("web_search");
+    : isStreaming
+      ? "Searching the web"
+      : getToolLabel("web_search");
   const query = typeof part.input.query === "string" ? part.input.query : "";
 
   return (
@@ -66,7 +75,7 @@ export function ToolWebSearch({
         />
       )}
 
-      {successOutput && (
+      {successOutput && hasSearchContent && (
         <ToolCardSection maxHeight="max-h-[28rem]">
           <SessionMarkdown className="w-full" markdown={successOutput.text} />
 

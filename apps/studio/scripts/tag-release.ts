@@ -6,7 +6,6 @@ import { updatePackage } from "write-package";
 
 const REGISTRY_DIR_PATH = path.join(process.cwd(), "..", "..", "registry");
 
-/* eslint-disable no-console */
 function checkRegistrySubmodule() {
   try {
     console.log("Checking if registry submodule is up to date...");
@@ -110,6 +109,7 @@ async function main() {
     }
 
     checkRegistrySubmodule();
+    syncReleaseTags();
 
     const packageJsonPath = path.join(process.cwd(), "package.json");
 
@@ -122,6 +122,13 @@ async function main() {
 
     if (!newVersion) {
       throw new Error(`Failed to increment version from ${currentVersion}`);
+    }
+
+    if (!semver.gt(newVersion, currentVersion)) {
+      throw new Error(
+        `Next version ${newVersion} is not greater than package.json version ${currentVersion}. ` +
+          "If you recently pulled main, run: git fetch origin --tags",
+      );
     }
 
     const versionLabel = isBeta ? `${releaseType} beta` : releaseType;
@@ -148,6 +155,11 @@ async function main() {
     process.exit(1);
   }
 }
-/* eslint-enable no-console */
+
+function syncReleaseTags() {
+  console.log("Fetching release tags from origin...");
+  execSync("git fetch origin --tags", { stdio: "inherit" });
+  console.log("✅ Release tags are up to date");
+}
 
 await main();

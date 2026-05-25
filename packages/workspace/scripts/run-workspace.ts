@@ -92,13 +92,11 @@ function assertModelURIConfigured(modelURI: string) {
   );
 }
 
-/* eslint-disable no-console */
 console.log("Loaded provider configs:");
 for (const config of PROVIDER_CONFIGS) {
   console.log(`  - ${config.type} (id: ${config.id})`);
 }
 console.log(`Active modelURI: ${MODEL_URI}`);
-/* eslint-enable no-console */
 
 assertModelURIConfigured(MODEL_URI);
 
@@ -111,11 +109,9 @@ const actor = createActor(workspaceMachine, {
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: (...args: unknown[]) => {
-      // eslint-disable-next-line no-console
       console.log("captureEvent", args);
     },
     captureException: (...args: unknown[]) => {
-      // eslint-disable-next-line no-console
       console.error("captureException", args);
     },
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
@@ -138,7 +134,6 @@ const actor = createActor(workspaceMachine, {
           !event.action.type.startsWith("xstate.") &&
           event.action.type !== "actions"
         ) {
-          // eslint-disable-next-line no-console
           console.log("action", event.action.type);
         }
 
@@ -158,7 +153,6 @@ const actor = createActor(workspaceMachine, {
             // Too verbose to log
             return;
           }
-          // eslint-disable-next-line no-console
           console.log(
             "event",
             event.event.type,
@@ -238,7 +232,6 @@ function extractFilePrefix(input: string) {
 
 let savedSessionId: StoreId.Session | undefined;
 
-// eslint-disable-next-line no-console
 console.log("Enter task prompt (press Enter to submit):");
 rl.on("line", (input) => {
   if (input.trim()) {
@@ -282,7 +275,6 @@ rl.on("line", (input) => {
       });
     }
   }
-  // eslint-disable-next-line no-console
   console.log("\nEnter another task prompt (press Enter to submit):");
 });
 

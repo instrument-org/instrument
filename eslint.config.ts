@@ -24,10 +24,4 @@ export default [
       "yml/sort-sequence-values": "off",
     },
   },
-  {
-    files: ["scripts/**/*.ts"],
-    rules: {
-      "no-console": "off",
-    },
-  },
 ] satisfies ConfigArray;

@@ -18,6 +18,7 @@ import {
   getGroupedModelsEntries,
   groupAndFilterModels,
 } from "@/client/lib/group-models";
+import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
@@ -48,6 +49,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 interface MatchedModel {
   model: AIGatewayModel.Type;
   nameRanges: null | number[];
+  providerRanges: null | number[];
 }
 
 interface ModelPickerProps {
@@ -114,11 +116,15 @@ export function ModelPicker({
         result[groupName] = modelGroup.map((model) => ({
           model,
           nameRanges: null,
+          providerRanges: null,
         }));
         continue;
       }
 
-      const haystack = modelGroup.map((m) => m.name);
+      const joined = modelGroup.map((m) =>
+        joinFuzzyFields([m.providerName, m.name]),
+      );
+      const haystack = joined.map((j) => j.haystack);
       // eslint-disable-next-line unicorn/no-array-method-this-argument
       const indexes = fuzzy.filter(haystack, searchQuery);
 
@@ -131,10 +137,22 @@ export function ModelPicker({
       const order = fuzzy.sort(info, haystack, searchQuery);
 
       result[groupName] = order.flatMap((orderIdx) => {
-        const model = modelGroup[info.idx[orderIdx] ?? -1];
-        return model
-          ? [{ model, nameRanges: info.ranges[orderIdx] ?? null }]
-          : [];
+        const modelIdx = info.idx[orderIdx] ?? -1;
+        const model = modelGroup[modelIdx];
+        const fields = joined[modelIdx];
+        if (!model || !fields) {
+          return [];
+        }
+        const [providerRanges, nameRanges] = fields.splitRanges(
+          info.ranges[orderIdx] ?? null,
+        );
+        return [
+          {
+            model,
+            nameRanges: nameRanges ?? null,
+            providerRanges: providerRanges ?? null,
+          },
+        ];
       });
     }
 
@@ -551,7 +569,7 @@ function ModelGroups({
           }
 
           const { matched, requiresPremium } = row;
-          const { model, nameRanges } = matched;
+          const { model, nameRanges, providerRanges } = matched;
           return (
             <div
               className="absolute top-0 left-0 w-full"
@@ -585,7 +603,10 @@ function ModelGroups({
                         className="size-3 shrink-0"
                         type={model.params.provider}
                       />
-                      <span>{model.providerName}</span>
+                      <FuzzyHighlight
+                        ranges={providerRanges}
+                        text={model.providerName}
+                      />
                     </div>
                   </div>
                 </div>

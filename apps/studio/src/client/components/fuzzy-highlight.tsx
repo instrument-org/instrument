@@ -8,7 +8,7 @@ export function FuzzyHighlight({
   text: string;
 }) {
   if (!ranges) {
-    return <>{text}</>;
+    return <span>{text}</span>;
   }
 
   const parts = uFuzzy.highlight(
@@ -22,7 +22,7 @@ export function FuzzyHighlight({
   );
 
   return (
-    <>
+    <span>
       {parts.map((p, i) =>
         p.matched ? (
           <mark
@@ -35,6 +35,6 @@ export function FuzzyHighlight({
           <span key={i}>{p.part}</span>
         ),
       )}
-    </>
+    </span>
   );
 }

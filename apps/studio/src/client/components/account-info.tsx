@@ -1,4 +1,5 @@
 import { Button } from "@/client/components/ui/button";
+import { Card } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
@@ -36,7 +37,7 @@ export function AccountInfo() {
           <SubscriptionCard />
         </>
       ) : (
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
+        <Card className="p-4">
           <div className="space-y-3">
             {hasToken ? (
               <>
@@ -113,7 +114,7 @@ export function AccountInfo() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

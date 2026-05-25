@@ -48,7 +48,7 @@ export function SubscriptionCard() {
 
   if (error) {
     return (
-      <Card className="p-4 shadow-sm">
+      <Card className="p-4">
         <div className="space-y-4">
           <div>
             <h4 className="mb-1 font-medium">Account</h4>
@@ -64,7 +64,7 @@ export function SubscriptionCard() {
 
   if (isLoading || !subscription) {
     return (
-      <Card className="p-4 shadow-sm">
+      <Card className="p-4">
         <div className="space-y-6">
           <div>
             <h4 className="mb-1 font-medium">Account</h4>
@@ -89,7 +89,7 @@ export function SubscriptionCard() {
   // paid subscription, surface it secondarily below the license.
   if (hasLifetime) {
     return (
-      <Card className="p-4 shadow-sm">
+      <Card className="p-4">
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -131,7 +131,7 @@ export function SubscriptionCard() {
   const planLabel = subscription.plan ?? "Free";
 
   return (
-    <Card className="p-4 shadow-sm">
+    <Card className="p-4">
       <div className="space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

@@ -1,4 +1,5 @@
 import { Button } from "@/client/components/ui/button";
+import { Card } from "@/client/components/ui/card";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
@@ -37,12 +38,7 @@ export function ProviderConfigListItem({
     config.displayName && originalName && config.displayName !== originalName;
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-muted",
-        className,
-      )}
-    >
+    <Card className={cn("gap-0 p-4", className)}>
       <div className="flex items-start justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="flex size-8 shrink-0 items-center justify-center">
@@ -77,6 +73,6 @@ export function ProviderConfigListItem({
           Manage
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }

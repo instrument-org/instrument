@@ -45,7 +45,6 @@ function SettingsProvidersPage() {
           onClick={() => {
             void navigate({ search: { showNewProviderDialog: true } });
           }}
-          size="sm"
         >
           <PlusIcon className="size-4" />
           Add Provider

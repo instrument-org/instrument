@@ -50,11 +50,9 @@ export function AccountInfo() {
                       </div>
                     </div>
                     <Button
-                      className="font-medium"
                       onClick={() => {
                         void logOut();
                       }}
-                      size="sm"
                     >
                       Log out
                     </Button>
@@ -72,11 +70,9 @@ export function AccountInfo() {
                     </ContactErrorAlert>
                     <div className="flex justify-end gap-4">
                       <Button
-                        className="font-medium"
                         onClick={() => {
                           void logOut();
                         }}
-                        size="sm"
                       >
                         Log out
                       </Button>
@@ -86,11 +82,9 @@ export function AccountInfo() {
                 {!isLoading && !error && (
                   <div className="flex justify-end gap-4">
                     <Button
-                      className="font-medium"
                       onClick={() => {
                         void logOut();
                       }}
-                      size="sm"
                     >
                       Log out
                     </Button>

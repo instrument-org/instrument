@@ -19,9 +19,9 @@ export function getTitleBarOverlay() {
   const height =
     process.platform === "darwin" ? TOOLBAR_HEIGHT : TOOLBAR_HEIGHT - 1;
   return {
-    // Must be manually synced with globals.css var(--card) / var(--secondary)
-    // (gray-800 / gray-100).
-    color: isDark ? "#292524" : "#f5f5f4",
+    // Must be manually synced with the StudioToolbar background
+    // (gray-800 in dark, gray-200 in light).
+    color: isDark ? "#292524" : "#e7e5e4",
     height,
     // Must be manually synced with globals.css var(--foreground) (gray-950).
     symbolColor: isDark ? "#ffffff" : "#171412",

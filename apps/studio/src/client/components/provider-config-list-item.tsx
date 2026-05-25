@@ -69,7 +69,7 @@ export function ProviderConfigListItem({
             )}
           </div>
         </div>
-        <Button className="shrink-0" onClick={onConfigure}>
+        <Button className="shrink-0" onClick={onConfigure} variant="secondary">
           Manage
         </Button>
       </div>

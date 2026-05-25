@@ -21,7 +21,7 @@ export function UserInfoCard() {
   }
 
   return (
-    <Card className="p-4 shadow-sm">
+    <Card className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="size-10 shrink-0">

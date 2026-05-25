@@ -2,6 +2,7 @@ import { AccountInfo } from "@/client/components/account-info";
 import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
+import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
 import { isLinux } from "@/client/lib/utils";
@@ -219,7 +220,7 @@ function About() {
         <h3 className="text-base font-semibold">About</h3>
       </div>
       <div className="space-y-3">
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
+        <Card className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1 space-y-1">
               <div className="text-sm font-medium">
@@ -228,12 +229,12 @@ function About() {
                   ? "Loading..."
                   : appVersion?.version || "Unknown"}
               </div>
+              {getUpdateStatusContent()}
             </div>
             <div className="shrink-0">{getActionButton()}</div>
           </div>
-          <div className="mt-3">{getUpdateStatusContent()}</div>
-        </div>
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
+        </Card>
+        <Card className="p-4">
           <div className="space-y-2">
             <div className="text-sm font-medium">Open Source</div>
             <p className="text-sm text-muted-foreground">
@@ -253,7 +254,7 @@ function About() {
               </Button>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
@@ -265,7 +266,7 @@ function InterfaceAndTheme() {
       <div>
         <h3 className="text-base font-semibold">Interface</h3>
       </div>
-      <div className="rounded-lg border bg-card p-4 shadow-sm">
+      <Card className="p-4">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
@@ -277,7 +278,7 @@ function InterfaceAndTheme() {
             <ThemeToggle />
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

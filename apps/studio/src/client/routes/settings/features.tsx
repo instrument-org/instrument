@@ -1,4 +1,5 @@
 import { featuresAtom } from "@/client/atoms/features";
+import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
 import { rpcClient } from "@/client/rpc/client";
@@ -50,8 +51,8 @@ function SettingsFeaturesPage() {
             (typeof FEATURE_METADATA)[FeatureName],
           ][]
         ).map(([feature, { description, title }]) => (
-          <div
-            className="flex items-start justify-between gap-4 rounded-lg border bg-card p-4 shadow-sm"
+          <Card
+            className="flex items-start justify-between gap-4 p-4"
             key={feature}
           >
             <div className="flex-1 space-y-1">
@@ -67,7 +68,7 @@ function SettingsFeaturesPage() {
                 void handleToggle(feature, checked);
               }}
             />
-          </div>
+          </Card>
         ))}
       </div>
     </div>

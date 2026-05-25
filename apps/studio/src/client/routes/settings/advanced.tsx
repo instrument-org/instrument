@@ -1,3 +1,4 @@
+import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
 import { rpcClient } from "@/client/rpc/client";
@@ -48,7 +49,7 @@ function UsageMetrics() {
       <div>
         <h3 className="text-base font-semibold">Usage</h3>
       </div>
-      <div className="rounded-lg border bg-card p-4 shadow-sm">
+      <Card className="p-4">
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
             <Switch
@@ -62,7 +63,7 @@ function UsageMetrics() {
             </Label>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

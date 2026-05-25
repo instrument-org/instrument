@@ -4,7 +4,6 @@ import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
-import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -41,7 +40,6 @@ function About() {
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
 
-  const { addTab } = useTabActions();
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
@@ -230,16 +228,6 @@ function About() {
                   ? "Loading..."
                   : appVersion?.version || "Unknown"}
               </div>
-              <Button
-                className="h-auto p-0 text-brand-400 hover:text-brand-500 dark:text-brand-300 dark:hover:text-brand-200"
-                onClick={() => {
-                  void addTab({ to: "/release-notes" });
-                  window.close();
-                }}
-                variant="link"
-              >
-                Release Notes
-              </Button>
             </div>
             <div className="shrink-0">{getActionButton()}</div>
           </div>

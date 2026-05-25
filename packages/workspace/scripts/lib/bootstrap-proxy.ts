@@ -17,7 +17,6 @@ if (proxyUrl) {
       uri: proxyUrl,
     }),
   );
-  // eslint-disable-next-line no-console
   console.log(
     `Proxy bootstrap enabled via ${proxyUrl} (TLS verification disabled)`,
   );

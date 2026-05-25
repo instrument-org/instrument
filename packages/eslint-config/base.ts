@@ -258,6 +258,12 @@ export default tseslint.config(
       sourceType: "commonjs",
     },
   },
+  {
+    files: ["**/scripts/**/*.{js,mjs,ts}"],
+    rules: {
+      "no-console": "off",
+    },
+  },
   eslintConfigPrettier,
 );
 

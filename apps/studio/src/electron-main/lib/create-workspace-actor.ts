@@ -15,6 +15,7 @@ import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
+import { shouldProceedWithQuit } from "./quit-with-running-agents";
 import { getPNPMBinPath } from "./setup-bin-directory";
 
 const REGISTRY_DIR_NAME = "registry";
@@ -131,25 +132,40 @@ export function createWorkspaceActor() {
     throw error;
   }
 
+  let isQuitInProgress = false;
+
   app.on("before-quit", (e) => {
+    if (isQuitInProgress) {
+      return;
+    }
+
     e.preventDefault();
-    // eslint-disable-next-line unicorn/consistent-function-scoping
-    const doExit = () => {
-      browserViewManager.teardown();
-      actor.stop();
-      app.exit(0);
-    };
-    const timeout = setTimeout(() => {
-      captureServerException(
-        new Error("agent-browser close --all timed out on quit"),
-        { scopes: ["studio"] },
-      );
-      doExit();
-    }, 3000);
-    void closeAllAgentBrowserSessions().finally(() => {
-      clearTimeout(timeout);
-      doExit();
-    });
+
+    void (async () => {
+      const shouldQuit = await shouldProceedWithQuit({ workspaceRef: actor });
+      if (!shouldQuit) {
+        return;
+      }
+
+      isQuitInProgress = true;
+
+      const doExit = () => {
+        browserViewManager.teardown();
+        actor.stop();
+        app.exit(0);
+      };
+      const timeout = setTimeout(() => {
+        captureServerException(
+          new Error("agent-browser close --all timed out on quit"),
+          { scopes: ["studio"] },
+        );
+        doExit();
+      }, 3000);
+      void closeAllAgentBrowserSessions().finally(() => {
+        clearTimeout(timeout);
+        doExit();
+      });
+    })();
   });
 
   return {

@@ -1,5 +1,6 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
+import { allowQuitWithoutRunningAgentsWarning } from "@/electron-main/lib/quit-with-running-agents";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
@@ -179,6 +180,7 @@ const getAppEnvironment = devOnly
   .handler(() => ({ isPackaged: app.isPackaged }));
 
 const relaunchWithNewUserFolder = devOnly.input(z.void()).handler(() => {
+  allowQuitWithoutRunningAgentsWarning();
   // app.relaunch() has no env option and the spawned child inherits the
   // parent's environment snapshot, so mutations to process.env here don't
   // carry over. Spawn the new instance directly with the env var set.

@@ -12,6 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 
 import { getPreferencesStore, setLastUpdateCheck } from "../stores/preferences";
+import { allowQuitWithoutRunningAgentsWarning } from "./quit-with-running-agents";
 
 // Required due to https://github.com/electron-userland/electron-builder/issues/7976
 const { autoUpdater } = pkg;
@@ -187,6 +188,7 @@ export class StudioAppUpdater {
   }
 
   public quitAndInstall() {
+    allowQuitWithoutRunningAgentsWarning();
     try {
       if (os.platform() === "linux") {
         // On Linux, use app.relaunch() and app.quit() to avoid hanging issues

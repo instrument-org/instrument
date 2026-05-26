@@ -2,13 +2,10 @@ packages:
   - packages/*
   - apps/*
 
-minimumReleaseAge: 10080
-blockExoticSubdeps: true
-
 allowBuilds:
   "@derhuerst/ffprobe-static": true
-  "@swc/core": true
   "@posthog/cli": true
+  "@swc/core": true
   "@vscode/ripgrep": true
   agent-browser: true
   better-sqlite3: false
@@ -19,9 +16,11 @@ allowBuilds:
   esbuild: true
   ffmpeg-static: true
   msw: true
+  protobufjs: true
   sharp: true
   tree-sitter-javascript: true
   unrs-resolver: true
+blockExoticSubdeps: true
 
 catalog:
   "@orpc/client": ^1.12.2
@@ -49,6 +48,8 @@ ignoredOptionalDependencies:
   - "@mongodb-js/zstd"
   - better-sqlite3
   - node-liblzma
+
+minimumReleaseAge: 10080
 
 patchedDependencies:
   conf@14.0.0: patches/conf@14.0.0.patch

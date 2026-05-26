@@ -5,7 +5,7 @@ function Spinner({ className }: { className?: string }) {
   return (
     <span
       aria-label="Loading"
-      className={cn("relative inline-flex size-4 shrink-0", className)}
+      className={cn("relative flex size-4 shrink-0", className)}
       role="status"
     >
       <span className="absolute inset-0 rounded-full border-2 border-current opacity-15" />

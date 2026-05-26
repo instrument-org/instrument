@@ -62,6 +62,15 @@ From repo root for lint/types/tests across packages (cached). Not per-package lo
 - `pnpm turbo:fix:lint` — fix lint
 - Single test file only: `cd packages/<name> && pnpm test run <file>`
 
+## Package management
+
+- Run `pnpm add`, `pnpm remove`, `pnpm install`, and other dependency-changing
+  commands outside the sandbox. They touch the global pnpm store and can fail
+  with store/symlink permission errors inside the sandbox.
+- Normal pnpm scripts that do not add, remove, or install packages, such as
+  `pnpm test`, `pnpm check:lint`, and `pnpm check-and-test`, can run inside
+  the sandbox.
+
 ## Tests
 
 - Use `it.each` for testing repetitive cases.

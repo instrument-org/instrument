@@ -37,13 +37,13 @@ jobs:
           - os: windows-latest
             arch: x64
             runner: windows-latest
-          - os: macos-latest
+          - os: macos
             arch: x64
-            runner: macos-15-intel
+            runner: macos-26-intel
             skip_for_prerelease: true
-          - os: macos-latest
+          - os: macos
             arch: arm64
-            runner: macos-latest
+            runner: macos-26
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -76,13 +76,13 @@ jobs:
         name: Package Linux
         run: pnpm --filter @instrument-org/studio exec electron-builder --linux --${{ matrix.arch }} --publish never
 
-      - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
+      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: setup-signing
         run: |
           mkdir -p ~/.private_keys
           echo '${{ secrets.APPLE_API_KEY_DATA }}' > ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
-      - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
+      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: Build Mac (vite)
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
         env:
@@ -92,7 +92,7 @@ jobs:
           VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
           VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
 
-      - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
+      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: Upload source maps to PostHog
         uses: ./.github/actions/posthog-sourcemap-upload
         with:
@@ -100,11 +100,11 @@ jobs:
           project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
           version: ${{ github.ref_name }}
 
-      - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
+      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: Select Xcode 26 (actool for icon.icon)
         uses: ./.github/actions/select-xcode-26
 
-      - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
+      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: Package Mac
         run: pnpm --filter @instrument-org/studio exec electron-builder --mac --${{ matrix.arch }} --publish never
         env:
@@ -116,7 +116,7 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           ARCH: ${{ matrix.arch }}
 
-      - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
+      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: Cleanup Signing
         run: |
           rm ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8

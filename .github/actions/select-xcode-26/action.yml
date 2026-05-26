@@ -1,4 +1,4 @@
-description: Select Xcode 26+ for actool (required by electron-builder icon.icon)
+description: Select Xcode 26+ for actool (use on macos-26 runners; icon.icon needs matching OS + Xcode)
 
 name: Select Xcode 26
 

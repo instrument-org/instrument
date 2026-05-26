@@ -55,10 +55,13 @@ Pnpm monorepo for the Instrument desktop app platform.
 
 ## Monorepo checks (Turbo)
 
-From repo root for lint/types/tests across packages (cached). Not per-package loops.
+Run lint/types through Turbo from the repo root so checks use task caching. Do
+not `cd apps/*` or `cd packages/*` to run `check:lint` / `check:types`, or run
+package loops.
 
 - `pnpm check-and-test` — full CI
-- `turbo run check:types check:lint` — all packages; add `--filter=@instrument-org/<pkg>` for one
+- `turbo run check:types check:lint` — all packages
+- `turbo run check:types check:lint --filter=@instrument-org/workspace` — one package
 - `pnpm turbo:fix:lint` — fix lint
 - Single test file only: `cd packages/<name> && pnpm test run <file>`
 
@@ -68,8 +71,7 @@ From repo root for lint/types/tests across packages (cached). Not per-package lo
   commands outside the sandbox. They touch the global pnpm store and can fail
   with store/symlink permission errors inside the sandbox.
 - Normal pnpm scripts that do not add, remove, or install packages, such as
-  `pnpm test`, `pnpm check:lint`, and `pnpm check-and-test`, can run inside
-  the sandbox.
+  `pnpm test` and `pnpm check-and-test`, can run inside the sandbox.
 
 ## Tests
 

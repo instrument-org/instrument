@@ -12,6 +12,6 @@ pnpm --filter @instrument-org/studio icons:generate
 pnpm --filter @instrument-org/studio icons:check
 ```
 
-Requires **ImageMagick** (`magick`) and **iconutil** (macOS). macOS release builds need **Xcode 26+** (`actool` 26+) so electron-builder can compile `build/icon.icon`. CI selects Xcode 26 via `.github/actions/select-xcode-26` (runners default to Xcode 16).
+Requires **ImageMagick** (`magick`) and **iconutil** (macOS). macOS release builds need **macOS 26 + Xcode 26+** so `actool` can compile `build/icon.icon`. CI uses `macos-26` runners and `.github/actions/select-xcode-26` (Xcode 26 on macOS 15 hosts crashes at compile time).
 
 Optional: refine `build/icon.icon` in [Icon Composer](https://developer.apple.com/icon-composer/) (GUI). The script seeds a flat bundle; Liquid Glass tuning is easier there.

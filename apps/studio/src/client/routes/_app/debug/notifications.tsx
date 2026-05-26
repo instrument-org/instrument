@@ -1,7 +1,9 @@
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 import { getDebugRoute } from "./-debug-routes";
 
@@ -28,7 +30,7 @@ function ActionCard({
 }
 
 function RouteComponent() {
-  const testNotification = useMutation(
+  const sendTestNotification = useMutation(
     rpcClient.debug.trigger.testNotification.mutationOptions(),
   );
   const testDownloadNotification = useMutation(
@@ -37,6 +39,17 @@ function RouteComponent() {
   const testErrorNotification = useMutation(
     rpcClient.debug.trigger.testErrorNotification.mutationOptions(),
   );
+  const { data: testNotification } = useQuery(
+    rpcClient.debug.live.testNotification.experimental_streamedOptions(),
+  );
+
+  useEffect(() => {
+    if (testNotification && testNotification.length > 0) {
+      toast.info("Test notification", {
+        closeButton: true,
+      });
+    }
+  }, [testNotification]);
 
   return (
     <div className="size-full overflow-y-auto">
@@ -47,7 +60,7 @@ function RouteComponent() {
         <ActionCard label="Basic system notification">
           <Button
             onClick={() => {
-              testNotification.mutate(undefined);
+              sendTestNotification.mutate(undefined);
             }}
             size="sm"
           >

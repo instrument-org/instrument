@@ -39,6 +39,7 @@ describe("createBashDescription", () => {
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
+        pnx - Alias for pnpm dlx.
         tsx - Execute a TypeScript or JavaScript file. For quick one-liners, prefer -e <code> over writing a file.
         tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the local config."
     `);
@@ -58,6 +59,10 @@ describe("createBashDescription", () => {
     expect(description).toContain("pnpm");
     expect(description).toContain("grep");
     expect(description).toContain("jq");
+  });
+
+  it("does not advertise npx", () => {
+    expect(createBashDescription()).not.toContain("npx");
   });
 
   it("includes the sandboxed environment warning", () => {

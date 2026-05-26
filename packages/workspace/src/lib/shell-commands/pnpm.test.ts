@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
-import { createPnpmCommand, PNPM_COMMAND } from "./pnpm";
+import {
+  createNpxCommand,
+  createPnpmCommand,
+  createPnpxCommand,
+  createPnxCommand,
+  PNPM_COMMAND,
+} from "./pnpm";
 
 vi.mock(import("../execa-node-for-app"));
 
@@ -156,4 +162,83 @@ describe("createPnpmCommand", () => {
       expect.any(String),
     );
   });
+
+  it("aliases npx registered commands to the bash command registry", async () => {
+    const exec = vi.fn().mockResolvedValue({
+      exitCode: 0,
+      stderr: "",
+      stdout: "1\n",
+    });
+
+    const npxCommand = createNpxCommand(appConfig);
+    const result = await npxCommand.execute(
+      ["-y", "tsx", "-e", "console.log(1)"],
+      {
+        ...mockCtx,
+        exec,
+        getRegisteredCommands: () => ["pnpm", "npx", "pnpx", "pnx", "tsx"],
+      },
+    );
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: "1\n",
+    });
+    expect(exec).toHaveBeenCalledWith("tsx", {
+      args: ["-e", "console.log(1)"],
+      cwd: "/",
+      signal: undefined,
+      stdin: "",
+    });
+  });
+
+  it.each([
+    {
+      // cspell:ignore cowsay
+      args: ["cowsay", "hello"],
+      createCommand: createNpxCommand,
+      expectedArgs: ["dlx", "cowsay", "hello"],
+      name: "npx",
+    },
+    {
+      args: ["cowsay", "hello"],
+      createCommand: createPnpxCommand,
+      expectedArgs: ["dlx", "cowsay", "hello"],
+      name: "pnpx",
+    },
+    {
+      args: ["cowsay", "hello"],
+      createCommand: createPnxCommand,
+      expectedArgs: ["dlx", "cowsay", "hello"],
+      name: "pnx",
+    },
+    {
+      args: ["--yes", "cowsay", "hello"],
+      createCommand: createNpxCommand,
+      expectedArgs: ["dlx", "cowsay", "hello"],
+      name: "npx --yes",
+    },
+  ])(
+    "runs $name through pnpm dlx",
+    async ({ args, createCommand, expectedArgs }) => {
+      const { execaNodeForApp } = await import("../execa-node-for-app");
+      vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+        all: "hello",
+        exitCode: 0,
+      } as never);
+
+      const dlxCommand = createCommand(appConfig);
+      const result = await dlxCommand.execute(args, mockCtx);
+
+      expect(result.exitCode).toBe(0);
+      expect(vi.mocked(execaNodeForApp)).toHaveBeenLastCalledWith(
+        appConfig,
+        appConfig.workspaceConfig.pnpmBinPath,
+        expectedArgs,
+        expect.any(Object),
+        expect.any(String),
+      );
+    },
+  );
 });

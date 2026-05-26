@@ -13,7 +13,7 @@ export function allowQuitWithoutRunningAgentsWarning() {
   skipRunningAgentsQuitWarning = true;
 }
 
-export async function confirmQuitWithRunningAgents({
+async function confirmQuitWithRunningAgents({
   aliveAgentCount,
 }: {
   aliveAgentCount: number;

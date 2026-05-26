@@ -1,6 +1,6 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
-import { allowQuitWithoutRunningAgentsWarning } from "@/electron-main/lib/quit-with-running-agents";
+import { allowQuitWithoutRunningAgentsWarning } from "@/electron-main/lib/create-workspace-actor";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";

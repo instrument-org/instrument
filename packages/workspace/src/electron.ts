@@ -1,9 +1,5 @@
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
 export { createAppConfig } from "./lib/app-config/create";
-export {
-  countAliveAgentSessions,
-  hasAliveAgentSessions,
-} from "./lib/count-alive-agent-sessions";
 export { readProjectFile } from "./lib/read-project-file";
 export {
   type WorkspaceActorRef,

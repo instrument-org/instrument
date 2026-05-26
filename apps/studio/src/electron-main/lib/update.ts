@@ -12,7 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 
 import { getPreferencesStore, setLastUpdateCheck } from "../stores/preferences";
-import { allowQuitWithoutRunningAgentsWarning } from "./quit-with-running-agents";
+import { allowQuitWithoutRunningAgentsWarning } from "./create-workspace-actor";
 
 // Required due to https://github.com/electron-userland/electron-builder/issues/7976
 const { autoUpdater } = pkg;

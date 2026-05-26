@@ -1,11 +1,14 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   closeAllAgentBrowserSessions,
   workspaceMachine,
+  workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import { app, shell } from "electron";
+import { call } from "@orpc/server";
+import { app, dialog, shell } from "electron";
 import ms from "ms";
 import path from "node:path";
 import { createActor } from "xstate";
@@ -15,8 +18,13 @@ import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
-import { shouldProceedWithQuit } from "./quit-with-running-agents";
 import { getPNPMBinPath } from "./setup-bin-directory";
+
+let skipAgentQuitWarning = false;
+
+export function allowQuitWithoutRunningAgentsWarning() {
+  skipAgentQuitWarning = true;
+}
 
 const REGISTRY_DIR_NAME = "registry";
 let UNPACKAGED_REGISTRY_DIR = path.resolve(
@@ -132,6 +140,7 @@ export function createWorkspaceActor() {
     throw error;
   }
 
+  const workspaceConfig = snapshot.context.config;
   let isQuitInProgress = false;
 
   app.on("before-quit", (e) => {
@@ -142,9 +151,28 @@ export function createWorkspaceActor() {
     e.preventDefault();
 
     void (async () => {
-      const shouldQuit = await shouldProceedWithQuit({ workspaceRef: actor });
-      if (!shouldQuit) {
-        return;
+      if (!skipAgentQuitWarning) {
+        const { count } = await call(
+          workspaceRouter.app.state.aliveAgentCount,
+          undefined,
+          { context: { workspaceConfig, workspaceRef: actor } },
+        );
+
+        if (count > 0) {
+          const { response } = await dialog.showMessageBox({
+            buttons: ["Cancel", "Quit"],
+            cancelId: 0,
+            defaultId: 0,
+            detail: `Quitting ${APP_NAME} will stop ${count === 1 ? "this agent" : "these agents"} and you may lose in-progress work.`,
+            message: `One or more ${count === 1 ? "agent is still running" : "agents are still running"}.`,
+            noLink: true,
+            type: "warning",
+          });
+
+          if (response !== 1) {
+            return;
+          }
+        }
       }
 
       isQuitInProgress = true;
@@ -171,6 +199,6 @@ export function createWorkspaceActor() {
   return {
     actor,
     browserViewManager,
-    workspaceConfig: snapshot.context.config,
+    workspaceConfig,
   };
 }

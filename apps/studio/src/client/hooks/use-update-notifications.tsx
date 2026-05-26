@@ -18,9 +18,6 @@ export function useUpdateNotifications() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
-  const { data: testNotification } = useQuery(
-    rpcClient.debug.live.testNotification.experimental_streamedOptions(),
-  );
 
   useEffect(() => {
     if (!updateState?.notifyUser) {
@@ -156,12 +153,4 @@ export function useUpdateNotifications() {
       }
     }
   }, [updateState]);
-
-  useEffect(() => {
-    if (testNotification && testNotification.length > 0) {
-      toast.info("Test notification", {
-        closeButton: true,
-      });
-    }
-  }, [testNotification]);
 }

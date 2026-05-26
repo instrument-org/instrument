@@ -67,11 +67,11 @@ package loops.
 
 ## Package management
 
-- Run `pnpm add`, `pnpm remove`, `pnpm install`, and other dependency-changing
-  commands outside the sandbox. They touch the global pnpm store and can fail
-  with store/symlink permission errors inside the sandbox.
-- Normal pnpm scripts that do not add, remove, or install packages, such as
-  `pnpm test` and `pnpm check-and-test`, can run inside the sandbox.
+- `pnpm` CLI (`install`, `add`, `remove`, `why`, etc.): outside sandbox (full
+  permissions). pnpm resolves packages from the global store and links them into
+  `node_modules`; sandbox isolation blocks that store path, so the workspace no
+  longer matches a normal local install.
+- `pnpm test` / `pnpm check-and-test`: sandbox OK.
 
 ## Tests
 

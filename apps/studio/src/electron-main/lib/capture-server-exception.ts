@@ -42,6 +42,11 @@ export const captureServerException: CaptureExceptionFunction = function (
       ? { rpc_path: additionalProperties.rpc_path.join(".") }
       : {}),
   };
+  // Give ORPC errors a descriptive type in PostHog (default Error.name is "Error")
+  if (error instanceof Error && error.name === "Error" && errorCode) {
+    error.name = errorCode;
+  }
+
   const appStateStore = getAppStateStore();
   const telemetryId = appStateStore.get("telemetryId");
   telemetry?.captureException(error, telemetryId, finalProperties);

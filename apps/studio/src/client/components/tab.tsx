@@ -116,7 +116,7 @@ export const Tab = ({
           {item.projectSubdomain && !isSelected ? (
             <div className="group-hover:hidden">
               <AppStatusIcon
-                className="size-4 shrink-0"
+                className="size-3 shrink-0"
                 subdomain={item.projectSubdomain}
               />
             </div>
@@ -134,7 +134,7 @@ export const Tab = ({
           >
             <XIcon
               className={cn(
-                "size-3.5 transition-colors",
+                "size-3 transition-colors",
                 isSelected ? "text-foreground" : "text-muted-foreground",
               )}
             />

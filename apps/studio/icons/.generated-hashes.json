@@ -1,0 +1,15 @@
+{
+  "build/icon.icns": "994f03da236cb0a8e16a5d9f20f355c1ec5ceefcb9b59594386b38f9400b9ec1",
+  "build/icon.ico": "c17961680681723f8ddba671a8da4dca136f38d61a4d04c9c9ee0b7282c5e6f3",
+  "build/icon.png": "f496e4c631c25ded5bae47d44636fac77657e4b4263657ebb2512de812731828",
+  "build/icon.icon/icon.json": "7f637fec3ccf5293bee673e03c8dfb6c5aec5b5e5c70d51dfd49bfe7ef1a5efa",
+  "build/icon.icon/Assets/icon.png": "3347b80f150ea27a2fd9c8fac2c8a062881ab23cf15bb52a9f8b360fcd69dcab",
+  "resources/icon.png": "f496e4c631c25ded5bae47d44636fac77657e4b4263657ebb2512de812731828",
+  "build/icons/16x16.png": "022c6bf020b93c76b781bca8e70b8b7234c81c00102d4bdbc5a95d09748d7822",
+  "build/icons/32x32.png": "a77466084183bc8307bc1ff67bbea79f9bc0769f96d39683fa45b729ccde70a4",
+  "build/icons/48x48.png": "90b5e46fea24442ebab25178a58c9e417b3bad011f220d12259e9a5de7046fd0",
+  "build/icons/64x64.png": "e77d0c41627d719f7b1a5de3782eca08e239af64ac0a79336b7830488c30cbfe",
+  "build/icons/128x128.png": "38f60ff10844032702893df1010856d56e34fca97df1580a9554ed581f745b86",
+  "build/icons/256x256.png": "28b9cde09570101a9aa5bb19bb14d8755e5e7f84746d6a30b9646548e07369f5",
+  "build/icons/512x512.png": "c470edae9b5e06f62f423f2bf901afd6867ad9abbcc021f264495b18cc04817c"
+}

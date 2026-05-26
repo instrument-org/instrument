@@ -1,6 +1,6 @@
 # Instrument Monorepo
 
-Pnpm monorepo for the Instrument desktop app platform.
+pnpm monorepo for the Instrument desktop app platform.
 
 - `apps/studio`: Electron desktop app (main product)
 - `packages/workspace`: Core AI agents, workflow logic, and workspace management

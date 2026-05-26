@@ -1,0 +1,28 @@
+description: Select Xcode 26+ for actool (required by electron-builder icon.icon)
+
+name: Select Xcode 26
+
+runs:
+  steps:
+    - name: select-xcode-26
+      run: |
+        set -euo pipefail
+        for app in \
+          Xcode_26.3.app Xcode_26.3.0.app \
+          Xcode_26.2.app Xcode_26.2.0.app \
+          Xcode_26.1.1.app Xcode_26.1.app \
+          Xcode_26.0.1.app Xcode_26.0.app; do
+          candidate="/Applications/$app"
+          if [ -d "$candidate" ]; then
+            sudo xcode-select -s "$candidate"
+            echo "DEVELOPER_DIR=$candidate/Contents/Developer" >> "$GITHUB_ENV"
+            echo "Using $candidate"
+            xcrun actool --version | head -3
+            exit 0
+          fi
+        done
+        echo "No Xcode 26 found. electron-builder needs actool 26+ to compile build/icon.icon."
+        ls -1 /Applications | grep -i Xcode || true
+        exit 1
+      shell: bash
+  using: composite

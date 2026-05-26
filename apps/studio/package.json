@@ -1,6 +1,6 @@
 {
   "name": "@instrument-org/studio",
-  "version": "1.0.0-beta.57",
+  "version": "1.0.0-beta.58",
   "description": "Electron desktop app for Instrument",
   "repository": {
     "type": "git",
@@ -32,6 +32,8 @@
     "dev": "NODE_OPTIONS='--enable-source-maps' electron-vite dev --sourcemap",
     "dev:fresh": "ELECTRON_USE_NEW_USER_FOLDER=true NODE_OPTIONS='--enable-source-maps' electron-vite dev --sourcemap",
     "fix:lint": "eslint . --max-warnings 0 --fix",
+    "icons:check": "node scripts/generate-icons.ts --check",
+    "icons:generate": "node scripts/generate-icons.ts",
     "smoke-test": "vitest run --config vitest.smoke.config.ts",
     "start": "electron-vite preview",
     "tag:release:minor": "node scripts/tag-release.ts minor",

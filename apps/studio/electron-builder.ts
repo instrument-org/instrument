@@ -41,6 +41,8 @@ const config: Configuration = {
   },
   dmg: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
+    // DMG volume icons still use .icns even when the app bundle uses .icon (macOS 26+).
+    icon: "icon.icns",
   },
   extraResources: [
     {
@@ -102,8 +104,14 @@ const config: Configuration = {
   mac: {
     category: "public.app-category.developer-tools",
     entitlementsInherit: "build/entitlements.mac.plist",
+    extendInfo: {
+      // Must match the Icon Composer bundle name (build/icon.icon).
+      CFBundleIconName: "icon",
+    },
     gatekeeperAssess: false,
     hardenedRuntime: true,
+    // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.
+    icon: "icon.icon",
     // eslint-disable-next-line turbo/no-undeclared-env-vars
     notarize: process.env.APPLE_NOTARIZATION_ENABLED === "true",
     publish: {

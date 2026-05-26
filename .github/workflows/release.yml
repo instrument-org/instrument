@@ -101,6 +101,10 @@ jobs:
           version: ${{ github.ref_name }}
 
       - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
+        name: Select Xcode 26 (actool for icon.icon)
+        uses: ./.github/actions/select-xcode-26
+
+      - if: matrix.os == 'macos-latest' && env.SKIP_INTEL_MACOS != 'true'
         name: Package Mac
         run: pnpm --filter @instrument-org/studio exec electron-builder --mac --${{ matrix.arch }} --publish never
         env:

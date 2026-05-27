@@ -29,6 +29,12 @@ export interface AnalyticsEvents {
     framework: string;
   };
   "llm.error": WithModelProperties<LLMAnalyticsError>;
+  "llm.reasoning_details_redacted": WithModelProperties<{
+    redacted_message_count: number;
+    redacted_reasoning_details_count: number;
+    source_model_ids: string[];
+    source_provider_ids: string[];
+  }>;
   "llm.request_finished": WithModelProperties<{
     cached_input_tokens?: number | undefined;
     completion_tokens_per_second?: number | undefined;

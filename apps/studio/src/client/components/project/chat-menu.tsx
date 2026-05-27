@@ -269,6 +269,7 @@ function ProjectChatMenuSessionRadioItem({
   });
   const isReplayForSession =
     activeReplaySessionIds?.includes(session.id) ?? false;
+  const isPaused = tags.includes("agent.paused");
 
   return (
     <DropdownMenuRadioItem
@@ -276,11 +277,13 @@ function ProjectChatMenuSessionRadioItem({
       value={session.id}
     >
       {sessionHasListStatusIcon(tags, isReplayForSession) ? (
-        <SessionStatusIcon
-          className="size-4 shrink-0"
-          isReplayRunning={isReplayForSession}
-          tags={tags}
-        />
+        <span className="inline-flex size-4 shrink-0 items-center justify-center">
+          <SessionStatusIcon
+            className={isPaused ? "size-4" : "size-3"}
+            isReplayRunning={isReplayForSession}
+            tags={tags}
+          />
+        </span>
       ) : (
         <ChatCircleIcon className="size-4 shrink-0 text-muted-foreground" />
       )}

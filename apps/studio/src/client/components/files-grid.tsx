@@ -2,6 +2,7 @@ import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isUnknownTopLevelDirFile } from "@/client/lib/project-file-groups";
 import { cn } from "@/client/lib/utils";
+import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
@@ -60,10 +61,8 @@ export function FilesGrid({
     from: "/_app/projects/$subdomain/",
     shouldThrow: false,
   });
-  const selectedFilePath =
-    search?.artifactPanel?.type === "file"
-      ? search.artifactPanel.filePath
-      : null;
+  const selectedArtifactFile =
+    search?.artifactPanel?.type === "file" ? search.artifactPanel : null;
 
   const handleFileClick = (file: ProjectFileViewerFile) => {
     if (!search) {
@@ -176,7 +175,10 @@ export function FilesGrid({
               >
                 <FilePreviewCard
                   file={file}
-                  isSelected={file.filePath === selectedFilePath}
+                  isSelected={isArtifactPanelFileSelected(
+                    file,
+                    selectedArtifactFile,
+                  )}
                   onClick={() => {
                     handleFileClick(file);
                   }}
@@ -198,7 +200,10 @@ export function FilesGrid({
             {rowCardFiles.map((file) => (
               <FilePreviewCard
                 file={file}
-                isSelected={file.filePath === selectedFilePath}
+                isSelected={isArtifactPanelFileSelected(
+                  file,
+                  selectedArtifactFile,
+                )}
                 key={file.filePath}
                 onClick={() => {
                   handleFileClick(file);
@@ -225,7 +230,10 @@ export function FilesGrid({
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
-                isSelected={file.filePath === selectedFilePath}
+                isSelected={isArtifactPanelFileSelected(
+                  file,
+                  selectedArtifactFile,
+                )}
                 onClick={() => {
                   handleFileClick(file);
                 }}
@@ -283,7 +291,7 @@ export function FilesGrid({
                   [section.key]: !prev[section.key],
                 }));
               }}
-              selectedFilePath={selectedFilePath}
+              selectedArtifactFile={selectedArtifactFile}
               title={section.title}
             />
           );
@@ -315,7 +323,7 @@ function CategorizedFileSection({
   isExpanded,
   onFileClick,
   onToggle,
-  selectedFilePath,
+  selectedArtifactFile,
   title,
 }: {
   alignEnd: boolean;
@@ -323,7 +331,7 @@ function CategorizedFileSection({
   isExpanded: boolean;
   onFileClick: (file: ProjectFileViewerFile) => void;
   onToggle: () => void;
-  selectedFilePath: null | string;
+  selectedArtifactFile: Extract<ArtifactPanel, { type: "file" }> | null;
   title: string;
 }) {
   return (
@@ -354,7 +362,10 @@ function CategorizedFileSection({
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
-                isSelected={file.filePath === selectedFilePath}
+                isSelected={isArtifactPanelFileSelected(
+                  file,
+                  selectedArtifactFile,
+                )}
                 onClick={() => {
                   onFileClick(file);
                 }}
@@ -387,6 +398,25 @@ function hasRowCardPreview(file: ProjectFileViewerFile) {
 
 function isAgentRetrievedFile(file: ProjectFileViewerFile) {
   return file.filePath.startsWith(`${APP_FOLDER_NAMES.agentRetrieved}/`);
+}
+
+function isArtifactPanelFileSelected(
+  file: ProjectFileViewerFile,
+  artifactPanel: Extract<ArtifactPanel, { type: "file" }> | null,
+) {
+  if (!artifactPanel) {
+    return false;
+  }
+
+  if (file.filePath !== artifactPanel.filePath) {
+    return false;
+  }
+
+  if (artifactPanel.fileVersion !== undefined) {
+    return file.versionRef === artifactPanel.fileVersion;
+  }
+
+  return true;
 }
 
 function isOutputFile(file: ProjectFileViewerFile) {

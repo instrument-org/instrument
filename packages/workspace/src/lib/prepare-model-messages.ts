@@ -11,6 +11,7 @@ import { addCacheControlToMessages } from "./add-cache-control";
 import { type AppConfig } from "./app-config/types";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
+import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
 
@@ -122,10 +123,27 @@ export async function prepareModelMessages({
     ...alphabetical(nonContextMessages, (message) => message.id),
   ];
 
+  const portableMessagesResult = removeCrossModelReasoningDetails({
+    messages: orderedMessages,
+    model,
+  });
+
+  if (portableMessagesResult.redactedReasoningDetailsCount > 0) {
+    appConfig.workspaceConfig.captureEvent("llm.reasoning_details_redacted", {
+      modelId: model.canonicalId,
+      providerId: model.params.provider,
+      redacted_message_count: portableMessagesResult.redactedMessageCount,
+      redacted_reasoning_details_count:
+        portableMessagesResult.redactedReasoningDetailsCount,
+      source_model_ids: portableMessagesResult.sourceModelIds,
+      source_provider_ids: portableMessagesResult.sourceProviderIds,
+    });
+  }
+
   // Including all tools so they can run their toModelOutput even if they are
   // not used in this session
   const modelMessages = await SessionMessage.toModelMessages(
-    orderedMessages,
+    portableMessagesResult.messages,
     TOOLS_FOR_MODEL_OUTPUT,
   );
 

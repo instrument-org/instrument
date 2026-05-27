@@ -65,36 +65,38 @@ export function ProjectToolbar({
 
   return (
     <>
-      <div className="w-full bg-background p-3">
-        <div className="flex items-center gap-1">
-          <ProjectChatMenu
-            onChatClick={() => {
-              onSidebarChange("chat");
-            }}
-            projectTitle={project.title}
-            selectedSessionId={selectedSessionId}
-            sidebar={sidebar}
-          />
+      <div className="@container w-full bg-background p-3">
+        <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-x-1 overflow-hidden">
+            <ProjectChatMenu
+              onChatClick={() => {
+                onSidebarChange("chat");
+              }}
+              projectTitle={project.title}
+              selectedSessionId={selectedSessionId}
+              sidebar={sidebar}
+            />
 
-          <Toggle
-            aria-label="Show files"
-            className="px-2"
-            onPressedChange={() => {
-              onSidebarChange("files");
-            }}
-            pressed={sidebar === "files"}
-            size="sm"
-            variant="toolbar"
-          >
-            <FolderIcon className="size-4" />
-            <span>Files</span>
-          </Toggle>
+            <Toggle
+              aria-label="Show files"
+              className="max-w-24 min-w-8 shrink overflow-hidden px-2"
+              onPressedChange={() => {
+                onSidebarChange("files");
+              }}
+              pressed={sidebar === "files"}
+              size="sm"
+              variant="toolbar"
+            >
+              <FolderIcon className="size-4 shrink-0" />
+              <span className="hidden min-w-0 truncate @min-[380px]:inline">
+                Files
+              </span>
+            </Toggle>
+          </div>
 
-          <div className="flex-1" />
-
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-8 shrink items-center justify-end gap-x-2 overflow-hidden">
             {isDeveloperMode && (
-              <div className="min-w-0 shrink">
+              <div className="min-w-0 shrink overflow-hidden">
                 <ProjectUsageSummary
                   onClick={() => {
                     setDebugDialogOpen(true);
@@ -104,33 +106,40 @@ export function ProjectToolbar({
               </div>
             )}
             {versionRef ? (
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
                 <Button
+                  className="shrink"
                   onClick={handleExitVersion}
                   size="sm"
                   variant="secondary"
                 >
                   Exit
                 </Button>
-                <Button onClick={handleRestoreVersion} size="sm">
-                  Restore this version
+                <Button
+                  className="min-w-0 shrink overflow-hidden"
+                  onClick={handleRestoreVersion}
+                  size="sm"
+                >
+                  <span className="min-w-0 truncate">Restore this version</span>
                 </Button>
               </div>
             ) : (
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex min-w-8 items-center justify-end gap-x-2 overflow-hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       className={toolbarClassName({
                         className:
-                          "gap-2 px-2 has-[>svg]:px-2 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                          "min-w-8 shrink overflow-hidden gap-2 px-2 has-[>svg]:px-2 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
                         pressed: false,
                       })}
                       size="sm"
                       variant="ghost"
                     >
-                      <ShareExport className="size-4" />
-                      Share
+                      <ShareExport className="size-4 shrink-0" />
+                      <span className="hidden min-w-0 truncate @min-[380px]:inline">
+                        Share
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -144,19 +153,21 @@ export function ProjectToolbar({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <ProjectActionsMenu
-                  onDebugClick={() => {
-                    setDebugDialogOpen(true);
-                  }}
-                  onReplayClick={() => {
-                    setReplayModalOpen(true);
-                  }}
-                  onSettingsClick={() => {
-                    setSettingsDialogOpen(true);
-                  }}
-                  selectedSessionId={selectedSessionId}
-                  subdomain={project.subdomain}
-                />
+                <div className="shrink-0">
+                  <ProjectActionsMenu
+                    onDebugClick={() => {
+                      setDebugDialogOpen(true);
+                    }}
+                    onReplayClick={() => {
+                      setReplayModalOpen(true);
+                    }}
+                    onSettingsClick={() => {
+                      setSettingsDialogOpen(true);
+                    }}
+                    selectedSessionId={selectedSessionId}
+                    subdomain={project.subdomain}
+                  />
+                </div>
               </div>
             )}
           </div>

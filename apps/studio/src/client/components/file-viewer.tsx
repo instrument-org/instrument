@@ -351,10 +351,12 @@ export function FileViewer({
         fullSize,
       })}
     >
-      <div className="flex shrink-0 items-center gap-2 px-4 py-3">
+      <div className="@container flex min-w-0 shrink-0 items-center gap-2 px-4 py-3">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="truncate text-xs font-medium">{filename}</span>
+            <span className="min-w-0 truncate text-xs font-medium">
+              {filename}
+            </span>
           </TooltipTrigger>
           <TooltipContent
             className="max-w-[min(500px,90vw)] wrap-break-word"
@@ -371,7 +373,7 @@ export function FileViewer({
             versionRef={versionRef}
           />
         )}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex min-w-7 shrink items-center justify-end gap-1 overflow-hidden">
           {fileActions.showDownload && (
             <Button
               className={fileViewerHeaderActionClassName}
@@ -380,7 +382,9 @@ export function FileViewer({
               variant="ghost"
             >
               <ArrowLineDownIcon className="size-4" />
-              <span>Download</span>
+              <span className="hidden min-w-0 truncate @min-[380px]:inline">
+                Download
+              </span>
             </Button>
           )}
           {fileActions.showCopy && (
@@ -395,7 +399,9 @@ export function FileViewer({
               ) : (
                 <CopyIcon className="size-4" />
               )}
-              <span>Copy</span>
+              <span className="hidden min-w-0 truncate @min-[380px]:inline">
+                Copy
+              </span>
             </Button>
           )}
           {showOverflowMenu && (

@@ -55,15 +55,20 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## Monorepo checks (Turbo)
 
-Run lint/types through Turbo from the repo root so checks use task caching. Do
-not `cd apps/*` or `cd packages/*` to run `check:lint` / `check:types`, or run
-package loops.
+Run lint and types from the **repo root** through Turbo so tasks are cached.
+Avoid `cd` into each package for `check:lint` / `check:types` or package loops.
 
+`turbo` is not always on PATH; use `pnpm exec turbo run …` (or root scripts
+that invoke turbo).
+
+- `pnpm exec turbo run check:types check:lint` — all packages
+- `pnpm exec turbo run check:types check:lint --filter=@instrument-org/workspace`
+- `pnpm exec turbo run check:types check:lint --filter=@instrument-org/studio`
 - `pnpm check-and-test` — full CI
-- `turbo run check:types check:lint` — all packages
-- `turbo run check:types check:lint --filter=@instrument-org/workspace` — one package
 - `pnpm turbo:fix:lint` — fix lint
-- Single test file only: `cd packages/<name> && pnpm test run <file>`
+
+Single test file: `cd packages/<name> && pnpm test run <file>` or
+`cd apps/studio && pnpm test run <file>`.
 
 ## Package management
 
@@ -83,6 +88,8 @@ package loops.
 
 ## Additional guidance
 
+- `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
+- `.agents/env.md` — Environment variables for Studio and workspace.
 - `.agents/sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, shim + Studio startup, CDP port 48160, Xvfb, pnpm checks.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.

@@ -13,7 +13,7 @@ runs:
     - name: Cache electron binary
       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
-        key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'apps/studio/package.json') }}
         path: ~/.cache/electron/
 
     - name: Cache dugite git binary

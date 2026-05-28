@@ -116,7 +116,7 @@ export function ToolCallSummary({
         <Spinner className="size-3 shrink-0 text-foreground/60" />
       ) : (
         Icon && (
-          <span className="flex shrink-0 items-center rounded-lg bg-foreground/5 p-1">
+          <span className="flex shrink-0 items-center rounded-lg bg-black/5 p-1 dark:bg-white/5">
             <Icon className="size-3 text-foreground/70" />
           </span>
         )

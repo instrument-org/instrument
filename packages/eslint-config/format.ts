@@ -13,6 +13,13 @@ import tseslint from "typescript-eslint";
 // object, and Tailwind class sorting. Keep this free of typed linting rules so
 // one-file formatting does not pay the TypeScript project startup cost.
 const config: ReturnType<typeof tseslint.config> = tseslint.config(
+  {
+    linterOptions: {
+      // This config is a subset of the full lint rules. Disable comments for
+      // rules that only exist in the main config must not be stripped on --fix.
+      reportUnusedDisableDirectives: "off",
+    },
+  },
   eslint.configs.recommended,
   comments.recommended,
   tseslint.configs.recommended,

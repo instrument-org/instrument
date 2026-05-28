@@ -2,6 +2,9 @@
 
 ## Setup for Development
 
+Prerequisites: [.agents/setup.md](.agents/setup.md). Environment variables:
+[.agents/env.md](.agents/env.md).
+
 ```bash
 pnpm install
 ./scripts/setup.sh

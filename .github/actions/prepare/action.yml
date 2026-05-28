@@ -46,7 +46,7 @@ runs:
           echo "Electron install incomplete; clearing download cache and rebuilding"
           rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/electron" \
                  ~/Library/Caches/electron \
-                 "$LOCALAPPDATA/electron/Cache" 2>/dev/null || true
+                 "${LOCALAPPDATA:-}/electron/Cache" 2>/dev/null || true
           pnpm rebuild electron
         fi
       shell: bash

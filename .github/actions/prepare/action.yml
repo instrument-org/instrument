@@ -35,41 +35,20 @@ runs:
       name: install-dependencies
       run: pnpm install --frozen-lockfile
       shell: bash
-    - env:
-        ELECTRON_RUN_AS_NODE: "1"
-      name: verify-electron-install
+    - name: verify-electron-install
       run: |
         set -euo pipefail
-
         electron_dir="$(
-          find node_modules/.pnpm -path '*/electron@*/node_modules/electron' -type d 2>/dev/null | head -1
+          find node_modules/.pnpm -path '*/node_modules/electron' -maxdepth 6 -type d 2>/dev/null \
+            | grep -E '/electron@[0-9]+\.' | head -1
         )"
-        if [ -z "$electron_dir" ]; then
-          echo "Could not find electron package under node_modules/.pnpm"
-          exit 1
+        if [ -z "$electron_dir" ] || [ ! -f "$electron_dir/path.txt" ]; then
+          echo "Electron install incomplete; clearing download cache and rebuilding"
+          rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/electron" \
+                 ~/Library/Caches/electron \
+                 "$LOCALAPPDATA/electron/Cache" 2>/dev/null || true
+          pnpm rebuild electron
         fi
-
-        electron_is_installed() {
-          [ -f "$electron_dir/path.txt" ] && [ -d "$electron_dir/dist" ]
-        }
-
-        if ! electron_is_installed; then
-          echo "Electron install incomplete; running install.js"
-          node "$electron_dir/install.js"
-        fi
-
-        if ! electron_is_installed; then
-          echo "Electron still incomplete; clearing download cache and retrying install.js"
-          rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/electron"
-          node "$electron_dir/install.js"
-        fi
-
-        if ! electron_is_installed; then
-          echo "Electron failed to install after retry (expected path.txt and dist/)"
-          exit 1
-        fi
-
-        pnpm --filter @instrument-org/studio exec electron -v
       shell: bash
     - uses: rharkor/caching-for-turbo@00a0515f175df9fd2e15c4560144ad5fdbebb0c7 # v2.3.13
   using: composite

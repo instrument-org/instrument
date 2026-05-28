@@ -43,11 +43,15 @@ runs:
             | grep -E '/electron@[0-9]+\.' | head -1
         )"
         if [ -z "$electron_dir" ] || [ ! -f "$electron_dir/path.txt" ]; then
-          echo "Electron install incomplete; clearing download cache and rebuilding"
+          echo "Electron install incomplete; clearing download cache and re-running install.js"
           rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/electron" \
                  ~/Library/Caches/electron \
                  "${LOCALAPPDATA:-}/electron/Cache" 2>/dev/null || true
-          pnpm rebuild electron
+          node "$electron_dir/install.js"
+        fi
+        if [ -z "$electron_dir" ] || [ ! -f "$electron_dir/path.txt" ]; then
+          echo "Electron still not installed after repair attempt"
+          exit 1
         fi
       shell: bash
     - uses: rharkor/caching-for-turbo@00a0515f175df9fd2e15c4560144ad5fdbebb0c7 # v2.3.13

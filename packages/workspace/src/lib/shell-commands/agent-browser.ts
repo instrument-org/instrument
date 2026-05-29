@@ -37,7 +37,6 @@ export const AGENT_BROWSER_COMMAND = {
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,
 } as const;
-const MAX_OUTPUT_LENGTH = 30_000;
 
 // Flags rejected because they would bypass our Electron CDP bridge or load
 // data into the wrong browser context.
@@ -232,11 +231,6 @@ export function createAgentBrowserCommand({
     });
 
     const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
-    const truncated =
-      combined.length > MAX_OUTPUT_LENGTH
-        ? `... (truncated ${combined.length - MAX_OUTPUT_LENGTH} characters)\n` +
-          combined.slice(combined.length - MAX_OUTPUT_LENGTH)
-        : combined;
 
     const exitCode = result.exitCode ?? 1;
     if (observation) {
@@ -253,7 +247,7 @@ export function createAgentBrowserCommand({
     return {
       exitCode,
       stderr: "",
-      stdout: truncated,
+      stdout: combined,
     };
   });
 }

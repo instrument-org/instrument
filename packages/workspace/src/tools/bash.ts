@@ -1,17 +1,26 @@
 import ms from "ms";
 import { ok } from "neverthrow";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { z } from "zod";
 
+import { APP_FOLDER_NAMES } from "../constants";
+import { absolutePathJoin } from "../lib/absolute-path-join";
 import { agentBrowserScreenshotsNote } from "../lib/agent-browser-screenshots-note";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { Store } from "../lib/store";
 import { systemNote } from "../lib/system-note";
 import { extractContextItemsFromOutput } from "../lib/tool-output-context-items";
+import {
+  TRUNCATE_MAX_BYTES,
+  TRUNCATE_MAX_LINES,
+  truncateTail,
+} from "../lib/truncate-buffer";
+import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
-const MAX_OUTPUT_LENGTH = 30_000;
 const DEFAULT_TIMEOUT_MS = ms("30 seconds");
 
 function formatBytes(bytes: number) {
@@ -45,6 +54,7 @@ export const BashTool = setupTool({
     durationMs: z.number().default(0),
     exitCode: z.number(),
     output: z.string(),
+    spillFilePath: RelativePathSchema.optional(),
   }),
 }).create({
   description: createBashDescription(),
@@ -70,12 +80,27 @@ export const BashTool = setupTool({
       ? result.metadata.commands
       : [];
 
+    const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
+
+    const { truncated } = truncateTail(combined);
+
+    let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
+    if (truncated) {
+      spillFilePath = RelativePathSchema.parse(
+        path.posix.join(APP_FOLDER_NAMES.state, "bash-output", `${partId}.log`),
+      );
+      const absPath = absolutePathJoin(appConfig.appDir, spillFilePath);
+      await fs.mkdir(path.dirname(absPath), { recursive: true });
+      await fs.writeFile(absPath, combined, { encoding: "utf8", signal });
+    }
+
     return ok({
       command: input.command,
       commands,
       durationMs,
       exitCode: result.exitCode,
-      output: [result.stdout, result.stderr].filter(Boolean).join("\n"),
+      output: combined,
+      spillFilePath,
     });
   },
   readOnly: false,
@@ -83,22 +108,25 @@ export const BashTool = setupTool({
   toModelOutput: ({ output }) => {
     const hasErrors = output.exitCode !== 0;
 
-    const totalBytes = Buffer.byteLength(output.output, "utf8");
-    const totalLines = output.output ? output.output.split("\n").length : 0;
+    const { content, totalBytes, totalLines, truncated, truncatedBy } =
+      truncateTail(output.output);
 
-    let displayOutput = output.output;
+    const displayOutput = truncated ? content : output.output;
+
     let truncationNotice = "";
-    if (displayOutput.length > MAX_OUTPUT_LENGTH) {
-      const keptBytes = Buffer.byteLength(
-        displayOutput.slice(displayOutput.length - MAX_OUTPUT_LENGTH),
-        "utf8",
-      );
-      truncationNotice =
-        `[Output truncated: showing last ${formatBytes(keptBytes)} of ${formatBytes(totalBytes)} (${totalLines} lines total). ` +
-        `Re-run with \`tail\`, \`head\`, or \`grep\` to view other parts.]\n`;
-      displayOutput = displayOutput.slice(
-        displayOutput.length - MAX_OUTPUT_LENGTH,
-      );
+    if (truncated) {
+      const keptBytes = Buffer.byteLength(content, "utf8");
+      const limitLabel =
+        truncatedBy === "lines"
+          ? `${TRUNCATE_MAX_LINES.toLocaleString()} lines`
+          : formatBytes(TRUNCATE_MAX_BYTES);
+      const stats =
+        `showing last ${formatBytes(keptBytes)} of ${formatBytes(totalBytes)}` +
+        ` (${totalLines} lines total, limit: ${limitLabel})`;
+      const spillLine = output.spillFilePath
+        ? `\nFull output saved to: ${output.spillFilePath}`
+        : "";
+      truncationNotice = `[Output truncated: ${stats}.${spillLine}]\n`;
     }
 
     const exitLine = `Exit code: ${output.exitCode}`;

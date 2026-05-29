@@ -108,9 +108,8 @@ describe("BashTool", () => {
       `);
     });
 
-    it("truncates output exceeding byte cap and reports limits", () => {
-      // 200 lines × 200 chars = 40 000 chars / ~40 KB, over the 50 KB line limit
-      // but let's go over: 300 lines × 200 chars ≈ 58 KB which exceeds 50 KB
+    it("truncates output exceeding byte cap and shows head+tail notice", () => {
+      // 300 lines × 200 chars ≈ 58 KB, exceeds 10+10 KB combined budget
       const line = "x".repeat(199) + "\n";
       const longOutput = line.repeat(300);
       const result = BashTool.toModelOutput({
@@ -127,8 +126,9 @@ describe("BashTool", () => {
       const value = (result as { value: string }).value;
       expect(value).toContain("Exit code: 0");
       expect(value).toContain("Output truncated:");
-      expect(value).toContain("50.0 KB");
+      expect(value).toContain("lines omitted");
       expect(value).toContain("lines total");
+      expect(value).toContain("[... ");
     });
 
     it("includes spillFilePath in truncation notice when provided", () => {

@@ -13,9 +13,9 @@ import { Store } from "../lib/store";
 import { systemNote } from "../lib/system-note";
 import { extractContextItemsFromOutput } from "../lib/tool-output-context-items";
 import {
-  TRUNCATE_MAX_BYTES,
-  TRUNCATE_MAX_LINES,
-  truncateTail,
+  TRUNCATE_HEAD_BYTES,
+  TRUNCATE_TAIL_BYTES,
+  truncateMiddle,
 } from "../lib/truncate-buffer";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -82,7 +82,7 @@ export const BashTool = setupTool({
 
     const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
 
-    const { truncated } = truncateTail(combined);
+    const { truncated } = truncateMiddle(combined);
 
     let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
     if (truncated) {
@@ -108,21 +108,18 @@ export const BashTool = setupTool({
   toModelOutput: ({ output }) => {
     const hasErrors = output.exitCode !== 0;
 
-    const { content, totalBytes, totalLines, truncated, truncatedBy } =
-      truncateTail(output.output);
+    const { content, omittedLines, totalBytes, totalLines, truncated } =
+      truncateMiddle(output.output);
 
     const displayOutput = truncated ? content : output.output;
 
     let truncationNotice = "";
     if (truncated) {
-      const keptBytes = Buffer.byteLength(content, "utf8");
-      const limitLabel =
-        truncatedBy === "lines"
-          ? `${TRUNCATE_MAX_LINES.toLocaleString()} lines`
-          : formatBytes(TRUNCATE_MAX_BYTES);
+      const headKB = formatBytes(TRUNCATE_HEAD_BYTES);
+      const tailKB = formatBytes(TRUNCATE_TAIL_BYTES);
       const stats =
-        `showing last ${formatBytes(keptBytes)} of ${formatBytes(totalBytes)}` +
-        ` (${totalLines} lines total, limit: ${limitLabel})`;
+        `showing first ${headKB} and last ${tailKB} of ${formatBytes(totalBytes)}` +
+        ` (${totalLines} lines total, ${omittedLines} omitted)`;
       const spillLine = output.spillFilePath
         ? `\nFull output saved to: ${output.spillFilePath}`
         : "";

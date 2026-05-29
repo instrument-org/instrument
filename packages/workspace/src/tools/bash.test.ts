@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import { RelativePathSchema } from "../schemas/paths";
 import { BashTool } from "./bash";
+
+const BASE_OUTPUT = {
+  command: "",
+  commands: [],
+  durationMs: 0,
+  exitCode: 0,
+  output: "",
+};
 
 describe("BashTool", () => {
   describe("toModelOutput", () => {
@@ -8,11 +17,10 @@ describe("BashTool", () => {
       const result = BashTool.toModelOutput({
         input: { command: "true", timeoutMs: 1000 },
         output: {
+          ...BASE_OUTPUT,
           command: "true",
           commands: ["true"],
           durationMs: 12,
-          exitCode: 0,
-          output: "",
         },
         toolCallId: "1",
       });
@@ -30,10 +38,10 @@ describe("BashTool", () => {
       const result = BashTool.toModelOutput({
         input: { command: "echo hi", timeoutMs: 1000 },
         output: {
+          ...BASE_OUTPUT,
           command: "echo hi",
           commands: ["echo"],
           durationMs: 8,
-          exitCode: 0,
           output: "hi\n",
         },
         toolCallId: "1",
@@ -56,6 +64,7 @@ describe("BashTool", () => {
       const result = BashTool.toModelOutput({
         input: { command: "false", timeoutMs: 1000 },
         output: {
+          ...BASE_OUTPUT,
           command: "false",
           commands: ["false"],
           durationMs: 5,
@@ -82,11 +91,10 @@ describe("BashTool", () => {
       const result = BashTool.toModelOutput({
         input: { command: "sleep 2", timeoutMs: 1000 },
         output: {
+          ...BASE_OUTPUT,
           command: "sleep 2",
           commands: ["sleep"],
           durationMs: 2150,
-          exitCode: 0,
-          output: "",
         },
         toolCallId: "1",
       });
@@ -100,27 +108,68 @@ describe("BashTool", () => {
       `);
     });
 
-    it("emits a rich truncation notice when output exceeds the cap", () => {
+    it("truncates output exceeding byte cap and reports limits", () => {
+      // 200 lines × 200 chars = 40 000 chars / ~40 KB, over the 50 KB line limit
+      // but let's go over: 300 lines × 200 chars ≈ 58 KB which exceeds 50 KB
       const line = "x".repeat(199) + "\n";
-      const longOutput = line.repeat(200);
+      const longOutput = line.repeat(300);
       const result = BashTool.toModelOutput({
         input: { command: "yes", timeoutMs: 1000 },
         output: {
+          ...BASE_OUTPUT,
           command: "yes",
           commands: ["yes"],
           durationMs: 30,
-          exitCode: 0,
           output: longOutput,
         },
         toolCallId: "1",
       });
       const value = (result as { value: string }).value;
       expect(value).toContain("Exit code: 0");
-      expect(value).toContain(
-        "Output truncated: showing last 29.3 KB of 39.1 KB",
+      expect(value).toContain("Output truncated:");
+      expect(value).toContain("50.0 KB");
+      expect(value).toContain("lines total");
+    });
+
+    it("includes spillFilePath in truncation notice when provided", () => {
+      const line = "x".repeat(199) + "\n";
+      const longOutput = line.repeat(300);
+      const result = BashTool.toModelOutput({
+        input: { command: "yes", timeoutMs: 1000 },
+        output: {
+          ...BASE_OUTPUT,
+          command: "yes",
+          commands: ["yes"],
+          durationMs: 30,
+          output: longOutput,
+          spillFilePath: RelativePathSchema.parse(
+            ".state/bash-output/part-123.log",
+          ),
+        },
+        toolCallId: "1",
+      });
+      const value = (result as { value: string }).value;
+      expect(value).toContain(".state/bash-output/part-123.log");
+    });
+
+    it("does not truncate output that fits within limits", () => {
+      const output = Array.from({ length: 10 }, (_, i) => `line ${i}`).join(
+        "\n",
       );
-      expect(value).toContain("(201 lines total)");
-      expect(value).toContain("Re-run with `tail`, `head`, or `grep`");
+      const result = BashTool.toModelOutput({
+        input: { command: "ls", timeoutMs: 1000 },
+        output: {
+          ...BASE_OUTPUT,
+          command: "ls",
+          commands: ["ls"],
+          durationMs: 5,
+          output,
+        },
+        toolCallId: "1",
+      });
+      const value = (result as { value: string }).value;
+      expect(value).not.toContain("truncated");
+      expect(value).toContain("line 9");
     });
   });
 });

@@ -201,6 +201,7 @@ describe("executeToolCallMachine", () => {
             "durationMs": 0,
             "exitCode": 0,
             "output": "mocked all",
+            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",
@@ -254,6 +255,7 @@ describe("executeToolCallMachine", () => {
             "exitCode": 1,
             "output": "pnpm: Shell command failed
         ",
+            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",
@@ -480,6 +482,7 @@ describe("executeToolCallMachine", () => {
             "exitCode": 1,
             "output": "'pnpm dev' is not needed here.
         The app is already started and running in the sandboxed environment.",
+            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",
@@ -513,6 +516,7 @@ describe("executeToolCallMachine", () => {
             "exitCode": 1,
             "output": "'pnpm start' is not needed here.
         The app is already started and running in the sandboxed environment.",
+            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",
@@ -546,6 +550,7 @@ describe("executeToolCallMachine", () => {
             "exitCode": 1,
             "output": "'pnpm run dev' is not needed here.
         The app is already started and running in the sandboxed environment.",
+            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",
@@ -579,6 +584,7 @@ describe("executeToolCallMachine", () => {
             "exitCode": 1,
             "output": "'pnpm run start' is not needed here.
         The app is already started and running in the sandboxed environment.",
+            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",

@@ -73,7 +73,7 @@ function printSummary({
               `${c.dim}│${c.reset}  ${c.dim}${i === 0 ? "Models     " : "           "} :${c.reset} ${c.cyan}${m}${c.reset}`,
           )
         : []),
-      `${c.dim}│${c.reset}  ${c.dim}Projects   :${c.reset} ${c.yellow}${rollup.projects}${c.reset}`,
+      `${c.dim}│${c.reset}  ${c.dim}Tasks      :${c.reset} ${c.yellow}${rollup.projects}${c.reset}`,
       ...(assertions.total > 0
         ? [
             `${c.dim}│${c.reset}  ${c.dim}Assertions :${c.reset} ${assertions.passed === assertions.total ? c.green : c.yellow}${assertions.passed}/${assertions.total} passed (${passRate})${c.reset}`,

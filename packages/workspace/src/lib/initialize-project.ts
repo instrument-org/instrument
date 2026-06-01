@@ -37,7 +37,7 @@ export async function initializeProject(
     if (exists) {
       return errAsync(
         new TypedError.Conflict(
-          `Project directory already exists: ${projectConfig.appDir}`,
+          `Task directory already exists: ${projectConfig.appDir}`,
         ),
       );
     }
@@ -102,7 +102,7 @@ export async function initializeProject(
     yield* git(GitCommands.addAll(), projectConfig.appDir, { signal });
     yield* git(
       GitCommands.commitWithAuthor(
-        `Project created from ${templateName} template\n\n${GIT_TRAILERS.initialCommit}: true\n${GIT_TRAILERS.template}: ${templateName}`,
+        `Task created from ${templateName} template\n\n${GIT_TRAILERS.initialCommit}: true\n${GIT_TRAILERS.template}: ${templateName}`,
       ),
       projectConfig.appDir,
       { signal },

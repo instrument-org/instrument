@@ -24,7 +24,7 @@ export function copyProject({
     getIgnore(sourceDir),
     (error) =>
       new TypedError.FileSystem(
-        `Failed to get ignore patterns for project copy: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get ignore patterns for task copy: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       ),
   )
@@ -57,7 +57,7 @@ export function copyProject({
         }),
         (error) =>
           new TypedError.FileSystem(
-            `Failed to copy project files: ${error instanceof Error ? error.message : String(error)}`,
+            `Failed to copy task files: ${error instanceof Error ? error.message : String(error)}`,
             { cause: error },
           ),
       ).map(() => true),

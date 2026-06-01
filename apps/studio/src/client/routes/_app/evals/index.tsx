@@ -271,7 +271,7 @@ function RouteComponent() {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      toast.error(`Failed to create projects: ${errorMessage}`);
+      toast.error(`Failed to create tasks: ${errorMessage}`);
     } finally {
       setIsCreating(false);
     }
@@ -668,8 +668,8 @@ function RouteComponent() {
                       </AlertDialogTitle>
                       <AlertDialogDescription>
                         You are about to create {totalProjectsToCreate} eval
-                        projects. This may take some time and will use
-                        significant tokens.
+                        tasks. This may take some time and will use significant
+                        tokens.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

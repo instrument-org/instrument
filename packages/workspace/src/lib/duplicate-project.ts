@@ -39,7 +39,7 @@ export async function duplicateProject(
     if (projectExists) {
       return errAsync(
         new TypedError.Conflict(
-          `Project directory already exists: ${projectConfig.appDir}`,
+          `Task directory already exists: ${projectConfig.appDir}`,
         ),
       );
     }
@@ -48,7 +48,7 @@ export async function duplicateProject(
     if (!sourceExists) {
       return errAsync(
         new TypedError.NotFound(
-          `Source project directory does not exist: ${sourceConfig.appDir}`,
+          `Source task directory does not exist: ${sourceConfig.appDir}`,
         ),
       );
     }
@@ -130,7 +130,7 @@ export async function duplicateProject(
     yield* git(GitCommands.addAll(), projectConfig.appDir, { signal });
     const commitMessage = keepHistory
       ? `Duplicated from "${sourceName}"`
-      : `Initial commit of duplicated project "${duplicateName}"`;
+      : `Initial commit of duplicated task "${duplicateName}"`;
     yield* git(
       GitCommands.commitWithAuthor(commitMessage),
       projectConfig.appDir,

@@ -255,14 +255,14 @@ function projectBrowserStatus(state: string): {
   }
   if (state.includes("Stopped")) {
     return {
-      help: "All browsers for this project have been reaped.",
+      help: "All browsers for this task have been reaped.",
       label: "stopped",
       tone: "danger",
     };
   }
   if (state.includes("Active")) {
     return {
-      help: "Agent or user is actively using a browser in this project.",
+      help: "Agent or user is actively using a browser in this task.",
       label: "running",
       tone: "ok",
     };
@@ -286,7 +286,7 @@ function RouteComponent() {
           <div className="min-w-0">
             <h1 className="text-base font-semibold">Agent Browsers</h1>
             <p className="text-xs text-muted-foreground">
-              Live view of every agent-controlled browser plus the per-project
+              Live view of every agent-controlled browser plus the per-task
               machines that decide when to clean them up.
             </p>
           </div>
@@ -317,12 +317,12 @@ function RouteComponent() {
         <section className="flex flex-col gap-2">
           <SectionHeader
             count={data?.projectBrowsers.length}
-            help="One per project. Tracks which sessions are watching, and reaps idle browsers after the cleanup delay."
+            help="One per task. Tracks which sessions are watching, and reaps idle browsers after the cleanup delay."
             title="Cleanup machines"
           />
           {data && data.projectBrowsers.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No projects have spawned a browser machine yet.
+              No tasks have spawned a browser machine yet.
             </p>
           ) : (
             data?.projectBrowsers.map((pb) => (

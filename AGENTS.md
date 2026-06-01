@@ -10,6 +10,12 @@ pnpm monorepo for the Instrument desktop app platform.
 
 - Prefer wrapping long lines when it makes code, prompts, or docs easier to scan.
 
+## Product terminology
+
+- User/agent-facing copy calls the user's unit of work a **task**.
+- Internal code may still say `project` for routes, RPC, telemetry, types,
+  folders, and tool names. Keep those unless migrating the API/data model.
+
 ## Registry Submodule
 
 **NEVER make changes to files inside the `registry/` folder.** It is a git submodule (`instrument-org/skills`) managed independently. Read from it freely, but do not edit, create, or delete any files within it.

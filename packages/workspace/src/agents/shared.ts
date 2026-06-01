@@ -98,12 +98,12 @@ export async function getProjectLayoutContext(appDir: AbsolutePath) {
 
   return fileTreeResult.match(
     (tree) => dedent`
-      <project_layout>
-      This is the current project directory structure. All files and folders shown below exist right now. This structure will not update during the conversation, but should be considered accurate at the start.
+      <task_layout>
+      This is the current task directory structure. All files and folders shown below exist right now. This structure will not update during the conversation, but should be considered accurate at the start.
       \`\`\`plaintext
       ${tree}
       \`\`\`
-      </project_layout>
+      </task_layout>
     `,
     () => "",
   );

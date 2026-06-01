@@ -6,7 +6,7 @@ describe("createBashDescription", () => {
   // cspell:ignore unexpand fgrep zcat
   it("matches snapshot", () => {
     expect(createBashDescription()).toMatchInlineSnapshot(`
-      "Execute bash commands in the project directory.
+      "Execute bash commands in the task directory.
 
       IMPORTANT: This is a sandboxed environment. python and other runtimes
       are NOT available as system binaries. Do NOT attempt to run them directly.
@@ -14,7 +14,7 @@ describe("createBashDescription", () => {
 
       IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all package management.
 
-      IMPORTANT: Not a persistent terminal -- each call starts fresh from the project root, so \`cd .\` is always a no-op. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+      IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root, so \`cd .\` is always a no-op. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
       IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
 
@@ -40,7 +40,7 @@ describe("createBashDescription", () => {
         ffprobe - Probe and inspect audio and video files using FFprobe.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         tsx - Execute a TypeScript or JavaScript file. For quick one-liners, prefer -e <code> over writing a file.
-        tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the project's compiler settings."
+        tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the local config."
     `);
   });
 

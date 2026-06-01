@@ -99,7 +99,7 @@ export function createPnpmCommand(appConfig: AppConfig) {
     if (subcommand === "setup") {
       return blockedSubcommand(
         "setup",
-        "Shell profile changes are not supported in a sandboxed project.",
+        "Shell profile changes are not supported in a sandboxed task.",
       );
     }
 
@@ -120,7 +120,7 @@ export function createPnpmCommand(appConfig: AppConfig) {
     if (subcommand === "publish" || subcommand === "pack") {
       return blockedSubcommand(
         subcommand,
-        "This is a sandboxed project workspace intended for development; publishing to the npm registry is not permitted.",
+        "This is a sandboxed task workspace intended for development; publishing to the npm registry is not permitted.",
       );
     }
 

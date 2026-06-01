@@ -208,7 +208,7 @@ describe("slugify", () => {
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {
-            explanation: "Generate a project icon for the helpers library",
+            explanation: "Generate a task icon for the helpers library",
             filePath: "./assets/helpers-icon",
             prompt:
               "A minimal flat vector icon representing a code utility library. Features interlocking gear and wrench symbols in a modern blue gradient style on a transparent background.",

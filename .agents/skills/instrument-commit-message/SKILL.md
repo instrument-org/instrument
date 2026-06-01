@@ -73,7 +73,7 @@ feat(studio): animate collapsible tool call cards
 
 With body:
 
-fix(workspace): write initial project name in single manifest write
+fix(workspace): write initial task name in single manifest write
 
 - avoid a race where two writes could stomp each other during initializeProject
 
@@ -87,7 +87,7 @@ printf %s "feat(studio): animate collapsible tool call cards" | tr -s '\n' | pbc
 With body:
 
 ```bash
-printf %s "fix(workspace): write initial project name in single manifest write
+printf %s "fix(workspace): write initial task name in single manifest write
 
 - avoid a race where two writes could stomp each other during initializeProject" | tr -s '\n' | pbcopy
 ```

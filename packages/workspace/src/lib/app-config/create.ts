@@ -99,7 +99,7 @@ function createProjectConfig(
 ): ProjectConfig {
   const folderNameResult = folderNameForSubdomain(subdomain);
   if (folderNameResult.isErr()) {
-    throw new Error(`Invalid project subdomain format: ${subdomain}`);
+    throw new Error(`Invalid task subdomain format: ${subdomain}`);
   }
   const folderName = folderNameResult.value;
   return {
@@ -155,7 +155,7 @@ function createVersionConfig(
   }
 
   if (!isValidProjectPart(projectPart)) {
-    throw new Error(`Invalid project part in version subdomain: ${subdomain}`);
+    throw new Error(`Invalid task part in version subdomain: ${subdomain}`);
   }
 
   const projectConfig = createAppConfig({

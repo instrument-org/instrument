@@ -8,7 +8,7 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## Readability
 
-- Prefer wrapping long lines when it makes code, prompts, or docs easier to scan.
+- Wrap long lines when it helps scan code, prompts, or docs.
 
 ## Product terminology
 
@@ -18,29 +18,26 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## Registry Submodule
 
-**NEVER make changes to files inside the `registry/` folder.** It is a git submodule (`instrument-org/skills`) managed independently. Read from it freely, but do not edit, create, or delete any files within it.
+**NEVER edit `registry/`.** It is the `instrument-org/skills` git submodule. Read freely; do not create, edit, or delete files there.
 
 ## TypeScript
 
-- NEVER use non-null assertions (`!`). This is forbidden. Always use proper type guards or optional chaining instead.
-- Avoid casting types unless necessary. If you do cast, you must add a comment explaining why.
-- Prefer `satisfies` over `as`; use `as` only to assert a different type (e.g. unknown payloads).
-- Avoid `any` and NEVER use `as any`.
-- Avoid redefining types and interfaces in every file, if possible, use an existing type or interface.
-- Avoid making component props and object properties optional unless necessary.
-- We use kebab case for filenames.
-- We use non-default exports whenever possible.
-- NEVER add comments for sections of JSX like `{/* Header */}<Header />`.
-- Prefer objects for functions with many parameters.
-- Don't run `tsc` to check for type errors, use your built-in diagnostics tool.
-- Objects, interfaces, types, imports, and other sortable structures are sorted by perfectionist and import-x. Do not fix "Expected {thing} to come before {thing}" or import-order errors; they are auto-fixed after your work is done.
-- `"lib": ["es2023", "DOM", "DOM.Iterable"]` is set, so you can use modern features.
-- The `radashi` import is installed. Use it for common lodash-style functions.
-- Prefer inline type declarations when they are short and not exported.
-- Prefer object types for functions with identical parameters, e.g. `({ a, b }: { a: number, b: number }) => number` instead of `(a: number, b: number) => number`.
-- `Array#reduce()` usually results in hard-to-read and less performant code. Instead, prefer `.map`, `.filter`, or a `for...of` loop.
-- Don't define return types unless necessary.
-- The `tsgo` binary is available in all packages. Use in the shell in place of `tsc`.
+- No non-null assertions (`!`); use type guards or optional chaining.
+- Avoid casts. If needed, explain why. Prefer `satisfies`; use `as` only for different-type assertions, e.g. unknown payloads.
+- Avoid `any`; never use `as any`.
+- Reuse existing types/interfaces; avoid per-file redefinitions.
+- Avoid optional props/properties unless needed.
+- Kebab-case filenames.
+- Prefer named exports.
+- No JSX section comments like `{/* Header */}<Header />`.
+- Prefer object params for many or identical params: `({ a, b }: { a: number, b: number }) => number`.
+- Do not run `tsc`; use built-in diagnostics or `tsgo`.
+- Perfectionist/import-x sort objects, interfaces, types, imports, etc. Ignore order-only lint errors; auto-fix handles them.
+- `lib`: `es2023`, `DOM`, `DOM.Iterable`; modern features OK.
+- Use `radashi` for common lodash-style functions.
+- Prefer short inline non-exported type declarations.
+- Avoid `Array#reduce()`; prefer `.map`, `.filter`, or `for...of`.
+- Omit return types unless needed.
 
 ## Tailwind
 
@@ -54,15 +51,14 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## React
 
-- Avoid using interfaces for component props, use inline types instead.
-- Avoid `useEffect` whenever possible in favor of making logic declarative.
-- React Compiler is setup for the Studio, so basic memoization like memo, useMemo, and useCallback are not needed.
+- Avoid interfaces for component props; use inline types.
+- Avoid `useEffect` when logic can be declarative.
+- React Compiler is set up for Studio; basic `memo`, `useMemo`, and `useCallback` are unnecessary.
 - Ignore "Incorrect class order" errors from eslint-plugin-better-tailwindcss. They are auto-fixed and do not need manual correction.
 
 ## Monorepo checks (Turbo)
 
-Run lint and types from the **repo root** through Turbo so tasks are cached.
-Avoid `cd` into each package for `check:lint` / `check:types` or package loops.
+Run lint/types from **repo root** through Turbo for caching. Avoid package-loop `cd` for `check:lint` / `check:types`.
 
 `turbo` is not always on PATH; use `pnpm exec turbo run …` (or root scripts
 that invoke turbo).
@@ -79,16 +75,15 @@ Single test file: `cd packages/<name> && pnpm test run <file>` or
 ## Package management
 
 - `pnpm` CLI (`install`, `add`, `remove`, `why`, etc.): outside sandbox (full
-  permissions). pnpm resolves packages from the global store and links them into
-  `node_modules`; sandbox isolation blocks that store path, so the workspace no
-  longer matches a normal local install.
+  permissions). pnpm links from the global store; sandbox isolation blocks that
+  path, so the workspace no longer matches a normal local install.
 - `pnpm test` / `pnpm check-and-test`: sandbox OK.
 
 ## Tests
 
 - Use `it.each` for testing repetitive cases.
 - Generate empty `toMatchInlineSnapshot` and allow the test run to fill it in.
-- Prefer `toMatchInlineSnapshot` over `toMatchSnapshot`. We prefer to see what's being tested clearly in the same file to avoid mistakes.
+- Prefer `toMatchInlineSnapshot`; keep expected output visible in the test file.
 - Run a specific test file: `cd packages/<name> && pnpm test run <path/to/file.test.ts>`.
 - Run all tests in a package: `cd packages/<name> && pnpm test run`.
 

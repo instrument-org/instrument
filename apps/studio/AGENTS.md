@@ -4,23 +4,23 @@ Electron desktop app.
 
 ## Dependencies vs devDependencies
 
-electron-builder copies everything in `dependencies` into the asar's `node_modules`. Packages that are only used in the renderer (React components, UI libraries, Vite-bundled code) **must** be in `devDependencies`. Vite bundles them at build time and they do not need to be present at runtime. Putting renderer-only packages in `dependencies` silently bloats the app by tens of megabytes.
+electron-builder copies `dependencies` into the asar `node_modules`. Renderer-only packages **must** be in `devDependencies`; Vite bundles them, and putting them in `dependencies` silently adds tens of MB.
 
 - **`dependencies`**: main-process runtime packages only (e.g. `hono`, `better-auth`, `xstate`, `ws`, native addons)
 - **`devDependencies`**: everything renderer-only (e.g. React, Radix, `motion` if only used in the renderer)
 
 ## Project
 
-The renderer is a React 19 app using TanStack Router (file-based routes), shadcn UI components, and oRPC to talk to the main process. The main process also calls a remote API (accounts, plans, Stripe); that is only exposed to the UI via main-process RPC, not by the client calling HTTP directly.
+Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process. Main process calls remote API (accounts, plans, Stripe); UI accesses it only through main-process RPC, never direct HTTP.
 
-- React 19: use the newer APIs. Because we behave as a desktop app, we don't use `cursor: pointer` for links.
-- Use shadcn Tailwind colors (e.g. `bg-background`), not raw colors like `bg-white`.
-- `rpcClient` methods can be called with `.call()` but will throw unless wrapped in `import { safe } from "@orpc/client";`. Use `.call()` when imperative outside React.
+- React 19: use newer APIs. Desktop app: no `cursor: pointer` for links.
+- Use shadcn Tailwind colors (`bg-background`), not raw colors (`bg-white`).
+- `rpcClient` `.call()` throws unless wrapped with `safe` from `@orpc/client`; use `.call()` only for imperative calls outside React.
 - Queries: `useQuery` and `rpcClient.method.name.queryOptions({ input: { ... } })`. To conditionally skip, pass `skipToken` as `input`: `rpcClient.foo.queryOptions({ input: value ?? skipToken })`.
 - External links: `<ExternalLink href="..." />` or `rpcClient.utils.openExternalLink`.
 - Use the `cn` helper from `@/client/lib/utils` for conditional or composed Tailwind classes.
 - Route matching: `useMatchRoute` — never pathname strings. `Boolean(matchRoute({ to: "/route" }))`.
-- For types derived from RPC calls, always use `RPCInput` / `RPCOutput` from `@/client/rpc/client` (e.g. `RPCOutput["workspace"]["project"]["list"]`). Never manually redeclare types that can be inferred this way.
+- RPC-derived types: use `RPCInput` / `RPCOutput` from `@/client/rpc/client`, e.g. `RPCOutput["workspace"]["project"]["list"]`. Never redeclare inferable types.
 
 ## Where things are
 
@@ -28,4 +28,4 @@ The renderer is a React 19 app using TanStack Router (file-based routes), shadcn
 - **UI**: shadcn in `src/client/components/ui`; shared components in `src/client/components/`.
 - **Debug**: Routes under `_app/debug/` and `settings/debug` are for experimentation only; not for end users.
 - **RPC**: Main process handlers in `src/electron-main/rpc/routes/`; workspace at `rpcClient.workspace.*`. Client in `src/client/rpc/client.ts` talks to main over MessageChannel only (no direct remote HTTP).
-- **Platform API**: Main process only, in `src/electron-main/platform-api/`. UI gets that data via main-process RPC (e.g. `user.me`, `plans.get`).
+- **Platform API**: Main process only, in `src/electron-main/platform-api/`. UI gets data via main-process RPC (`user.me`, `plans.get`).

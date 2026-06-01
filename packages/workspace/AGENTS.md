@@ -5,11 +5,11 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 ## Structure
 
 - **RPC**: Router in `src/rpc/index.ts` (app, message, project, registry, runtime, session). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
-- **Tools**: `src/tools/`. Each tool is built with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible tool logic; map to tool output or throw for oRPC.
+- **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
 - **Agents**: `src/agents/`. `main` and `retrieval` in `all.ts`. Main agent runs the session; tools are selected per agent in `create-agent.ts`.
 - **Workspace server**: Hono app in `src/logic/server/index.ts`. Serves shim script/iframe, assets, heartbeat, redirect, and proxies app traffic. AI gateway is mounted at `AI_GATEWAY_API_PATH` when provided.
-- **Schemas**: `src/schemas/` (paths, subdomains, store-id, session, app-state, file-upload, etc.). Use these for RPC and tool I/O where applicable.
-- **Machines**: XState in `src/machines/` (workspace, session, agent). `WorkspaceActorRef` is the main process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
+- **Schemas**: `src/schemas/` (paths, subdomains, store-id, session, app-state, file-upload, etc.). Use for RPC/tool I/O where applicable.
+- **Machines**: XState in `src/machines/` (workspace, session, agent). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
 
 ## Conventions
 

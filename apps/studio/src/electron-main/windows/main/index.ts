@@ -19,6 +19,7 @@ import {
   getMainWindow,
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
+import { type StudioPath } from "@/shared/studio-path";
 import { is } from "@electron-toolkit/utils";
 import { type BaseWindow, BrowserWindow } from "electron";
 import path from "node:path";
@@ -27,7 +28,9 @@ import { debounce } from "radashi";
 let wasWindowBlurred = false;
 const LINUX_RESIZE_FOLLOW_UP_DELAY_MS = 100;
 
-export async function createMainWindow() {
+export async function createMainWindow({
+  initialPath,
+}: { initialPath?: StudioPath } = {}) {
   let icon: string | undefined;
   try {
     const iconModule = await import("../../../../resources/icon.png?asset");
@@ -149,7 +152,7 @@ export async function createMainWindow() {
   });
 
   void mainWindow.loadURL(studioURL("/shell"));
-  await tabsManager.initialize();
+  await tabsManager.initialize({ initialPath });
   showWindow(mainWindow);
 
   if (getWindowState().isMaximized) {

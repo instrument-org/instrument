@@ -313,7 +313,16 @@ export class TabsManager {
     }
   }
 
-  public async initialize() {
+  public async initialize({
+    initialPath,
+  }: {
+    initialPath?: StudioPath;
+  } = {}) {
+    if (initialPath) {
+      this.addTab({ urlPath: initialPath });
+      return;
+    }
+
     const data = this.store.get("root") ?? {
       selectedTabId: null,
       tabs: [],

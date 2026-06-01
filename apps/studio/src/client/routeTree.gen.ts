@@ -22,6 +22,7 @@ import { Route as SettingsDebugRouteImport } from './routes/settings/debug'
 import { Route as SettingsAdvancedRouteImport } from './routes/settings/advanced'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
+import { Route as AppTutorialTaskRouteImport } from './routes/_app/tutorial-task'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppGetLifetimeRouteImport } from './routes/_app/get-lifetime'
@@ -116,6 +117,11 @@ const OnboardingProvidersRoute = OnboardingProvidersRouteImport.update({
   id: '/providers',
   path: '/providers',
   getParentRoute: () => OnboardingRouteRoute,
+} as any)
+const AppTutorialTaskRoute = AppTutorialTaskRouteImport.update({
+  id: '/tutorial-task',
+  path: '/tutorial-task',
+  getParentRoute: () => AppRouteRoute,
 } as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
   id: '/release-notes',
@@ -292,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/get-lifetime': typeof AppGetLifetimeRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
@@ -331,6 +338,7 @@ export interface FileRoutesByTo {
   '/get-lifetime': typeof AppGetLifetimeRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
@@ -375,6 +383,7 @@ export interface FileRoutesById {
   '/_app/get-lifetime': typeof AppGetLifetimeRoute
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
+  '/_app/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
@@ -419,6 +428,7 @@ export interface FileRouteTypes {
     | '/get-lifetime'
     | '/new-tab'
     | '/release-notes'
+    | '/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/settings/advanced'
@@ -458,6 +468,7 @@ export interface FileRouteTypes {
     | '/get-lifetime'
     | '/new-tab'
     | '/release-notes'
+    | '/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/settings/advanced'
@@ -501,6 +512,7 @@ export interface FileRouteTypes {
     | '/_app/get-lifetime'
     | '/_app/new-tab'
     | '/_app/release-notes'
+    | '/_app/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/settings/advanced'
@@ -635,6 +647,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/onboarding/providers'
       preLoaderRoute: typeof OnboardingProvidersRouteImport
       parentRoute: typeof OnboardingRouteRoute
+    }
+    '/_app/tutorial-task': {
+      id: '/_app/tutorial-task'
+      path: '/tutorial-task'
+      fullPath: '/tutorial-task'
+      preLoaderRoute: typeof AppTutorialTaskRouteImport
+      parentRoute: typeof AppRouteRoute
     }
     '/_app/release-notes': {
       id: '/_app/release-notes'
@@ -958,6 +977,7 @@ interface AppRouteRouteChildren {
   AppGetLifetimeRoute: typeof AppGetLifetimeRoute
   AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
+  AppTutorialTaskRoute: typeof AppTutorialTaskRoute
   AppEvalsIndexRoute: typeof AppEvalsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppProjectsSubdomainIndexRoute: typeof AppProjectsSubdomainIndexRoute
@@ -970,6 +990,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppGetLifetimeRoute: AppGetLifetimeRoute,
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
+  AppTutorialTaskRoute: AppTutorialTaskRoute,
   AppEvalsIndexRoute: AppEvalsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppProjectsSubdomainIndexRoute: AppProjectsSubdomainIndexRoute,

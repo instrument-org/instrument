@@ -33,7 +33,7 @@ export function ProjectDeleteDialog({
         description:
           "Please close any external applications that might be using this folder (editors, terminals, servers, etc.) and try again.",
       });
-      throw new Error("Failed to delete project");
+      throw new Error("Failed to delete task");
     } finally {
       onDeleteEnd?.();
     }

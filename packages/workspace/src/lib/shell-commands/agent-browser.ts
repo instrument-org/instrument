@@ -100,8 +100,7 @@ export function createAgentBrowserCommand({
     if (!isProjectSubdomain(appConfig.subdomain)) {
       return {
         exitCode: 1,
-        stderr:
-          "agent-browser: browser is only available in project contexts.\n",
+        stderr: "agent-browser: browser is only available in task contexts.\n",
         stdout: "",
       };
     }

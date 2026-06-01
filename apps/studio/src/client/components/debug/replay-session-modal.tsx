@@ -132,10 +132,9 @@ export function ReplaySessionModal({
             <FieldLabel htmlFor="mode-new-session">
               <Field orientation="horizontal">
                 <FieldContent>
-                  <FieldTitle>New session (same project)</FieldTitle>
+                  <FieldTitle>New session (same task)</FieldTitle>
                   <FieldDescription>
-                    Creates a new session in this project and runs the tools
-                    there.
+                    Creates a new session in this task and runs the tools there.
                   </FieldDescription>
                 </FieldContent>
                 <RadioGroupItem id="mode-new-session" value="new-session" />
@@ -144,10 +143,10 @@ export function ReplaySessionModal({
             <FieldLabel htmlFor="mode-new-project">
               <Field orientation="horizontal">
                 <FieldContent>
-                  <FieldTitle>New project</FieldTitle>
+                  <FieldTitle>New task</FieldTitle>
                   <FieldDescription>
-                    Creates a fresh project named &quot;Replay of{" "}
-                    {project.title}&quot; and runs the tools there.
+                    Creates a fresh task named &quot;Replay of {project.title}
+                    &quot; and runs the tools there.
                   </FieldDescription>
                 </FieldContent>
                 <RadioGroupItem id="mode-new-project" value="new-project" />

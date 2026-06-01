@@ -43,7 +43,7 @@ export function updateProjectManifest(
     if (!parseResult.success) {
       return err(
         new TypedError.Parse(
-          `Invalid project manifest updates: ${parseResult.error.message}`,
+          `Invalid task manifest updates: ${parseResult.error.message}`,
           { cause: parseResult.error },
         ),
       );
@@ -80,7 +80,7 @@ export function updateProjectManifest(
       ),
       (error) =>
         new TypedError.FileSystem(
-          `Failed to write project manifest: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to write task manifest: ${error instanceof Error ? error.message : String(error)}`,
           { cause: error },
         ),
     );

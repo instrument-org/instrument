@@ -260,7 +260,7 @@ const codes: QROptions[] = [
 for (const code of codes) {
   await generateQR(code);
 }`,
-            explanation: "Generate QR codes for all project URLs",
+            explanation: "Generate QR codes for all task URLs",
             filePath: "./src/generate-qr.ts",
           },
           type: "tool-write_file",

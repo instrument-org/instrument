@@ -229,7 +229,7 @@ export function createBashDescription() {
   ];
 
   return [
-    "Execute bash commands in the project directory.",
+    "Execute bash commands in the task directory.",
     "",
     "IMPORTANT: This is a sandboxed environment. python and other runtimes",
     "are NOT available as system binaries. Do NOT attempt to run them directly.",
@@ -237,7 +237,7 @@ export function createBashDescription() {
     "",
     "IMPORTANT: `npm` is NOT available. Use `pnpm` for all package management.",
     "",
-    "IMPORTANT: Not a persistent terminal -- each call starts fresh from the project root, so `cd .` is always a no-op. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (`cd subdir && ...`) within a single call.",
+    "IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root, so `cd .` is always a no-op. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (`cd subdir && ...`) within a single call.",
     "",
     "IMPORTANT: Backgrounding is NOT supported. Each call must complete within `timeoutMs`.",
     "",

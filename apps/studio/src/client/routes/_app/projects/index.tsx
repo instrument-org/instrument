@@ -316,7 +316,7 @@ function RouteComponent() {
       setRowSelection({});
 
       if (hasError) {
-        throw new Error("Some projects failed to delete");
+        throw new Error("Some tasks failed to delete");
       }
     } finally {
       setIsBulkDeleting(false);

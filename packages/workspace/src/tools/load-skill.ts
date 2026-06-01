@@ -117,7 +117,7 @@ export const LoadSkill = setupTool({
 
       ${skillsBlock}
 
-      Note: if the skill includes a package.json, pnpm install will be run automatically in the project after the skill is copied.
+      Note: if the skill includes a package.json, pnpm install will be run automatically in the task after the skill is copied.
     `.trim();
   },
   execute: async ({ appConfig, input, signal }) => {
@@ -214,7 +214,7 @@ export const LoadSkill = setupTool({
     let fileSection = "";
     if (output.files.length > 0) {
       const fileSectionText = [
-        `The skill files below are copied into your project and are yours to edit.`,
+        `The skill files below are copied into your task and are yours to edit.`,
         `Before writing anything new, read the relevant script(s) and run them with \`${TS_COMMAND.name}\` if they fit.`,
         `Only write a custom script if the existing ones cannot handle the task even with modification.`,
       ].join(" ");
@@ -237,12 +237,12 @@ export const LoadSkill = setupTool({
       const text =
         output.installResult.state === "success"
           ? [
-              `\`${PNPM_COMMAND.name} install\` was run at the project root.`,
+              `\`${PNPM_COMMAND.name} install\` was run at the task root.`,
               `This is a monorepo -- skill dependencies are scoped to this skill's folder and are ready to use.`,
               `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
             ].join(" ")
           : [
-              `\`${PNPM_COMMAND.name} install\` was run at the project root but exited with code ${output.installResult.exitCode}.`,
+              `\`${PNPM_COMMAND.name} install\` was run at the task root but exited with code ${output.installResult.exitCode}.`,
               `The skill's dependencies may not be fully installed.`,
               `Raw output:\n\`\`\`\n${output.installResult.output}\n\`\`\``,
             ].join(" ");

@@ -48,10 +48,10 @@ const { projects } = await getProjects(workspaceConfig, {
 });
 
 if (projects.length === 0) {
-  throw new Error("No projects found in workspace");
+  throw new Error("No tasks found in workspace");
 }
 
-process.stdout.write("\nSelect a project:\n\n");
+process.stdout.write("\nSelect a task:\n\n");
 
 for (const [index, project] of projects.entries()) {
   const updatedDate = project.updatedAt.toLocaleDateString();
@@ -60,7 +60,7 @@ for (const [index, project] of projects.entries()) {
   );
 }
 
-process.stdout.write("\nEnter project number: ");
+process.stdout.write("\nEnter task number: ");
 
 const rl = readline.createInterface({
   input: process.stdin,

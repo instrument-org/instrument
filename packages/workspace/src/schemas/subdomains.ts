@@ -99,7 +99,7 @@ export const ProjectSubdomainSchema = z
         code: "custom",
         fatal: true,
         input: val,
-        message: "Project subdomains cannot contain dots",
+        message: "Task subdomains cannot contain dots",
       });
     }
 
@@ -108,7 +108,7 @@ export const ProjectSubdomainSchema = z
         code: "custom",
         fatal: true,
         input: val,
-        message: `Project subdomains cannot be '${PREVIEW_SUBDOMAIN_PART}'`,
+        message: `Task subdomains cannot be '${PREVIEW_SUBDOMAIN_PART}'`,
       });
     }
 
@@ -117,7 +117,7 @@ export const ProjectSubdomainSchema = z
         code: "custom",
         fatal: true,
         input: val,
-        message: "Project subdomains cannot start with 'sandbox-'",
+        message: "Task subdomains cannot start with 'sandbox-'",
       });
     }
 
@@ -126,7 +126,7 @@ export const ProjectSubdomainSchema = z
         code: "custom",
         fatal: true,
         input: val,
-        message: "Project subdomains cannot start with 'version-'",
+        message: "Task subdomains cannot start with 'version-'",
       });
     }
 
@@ -143,7 +143,7 @@ export const SandboxSubdomainSchema = z
     const parts = validateTwoPartSubdomain(
       val,
       ctx,
-      "Sandbox subdomains must have exactly two parts (e.g., sandbox-name.project-name)",
+      "Sandbox subdomains must have exactly two parts (e.g., sandbox-name.task-name)",
     );
     if (!parts) {
       return;
@@ -174,7 +174,7 @@ export const VersionSubdomainSchema = z
     const parts = validateTwoPartSubdomain(
       val,
       ctx,
-      "Version subdomains must have exactly two parts (e.g., version-commit.project-name)",
+      "Version subdomains must have exactly two parts (e.g., version-commit.task-name)",
     );
     if (!parts) {
       return;

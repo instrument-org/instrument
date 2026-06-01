@@ -46,9 +46,7 @@ export async function importProject(
     const projectExists = await pathExists(projectDir);
     if (projectExists) {
       return errAsync(
-        new TypedError.Conflict(
-          `Project directory already exists: ${projectDir}`,
-        ),
+        new TypedError.Conflict(`Task directory already exists: ${projectDir}`),
       );
     }
 

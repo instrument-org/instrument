@@ -250,7 +250,7 @@ export namespace SessionMessage {
 
             const attachmentText = dedent`
               <uploaded_files>
-              The user uploaded these files with this message. They are now available in the project at the paths listed below. Assume they are directly relevant to the user's request.
+              The user uploaded these files with this message. They are now available in the task at the paths listed below. Assume they are directly relevant to the user's request.
               ${attachmentDescriptions}
               </uploaded_files>
             `;
@@ -266,7 +266,7 @@ export namespace SessionMessage {
               folderNames: attachmentsPart.data.folders.map(
                 (folder) => folder.name,
               ),
-              intro: `The user attached these external folders with this message. They are now available to the project via the ${RETRIEVAL_AGENT_NAME} agent. Assume they are directly relevant to the user's request.`,
+              intro: `The user attached these external folders with this message. They are now available to the task via the ${RETRIEVAL_AGENT_NAME} agent. Assume they are directly relevant to the user's request.`,
             });
 
             parts.push({ text: folderAttachmentText, type: "text" });

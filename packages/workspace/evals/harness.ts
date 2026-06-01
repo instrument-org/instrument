@@ -162,7 +162,7 @@ export async function runEvals(
       );
 
       process.stdout.write(
-        `${evalPrefix(label)}${c.green}Project created${c.reset}${c.dim} (subdomain: ${subdomain})${c.reset}\n`,
+        `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (subdomain: ${subdomain})${c.reset}\n`,
       );
 
       const abortController = new AbortController();

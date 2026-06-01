@@ -128,7 +128,7 @@ registerSession({
           type: "tool-web_search",
         }),
         builder.toolPart(assistantMessageId, "output-error", {
-          errorText: "Invalid path: Cannot write outside project directory",
+          errorText: "Invalid path: Cannot write outside task directory",
           input: {
             content: "console.log('test');",
             filePath: "../outside/file.ts",

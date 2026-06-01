@@ -43,7 +43,7 @@ export async function generateReport({
   });
 
   if (projects.length === 0) {
-    process.stdout.write("No projects found in workspace.\n");
+    process.stdout.write("No tasks found in workspace.\n");
     return {
       assertions: { failed: 0, pass_rate: 0, passed: 0, total: 0 },
       modelURIs: [],
@@ -52,7 +52,7 @@ export async function generateReport({
   }
 
   process.stdout.write(
-    `${c.dim}Generating report for${c.reset} ${c.yellow}${projects.length}${c.reset} ${c.dim}project(s)...${c.reset}\n`,
+    `${c.dim}Generating report for${c.reset} ${c.yellow}${projects.length}${c.reset} ${c.dim}task(s)...${c.reset}\n`,
   );
 
   let rollupPassed = 0;
@@ -84,14 +84,14 @@ export async function generateReport({
 
     if (rootSessions.length > 1) {
       process.stderr.write(
-        `Warning: project "${project.title}" has ${rootSessions.length} root sessions (expected 1). Using the first one.\n`,
+        `Warning: task "${project.title}" has ${rootSessions.length} root sessions (expected 1). Using the first one.\n`,
       );
     }
 
     const rootSession = rootSessions[0];
     if (!rootSession) {
       process.stderr.write(
-        `Warning: project "${project.title}" has no root session, skipping.\n`,
+        `Warning: task "${project.title}" has no root session, skipping.\n`,
       );
       continue;
     }

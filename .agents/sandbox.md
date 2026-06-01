@@ -1,6 +1,6 @@
 # Agent sandbox
 
-`instrument` is an Electron desktop app where users chat with an AI agent that operates inside a per-project folder. The agent is **not** in a VM, container, or OS sandbox. It runs as ordinary code in the Studio main process on the user's machine. "Sandboxing" here means a layered set of _userland_ constraints, picked so the user never has to approve individual tool calls.
+`instrument` is an Electron desktop app where users chat with an AI agent that operates inside a per-task folder. The agent is **not** in a VM, container, or OS sandbox. It runs as ordinary code in the Studio main process on the user's machine. "Sandboxing" here means a layered set of _userland_ constraints, picked so the user never has to approve individual tool calls.
 
 ## Tools and where they live
 
@@ -9,10 +9,10 @@ The main agent (`packages/workspace/src/agents/main.ts`) gets a fixed set of too
 ## Containment layers (strongest -> weakest)
 
 1. **Path-constrained file tools** (`ReadFile`/`WriteFile`/`EditFile`/`Glob`/`Grep`): paths are resolved relative to `appConfig.appDir` and rejected if they escape it.
-2. **just-bash builtins** (`BashTool` via `src/lib/create-bash-env.ts`): a TypeScript bash interpreter with an in-memory virtual FS rooted at the project. Standard unix commands (`cat`, `sed`, `awk`, `jq`, etc.) are reimplemented in TS and only see the virtual FS. Also blocks JS escape vectors and prototype pollution. See `reference/just-bash/THREAT_MODEL.md`.
-3. **`agent-browser` flag/subcommand allowlist** (`src/lib/shell-commands/agent-browser.ts`): blocks meta subcommands (`auth`, `state`, `--profile`, `--cdp`, etc.) and rewrites screenshot/download paths into the project's `tmp/`. Page-level behavior inside Chromium is currently unrestricted.
+2. **just-bash builtins** (`BashTool` via `src/lib/create-bash-env.ts`): a TypeScript bash interpreter with an in-memory virtual FS rooted at the task. Standard unix commands (`cat`, `sed`, `awk`, `jq`, etc.) are reimplemented in TS and only see the virtual FS. Also blocks JS escape vectors and prototype pollution. See `reference/just-bash/THREAT_MODEL.md`.
+3. **`agent-browser` flag/subcommand allowlist** (`src/lib/shell-commands/agent-browser.ts`): blocks meta subcommands (`auth`, `state`, `--profile`, `--cdp`, etc.) and rewrites screenshot/download paths into the task's `tmp/`. Page-level behavior inside Chromium is currently unrestricted.
 4. **Real-binary escape hatches** — `pnpm`, `tsx`, custom commands in `src/lib/shell-commands/`, and `curl`. These shell out to the real `node`/binary via `execa`. Once running, they have the host user's full FS, network, `process.env`, and `child_process` access. just-bash's containment does not extend here. `curl` is enabled with `dangerouslyAllowFullInternetAccess: true`.
 
 ## Soft layer
 
-The agent system prompt in `src/agents/main.ts` asks the LLM to behave (refuse malicious code, stay within the project folder, etc.). It is not a security boundary.
+The agent system prompt in `src/agents/main.ts` asks the LLM to behave (refuse malicious code, stay within the task folder, etc.). It is not a security boundary.

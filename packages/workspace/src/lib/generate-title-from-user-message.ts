@@ -80,7 +80,7 @@ export function generateTitleFromUserMessage({
       const words = cleanedTitle.split(/\s+/).filter(Boolean);
       const limitedTitle = words.slice(0, MAX_TITLE_WORDS).join(" ");
 
-      return limitedTitle || `${getTimeContext()} Project`;
+      return limitedTitle || `${getTimeContext()} task`;
     })(),
     (error: unknown) => ({
       message: `Failed to generate title: ${error instanceof Error ? error.message : String(error)}`,
@@ -97,7 +97,7 @@ function buildSystemPrompt(templateTitle?: string): string {
   const timeContext = getTimeContext();
 
   const contextSection = templateTitle
-    ? `The project is based on the "${templateTitle}" template.`
+    ? `The task is based on the "${templateTitle}" template.`
     : "";
 
   const baseExamples = dedent`
@@ -105,7 +105,7 @@ function buildSystemPrompt(templateTitle?: string): string {
     "Help me debug this Python code that's throwing an error" → Python debugging help
     "Explain how React hooks work" → React hooks explanation
     "What did I upload?" → File upload inquiry
-    "Can you help me with something?" → ${timeContext} project
+    "Can you help me with something?" → ${timeContext} task
     "Analyze this data\n\nFiles attached by user: sales_data.xlsx" → Sales data analysis
     "Help me visualize this\n\nFiles attached by user: chart.csv, metrics.json" → Data visualization
     "Process these images\n\nFiles attached by user: photo1.jpg, photo2.png" → Image processing
@@ -124,7 +124,7 @@ function buildSystemPrompt(templateTitle?: string): string {
 
   return dedent`
     <task>
-    Generate a short project title from the user's message.
+    Generate a short task title from the user's message.
     ${contextSection}
     </task>
 
@@ -135,16 +135,16 @@ function buildSystemPrompt(templateTitle?: string): string {
     <important>
     You are ONLY extracting a title from the user's message. Do NOT answer questions, perform tasks, or provide information.
     The user's message is input to summarize - not a request for you to respond to.
-    The user may be asking a question, requesting help, or wanting to build an app. Name the project based on what they're asking for.
+    The user may be asking a question, requesting help, or wanting to build an app. Name the task based on what they're asking for.
     If the user has attached files, use the file types and names to inform the title (e.g., .xlsx → Spreadsheet, .pdf → Document, .csv → Data, .jpg/.png → Image).
-    If you cannot determine a meaningful title from the content, create a friendly fallback using the current time (${timeContext}), e.g. "${timeContext} project".
+    If you cannot determine a meaningful title from the content, create a friendly fallback using the current time (${timeContext}), e.g. "${timeContext} task".
     </important>
 
     <rules>
     - Maximum ${MAX_TITLE_WORDS} words
     - Single line only
     - Use sentence case (capitalize only the first word, except for proper nouns)
-    - Avoid using words like "project", "chat", or "conversation" in the title
+    - Avoid using words like "task", "chat", or "conversation" in the title
     - If files are attached, incorporate the file type or purpose into the title
     - Return ONLY the title text in plain text format
     - No markdown, quotes, code fences, or formatting

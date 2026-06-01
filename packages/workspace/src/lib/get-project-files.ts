@@ -35,7 +35,7 @@ export async function getProjectFiles(
 
   if (result.isErr()) {
     return err(
-      new TypedError.Git("Error listing project files", {
+      new TypedError.Git("Error listing task files", {
         cause: result.error,
       }),
     );

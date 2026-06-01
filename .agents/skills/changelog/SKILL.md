@@ -25,10 +25,10 @@ disable-model-invocation: true
 ## Features
 
 - **Chat mode** has landed! Switch between building apps and chatting with the agent.
-- **Projects page** with table view - delete, stop, and manage all your projects in one place.
-- Recent projects displayed on new tab.
+- **Tasks page** with table view - delete, stop, and manage all your tasks in one place.
+- Recent tasks displayed on new tab.
 - Copy button for pre blocks in Markdown.
-- Use new projects page for eval viewing.
+- Use new tasks page for eval viewing.
 - Incorporate upstream error messages for multiple matches.
 
 ## Bug Fixes
@@ -37,7 +37,7 @@ disable-model-invocation: true
 - Support navigation API even on root pages like not found.
 - Remove redundant app type in tab title.
 - Remove more markdown in titles.
-- Attempt to avoid race condition during project deletion due to session abort.
+- Attempt to avoid race condition during task deletion due to session abort.
 - Make command/ctrl + r work everywhere unless disabled.
 - Disallow creation of session db during entire deletion process.
 - Better handle ripgrep arguments.

@@ -5,12 +5,12 @@ export const TRUNCATE_MAX_BYTES = 50 * 1024; // 50 KB
 export const TRUNCATE_HEAD_BYTES = 10 * 1024; // 10 KB
 export const TRUNCATE_TAIL_BYTES = 10 * 1024; // 10 KB
 
-export interface TruncateMiddleResult extends TruncateResult {
+interface TruncateMiddleResult extends TruncateResult {
   /** Number of lines omitted from the middle. */
   omittedLines: number;
 }
 
-export interface TruncateResult {
+interface TruncateResult {
   content: string;
   totalBytes: number;
   totalLines: number;

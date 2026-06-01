@@ -22,6 +22,7 @@ import {
 } from "../../../lib/project-manifest";
 import { Store } from "../../../lib/store";
 import { trashProject } from "../../../lib/trash-project";
+import { startTutorialTaskReplay } from "../../../lib/tutorial-task-replay";
 import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
   getProjectUsageSummary,
@@ -295,6 +296,32 @@ const create = base
       };
     },
   );
+
+const createTutorial = base
+  .input(z.object({ delayMs: z.number().int().min(0).optional() }).optional())
+  .output(
+    z.object({
+      sessionId: StoreId.SessionSchema,
+      subdomain: ProjectSubdomainSchema,
+    }),
+  )
+  .handler(async ({ context, errors, input, signal }) => {
+    const result = await startTutorialTaskReplay({
+      delayMs: input?.delayMs,
+      signal,
+      workspaceConfig: context.workspaceConfig,
+    });
+
+    if (result.isErr()) {
+      context.workspaceConfig.captureException(result.error);
+      throw toORPCError(result.error, errors);
+    }
+
+    return {
+      sessionId: result.value.sessionId,
+      subdomain: result.value.subdomain,
+    };
+  });
 
 const duplicate = base
   .input(
@@ -607,6 +634,7 @@ export const project = {
   bySubdomain,
   bySubdomains,
   create,
+  createTutorial,
   duplicate,
   exportZip,
   git: projectGit,

@@ -95,6 +95,23 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
       sessions,
     );
 
+    void rpcClient.preferences.ensureProjectDefaultModelURI
+      .call({ subdomain: params.subdomain })
+      .then((result) => {
+        if (!result.modelURI) {
+          return;
+        }
+
+        void context.queryClient.invalidateQueries({
+          queryKey: rpcClient.workspace.project.state.get.queryOptions({
+            input: { subdomain: params.subdomain },
+          }).queryKey,
+        });
+      })
+      .catch(() => {
+        // The project page can still load with no selected model.
+      });
+
     const newestSession = sessions.at(-1);
 
     const [, hasModifications] = needsArtifactPanelDefault

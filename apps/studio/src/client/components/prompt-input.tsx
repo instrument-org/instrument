@@ -539,7 +539,10 @@ export const PromptInput = ({
                     void modelsRefetch();
                   }
                 }}
-                onValueChange={onModelChange}
+                onValueChange={(uri) => {
+                  onModelChange(uri);
+                  textareaInnerRef.current?.focus();
+                }}
                 selectedModel={selectedModel}
               />
             </div>

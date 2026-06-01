@@ -1,3 +1,4 @@
+import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -8,6 +9,10 @@ import {
 } from "@/electron-main/stores/preferences";
 import { openSettingsWindow as openSettingsWindowFn } from "@/electron-main/windows/settings";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  ProjectSubdomainSchema,
+  workspaceRouter,
+} from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
 import { app } from "electron";
 import { z } from "zod";
@@ -98,6 +103,35 @@ const getAppVersion = base.handler(() => {
   return { version: app.getVersion() };
 });
 
+const ensureProjectDefaultModelURI = base
+  .input(z.object({ subdomain: ProjectSubdomainSchema }))
+  .output(z.object({ modelURI: AIGatewayModelURI.Schema.optional() }))
+  .handler(async ({ context, input }) => {
+    const projectState = await call(workspaceRouter.project.state.get, input, {
+      context,
+    });
+
+    if (projectState.selectedModelURI) {
+      return { modelURI: projectState.selectedModelURI };
+    }
+
+    await setDefaultModel({ onlyIfUnset: true });
+    const modelURI = getDefaultModelURI();
+
+    if (modelURI) {
+      await call(
+        workspaceRouter.project.state.set,
+        {
+          state: { selectedModelURI: modelURI },
+          subdomain: input.subdomain,
+        },
+        { context },
+      );
+    }
+
+    return { modelURI };
+  });
+
 const setDefaultModelURI = base
   .input(z.object({ modelURI: AIGatewayModelURI.Schema }))
   .handler(({ input }) => {
@@ -134,6 +168,7 @@ const live = {
 
 export const preferences = {
   checkForUpdates,
+  ensureProjectDefaultModelURI,
   get,
   getAppVersion,
   live,

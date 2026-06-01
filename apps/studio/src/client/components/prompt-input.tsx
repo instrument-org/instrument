@@ -500,13 +500,15 @@ export const PromptInput = ({
         )}
 
         <TextareaInner
+          aria-busy={isLoading || undefined}
           autoFocus={autoFocus}
           className="min-h-12 overflow-y-auto"
-          disabled={disabled || isLoading}
+          disabled={disabled}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={placeholder}
+          readOnly={isLoading}
           ref={(el) => {
             textareaInnerRef.current = el;
             setInputRef(el);

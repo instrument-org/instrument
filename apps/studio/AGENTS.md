@@ -20,6 +20,10 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 - External links: `<ExternalLink href="..." />` or `rpcClient.utils.openExternalLink`.
 - Use the `cn` helper from `@/client/lib/utils` for conditional or composed Tailwind classes.
 - Route matching: `useMatchRoute` — never pathname strings. `Boolean(matchRoute({ to: "/route" }))`.
+- Route generation: after adding, removing, or renaming files under
+  `src/client/routes`, run
+  `pnpm --filter @instrument-org/studio run routes:generate`. Do not hand-edit
+  `src/client/routeTree.gen.ts`.
 - RPC-derived types: use `RPCInput` / `RPCOutput` from `@/client/rpc/client`, e.g. `RPCOutput["workspace"]["project"]["list"]`. Never redeclare inferable types.
 
 ## Where things are

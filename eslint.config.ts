@@ -7,6 +7,7 @@ export default [
   globalIgnores([
     "apps",
     "packages",
+    ".agents",
     ".cursor/plans",
     ".turbo",
     "pnpm-lock.yaml",

@@ -1,0 +1,117 @@
+{
+  "data": [
+    {
+      "id": "@cf/openai/gpt-oss-120b",
+      "hugging_face_id": "openai/gpt-oss-120b",
+      "name": "OpenAI: Gpt Oss 120B",
+      "created": 1754389649,
+      "input_modalities": ["text"],
+      "output_modalities": ["text"],
+      "context_length": 128000,
+      "max_output_length": 128000,
+      "pricing": { "prompt": "0.0000003500", "completion": "0.0000007500" },
+      "supported_sampling_parameters": [
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "frequency_penalty",
+        "presence_penalty",
+        "repetition_penalty",
+        "stop",
+        "seed",
+        "max_tokens",
+        "logit_bias"
+      ],
+      "supported_features": [
+        "structured_outputs",
+        "json_mode",
+        "tools",
+        "reasoning"
+      ],
+      "openrouter": { "slug": "cloudflare/openai/gpt-oss-120b" },
+      "description": "OpenAI's open-weight models designed for powerful reasoning, agentic tasks, and versatile developer use cases – gpt-oss-120b is for production, general purpose, high reasoning use-cases."
+    },
+    {
+      "id": "@cf/meta/llama-3.2-3b-instruct",
+      "hugging_face_id": "meta-llama/llama-3.2-3b-instruct",
+      "name": "Meta: Llama 3.2 3B Instruct",
+      "created": 1727294743,
+      "input_modalities": ["text"],
+      "output_modalities": ["text"],
+      "context_length": 80000,
+      "max_output_length": 80000,
+      "pricing": { "prompt": "0.0000000509", "completion": "0.0000003350" },
+      "supported_sampling_parameters": [
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "frequency_penalty",
+        "presence_penalty",
+        "repetition_penalty",
+        "stop",
+        "seed",
+        "max_tokens",
+        "logit_bias"
+      ],
+      "supported_features": [],
+      "openrouter": { "slug": "cloudflare/meta/llama-3.2-3b-instruct" },
+      "description": "The Llama 3.2 instruction-tuned text only models are optimized for multilingual dialogue use cases, including agentic retrieval and summarization tasks."
+    },
+    {
+      "id": "@cf/meta/llama-3.2-11b-vision-instruct",
+      "hugging_face_id": "meta-llama/llama-3.2-11b-vision-instruct",
+      "name": "Meta: Llama 3.2 11B Vision Instruct",
+      "created": 1727242564,
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "context_length": 128000,
+      "max_output_length": 128000,
+      "pricing": { "prompt": "0.0000000485", "completion": "0.0000006760" },
+      "supported_sampling_parameters": [
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "frequency_penalty",
+        "presence_penalty",
+        "repetition_penalty",
+        "stop",
+        "seed",
+        "max_tokens",
+        "logit_bias"
+      ],
+      "supported_features": [],
+      "openrouter": { "slug": "cloudflare/meta/llama-3.2-11b-vision-instruct" },
+      "description": "The Llama 3.2-Vision instruction-tuned models are optimized for visual recognition, image reasoning, captioning, and answering general questions about an image."
+    },
+    {
+      "id": "@cf/qwen/qwq-32b",
+      "hugging_face_id": "qwen/qwq-32b",
+      "name": "Qwen: Qwq 32B",
+      "created": 1741211560,
+      "input_modalities": ["text"],
+      "output_modalities": ["text"],
+      "context_length": 24000,
+      "max_output_length": 24000,
+      "pricing": { "prompt": "0.0000006600", "completion": "0.0000010000" },
+      "supported_sampling_parameters": [
+        "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
+        "frequency_penalty",
+        "presence_penalty",
+        "repetition_penalty",
+        "stop",
+        "seed",
+        "max_tokens",
+        "logit_bias"
+      ],
+      "supported_features": ["reasoning"],
+      "openrouter": { "slug": "cloudflare/qwen/qwq-32b" },
+      "description": "QwQ is the reasoning model of the Qwen series."
+    }
+  ]
+}

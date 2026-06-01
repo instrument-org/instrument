@@ -193,6 +193,14 @@ export function DevPanel() {
                   >
                     /evals
                   </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      handleNavigate("/tutorial-task");
+                    }}
+                  >
+                    /tutorial-task
+                  </MenubarItem>
                   <MenubarSeparator />
                   <MenubarItem
                     className="font-mono text-xs"

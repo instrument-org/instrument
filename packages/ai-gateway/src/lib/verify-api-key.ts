@@ -6,6 +6,8 @@ import { fetchAnthropicModels } from "./fetch-models/anthropic";
 import { fetchGoogleModels } from "./fetch-models/google";
 import { fetchOpenAIModels } from "./fetch-models/openai";
 import { fetchOpenAICompatibleModels } from "./fetch-models/openai-compatible";
+import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
+import { verifyWorkersAiApiKey } from "./fetch-models/workers-ai";
 import { baseURLWithDefault } from "./providers/base-url-with-default";
 import { fetchCredits } from "./providers/fetch-credits";
 import { getProviderMetadata } from "./providers/metadata";
@@ -31,6 +33,21 @@ export function verifyAPIKey(
         ),
       ),
     );
+  }
+
+  if (isWorkersAiProviderConfig(config)) {
+    return Result.fromAsync(async () => {
+      const result = await verifyWorkersAiApiKey(config);
+      if (result.ok) {
+        return Result.ok(true);
+      }
+      return Result.error(
+        new TypedError.VerificationFailed(
+          `Unable to verify ${metadata.name} API key`,
+          { cause: result.error },
+        ),
+      );
+    });
   }
 
   switch (config.type) {

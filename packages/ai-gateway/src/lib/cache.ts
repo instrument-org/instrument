@@ -6,6 +6,10 @@ const globalCache = new LRUCache<string, object>({
   ttl: ms("1 hour"),
 });
 
+export function clearCachedResults() {
+  globalCache.clear();
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export function getCachedResult<T>(key: string): T | undefined {
   return globalCache.get(key) as T | undefined;

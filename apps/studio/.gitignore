@@ -19,3 +19,6 @@ dist/
 
 # Electron Vite's Temp Files
 electron.vite.config*.mjs
+
+# Dev logs (written by the main process during local development)
+.logs/

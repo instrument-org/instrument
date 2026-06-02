@@ -153,6 +153,7 @@
     "electron": "^41.2.1",
     "electron-builder": "26.8.2",
     "electron-vite": "^5.0.0",
+    "jiti": "2.6.1",
     "jotai": "^2.14.0",
     "katex": "^0.16.27",
     "motion": "^12.35.2",

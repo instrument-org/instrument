@@ -5,7 +5,8 @@ runs:
     - name: Cache @vscode/ripgrep download
       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
-        key: vscode-ripgrep-bin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        # v2 suffix busts caches that may contain a truncated rg.exe download (FP-1087).
+        key: vscode-ripgrep-bin-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
         path: |
           /tmp/vscode-ripgrep-cache-*
           ${{ runner.temp }}/vscode-ripgrep-cache-*

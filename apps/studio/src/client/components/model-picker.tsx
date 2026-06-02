@@ -198,8 +198,7 @@ export function ModelPicker({
           aria-expanded={open}
           className={cn(
             "flex h-auto items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
-            !selectedModel && "text-muted-foreground",
-            isAutoMode && "text-brand-400 hover:text-brand-400",
+            "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
             "max-w-full",
             className,
           )}
@@ -210,12 +209,7 @@ export function ModelPicker({
         >
           <div className="flex w-full min-w-0 items-center">
             {selectedModel ? (
-              <div
-                className={cn(
-                  "flex min-w-0 items-center gap-2 text-xs leading-4 font-medium",
-                  isAutoMode ? "text-brand-400" : "text-foreground",
-                )}
-              >
+              <div className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="shrink-0">
@@ -223,7 +217,7 @@ export function ModelPicker({
                         <WarningIcon className="size-4 text-destructive" />
                       ) : (
                         <AIProviderIcon
-                          className="size-4 opacity-90"
+                          className="size-4"
                           type={selectedModel.params.provider}
                         />
                       )}
@@ -242,15 +236,12 @@ export function ModelPicker({
                 </span>
               </div>
             ) : (
-              placeholderText
+              <span className="text-xs leading-4 font-medium opacity-50">
+                {placeholderText}
+              </span>
             )}
           </div>
-          <CaretDownIcon
-            className={cn(
-              "size-3 shrink-0 opacity-70",
-              isAutoMode && "text-brand-400 opacity-100",
-            )}
-          />
+          <CaretDownIcon className="size-3 shrink-0" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">

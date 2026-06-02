@@ -82,6 +82,9 @@ export function ChatStream({
   }, [messages]);
 
   const lastMessageId = regularMessages.at(-1)?.id;
+  const lastRegularMessage = regularMessages.at(-1);
+  const lastAssistantMessage =
+    lastRegularMessage?.role === "assistant" ? lastRegularMessage : undefined;
 
   const renderStream: RenderStream = useCallback(
     ({ isAgentRunning: isNestedAgentRunning, messages: nestedMessages }) => (
@@ -117,14 +120,11 @@ export function ChatStream({
   );
 
   const hasActiveLoadingState = useMemo(() => {
-    if (!isAgentRunning || regularMessages.length === 0) {
+    if (!isAgentRunning || !lastAssistantMessage) {
       return false;
     }
-    const lastMessage = regularMessages.at(-1);
-    if (!lastMessage || lastMessage.id !== lastMessageId) {
-      return false;
-    }
-    const lastPart = lastMessage.parts.at(-1);
+
+    const lastPart = lastAssistantMessage.parts.at(-1);
     if (!lastPart) {
       return false;
     }
@@ -138,25 +138,24 @@ export function ChatStream({
       return true;
     }
     return false;
-  }, [isAgentRunning, regularMessages, lastMessageId]);
+  }, [isAgentRunning, lastAssistantMessage]);
 
   const isPlanningVisible = isAgentRunning && !hasActiveLoadingState;
 
   const lastAssistantMessageHasVisibleParts = useMemo(() => {
-    const lastMessage = regularMessages.at(-1);
-    if (!lastMessage || lastMessage.role !== "assistant") {
+    if (!lastAssistantMessage) {
       return false;
     }
-    return lastMessage.parts.some((part) =>
+    return lastAssistantMessage.parts.some((part) =>
       isVisibleAssistantPart({
         isDeveloperMode,
         isStreaming: isToolPart(part)
-          ? isToolStreaming(part, lastMessage)
+          ? isToolStreaming(part, lastAssistantMessage)
           : false,
         part,
       }),
     );
-  }, [regularMessages, isDeveloperMode, isToolStreaming]);
+  }, [isDeveloperMode, isToolStreaming, lastAssistantMessage]);
 
   // Precomputed so tool-run edges can span message boundaries.
   const toolBoundaryMap = useMemo(

@@ -536,15 +536,17 @@ export const PromptInput = ({
                 onAddProvider={() => {
                   setShowAIProviderGuard(true);
                 }}
+                onClose={() => {
+                  if (modelURI) {
+                    textareaInnerRef.current?.focus();
+                  }
+                }}
                 onOpenChange={(open) => {
                   if (open && modelsErrors && modelsErrors.length > 0) {
                     void modelsRefetch();
                   }
                 }}
-                onValueChange={(uri) => {
-                  onModelChange(uri);
-                  textareaInnerRef.current?.focus();
-                }}
+                onValueChange={onModelChange}
                 selectedModel={selectedModel}
               />
             </div>

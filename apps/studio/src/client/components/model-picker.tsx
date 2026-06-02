@@ -61,6 +61,7 @@ interface ModelPickerProps {
   isLoading?: boolean;
   models?: AIGatewayModel.Type[];
   onAddProvider?: () => void;
+  onClose?: () => void;
   onOpenChange?: (open: boolean) => void;
   onValueChange: (value: AIGatewayModelURI.Type) => void;
   placeholder?: string;
@@ -80,6 +81,7 @@ export function ModelPicker({
   isLoading = false,
   models,
   onAddProvider,
+  onClose,
   onOpenChange,
   onValueChange,
   placeholder = "Select a model",
@@ -91,6 +93,7 @@ export function ModelPicker({
   const closePopover = () => {
     setOpen(false);
     setSearchQuery("");
+    onClose?.();
   };
   const navigate = useNavigate();
   const hasPremium = useHasPremium();

@@ -473,6 +473,9 @@ importers:
       electron-vite:
         specifier: ^5.0.0
         version: 5.0.0(@swc/core@1.11.24)(vite@7.2.7(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.3))
+      jiti:
+        specifier: 2.6.1
+        version: 2.6.1
       jotai:
         specifier: ^2.14.0
         version: 2.14.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.7)(react@19.2.1)

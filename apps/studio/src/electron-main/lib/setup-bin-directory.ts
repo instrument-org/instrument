@@ -1,3 +1,4 @@
+import { rgPath } from "@vscode/ripgrep";
 import { app } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -115,12 +116,7 @@ function getBinaryConfigs(): BinaryConfig[] {
       name: "git",
     },
     {
-      getTargetPath: () => {
-        const basePath = getNodeModulePath("@vscode/ripgrep", "bin");
-        return isWindows
-          ? path.join(basePath, "rg.exe")
-          : path.join(basePath, "rg");
-      },
+      getTargetPath: () => getRipgrepBinaryPath(),
       name: "rg",
     },
   ];
@@ -143,6 +139,16 @@ function getNodeModulePath(...parts: string[]): string {
   }
 
   return modulePath;
+}
+
+// Since @vscode/ripgrep 1.18.0 the binary ships in a per-platform package
+// (@vscode/ripgrep-<platform>-<arch>) resolved via `rgPath`. Rewrite the path
+// into the unpacked tree so it is executable from a packaged asar.
+function getRipgrepBinaryPath(): string {
+  if (app.isPackaged && rgPath.includes(`app.asar${path.sep}`)) {
+    return rgPath.replace(/app\.asar([/\\])/, "app.asar.unpacked$1");
+  }
+  return rgPath;
 }
 
 async function linkDirect(

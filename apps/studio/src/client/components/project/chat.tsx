@@ -169,7 +169,7 @@ export function ProjectChat({
       ref={scrollRef}
     >
       <div
-        className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4"
+        className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 pb-16"
         ref={contentRef}
       >
         {selectedSessionId ? (

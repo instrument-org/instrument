@@ -9,21 +9,21 @@ export const TUTORIAL_TASK_REPLAY = {
   steps: [
     {
       kind: "user",
-      text: "Show me how to use Instrument.",
+      text: "I'm new to Instrument. Make a file that explains what Instrument can do and how to use it.",
     },
     {
       kind: "assistantText",
-      text: "Sure! I'll create a guide file for you.",
+      text: "Sure! I'll create a tutorial file to teach you about Instrument.",
     },
     {
       content: dedent`
-        # Getting Started with Instrument
+        # Getting started with Instrument
 
-        Instrument is a general-purpose AI assistant that runs locally on your computer. It acts as an automation layer, helping you accomplish tasks through natural conversation.
+        Instrument is a powerful general-purpose AI assistant that runs locally on your computer. It acts as an automation layer, helping you accomplish tasks through natural conversation.
 
-        ## What Instrument Can Do
+        ## What Instrument can do
 
-        Instrument helps with almost any task involving conversation, code, files, and internet access, including:
+        Instrument helps with almost any multi-step task involving code, documents, file conversion, and web research, including:
 
         - Research and information gathering
         - Writing documents, reports, and content
@@ -35,9 +35,9 @@ export const TUTORIAL_TASK_REPLAY = {
         - Browsing websites, filling forms, and scraping data
         - Creating PDFs, presentations, spreadsheets, and more
 
-        Everything happens inside an isolated project folder, keeping your work organized and versioned.
+        Everything happens inside an isolated project folder on your computer, keeping your work organized and versioned.
 
-        ## How Instrument Is Unique
+        ## How Instrument is unique
 
         Instrument stands apart from typical AI chat tools in a few key ways:
 
@@ -49,17 +49,17 @@ export const TUTORIAL_TASK_REPLAY = {
 
         In short: other AIs tell you how to do things. Instrument does them for you.
 
-        ## Powerful Example Prompts to Try
+        ## Example prompts to try
 
         Try one of these prompts to see what Instrument can do:
 
         1. **Create a professional resume in a Word document using the attached PDF as source material.**
-           Upload a PDF first. Instrument will extract the content and generate a polished .docx file.
+           Attach a PDF. Instrument will extract the content and generate a polished .docx file.
 
-        2. **Build me a simple interactive dashboard in HTML that shows sales data from this CSV file. Include charts.**
-           Attach a CSV. Instrument will parse it, generate visuals, and produce a working HTML file in output/.
+        2. **Build an interactive dashboard in HTML that shows sales data from this CSV file. Include charts.**
+           Attach a CSV. Instrument will parse it, generate visuals, and produce a working HTML file in the "Made by Instrument" folder.
 
-        3. **Research the latest AI news, summarize the top 5 stories, and create a nicely formatted PDF report.**
+        3. **Research the latest releases from leading independent type foundries. Summarize the top 10 releases, and create a nicely formatted PDF report with details and a link for each one.**
            Instrument will search the web, gather information, and output a professional PDF.
 
         4. **Generate a series of product icons in different styles using AI image generation, then combine them into a single comparison image.**
@@ -67,17 +67,23 @@ export const TUTORIAL_TASK_REPLAY = {
 
         5. **Write a Python script that scrapes a website for prices, saves the results to a spreadsheet, and prepares an email draft with the file attached.**
            This shows code writing, execution, data export, and practical automation.
-
-        Try any of these, or your own idea, in the chat. Instrument will handle the heavy lifting and show you the results right away.
       `.trim(),
-      explanation: "Creating a guide file for you.",
-      filePath: "./output/instrument-guide.md",
+      explanation: "Creating an Instrument tutorial file for you.",
+      filePath: "./output/instrument-tutorial.md",
       kind: "writeFile",
       toolCallId: "call_tutorialTaskWrite",
     },
     {
       kind: "assistantText",
-      text: "Let me know if you have any questions.",
+      text: dedent`
+        I've successfully created a tutorial file for you and attached it below. It covers what Instrument can do, how it differs from typical AI tools, and several example prompts for work and personal use.
+
+        I can also tailor my advice to you. Answer these questions so I can help you find ways to use Instrument for your own projects.
+
+        1. What kinds of tasks are you usually responsible for at work (e.g., coding, content creation, data analysis, personal organization)?
+        2. Do you have any specific apps, programming languages, or file types you work with regularly?
+        3. What parts of your daily work or personal productivity usually take the most time or feel repetitive?
+      `.trim(),
     },
   ],
 } as const;

@@ -41,7 +41,7 @@ export const TUTORIAL_TASK_REPLAY = {
 
         Instrument stands apart from typical AI chat tools in a few key ways:
 
-        - **Local execution:** Instrument runs directly on your machine, giving it real access to your files, terminal, and system resources within sandboxed project boundaries.
+        - **Local execution:** Instrument runs directly on your machine, giving it access to your files, terminal, and system resources within sandboxed project boundaries.
         - **True automation:** When you ask it to download a file, edit code, generate assets, or process data, it does the work using the same tools you would use yourself.
         - **File-centric workflow:** Generated outputs appear as previews in your chat. You can upload files or attach folders to bring external content into the workspace.
         - **Project isolation and versioning:** Each project lives in its own folder with automatic history. Old file versions are always recoverable.

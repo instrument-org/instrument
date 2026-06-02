@@ -251,8 +251,19 @@ jobs:
 
       - name: Build Slack commit summary
         id: slack_summary
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -n1)
+          PREV_TAG=$(
+            gh api \
+              "repos/${{ github.repository }}/releases?per_page=100" \
+              --jq '.[] | select(.tag_name != "${{ github.ref_name }}") | .tag_name' \
+              | head -n1
+          )
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -n1)
+          fi
+          echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
           RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
           REPO_URL="https://github.com/${{ github.repository }}"
           COUNT=$(git log "$RANGE" --pretty=format:"%h" --no-merges | wc -l | tr -d ' ')
@@ -283,6 +294,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: artifacts/**/*
           generate_release_notes: true
+          previous_tag: ${{ steps.slack_summary.outputs.previous_tag }}
           body_path: /tmp/release-body.md
 
       - name: Delete workflow artifacts

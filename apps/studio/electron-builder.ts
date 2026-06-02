@@ -15,7 +15,20 @@ import {
 import { existsSync } from "node:fs";
 import path from "node:path";
 
+import { pruneForeignBinaries } from "./scripts/prune-foreign-binaries";
 import { verifyRipgrepBinary } from "./scripts/verify-ripgrep";
+
+function resolveUnpackedDir(appOutDir: string, platformName: string) {
+  return platformName === "darwin"
+    ? path.join(
+        appOutDir,
+        `${APP_NAME}.app`,
+        "Contents",
+        "Resources",
+        "app.asar.unpacked",
+      )
+    : path.join(appOutDir, "resources", "app.asar.unpacked");
+}
 
 if (process.env.CI !== "true") {
   dotenv.config({
@@ -32,6 +45,40 @@ const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
 };
 
+function afterPack(context: AfterPackContext) {
+  pruneForeignPackagedBinaries(context);
+  verifyPackagedRipgrep(context);
+}
+
+function pruneForeignPackagedBinaries(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (
+    platformName !== "darwin" &&
+    platformName !== "linux" &&
+    platformName !== "win32"
+  ) {
+    return;
+  }
+
+  const unpackedDir = resolveUnpackedDir(context.appOutDir, platformName);
+  if (!existsSync(unpackedDir)) {
+    return;
+  }
+
+  const removed = pruneForeignBinaries({
+    arch: context.arch,
+    platformName,
+    unpackedDir,
+  });
+
+  if (removed.length > 0) {
+    // eslint-disable-next-line no-console -- build-time diagnostic for release logs
+    console.log(
+      `afterPack: pruned ${removed.length} foreign binaries: ${removed.join(", ")}`,
+    );
+  }
+}
+
 // Guard against shipping a truncated/corrupt packaged `rg.exe` (FP-1087). A
 // partial @vscode/ripgrep download once passed signing but failed to spawn on
 // Windows. Fail the build loudly rather than emit another broken artifact.
@@ -44,21 +91,12 @@ function resolvePackagedRipgrep(appOutDir: string, platformName: string) {
     platformName === "win32" ? "rg.exe" : "rg",
   );
 
-  const candidates =
-    platformName === "darwin"
-      ? [
-          path.join(
-            appOutDir,
-            `${APP_NAME}.app`,
-            "Contents",
-            "Resources",
-            "app.asar.unpacked",
-            relative,
-          ),
-        ]
-      : [path.join(appOutDir, "resources", "app.asar.unpacked", relative)];
+  const candidate = path.join(
+    resolveUnpackedDir(appOutDir, platformName),
+    relative,
+  );
 
-  return candidates.find((candidate) => existsSync(candidate));
+  return existsSync(candidate) ? candidate : undefined;
 }
 
 function verifyPackagedRipgrep(context: AfterPackContext) {
@@ -97,7 +135,7 @@ function verifyPackagedRipgrep(context: AfterPackContext) {
  * @see https://www.electron.build/#documentation
  */
 const config: Configuration = {
-  afterPack: verifyPackagedRipgrep,
+  afterPack,
   appId: "com.finalpoint.instrument",
   appImage: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",

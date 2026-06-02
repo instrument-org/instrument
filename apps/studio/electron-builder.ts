@@ -150,6 +150,14 @@ const config: Configuration = {
     // DMG volume icons still use .icns even when the app bundle uses .icon (macOS 26+).
     icon: "icon.icns",
   },
+  // cspell:ignore orgstudio
+  // NSIS derives the Windows install folder (%LOCALAPPDATA%\Programs\<name>)
+  // from package.json `name`, which sanitizes "@instrument-org/studio" into the
+  // ugly "@instrument-orgstudio". Override the metadata name so the install
+  // folder matches the product name ("Instrument") instead.
+  extraMetadata: {
+    name: APP_NAME,
+  },
   extraResources: [
     {
       filter: [

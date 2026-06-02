@@ -1,7 +1,7 @@
 {
   "name": "@instrument-org/studio",
   "version": "1.0.0-beta.65",
-  "description": "Electron desktop app for Instrument",
+  "description": "Private AI workspace on your computer",
   "repository": {
     "type": "git",
     "url": "https://github.com/instrument-org/instrument"

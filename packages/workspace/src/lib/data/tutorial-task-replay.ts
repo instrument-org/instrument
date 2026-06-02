@@ -68,7 +68,7 @@ export const TUTORIAL_TASK_REPLAY = {
         5. **Write a Python script that scrapes a website for prices, saves the results to a spreadsheet, and prepares an email draft with the file attached.**
            This shows code writing, execution, data export, and practical automation.
       `.trim(),
-      explanation: "Creating an Instrument tutorial file for you.",
+      explanation: "Creating an Instrument tutorial file for you",
       filePath: "./output/instrument-tutorial.md",
       kind: "writeFile",
       toolCallId: "call_tutorialTaskWrite",

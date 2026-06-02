@@ -2,7 +2,7 @@ description: Prepares the repo for a typical CI job
 
 inputs:
   token:
-    description: Required for downloading @vscode/ripgrep
+    description: GITHUB_TOKEN used for authenticated dependency downloads during install
     required: true
 
 name: Prepare
@@ -51,28 +51,6 @@ runs:
                  "${LOCALAPPDATA:-}/electron/Cache" \
                  "$electron_dir" 2>/dev/null || true
           pnpm install --frozen-lockfile
-        fi
-      shell: bash
-    - env:
-        GITHUB_TOKEN: ${{ inputs.token }}
-      name: verify-ripgrep-install
-      run: |
-        set -euo pipefail
-        rg_dir="$(
-          find node_modules/.pnpm -path '*/node_modules/@vscode/ripgrep' -maxdepth 6 -type d 2>/dev/null \
-            | grep -E '/@vscode\+ripgrep@[0-9]+\.' | head -1
-        )"
-        # jiti is a dependency of @instrument-org/studio, not the repo root, so
-        # run it via --filter (binary + cwd resolve to apps/studio).
-        if ! pnpm --filter @instrument-org/studio exec jiti electron-builder/verify-ripgrep.ts; then
-          echo "ripgrep install invalid; clearing download cache and reinstalling"
-          rm -rf "${RUNNER_TEMP:-${TMPDIR:-/tmp}}"/vscode-ripgrep-cache-* \
-                 /tmp/vscode-ripgrep-cache-* \
-                 "${rg_dir:-}/bin" 2>/dev/null || true
-          if [ -n "${rg_dir:-}" ]; then
-            node "$rg_dir/lib/postinstall.js" --force
-          fi
-          pnpm --filter @instrument-org/studio exec jiti electron-builder/verify-ripgrep.ts
         fi
       shell: bash
     - uses: rharkor/caching-for-turbo@00a0515f175df9fd2e15c4560144ad5fdbebb0c7 # v2.3.13

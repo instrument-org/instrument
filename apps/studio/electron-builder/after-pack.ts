@@ -48,10 +48,14 @@ function verifyPackagedRipgrep(context: AfterPackContext) {
     throw new Error(`Unsupported electron platform: ${platformName}`);
   }
 
-  const binaryPath = resolvePackagedRipgrep(context.appOutDir, platformName);
+  const binaryPath = resolvePackagedRipgrep(
+    context.appOutDir,
+    platformName,
+    context.arch,
+  );
   if (!binaryPath) {
     throw new Error(
-      `Could not locate packaged ripgrep binary under ${context.appOutDir} for ${platformName}`,
+      `Could not locate packaged ripgrep binary under ${context.appOutDir} for ${platformName} ${Arch[context.arch]}`,
     );
   }
 

@@ -21,7 +21,6 @@ import {
 } from "@/client/components/ui/tooltip";
 import { getSessionTags } from "@/client/hooks/use-agent-session-status";
 import { useAppState } from "@/client/hooks/use-app-state";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useProjectRouteSubdomain } from "@/client/hooks/use-project-route-subdomain";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionTag, StoreId } from "@instrument-org/workspace/client";
@@ -32,7 +31,7 @@ import {
   CheckIcon,
   PlusIcon,
 } from "@phosphor-icons/react";
-import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useRef } from "react";
@@ -80,13 +79,12 @@ export function ProjectChatMenu({
     }),
   );
 
-  const isDeveloperMode = useDeveloperMode();
   const { data: appState } = useAppState({ subdomain });
   const sessionActors = appState?.sessionActors ?? [];
   const { data: replayStatus } = useQuery(
-    rpcClient.workspace.debug.live.replayStatusBySubdomain.experimental_liveOptions(
-      { input: isDeveloperMode ? { subdomain } : skipToken },
-    ),
+    rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
+      input: { subdomain },
+    }),
   );
 
   const createEmptySession = useMutation(

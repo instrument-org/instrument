@@ -68,7 +68,7 @@ export function ProjectView({
   const openFileViewer = useSetAtom(openFileViewerAtom);
 
   const { data: replayStatus } = useQuery(
-    rpcClient.workspace.debug.live.replayStatus.experimental_liveOptions({
+    rpcClient.workspace.replay.live.status.experimental_liveOptions({
       input: selectedSessionId ? { sessionId: selectedSessionId } : skipToken,
     }),
   );
@@ -76,7 +76,7 @@ export function ProjectView({
   const isReplayActive = replayStatus?.isActive ?? false;
 
   const cancelReplayMutation = useMutation(
-    rpcClient.workspace.debug.cancelReplay.mutationOptions(),
+    rpcClient.workspace.replay.cancel.mutationOptions(),
   );
 
   const handleCancelReplay = () => {

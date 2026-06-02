@@ -275,10 +275,22 @@ async function runGuideReplay({
       signal,
       text: userStep.text,
     });
+    const introMessageId = StoreId.newMessageId();
+    const introMessageCreatedAt = new Date();
+    await saveAssistantMessage({
+      appConfig,
+      createdAt: introMessageCreatedAt,
+      finishReason: "unknown",
+      messageId: introMessageId,
+      sessionId,
+      signal,
+    });
     await delay({ delayMs: timing.assistantStartDelayMs, signal });
 
     await streamAssistantText({
       appConfig,
+      createdAt: introMessageCreatedAt,
+      messageId: introMessageId,
       sessionId,
       signal,
       text: introStep.text,
@@ -531,6 +543,7 @@ async function saveUserMessage({
 
 async function streamAssistantText({
   appConfig,
+  createdAt = new Date(),
   messageId = StoreId.newMessageId(),
   sessionId,
   signal,
@@ -538,6 +551,7 @@ async function streamAssistantText({
   textChunkDelayMs,
 }: {
   appConfig: AppConfigProject;
+  createdAt?: Date;
   messageId?: StoreId.Message;
   sessionId: StoreId.Session;
   signal: AbortSignal;
@@ -545,7 +559,6 @@ async function streamAssistantText({
   textChunkDelayMs: number;
 }) {
   checkAbort(signal);
-  const createdAt = new Date();
   const partId = StoreId.newPartId();
   await saveAssistantMessage({
     appConfig,

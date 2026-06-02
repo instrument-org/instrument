@@ -18,6 +18,7 @@ const config: KnipConfig = {
     "apps/studio": {
       entry: [
         "scripts/*.{ts,tsx,js}",
+        "electron-builder/win-cloud-hsm-sign.js",
         "src/client/components/ui/*.tsx",
         "src/client/routeTree.gen.ts",
         "src/client/router.tsx",
@@ -36,7 +37,6 @@ const config: KnipConfig = {
         "@derhuerst/ffprobe-static", // Imported in Vite build to fix import issues
         "ffmpeg-static", // Imported in Vite build to fix import issues
         "dugite", // Needed to ensure the git binary is available
-        "@vscode/ripgrep", // Maybe needed to ensure the ripgrep binary is available
         "babel-plugin-react-compiler", // Used in electron.vite.config.ts as Babel plugin
         "agent-browser", // Imported in Vite build to resolve the binary path
       ],

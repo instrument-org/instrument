@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/settings/advanced")({
+export const Route = createFileRoute("/studio-overlay/settings/advanced")({
   component: SettingsAdvancedPage,
 });
 

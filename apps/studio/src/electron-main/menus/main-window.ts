@@ -14,29 +14,36 @@ import {
 } from "./utils";
 
 export function createMainWindowMenu(): MenuItemConstructorOptions[] {
+  // While the app-wide modal overlay is open it covers the tabs + sidebar, so
+  // tab-structural and sidebar commands are unavailable. Following the macOS
+  // convention, we grey them out (enabled: false) rather than removing them,
+  // which also reliably swallows their accelerators on all platforms. The menu
+  // is rebuilt on modal open/close (see menus/index.ts), so this is re-read.
+  const isLocked = getTabsManager()?.studioOverlay.isActive() ?? false;
+
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
       {
         accelerator: "CmdOrCtrl+T",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.addTab({
+          getTabsManager()?.addTab({
             urlPath: "/new-tab",
           });
         },
+        enabled: !isLocked,
         label: "New Tab",
       },
       {
         accelerator: "CmdOrCtrl+N",
         click: () => {
-          const tabsManager = getTabsManager();
-          const currentTab = tabsManager?.getCurrentTab();
+          const currentTab = getTabsManager()?.getCurrentTab();
           if (currentTab) {
             currentTab.webView.webContents?.send("navigate", "/new-tab");
             currentTab.webView.webContents?.focus();
           }
         },
+        enabled: !isLocked,
         label: "New Task",
       },
       { type: "separator" as const },
@@ -49,19 +56,27 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             return;
           }
           const tabsManager = getTabsManager();
+          // While the app-wide modal is open, Cmd+W dismisses it (rather than
+          // closing the tab beneath it).
+          if (tabsManager?.studioOverlay.isActive()) {
+            tabsManager.studioOverlay.dismiss();
+            return;
+          }
           const selectedTabId = tabsManager?.getState().selectedTabId;
           if (selectedTabId) {
             tabsManager.closeTab({ id: selectedTabId });
           }
         },
-        label: "Close Tab",
+        // Stays enabled while the modal is open so Cmd+W can close the modal;
+        // the menu is rebuilt on open/close so the label tracks the action.
+        label: isLocked ? "Close" : "Close Tab",
       },
       {
         accelerator: "CmdOrCtrl+Shift+T",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.reopenClosedTab();
+          getTabsManager()?.reopenClosedTab();
         },
+        enabled: !isLocked,
         label: "Reopen Closed Tab",
       },
     ],
@@ -107,6 +122,12 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         accelerator: "CmdOrCtrl+R",
         click: () => {
           const tabsManager = getTabsManager();
+          // While the app-wide modal is open it owns the foreground, so reload
+          // targets the overlay's webContents instead of the tab beneath it.
+          if (tabsManager?.studioOverlay.isActive()) {
+            tabsManager.studioOverlay.reload();
+            return;
+          }
           const currentTab = tabsManager?.getCurrentTab();
           if (currentTab?.webView.webContents) {
             publisher.publish("app.reload", {
@@ -126,6 +147,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             wasVisible ? "app.sidebar_closed" : "app.sidebar_opened",
           );
         },
+        enabled: !isLocked,
         label: getSidebarVisible() ? "Hide Sidebar" : "Show Sidebar",
       },
       { type: "separator" as const },
@@ -177,6 +199,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           getTabsManager()?.selectNextTab();
         },
+        enabled: !isLocked,
         label: "Show Next Tab",
       },
       {
@@ -184,6 +207,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           getTabsManager()?.selectPreviousTab();
         },
+        enabled: !isLocked,
         label: "Show Previous Tab",
       },
       {
@@ -191,6 +215,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           getTabsManager()?.selectNextTab();
         },
+        enabled: !isLocked,
         label: "Show Next Tab",
         visible: false,
       },
@@ -199,6 +224,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           getTabsManager()?.selectPreviousTab();
         },
+        enabled: !isLocked,
         label: "Show Previous Tab",
         visible: false,
       },
@@ -218,6 +244,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           tabsManager?.selectTabByIndex({ index: 0 });
         },
+        enabled: !isLocked,
         label: "Switch to Tab 1",
         visible: false,
       },
@@ -227,6 +254,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           tabsManager?.selectTabByIndex({ index: 1 });
         },
+        enabled: !isLocked,
         label: "Switch to Tab 2",
         visible: false,
       },
@@ -236,6 +264,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           tabsManager?.selectTabByIndex({ index: 2 });
         },
+        enabled: !isLocked,
         label: "Switch to Tab 3",
         visible: false,
       },
@@ -245,6 +274,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           tabsManager?.selectTabByIndex({ index: 3 });
         },
+        enabled: !isLocked,
         label: "Switch to Tab 4",
         visible: false,
       },
@@ -254,6 +284,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           tabsManager?.selectTabByIndex({ index: 4 });
         },
+        enabled: !isLocked,
         label: "Switch to Tab 5",
         visible: false,
       },
@@ -263,6 +294,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           tabsManager?.selectTabByIndex({ index: 5 });
         },
+        enabled: !isLocked,
         label: "Switch to Tab 6",
         visible: false,
       },
@@ -272,6 +304,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           tabsManager?.selectTabByIndex({ index: 6 });
         },
+        enabled: !isLocked,
         label: "Switch to Tab 7",
         visible: false,
       },
@@ -281,6 +314,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
           const tabsManager = getTabsManager();
           tabsManager?.selectTabByIndex({ index: 7 });
         },
+        enabled: !isLocked,
         label: "Switch to Tab 8",
         visible: false,
       },
@@ -293,6 +327,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             tabsManager?.selectTabByIndex({ index: state.tabs.length - 1 });
           }
         },
+        enabled: !isLocked,
         label: "Switch to Last Tab",
         visible: false,
       },

@@ -9,17 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StudioOverlayIdleRouteImport } from './routes/studio-overlay-idle'
+import { Route as StudioOverlayRouteImport } from './routes/studio-overlay'
 import { Route as ShellRouteImport } from './routes/shell'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
-import { Route as SettingsProvidersRouteImport } from './routes/settings/providers'
-import { Route as SettingsFeaturesRouteImport } from './routes/settings/features'
-import { Route as SettingsDebugRouteImport } from './routes/settings/debug'
-import { Route as SettingsAdvancedRouteImport } from './routes/settings/advanced'
+import { Route as StudioOverlaySettingsRouteImport } from './routes/studio-overlay/settings'
+import { Route as StudioOverlayLoginRouteImport } from './routes/studio-overlay/login'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
 import { Route as AppTutorialTaskRouteImport } from './routes/_app/tutorial-task'
@@ -27,16 +25,19 @@ import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppGetLifetimeRouteImport } from './routes/_app/get-lifetime'
 import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
-import { Route as AppNot_authenticatedRouteRouteImport } from './routes/_app/_not_authenticated/route'
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
+import { Route as StudioOverlaySettingsIndexRouteImport } from './routes/studio-overlay/settings/index'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppEvalsIndexRouteImport } from './routes/_app/evals/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
+import { Route as StudioOverlaySettingsProvidersRouteImport } from './routes/studio-overlay/settings/providers'
+import { Route as StudioOverlaySettingsFeaturesRouteImport } from './routes/studio-overlay/settings/features'
+import { Route as StudioOverlaySettingsDebugRouteImport } from './routes/studio-overlay/settings/debug'
+import { Route as StudioOverlaySettingsAdvancedRouteImport } from './routes/studio-overlay/settings/advanced'
 import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/notifications'
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
 import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
 import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
-import { Route as AppNot_authenticatedLoginRouteImport } from './routes/_app/_not_authenticated/login'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
@@ -54,14 +55,19 @@ import { Route as AppDebugComponentsOnboardingProvidersRouteImport } from './rou
 import { Route as AppDebugComponentsOnboardingLoginRouteImport } from './routes/_app/debug/components/onboarding/login'
 import { Route as AppDebugComponentsOnboardingCompleteRouteImport } from './routes/_app/debug/components/onboarding/complete'
 
+const StudioOverlayIdleRoute = StudioOverlayIdleRouteImport.update({
+  id: '/studio-overlay-idle',
+  path: '/studio-overlay-idle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudioOverlayRoute = StudioOverlayRouteImport.update({
+  id: '/studio-overlay',
+  path: '/studio-overlay',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShellRoute = ShellRouteImport.update({
   id: '/shell',
   path: '/shell',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
@@ -78,35 +84,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsIndexRoute = SettingsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => SettingsRoute,
-} as any)
 const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => OnboardingRouteRoute,
 } as any)
-const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
-  id: '/providers',
-  path: '/providers',
-  getParentRoute: () => SettingsRoute,
+const StudioOverlaySettingsRoute = StudioOverlaySettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => StudioOverlayRoute,
 } as any)
-const SettingsFeaturesRoute = SettingsFeaturesRouteImport.update({
-  id: '/features',
-  path: '/features',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsDebugRoute = SettingsDebugRouteImport.update({
-  id: '/debug',
-  path: '/debug',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
-  id: '/advanced',
-  path: '/advanced',
-  getParentRoute: () => SettingsRoute,
+const StudioOverlayLoginRoute = StudioOverlayLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => StudioOverlayRoute,
 } as any)
 const OnboardingThemeRoute = OnboardingThemeRouteImport.update({
   id: '/theme',
@@ -143,15 +134,16 @@ const AppDebugRouteRoute = AppDebugRouteRouteImport.update({
   path: '/debug',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppNot_authenticatedRouteRoute =
-  AppNot_authenticatedRouteRouteImport.update({
-    id: '/_not_authenticated',
-    getParentRoute: () => AppRouteRoute,
-  } as any)
 const AppAuthenticatedRouteRoute = AppAuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const StudioOverlaySettingsIndexRoute =
+  StudioOverlaySettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => StudioOverlaySettingsRoute,
+  } as any)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -167,6 +159,30 @@ const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
+const StudioOverlaySettingsProvidersRoute =
+  StudioOverlaySettingsProvidersRouteImport.update({
+    id: '/providers',
+    path: '/providers',
+    getParentRoute: () => StudioOverlaySettingsRoute,
+  } as any)
+const StudioOverlaySettingsFeaturesRoute =
+  StudioOverlaySettingsFeaturesRouteImport.update({
+    id: '/features',
+    path: '/features',
+    getParentRoute: () => StudioOverlaySettingsRoute,
+  } as any)
+const StudioOverlaySettingsDebugRoute =
+  StudioOverlaySettingsDebugRouteImport.update({
+    id: '/debug',
+    path: '/debug',
+    getParentRoute: () => StudioOverlaySettingsRoute,
+  } as any)
+const StudioOverlaySettingsAdvancedRoute =
+  StudioOverlaySettingsAdvancedRouteImport.update({
+    id: '/advanced',
+    path: '/advanced',
+    getParentRoute: () => StudioOverlaySettingsRoute,
+  } as any)
 const AppDebugNotificationsRoute = AppDebugNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -187,12 +203,6 @@ const AppDebugBrowserViewsRoute = AppDebugBrowserViewsRouteImport.update({
   path: '/browser-views',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
-const AppNot_authenticatedLoginRoute =
-  AppNot_authenticatedLoginRouteImport.update({
-    id: '/login',
-    path: '/login',
-    getParentRoute: () => AppNot_authenticatedRouteRoute,
-  } as any)
 const AppAuthenticatedSubscribeRoute =
   AppAuthenticatedSubscribeRouteImport.update({
     id: '/subscribe',
@@ -292,8 +302,9 @@ const AppDebugComponentsOnboardingCompleteRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRouteRouteWithChildren
-  '/settings': typeof SettingsRouteWithChildren
   '/shell': typeof ShellRoute
+  '/studio-overlay': typeof StudioOverlayRouteWithChildren
+  '/studio-overlay-idle': typeof StudioOverlayIdleRoute
   '/debug': typeof AppDebugRouteRouteWithChildren
   '/get-lifetime': typeof AppGetLifetimeRoute
   '/new-tab': typeof AppNewTabRoute
@@ -301,21 +312,22 @@ export interface FileRoutesByFullPath {
   '/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
-  '/settings/advanced': typeof SettingsAdvancedRoute
-  '/settings/debug': typeof SettingsDebugRoute
-  '/settings/features': typeof SettingsFeaturesRoute
-  '/settings/providers': typeof SettingsProvidersRoute
+  '/studio-overlay/login': typeof StudioOverlayLoginRoute
+  '/studio-overlay/settings': typeof StudioOverlaySettingsRouteWithChildren
   '/onboarding/': typeof OnboardingIndexRoute
-  '/settings/': typeof SettingsIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/login': typeof AppNot_authenticatedLoginRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
+  '/studio-overlay/settings/advanced': typeof StudioOverlaySettingsAdvancedRoute
+  '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
+  '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
+  '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/debug/': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
@@ -335,26 +347,28 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/shell': typeof ShellRoute
+  '/studio-overlay': typeof StudioOverlayRouteWithChildren
+  '/studio-overlay-idle': typeof StudioOverlayIdleRoute
   '/get-lifetime': typeof AppGetLifetimeRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
-  '/settings/advanced': typeof SettingsAdvancedRoute
-  '/settings/debug': typeof SettingsDebugRoute
-  '/settings/features': typeof SettingsFeaturesRoute
-  '/settings/providers': typeof SettingsProvidersRoute
+  '/studio-overlay/login': typeof StudioOverlayLoginRoute
   '/onboarding': typeof OnboardingIndexRoute
-  '/settings': typeof SettingsIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/login': typeof AppNot_authenticatedLoginRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
+  '/studio-overlay/settings/advanced': typeof StudioOverlaySettingsAdvancedRoute
+  '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
+  '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
+  '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/debug': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/studio-overlay/settings': typeof StudioOverlaySettingsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
@@ -375,10 +389,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
-  '/settings': typeof SettingsRouteWithChildren
   '/shell': typeof ShellRoute
+  '/studio-overlay': typeof StudioOverlayRouteWithChildren
+  '/studio-overlay-idle': typeof StudioOverlayIdleRoute
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
-  '/_app/_not_authenticated': typeof AppNot_authenticatedRouteRouteWithChildren
   '/_app/debug': typeof AppDebugRouteRouteWithChildren
   '/_app/get-lifetime': typeof AppGetLifetimeRoute
   '/_app/new-tab': typeof AppNewTabRoute
@@ -386,21 +400,22 @@ export interface FileRoutesById {
   '/_app/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
-  '/settings/advanced': typeof SettingsAdvancedRoute
-  '/settings/debug': typeof SettingsDebugRoute
-  '/settings/features': typeof SettingsFeaturesRoute
-  '/settings/providers': typeof SettingsProvidersRoute
+  '/studio-overlay/login': typeof StudioOverlayLoginRoute
+  '/studio-overlay/settings': typeof StudioOverlaySettingsRouteWithChildren
   '/onboarding/': typeof OnboardingIndexRoute
-  '/settings/': typeof SettingsIndexRoute
   '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
-  '/_app/_not_authenticated/login': typeof AppNot_authenticatedLoginRoute
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/_app/debug/errors': typeof AppDebugErrorsRoute
   '/_app/debug/notifications': typeof AppDebugNotificationsRoute
+  '/studio-overlay/settings/advanced': typeof StudioOverlaySettingsAdvancedRoute
+  '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
+  '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
+  '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
+  '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/_app/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/_app/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
@@ -422,8 +437,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
-    | '/settings'
     | '/shell'
+    | '/studio-overlay'
+    | '/studio-overlay-idle'
     | '/debug'
     | '/get-lifetime'
     | '/new-tab'
@@ -431,21 +447,22 @@ export interface FileRouteTypes {
     | '/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
-    | '/settings/advanced'
-    | '/settings/debug'
-    | '/settings/features'
-    | '/settings/providers'
+    | '/studio-overlay/login'
+    | '/studio-overlay/settings'
     | '/onboarding/'
-    | '/settings/'
     | '/subscribe'
-    | '/login'
     | '/debug/browser-views'
     | '/debug/components'
     | '/debug/errors'
     | '/debug/notifications'
+    | '/studio-overlay/settings/advanced'
+    | '/studio-overlay/settings/debug'
+    | '/studio-overlay/settings/features'
+    | '/studio-overlay/settings/providers'
     | '/debug/'
     | '/evals'
     | '/projects'
+    | '/studio-overlay/settings/'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/chat-stream'
@@ -465,26 +482,28 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/shell'
+    | '/studio-overlay'
+    | '/studio-overlay-idle'
     | '/get-lifetime'
     | '/new-tab'
     | '/release-notes'
     | '/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
-    | '/settings/advanced'
-    | '/settings/debug'
-    | '/settings/features'
-    | '/settings/providers'
+    | '/studio-overlay/login'
     | '/onboarding'
-    | '/settings'
     | '/subscribe'
-    | '/login'
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
+    | '/studio-overlay/settings/advanced'
+    | '/studio-overlay/settings/debug'
+    | '/studio-overlay/settings/features'
+    | '/studio-overlay/settings/providers'
     | '/debug'
     | '/evals'
     | '/projects'
+    | '/studio-overlay/settings'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/chat-stream'
@@ -504,10 +523,10 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/onboarding'
-    | '/settings'
     | '/shell'
+    | '/studio-overlay'
+    | '/studio-overlay-idle'
     | '/_app/_authenticated'
-    | '/_app/_not_authenticated'
     | '/_app/debug'
     | '/_app/get-lifetime'
     | '/_app/new-tab'
@@ -515,21 +534,22 @@ export interface FileRouteTypes {
     | '/_app/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
-    | '/settings/advanced'
-    | '/settings/debug'
-    | '/settings/features'
-    | '/settings/providers'
+    | '/studio-overlay/login'
+    | '/studio-overlay/settings'
     | '/onboarding/'
-    | '/settings/'
     | '/_app/_authenticated/subscribe'
-    | '/_app/_not_authenticated/login'
     | '/_app/debug/browser-views'
     | '/_app/debug/components'
     | '/_app/debug/errors'
     | '/_app/debug/notifications'
+    | '/studio-overlay/settings/advanced'
+    | '/studio-overlay/settings/debug'
+    | '/studio-overlay/settings/features'
+    | '/studio-overlay/settings/providers'
     | '/_app/debug/'
     | '/_app/evals/'
     | '/_app/projects/'
+    | '/studio-overlay/settings/'
     | '/_app/debug/browser-view/$targetId'
     | '/_app/debug/components/alerts'
     | '/_app/debug/components/chat-stream'
@@ -551,24 +571,32 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
-  SettingsRoute: typeof SettingsRouteWithChildren
   ShellRoute: typeof ShellRoute
+  StudioOverlayRoute: typeof StudioOverlayRouteWithChildren
+  StudioOverlayIdleRoute: typeof StudioOverlayIdleRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/studio-overlay-idle': {
+      id: '/studio-overlay-idle'
+      path: '/studio-overlay-idle'
+      fullPath: '/studio-overlay-idle'
+      preLoaderRoute: typeof StudioOverlayIdleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/studio-overlay': {
+      id: '/studio-overlay'
+      path: '/studio-overlay'
+      fullPath: '/studio-overlay'
+      preLoaderRoute: typeof StudioOverlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shell': {
       id: '/shell'
       path: '/shell'
       fullPath: '/shell'
       preLoaderRoute: typeof ShellRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -592,13 +620,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/': {
-      id: '/settings/'
-      path: '/'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof SettingsIndexRouteImport
-      parentRoute: typeof SettingsRoute
-    }
     '/onboarding/': {
       id: '/onboarding/'
       path: '/'
@@ -606,33 +627,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingIndexRouteImport
       parentRoute: typeof OnboardingRouteRoute
     }
-    '/settings/providers': {
-      id: '/settings/providers'
-      path: '/providers'
-      fullPath: '/settings/providers'
-      preLoaderRoute: typeof SettingsProvidersRouteImport
-      parentRoute: typeof SettingsRoute
+    '/studio-overlay/settings': {
+      id: '/studio-overlay/settings'
+      path: '/settings'
+      fullPath: '/studio-overlay/settings'
+      preLoaderRoute: typeof StudioOverlaySettingsRouteImport
+      parentRoute: typeof StudioOverlayRoute
     }
-    '/settings/features': {
-      id: '/settings/features'
-      path: '/features'
-      fullPath: '/settings/features'
-      preLoaderRoute: typeof SettingsFeaturesRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/debug': {
-      id: '/settings/debug'
-      path: '/debug'
-      fullPath: '/settings/debug'
-      preLoaderRoute: typeof SettingsDebugRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/advanced': {
-      id: '/settings/advanced'
-      path: '/advanced'
-      fullPath: '/settings/advanced'
-      preLoaderRoute: typeof SettingsAdvancedRouteImport
-      parentRoute: typeof SettingsRoute
+    '/studio-overlay/login': {
+      id: '/studio-overlay/login'
+      path: '/login'
+      fullPath: '/studio-overlay/login'
+      preLoaderRoute: typeof StudioOverlayLoginRouteImport
+      parentRoute: typeof StudioOverlayRoute
     }
     '/onboarding/theme': {
       id: '/onboarding/theme'
@@ -683,19 +690,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugRouteRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/_not_authenticated': {
-      id: '/_app/_not_authenticated'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof AppNot_authenticatedRouteRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
     '/_app/_authenticated': {
       id: '/_app/_authenticated'
       path: ''
       fullPath: ''
       preLoaderRoute: typeof AppAuthenticatedRouteRouteImport
       parentRoute: typeof AppRouteRoute
+    }
+    '/studio-overlay/settings/': {
+      id: '/studio-overlay/settings/'
+      path: '/'
+      fullPath: '/studio-overlay/settings/'
+      preLoaderRoute: typeof StudioOverlaySettingsIndexRouteImport
+      parentRoute: typeof StudioOverlaySettingsRoute
     }
     '/_app/projects/': {
       id: '/_app/projects/'
@@ -717,6 +724,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/debug/'
       preLoaderRoute: typeof AppDebugIndexRouteImport
       parentRoute: typeof AppDebugRouteRoute
+    }
+    '/studio-overlay/settings/providers': {
+      id: '/studio-overlay/settings/providers'
+      path: '/providers'
+      fullPath: '/studio-overlay/settings/providers'
+      preLoaderRoute: typeof StudioOverlaySettingsProvidersRouteImport
+      parentRoute: typeof StudioOverlaySettingsRoute
+    }
+    '/studio-overlay/settings/features': {
+      id: '/studio-overlay/settings/features'
+      path: '/features'
+      fullPath: '/studio-overlay/settings/features'
+      preLoaderRoute: typeof StudioOverlaySettingsFeaturesRouteImport
+      parentRoute: typeof StudioOverlaySettingsRoute
+    }
+    '/studio-overlay/settings/debug': {
+      id: '/studio-overlay/settings/debug'
+      path: '/debug'
+      fullPath: '/studio-overlay/settings/debug'
+      preLoaderRoute: typeof StudioOverlaySettingsDebugRouteImport
+      parentRoute: typeof StudioOverlaySettingsRoute
+    }
+    '/studio-overlay/settings/advanced': {
+      id: '/studio-overlay/settings/advanced'
+      path: '/advanced'
+      fullPath: '/studio-overlay/settings/advanced'
+      preLoaderRoute: typeof StudioOverlaySettingsAdvancedRouteImport
+      parentRoute: typeof StudioOverlaySettingsRoute
     }
     '/_app/debug/notifications': {
       id: '/_app/debug/notifications'
@@ -745,13 +780,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/debug/browser-views'
       preLoaderRoute: typeof AppDebugBrowserViewsRouteImport
       parentRoute: typeof AppDebugRouteRoute
-    }
-    '/_app/_not_authenticated/login': {
-      id: '/_app/_not_authenticated/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof AppNot_authenticatedLoginRouteImport
-      parentRoute: typeof AppNot_authenticatedRouteRoute
     }
     '/_app/_authenticated/subscribe': {
       id: '/_app/_authenticated/subscribe'
@@ -881,20 +909,6 @@ const AppAuthenticatedRouteRouteWithChildren =
     AppAuthenticatedRouteRouteChildren,
   )
 
-interface AppNot_authenticatedRouteRouteChildren {
-  AppNot_authenticatedLoginRoute: typeof AppNot_authenticatedLoginRoute
-}
-
-const AppNot_authenticatedRouteRouteChildren: AppNot_authenticatedRouteRouteChildren =
-  {
-    AppNot_authenticatedLoginRoute: AppNot_authenticatedLoginRoute,
-  }
-
-const AppNot_authenticatedRouteRouteWithChildren =
-  AppNot_authenticatedRouteRoute._addFileChildren(
-    AppNot_authenticatedRouteRouteChildren,
-  )
-
 interface AppDebugComponentsOnboardingRouteChildren {
   AppDebugComponentsOnboardingCompleteRoute: typeof AppDebugComponentsOnboardingCompleteRoute
   AppDebugComponentsOnboardingLoginRoute: typeof AppDebugComponentsOnboardingLoginRoute
@@ -972,7 +986,6 @@ const AppDebugRouteRouteWithChildren = AppDebugRouteRoute._addFileChildren(
 
 interface AppRouteRouteChildren {
   AppAuthenticatedRouteRoute: typeof AppAuthenticatedRouteRouteWithChildren
-  AppNot_authenticatedRouteRoute: typeof AppNot_authenticatedRouteRouteWithChildren
   AppDebugRouteRoute: typeof AppDebugRouteRouteWithChildren
   AppGetLifetimeRoute: typeof AppGetLifetimeRoute
   AppNewTabRoute: typeof AppNewTabRoute
@@ -985,7 +998,6 @@ interface AppRouteRouteChildren {
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppAuthenticatedRouteRoute: AppAuthenticatedRouteRouteWithChildren,
-  AppNot_authenticatedRouteRoute: AppNot_authenticatedRouteRouteWithChildren,
   AppDebugRouteRoute: AppDebugRouteRouteWithChildren,
   AppGetLifetimeRoute: AppGetLifetimeRoute,
   AppNewTabRoute: AppNewTabRoute,
@@ -1016,32 +1028,48 @@ const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
   OnboardingRouteRouteChildren,
 )
 
-interface SettingsRouteChildren {
-  SettingsAdvancedRoute: typeof SettingsAdvancedRoute
-  SettingsDebugRoute: typeof SettingsDebugRoute
-  SettingsFeaturesRoute: typeof SettingsFeaturesRoute
-  SettingsProvidersRoute: typeof SettingsProvidersRoute
-  SettingsIndexRoute: typeof SettingsIndexRoute
+interface StudioOverlaySettingsRouteChildren {
+  StudioOverlaySettingsAdvancedRoute: typeof StudioOverlaySettingsAdvancedRoute
+  StudioOverlaySettingsDebugRoute: typeof StudioOverlaySettingsDebugRoute
+  StudioOverlaySettingsFeaturesRoute: typeof StudioOverlaySettingsFeaturesRoute
+  StudioOverlaySettingsProvidersRoute: typeof StudioOverlaySettingsProvidersRoute
+  StudioOverlaySettingsIndexRoute: typeof StudioOverlaySettingsIndexRoute
 }
 
-const SettingsRouteChildren: SettingsRouteChildren = {
-  SettingsAdvancedRoute: SettingsAdvancedRoute,
-  SettingsDebugRoute: SettingsDebugRoute,
-  SettingsFeaturesRoute: SettingsFeaturesRoute,
-  SettingsProvidersRoute: SettingsProvidersRoute,
-  SettingsIndexRoute: SettingsIndexRoute,
+const StudioOverlaySettingsRouteChildren: StudioOverlaySettingsRouteChildren = {
+  StudioOverlaySettingsAdvancedRoute: StudioOverlaySettingsAdvancedRoute,
+  StudioOverlaySettingsDebugRoute: StudioOverlaySettingsDebugRoute,
+  StudioOverlaySettingsFeaturesRoute: StudioOverlaySettingsFeaturesRoute,
+  StudioOverlaySettingsProvidersRoute: StudioOverlaySettingsProvidersRoute,
+  StudioOverlaySettingsIndexRoute: StudioOverlaySettingsIndexRoute,
 }
 
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
-  SettingsRouteChildren,
+const StudioOverlaySettingsRouteWithChildren =
+  StudioOverlaySettingsRoute._addFileChildren(
+    StudioOverlaySettingsRouteChildren,
+  )
+
+interface StudioOverlayRouteChildren {
+  StudioOverlayLoginRoute: typeof StudioOverlayLoginRoute
+  StudioOverlaySettingsRoute: typeof StudioOverlaySettingsRouteWithChildren
+}
+
+const StudioOverlayRouteChildren: StudioOverlayRouteChildren = {
+  StudioOverlayLoginRoute: StudioOverlayLoginRoute,
+  StudioOverlaySettingsRoute: StudioOverlaySettingsRouteWithChildren,
+}
+
+const StudioOverlayRouteWithChildren = StudioOverlayRoute._addFileChildren(
+  StudioOverlayRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
-  SettingsRoute: SettingsRouteWithChildren,
   ShellRoute: ShellRoute,
+  StudioOverlayRoute: StudioOverlayRouteWithChildren,
+  StudioOverlayIdleRoute: StudioOverlayIdleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

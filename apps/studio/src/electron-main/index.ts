@@ -17,7 +17,6 @@ import {
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
-import { updateSettingsWindowBackgroundColor } from "@/electron-main/windows/settings";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -234,6 +233,5 @@ app.on("window-all-closed", () => {
 function applyThemeToWindows() {
   updateMainWindowBackgroundColor();
   updateOnboardingWindowBackgroundColor();
-  updateSettingsWindowBackgroundColor();
   updateTitleBarOverlay();
 }

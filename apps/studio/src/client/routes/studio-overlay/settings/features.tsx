@@ -8,7 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 
-export const Route = createFileRoute("/settings/features")({
+export const Route = createFileRoute("/studio-overlay/settings/features")({
   component: SettingsFeaturesPage,
 });
 

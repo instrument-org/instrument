@@ -1,12 +1,11 @@
 import { LifetimeUpgradeDialog } from "@/client/components/lifetime-upgrade-dialog";
 import { PromptInput } from "@/client/components/prompt-input";
-import { ProviderSetupDialog } from "@/client/components/provider-setup-dialog";
 import { AnimatedOutlineAppIconGlyph } from "@/client/components/studio-icon";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   createFileRoute,
   useNavigate,
@@ -16,34 +15,15 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
-const DIALOG_TITLES = {
-  lifetime: "Get lifetime access",
-  login: "Log in",
-} as const;
-
 /* eslint-disable perfectionist/sort-objects */
 export const Route = createFileRoute("/_app/new-tab")({
   component: RouteComponent,
   validateSearch: z.object({
-    dialog: z.enum(["login", "lifetime"]).optional(),
+    dialog: z.enum(["lifetime"]).optional(),
   }),
-  loader: async ({ context }) => {
-    const hasToken = await rpcClient.auth.hasToken.call();
-    // Ensures the UI doesn't flicker by pre-loading the hasToken data
-    // Using a raw RPC call because it's a live query, which means
-    // `.ensureQueryData` would never resolve.
-    context.queryClient.setQueryData(
-      rpcClient.auth.live.hasToken.experimental_liveKey(),
-      hasToken,
-    );
-    return { hasToken };
-  },
-  head: ({ loaderData, match }) => {
-    const { dialog } = match.search;
-    const showLoginDialog = dialog === "login" && !loaderData?.hasToken;
-    const showLifetimeDialog = dialog === "lifetime";
+  head: ({ match }) => {
     const title =
-      showLoginDialog || showLifetimeDialog ? DIALOG_TITLES[dialog] : "New tab";
+      match.search.dialog === "lifetime" ? "Get lifetime access" : "New tab";
     return { meta: [{ title }] };
   },
 });
@@ -51,9 +31,6 @@ export const Route = createFileRoute("/_app/new-tab")({
 
 function RouteComponent() {
   const { dialog } = Route.useSearch();
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
-  );
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const navigate = useNavigate({ from: "/new-tab" });
@@ -130,15 +107,6 @@ function RouteComponent() {
           ref={promptInputRef}
         />
       </div>
-      <ProviderSetupDialog
-        hideManualProvider
-        onOpenChange={(open) => {
-          if (!open) {
-            void navigate({ search: {} });
-          }
-        }}
-        open={dialog === "login" && !hasToken}
-      />
       <LifetimeUpgradeDialog
         onOpenChange={(open) => {
           if (!open) {

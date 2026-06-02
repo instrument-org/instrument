@@ -3,6 +3,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
+import { dismissStudioOverlay } from "@/client/lib/studio-overlay";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -30,7 +31,7 @@ export function SubscriptionCard() {
 
   const openLifetimeTab = () => {
     void addTab({ to: "/get-lifetime" });
-    window.close();
+    dismissStudioOverlay();
   };
 
   const handleManageSubscription = async () => {

@@ -8,6 +8,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { Switch } from "@/client/components/ui/switch";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
+import { openSettings } from "@/client/lib/studio-overlay";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
@@ -357,9 +358,7 @@ function SubscribePage() {
                         disabled={isButtonDisabled}
                         onClick={async () => {
                           if (buttonText === "Current Plan") {
-                            void rpcClient.preferences.openSettingsWindow.call({
-                              tab: "General",
-                            });
+                            openSettings({ tab: "General" });
                           } else {
                             await handleSubscribe(plan);
                           }

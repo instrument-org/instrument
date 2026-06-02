@@ -31,6 +31,7 @@ interface PublisherEvents {
     isOpen: boolean;
     width: number;
   };
+  "studio-overlay.active-changed": { isActive: boolean };
   "tabs.updated": null | TabState;
   "test-notification": null;
   "updates.status": { status: AppUpdaterStatus };

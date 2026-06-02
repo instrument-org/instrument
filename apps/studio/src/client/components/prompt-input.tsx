@@ -2,7 +2,6 @@ import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
 import { AttachedFolderPreview } from "@/client/components/attached-folder-preview";
 import { ModelPicker } from "@/client/components/model-picker";
-import { ProviderSetupDialog } from "@/client/components/provider-setup-dialog";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -130,7 +129,6 @@ export const PromptInput = ({
   subdomain,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
-  const [showAIProviderGuard, setShowAIProviderGuard] = useState(false);
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
   const openFilePreview = useSetAtom(openFilePreviewAtom);
   const textareaRef = useRef<HTMLDivElement>(null);
@@ -534,7 +532,10 @@ export const PromptInput = ({
                 isLoading={modelsIsLoading}
                 models={models}
                 onAddProvider={() => {
-                  setShowAIProviderGuard(true);
+                  void rpcClient.studioOverlay.show.call({
+                    kind: "login",
+                    props: { reason: "provider-required" },
+                  });
                 }}
                 onClose={() => {
                   if (modelURI) {
@@ -607,11 +608,6 @@ export const PromptInput = ({
           </Button>
         </div>
       </TextareaContainer>
-
-      <ProviderSetupDialog
-        onOpenChange={setShowAIProviderGuard}
-        open={showAIProviderGuard}
-      />
     </>
   );
 };

@@ -5,6 +5,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -16,16 +17,12 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/settings/")({
+export const Route = createFileRoute("/studio-overlay/settings/")({
   component: SettingsGeneralPage,
 });
 
 const handleInstallUpdate = () => {
-  try {
-    void rpcClient.preferences.quitAndInstall.call();
-  } catch {
-    // Handle error silently as per original implementation
-  }
+  void rpcClient.preferences.quitAndInstall.call();
 };
 
 function About() {
@@ -43,6 +40,19 @@ function About() {
 
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
+  );
+
+  const developerMode = useDeveloperMode();
+
+  const { data: appEnvironment } = useQuery({
+    ...rpcClient.debug.getAppEnvironment.queryOptions(),
+    enabled: developerMode,
+  });
+
+  const isUnpacked = appEnvironment?.isPackaged === false;
+
+  const testDownloadNotification = useMutation(
+    rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
   );
 
   const handleCheckForUpdates = async () => {
@@ -163,6 +173,15 @@ function About() {
     }
   };
 
+  const checkForUpdatesButton = (
+    <Button
+      disabled={checkForUpdatesMutation.isPending}
+      onClick={handleCheckForUpdates}
+    >
+      {checkForUpdatesMutation.isPending ? "Checking..." : "Check for updates"}
+    </Button>
+  );
+
   const getActionButton = () => {
     switch (updateState?.type) {
       case "available":
@@ -196,20 +215,26 @@ function About() {
           </div>
         );
       }
+      case "inactive": {
+        if (developerMode && isUnpacked) {
+          return (
+            <Button
+              disabled={testDownloadNotification.isPending}
+              onClick={() => {
+                testDownloadNotification.mutate(undefined);
+              }}
+            >
+              Test download
+            </Button>
+          );
+        }
+        return checkForUpdatesButton;
+      }
       case "installing": {
         return <Button disabled>Installing...</Button>;
       }
       default: {
-        return (
-          <Button
-            disabled={checkForUpdatesMutation.isPending}
-            onClick={handleCheckForUpdates}
-          >
-            {checkForUpdatesMutation.isPending
-              ? "Checking..."
-              : "Check for updates"}
-          </Button>
-        );
+        return checkForUpdatesButton;
       }
     }
   };

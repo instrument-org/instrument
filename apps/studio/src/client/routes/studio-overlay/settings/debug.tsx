@@ -3,7 +3,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/settings/debug")({
+export const Route = createFileRoute("/studio-overlay/settings/debug")({
   component: SettingsDebugPage,
 });
 

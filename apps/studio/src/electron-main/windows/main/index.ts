@@ -179,7 +179,7 @@ export async function createMainWindow({
   });
 
   createContextMenu({
-    inspectInNewWindow: true,
+    inspectMode: "detach",
     windowOrWebContentsView: mainWindow,
   });
 

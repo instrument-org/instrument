@@ -24,7 +24,7 @@ import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getInitials } from "@/client/lib/get-initials";
 import { isLowOnCredits } from "@/client/lib/is-low-on-credits";
-import { rpcClient } from "@/client/rpc/client";
+import { openSettings } from "@/client/lib/studio-overlay";
 import { CaretDownIcon, GearIcon } from "@phosphor-icons/react";
 import { startTransition } from "react";
 
@@ -56,9 +56,7 @@ export function NavUser() {
           <SidebarMenuButton
             className="h-auto! gap-3 rounded-none! py-4 pr-5 pl-4 group-hover:bg-black/10 dark:group-hover:bg-white/10"
             onClick={() => {
-              void rpcClient.preferences.openSettingsWindow.call({
-                tab: "General",
-              });
+              openSettings({ tab: "General" });
             }}
             size="lg"
           >
@@ -166,9 +164,7 @@ export function NavUser() {
             <DropdownMenuGroup>
               <DropdownMenuItem
                 onClick={() => {
-                  void rpcClient.preferences.openSettingsWindow.call({
-                    tab: "General",
-                  });
+                  openSettings({ tab: "General" });
                 }}
               >
                 <GearIcon className="size-4" />

@@ -2,8 +2,8 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useLiveUser } from "@/client/hooks/use-live-user";
-import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { logOut } from "@/client/lib/log-out";
+import { openLogin } from "@/client/lib/studio-overlay";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -23,8 +23,6 @@ export function AccountInfo() {
   } = useLiveUser({
     input: { staleTime: 0 },
   });
-
-  const { addTab } = useTabActions();
 
   return (
     <div className="space-y-3">
@@ -104,8 +102,7 @@ export function AccountInfo() {
                 </div>
                 <Button
                   onClick={() => {
-                    void addTab({ to: "/login" });
-                    window.close();
+                    openLogin();
                   }}
                   variant="brand"
                 >

@@ -3,8 +3,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 const windowTypeRedirects = {
   onboarding: "/onboarding",
-  settings: "/settings",
   shell: "/shell",
+  "studio-overlay": "/studio-overlay",
 } as const satisfies Record<
   NonNullable<Window["api"]["windowType"]>,
   StudioPath

@@ -11,7 +11,7 @@ declare global {
       getFilePath: (file: File) => string;
       onNavigate: (callback: (url: string) => void) => void;
       tabId?: string;
-      windowType?: "onboarding" | "settings" | "shell";
+      windowType?: "onboarding" | "shell" | "studio-overlay";
     };
     electron: ElectronAPI;
   }

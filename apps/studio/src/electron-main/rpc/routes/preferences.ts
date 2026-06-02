@@ -7,7 +7,6 @@ import {
   PreferencesStoreSchema,
   setLastUpdateCheck,
 } from "@/electron-main/stores/preferences";
-import { openSettingsWindow as openSettingsWindowFn } from "@/electron-main/windows/settings";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import {
   ProjectSubdomainSchema,
@@ -67,19 +66,6 @@ const setReleaseChannel = base
     } else {
       preferencesStore.set("releaseChannel", input.channel);
     }
-  });
-
-const openSettingsWindow = base
-  .input(
-    z.object({
-      showNewProviderDialog: z.boolean().optional(),
-      tab: z.enum(["Advanced", "Features", "General", "Providers"]).optional(),
-    }),
-  )
-  .handler(({ input }) => {
-    openSettingsWindowFn(input.tab, {
-      showNewProviderDialog: input.showNewProviderDialog,
-    });
   });
 
 const checkForUpdates = base
@@ -172,7 +158,6 @@ export const preferences = {
   get,
   getAppVersion,
   live,
-  openSettingsWindow,
   quitAndInstall,
   setDefaultModelURI,
   setDeveloperMode,

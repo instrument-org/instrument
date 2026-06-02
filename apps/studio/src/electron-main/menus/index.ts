@@ -1,6 +1,5 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { getSettingsWindow } from "@/electron-main/windows/settings";
 import {
   app,
   BrowserWindow,
@@ -10,7 +9,6 @@ import {
 
 import { createMainWindowMenu } from "./main-window";
 import { createOtherWindowMenu } from "./other-window";
-import { createSettingsWindowMenu } from "./settings-window";
 
 export function createApplicationMenu(): void {
   updateApplicationMenu();
@@ -30,20 +28,23 @@ export function createApplicationMenu(): void {
     updateApplicationMenu();
   });
 
+  // The modal overlay disables tab/sidebar commands while open; rebuild so the
+  // menu reflects their availability when it opens or closes.
+  void publisher.subscribe("studio-overlay.active-changed", () => {
+    updateApplicationMenu();
+  });
+
   void publisher.subscribe("preferences.updated", () => {
     updateApplicationMenu();
   });
 }
 
-function getFocusedWindowType(): "main" | "other" | "settings" | null {
+function getFocusedWindowType(): "main" | "other" | null {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   if (!focusedWindow) {
     return null;
   }
 
-  if (focusedWindow === getSettingsWindow()) {
-    return "settings";
-  }
   if (focusedWindow === getMainWindow()) {
     return "main";
   }
@@ -53,20 +54,10 @@ function getFocusedWindowType(): "main" | "other" | "settings" | null {
 function updateApplicationMenu(): void {
   const focusedWindowType = getFocusedWindowType();
 
-  let template: MenuItemConstructorOptions[];
-  switch (focusedWindowType) {
-    case "other": {
-      template = createOtherWindowMenu();
-      break;
-    }
-    case "settings": {
-      template = createSettingsWindowMenu();
-      break;
-    }
-    default: {
-      template = createMainWindowMenu();
-    }
-  }
+  const template: MenuItemConstructorOptions[] =
+    focusedWindowType === "other"
+      ? createOtherWindowMenu()
+      : createMainWindowMenu();
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);

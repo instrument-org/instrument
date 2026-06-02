@@ -5,20 +5,16 @@ import { ProviderConfigListItem } from "@/client/components/provider-config-list
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
+import { SettingsProvidersSearchSchema } from "@/shared/studio-overlay";
 import { PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { z } from "zod";
 
-const ProvidersSearchSchema = z.object({
-  showNewProviderDialog: z.boolean().optional(),
-});
-
-export const Route = createFileRoute("/settings/providers")({
+export const Route = createFileRoute("/studio-overlay/settings/providers")({
   component: SettingsProvidersPage,
-  validateSearch: ProvidersSearchSchema,
+  validateSearch: SettingsProvidersSearchSchema,
 });
 
 function SettingsProvidersPage() {

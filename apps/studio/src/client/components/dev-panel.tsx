@@ -52,7 +52,6 @@ import { toast } from "sonner";
 
 const PAGES = [
   { label: "/", to: "/" },
-  { label: "/login", to: "/login" },
   { label: "/subscribe", to: "/subscribe" },
   { label: "/get-lifetime", to: "/get-lifetime" },
   { label: "/projects", to: "/projects" },
@@ -275,6 +274,31 @@ export function DevPanel() {
                     }}
                   >
                     Workspace
+                  </MenubarItem>
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Modals
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      void rpcClient.studioOverlay.show.call({ kind: "login" });
+                    }}
+                  >
+                    Login
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      void rpcClient.studioOverlay.show.call({
+                        kind: "settings",
+                      });
+                    }}
+                  >
+                    Settings
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

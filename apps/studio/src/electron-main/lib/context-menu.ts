@@ -3,11 +3,20 @@ import contextMenu from "electron-context-menu";
 
 import { isDeveloperMode } from "../stores/preferences";
 
+/**
+ * How "Inspect" opens DevTools:
+ * - `default`: docked, Chromium's last-used dock side (the standard action).
+ * - `detach`: a separate DevTools window (good for narrow/side surfaces).
+ * - `bottom`: docked at the bottom, clear of any draggable top strip that
+ *   would otherwise swallow clicks on a docked DevTools toolbar.
+ */
+type InspectMode = "bottom" | "default" | "detach";
+
 export function createContextMenu({
-  inspectInNewWindow = false,
+  inspectMode = "default",
   windowOrWebContentsView,
 }: {
-  inspectInNewWindow?: boolean;
+  inspectMode?: InspectMode;
   windowOrWebContentsView: BrowserWindow | WebContentsView;
 }) {
   return contextMenu({
@@ -62,21 +71,24 @@ export function createContextMenu({
           menuItems.push(defaultActions.separator());
         }
 
-        if (inspectInNewWindow) {
+        if (inspectMode === "default") {
+          menuItems.push(defaultActions.inspect());
+        } else {
           menuItems.push({
             click: () => {
               windowOrWebContentsView.webContents?.openDevTools({
-                mode: "detach",
+                mode: inspectMode,
               });
               windowOrWebContentsView.webContents?.inspectElement(
                 parameters.x,
                 parameters.y,
               );
             },
-            label: "Inspect Element in New Window",
+            label:
+              inspectMode === "detach"
+                ? "Inspect Element in New Window"
+                : "Inspect Element",
           });
-        } else {
-          menuItems.push(defaultActions.inspect());
         }
       }
 

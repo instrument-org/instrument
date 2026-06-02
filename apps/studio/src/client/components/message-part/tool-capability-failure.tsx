@@ -1,6 +1,6 @@
+import { rpcClient } from "@/client/rpc/client";
 import { useState } from "react";
 
-import { ProviderSetupDialog } from "../provider-setup-dialog";
 import { Button } from "../ui/button";
 import { ToolCardSection } from "./tool-card";
 
@@ -19,8 +19,17 @@ export function ToolCapabilityFailure({
   responseBody?: string;
   retryMessage: string;
 }) {
-  const [showProviderGuard, setShowProviderGuard] = useState(false);
   const [providerAdded, setProviderAdded] = useState(false);
+
+  async function openProviderGuard() {
+    const result = await rpcClient.studioOverlay.show.call({
+      kind: "login",
+      props: { reason: "provider-required" },
+    });
+    if (result.completed) {
+      setProviderAdded(true);
+    }
+  }
 
   return (
     <ToolCardSection maxHeight="max-h-64">
@@ -47,20 +56,13 @@ export function ToolCapabilityFailure({
             ) : (
               <Button
                 onClick={() => {
-                  setShowProviderGuard(true);
+                  void openProviderGuard();
                 }}
                 size="sm"
               >
                 Add an AI Provider
               </Button>
             )}
-            <ProviderSetupDialog
-              onOpenChange={setShowProviderGuard}
-              onSuccess={() => {
-                setProviderAdded(true);
-              }}
-              open={showProviderGuard}
-            />
           </div>
         )}
       </div>

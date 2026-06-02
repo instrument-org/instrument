@@ -22,6 +22,10 @@ import { captureServerException } from "../lib/capture-server-exception";
 import { tryCaptureError } from "../lib/try-capture-error";
 import { unsafe_studioURL } from "../lib/urls";
 import { getPreferencesStore } from "../stores/preferences";
+import {
+  createStudioOverlayController,
+  type StudioOverlayController,
+} from "./studio-overlay";
 
 const REVEAL_TAB_FALLBACK_DELAY_MS = 2000;
 
@@ -42,6 +46,7 @@ interface TabWithView extends Tab {
 
 export class TabsManager {
   public baseWindow: BaseWindow;
+  public studioOverlay: StudioOverlayController;
   private logger: LogFunctions;
   private recentlyClosed: Tab[] = [];
   private selectedTabId: null | string = null;
@@ -64,6 +69,16 @@ export class TabsManager {
     this.logger = logger.scope("tabs");
     this.baseWindow = baseWindow;
     this.store = new Store<TabStore>({ name: "tabs" });
+
+    this.studioOverlay = createStudioOverlayController({
+      baseWindow,
+      onActiveChange: (isActive) => {
+        publisher.publish("studio-overlay.active-changed", { isActive });
+      },
+      onClosed: () => {
+        this.focusCurrentTab();
+      },
+    });
 
     // WebContentsView that sits above all keepMounted (z=0) views and below all
     // regular tab views (appended to top). Blocks keepMounted agent browser
@@ -271,6 +286,10 @@ export class TabsManager {
   }
 
   public focusCurrentTab() {
+    // Don't yank focus away from an active app-wide modal overlay.
+    if (this.overlayHandles()) {
+      return;
+    }
     const tab = this.getCurrentTab();
     if (tab) {
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
@@ -296,6 +315,15 @@ export class TabsManager {
   }
 
   public goBack() {
+    // While the app-wide modal is open, back/forward target the modal's own
+    // history (not the tab beneath it) so the user can't navigate the tab away.
+    if (
+      this.overlayHandles(() => {
+        this.studioOverlay.goBack();
+      })
+    ) {
+      return;
+    }
     const tab = this.getCurrentTab();
     if (tab) {
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
@@ -305,6 +333,13 @@ export class TabsManager {
   }
 
   public goForward() {
+    if (
+      this.overlayHandles(() => {
+        this.studioOverlay.goForward();
+      })
+    ) {
+      return;
+    }
     const tab = this.getCurrentTab();
     if (tab) {
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
@@ -364,6 +399,10 @@ export class TabsManager {
   }
 
   public reopenClosedTab() {
+    // The modal overlay covers the tabs; this command would act beneath it.
+    if (this.overlayHandles()) {
+      return;
+    }
     const closedTab = this.recentlyClosed.pop();
     if (!closedTab) {
       return;
@@ -391,12 +430,22 @@ export class TabsManager {
   }
 
   public resetZoom() {
+    if (
+      this.overlayHandles(() => {
+        this.studioOverlay.resetZoom();
+      })
+    ) {
+      return;
+    }
     const tab = this.getCurrentTab();
     // electron/electron#50249: webContents is undefined after destruction in Electron 41+
     tab?.webView.webContents?.setZoomLevel(0);
   }
 
   public selectNextTab() {
+    if (this.overlayHandles()) {
+      return;
+    }
     const visible = this.visibleTabs();
     if (visible.length <= 1) {
       return;
@@ -411,6 +460,9 @@ export class TabsManager {
   }
 
   public selectPreviousTab() {
+    if (this.overlayHandles()) {
+      return;
+    }
     const visible = this.visibleTabs();
     if (visible.length <= 1) {
       return;
@@ -433,6 +485,9 @@ export class TabsManager {
   }
 
   public selectTabByIndex({ index }: { index: number }) {
+    if (this.overlayHandles()) {
+      return;
+    }
     const visible = this.visibleTabs();
     if (index >= 0 && index < visible.length) {
       const tab = visible[index];
@@ -444,6 +499,8 @@ export class TabsManager {
   }
 
   public teardown() {
+    this.studioOverlay.teardown();
+
     for (const tab of this.tabs) {
       this.closeTabView(tab);
     }
@@ -466,9 +523,18 @@ export class TabsManager {
         this.updateTabBounds(tab);
       }
     }
+    // The app-wide modal overlay tracks the full window, not the tab bounds.
+    this.studioOverlay.resize();
   }
 
   public zoomIn() {
+    if (
+      this.overlayHandles(() => {
+        this.studioOverlay.zoomIn();
+      })
+    ) {
+      return;
+    }
     const tab = this.getCurrentTab();
     if (tab) {
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
@@ -478,6 +544,13 @@ export class TabsManager {
   }
 
   public zoomOut() {
+    if (
+      this.overlayHandles(() => {
+        this.studioOverlay.zoomOut();
+      })
+    ) {
+      return;
+    }
     const tab = this.getCurrentTab();
     if (tab) {
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
@@ -598,6 +671,20 @@ export class TabsManager {
     );
   };
 
+  /**
+   * Tab commands defer to the app-wide modal overlay while it owns the
+   * foreground. Returns true (and the caller should bail) when the overlay is
+   * active. Pass `retarget` to drive the equivalent action on the overlay (e.g.
+   * back/forward/zoom); omit it to simply no-op the tab command.
+   */
+  private overlayHandles(retarget?: () => void): boolean {
+    if (!this.studioOverlay.isActive()) {
+      return false;
+    }
+    retarget?.();
+    return true;
+  }
+
   private revealTabWhenReady(tab: TabWithView) {
     const webContents = tab.webView.webContents;
     if (!webContents) {
@@ -702,6 +789,9 @@ export class TabsManager {
     if (shouldShieldUntilReady) {
       this.revealTabWhenReady(tab);
     }
+    // A newly selected tab is added at the top of the z-stack, so re-assert the
+    // app-wide modal overlay above it if one is open.
+    this.studioOverlay.reassertTopmost();
   }
 
   /** Pushes `view` to z=0 then re-asserts the shield at z=1, atomically. */

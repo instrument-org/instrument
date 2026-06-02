@@ -7,7 +7,6 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 
 import { rpcClient } from "../rpc/client";
 import { useAppState } from "./use-app-state";
-import { useDeveloperMode } from "./use-developer-mode";
 
 export function getSessionTags({
   sessionActors,
@@ -34,14 +33,13 @@ export function useAgentSessionStatus({
   sessionId: StoreId.Session | typeof skipToken | undefined;
   subdomain: ProjectSubdomain;
 }) {
-  const isDeveloperMode = useDeveloperMode();
   const { data: appState } = useAppState({ subdomain });
   const sessionActors = appState?.sessionActors ?? [];
 
   const { data: replayStatus } = useQuery(
-    rpcClient.workspace.debug.live.replayStatusBySubdomain.experimental_liveOptions(
-      { input: isDeveloperMode ? { subdomain } : skipToken },
-    ),
+    rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
+      input: sessionId && sessionId !== skipToken ? { subdomain } : skipToken,
+    }),
   );
   const isReplayActiveForSession =
     isReplayActive ||

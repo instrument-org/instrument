@@ -3,10 +3,9 @@ import {
   type SessionTag,
 } from "@instrument-org/workspace/client";
 import { PauseIcon } from "@phosphor-icons/react";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { useAppState } from "../hooks/use-app-state";
-import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { Spinner } from "./ui/spinner";
@@ -18,14 +17,11 @@ export function AppStatusIcon({
   className?: string;
   subdomain: ProjectSubdomain;
 }) {
-  const isDeveloperMode = useDeveloperMode();
   const { data: appState } = useAppState({ subdomain });
   const { data: replayStatus } = useQuery(
-    rpcClient.workspace.debug.live.replayStatusBySubdomain.experimental_liveOptions(
-      {
-        input: isDeveloperMode ? { subdomain } : skipToken,
-      },
-    ),
+    rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
+      input: { subdomain },
+    }),
   );
 
   const tags = appState?.sessionActors.flatMap((a) => a.tags) ?? [];

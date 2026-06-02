@@ -523,8 +523,8 @@ export const PromptInput = ({
           ref={fileInputRef}
           type="file"
         />
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2 self-end">
+        <div className="flex items-end justify-between gap-2 pt-2">
+          <div className="flex min-w-0 flex-1 items-end gap-2">
             <div className="min-w-0 flex-1">
               <ModelPicker
                 disabled={disabled || isLoading}
@@ -563,7 +563,7 @@ export const PromptInput = ({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                className="size-7 p-0"
+                className="size-8 p-0"
                 disabled={disabled || isLoading}
                 size="sm"
                 variant="ghost"

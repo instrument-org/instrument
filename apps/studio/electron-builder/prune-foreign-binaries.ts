@@ -13,7 +13,7 @@ import { Arch } from "electron-builder";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 
-type ElectronPlatform = "darwin" | "linux" | "win32";
+import type { ElectronPlatform } from "./paths";
 
 /**
  * Remove foreign-platform/arch vendored binaries from a packaged

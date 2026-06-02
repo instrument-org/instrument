@@ -62,7 +62,7 @@ runs:
           find node_modules/.pnpm -path '*/node_modules/@vscode/ripgrep' -maxdepth 6 -type d 2>/dev/null \
             | grep -E '/@vscode\+ripgrep@[0-9]+\.' | head -1
         )"
-        if ! pnpm exec jiti apps/studio/scripts/verify-ripgrep.ts; then
+        if ! pnpm exec jiti apps/studio/electron-builder/verify-ripgrep.ts; then
           echo "ripgrep install invalid; clearing download cache and reinstalling"
           rm -rf "${RUNNER_TEMP:-${TMPDIR:-/tmp}}"/vscode-ripgrep-cache-* \
                  /tmp/vscode-ripgrep-cache-* \
@@ -70,7 +70,7 @@ runs:
           if [ -n "${rg_dir:-}" ]; then
             node "$rg_dir/lib/postinstall.js" --force
           fi
-          pnpm exec jiti apps/studio/scripts/verify-ripgrep.ts
+          pnpm exec jiti apps/studio/electron-builder/verify-ripgrep.ts
         fi
       shell: bash
     - uses: rharkor/caching-for-turbo@00a0515f175df9fd2e15c4560144ad5fdbebb0c7 # v2.3.13

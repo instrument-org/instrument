@@ -55,6 +55,13 @@ export default [
     },
   },
   {
+    // Build-time hooks emit diagnostics to the release logs, same as scripts/.
+    files: ["electron-builder/**/*.{js,mjs,ts}"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
     files: ["src/{client,shared}/**/*.{js,jsx,ts,tsx}"],
     rules: {
       "no-restricted-imports": [

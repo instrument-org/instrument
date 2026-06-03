@@ -3,7 +3,7 @@ import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
-import { PORTS } from "@instrument-org/shared";
+import { APP_NAME, PORTS } from "@instrument-org/shared";
 import {
   AppSubdomainSchema,
   StoreId,
@@ -31,7 +31,7 @@ function buildSystemFrontMatter() {
   const env = app.isPackaged ? "production" : "development";
 
   return {
-    app: `Instrument v${app.getVersion()} (${env})`,
+    app: `${APP_NAME} v${app.getVersion()} (${env})`,
     locale: app.getLocale(),
     node: process.version,
     os: `${osName} ${os.release()} / ${os.arch()}`,

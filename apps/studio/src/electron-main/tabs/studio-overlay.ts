@@ -262,6 +262,16 @@ export function createStudioOverlayController({
         return Promise.resolve<StudioOverlayResult>({ completed: false });
       }
 
+      // Don't replace a non-dismissible overlay (e.g. welcome) with another
+      // kind — that would bypass the required flow.
+      if (
+        active &&
+        !active.settled &&
+        !STUDIO_OVERLAY_DISMISSIBLE[active.kind]
+      ) {
+        return Promise.resolve<StudioOverlayResult>({ completed: false });
+      }
+
       // Replace: resolve the previous caller. Leave `active` non-null so
       // setActive below sees open->open and emits no spurious close+open pair.
       if (active && !active.settled) {

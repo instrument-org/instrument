@@ -145,6 +145,9 @@ export const PromptInput = ({
   } = useQuery(rpcClient.gateway.models.live.list.experimental_liveOptions());
   const { errors: modelsErrors, models } = modelsData ?? {};
   const { data: subscription } = useLiveSubscriptionStatus();
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
   const hasPremium =
     subscription?.plan !== null && subscription?.plan !== undefined;
 
@@ -552,7 +555,9 @@ export const PromptInput = ({
                 onAddProvider={() => {
                   void rpcClient.studioOverlay.show.call({
                     kind: "login",
-                    props: { reason: "provider-required" },
+                    props: hasToken
+                      ? { reason: "provider-required" }
+                      : undefined,
                   });
                 }}
                 onClose={() => {

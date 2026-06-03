@@ -1,4 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Button } from "../ui/button";
@@ -20,11 +21,14 @@ export function ToolCapabilityFailure({
   retryMessage: string;
 }) {
   const [providerAdded, setProviderAdded] = useState(false);
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
 
   async function openProviderGuard() {
     const result = await rpcClient.studioOverlay.show.call({
       kind: "login",
-      props: { reason: "provider-required" },
+      props: hasToken ? { reason: "provider-required" } : undefined,
     });
     if (result.completed) {
       setProviderAdded(true);

@@ -95,3 +95,9 @@ window.api.onNavigate((url) => {
   }
   void router.navigate({ to: url });
 });
+
+// The warm overlay view navigates client-side with `replace` (it loads its
+// document once and stays warm). The main process flattens webContents history.
+window.api.onStudioOverlayNavigate((location) => {
+  void router.navigate({ replace: true, to: location });
+});

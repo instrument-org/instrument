@@ -7,17 +7,39 @@ import { APP_NAME } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
 import {
   createFileRoute,
+  redirect,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
+
+const UrlBoolSchema = z
+  .union([z.boolean(), z.enum(["true", "false"])])
+  .optional()
+  .transform((value) => value === true || value === "true");
+
+const NewTabSearchSchema = z.object({
+  privateBeta: UrlBoolSchema,
+});
 
 export const Route = createFileRoute("/_app/new-tab")({
+  beforeLoad: ({ search }) => {
+    if (!search.privateBeta) {
+      return;
+    }
+
+    void rpcClient.studioOverlay.show.call({ kind: "private-beta" });
+
+    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    throw redirect({ replace: true, search: {}, to: "/new-tab" });
+  },
   component: RouteComponent,
   head: () => {
     return { meta: [{ title: "New tab" }] };
   },
+  validateSearch: NewTabSearchSchema,
 });
 
 function RouteComponent() {

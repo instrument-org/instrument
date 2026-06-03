@@ -167,6 +167,10 @@ const openOnboarding = devOnly.input(z.void()).handler(() => {
   openOnboardingWindow();
 });
 
+const showOverlayIdle = devOnly.input(z.void()).handler(({ context }) => {
+  context.tabsManager?.studioOverlay.showIdle();
+});
+
 const openAuthTestPage = devOnly.input(z.void()).handler(() => {
   const port = app.isPackaged
     ? PORTS.authCallback.prod
@@ -216,6 +220,7 @@ export const debug = {
   openWorkspaceFolder,
   relaunchWithNewUserFolder,
   sessionMarkdown,
+  showOverlayIdle,
   systemInfo,
   throwError,
   trigger,

@@ -256,7 +256,7 @@ export function ModelPicker({
               }
             }}
           />
-          {autoModel && <hr className="border-t" />}
+          {autoModel && !hideModelList && <hr className="border-t" />}
           {hasModels && (
             <CommandInput
               autoFocus
@@ -281,6 +281,7 @@ export function ModelPicker({
             )}
             {hasModels ? null : (
               <NoProvidersMessage
+                hasAutoModel={!!autoModel}
                 onAddProvider={() => {
                   closePopover();
                   onAddProvider?.();
@@ -598,11 +599,29 @@ function ModelGroups({
   );
 }
 
-function NoProvidersMessage({ onAddProvider }: { onAddProvider: () => void }) {
+function NoProvidersMessage({
+  hasAutoModel,
+  onAddProvider,
+}: {
+  hasAutoModel: boolean;
+  onAddProvider: () => void;
+}) {
   return (
-    <div className="flex flex-col items-center gap-3 border-t py-6">
-      <p className="text-sm text-muted-foreground">
-        Connect a provider to use {APP_NAME}
+    <div
+      className={cn(
+        "flex flex-col items-center gap-3 py-6",
+        !hasAutoModel && "border-t",
+      )}
+    >
+      <p
+        className={cn(
+          "text-center text-muted-foreground",
+          hasAutoModel ? "text-xs" : "max-w-64 text-sm",
+        )}
+      >
+        {hasAutoModel
+          ? `Add an AI provider to use other models`
+          : `Connect a provider to use ${APP_NAME}`}
       </p>
       <Button onClick={onAddProvider} size="sm" variant="outline">
         <PlusIcon className="mr-2 size-4" />

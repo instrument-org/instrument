@@ -13,7 +13,7 @@ import {
   TextareaContainer,
   TextareaInner,
 } from "@/client/components/ui/textarea-container";
-import { useHasPremium } from "@/client/hooks/use-entitlements";
+import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import {
   type DroppedFolder,
@@ -144,18 +144,18 @@ export const PromptInput = ({
     refetch: modelsRefetch,
   } = useQuery(rpcClient.gateway.models.live.list.experimental_liveOptions());
   const { errors: modelsErrors, models } = modelsData ?? {};
-
-  const hasPremium = useHasPremium();
+  const { data: subscription } = useLiveSubscriptionStatus();
+  const hasPremium =
+    subscription?.plan !== null && subscription?.plan !== undefined;
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
 
-  const isInvalidOurModel =
-    !hasPremium &&
-    selectedModel &&
-    selectedModel.params.provider === OUR_MODELS.providerType &&
-    selectedModel.providerId !== OUR_MODELS.text.id &&
-    selectedModel.tags.includes("premium");
+  const isUnavailableModel = !!modelURI && !selectedModel && !!autoModel;
+  const isPremiumModelUnavailable =
+    !hasPremium && !!selectedModel?.tags.includes("premium");
+  const isInvalidSelectedModel =
+    isUnavailableModel || isPremiumModelUnavailable;
 
   const resetTextareaHeight = useCallback(() => {
     if (textareaInnerRef.current) {
@@ -313,6 +313,38 @@ export const PromptInput = ({
     selectedModel;
 
   const validateSubmission = () => {
+    if (isUnavailableModel) {
+      toast.error("Selected model is not available", {
+        action: {
+          label: "Use Auto",
+          onClick: () => {
+            onModelChange(autoModel.uri);
+          },
+        },
+        description: "Switch to Auto to continue.",
+        duration: 7000,
+      });
+      return false;
+    }
+
+    if (isPremiumModelUnavailable) {
+      if (autoModel) {
+        toast.error("Selected model requires a paid plan", {
+          action: {
+            label: "Use Auto",
+            onClick: () => {
+              onModelChange(autoModel.uri);
+            },
+          },
+          description: "Switch to Auto to continue.",
+          duration: 7000,
+        });
+      } else {
+        toast.error("Selected model requires a paid plan");
+      }
+      return false;
+    }
+
     if (!canSubmit) {
       if (!modelURI || !selectedModel) {
         toast.error("Select a model");
@@ -322,20 +354,6 @@ export const PromptInput = ({
 
     if (!isSubmittable) {
       toast.error("Agent is still running. Wait for it to finish or stop it.");
-      return false;
-    }
-
-    if (isInvalidOurModel && autoModel) {
-      toast.error("Invalid model selected", {
-        action: {
-          label: "Use Auto",
-          onClick: () => {
-            onModelChange(autoModel.uri);
-          },
-        },
-        description: "Only the Auto model is available without a paid plan.",
-        duration: 7000,
-      });
       return false;
     }
 
@@ -528,7 +546,7 @@ export const PromptInput = ({
                 disabled={disabled || isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
-                isInvalidOurModel={!!isInvalidOurModel}
+                isInvalidOurModel={isInvalidSelectedModel}
                 isLoading={modelsIsLoading}
                 models={models}
                 onAddProvider={() => {

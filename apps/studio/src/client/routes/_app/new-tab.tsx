@@ -1,4 +1,3 @@
-import { LifetimeUpgradeDialog } from "@/client/components/lifetime-upgrade-dialog";
 import { PromptInput } from "@/client/components/prompt-input";
 import { AnimatedOutlineAppIconGlyph } from "@/client/components/studio-icon";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
@@ -13,24 +12,15 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
 
-/* eslint-disable perfectionist/sort-objects */
 export const Route = createFileRoute("/_app/new-tab")({
   component: RouteComponent,
-  validateSearch: z.object({
-    dialog: z.enum(["lifetime"]).optional(),
-  }),
-  head: ({ match }) => {
-    const title =
-      match.search.dialog === "lifetime" ? "Get lifetime access" : "New tab";
-    return { meta: [{ title }] };
+  head: () => {
+    return { meta: [{ title: "New tab" }] };
   },
 });
-/* eslint-enable perfectionist/sort-objects */
 
 function RouteComponent() {
-  const { dialog } = Route.useSearch();
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const navigate = useNavigate({ from: "/new-tab" });
@@ -107,14 +97,6 @@ function RouteComponent() {
           ref={promptInputRef}
         />
       </div>
-      <LifetimeUpgradeDialog
-        onOpenChange={(open) => {
-          if (!open) {
-            void navigate({ search: {} });
-          }
-        }}
-        open={dialog === "lifetime"}
-      />
     </div>
   );
 }

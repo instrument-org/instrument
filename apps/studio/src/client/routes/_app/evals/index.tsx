@@ -25,7 +25,7 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { Textarea } from "@/client/components/ui/textarea";
-import { useHasPremium } from "@/client/hooks/use-entitlements";
+import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import {
@@ -140,7 +140,9 @@ function RouteComponent() {
     return models.filter((m) => m.params.provider === selectedProvider);
   }, [models, selectedProvider]);
 
-  const hasPremium = useHasPremium();
+  const { data: subscription } = useLiveSubscriptionStatus();
+  const hasPremium =
+    subscription?.plan !== null && subscription?.plan !== undefined;
 
   const groupedModels: GroupedModels = useMemo(
     () => groupAndFilterModels({ hasPremium, models: filteredModels }),

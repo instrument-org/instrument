@@ -26,10 +26,6 @@ const upgradeStates: {
     state: "out-of-credits",
   },
   {
-    description: "Logged in, on free plan, no lifetime — prompts to upgrade.",
-    state: "free-plan",
-  },
-  {
     description: "Not logged in — shown when there is no auth token.",
     state: "logged-out",
   },
@@ -77,7 +73,6 @@ function RouteComponent() {
                 <UpgradeSubscriptionAlertView
                   onContinue={() => toast.info("onContinue")}
                   onLogin={() => toast.info("onLogin")}
-                  onUpgrade={() => toast.info("onUpgrade")}
                   state={state}
                 />
               </div>

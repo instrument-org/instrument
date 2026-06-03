@@ -1,4 +1,3 @@
-import { AppIconGlyph } from "@/client/components/studio-icon";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -13,7 +12,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
-import { useHasPremium } from "@/client/hooks/use-entitlements";
+import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import {
   getGroupedModelsEntries,
   groupAndFilterModels,
@@ -35,7 +34,6 @@ import {
   WarningCircleIcon,
   WarningIcon,
 } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -96,9 +94,9 @@ export function ModelPicker({
     setSearchQuery("");
     onClose?.();
   };
-  const navigate = useNavigate();
-  const hasPremium = useHasPremium();
-
+  const { data: subscription } = useLiveSubscriptionStatus();
+  const hasPremium =
+    subscription?.plan !== null && subscription?.plan !== undefined;
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
   const modelsWithoutAuto = useMemo(
     () => models?.filter((m) => m.providerId !== OUR_MODELS.text.id) ?? [],
@@ -106,7 +104,7 @@ export function ModelPicker({
   );
   const groupedModels = useMemo(
     () => groupAndFilterModels({ hasPremium, models: modelsWithoutAuto }),
-    [modelsWithoutAuto, hasPremium],
+    [hasPremium, modelsWithoutAuto],
   );
 
   type GroupedMatchedModels = Record<string, MatchedModel[]>;
@@ -226,7 +224,7 @@ export function ModelPicker({
                   </TooltipTrigger>
                   <TooltipContent>
                     {isInvalidOurModel ? (
-                      <p>Model requires a paid plan.</p>
+                      <p>Model is not available.</p>
                     ) : (
                       <p>{selectedModel.providerName}</p>
                     )}
@@ -304,18 +302,11 @@ export function ModelPicker({
                   onAddProvider?.();
                 }}
                 onSelectModel={(uri, requiresPremium, modelName) => {
-                  if (requiresPremium && autoModel) {
-                    toast.info("Model requires paid plan", {
-                      action: {
-                        label: "Upgrade",
-                        onClick: () => {
-                          void navigate({ to: "/get-lifetime" });
-                        },
-                      },
+                  if (requiresPremium) {
+                    toast.info("Model requires a paid plan", {
                       description: `${modelName} is available with a paid ${APP_NAME} plan.`,
                       dismissible: true,
                       duration: 7000,
-                      icon: <AppIconGlyph className="size-4 text-brand-400" />,
                     });
                   } else {
                     onValueChange(uri);
@@ -343,8 +334,6 @@ function AutoModeSwitch({
   isInvalidOurModel: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
-  const navigate = useNavigate();
-
   if (!autoModel) {
     return null;
   }
@@ -360,7 +349,7 @@ function AutoModeSwitch({
         <div className="flex items-start gap-1.5">
           <WarningIcon className="mt-0.5 size-3 shrink-0 text-destructive/70" />
           <span className="text-xs text-muted-foreground">
-            Your selected model is not available without a paid plan.
+            Your selected model is not available.
           </span>
         </div>
         <div className="flex gap-2">
@@ -374,17 +363,6 @@ function AutoModeSwitch({
             variant="outline"
           >
             Switch to Auto
-          </Button>
-          <Button
-            className="flex-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              void navigate({ to: "/get-lifetime" });
-            }}
-            size="sm"
-            variant="default"
-          >
-            Upgrade
           </Button>
         </div>
       </div>

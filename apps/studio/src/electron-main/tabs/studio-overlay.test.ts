@@ -256,6 +256,26 @@ describe("createStudioOverlayController", () => {
     expect(controller.isActive()).toBe(false);
   });
 
+  it("show does not replace a non-dismissible active overlay", async () => {
+    const { baseWindow } = makeBaseWindow();
+    const controller = createStudioOverlayController({
+      baseWindow,
+      onClosed: vi.fn(),
+    });
+
+    const welcome = controller.show({ kind: "welcome" });
+    expect(controller.activeKind()).toBe("welcome");
+
+    // Attempting to open settings while welcome is active must be a no-op.
+    const settings = controller.show({ kind: "settings" });
+    await expect(settings).resolves.toEqual({ completed: false });
+    expect(controller.activeKind()).toBe("welcome");
+    expect(controller.isActive()).toBe(true);
+
+    controller.resolve();
+    await expect(welcome).resolves.toEqual({ completed: true });
+  });
+
   it("fail closes a non-dismissible kind", async () => {
     const { baseWindow } = makeBaseWindow();
     const controller = createStudioOverlayController({

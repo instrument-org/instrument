@@ -5,6 +5,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
+import { Switch } from "@/client/components/ui/switch";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -16,6 +17,7 @@ import {
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/studio-overlay/settings/")({
   component: SettingsGeneralPage,
@@ -314,6 +316,52 @@ function SettingsGeneralPage() {
       <AccountInfo />
       <InterfaceAndTheme />
       <About />
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-base font-semibold">Advanced</h3>
+        </div>
+        <UsageMetrics />
+      </div>
     </div>
+  );
+}
+
+function UsageMetrics() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+
+  const setUsageMetricsMutation = useMutation(
+    rpcClient.preferences.setEnableUsageMetrics.mutationOptions(),
+  );
+
+  const handleToggleUsageMetrics = async (checked: boolean) => {
+    try {
+      await setUsageMetricsMutation.mutateAsync({ enabled: checked });
+      toast.success(
+        checked ? "Usage metrics enabled" : "Usage metrics disabled",
+        { position: "bottom-center" },
+      );
+    } catch {
+      toast.error("Failed to update usage metrics preference", {
+        position: "bottom-center",
+      });
+    }
+  };
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center space-x-2">
+        <Switch
+          checked={preferences?.enableUsageMetrics ?? false}
+          disabled={setUsageMetricsMutation.isPending}
+          id="usage-metrics"
+          onCheckedChange={handleToggleUsageMetrics}
+        />
+        <Label className="inline" htmlFor="usage-metrics">
+          Help {APP_NAME} improve by submitting usage metrics
+        </Label>
+      </div>
+    </Card>
   );
 }

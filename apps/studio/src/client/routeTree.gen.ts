@@ -34,7 +34,6 @@ import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
 import { Route as StudioOverlaySettingsProvidersRouteImport } from './routes/studio-overlay/settings/providers'
 import { Route as StudioOverlaySettingsFeaturesRouteImport } from './routes/studio-overlay/settings/features'
 import { Route as StudioOverlaySettingsDebugRouteImport } from './routes/studio-overlay/settings/debug'
-import { Route as StudioOverlaySettingsAdvancedRouteImport } from './routes/studio-overlay/settings/advanced'
 import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/notifications'
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
 import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
@@ -183,12 +182,6 @@ const StudioOverlaySettingsDebugRoute =
     path: '/debug',
     getParentRoute: () => StudioOverlaySettingsRoute,
   } as any)
-const StudioOverlaySettingsAdvancedRoute =
-  StudioOverlaySettingsAdvancedRouteImport.update({
-    id: '/advanced',
-    path: '/advanced',
-    getParentRoute: () => StudioOverlaySettingsRoute,
-  } as any)
 const AppDebugNotificationsRoute = AppDebugNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -327,7 +320,6 @@ export interface FileRoutesByFullPath {
   '/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
-  '/studio-overlay/settings/advanced': typeof StudioOverlaySettingsAdvancedRoute
   '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
@@ -369,7 +361,6 @@ export interface FileRoutesByTo {
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
-  '/studio-overlay/settings/advanced': typeof StudioOverlaySettingsAdvancedRoute
   '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
@@ -417,7 +408,6 @@ export interface FileRoutesById {
   '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/_app/debug/errors': typeof AppDebugErrorsRoute
   '/_app/debug/notifications': typeof AppDebugNotificationsRoute
-  '/studio-overlay/settings/advanced': typeof StudioOverlaySettingsAdvancedRoute
   '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
@@ -465,7 +455,6 @@ export interface FileRouteTypes {
     | '/debug/components'
     | '/debug/errors'
     | '/debug/notifications'
-    | '/studio-overlay/settings/advanced'
     | '/studio-overlay/settings/debug'
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
@@ -507,7 +496,6 @@ export interface FileRouteTypes {
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
-    | '/studio-overlay/settings/advanced'
     | '/studio-overlay/settings/debug'
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
@@ -554,7 +542,6 @@ export interface FileRouteTypes {
     | '/_app/debug/components'
     | '/_app/debug/errors'
     | '/_app/debug/notifications'
-    | '/studio-overlay/settings/advanced'
     | '/studio-overlay/settings/debug'
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
@@ -763,13 +750,6 @@ declare module '@tanstack/react-router' {
       path: '/debug'
       fullPath: '/studio-overlay/settings/debug'
       preLoaderRoute: typeof StudioOverlaySettingsDebugRouteImport
-      parentRoute: typeof StudioOverlaySettingsRoute
-    }
-    '/studio-overlay/settings/advanced': {
-      id: '/studio-overlay/settings/advanced'
-      path: '/advanced'
-      fullPath: '/studio-overlay/settings/advanced'
-      preLoaderRoute: typeof StudioOverlaySettingsAdvancedRouteImport
       parentRoute: typeof StudioOverlaySettingsRoute
     }
     '/_app/debug/notifications': {
@@ -1046,7 +1026,6 @@ const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
 )
 
 interface StudioOverlaySettingsRouteChildren {
-  StudioOverlaySettingsAdvancedRoute: typeof StudioOverlaySettingsAdvancedRoute
   StudioOverlaySettingsDebugRoute: typeof StudioOverlaySettingsDebugRoute
   StudioOverlaySettingsFeaturesRoute: typeof StudioOverlaySettingsFeaturesRoute
   StudioOverlaySettingsProvidersRoute: typeof StudioOverlaySettingsProvidersRoute
@@ -1054,7 +1033,6 @@ interface StudioOverlaySettingsRouteChildren {
 }
 
 const StudioOverlaySettingsRouteChildren: StudioOverlaySettingsRouteChildren = {
-  StudioOverlaySettingsAdvancedRoute: StudioOverlaySettingsAdvancedRoute,
   StudioOverlaySettingsDebugRoute: StudioOverlaySettingsDebugRoute,
   StudioOverlaySettingsFeaturesRoute: StudioOverlaySettingsFeaturesRoute,
   StudioOverlaySettingsProvidersRoute: StudioOverlaySettingsProvidersRoute,

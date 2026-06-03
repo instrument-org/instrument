@@ -15,10 +15,12 @@ const complete = base.handler(async () => {
       initialPath: PRIVATE_BETA_PATH,
     });
   } else {
-    getTabsManager()?.addTab({
-      params: { privateBeta: "true" },
-      urlPath: PRIVATE_BETA_PATH,
-    });
+    if (existingMainWindow.isVisible()) {
+      getTabsManager()?.addTab({
+        params: { privateBeta: "true" },
+        urlPath: PRIVATE_BETA_PATH,
+      });
+    }
     existingMainWindow.show();
     existingMainWindow.focus();
   }

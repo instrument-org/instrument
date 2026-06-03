@@ -14,9 +14,11 @@ import {
 } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
+  getOnboardingWindow,
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
+import { type StudioPath } from "@/shared/studio-path";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -63,13 +65,15 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (gotTheLock) {
   app.on("second-instance", (_event, commandLine) => {
     const mainWindow = getMainWindow();
-    if (mainWindow) {
+    if (mainWindow?.isVisible()) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
       }
       mainWindow.focus();
       const tabsManager = getTabsManager();
       tabsManager?.focusCurrentTab();
+    } else {
+      getOnboardingWindow()?.focus();
     }
 
     const url = commandLine.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
@@ -175,6 +179,11 @@ void app.whenReady().then(async () => {
 
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
+    void createMainWindow({
+      initialParams: { privateBeta: "true" },
+      initialPath: "/new-tab" satisfies StudioPath,
+      reveal: false,
+    });
   } else {
     await createMainWindow();
   }
@@ -200,7 +209,7 @@ void app.whenReady().then(async () => {
 
 function handleDeepLink(_url: string) {
   const mainWindow = getMainWindow();
-  if (mainWindow) {
+  if (mainWindow?.isVisible()) {
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
     }
@@ -210,7 +219,9 @@ function handleDeepLink(_url: string) {
     if (tabsManager) {
       tabsManager.focusCurrentTab();
     }
+    return;
   }
+  getOnboardingWindow()?.focus();
 }
 
 function shouldShowOnboarding(): boolean {

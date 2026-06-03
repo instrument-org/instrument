@@ -5,14 +5,20 @@ import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { closeOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { type StudioPath } from "@/shared/studio-path";
 
-const TUTORIAL_TASK_PATH: StudioPath = "/tutorial-task";
+const PRIVATE_BETA_PATH: StudioPath = "/new-tab";
 
 const complete = base.handler(async () => {
   const existingMainWindow = getMainWindow();
   if (!existingMainWindow || existingMainWindow.isDestroyed()) {
-    await createMainWindow({ initialPath: TUTORIAL_TASK_PATH });
+    await createMainWindow({
+      initialParams: { privateBeta: "true" },
+      initialPath: PRIVATE_BETA_PATH,
+    });
   } else {
-    getTabsManager()?.addTab({ urlPath: TUTORIAL_TASK_PATH });
+    getTabsManager()?.addTab({
+      params: { privateBeta: "true" },
+      urlPath: PRIVATE_BETA_PATH,
+    });
     existingMainWindow.show();
     existingMainWindow.focus();
   }

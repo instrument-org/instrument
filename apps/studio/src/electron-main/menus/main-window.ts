@@ -2,6 +2,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
 import { getTabsManager } from "@/electron-main/tabs";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { STUDIO_OVERLAY_DISMISSIBLE } from "@/shared/studio-overlay";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { captureServerEvent } from "../lib/capture-server-event";
@@ -20,6 +21,11 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
   // which also reliably swallows their accelerators on all platforms. The menu
   // is rebuilt on modal open/close (see menus/index.ts), so this is re-read.
   const isLocked = getTabsManager()?.studioOverlay.isActive() ?? false;
+  // Disabling "Close" for a non-dismissible overlay also swallows its Cmd+W.
+  const activeOverlayKind =
+    getTabsManager()?.studioOverlay.activeKind() ?? null;
+  const canCloseOverlay =
+    activeOverlayKind === null || STUDIO_OVERLAY_DISMISSIBLE[activeOverlayKind];
 
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
@@ -67,8 +73,8 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             tabsManager.closeTab({ id: selectedTabId });
           }
         },
-        // Stays enabled while the modal is open so Cmd+W can close the modal;
-        // the menu is rebuilt on open/close so the label tracks the action.
+        // Disabled for a non-dismissible modal; rebuilt on open/close.
+        enabled: canCloseOverlay,
         label: isLocked ? "Close" : "Close Tab",
       },
       {

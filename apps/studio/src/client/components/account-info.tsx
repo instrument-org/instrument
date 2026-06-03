@@ -3,7 +3,6 @@ import { Card } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { logOut } from "@/client/lib/log-out";
-import { openLogin } from "@/client/lib/studio-overlay";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -102,7 +101,7 @@ export function AccountInfo() {
                 </div>
                 <Button
                   onClick={() => {
-                    openLogin();
+                    void rpcClient.studioOverlay.show.call({ kind: "login" });
                   }}
                   variant="brand"
                 >

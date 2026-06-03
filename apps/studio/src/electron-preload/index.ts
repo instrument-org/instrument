@@ -7,6 +7,10 @@ const api: Window["api"] = {
     ipcRenderer.on("navigate", (_event, value: string) => {
       callback(value);
     }),
+  onStudioOverlayNavigate: (callback: (location: string) => void) =>
+    ipcRenderer.on("studio-overlay:navigate", (_event, location: string) => {
+      callback(location);
+    }),
 };
 
 const tabId = process.argv

@@ -10,9 +10,9 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
-import { resolveStudioOverlay } from "@/client/lib/studio-overlay";
 import { SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { StudioOverlayLoginSearchSchema } from "@/shared/studio-overlay";
 import { XIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -68,7 +68,7 @@ function LoginModal() {
       {page === "success" ? (
         <OnboardingSuccessScreen
           onContinue={() => {
-            resolveStudioOverlay();
+            void rpcClient.studioOverlay.resolve.call();
           }}
         />
       ) : (
@@ -83,7 +83,7 @@ function LoginModal() {
                 }
           }
           onContinue={() => {
-            resolveStudioOverlay();
+            void rpcClient.studioOverlay.resolve.call();
           }}
           onLogin={login}
           onLoginSuccess={() => {

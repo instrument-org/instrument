@@ -38,7 +38,7 @@ interface FakeWebContents {
     goBack: ReturnType<typeof vi.fn>;
     goForward: ReturnType<typeof vi.fn>;
   };
-  once: ReturnType<typeof vi.fn>;
+  send: ReturnType<typeof vi.fn>;
   setWindowOpenHandler: ReturnType<typeof vi.fn>;
 }
 
@@ -58,12 +58,7 @@ vi.mock("electron", () => ({
           goBack: vi.fn(),
           goForward: vi.fn(),
         },
-        // Invoke did-finish-load handlers synchronously so history.clear runs.
-        once: vi.fn((event: string, handler: () => void) => {
-          if (event === "did-finish-load") {
-            handler();
-          }
-        }),
+        send: vi.fn(),
         setWindowOpenHandler: vi.fn(),
       },
     };
@@ -109,25 +104,50 @@ describe("createStudioOverlayController", () => {
     expect(onClosed).toHaveBeenCalledTimes(1);
   });
 
-  it("dismiss hides and parks the view but keeps it warm (not closed)", async () => {
+  it("boots the document once, then navigates via replace IPC", async () => {
     const { baseWindow, removeChildView } = makeBaseWindow();
     const controller = createStudioOverlayController({
       baseWindow,
       onClosed: vi.fn(),
     });
 
-    const promise = controller.show({ kind: "login" });
-    controller.dismiss();
+    const first = controller.show({ kind: "login" });
+    const { webContents } = createdViews[0] ?? {};
+    // First open boots the renderer document with a real load (no clear, no
+    // IPC navigate: the load itself lands on the route).
+    expect(webContents?.loadURL).toHaveBeenCalledTimes(1);
+    expect(webContents?.loadURL).toHaveBeenLastCalledWith(
+      "studio:///studio-overlay/login",
+    );
+    expect(webContents?.send).not.toHaveBeenCalled();
+    expect(webContents?.navigationHistory.clear).not.toHaveBeenCalled();
 
-    await expect(promise).resolves.toEqual({ completed: false });
+    controller.dismiss();
+    await expect(first).resolves.toEqual({ completed: false });
+    // Dismiss unmounts the view but keeps it warm: removed from the window,
+    // parked on idle over IPC, and never closed so reopening is instant.
     expect(removeChildView).toHaveBeenCalledTimes(1);
-    // The warm view is reused across opens, so its webContents stays alive.
-    expect(createdViews[0]?.webContents.close).not.toHaveBeenCalled();
-    // It is parked on the idle route so the hidden renderer goes quiet.
-    expect(createdViews[0]?.webContents.loadURL).toHaveBeenLastCalledWith(
-      "studio:///studio-overlay-idle",
+    expect(webContents?.close).not.toHaveBeenCalled();
+    expect(webContents?.send).toHaveBeenLastCalledWith(
+      "studio-overlay:navigate",
+      "/studio-overlay-idle",
     );
     expect(controller.isActive()).toBe(false);
+
+    // Parking and the next open are client-side replace navigation over IPC,
+    // never a second document load, so the view stays warm. The open flattens
+    // webContents history first so back/forward can't reach idle or a prior
+    // open's pushed sub-routes.
+    const second = controller.show({ kind: "settings" });
+    expect(webContents?.loadURL).toHaveBeenCalledTimes(1);
+    expect(webContents?.navigationHistory.clear).toHaveBeenCalledTimes(1);
+    expect(webContents?.send.mock.calls).toEqual([
+      ["studio-overlay:navigate", "/studio-overlay-idle"],
+      ["studio-overlay:navigate", "/studio-overlay/settings"],
+    ]);
+
+    controller.dismiss();
+    await expect(second).resolves.toEqual({ completed: false });
   });
 
   it("reuses the same warm view when reopened after dismiss", async () => {
@@ -198,6 +218,7 @@ describe("createStudioOverlayController", () => {
 
     const first = controller.show({ kind: "settings" });
     const view = createdViews[0];
+    expect(addChildView).toHaveBeenCalledTimes(1);
     view?.webContents.focus.mockClear();
 
     // Same kind + same props (e.g. pressing the settings hotkey again).
@@ -214,17 +235,37 @@ describe("createStudioOverlayController", () => {
     await expect(first).resolves.toEqual({ completed: false });
   });
 
-  it("fail resolves as not completed", async () => {
+  it("dismiss is a no-op for a non-dismissible kind, but fail/resolve still close it", async () => {
     const { baseWindow } = makeBaseWindow();
     const controller = createStudioOverlayController({
       baseWindow,
       onClosed: vi.fn(),
     });
 
-    const promise = controller.show({ kind: "login" });
-    controller.fail();
+    const promise = controller.show({ kind: "private-beta" });
+    // Cmd+W / Escape / click-outside all route through dismiss(); it must not
+    // close a kind the user has to finish.
+    controller.dismiss();
+    expect(controller.isActive()).toBe(true);
+    expect(controller.activeKind()).toBe("private-beta");
 
+    // Completing the flow (resolve) still closes it.
+    controller.resolve();
+    await expect(promise).resolves.toEqual({ completed: true });
+    expect(controller.isActive()).toBe(false);
+  });
+
+  it("fail closes a non-dismissible kind", async () => {
+    const { baseWindow } = makeBaseWindow();
+    const controller = createStudioOverlayController({
+      baseWindow,
+      onClosed: vi.fn(),
+    });
+
+    const promise = controller.show({ kind: "private-beta" });
+    controller.fail();
     await expect(promise).resolves.toEqual({ completed: false });
+    expect(controller.isActive()).toBe(false);
   });
 
   it("onActiveChange fires once on open and once on close, not on replace", () => {
@@ -255,12 +296,17 @@ describe("createStudioOverlayController", () => {
     });
 
     void controller.show({ kind: "login" });
-    const history = createdViews[0]?.webContents.navigationHistory;
+    const { webContents } = createdViews[0] ?? {};
+    const history = webContents?.navigationHistory;
+    // Showing focuses the view; clear so we only count the nav-driven focuses.
+    webContents?.focus.mockClear();
 
     controller.goBack();
     controller.goForward();
 
     expect(history?.goBack).toHaveBeenCalledTimes(1);
     expect(history?.goForward).toHaveBeenCalledTimes(1);
+    // Each nav pulls focus back into the overlay so keyboard input lands there.
+    expect(webContents?.focus).toHaveBeenCalledTimes(2);
   });
 });

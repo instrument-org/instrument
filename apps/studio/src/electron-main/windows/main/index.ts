@@ -29,8 +29,12 @@ let wasWindowBlurred = false;
 const LINUX_RESIZE_FOLLOW_UP_DELAY_MS = 100;
 
 export async function createMainWindow({
+  initialParams,
   initialPath,
-}: { initialPath?: StudioPath } = {}) {
+}: {
+  initialParams?: Record<string, string>;
+  initialPath?: StudioPath;
+} = {}) {
   let icon: string | undefined;
   try {
     const iconModule = await import("../../../../resources/icon.png?asset");
@@ -152,7 +156,7 @@ export async function createMainWindow({
   });
 
   void mainWindow.loadURL(studioURL("/shell"));
-  await tabsManager.initialize({ initialPath });
+  await tabsManager.initialize({ initialParams, initialPath });
   showWindow(mainWindow);
 
   if (getWindowState().isMaximized) {

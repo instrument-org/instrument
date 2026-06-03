@@ -349,12 +349,14 @@ export class TabsManager {
   }
 
   public async initialize({
+    initialParams,
     initialPath,
   }: {
+    initialParams?: Record<string, string>;
     initialPath?: StudioPath;
   } = {}) {
     if (initialPath) {
-      this.addTab({ urlPath: initialPath });
+      this.addTab({ params: initialParams, urlPath: initialPath });
       return;
     }
 

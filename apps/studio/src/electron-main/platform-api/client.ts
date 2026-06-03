@@ -2,10 +2,7 @@ import { APP_CLIENT_NAME_STUDIO } from "@instrument-org/shared";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { DedupeRequestsPlugin } from "@orpc/client/plugins";
-import {
-  type ContractRouterClient,
-  type InferContractRouterOutputs,
-} from "@orpc/contract";
+import { type ContractRouterClient } from "@orpc/contract";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryClient } from "@tanstack/query-core";
 import { app } from "electron";
@@ -51,9 +48,6 @@ const RPC_LINK = new RPCLink({
 const baseClient: ContractRouterClient<typeof contract> =
   createORPCClient(RPC_LINK);
 export const platformApiRpcClient = createTanstackQueryUtils(baseClient);
-
-export type Subscription = Outputs["users"]["getSubscriptionStatus"];
-type Outputs = InferContractRouterOutputs<typeof contract>;
 
 export const platformApiQueryClient = new QueryClient({
   defaultOptions: {

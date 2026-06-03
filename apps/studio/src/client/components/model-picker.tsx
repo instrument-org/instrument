@@ -18,9 +18,8 @@ import {
   groupAndFilterModels,
 } from "@/client/lib/group-models";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
-import { openSettings } from "@/client/lib/studio-overlay";
 import { cn } from "@/client/lib/utils";
-import { type RPCOutput } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
@@ -403,11 +402,17 @@ function ErrorsGroup({
             className="h-6 px-2 text-xs"
             onClick={() => {
               if (hasOurProviderError) {
-                openSettings({ tab: "General" });
+                void rpcClient.studioOverlay.show.call({
+                  kind: "settings",
+                  props: { tab: "General" },
+                });
               } else {
-                openSettings({
-                  showNewProviderDialog: false,
-                  tab: "Providers",
+                void rpcClient.studioOverlay.show.call({
+                  kind: "settings",
+                  props: {
+                    showNewProviderDialog: false,
+                    tab: "Providers",
+                  },
                 });
               }
             }}

@@ -83,6 +83,10 @@ export function DevPanel() {
     rpcClient.debug.openOnboarding.mutationOptions(),
   );
 
+  const { mutate: showOverlayIdle } = useMutation(
+    rpcClient.debug.showOverlayIdle.mutationOptions(),
+  );
+
   const { mutate: openAuthTestPage } = useMutation(
     rpcClient.debug.openAuthTestPage.mutationOptions(),
   );
@@ -278,7 +282,7 @@ export function DevPanel() {
               </MenubarSub>
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
-                  Modals
+                  Overlay
                 </MenubarSubTrigger>
                 <MenubarSubContent>
                   <MenubarItem
@@ -293,11 +297,38 @@ export function DevPanel() {
                     className="font-mono text-xs"
                     onSelect={() => {
                       void rpcClient.studioOverlay.show.call({
+                        kind: "private-beta",
+                      });
+                    }}
+                  >
+                    Private beta
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      void rpcClient.studioOverlay.show.call({
                         kind: "settings",
                       });
                     }}
                   >
                     Settings
+                  </MenubarItem>
+                  <MenubarSeparator />
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      void rpcClient.studioOverlay.show.call({ kind: "crash" });
+                    }}
+                  >
+                    Simulate overlay error
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      showOverlayIdle();
+                    }}
+                  >
+                    Simulate stuck idle view
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

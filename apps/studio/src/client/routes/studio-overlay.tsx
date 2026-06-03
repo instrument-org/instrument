@@ -1,13 +1,12 @@
 import { Dialog } from "@/client/components/ui/dialog";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useUpdateNotifications } from "@/client/hooks/use-update-notifications";
-import { dismissStudioOverlay } from "@/client/lib/studio-overlay";
+import { rpcClient } from "@/client/rpc/client";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/studio-overlay")({
   component: AppModalLayout,
-  // Bare `/studio-overlay` has no UI of its own; default to the login kind so the
-  // controller (and any direct navigation) lands on a real child route.
+  // Bare `/studio-overlay` has no UI; default to a real child route.
   loader: ({ location }) => {
     if (location.pathname === "/studio-overlay") {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
@@ -30,7 +29,7 @@ function AppModalLayout() {
     <Dialog
       onOpenChange={(open) => {
         if (!open) {
-          dismissStudioOverlay();
+          void rpcClient.studioOverlay.dismiss.call();
         }
       }}
       open

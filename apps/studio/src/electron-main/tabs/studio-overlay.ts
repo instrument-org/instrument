@@ -3,6 +3,7 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import { tryCaptureError } from "@/electron-main/lib/try-capture-error";
 import { unsafe_studioURL } from "@/electron-main/lib/urls";
 import {
+  STUDIO_OVERLAY_DISMISSIBLE,
   type StudioOverlayKind,
   type StudioOverlayRequest,
   studioOverlayRequestToLocation,
@@ -11,56 +12,35 @@ import {
 import { type StudioPath } from "@/shared/studio-path";
 import { type BaseWindow, type WebContents, WebContentsView } from "electron";
 import path from "node:path";
+import { noop } from "radashi";
 
 /**
- * Owns the single app-wide modal overlay: a topmost WebContentsView that
- * covers the entire window (toolbar, sidebar, and the active tab). It is
- * deliberately separate from the tab z-stack so it can never be sunk behind
- * the shield, and it is sized to the full window rather than the tab content
- * area.
- *
- * Lifecycle is driven by the studioOverlay RPC: `show` returns a promise that
- * resolves once the overlay renderer calls `complete`/`dismiss`, the modal is
- * replaced by another `show`, or it errors.
+ * Owns the single app-wide modal overlay: a topmost WebContentsView covering
+ * the whole window. `show` resolves once the renderer reports completion, the
+ * modal is replaced by another `show`, or it is dismissed/fails.
  */
 export interface StudioOverlayController {
-  /** The kind of the active overlay, or null when none is open. */
   activeKind: () => null | StudioOverlayKind;
-  /** Resolve the active overlay as dismissed and tear down its view. */
+  /** No-op for non-dismissible kinds (see `STUDIO_OVERLAY_DISMISSIBLE`). */
   dismiss: () => void;
-  /** Resolve the active overlay as failed (not completed) and tear it down. */
   fail: () => void;
-  /**
-   * Navigate the overlay's own history back. Inert until the overlay route
-   * gains multi-entry history (e.g. settings), but lets native back/forward
-   * target the overlay (not the tab) while it is open.
-   */
   goBack: () => void;
-  /** Navigate the overlay's own history forward. See `goBack`. */
   goForward: () => void;
-  /** Whether an overlay is currently mounted. */
   isActive: () => boolean;
-  /** Re-add the overlay on top of the z-stack after tab views are restacked. */
+  /** Re-add the overlay on top after tab views are restacked. */
   reassertTopmost: () => void;
-  /** Reload the overlay's own webContents. */
   reload: () => void;
-  /** Reset the overlay's zoom to the default level. */
   resetZoom: () => void;
-  /** Keep the overlay aligned with the window; call on every window resize. */
+  /** Keep the overlay aligned with the window; call on every resize. */
   resize: () => void;
-  /**
-   * Resolve the active overlay as completed (the renderer reporting success)
-   * and tear it down. Non-completion outcomes (dismiss/error/replace) are
-   * produced internally and resolve as `{ completed: false }`.
-   */
+  /** Resolve the active overlay as completed and tear it down. */
   resolve: () => void;
-  /** Mount the overlay and resolve when the flow finishes. */
   show: (request: StudioOverlayRequest) => Promise<StudioOverlayResult>;
+  /** Debug only: mount the view visibly on the idle route to test escape. */
+  showIdle: () => void;
   /** Remove and destroy the overlay without resolving (window teardown). */
   teardown: () => void;
-  /** Zoom the overlay in by one step. */
   zoomIn: () => void;
-  /** Zoom the overlay out by one step. */
   zoomOut: () => void;
 }
 
@@ -85,12 +65,7 @@ function withActiveWebContents(
   }
 }
 
-/**
- * Idle parking route for the warm view. While hidden the view is navigated
- * here (instead of left on an `/studio-overlay/*` route) so its renderer mounts no
- * layout and runs no live queries/timers. Keep in sync with the file route at
- * `routes/studio-overlay-idle.tsx`.
- */
+/** Where the warm view parks while hidden: a route that renders nothing. */
 const IDLE_LOCATION = "/studio-overlay-idle" satisfies StudioPath;
 
 export function createStudioOverlayController({
@@ -105,10 +80,12 @@ export function createStudioOverlayController({
   onClosed: () => void;
 }): StudioOverlayController {
   let active: ActiveOverlay | null = null;
-  // The overlay's WebContentsView is created on first show and then kept alive
-  // (hidden, parked on the idle route) across opens so reopening is instant: no
-  // new process, no fresh renderer boot. It is only destroyed on teardown.
+  // Created on first show, then kept alive (hidden, parked on idle) across opens
+  // so reopening is instant. Destroyed only on teardown.
   let warmView: null | WebContentsView = null;
+  // First open boots the document with a real load; later opens/parks navigate
+  // the warm renderer client-side over IPC.
+  let booted = false;
 
   function setActive(next: ActiveOverlay | null) {
     const wasActive = active !== null;
@@ -120,13 +97,11 @@ export function createStudioOverlayController({
   }
 
   function computeBounds() {
-    // Cover the entire window, including the toolbar and sidebar drawn by the
-    // shell webContents. getContentBounds because the window is frameless.
+    // getContentBounds (not bounds) because the window is frameless.
     const { height, width } = baseWindow.getContentBounds();
     return { height, width, x: 0, y: 0 };
   }
 
-  /** Create the overlay view once, configured but not yet navigated. */
   function createWarmView() {
     const view = new WebContentsView({
       webPreferences: {
@@ -136,12 +111,10 @@ export function createStudioOverlayController({
       },
     });
 
-    // Dock DevTools at the bottom: docked-default could land under the modal's
-    // draggable top strip, which swallows clicks on the DevTools toolbar.
+    // Bottom dock: the default could land under the draggable top strip, which
+    // swallows clicks on the DevTools toolbar.
     createContextMenu({ inspectMode: "bottom", windowOrWebContentsView: view });
-    // Transparent so the renderer's scrim composites over the tab and sidebar
-    // beneath it. An opaque background here would hide everything behind the
-    // overlay regardless of the renderer's semi-transparent scrim.
+    // Transparent so the renderer's scrim composites over the content beneath.
     view.setBackgroundColor("#00000000");
     view.setBounds(computeBounds());
 
@@ -153,55 +126,59 @@ export function createStudioOverlayController({
     return view;
   }
 
-  /** The warm view, creating it on first use. */
   function ensureWarmView() {
     warmView ??= createWarmView();
     return warmView;
   }
 
   /**
-   * Navigate the warm view to a location as a fresh entry, then drop prior
-   * history so the overlay's own back/forward can never cross sessions (e.g.
-   * back out of a freshly opened settings modal into a previous login flow).
+   * Open the overlay at `location`, navigating the warm renderer client-side
+   * (the first call boots the document with a real load).
+   *
+   * Clearing first flattens webContents history to the single committed entry
+   * so back/forward stays within this open and can't reach idle or a prior
+   * open. Clearing the committed entry needs no load listener, which is why the
+   * open clears and parking (whose entry hasn't committed) does not.
    */
-  function navigateTo(view: WebContentsView, location: string) {
-    const { webContents } = view;
+  function openOverlay(location: string) {
+    const webContents = warmView?.webContents;
     if (!webContents) {
       return;
     }
-    webContents.once("did-finish-load", () => {
-      // clear() keeps the current entry and discards the rest.
-      tryCaptureError("clearing studio overlay history failed", () => {
-        webContents.navigationHistory.clear();
-      });
+    if (!booted) {
+      booted = true;
+      void webContents.loadURL(unsafe_studioURL(location));
+      return;
+    }
+    tryCaptureError("clearing studio overlay history failed", () => {
+      webContents.navigationHistory.clear();
     });
-    void webContents.loadURL(unsafe_studioURL(location));
+    webContents.send("studio-overlay:navigate", location);
   }
 
-  /** Hide the overlay and park it on the idle route, keeping it warm. */
+  /** Remove the view from the window and park its renderer on the idle route. */
   function hideAndPark(view: WebContentsView) {
     tryCaptureError("removeChildView failed closing studio overlay", () => {
       baseWindow.contentView.removeChildView(view);
     });
-    // Park on the idle route so the hidden renderer mounts no layout and runs
-    // no live queries/timers while it waits to be reused.
-    navigateTo(view, IDLE_LOCATION);
+    if (booted) {
+      view.webContents?.send("studio-overlay:navigate", IDLE_LOCATION);
+    }
   }
 
-  /** Permanently destroy the warm view (window teardown only). */
   function destroyWarmView() {
     if (!warmView) {
       return;
     }
     const view = warmView;
     warmView = null;
+    booted = false;
     tryCaptureError("removeChildView failed destroying studio overlay", () => {
       baseWindow.contentView.removeChildView(view);
     });
     view.webContents?.close();
   }
 
-  /** Resolve the active modal and hide its (reusable) view. No-op if settled. */
   function settle(result: StudioOverlayResult) {
     if (!active || active.settled) {
       return;
@@ -217,6 +194,11 @@ export function createStudioOverlayController({
   return {
     activeKind: () => active?.kind ?? null,
     dismiss: () => {
+      // Enforced here so every user-dismiss path (Escape, click-outside, Cmd+W)
+      // honors it; `fail`/`teardown` bypass it for forced teardown.
+      if (active && !STUDIO_OVERLAY_DISMISSIBLE[active.kind]) {
+        return;
+      }
       settle({ completed: false });
     },
     fail: () => {
@@ -262,28 +244,27 @@ export function createStudioOverlayController({
     show: (request) => {
       const location = serializeLocation(request);
 
-      // Re-showing the exact same modal (e.g. pressing the settings hotkey
-      // repeatedly) should keep the open modal in place, not toggle it. Focus
-      // the existing view and resolve this duplicate caller as replaced.
+      // Re-showing the identical modal keeps it open and just refocuses it.
       if (active && !active.settled && active.location === location) {
         active.view.webContents?.focus();
         return Promise.resolve<StudioOverlayResult>({ completed: false });
       }
 
-      // Replacing an active modal resolves the previous caller as replaced.
-      // Leave `active` non-null so the setActive below sees open->open and
-      // doesn't emit a spurious close+open pair. The same warm view is reused;
-      // the navigateTo below points it at the new location.
-      const wasVisible = active !== null && !active.settled;
+      // Replace: resolve the previous caller. Leave `active` non-null so
+      // setActive below sees open->open and emits no spurious close+open pair.
       if (active && !active.settled) {
         const previous = active;
         previous.settled = true;
         previous.resolve({ completed: false });
       }
 
-      // Reuse the warm view (created on first show, kept alive across closes).
       const view = ensureWarmView();
-      navigateTo(view, location);
+      openOverlay(location);
+      tryCaptureError("addChildView failed showing studio overlay", () => {
+        // Added last so it composites above the selected tab (idempotent).
+        baseWindow.contentView.addChildView(view);
+      });
+      view.webContents?.focus();
 
       return new Promise<StudioOverlayResult>((resolve) => {
         setActive({
@@ -293,14 +274,28 @@ export function createStudioOverlayController({
           settled: false,
           view,
         });
-        // Already mounted on a replace; only (re)add on a fresh open.
-        if (!wasVisible) {
-          tryCaptureError("addChildView failed showing studio overlay", () => {
-            // Topmost: added last so it composites above the selected tab.
-            baseWindow.contentView.addChildView(view);
-          });
-        }
-        view.webContents?.focus();
+      });
+    },
+    showIdle: () => {
+      // Force the visible-but-on-idle state the safety-net button guards
+      // against. `kind` is just a dismissible sentinel so dismiss() works.
+      if (active && !active.settled) {
+        const previous = active;
+        previous.settled = true;
+        previous.resolve({ completed: false });
+      }
+      const view = ensureWarmView();
+      openOverlay(IDLE_LOCATION);
+      tryCaptureError("addChildView failed showing studio overlay", () => {
+        baseWindow.contentView.addChildView(view);
+      });
+      view.webContents?.focus();
+      setActive({
+        kind: "crash",
+        location: IDLE_LOCATION,
+        resolve: noop,
+        settled: false,
+        view,
       });
     },
     teardown: () => {
@@ -325,12 +320,7 @@ export function createStudioOverlayController({
   };
 }
 
-/**
- * The hash location (`/studio-overlay/login?...`) a request maps to. Each kind is
- * its own child route; the renderer uses hash routing, so the query string
- * lives inside the hash. The shared serializer produces the type-checked path
- * and the params it validates.
- */
+/** The route path + query string a request maps to. */
 function serializeLocation(request: StudioOverlayRequest) {
   const { path: routePath, search } = studioOverlayRequestToLocation(request);
   const query = new URLSearchParams(search).toString();

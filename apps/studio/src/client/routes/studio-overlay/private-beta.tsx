@@ -63,22 +63,20 @@ function PrivateBetaHeader() {
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
 
-  // When reduced motion is requested, track the cursor instantly instead of
-  // springing the spotlight across the header.
+  // Reduced motion: track the cursor instantly instead of springing.
   const springConfig = prefersReducedMotion
     ? { damping: 100, stiffness: 1000 }
     : POSITION_SPRING;
   const smoothX = useSpring(pointerX, springConfig);
   const smoothY = useSpring(pointerY, springConfig);
-  // Intersect the cursor spotlight with a bottom edge-fade so the last rows of
-  // grid lines never finish abruptly when the cursor hovers near the bottom.
+  // Intersect the spotlight with the static grid's falloff so revealed lines fade at the edges.
   const gridRevealMask = useMotionTemplate`
     radial-gradient(
       circle 7rem at ${smoothX}px ${smoothY}px,
       black 0%,
       transparent 70%
     ),
-    linear-gradient(to bottom, black 0%, black 70%, transparent 100%)
+    radial-gradient(ellipse at 28% 10%, black 0%, transparent 64%)
   `;
 
   function trackPointer(event: PointerEvent<HTMLDivElement>) {
@@ -92,8 +90,7 @@ function PrivateBetaHeader() {
     <div
       className="relative flex w-full shrink-0 items-center justify-center overflow-hidden px-11 pt-15 pb-5"
       onPointerEnter={(event) => {
-        // Snap the spotlight to the entry point so it fades in under the
-        // cursor instead of sweeping in from the top-left corner.
+        // Snap to the entry point so the spotlight fades in under the cursor.
         const rect = event.currentTarget.getBoundingClientRect();
 
         pointerX.jump(event.clientX - rect.left);
@@ -107,25 +104,19 @@ function PrivateBetaHeader() {
     >
       <div
         aria-hidden
-        className={cn(
-          `absolute -inset-x-7 top-0 h-49
-          [background-image:linear-gradient(to_right,color-mix(in_srgb,var(--brand-300)_10%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--brand-300)_10%,transparent)_1px,transparent_1px)]
+        className="absolute -inset-x-7 top-0 h-49
+          [background-image:linear-gradient(to_right,rgba(197,216,232,0.3)_1.2px,transparent_1.2px),linear-gradient(to_bottom,rgba(197,216,232,0.3)_1.2px,transparent_1.2px)]
           [mask-image:radial-gradient(ellipse_at_28%_10%,black_0%,transparent_64%)]
           [background-size:2rem_2rem]
-          dark:[background-image:linear-gradient(to_right,color-mix(in_srgb,var(--gray-400)_10%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--gray-400)_10%,transparent)_1px,transparent_1px)]`,
-        )}
+          dark:[background-image:linear-gradient(to_right,color-mix(in_srgb,var(--gray-400)_10%,transparent)_1.2px,transparent_1.2px),linear-gradient(to_bottom,color-mix(in_srgb,var(--gray-400)_10%,transparent)_1.2px,transparent_1.2px)]"
       />
       <motion.div
-        // A plain tween reads cleaner than a spring for a simple fade, and a
-        // quicker fade-out feels snappier when the cursor leaves the header.
+        // Plain tween, quicker on the way out.
         animate={{ opacity: isHovering ? 1 : 0 }}
         aria-hidden
-        className={cn(
-          `pointer-events-none absolute -inset-x-7 top-0 h-49
-          [background-image:linear-gradient(to_right,color-mix(in_srgb,var(--brand-300)_38%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--brand-300)_38%,transparent)_1px,transparent_1px)]
-          [background-size:2rem_2rem]
-          dark:[background-image:linear-gradient(to_right,color-mix(in_srgb,var(--gray-300)_34%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--gray-300)_34%,transparent)_1px,transparent_1px)]`,
-        )}
+        className="pointer-events-none absolute -inset-x-7 top-0 h-49
+          [background-image:linear-gradient(to_right,#6F9AC0_1.2px,transparent_1.2px),linear-gradient(to_bottom,#6F9AC0_1.2px,transparent_1.2px)]
+          [background-size:2rem_2rem]"
         initial={{ opacity: 0 }}
         style={{
           maskComposite: "intersect",

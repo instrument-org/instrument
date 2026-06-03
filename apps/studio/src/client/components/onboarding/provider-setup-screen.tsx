@@ -2,6 +2,7 @@ import { AddProviderForm } from "@/client/components/add-provider/form";
 import { AppIconStylized } from "@/client/components/app-icon-stylized";
 import { ExternalLink } from "@/client/components/external-link";
 import { GoogleLoginButton } from "@/client/components/google-login-button";
+import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
@@ -64,7 +65,7 @@ export function ProviderSetupScreen({
 
             <div className="flex flex-col items-center gap-2 text-center">
               <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
-                {`Log in to ${APP_NAME}`}
+                Log in to {APP_NAME}
               </h1>
               <p className="text-sm text-foreground/80">
                 A guided AI workspace for ambitious work
@@ -72,7 +73,7 @@ export function ProviderSetupScreen({
             </div>
           </div>
 
-          <div className="flex w-full max-w-xs flex-col items-center gap-2.5">
+          <div className="flex w-full max-w-xs flex-col items-center gap-4">
             {error && (
               <div className="w-full rounded-lg bg-muted px-3 py-2.5">
                 <div className="mb-1.5 flex items-center gap-1.5">
@@ -94,11 +95,20 @@ export function ProviderSetupScreen({
               </div>
             )}
 
-            <GoogleLoginButton
-              className="w-full justify-center"
-              onLogin={onLogin}
-              onSuccess={onLoginSuccess}
-            />
+            <div className="flex w-full flex-col items-center gap-y-2">
+              <div className="flex items-center justify-center gap-x-2">
+                <BrandLeafIcon className="size-3" />
+                <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
+                  Create an account to enjoy free AI usage
+                </p>
+              </div>
+
+              <GoogleLoginButton
+                className="w-full justify-center"
+                onLogin={onLogin}
+                onSuccess={onLoginSuccess}
+              />
+            </div>
 
             {!hideManualProvider && (
               <Button
@@ -111,7 +121,7 @@ export function ProviderSetupScreen({
                   })
                 }
                 type="button"
-                variant="ghost"
+                variant="outline"
               >
                 Or add an AI provider manually
               </Button>

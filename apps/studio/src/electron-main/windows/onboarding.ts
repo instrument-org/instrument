@@ -61,6 +61,11 @@ export function openOnboardingWindow(): BrowserWindow {
     const mainWindow = getMainWindow();
     if (!mainWindow || mainWindow.isDestroyed()) {
       app.quit();
+      return;
+    }
+    if (!mainWindow.isVisible()) {
+      mainWindow.close();
+      app.quit();
     }
   });
 

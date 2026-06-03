@@ -31,9 +31,11 @@ const LINUX_RESIZE_FOLLOW_UP_DELAY_MS = 100;
 export async function createMainWindow({
   initialParams,
   initialPath,
+  reveal = true,
 }: {
   initialParams?: Record<string, string>;
   initialPath?: StudioPath;
+  reveal?: boolean;
 } = {}) {
   let icon: string | undefined;
   try {
@@ -140,6 +142,9 @@ export async function createMainWindow({
     }
   });
   mainWindow.on("ready-to-show", () => {
+    if (!reveal) {
+      return;
+    }
     const window = getMainWindow();
     if (!window) {
       return;
@@ -157,7 +162,9 @@ export async function createMainWindow({
 
   void mainWindow.loadURL(studioURL("/shell"));
   await tabsManager.initialize({ initialParams, initialPath });
-  showWindow(mainWindow);
+  if (reveal) {
+    showWindow(mainWindow);
+  }
 
   if (getWindowState().isMaximized) {
     mainWindow.maximize();

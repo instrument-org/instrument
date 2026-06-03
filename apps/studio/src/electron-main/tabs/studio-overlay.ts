@@ -86,6 +86,14 @@ export function createStudioOverlayController({
   // First open boots the document with a real load; later opens/parks navigate
   // the warm renderer client-side over IPC.
   let booted = false;
+  // Monotonically increasing counter sent with every navigate IPC. On a fast
+  // dismiss -> show, hideAndPark sends navigate-to-idle then openOverlay sends
+  // navigate-to-new. Both are delivered in order, but the renderer's
+  // router.navigate commits asynchronously, so the idle route could otherwise
+  // paint (blank, while the view is visible) before the new route lands. The
+  // renderer tracks the last seq it saw and drops the now-stale park, so the
+  // most recently issued navigate always wins. See router.tsx.
+  let navSeq = 0;
 
   function setActive(next: ActiveOverlay | null) {
     const wasActive = active !== null;
@@ -153,7 +161,7 @@ export function createStudioOverlayController({
     tryCaptureError("clearing studio overlay history failed", () => {
       webContents.navigationHistory.clear();
     });
-    webContents.send("studio-overlay:navigate", location);
+    webContents.send("studio-overlay:navigate", location, ++navSeq);
   }
 
   /** Remove the view from the window and park its renderer on the idle route. */
@@ -162,7 +170,11 @@ export function createStudioOverlayController({
       baseWindow.contentView.removeChildView(view);
     });
     if (booted) {
-      view.webContents?.send("studio-overlay:navigate", IDLE_LOCATION);
+      view.webContents?.send(
+        "studio-overlay:navigate",
+        IDLE_LOCATION,
+        ++navSeq,
+      );
     }
   }
 

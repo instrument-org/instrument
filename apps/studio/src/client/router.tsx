@@ -98,6 +98,19 @@ window.api.onNavigate((url) => {
 
 // The warm overlay view navigates client-side with `replace` (it loads its
 // document once and stays warm). The main process flattens webContents history.
-window.api.onStudioOverlayNavigate((location) => {
+//
+// On a fast dismiss -> show, main sends navigate-to-idle (park) then
+// navigate-to-new in order. IPC delivery is ordered, but `router.navigate` only
+// schedules a navigation that commits asynchronously, so the idle route can
+// commit and paint (blank, while the view is already visible again) before the
+// new route supersedes it -- a visible flash. `lastNavSeq` is bumped
+// synchronously on receipt, so once we've seen the newer navigate we drop the
+// now-stale park before it ever reaches the router. The latest navigate wins.
+let lastNavSeq = -1;
+window.api.onStudioOverlayNavigate((location, seq) => {
+  if (seq <= lastNavSeq) {
+    return;
+  }
+  lastNavSeq = seq;
   void router.navigate({ replace: true, to: location });
 });

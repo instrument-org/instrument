@@ -131,6 +131,7 @@ describe("createStudioOverlayController", () => {
     expect(webContents?.send).toHaveBeenLastCalledWith(
       "studio-overlay:navigate",
       "/studio-overlay-idle",
+      1,
     );
     expect(controller.isActive()).toBe(false);
 
@@ -142,8 +143,8 @@ describe("createStudioOverlayController", () => {
     expect(webContents?.loadURL).toHaveBeenCalledTimes(1);
     expect(webContents?.navigationHistory.clear).toHaveBeenCalledTimes(1);
     expect(webContents?.send.mock.calls).toEqual([
-      ["studio-overlay:navigate", "/studio-overlay-idle"],
-      ["studio-overlay:navigate", "/studio-overlay/settings"],
+      ["studio-overlay:navigate", "/studio-overlay-idle", 1],
+      ["studio-overlay:navigate", "/studio-overlay/settings", 2],
     ]);
 
     controller.dismiss();

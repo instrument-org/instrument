@@ -45,21 +45,25 @@ export function ProviderConfigListItem({
             <AIProviderIcon type={config.type} />
           </div>
           <div className="min-w-0 flex-1 space-y-1">
-            <h3 className="font-medium text-foreground">{displayName}</h3>
+            <h3 className="truncate font-medium text-foreground">
+              {displayName}
+            </h3>
             {showOriginalName && (
-              <p className="text-sm text-muted-foreground">{originalName}</p>
+              <p className="truncate text-sm text-muted-foreground">
+                {originalName}
+              </p>
             )}
             {config.type === "openai-compatible" && config.baseURL ? (
-              <p className="font-mono text-xs text-muted-foreground">
+              <p className="truncate font-mono text-xs text-muted-foreground">
                 {config.baseURL}
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p className="truncate text-sm text-muted-foreground">
                 {metadata?.description ?? "Metadata not found"}
               </p>
             )}
             {config.type === "openrouter" && (
-              <p className="text-sm text-muted-foreground">
+              <p className="truncate text-sm text-muted-foreground">
                 {isLoadingCredits
                   ? "Loading credits..."
                   : openRouterCredits?.credits

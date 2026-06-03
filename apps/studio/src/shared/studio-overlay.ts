@@ -8,7 +8,7 @@ import { z } from "zod";
  * hand-rolled switch. Everything else (request props, result, behavior policy)
  * stays keyed by `kind` so adding a kind is additive.
  */
-export type StudioOverlayKind = "crash" | "login" | "private-beta" | "settings";
+export type StudioOverlayKind = "crash" | "login" | "settings" | "welcome";
 
 /**
  * Whether the user may dismiss a kind (Escape, click-outside, Cmd+W).
@@ -18,8 +18,8 @@ export const STUDIO_OVERLAY_DISMISSIBLE = {
   // Debug-only kind that throws on render to exercise the error fallback.
   crash: true,
   login: true,
-  "private-beta": false,
   settings: true,
+  welcome: false,
 } as const satisfies Record<StudioOverlayKind, boolean>;
 
 /**
@@ -65,7 +65,7 @@ export const StudioOverlayRequestSchema = z.discriminatedUnion("kind", [
     props: StudioOverlayLoginPropsSchema.optional(),
   }),
   z.object({
-    kind: z.literal("private-beta"),
+    kind: z.literal("welcome"),
   }),
   z.object({
     kind: z.literal("settings"),
@@ -126,9 +126,6 @@ export function studioOverlayRequestToLocation(request: StudioOverlayRequest): {
       }
       return { path: "/studio-overlay/login", search };
     }
-    case "private-beta": {
-      return { path: "/studio-overlay/private-beta", search: {} };
-    }
     case "settings": {
       const tab = request.props?.tab ?? "General";
       const search: Record<string, string> = {};
@@ -136,6 +133,9 @@ export function studioOverlayRequestToLocation(request: StudioOverlayRequest): {
         search.showNewProviderDialog = "true";
       }
       return { path: SETTINGS_TAB_PATHS[tab], search };
+    }
+    case "welcome": {
+      return { path: "/studio-overlay/welcome", search: {} };
     }
   }
 }

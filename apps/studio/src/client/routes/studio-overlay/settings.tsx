@@ -18,10 +18,9 @@ import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { type StudioPath } from "@/shared/studio-path";
 import {
   BugIcon,
+  CpuIcon,
   FlagIcon,
   GearIcon,
-  HardDrivesIcon,
-  SlidersHorizontalIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
@@ -112,14 +111,9 @@ function useNavItems(): NavItem[] {
   return [
     { icon: GearIcon, path: "/studio-overlay/settings", title: "General" },
     {
-      icon: HardDrivesIcon,
+      icon: CpuIcon,
       path: "/studio-overlay/settings/providers",
       title: "Providers",
-    },
-    {
-      icon: SlidersHorizontalIcon,
-      path: "/studio-overlay/settings/advanced",
-      title: "Advanced",
     },
     ...(isDeveloperMode
       ? [

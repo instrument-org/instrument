@@ -51,7 +51,7 @@ const iconVariants = tv({
   },
   variants: {
     color: {
-      brand: "text-brand-400",
+      brand: "text-brand-text",
       destructive: "text-destructive",
       primary: "text-primary",
       warning: "text-warning-700 dark:text-warning-300",
@@ -69,7 +69,6 @@ interface BadgeConfig {
 
 const BADGE_CONFIGS: BadgeConfig[] = [
   {
-    color: "brand",
     icon: Sparkle2Icon,
     key: "new",
     shouldShow: (model) => model.tags.includes("new"),

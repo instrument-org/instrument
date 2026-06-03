@@ -36,14 +36,14 @@ export function NavPrimary({
                 className={cn(
                   "group-hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:font-normal data-[active=true]:text-foreground",
                   item.isBrand &&
-                    "font-medium data-[active=true]:bg-transparent data-[active=true]:text-brand-400",
+                    "font-medium data-[active=true]:bg-transparent data-[active=true]:text-brand-text",
                 )}
                 isActive={item.isBrand ? false : item.isActive}
               >
                 <InternalLink
                   className={
                     item.isBrand
-                      ? "font-medium text-brand-400 [&>svg]:size-4 [&>svg]:text-brand-400"
+                      ? "font-medium text-brand-text [&>svg]:size-4 [&>svg]:text-brand-text"
                       : "[&>svg]:size-4"
                   }
                   openInCurrentTab

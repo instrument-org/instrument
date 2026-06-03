@@ -3,6 +3,7 @@ import { AnimatedOutlineAppIconGlyph } from "@/client/components/studio-icon";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
+import { PRIVATE_BETA_SEARCH_PARAM } from "@/shared/constants";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -21,12 +22,12 @@ const UrlBoolSchema = z
   .transform((value) => value === true || value === "true");
 
 const NewTabSearchSchema = z.object({
-  privateBeta: UrlBoolSchema,
+  [PRIVATE_BETA_SEARCH_PARAM]: UrlBoolSchema,
 });
 
 export const Route = createFileRoute("/_app/new-tab")({
   beforeLoad: ({ search }) => {
-    if (!search.privateBeta) {
+    if (!search[PRIVATE_BETA_SEARCH_PARAM]) {
       return;
     }
 

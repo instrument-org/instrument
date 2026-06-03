@@ -18,7 +18,7 @@ import {
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
-import { type StudioPath } from "@/shared/studio-path";
+import { PRIVATE_BETA_LAUNCH } from "@/shared/constants";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -64,17 +64,7 @@ const gotTheLock = app.requestSingleInstanceLock();
 
 if (gotTheLock) {
   app.on("second-instance", (_event, commandLine) => {
-    const mainWindow = getMainWindow();
-    if (mainWindow?.isVisible()) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-      }
-      mainWindow.focus();
-      const tabsManager = getTabsManager();
-      tabsManager?.focusCurrentTab();
-    } else {
-      getOnboardingWindow()?.focus();
-    }
+    focusForegroundWindow();
 
     const url = commandLine.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
     if (url) {
@@ -179,11 +169,7 @@ void app.whenReady().then(async () => {
 
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
-    void createMainWindow({
-      initialParams: { privateBeta: "true" },
-      initialPath: "/new-tab" satisfies StudioPath,
-      reveal: false,
-    });
+    void createMainWindow({ ...PRIVATE_BETA_LAUNCH, reveal: false });
   } else {
     await createMainWindow();
   }
@@ -207,21 +193,26 @@ void app.whenReady().then(async () => {
   });
 });
 
-function handleDeepLink(_url: string) {
+/**
+ * Bring the active foreground window forward. The main window is the target
+ * once visible; while it is still hidden (e.g. prepared during onboarding),
+ * onboarding stays the foreground target so focus never lands on nothing.
+ */
+function focusForegroundWindow() {
   const mainWindow = getMainWindow();
   if (mainWindow?.isVisible()) {
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
     }
     mainWindow.focus();
-
-    const tabsManager = getTabsManager();
-    if (tabsManager) {
-      tabsManager.focusCurrentTab();
-    }
+    getTabsManager()?.focusCurrentTab();
     return;
   }
   getOnboardingWindow()?.focus();
+}
+
+function handleDeepLink(_url: string) {
+  focusForegroundWindow();
 }
 
 function shouldShowOnboarding(): boolean {

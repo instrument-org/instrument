@@ -39,6 +39,7 @@ function LoginModal() {
 
   return (
     <DialogContent
+      aria-describedby={undefined}
       className={cn(
         `w-full max-w-[472px] gap-0 overflow-hidden rounded-3xl border-0 p-0
         shadow-[inset_0_0_0_2px_rgba(0,0,0,0.05)] drop-shadow-2xl outline-none

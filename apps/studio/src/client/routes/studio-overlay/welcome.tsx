@@ -151,6 +151,7 @@ function WelcomeModal() {
 
   return (
     <DialogContent
+      aria-describedby={undefined}
       className={cn(
         `flex max-h-[calc(100vh-3rem)] w-[calc(100vw-2.5rem)] max-w-xl flex-col gap-0 overflow-hidden
         rounded-3xl border-0 bg-gray-25 p-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] drop-shadow-2xl

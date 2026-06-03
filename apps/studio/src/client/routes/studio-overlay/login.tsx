@@ -57,7 +57,7 @@ function LoginModal() {
       // icon) that reads better against its gradient card.
       showCloseButton={false}
     >
-      <DialogTitle className="sr-only">Sign in</DialogTitle>
+      <DialogTitle className="sr-only">Log in</DialogTitle>
       <div className="absolute top-3 right-3 z-10">
         <DialogClose asChild>
           <Button aria-label="Close" type="button" variant="outline">

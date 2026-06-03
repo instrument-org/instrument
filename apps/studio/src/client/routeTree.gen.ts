@@ -23,7 +23,6 @@ import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/pro
 import { Route as AppTutorialTaskRouteImport } from './routes/_app/tutorial-task'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
-import { Route as AppGetLifetimeRouteImport } from './routes/_app/get-lifetime'
 import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
 import { Route as StudioOverlaySettingsIndexRouteImport } from './routes/studio-overlay/settings/index'
@@ -122,11 +121,6 @@ const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
 const AppNewTabRoute = AppNewTabRouteImport.update({
   id: '/new-tab',
   path: '/new-tab',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppGetLifetimeRoute = AppGetLifetimeRouteImport.update({
-  id: '/get-lifetime',
-  path: '/get-lifetime',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppDebugRouteRoute = AppDebugRouteRouteImport.update({
@@ -306,7 +300,6 @@ export interface FileRoutesByFullPath {
   '/studio-overlay': typeof StudioOverlayRouteWithChildren
   '/studio-overlay-idle': typeof StudioOverlayIdleRoute
   '/debug': typeof AppDebugRouteRouteWithChildren
-  '/get-lifetime': typeof AppGetLifetimeRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/tutorial-task': typeof AppTutorialTaskRoute
@@ -349,7 +342,6 @@ export interface FileRoutesByTo {
   '/shell': typeof ShellRoute
   '/studio-overlay': typeof StudioOverlayRouteWithChildren
   '/studio-overlay-idle': typeof StudioOverlayIdleRoute
-  '/get-lifetime': typeof AppGetLifetimeRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/tutorial-task': typeof AppTutorialTaskRoute
@@ -394,7 +386,6 @@ export interface FileRoutesById {
   '/studio-overlay-idle': typeof StudioOverlayIdleRoute
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
   '/_app/debug': typeof AppDebugRouteRouteWithChildren
-  '/_app/get-lifetime': typeof AppGetLifetimeRoute
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/_app/tutorial-task': typeof AppTutorialTaskRoute
@@ -441,7 +432,6 @@ export interface FileRouteTypes {
     | '/studio-overlay'
     | '/studio-overlay-idle'
     | '/debug'
-    | '/get-lifetime'
     | '/new-tab'
     | '/release-notes'
     | '/tutorial-task'
@@ -484,7 +474,6 @@ export interface FileRouteTypes {
     | '/shell'
     | '/studio-overlay'
     | '/studio-overlay-idle'
-    | '/get-lifetime'
     | '/new-tab'
     | '/release-notes'
     | '/tutorial-task'
@@ -528,7 +517,6 @@ export interface FileRouteTypes {
     | '/studio-overlay-idle'
     | '/_app/_authenticated'
     | '/_app/debug'
-    | '/_app/get-lifetime'
     | '/_app/new-tab'
     | '/_app/release-notes'
     | '/_app/tutorial-task'
@@ -674,13 +662,6 @@ declare module '@tanstack/react-router' {
       path: '/new-tab'
       fullPath: '/new-tab'
       preLoaderRoute: typeof AppNewTabRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/get-lifetime': {
-      id: '/_app/get-lifetime'
-      path: '/get-lifetime'
-      fullPath: '/get-lifetime'
-      preLoaderRoute: typeof AppGetLifetimeRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/debug': {
@@ -987,7 +968,6 @@ const AppDebugRouteRouteWithChildren = AppDebugRouteRoute._addFileChildren(
 interface AppRouteRouteChildren {
   AppAuthenticatedRouteRoute: typeof AppAuthenticatedRouteRouteWithChildren
   AppDebugRouteRoute: typeof AppDebugRouteRouteWithChildren
-  AppGetLifetimeRoute: typeof AppGetLifetimeRoute
   AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppTutorialTaskRoute: typeof AppTutorialTaskRoute
@@ -999,7 +979,6 @@ interface AppRouteRouteChildren {
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppAuthenticatedRouteRoute: AppAuthenticatedRouteRouteWithChildren,
   AppDebugRouteRoute: AppDebugRouteRouteWithChildren,
-  AppGetLifetimeRoute: AppGetLifetimeRoute,
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTutorialTaskRoute: AppTutorialTaskRoute,

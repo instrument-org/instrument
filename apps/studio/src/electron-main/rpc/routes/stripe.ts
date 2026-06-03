@@ -8,12 +8,6 @@ const createCheckoutSession = authenticated
     platformApiRpcClient.stripe.createCheckoutSession.call(input),
   );
 
-const createLifetimeCheckoutSession = authenticated
-  .input(z.void())
-  .handler(async () =>
-    platformApiRpcClient.stripe.createLifetimeCheckoutSession.call(),
-  );
-
 const createPortalSession = authenticated
   .input(z.void())
   .handler(async () => platformApiRpcClient.stripe.createPortalSession.call());
@@ -26,7 +20,6 @@ const getInvoicePreview = authenticated
 
 export const stripe = {
   createCheckoutSession,
-  createLifetimeCheckoutSession,
   createPortalSession,
   getInvoicePreview,
 };

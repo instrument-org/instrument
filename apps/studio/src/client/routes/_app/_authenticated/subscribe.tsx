@@ -15,21 +15,12 @@ import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME, CONTACT_EMAIL } from "@instrument-org/shared";
 import { CheckCircleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 
 export const Route = createFileRoute("/_app/_authenticated/subscribe")({
-  beforeLoad: async () => {
-    const { developerMode } = await rpcClient.preferences.get.call();
-    if (developerMode) {
-      toast.info("Redirect skipped (developer mode)");
-      return;
-    }
-    // eslint-disable-next-line @typescript-eslint/only-throw-error
-    throw redirect({ to: "/get-lifetime" });
-  },
   component: SubscribePage,
   head: () => {
     return {

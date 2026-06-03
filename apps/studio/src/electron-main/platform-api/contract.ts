@@ -33,9 +33,6 @@ export const contract = {
     createCheckoutSession: base
       .input(z.object({ priceId: z.string() }))
       .output(z.object({ url: z.string().nullable() })),
-    createLifetimeCheckoutSession: base
-      .input(z.void())
-      .output(z.object({ url: z.string().nullable() })),
     createPortalSession: base
       .input(z.void())
       .output(z.object({ url: z.string() })),
@@ -50,12 +47,6 @@ export const contract = {
     ),
   },
   users: {
-    getEntitlements: base.input(z.void()).output(
-      z.object({
-        lifetime: z.boolean(),
-        premium: z.boolean(),
-      }),
-    ),
     getMe: base.input(z.void()).output(
       z.object({
         createdAt: z.date(),

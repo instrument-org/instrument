@@ -297,11 +297,11 @@ export function DevPanel() {
                     className="font-mono text-xs"
                     onSelect={() => {
                       void rpcClient.studioOverlay.show.call({
-                        kind: "private-beta",
+                        kind: "welcome",
                       });
                     }}
                   >
-                    Private beta
+                    Welcome
                   </MenubarItem>
                   <MenubarItem
                     className="font-mono text-xs"

@@ -23,8 +23,8 @@ import {
 } from "motion/react";
 import { type PointerEvent, useState } from "react";
 
-export const Route = createFileRoute("/studio-overlay/private-beta")({
-  component: PrivateBetaModal,
+export const Route = createFileRoute("/studio-overlay/welcome")({
+  component: WelcomeModal,
 });
 
 const FEATURE_ROWS: {
@@ -56,7 +56,7 @@ const FEATURE_ROWS: {
 
 const POSITION_SPRING = { damping: 28, stiffness: 180 };
 
-function PrivateBetaHeader() {
+function WelcomeHeader() {
   const prefersReducedMotion = useReducedMotion();
   const [isHovering, setIsHovering] = useState(false);
 
@@ -135,7 +135,7 @@ function PrivateBetaHeader() {
   );
 }
 
-function PrivateBetaModal() {
+function WelcomeModal() {
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
@@ -173,7 +173,7 @@ function PrivateBetaModal() {
         Explore the {APP_NAME} Private Beta
       </DialogTitle>
 
-      <PrivateBetaHeader />
+      <WelcomeHeader />
 
       <div className="flex min-h-0 flex-1 flex-col items-center gap-8 px-11 pt-7 pb-10">
         <div className="min-h-0 w-full overflow-y-auto pr-1">

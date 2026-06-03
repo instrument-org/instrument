@@ -242,12 +242,12 @@ describe("createStudioOverlayController", () => {
       onClosed: vi.fn(),
     });
 
-    const promise = controller.show({ kind: "private-beta" });
+    const promise = controller.show({ kind: "welcome" });
     // Cmd+W / Escape / click-outside all route through dismiss(); it must not
     // close a kind the user has to finish.
     controller.dismiss();
     expect(controller.isActive()).toBe(true);
-    expect(controller.activeKind()).toBe("private-beta");
+    expect(controller.activeKind()).toBe("welcome");
 
     // Completing the flow (resolve) still closes it.
     controller.resolve();
@@ -262,7 +262,7 @@ describe("createStudioOverlayController", () => {
       onClosed: vi.fn(),
     });
 
-    const promise = controller.show({ kind: "private-beta" });
+    const promise = controller.show({ kind: "welcome" });
     controller.fail();
     await expect(promise).resolves.toEqual({ completed: false });
     expect(controller.isActive()).toBe(false);

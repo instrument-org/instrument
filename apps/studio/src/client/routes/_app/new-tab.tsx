@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_app/new-tab")({
       return;
     }
 
-    void rpcClient.studioOverlay.show.call({ kind: "private-beta" });
+    void rpcClient.studioOverlay.show.call({ kind: "welcome" });
 
     // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw redirect({ replace: true, search: {}, to: "/new-tab" });

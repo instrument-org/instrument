@@ -16,8 +16,8 @@ import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
+import { Route as StudioOverlayWelcomeRouteImport } from './routes/studio-overlay/welcome'
 import { Route as StudioOverlaySettingsRouteImport } from './routes/studio-overlay/settings'
-import { Route as StudioOverlayPrivateBetaRouteImport } from './routes/studio-overlay/private-beta'
 import { Route as StudioOverlayLoginRouteImport } from './routes/studio-overlay/login'
 import { Route as StudioOverlayCrashRouteImport } from './routes/studio-overlay/crash'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
@@ -90,17 +90,16 @@ const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
   path: '/',
   getParentRoute: () => OnboardingRouteRoute,
 } as any)
+const StudioOverlayWelcomeRoute = StudioOverlayWelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => StudioOverlayRoute,
+} as any)
 const StudioOverlaySettingsRoute = StudioOverlaySettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => StudioOverlayRoute,
 } as any)
-const StudioOverlayPrivateBetaRoute =
-  StudioOverlayPrivateBetaRouteImport.update({
-    id: '/private-beta',
-    path: '/private-beta',
-    getParentRoute: () => StudioOverlayRoute,
-  } as any)
 const StudioOverlayLoginRoute = StudioOverlayLoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -320,8 +319,8 @@ export interface FileRoutesByFullPath {
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
-  '/studio-overlay/private-beta': typeof StudioOverlayPrivateBetaRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsRouteWithChildren
+  '/studio-overlay/welcome': typeof StudioOverlayWelcomeRoute
   '/onboarding/': typeof OnboardingIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
@@ -364,7 +363,7 @@ export interface FileRoutesByTo {
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
-  '/studio-overlay/private-beta': typeof StudioOverlayPrivateBetaRoute
+  '/studio-overlay/welcome': typeof StudioOverlayWelcomeRoute
   '/onboarding': typeof OnboardingIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
@@ -410,8 +409,8 @@ export interface FileRoutesById {
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
-  '/studio-overlay/private-beta': typeof StudioOverlayPrivateBetaRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsRouteWithChildren
+  '/studio-overlay/welcome': typeof StudioOverlayWelcomeRoute
   '/onboarding/': typeof OnboardingIndexRoute
   '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
@@ -458,8 +457,8 @@ export interface FileRouteTypes {
     | '/onboarding/theme'
     | '/studio-overlay/crash'
     | '/studio-overlay/login'
-    | '/studio-overlay/private-beta'
     | '/studio-overlay/settings'
+    | '/studio-overlay/welcome'
     | '/onboarding/'
     | '/subscribe'
     | '/debug/browser-views'
@@ -502,7 +501,7 @@ export interface FileRouteTypes {
     | '/onboarding/theme'
     | '/studio-overlay/crash'
     | '/studio-overlay/login'
-    | '/studio-overlay/private-beta'
+    | '/studio-overlay/welcome'
     | '/onboarding'
     | '/subscribe'
     | '/debug/browser-views'
@@ -547,8 +546,8 @@ export interface FileRouteTypes {
     | '/onboarding/theme'
     | '/studio-overlay/crash'
     | '/studio-overlay/login'
-    | '/studio-overlay/private-beta'
     | '/studio-overlay/settings'
+    | '/studio-overlay/welcome'
     | '/onboarding/'
     | '/_app/_authenticated/subscribe'
     | '/_app/debug/browser-views'
@@ -640,18 +639,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingIndexRouteImport
       parentRoute: typeof OnboardingRouteRoute
     }
+    '/studio-overlay/welcome': {
+      id: '/studio-overlay/welcome'
+      path: '/welcome'
+      fullPath: '/studio-overlay/welcome'
+      preLoaderRoute: typeof StudioOverlayWelcomeRouteImport
+      parentRoute: typeof StudioOverlayRoute
+    }
     '/studio-overlay/settings': {
       id: '/studio-overlay/settings'
       path: '/settings'
       fullPath: '/studio-overlay/settings'
       preLoaderRoute: typeof StudioOverlaySettingsRouteImport
-      parentRoute: typeof StudioOverlayRoute
-    }
-    '/studio-overlay/private-beta': {
-      id: '/studio-overlay/private-beta'
-      path: '/private-beta'
-      fullPath: '/studio-overlay/private-beta'
-      preLoaderRoute: typeof StudioOverlayPrivateBetaRouteImport
       parentRoute: typeof StudioOverlayRoute
     }
     '/studio-overlay/login': {
@@ -1070,15 +1069,15 @@ const StudioOverlaySettingsRouteWithChildren =
 interface StudioOverlayRouteChildren {
   StudioOverlayCrashRoute: typeof StudioOverlayCrashRoute
   StudioOverlayLoginRoute: typeof StudioOverlayLoginRoute
-  StudioOverlayPrivateBetaRoute: typeof StudioOverlayPrivateBetaRoute
   StudioOverlaySettingsRoute: typeof StudioOverlaySettingsRouteWithChildren
+  StudioOverlayWelcomeRoute: typeof StudioOverlayWelcomeRoute
 }
 
 const StudioOverlayRouteChildren: StudioOverlayRouteChildren = {
   StudioOverlayCrashRoute: StudioOverlayCrashRoute,
   StudioOverlayLoginRoute: StudioOverlayLoginRoute,
-  StudioOverlayPrivateBetaRoute: StudioOverlayPrivateBetaRoute,
   StudioOverlaySettingsRoute: StudioOverlaySettingsRouteWithChildren,
+  StudioOverlayWelcomeRoute: StudioOverlayWelcomeRoute,
 }
 
 const StudioOverlayRouteWithChildren = StudioOverlayRoute._addFileChildren(

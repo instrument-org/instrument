@@ -4,6 +4,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { logOut } from "@/client/lib/log-out";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { ContactErrorAlert } from "./contact-error-alert";
@@ -25,9 +26,6 @@ export function AccountInfo() {
 
   return (
     <div className="space-y-3">
-      <div>
-        <h3 className="text-base font-semibold">Account</h3>
-      </div>
       {user?.id ? (
         <>
           <UserInfoCard />
@@ -90,23 +88,38 @@ export function AccountInfo() {
                 )}
               </>
             ) : (
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="text-sm font-medium">
-                    Access the best AI models for free
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Claim your free credits by signing up for an account.
+              <div className="flex items-center gap-5">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <p className="text-sm font-medium">Log in to {APP_NAME}</p>
+                  <p className="text-xs text-muted-foreground">
+                    You&apos;re using {APP_NAME} without an account. Create an
+                    account to claim free AI usage and try the app.
                   </p>
                 </div>
-                <Button
-                  onClick={() => {
-                    void rpcClient.studioOverlay.show.call({ kind: "login" });
-                  }}
-                  variant="brand"
-                >
-                  Log in
-                </Button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    onClick={() => {
+                      void rpcClient.studioOverlay.show.call({
+                        kind: "login",
+                        props: { hideManualProvider: true },
+                      });
+                    }}
+                    variant="outline"
+                  >
+                    Log in
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      void rpcClient.studioOverlay.show.call({
+                        kind: "login",
+                        props: { hideManualProvider: true },
+                      });
+                    }}
+                    variant="brand"
+                  >
+                    Sign up
+                  </Button>
+                </div>
               </div>
             )}
           </div>

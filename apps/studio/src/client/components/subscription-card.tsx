@@ -1,10 +1,12 @@
 import { ExternalLink } from "@/client/components/external-link";
+import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
+import { InternalLink } from "@/client/components/internal-link";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { rpcClient } from "@/client/rpc/client";
-import { SUPPORT_URL } from "@instrument-org/shared";
+import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -25,7 +27,6 @@ export function SubscriptionCard() {
   const { mutateAsync: openExternalLink } = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
   );
-
   const handleManageSubscription = async () => {
     try {
       const { url } = await createPortalSession();
@@ -75,55 +76,80 @@ export function SubscriptionCard() {
 
   const planLabel = hasSubscription ? subscription.plan : "Free";
 
-  return (
-    <Card className="p-4">
-      <div className="space-y-6">
+  if (subscription.hasEnoughCredits) {
+    return (
+      <Card className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="mb-1 flex flex-wrap items-center gap-2">
-              <h4 className="font-medium">
-                {hasSubscription ? "Subscription & Usage" : "Plan & Usage"}
-              </h4>
-              <Badge variant="outline">{planLabel}</Badge>
+              <BrandLeafIcon className="size-3" />
+              <h4 className="text-sm font-medium">Free AI usage enabled</h4>
+              {hasSubscription && <Badge variant="outline">{planLabel}</Badge>}
             </div>
-            <p className="text-sm text-muted-foreground">
-              {hasSubscription
-                ? "View your plan and credit usage"
-                : "View your account and usage"}
+            <p className="text-xs text-muted-foreground">
+              {APP_NAME} includes free AI usage so you can try the app.
             </p>
           </div>
+          {hasSubscription && (
+            <Button onClick={handleManageSubscription}>
+              Manage Subscription
+            </Button>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="space-y-4">
+        <div>
+          <h4 className="font-medium">{APP_NAME} Free</h4>
         </div>
 
-        <div className="space-y-4 pt-2">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="font-medium">Usage</span>
-              <span className="text-muted-foreground">
-                {displayUsagePercent.toFixed(0)}% used
-              </span>
-            </div>
-            <Progress value={displayUsagePercent} />
-            <ExternalLink
-              className="text-xs font-medium text-brand-text"
-              href={SUPPORT_URL}
-            >
-              Get more credits
-            </ExternalLink>
-          </div>
-          {subscription.nextAllocation && (
-            <p className="text-xs text-muted-foreground">
-              Next credit allocation on{" "}
-              {new Date(subscription.nextAllocation).toLocaleDateString()}
+        <div className="space-y-1">
+          <p className="text-sm font-semibold">
+            You&apos;ve enjoyed all of your free AI usage
+          </p>
+          <div className="flex items-baseline justify-between gap-4 text-sm text-muted-foreground">
+            <p>
+              <ExternalLink className="underline" href={SUPPORT_URL}>
+                Contact us
+              </ExternalLink>
+              {" or "}
+              <InternalLink
+                allowOpenNewTab={false}
+                className="underline"
+                to="/studio-overlay/settings/providers"
+              >
+                add API keys
+              </InternalLink>{" "}
+              to use {APP_NAME} with your AI provider of choice
             </p>
-          )}
-          {hasSubscription && (
-            <div className="flex flex-wrap justify-end gap-2 pt-2">
-              <Button onClick={handleManageSubscription}>
-                Manage Subscription
-              </Button>
-            </div>
-          )}
+            <span className="shrink-0">
+              {displayUsagePercent.toFixed(0)}% used
+            </span>
+          </div>
+          <Progress
+            className="[&>[data-slot=progress-indicator]]:bg-brand-400"
+            value={displayUsagePercent}
+          />
         </div>
+
+        {subscription.nextAllocation && (
+          <p className="text-xs text-muted-foreground">
+            Next credit allocation on{" "}
+            {new Date(subscription.nextAllocation).toLocaleDateString()}
+          </p>
+        )}
+
+        {hasSubscription && (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button onClick={handleManageSubscription} variant="outline">
+              Manage Subscription
+            </Button>
+          </div>
+        )}
       </div>
     </Card>
   );

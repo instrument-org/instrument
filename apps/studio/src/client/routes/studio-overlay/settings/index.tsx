@@ -17,11 +17,27 @@ import {
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { type ReactNode } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/studio-overlay/settings/")({
   component: SettingsGeneralPage,
 });
+
+function SettingsSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+      {children}
+    </div>
+  );
+}
 
 const handleInstallUpdate = () => {
   void rpcClient.preferences.quitAndInstall.call();
@@ -87,7 +103,7 @@ function About() {
     switch (updateState?.type) {
       case "available": {
         return (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Version {updateState.updateInfo?.version ?? ""} is available.
             Downloading...
           </div>
@@ -95,7 +111,7 @@ function About() {
       }
       case "cancelled": {
         return (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Update to version {updateState.updateInfo?.version} was cancelled
           </div>
         );
@@ -103,7 +119,7 @@ function About() {
       case "checking": {
         return (
           <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               Checking for updates...
             </div>
           </div>
@@ -111,7 +127,7 @@ function About() {
       }
       case "downloaded": {
         return (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {isLinux()
               ? `Version ${updateState.updateInfo?.version ?? ""} is
             ready to install. Please allow a few minutes for the update to install. The app will relaunch when complete.`
@@ -123,7 +139,7 @@ function About() {
       case "downloading": {
         return (
           <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               Downloading update...
             </div>
             <Progress
@@ -138,7 +154,7 @@ function About() {
       }
       case "error": {
         return (
-          <div className="text-sm text-destructive">
+          <div className="text-xs text-destructive">
             Update failed: {updateState.message.slice(0, 100)}
             {updateState.message.length > 100 ? "..." : ""}
           </div>
@@ -146,28 +162,28 @@ function About() {
       }
       case "inactive": {
         return (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             The app is running in development mode. Updates are not available.
           </div>
         );
       }
       case "installing": {
         return (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {updateState.notice ?? "Update is installing..."}
           </div>
         );
       }
       case "not-available": {
         return (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             No updates available
           </div>
         );
       }
       default: {
         return lastChecked ? (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Last checked for updates on {formatLastChecked(lastChecked)}.
           </div>
         ) : null;
@@ -242,10 +258,7 @@ function About() {
   };
 
   return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-base font-semibold">About</h3>
-      </div>
+    <SettingsSection title="About">
       <div className="space-y-3">
         <Card className="p-4">
           <div className="flex items-start justify-between gap-4">
@@ -261,44 +274,37 @@ function About() {
             <div className="shrink-0">{getActionButton()}</div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Open Source</div>
-            <p className="text-sm text-muted-foreground">
-              {APP_NAME} is open source and free to use. You can view the source
-              code on GitHub.
-            </p>
-            <div>
-              <Button
-                asChild
-                className="h-auto px-0! text-brand-400 hover:text-brand-500 dark:text-brand-300 dark:hover:text-brand-200"
-                variant="link"
-              >
-                <ExternalLink href={APP_REPO_URL}>
-                  View Source on GitHub
-                  <ArrowSquareOutIcon className="size-3" />
-                </ExternalLink>
-              </Button>
+        <Card className="border-black/5 bg-muted/30 p-4 shadow-none dark:border-white/5">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Open Source</div>
+              <p className="text-xs text-muted-foreground">
+                {APP_NAME} is open source and free to use. You can view the
+                source code on GitHub.
+              </p>
             </div>
+            <Button asChild size="sm" variant="outline">
+              <ExternalLink href={APP_REPO_URL}>
+                View source on GitHub
+                <ArrowSquareOutIcon className="size-3.5" />
+              </ExternalLink>
+            </Button>
           </div>
         </Card>
       </div>
-    </div>
+    </SettingsSection>
   );
 }
 
 function InterfaceAndTheme() {
   return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-base font-semibold">Interface</h3>
-      </div>
+    <SettingsSection title="Interface">
       <Card className="p-4">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label htmlFor="theme-toggle">Theme</Label>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Choose your preferred color scheme.
               </p>
             </div>
@@ -306,7 +312,7 @@ function InterfaceAndTheme() {
           </div>
         </div>
       </Card>
-    </div>
+    </SettingsSection>
   );
 }
 
@@ -316,12 +322,9 @@ function SettingsGeneralPage() {
       <AccountInfo />
       <InterfaceAndTheme />
       <About />
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-base font-semibold">Advanced</h3>
-        </div>
+      <SettingsSection title="Advanced">
         <UsageMetrics />
-      </div>
+      </SettingsSection>
     </div>
   );
 }

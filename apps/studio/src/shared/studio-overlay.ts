@@ -26,18 +26,11 @@ export const STUDIO_OVERLAY_DISMISSIBLE = {
  * Settings sections the modal can deep-link to. Mirrors the standalone
  * window's tabs; each maps to a child route under `/studio-overlay/settings`.
  */
-const SETTINGS_TABS = [
-  "Advanced",
-  "Debug",
-  "Features",
-  "General",
-  "Providers",
-] as const;
+const SETTINGS_TABS = ["Debug", "Features", "General", "Providers"] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 /** Child route path for each settings tab, type-checked against the tree. */
 const SETTINGS_TAB_PATHS = {
-  Advanced: "/studio-overlay/settings/advanced",
   Debug: "/studio-overlay/settings/debug",
   Features: "/studio-overlay/settings/features",
   General: "/studio-overlay/settings",

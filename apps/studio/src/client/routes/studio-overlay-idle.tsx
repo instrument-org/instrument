@@ -1,5 +1,16 @@
 import { rpcClient } from "@/client/rpc/client";
-import { createFileRoute } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  type FileRoutesByPath,
+  useRouter,
+} from "@tanstack/react-router";
+import { useEffect } from "react";
+
+const PRELOAD_ROUTE_PATHS = [
+  "/studio-overlay/login",
+  "/studio-overlay/settings",
+  "/studio-overlay/welcome",
+] satisfies (keyof FileRoutesByPath)[];
 
 /**
  * Where the warm overlay view parks while hidden: renders no layout, so its
@@ -13,6 +24,18 @@ export const Route = createFileRoute("/studio-overlay-idle")({
 });
 
 function IdleParkingRoute() {
+  const router = useRouter();
+
+  useEffect(() => {
+    async function preloadRouteChunks() {
+      for (const path of PRELOAD_ROUTE_PATHS) {
+        await router.loadRouteChunk(router.routesByPath[path]);
+      }
+    }
+
+    void preloadRouteChunks();
+  }, [router]);
+
   return (
     <button
       aria-label="Dismiss"

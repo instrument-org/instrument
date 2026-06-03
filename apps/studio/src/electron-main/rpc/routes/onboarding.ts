@@ -3,24 +3,22 @@ import { getTabsManager } from "@/electron-main/tabs";
 import { createMainWindow } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { closeOnboardingWindow } from "@/electron-main/windows/onboarding";
-import { type StudioPath } from "@/shared/studio-path";
-
-const PRIVATE_BETA_PATH: StudioPath = "/new-tab";
+import { PRIVATE_BETA_LAUNCH } from "@/shared/constants";
 
 const complete = base.handler(async () => {
   const existingMainWindow = getMainWindow();
+
   if (!existingMainWindow || existingMainWindow.isDestroyed()) {
-    await createMainWindow({
-      initialParams: { privateBeta: "true" },
-      initialPath: PRIVATE_BETA_PATH,
+    await createMainWindow(PRIVATE_BETA_LAUNCH);
+  } else if (existingMainWindow.isVisible()) {
+    // Already-visible window means a real re-completion; open a fresh tab.
+    getTabsManager()?.addTab({
+      params: PRIVATE_BETA_LAUNCH.initialParams,
+      urlPath: PRIVATE_BETA_LAUNCH.initialPath,
     });
+    existingMainWindow.focus();
   } else {
-    if (existingMainWindow.isVisible()) {
-      getTabsManager()?.addTab({
-        params: { privateBeta: "true" },
-        urlPath: PRIVATE_BETA_PATH,
-      });
-    }
+    // Window was prepared hidden during onboarding; just reveal it.
     existingMainWindow.show();
     existingMainWindow.focus();
   }

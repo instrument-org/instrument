@@ -14,6 +14,14 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import {
+  motion,
+  useMotionTemplate,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+} from "motion/react";
+import { type PointerEvent, useState } from "react";
 
 export const Route = createFileRoute("/studio-overlay/private-beta")({
   component: PrivateBetaModal,
@@ -45,6 +53,96 @@ const FEATURE_ROWS: {
     title: "Emphatically native.",
   },
 ];
+
+const POSITION_SPRING = { damping: 28, stiffness: 180 };
+
+function PrivateBetaHeader() {
+  const prefersReducedMotion = useReducedMotion();
+  const [isHovering, setIsHovering] = useState(false);
+
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+
+  // When reduced motion is requested, track the cursor instantly instead of
+  // springing the spotlight across the header.
+  const springConfig = prefersReducedMotion
+    ? { damping: 100, stiffness: 1000 }
+    : POSITION_SPRING;
+  const smoothX = useSpring(pointerX, springConfig);
+  const smoothY = useSpring(pointerY, springConfig);
+  // Intersect the cursor spotlight with a bottom edge-fade so the last rows of
+  // grid lines never finish abruptly when the cursor hovers near the bottom.
+  const gridRevealMask = useMotionTemplate`
+    radial-gradient(
+      circle 7rem at ${smoothX}px ${smoothY}px,
+      black 0%,
+      transparent 70%
+    ),
+    linear-gradient(to bottom, black 0%, black 70%, transparent 100%)
+  `;
+
+  function trackPointer(event: PointerEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    pointerX.set(event.clientX - rect.left);
+    pointerY.set(event.clientY - rect.top);
+  }
+
+  return (
+    <div
+      className="relative flex w-full shrink-0 items-center justify-center overflow-hidden px-11 pt-15 pb-5"
+      onPointerEnter={(event) => {
+        // Snap the spotlight to the entry point so it fades in under the
+        // cursor instead of sweeping in from the top-left corner.
+        const rect = event.currentTarget.getBoundingClientRect();
+
+        pointerX.jump(event.clientX - rect.left);
+        pointerY.jump(event.clientY - rect.top);
+        setIsHovering(true);
+      }}
+      onPointerLeave={() => {
+        setIsHovering(false);
+      }}
+      onPointerMove={trackPointer}
+    >
+      <div
+        aria-hidden
+        className={cn(
+          `absolute -inset-x-7 top-0 h-49
+          [background-image:linear-gradient(to_right,color-mix(in_srgb,var(--brand-300)_10%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--brand-300)_10%,transparent)_1px,transparent_1px)]
+          [mask-image:radial-gradient(ellipse_at_28%_10%,black_0%,transparent_64%)]
+          [background-size:2rem_2rem]
+          dark:[background-image:linear-gradient(to_right,color-mix(in_srgb,var(--gray-400)_10%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--gray-400)_10%,transparent)_1px,transparent_1px)]`,
+        )}
+      />
+      <motion.div
+        // A plain tween reads cleaner than a spring for a simple fade, and a
+        // quicker fade-out feels snappier when the cursor leaves the header.
+        animate={{ opacity: isHovering ? 1 : 0 }}
+        aria-hidden
+        className={cn(
+          `pointer-events-none absolute -inset-x-7 top-0 h-49
+          [background-image:linear-gradient(to_right,color-mix(in_srgb,var(--brand-300)_38%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--brand-300)_38%,transparent)_1px,transparent_1px)]
+          [background-size:2rem_2rem]
+          dark:[background-image:linear-gradient(to_right,color-mix(in_srgb,var(--gray-300)_34%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--gray-300)_34%,transparent)_1px,transparent_1px)]`,
+        )}
+        initial={{ opacity: 0 }}
+        style={{
+          maskComposite: "intersect",
+          maskImage: gridRevealMask,
+          WebkitMaskComposite: "source-in",
+          WebkitMaskImage: gridRevealMask,
+        }}
+        transition={{ duration: isHovering ? 0.25 : 0.15, ease: "easeOut" }}
+      />
+      <h1 className="relative text-center font-serif text-3xl leading-10 font-normal text-gray-800 dark:text-gray-25">
+        Explore the {APP_NAME}
+        <br />
+        Private Beta
+      </h1>
+    </div>
+  );
+}
 
 function PrivateBetaModal() {
   const { data: hasToken } = useQuery(
@@ -84,23 +182,7 @@ function PrivateBetaModal() {
         Explore the {APP_NAME} Private Beta
       </DialogTitle>
 
-      <div className="relative flex w-full shrink-0 items-center justify-center overflow-hidden px-11 pt-15 pb-5">
-        <div
-          aria-hidden
-          className={cn(
-            `absolute -inset-x-7 top-0 h-49
-            [background-image:linear-gradient(to_right,color-mix(in_srgb,var(--brand-300)_16%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--brand-300)_16%,transparent)_1px,transparent_1px)]
-            [mask-image:radial-gradient(ellipse_at_28%_10%,black_0%,transparent_64%)]
-            [background-size:2rem_2rem]
-            dark:[background-image:linear-gradient(to_right,color-mix(in_srgb,var(--gray-500)_16%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--gray-500)_16%,transparent)_1px,transparent_1px)]`,
-          )}
-        />
-        <h1 className="relative text-center font-serif text-3xl leading-10 font-normal text-gray-800 dark:text-gray-25">
-          Explore the {APP_NAME}
-          <br />
-          Private Beta
-        </h1>
-      </div>
+      <PrivateBetaHeader />
 
       <div className="flex min-h-0 flex-1 flex-col items-center gap-8 px-11 pt-7 pb-10">
         <div className="min-h-0 w-full overflow-y-auto pr-1">

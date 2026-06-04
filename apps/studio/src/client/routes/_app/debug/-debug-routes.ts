@@ -1,4 +1,4 @@
-export const debugRoutes = [
+const debugRoutes = [
   {
     description: "Start here and jump into focused debug tools.",
     id: "index",
@@ -51,6 +51,14 @@ export const debugRoutes = [
     title: "Debug Browser View",
   },
 ] as const;
+
+export const debugNavigationRoutes = debugRoutes.filter(
+  (route) => route.showNav && "to" in route,
+);
+
+export const debugCardRoutes = debugRoutes.filter(
+  (route) => route.showCard && "to" in route,
+);
 
 export const componentPages = [
   {

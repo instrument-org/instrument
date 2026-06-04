@@ -2,7 +2,7 @@ import { InternalLink } from "@/client/components/internal-link";
 import { createIconMeta } from "@/shared/tabs";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { debugRoutes } from "./-debug-routes";
+import { debugNavigationRoutes } from "./-debug-routes";
 
 const linkBaseClasses =
   "rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground";
@@ -26,11 +26,7 @@ function RouteComponent() {
       <header className="sticky top-0 z-10 w-full shrink-0 border-b bg-background px-4 py-3">
         <nav className="flex min-w-0 items-center">
           <div className="flex min-w-0 flex-wrap gap-1 rounded-xl border bg-muted/40 p-1">
-            {debugRoutes.map((route) => {
-              if (!route.showNav) {
-                return null;
-              }
-
+            {debugNavigationRoutes.map((route) => {
               return (
                 <InternalLink
                   activeOptions={{ exact: route.to === "/debug" }}

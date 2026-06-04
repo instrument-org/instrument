@@ -30,11 +30,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import {
+  componentPages,
+  debugNavigationRoutes,
+  onboardingScreens,
+} from "@/client/routes/_app/debug/-debug-routes";
+import { presetSessions } from "@/client/routes/_app/debug/-sessions";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
 import { type StudioPath } from "@/shared/studio-path";
 import {
-  AppWindowIcon,
   BugIcon,
   ChartBarIcon,
   DatabaseIcon,
@@ -51,9 +56,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 const PAGES = [
-  { label: "/", to: "/" },
-  { label: "/subscribe", to: "/subscribe" },
   { label: "/projects", to: "/projects" },
+  { label: "/evals", to: "/evals" },
+  { label: "/tutorial-task", to: "/tutorial-task" },
+  { label: "/subscribe", to: "/subscribe" },
+  { label: "/", to: "/" },
 ] as const satisfies { label: string; to: StudioPath }[];
 
 const triggerClassName =
@@ -113,8 +120,8 @@ export function DevPanel() {
 
   const enabledFlagCount = Object.values(features).filter(Boolean).length;
 
-  function handleNavigate(to: StudioPath) {
-    void navigate({ to });
+  function handleNavigate(to: StudioPath, search?: { session: string }) {
+    void navigate({ search, to });
   }
 
   if (hidden) {
@@ -178,39 +185,118 @@ export function DevPanel() {
                       {label}
                     </MenubarItem>
                   ))}
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Debug
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  {debugNavigationRoutes.map((route) => (
+                    <MenubarItem
+                      className="font-mono text-xs"
+                      key={route.to}
+                      onSelect={() => {
+                        handleNavigate(route.to);
+                      }}
+                    >
+                      {route.label}
+                    </MenubarItem>
+                  ))}
                   <MenubarSeparator />
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      handleNavigate("/debug");
-                    }}
-                  >
-                    /debug
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      handleNavigate("/evals");
-                    }}
-                  >
-                    /evals
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      handleNavigate("/tutorial-task");
-                    }}
-                  >
-                    /tutorial-task
-                  </MenubarItem>
-                  <MenubarSeparator />
+                  <MenubarSub>
+                    <MenubarSubTrigger className="font-mono text-xs">
+                      Components
+                    </MenubarSubTrigger>
+                    <MenubarSubContent>
+                      {componentPages.map((page) => {
+                        const isChatStreamPage = page.id === "chat-stream";
+                        const isOnboardingPage = page.id === "onboarding";
+
+                        if (isChatStreamPage) {
+                          return (
+                            <MenubarSub key={page.id}>
+                              <MenubarSubTrigger className="font-mono text-xs">
+                                {page.label}
+                              </MenubarSubTrigger>
+                              <MenubarSubContent>
+                                {presetSessions.map((session) => (
+                                  <MenubarItem
+                                    className="font-mono text-xs"
+                                    key={session.id}
+                                    onSelect={() => {
+                                      handleNavigate(page.to, {
+                                        session: session.id,
+                                      });
+                                    }}
+                                  >
+                                    {session.name}
+                                  </MenubarItem>
+                                ))}
+                              </MenubarSubContent>
+                            </MenubarSub>
+                          );
+                        }
+
+                        if (isOnboardingPage) {
+                          return (
+                            <MenubarSub key={page.id}>
+                              <MenubarSubTrigger className="font-mono text-xs">
+                                {page.label}
+                              </MenubarSubTrigger>
+                              <MenubarSubContent>
+                                <MenubarItem
+                                  className="font-mono text-xs"
+                                  onSelect={() => {
+                                    handleNavigate(page.to);
+                                  }}
+                                >
+                                  Overview
+                                </MenubarItem>
+                                <MenubarSeparator />
+                                {onboardingScreens.map((screen) => (
+                                  <MenubarItem
+                                    className="font-mono text-xs"
+                                    key={screen.id}
+                                    onSelect={() => {
+                                      handleNavigate(screen.to);
+                                    }}
+                                  >
+                                    {screen.label}
+                                  </MenubarItem>
+                                ))}
+                              </MenubarSubContent>
+                            </MenubarSub>
+                          );
+                        }
+
+                        return (
+                          <MenubarItem
+                            className="font-mono text-xs"
+                            key={page.id}
+                            onSelect={() => {
+                              handleNavigate(page.to);
+                            }}
+                          >
+                            {page.label}
+                          </MenubarItem>
+                        );
+                      })}
+                    </MenubarSubContent>
+                  </MenubarSub>
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Windows
+                </MenubarSubTrigger>
+                <MenubarSubContent>
                   <MenubarItem
                     className="font-mono text-xs"
                     onSelect={() => {
                       openOnboarding();
                     }}
                   >
-                    <AppWindowIcon className="size-3" />
                     Onboarding window
                   </MenubarItem>
                   <MenubarItem
@@ -219,7 +305,7 @@ export function DevPanel() {
                       openAuthTestPage();
                     }}
                   >
-                    Auth test page ↗
+                    Auth test page
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

@@ -1,6 +1,5 @@
 import { Dialog } from "@/client/components/ui/dialog";
 import { Toaster } from "@/client/components/ui/sonner";
-import { useUpdateNotifications } from "@/client/hooks/use-update-notifications";
 import { rpcClient } from "@/client/rpc/client";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
@@ -23,8 +22,6 @@ export const Route = createFileRoute("/studio-overlay")({
  * The top strip stays draggable so window controls remain usable beneath it.
  */
 function AppModalLayout() {
-  useUpdateNotifications();
-
   return (
     <Dialog
       onOpenChange={(open) => {

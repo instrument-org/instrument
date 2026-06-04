@@ -218,6 +218,9 @@ export function ProjectChat({
       }}
       onSubmit={({ files, folders, modelURI, prompt }) => {
         promptInputRef.current?.clear();
+        if (isTutorialVisible) {
+          handleDismissTutorial();
+        }
         createMessage.mutate(
           {
             files,

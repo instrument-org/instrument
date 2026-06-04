@@ -204,9 +204,10 @@ function WelcomeModal() {
                 Coming soon to {APP_NAME}
               </p>
               <p className="text-sm leading-5 text-gray-500">
-                app connectors · plain text skills and memory written to
-                agent-maintained cloud storage · powerful collaboration tools ·
-                and much more · rolling out over the beta
+                switch to bring in data from your apps and services · custom
+                skills · persistent memory and files in agent-maintained cloud
+                storage · team collaboration tools · and much more · rolling out
+                over the beta
               </p>
             </div>
           </div>

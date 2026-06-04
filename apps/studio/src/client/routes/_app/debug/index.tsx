@@ -17,7 +17,7 @@ import { ArrowRightIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { debugRoutes, getDebugRoute } from "./-debug-routes";
+import { debugCardRoutes, getDebugRoute } from "./-debug-routes";
 
 export const Route = createFileRoute("/_app/debug/")({
   component: RouteComponent,
@@ -46,11 +46,7 @@ function RouteComponent() {
         </header>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {debugRoutes.map((route) => {
-            if (!route.showCard) {
-              return null;
-            }
-
+          {debugCardRoutes.map((route) => {
             return (
               <InternalLink
                 className="group block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -13,6 +13,7 @@ declare global {
       onStudioOverlayNavigate: (
         callback: (location: string, seq: number) => void,
       ) => void;
+      studioOverlayRouteReady: (location: string, seq: number) => void;
       tabId?: string;
       windowType?: "onboarding" | "shell" | "studio-overlay";
     };

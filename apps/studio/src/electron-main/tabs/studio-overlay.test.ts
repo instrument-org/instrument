@@ -38,13 +38,58 @@ interface FakeWebContents {
     goBack: ReturnType<typeof vi.fn>;
     goForward: ReturnType<typeof vi.fn>;
   };
+  on: ReturnType<typeof vi.fn>;
+  once: ReturnType<typeof vi.fn>;
   send: ReturnType<typeof vi.fn>;
   setWindowOpenHandler: ReturnType<typeof vi.fn>;
 }
 
 const createdViews: FakeView[] = [];
+const ipcMainListeners = new Map<
+  string,
+  Set<(event: { sender: FakeWebContents }, ...args: unknown[]) => void>
+>();
+
+function emitIpcFromWebContents(
+  webContents: FakeWebContents | undefined,
+  channel: string,
+  ...args: unknown[]
+) {
+  if (!webContents) {
+    return;
+  }
+  for (const listener of ipcMainListeners.get(channel) ?? []) {
+    listener({ sender: webContents }, ...args);
+  }
+}
 
 vi.mock("electron", () => ({
+  ipcMain: {
+    off: vi.fn(
+      (
+        channel: string,
+        listener: (
+          event: { sender: FakeWebContents },
+          ...args: unknown[]
+        ) => void,
+      ) => {
+        ipcMainListeners.get(channel)?.delete(listener);
+      },
+    ),
+    on: vi.fn(
+      (
+        channel: string,
+        listener: (
+          event: { sender: FakeWebContents },
+          ...args: unknown[]
+        ) => void,
+      ) => {
+        const listeners = ipcMainListeners.get(channel) ?? new Set();
+        listeners.add(listener);
+        ipcMainListeners.set(channel, listeners);
+      },
+    ),
+  },
   WebContentsView: function FakeWebContentsView(this: FakeView) {
     const view: FakeView = {
       setBackgroundColor: vi.fn(),
@@ -58,6 +103,8 @@ vi.mock("electron", () => ({
           goBack: vi.fn(),
           goForward: vi.fn(),
         },
+        on: vi.fn(),
+        once: vi.fn(),
         send: vi.fn(),
         setWindowOpenHandler: vi.fn(),
       },
@@ -81,6 +128,7 @@ function makeBaseWindow() {
 
 beforeEach(() => {
   createdViews.length = 0;
+  ipcMainListeners.clear();
   vi.clearAllMocks();
 });
 
@@ -104,8 +152,8 @@ describe("createStudioOverlayController", () => {
     expect(onClosed).toHaveBeenCalledTimes(1);
   });
 
-  it("boots the document once, then navigates via replace IPC", async () => {
-    const { baseWindow, removeChildView } = makeBaseWindow();
+  it("boots once, then waits for route-ready before revealing reopen", async () => {
+    const { addChildView, baseWindow, removeChildView } = makeBaseWindow();
     const controller = createStudioOverlayController({
       baseWindow,
       onClosed: vi.fn(),
@@ -146,6 +194,16 @@ describe("createStudioOverlayController", () => {
       ["studio-overlay:navigate", "/studio-overlay-idle", 1],
       ["studio-overlay:navigate", "/studio-overlay/settings", 2],
     ]);
+    // Reopen should not re-add the view while the warm renderer is still parked
+    // on idle; it reveals only after the renderer acks the target route.
+    expect(addChildView).toHaveBeenCalledTimes(1);
+    emitIpcFromWebContents(
+      webContents,
+      "studio-overlay:route-ready",
+      "/studio-overlay/settings",
+      2,
+    );
+    expect(addChildView).toHaveBeenCalledTimes(2);
 
     controller.dismiss();
     await expect(second).resolves.toEqual({ completed: false });
@@ -163,6 +221,12 @@ describe("createStudioOverlayController", () => {
     await expect(first).resolves.toEqual({ completed: false });
 
     const second = controller.show({ kind: "settings" });
+    emitIpcFromWebContents(
+      createdViews[0]?.webContents,
+      "studio-overlay:route-ready",
+      "/studio-overlay/settings",
+      2,
+    );
 
     // No second WebContentsView is constructed; the warm one is reused and
     // re-added to the window.

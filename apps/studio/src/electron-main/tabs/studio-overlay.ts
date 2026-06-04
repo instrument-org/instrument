@@ -10,7 +10,13 @@ import {
   type StudioOverlayResult,
 } from "@/shared/studio-overlay";
 import { type StudioPath } from "@/shared/studio-path";
-import { type BaseWindow, type WebContents, WebContentsView } from "electron";
+import {
+  type BaseWindow,
+  ipcMain,
+  type IpcMainEvent,
+  type WebContents,
+  WebContentsView,
+} from "electron";
 import path from "node:path";
 import { noop } from "radashi";
 
@@ -53,6 +59,13 @@ interface ActiveOverlay {
   view: WebContentsView;
 }
 
+interface PendingReveal {
+  fallback: ReturnType<typeof setTimeout>;
+  location: string;
+  seq: number;
+  view: WebContentsView;
+}
+
 /** Run a callback against the active overlay's webContents, if any. */
 function withActiveWebContents(
   active: ActiveOverlay | null,
@@ -67,6 +80,8 @@ function withActiveWebContents(
 
 /** Where the warm view parks while hidden: a route that renders nothing. */
 const IDLE_LOCATION = "/studio-overlay-idle" satisfies StudioPath;
+const ROUTE_READY_CHANNEL = "studio-overlay:route-ready";
+const ROUTE_READY_FALLBACK_MS = 1000;
 
 export function createStudioOverlayController({
   baseWindow,
@@ -80,19 +95,16 @@ export function createStudioOverlayController({
   onClosed: () => void;
 }): StudioOverlayController {
   let active: ActiveOverlay | null = null;
+  let pendingReveal: null | PendingReveal = null;
   // Created on first show, then kept alive (hidden, parked on idle) across opens
   // so reopening is instant. Destroyed only on teardown.
   let warmView: null | WebContentsView = null;
   // First open boots the document with a real load; later opens/parks navigate
   // the warm renderer client-side over IPC.
   let booted = false;
-  // Monotonically increasing counter sent with every navigate IPC. On a fast
-  // dismiss -> show, hideAndPark sends navigate-to-idle then openOverlay sends
-  // navigate-to-new. Both are delivered in order, but the renderer's
-  // router.navigate commits asynchronously, so the idle route could otherwise
-  // paint (blank, while the view is visible) before the new route lands. The
-  // renderer tracks the last seq it saw and drops the now-stale park, so the
-  // most recently issued navigate always wins. See router.tsx.
+  // Monotonic token sent with every warm-route IPC. The renderer acks the same
+  // token after TanStack Router commits, so reopen can stay hidden until the
+  // target route is ready instead of briefly showing the parked idle route.
   let navSeq = 0;
 
   function setActive(next: ActiveOverlay | null) {
@@ -108,6 +120,71 @@ export function createStudioOverlayController({
     // getContentBounds (not bounds) because the window is frameless.
     const { height, width } = baseWindow.getContentBounds();
     return { height, width, x: 0, y: 0 };
+  }
+
+  function clearPendingReveal() {
+    if (!pendingReveal) {
+      return;
+    }
+    clearTimeout(pendingReveal.fallback);
+    pendingReveal = null;
+  }
+
+  function revealView({
+    location,
+    view,
+  }: {
+    location: string;
+    view: WebContentsView;
+  }) {
+    if (
+      active?.view !== view ||
+      active.location !== location ||
+      active.settled
+    ) {
+      return;
+    }
+    tryCaptureError("addChildView failed showing studio overlay", () => {
+      // Added last so it composites above the selected tab (idempotent).
+      baseWindow.contentView.addChildView(view);
+    });
+    view.webContents?.focus();
+  }
+
+  function revealWhenRouteReady({
+    location,
+    seq,
+    view,
+  }: {
+    location: string;
+    seq: number;
+    view: WebContentsView;
+  }) {
+    clearPendingReveal();
+    // Last-resort reveal: a broken ack should not trap the user behind an
+    // invisible modal.
+    const fallback = setTimeout(() => {
+      if (pendingReveal?.seq === seq) {
+        pendingReveal = null;
+      }
+      revealView({ location, view });
+    }, ROUTE_READY_FALLBACK_MS);
+
+    pendingReveal = { fallback, location, seq, view };
+  }
+
+  function onRouteReady(location: string, seq: number) {
+    if (
+      !pendingReveal ||
+      pendingReveal.location !== location ||
+      pendingReveal.seq !== seq
+    ) {
+      return;
+    }
+
+    const { view } = pendingReveal;
+    clearPendingReveal();
+    revealView({ location, view });
   }
 
   function createWarmView() {
@@ -130,7 +207,25 @@ export function createStudioOverlayController({
       void openExternal(details.url);
       return { action: "deny" };
     });
-
+    if (view.webContents) {
+      const { webContents } = view;
+      const onIpcRouteReady = (
+        event: IpcMainEvent,
+        location: unknown,
+        seq: unknown,
+      ) => {
+        if (event.sender !== webContents) {
+          return;
+        }
+        if (typeof location === "string" && typeof seq === "number") {
+          onRouteReady(location, seq);
+        }
+      };
+      ipcMain.on(ROUTE_READY_CHANNEL, onIpcRouteReady);
+      webContents.once("destroyed", () => {
+        ipcMain.off(ROUTE_READY_CHANNEL, onIpcRouteReady);
+      });
+    }
     return view;
   }
 
@@ -151,34 +246,35 @@ export function createStudioOverlayController({
   function openOverlay(location: string) {
     const webContents = warmView?.webContents;
     if (!webContents) {
-      return;
+      return null;
     }
     if (!booted) {
       booted = true;
       void webContents.loadURL(unsafe_studioURL(location));
-      return;
+      return null;
     }
     tryCaptureError("clearing studio overlay history failed", () => {
       webContents.navigationHistory.clear();
     });
-    webContents.send("studio-overlay:navigate", location, ++navSeq);
+    const seq = ++navSeq;
+    webContents.send("studio-overlay:navigate", location, seq);
+    return seq;
   }
 
   /** Remove the view from the window and park its renderer on the idle route. */
   function hideAndPark(view: WebContentsView) {
+    clearPendingReveal();
     tryCaptureError("removeChildView failed closing studio overlay", () => {
       baseWindow.contentView.removeChildView(view);
     });
     if (booted) {
-      view.webContents?.send(
-        "studio-overlay:navigate",
-        IDLE_LOCATION,
-        ++navSeq,
-      );
+      const seq = ++navSeq;
+      view.webContents?.send("studio-overlay:navigate", IDLE_LOCATION, seq);
     }
   }
 
   function destroyWarmView() {
+    clearPendingReveal();
     if (!warmView) {
       return;
     }
@@ -282,12 +378,6 @@ export function createStudioOverlayController({
 
       const view = ensureWarmView();
       view.setBounds(computeBounds());
-      openOverlay(location);
-      tryCaptureError("addChildView failed showing studio overlay", () => {
-        // Added last so it composites above the selected tab (idempotent).
-        baseWindow.contentView.addChildView(view);
-      });
-      view.webContents?.focus();
 
       return new Promise<StudioOverlayResult>((resolve) => {
         setActive({
@@ -297,6 +387,12 @@ export function createStudioOverlayController({
           settled: false,
           view,
         });
+        const seq = openOverlay(location);
+        if (seq === null) {
+          revealView({ location, view });
+        } else {
+          revealWhenRouteReady({ location, seq, view });
+        }
       });
     },
     showIdle: () => {

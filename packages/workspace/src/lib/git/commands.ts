@@ -124,6 +124,14 @@ export namespace GitCommands {
     return ["show", `${ref}:${filePath}`];
   }
 
+  export function showNameStatus(ref: string, pathspec?: string) {
+    const args = ["show", "--name-status", "--format=", ref];
+    if (pathspec) {
+      args.push("--", pathspec);
+    }
+    return args;
+  }
+
   export function showNumstat(ref: string) {
     return ["show", "--numstat", "--format=", ref];
   }

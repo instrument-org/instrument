@@ -1,6 +1,7 @@
 import { cn } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { XIcon } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, useId } from "react";
 
 import { Button } from "../ui/button";
@@ -8,41 +9,95 @@ import { Button } from "../ui/button";
 export function TutorialPromptCard({
   children,
   isDismissPending,
+  isVisible,
   onDismiss,
 }: {
   children: ReactNode;
   isDismissPending: boolean;
+  isVisible: boolean;
   onDismiss: () => void;
 }) {
   return (
-    <div className="relative flex flex-col overflow-visible rounded-[24px] border border-black/5 bg-gradient-to-t from-gray-50 from-[24.779%] to-yellow-50 shadow-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.04)] dark:border-transparent dark:bg-[color-mix(in_srgb,var(--yellow-300)_20%,var(--background))] dark:bg-none dark:shadow-[0px_1px_8px_-4px_rgba(0,0,0,0.04)] dark:drop-shadow-none">
-      <div className="flex items-start gap-3 px-4 pt-4 pb-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <RocketGradientIcon className="size-5" />
-            <p className="min-w-0 truncate text-sm leading-5 font-semibold text-gray-950 dark:text-yellow-50">
-              This is your first {APP_NAME} task
-            </p>
-          </div>
-          <p className="mt-1 text-sm leading-5 text-black/60 dark:text-yellow-50/70">
-            Tasks in {APP_NAME} are where you talk to the {APP_NAME} AI and get
-            things done. Here&apos;s an example task to teach you how to use
-            {APP_NAME}.
-          </p>
-        </div>
-        <Button
-          aria-label="Dismiss tutorial prompt"
-          className="-m-1.5 size-7 rounded-md p-0 text-gray-400 hover:bg-black/5 hover:text-gray-950 dark:text-yellow-300/70 dark:hover:bg-white/10 dark:hover:text-yellow-50"
-          disabled={isDismissPending}
-          onClick={onDismiss}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          <XIcon className="size-4" />
-        </Button>
-      </div>
-      <div className="px-2 pb-2">{children}</div>
+    <div className="relative">
+      <AnimatePresence>
+        {isVisible && (
+          <motion.div
+            animate={{ opacity: 1, y: 0 }}
+            className="pointer-events-none absolute inset-0 -z-10 rounded-[24px] border border-black/5 bg-gradient-to-t from-gray-50 from-[24.779%] to-yellow-50 drop-shadow-[0_1px_4px_rgba(0,0,0,0.04)] dark:border-transparent dark:bg-[color-mix(in_srgb,var(--yellow-300)_20%,var(--background))] dark:bg-none dark:shadow-[0px_1px_8px_-4px_rgba(0,0,0,0.04)] dark:drop-shadow-none"
+            exit={{
+              opacity: 0,
+              transition: { damping: 22, stiffness: 320, type: "spring" },
+              y: 4,
+            }}
+            initial={{ opacity: 0, y: 4 }}
+            transition={{
+              delay: 0.35,
+              duration: 0.35,
+              ease: [0.25, 0.1, 0.25, 1],
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isVisible && (
+          <motion.div
+            animate={{ height: "auto", opacity: 1 }}
+            className="overflow-hidden"
+            exit={{
+              height: 0,
+              opacity: 0,
+              transition: { damping: 22, stiffness: 320, type: "spring" },
+            }}
+            initial={{ height: 0, opacity: 0 }}
+            transition={{
+              delay: 0.35,
+              duration: 0.35,
+              ease: [0.25, 0.1, 0.25, 1],
+            }}
+          >
+            <div className="flex items-start gap-3 px-4 pt-4 pb-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2">
+                  <RocketGradientIcon className="size-5" />
+                  <p className="min-w-0 truncate text-sm leading-5 font-semibold text-gray-950 dark:text-yellow-50">
+                    This is your first {APP_NAME} task
+                  </p>
+                </div>
+                <p className="mt-1 text-sm leading-5 text-black/60 dark:text-yellow-50/70">
+                  Tasks in {APP_NAME} are where you talk to the {APP_NAME} AI
+                  and get things done. Here&apos;s an example task to teach you
+                  how to use {APP_NAME}.
+                </p>
+              </div>
+              <Button
+                aria-label="Dismiss tutorial prompt"
+                className="-m-1.5 size-7 rounded-md p-0 text-gray-400 hover:bg-black/5 hover:text-gray-950 dark:text-yellow-300/70 dark:hover:bg-white/10 dark:hover:text-yellow-50"
+                disabled={isDismissPending}
+                onClick={onDismiss}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <XIcon className="size-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <motion.div
+        animate={{
+          paddingBottom: isVisible ? 8 : 0,
+          paddingLeft: isVisible ? 8 : 0,
+          paddingRight: isVisible ? 8 : 0,
+        }}
+        transition={
+          isVisible
+            ? { delay: 0.35, duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }
+            : { damping: 22, stiffness: 320, type: "spring" }
+        }
+      >
+        {children}
+      </motion.div>
     </div>
   );
 }

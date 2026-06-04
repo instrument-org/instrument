@@ -248,7 +248,7 @@ export function createStudioOverlayController({
       active?.view.webContents?.setZoomLevel(0);
     },
     resize: () => {
-      active?.view.setBounds(computeBounds());
+      warmView?.setBounds(computeBounds());
     },
     resolve: () => {
       settle({ completed: true });
@@ -281,6 +281,7 @@ export function createStudioOverlayController({
       }
 
       const view = ensureWarmView();
+      view.setBounds(computeBounds());
       openOverlay(location);
       tryCaptureError("addChildView failed showing studio overlay", () => {
         // Added last so it composites above the selected tab (idempotent).

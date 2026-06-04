@@ -16,6 +16,9 @@ const api: Window["api"] = {
         callback(location, seq);
       },
     ),
+  studioOverlayRouteReady: (location: string, seq: number) => {
+    ipcRenderer.send("studio-overlay:route-ready", location, seq);
+  },
 };
 
 const tabId = process.argv

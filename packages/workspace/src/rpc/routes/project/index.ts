@@ -524,6 +524,12 @@ const exportZip = base
     }
   });
 
+const OutputArtifactsCreatedSchema = z.object({
+  commitRef: z.string(),
+  filePaths: z.string().array(),
+  sessionId: StoreId.SessionSchema,
+});
+
 const live = {
   bySubdomain: base
     .input(z.object({ subdomain: ProjectSubdomainSchema }))
@@ -584,6 +590,27 @@ const live = {
 
       for await (const _ of mergeGenerators([projectUpdates, projectRemoved])) {
         yield call(list, input, { context, signal });
+      }
+    }),
+  // Forwards artifact-produced events as they happen. Unlike the other live
+  // endpoints this is a pure event stream (no initial snapshot): clients only
+  // react to runs that finish while subscribed.
+  outputArtifacts: base
+    .input(z.object({ subdomain: ProjectSubdomainSchema }))
+    .output(eventIterator(OutputArtifactsCreatedSchema))
+    .handler(async function* ({ input, signal }) {
+      const events = publisher.subscribe("project.outputArtifactsCreated", {
+        signal,
+      });
+
+      for await (const payload of events) {
+        if (payload.subdomain === input.subdomain) {
+          yield {
+            commitRef: payload.commitRef,
+            filePaths: payload.filePaths,
+            sessionId: payload.sessionId,
+          };
+        }
       }
     }),
 };

@@ -4,6 +4,7 @@ import { DuplicateProjectModal } from "@/client/components/project/duplicate-mod
 import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
 import { ProjectSidebarModeSchema } from "@/client/components/project/sidebar";
 import { ProjectView } from "@/client/components/project/view";
+import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-artifact";
 import { useProjectRouteSync } from "@/client/hooks/use-project-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
@@ -288,6 +289,14 @@ function RouteComponent() {
       });
     }
   }, [hasAppModifications, artifactPanel, navigate, subdomain]);
+
+  // App auto-open above takes priority over focusing an output artifact.
+  useAutoOpenOutputArtifact({
+    artifactPanel,
+    hasAppModifications,
+    selectedSessionId,
+    subdomain,
+  });
 
   const isLoading = isProjectLoading || isProjectStateLoading;
 

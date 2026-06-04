@@ -15,6 +15,7 @@ import { git } from "../lib/git";
 import { GitCommands } from "../lib/git/commands";
 import { ensureGitRepo } from "../lib/git/ensure-git-repo";
 import { isToolPart } from "../lib/is-tool-part";
+import { parseOutputArtifactPaths } from "../lib/parse-output-artifact-paths";
 import { pathExists } from "../lib/path-exists";
 import { getProjectState } from "../lib/project-state-store";
 import { readFileWithAnyCase } from "../lib/read-file-with-any-case";
@@ -24,6 +25,7 @@ import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
 import { Store } from "../lib/store";
 import { textForMessage } from "../lib/text-for-message";
+import { publisher } from "../rpc/publisher";
 import { StoreId } from "../schemas/store-id";
 import { getToolByType, TOOLS } from "../tools/all";
 import { setupAgent } from "./create-agent";
@@ -370,10 +372,12 @@ export const mainAgent = setupAgent({
         { signal },
       );
 
+      const ref = commitRef.stdout.toString().trim();
+
       yield* Store.savePart(
         {
           data: {
-            ref: commitRef.stdout.toString().trim(),
+            ref,
           },
           metadata: {
             createdAt: new Date(),
@@ -386,6 +390,25 @@ export const mainAgent = setupAgent({
         appConfig,
         { signal },
       );
+
+      // Announce any output/ artifacts this run produced so clients can decide
+      // whether to focus them. Derived from the commit for now; the contract is
+      // source-agnostic and will move to on-disk file events later.
+      const outputDiff = yield* git(
+        GitCommands.showNameStatus(ref, `${F.output}/`),
+        appConfig.appDir,
+        { signal },
+      );
+      const filePaths = parseOutputArtifactPaths(outputDiff.stdout.toString());
+      if (filePaths.length > 0 && appConfig.type === "project") {
+        publisher.publish("project.outputArtifactsCreated", {
+          commitRef: ref,
+          filePaths,
+          sessionId,
+          subdomain: appConfig.subdomain,
+        });
+      }
+
       return ok(undefined);
     });
     if (result.isErr()) {

@@ -22,6 +22,7 @@ import {
   type TutorialTaskWriteFileStep,
 } from "./data/tutorial-task-replay";
 import { initializeProject } from "./initialize-project";
+import { setProjectState } from "./project-state-store";
 import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
@@ -84,6 +85,10 @@ export async function startTutorialTaskReplay({
       { signal },
     );
 
+    await setProjectState(projectResult.projectConfig.appDir, {
+      showTutorial: true,
+    });
+
     const sessionId = StoreId.newSessionId();
     const now = new Date();
     const sessionResult = yield* Store.saveSession(
@@ -113,7 +118,7 @@ export async function startTutorialTaskReplay({
 
   ActiveReplays.register(sessionId, controller, subdomain);
   publishReplayChanged({ isActive: true, sessionId, subdomain });
-  const completion = runGuideReplay({
+  const completion = runTutorialTaskReplay({
     appConfig,
     sessionId,
     signal: controller.signal,
@@ -253,7 +258,7 @@ function replaySpawnAgent(): ReturnType<SpawnAgentFunction> {
   };
 }
 
-async function runGuideReplay({
+async function runTutorialTaskReplay({
   appConfig,
   sessionId,
   signal,

@@ -51,6 +51,7 @@ export function ProjectView({
   project,
   selectedModelURI,
   selectedSessionId,
+  showTutorial,
   showVersions,
   sidebar,
 }: {
@@ -61,6 +62,7 @@ export function ProjectView({
   project: WorkspaceAppProject;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
+  showTutorial?: boolean;
   showVersions?: boolean;
   sidebar: ProjectSidebarMode;
 }) {
@@ -189,6 +191,7 @@ export function ProjectView({
     project,
     selectedModelURI,
     selectedSessionId,
+    showTutorial,
     showVersions,
     versionRef: selectedAppVersion,
   };

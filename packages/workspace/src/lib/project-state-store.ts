@@ -14,6 +14,7 @@ const StoredProjectStateSchema = z
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
+    showTutorial: z.boolean().optional(),
   })
   .default(() => ({}));
 
@@ -21,6 +22,7 @@ export const ProjectStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
+  showTutorial: z.boolean().optional(),
 });
 
 export type ProjectState = z.output<typeof StoredProjectStateSchema>;

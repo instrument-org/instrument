@@ -93,7 +93,7 @@ export function VersionAndFilesCard({
     return (
       <div
         className={cn(
-          "flex w-full flex-col gap-3 rounded-lg border bg-card p-3 shadow-sm",
+          "flex w-full animate-in flex-col gap-3 rounded-lg border bg-card p-3 opacity-0 shadow-sm duration-150 fade-in-0 [animation-delay:200ms] [animation-fill-mode:forwards]",
           className,
         )}
       >

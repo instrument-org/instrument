@@ -316,6 +316,7 @@ function RouteComponent() {
         project={project}
         selectedModelURI={projectState.selectedModelURI}
         selectedSessionId={selectedSessionId}
+        showTutorial={projectState.showTutorial}
         showVersions={showVersions}
         sidebar={sidebar ?? "chat"}
       />

@@ -11,7 +11,12 @@ import {
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react";
-import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -25,6 +30,7 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
+import { TutorialPromptCard } from "./tutorial-prompt-card";
 
 export function ProjectChat({
   isReplayActive = false,
@@ -33,6 +39,7 @@ export function ProjectChat({
   project,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
+  showTutorial,
   showVersions,
   versionRef,
 }: {
@@ -42,10 +49,12 @@ export function ProjectChat({
   project: WorkspaceAppProject;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
+  showTutorial?: boolean;
   showVersions?: boolean;
   versionRef?: string;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // Use the route subdomain for chat data; project may be placeholder data
   // from the previous project while keepPreviousData is active.
   const subdomain = useProjectRouteSubdomain();
@@ -66,6 +75,22 @@ export function ProjectChat({
   );
   const stopSessions = useMutation(
     rpcClient.workspace.session.stop.mutationOptions(),
+  );
+  const dismissTutorial = useMutation(
+    rpcClient.workspace.project.state.set.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to dismiss tutorial prompt", {
+          description: error.message,
+        });
+      },
+      onSuccess: () => {
+        void queryClient.invalidateQueries({
+          queryKey: rpcClient.workspace.project.state.get.queryOptions({
+            input: { subdomain },
+          }).queryKey,
+        });
+      },
+    }),
   );
 
   const [selectedModelURI, setSelectedModelURI] = useState<
@@ -163,6 +188,74 @@ export function ProjectChat({
     promptTextarea?.focus();
   }, [selectedSessionId, promptTextarea]);
 
+  const isTutorialVisible = isProjectRouteSettled && showTutorial === true;
+
+  const handleDismissTutorial = () => {
+    dismissTutorial.mutate({
+      state: {
+        showTutorial: false,
+      },
+      subdomain,
+    });
+  };
+
+  const promptInput = (
+    <PromptInput
+      atomKey={subdomain}
+      autoFocus
+      className="relative z-10"
+      isLoading={createMessage.isPending}
+      isStoppable={isAgentAlive}
+      isSubmittable={!isAgentAlive}
+      modelURI={selectedModelURI}
+      onModelChange={setSelectedModelURI}
+      onStop={() => {
+        if (isReplayActive && onCancelReplay) {
+          onCancelReplay();
+        } else {
+          stopSessions.mutate({ subdomain });
+        }
+      }}
+      onSubmit={({ files, folders, modelURI, prompt }) => {
+        promptInputRef.current?.clear();
+        createMessage.mutate(
+          {
+            files,
+            folders,
+            modelURI,
+            prompt,
+            sessionId: selectedSessionId,
+            subdomain,
+          },
+          {
+            onSuccess: ({ sessionId }) => {
+              void scrollToBottom();
+              if (versionRef || showVersions) {
+                void navigate({
+                  params: {
+                    subdomain,
+                  },
+                  replace: true,
+                  search: (prev) => ({
+                    ...prev,
+                    artifactPanel: { type: "app" },
+                    selectedSessionId: sessionId,
+                    showVersions: undefined,
+                  }),
+                  to: "/projects/$subdomain",
+                });
+              }
+            },
+          },
+        );
+      }}
+      placeholder={`Talk to ${APP_NAME}`}
+      ref={promptInputRef}
+      selectedSessionId={selectedSessionId}
+      subdomain={subdomain}
+    />
+  );
+
   return (
     <div
       className="relative flex h-full min-h-0 flex-col overflow-y-auto"
@@ -255,61 +348,19 @@ export function ProjectChat({
           </div>
         )}
         <div className="relative mx-auto w-full max-w-2xl px-3 pb-3">
-          <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-[20px] bg-background" />
-          <PromptInput
-            atomKey={subdomain}
-            autoFocus
-            className="relative z-10"
-            isLoading={createMessage.isPending}
-            isStoppable={isAgentAlive}
-            isSubmittable={!isAgentAlive}
-            modelURI={selectedModelURI}
-            onModelChange={setSelectedModelURI}
-            onStop={() => {
-              if (isReplayActive && onCancelReplay) {
-                onCancelReplay();
-              } else {
-                stopSessions.mutate({ subdomain });
-              }
-            }}
-            onSubmit={({ files, folders, modelURI, prompt }) => {
-              promptInputRef.current?.clear();
-              createMessage.mutate(
-                {
-                  files,
-                  folders,
-                  modelURI,
-                  prompt,
-                  sessionId: selectedSessionId,
-                  subdomain,
-                },
-                {
-                  onSuccess: ({ sessionId }) => {
-                    void scrollToBottom();
-                    if (versionRef || showVersions) {
-                      void navigate({
-                        params: {
-                          subdomain,
-                        },
-                        replace: true,
-                        search: (prev) => ({
-                          ...prev,
-                          artifactPanel: { type: "app" },
-                          selectedSessionId: sessionId,
-                          showVersions: undefined,
-                        }),
-                        to: "/projects/$subdomain",
-                      });
-                    }
-                  },
-                },
-              );
-            }}
-            placeholder={`Talk to ${APP_NAME}`}
-            ref={promptInputRef}
-            selectedSessionId={selectedSessionId}
-            subdomain={subdomain}
-          />
+          {!isTutorialVisible && (
+            <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-[20px] bg-background" />
+          )}
+          {isTutorialVisible ? (
+            <TutorialPromptCard
+              isDismissPending={dismissTutorial.isPending}
+              onDismiss={handleDismissTutorial}
+            >
+              {promptInput}
+            </TutorialPromptCard>
+          ) : (
+            promptInput
+          )}
         </div>
       </div>
     </div>

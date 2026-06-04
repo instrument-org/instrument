@@ -72,6 +72,18 @@ that invoke turbo).
 Single test file: `cd packages/<name> && pnpm test run <file>` or
 `cd apps/studio && pnpm test run <file>`.
 
+## Key catalog versions
+
+`package.json` files show `"catalog:"` instead of version numbers. Real versions
+are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
+
+- **React** 19.2 / **react-dom** 19.2
+- **TypeScript** 5.9 (also available as `@typescript/native-preview` 7.x via `tsgo`)
+- **Zod** 4.x
+- **Vite** 7.x / **Vitest** 4.x
+- **AI SDK** 6.x
+- **better-auth** 1.2.x
+
 ## Package management
 
 - `pnpm` CLI (`install`, `add`, `remove`, `why`, etc.): outside sandbox (full

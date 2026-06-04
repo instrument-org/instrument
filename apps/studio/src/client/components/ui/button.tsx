@@ -18,6 +18,7 @@ export const buttonVariants = tv({
       "icon-sm": "size-8 rounded-md",
       lg: "h-10 px-6 has-[>svg]:px-4",
       sm: "h-8 gap-1.5 px-3 has-[>svg]:px-2.5",
+      xs: "h-6 gap-1.5 rounded-lg px-2.5 text-xs has-[>svg]:px-2",
     },
     variant: {
       brand: "bg-brand-600 text-brand-foreground shadow-xs hover:bg-brand-700",

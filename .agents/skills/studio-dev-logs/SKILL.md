@@ -1,8 +1,6 @@
 ---
 name: studio-dev-logs
 description: Read Studio main-process logs written during local development. Use when you want to inspect what happened during a Studio session — errors, warnings, or info messages from the Electron main process.
-paths:
-  - "apps/studio/**"
 ---
 
 # Studio Dev Logs

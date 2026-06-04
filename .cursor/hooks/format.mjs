@@ -364,6 +364,18 @@ try {
     });
   }
 
+  if (
+    data.hook_event_name === "PostToolUse" &&
+    (data.tool_name === "Edit" || data.tool_name === "Write") &&
+    typeof data.tool_input?.file_path === "string" &&
+    data.tool_input.file_path.length > 0
+  ) {
+    formatEditedFile({
+      filePath: path.resolve(data.tool_input.file_path),
+      repoRoot,
+    });
+  }
+
   if (data.hook_event_name === "Stop") {
     formatDirtyFiles(repoRoot);
   }

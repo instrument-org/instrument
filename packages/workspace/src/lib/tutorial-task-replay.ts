@@ -129,15 +129,6 @@ export async function startTutorialTaskReplay({
   return ok({ completion, sessionId, subdomain });
 }
 
-function checkAbort(signal: AbortSignal) {
-  if (signal.aborted) {
-    throw new DOMException(
-      "The tutorial task replay was cancelled",
-      "AbortError",
-    );
-  }
-}
-
 async function delay({
   delayMs,
   signal,
@@ -145,8 +136,7 @@ async function delay({
   delayMs: number;
   signal: AbortSignal;
 }) {
-  checkAbort(signal);
-  if (delayMs === 0) {
+  if (signal.aborted || delayMs === 0) {
     return;
   }
 
@@ -157,7 +147,6 @@ async function delay({
       resolve();
     });
   });
-  checkAbort(signal);
 }
 
 function getReplayTiming({
@@ -271,13 +260,16 @@ async function runTutorialTaskReplay({
   timing: TutorialTaskReplayTiming;
   workspaceConfig: WorkspaceConfig;
 }) {
+  // External calls (runToolCall, mainAgent.onFinish) that must complete even
+  // when the user stops mid-replay use this signal, which is never aborted.
+  const noAbort = new AbortController().signal;
+
   try {
     const [userStep, introStep, writeGuideFileStep, completionStep] =
       TUTORIAL_TASK_REPLAY.steps;
     const userMessageId = await saveUserMessage({
       appConfig,
       sessionId,
-      signal,
       text: userStep.text,
     });
     const introMessageId = StoreId.newMessageId();
@@ -288,7 +280,6 @@ async function runTutorialTaskReplay({
       finishReason: "unknown",
       messageId: introMessageId,
       sessionId,
-      signal,
     });
     await delay({ delayMs: timing.assistantStartDelayMs, signal });
 
@@ -304,6 +295,7 @@ async function runTutorialTaskReplay({
 
     const toolMessageId = await runWriteGuideFileTool({
       appConfig,
+      noAbort,
       sessionId,
       signal,
       step: writeGuideFileStep,
@@ -325,7 +317,7 @@ async function runTutorialTaskReplay({
       model: replayModel(),
       parentMessageId: userMessageId,
       sessionId,
-      signal,
+      signal: noAbort,
     });
   } catch (error) {
     if (!signal.aborted) {
@@ -343,6 +335,7 @@ async function runTutorialTaskReplay({
 
 async function runWriteGuideFileTool({
   appConfig,
+  noAbort,
   sessionId,
   signal,
   step,
@@ -350,13 +343,13 @@ async function runWriteGuideFileTool({
   toolInputDurationMs,
 }: {
   appConfig: AppConfigProject;
+  noAbort: AbortSignal;
   sessionId: StoreId.Session;
   signal: AbortSignal;
   step: TutorialTaskWriteFileStep;
   stepDelayMs: number;
   toolInputDurationMs: number;
 }) {
-  checkAbort(signal);
   const messageId = StoreId.newMessageId();
   const partId = StoreId.newPartId();
   const toolCallId = StoreId.ToolCallSchema.parse(step.toolCallId);
@@ -373,7 +366,6 @@ async function runWriteGuideFileTool({
     finishReason: "tool-calls",
     messageId,
     sessionId,
-    signal,
   });
 
   const baseToolPart = {
@@ -396,14 +388,13 @@ async function runWriteGuideFileTool({
     toolInputDurationMs,
   });
   await delay({ delayMs: stepDelayMs, signal });
-  checkAbort(signal);
 
   const inputAvailablePart = {
     ...baseToolPart,
     input,
     state: "input-available",
   } satisfies TutorialTaskWriteFileInputAvailablePart;
-  await saveToolPart({ appConfig, signal, toolPart: inputAvailablePart });
+  await saveToolPart({ appConfig, toolPart: inputAvailablePart });
 
   await runToolCall({
     agentName: "main",
@@ -411,7 +402,7 @@ async function runWriteGuideFileTool({
     model: replayModel(),
     part: inputAvailablePart,
     sessionId,
-    signal,
+    signal: noAbort,
     spawnAgent: replaySpawnAgent,
   });
   await delay({ delayMs: stepDelayMs, signal });
@@ -425,14 +416,12 @@ async function saveAssistantMessage({
   finishReason,
   messageId,
   sessionId,
-  signal,
 }: {
   appConfig: AppConfigProject;
   createdAt: Date;
   finishReason: SessionMessage.Assistant["metadata"]["finishReason"];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  signal: AbortSignal;
 }) {
   await unwrap(
     Store.saveMessage(
@@ -449,7 +438,7 @@ async function saveAssistantMessage({
         role: "assistant",
       } satisfies SessionMessage.Assistant,
       appConfig,
-      { signal },
+      {},
     ),
   );
 }
@@ -461,7 +450,6 @@ async function saveTextPart({
   messageId,
   partId,
   sessionId,
-  signal,
   text,
 }: {
   appConfig: AppConfigProject;
@@ -470,7 +458,6 @@ async function saveTextPart({
   messageId: StoreId.Message;
   partId: StoreId.Part;
   sessionId: StoreId.Session;
-  signal: AbortSignal;
   text: string;
 }) {
   await unwrap(
@@ -487,37 +474,32 @@ async function saveTextPart({
         type: "text",
       } satisfies SessionMessagePart.TextPart,
       appConfig,
-      { signal },
+      {},
     ),
   );
 }
 
 async function saveToolPart({
   appConfig,
-  signal,
   toolPart,
 }: {
   appConfig: AppConfigProject;
-  signal: AbortSignal;
   toolPart:
     | SessionMessagePart.ToolPartInputAvailable
     | SessionMessagePart.ToolPartInputStreaming;
 }) {
-  await unwrap(Store.savePart(toolPart, appConfig, { signal }));
+  await unwrap(Store.savePart(toolPart, appConfig, {}));
 }
 
 async function saveUserMessage({
   appConfig,
   sessionId,
-  signal,
   text,
 }: {
   appConfig: AppConfigProject;
   sessionId: StoreId.Session;
-  signal: AbortSignal;
   text: string;
 }) {
-  checkAbort(signal);
   const messageId = StoreId.newMessageId();
   const createdAt = new Date();
   await unwrap(
@@ -540,7 +522,7 @@ async function saveUserMessage({
         role: "user",
       } satisfies SessionMessage.UserWithParts,
       appConfig,
-      { signal },
+      {},
     ),
   );
   return messageId;
@@ -563,7 +545,6 @@ async function streamAssistantText({
   text: string;
   textChunkDelayMs: number;
 }) {
-  checkAbort(signal);
   const partId = StoreId.newPartId();
   await saveAssistantMessage({
     appConfig,
@@ -571,12 +552,10 @@ async function streamAssistantText({
     finishReason: "stop",
     messageId,
     sessionId,
-    signal,
   });
 
   let streamedText = "";
   for (const chunk of text.split(" ")) {
-    checkAbort(signal);
     streamedText = streamedText ? `${streamedText} ${chunk}` : chunk;
     await saveTextPart({
       appConfig,
@@ -584,7 +563,6 @@ async function streamAssistantText({
       messageId,
       partId,
       sessionId,
-      signal,
       text: streamedText,
     });
     await delay({ delayMs: textChunkDelayMs, signal });
@@ -597,7 +575,6 @@ async function streamAssistantText({
     messageId,
     partId,
     sessionId,
-    signal,
     text: streamedText,
   });
 }
@@ -626,7 +603,6 @@ async function streamWriteFileInput({
 
   await saveToolPart({
     appConfig,
-    signal,
     toolPart: {
       ...baseToolPart,
       input: {
@@ -641,7 +617,6 @@ async function streamWriteFileInput({
     await delay({ delayMs: delayPerChunkMs, signal });
     await saveToolPart({
       appConfig,
-      signal,
       toolPart: {
         ...baseToolPart,
         input: {

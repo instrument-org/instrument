@@ -351,15 +351,17 @@ export function ProjectChat({
           {!isTutorialVisible && (
             <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-[20px] bg-background" />
           )}
-          {isTutorialVisible ? (
+          {/* undefined = server never set tutorial; skip motion overhead */}
+          {showTutorial === undefined ? (
+            promptInput
+          ) : (
             <TutorialPromptCard
               isDismissPending={dismissTutorial.isPending}
+              isVisible={isTutorialVisible}
               onDismiss={handleDismissTutorial}
             >
               {promptInput}
             </TutorialPromptCard>
-          ) : (
-            promptInput
           )}
         </div>
       </div>

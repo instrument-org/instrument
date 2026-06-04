@@ -292,7 +292,6 @@ jobs:
         with:
           draft: true
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
-          files: artifacts/**/*
           generate_release_notes: true
           previous_tag: ${{ steps.slack_summary.outputs.previous_tag }}
           body_path: /tmp/release-body.md

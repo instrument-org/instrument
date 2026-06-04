@@ -1,8 +1,6 @@
 ---
 name: studio-chrome-devtools
 description: Use when working with Chrome DevTools against the Studio Electron app in this repo. Load this for Studio-specific connection details, page selection, and multi-WebContentsView behavior. Especially relevant when the user mentions Electron, `chrome-devtools`, `chrome-devtools-cli`, shell window, main window, browser views, smoke tests, or debug routes.
-paths:
-  - "apps/studio/**"
 ---
 
 # Studio Chrome DevTools

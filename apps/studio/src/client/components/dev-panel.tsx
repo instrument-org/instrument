@@ -63,12 +63,10 @@ const PAGES = [
   { label: "/", to: "/" },
 ] as const satisfies { label: string; to: StudioPath }[];
 
-const triggerClassName =
-  "rounded-sm px-1.5 py-0.5 font-mono text-[10px]" +
-  " text-dev-700/50 hover:bg-dev-500/10 hover:text-dev-700" +
-  " aria-expanded:bg-dev-500/10 aria-expanded:text-dev-700" +
-  " dark:text-dev-300/60 dark:hover:bg-dev-400/10 dark:hover:text-dev-300" +
-  " dark:aria-expanded:bg-dev-400/10 dark:aria-expanded:text-dev-300";
+const pillTriggerClassName =
+  "flex items-center gap-x-1 rounded-sm px-1.5 py-0.5" +
+  " text-dev-700/50 hover:bg-dev-500/10 hover:text-dev-700/80 aria-expanded:bg-dev-500/10 aria-expanded:text-dev-700/80" +
+  " dark:text-dev-300/50 dark:hover:bg-dev-400/10 dark:hover:text-dev-300/80 dark:aria-expanded:bg-dev-400/10 dark:aria-expanded:text-dev-300/80";
 
 export function DevPanel() {
   const navigate = useNavigate();
@@ -135,40 +133,26 @@ export function DevPanel() {
       : "Node: development (unpackaged)";
 
   return (
-    <div className="absolute right-0 bottom-0 rounded-tl-md border-t border-l border-dev-300/30 bg-dev-50/80 shadow-sm dark:border-dev-400/20 dark:bg-dev-950">
+    <div className="absolute right-0 bottom-0 rounded-tl-md border-t border-l border-dev-300/30 bg-dev-50 shadow-sm dark:border-dev-400/20 dark:bg-dev-950">
       <div className="flex items-center gap-x-1.5 px-2 py-1.5">
-        <div className="flex shrink-0 items-center gap-x-0.5">
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <div className="flex cursor-default items-center gap-x-1 rounded-full bg-dev-500/10 px-1.5 py-0.5 dark:bg-dev-400/10">
-                <BugIcon className="size-2.5 text-dev-500/70 dark:text-dev-400/70" />
-                <span className="font-mono text-[9px] leading-none text-dev-700/60 dark:text-dev-300/60">
-                  {envLabel}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top">{envTooltip}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="cursor-default font-mono text-[9px] leading-none text-dev-700/40 dark:text-dev-300/40">
-                <span className="sm:hidden">&lt;sm</span>
-                <span className="hidden sm:inline md:hidden">:sm</span>
-                <span className="hidden md:inline lg:hidden">:md</span>
-                <span className="hidden lg:inline xl:hidden">:lg</span>
-                <span className="hidden xl:inline 2xl:hidden">:xl</span>
-                <span className="hidden 2xl:inline">:2xl</span>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">Tailwind breakpoint</TooltipContent>
-          </Tooltip>
-        </div>
-
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
-            <MenubarTrigger className={triggerClassName}>App</MenubarTrigger>
-            <MenubarContent>
+            <MenubarTrigger className={pillTriggerClassName}>
+              <BugIcon className="size-2.5" />
+              <span className="font-mono text-[9px] leading-none">
+                {envLabel}
+              </span>
+              {enabledFlagCount > 0 && (
+                <span className="rounded-sm bg-dev-500/20 px-1 py-px font-mono text-[9px] leading-none text-dev-600 tabular-nums dark:bg-dev-400/20 dark:text-dev-400">
+                  {enabledFlagCount}
+                </span>
+              )}
+            </MenubarTrigger>
+            <MenubarContent align="end" side="top">
+              <div className="px-2 py-1 font-mono text-[10px] text-muted-foreground">
+                {envTooltip}
+              </div>
+              <MenubarSeparator />
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Pages
@@ -435,79 +419,98 @@ export function DevPanel() {
                   </MenubarSubContent>
                 </MenubarSub>
               )}
-            </MenubarContent>
-          </MenubarMenu>
-
-          <MenubarMenu>
-            <MenubarTrigger
-              className={
-                theme === "system"
-                  ? triggerClassName
-                  : triggerClassName + " gap-1"
-              }
-            >
-              {theme === "light" ? (
-                <SunIcon className="size-3" />
-              ) : theme === "dark" ? (
-                <MoonIcon className="size-3" />
-              ) : null}
-              {theme === "light"
-                ? "Light"
-                : theme === "dark"
-                  ? "Dark"
-                  : "Theme"}
-            </MenubarTrigger>
-            <MenubarContent>
-              <MenubarRadioGroup
-                onValueChange={(v) => {
-                  setTheme(v as "dark" | "light" | "system");
-                }}
-                value={theme}
-              >
-                <MenubarRadioItem className="font-mono text-xs" value="light">
-                  <SunIcon className="size-3" />
-                  Light
-                </MenubarRadioItem>
-                <MenubarRadioItem className="font-mono text-xs" value="dark">
-                  <MoonIcon className="size-3" />
-                  Dark
-                </MenubarRadioItem>
-                <MenubarRadioItem className="font-mono text-xs" value="system">
-                  <MonitorIcon className="size-3" />
-                  System
-                </MenubarRadioItem>
-              </MenubarRadioGroup>
-            </MenubarContent>
-          </MenubarMenu>
-
-          <MenubarMenu>
-            <MenubarTrigger className={triggerClassName}>
-              Flags
-              {enabledFlagCount > 0 && (
-                <span className="ml-1 rounded-full bg-dev-500/20 px-1 py-px font-mono text-[9px] leading-none text-dev-700 tabular-nums dark:bg-dev-400/20 dark:text-dev-300">
-                  {enabledFlagCount}
-                </span>
-              )}
-            </MenubarTrigger>
-            <MenubarContent>
-              {(Object.keys(FEATURE_METADATA) as FeatureName[]).map(
-                (feature) => (
-                  <MenubarCheckboxItem
-                    checked={features[feature]}
-                    className="font-mono text-xs"
-                    key={feature}
-                    onCheckedChange={(enabled) => {
-                      setFeatureEnabled({ enabled, feature });
+              <MenubarSeparator />
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  {theme === "light" ? (
+                    <>
+                      <SunIcon className="size-3" />
+                      Light
+                    </>
+                  ) : theme === "dark" ? (
+                    <>
+                      <MoonIcon className="size-3" />
+                      Dark
+                    </>
+                  ) : (
+                    "Theme"
+                  )}
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  <MenubarRadioGroup
+                    onValueChange={(v) => {
+                      setTheme(v as "dark" | "light" | "system");
                     }}
-                    title={FEATURE_METADATA[feature].description}
+                    value={theme}
                   >
-                    {FEATURE_METADATA[feature].title}
-                  </MenubarCheckboxItem>
-                ),
-              )}
+                    <MenubarRadioItem
+                      className="font-mono text-xs"
+                      value="light"
+                    >
+                      <SunIcon className="size-3" />
+                      Light
+                    </MenubarRadioItem>
+                    <MenubarRadioItem
+                      className="font-mono text-xs"
+                      value="dark"
+                    >
+                      <MoonIcon className="size-3" />
+                      Dark
+                    </MenubarRadioItem>
+                    <MenubarRadioItem
+                      className="font-mono text-xs"
+                      value="system"
+                    >
+                      <MonitorIcon className="size-3" />
+                      System
+                    </MenubarRadioItem>
+                  </MenubarRadioGroup>
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Flags
+                  {enabledFlagCount > 0 && (
+                    <span className="ml-1 rounded-full bg-dev-500/20 px-1 py-px font-mono text-[9px] leading-none text-dev-700 tabular-nums dark:bg-dev-400/20 dark:text-dev-300">
+                      {enabledFlagCount}
+                    </span>
+                  )}
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  {(Object.keys(FEATURE_METADATA) as FeatureName[]).map(
+                    (feature) => (
+                      <MenubarCheckboxItem
+                        checked={features[feature]}
+                        className="font-mono text-xs"
+                        key={feature}
+                        onCheckedChange={(enabled) => {
+                          setFeatureEnabled({ enabled, feature });
+                        }}
+                        title={FEATURE_METADATA[feature].description}
+                      >
+                        {FEATURE_METADATA[feature].title}
+                      </MenubarCheckboxItem>
+                    ),
+                  )}
+                </MenubarSubContent>
+              </MenubarSub>
             </MenubarContent>
           </MenubarMenu>
         </Menubar>
+
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <span className="cursor-default font-mono text-[9px] leading-none text-dev-700/40 dark:text-dev-300/40">
+              <span className="sm:hidden">&lt;sm</span>
+              <span className="hidden sm:inline md:hidden">:sm</span>
+              <span className="hidden md:inline lg:hidden">:md</span>
+              <span className="hidden lg:inline xl:hidden">:lg</span>
+              <span className="hidden xl:inline 2xl:hidden">:xl</span>
+              <span className="hidden 2xl:inline">:2xl</span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">Tailwind breakpoint</TooltipContent>
+        </Tooltip>
 
         <div className="ml-auto">
           <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
@@ -515,7 +518,7 @@ export function DevPanel() {
               <MenubarTrigger className="cursor-default rounded-sm p-0.5 text-dev-600/30 transition-colors hover:bg-dev-500/10 hover:text-dev-600 aria-expanded:bg-dev-500/10 aria-expanded:text-dev-600 dark:text-dev-400/40 dark:hover:bg-dev-400/10 dark:hover:text-dev-400 dark:aria-expanded:bg-dev-400/10 dark:aria-expanded:text-dev-400">
                 <XIcon className="size-3" />
               </MenubarTrigger>
-              <MenubarContent align="end">
+              <MenubarContent align="end" side="top">
                 <MenubarItem
                   className="font-mono text-xs"
                   onSelect={() => {

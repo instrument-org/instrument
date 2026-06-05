@@ -28,8 +28,8 @@ const TASK_STREAMING_DISPLAY_NAMES: Record<TaskAgentName, string> = {
   retrieval: "Retrieving",
 };
 
-const TASK_FAILED_DISPLAY_NAMES: Record<TaskAgentName, string> = {
-  retrieval: "Failed to retrieve",
+const TASK_TRIED_DISPLAY_NAMES: Record<TaskAgentName, string> = {
+  retrieval: "Tried to retrieve",
 };
 
 // | undefined ensures runtime type safety
@@ -44,14 +44,14 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   load_skill: "Loaded skill",
   read_file: "Read",
   task: "Task",
-  unavailable: "Unknown tool",
+  unavailable: "Used unknown tool",
   web_search: "Searched web",
   write_file: "Created",
 };
 
 const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   bash: "Running terminal command",
-  choose: "Thinking about answer",
+  choose: "Thinking about a question",
   copy_to_project: "Copying to task",
   edit_file: "Editing a file",
   generate_image: "Generating an image",
@@ -60,7 +60,7 @@ const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   load_skill: "Loading skill",
   read_file: "Reading file",
   task: "Task",
-  unavailable: "Unknown tool",
+  unavailable: "Using unknown tool",
   web_search: "Searching the web",
   write_file: "Creating a file",
 };
@@ -84,20 +84,20 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   write_file: "Creating",
 };
 
-const TOOL_FAILED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
-  bash: "Failed to run terminal command",
-  choose: "Failed to answer",
-  copy_to_project: "Failed to copy to task",
-  edit_file: "Failed to edit file",
-  generate_image: "Failed to generate image",
-  glob: "Failed to search files",
-  grep: "Failed to search text",
-  load_skill: "Failed to load skill",
-  read_file: "Failed to read file",
-  task: "Failed to run task",
-  unavailable: "Unknown tool",
-  web_search: "Failed to search the web",
-  write_file: "Failed to create file",
+const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
+  bash: "Tried to run terminal command",
+  choose: "Tried to ask a question",
+  copy_to_project: "Tried to copy to task",
+  edit_file: "Tried to edit file",
+  generate_image: "Tried to generate image",
+  glob: "Tried to search files",
+  grep: "Tried to search text",
+  load_skill: "Tried to load skill",
+  read_file: "Tried to read file",
+  task: "Tried to run task",
+  unavailable: "Tried unknown tool",
+  web_search: "Tried to search the web",
+  write_file: "Tried to create file",
 };
 
 export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
@@ -130,21 +130,21 @@ export function getToolLabelForPart({
   hasCapabilityFailure?: boolean;
   hasValue?: boolean;
   part: SessionMessagePart.ToolPart;
-  state: "completed" | "failed" | "streaming";
+  state: "completed" | "streaming" | "tried";
   toolName: ToolName;
 }): string {
   if (toolName !== "task") {
     switch (state) {
       case "completed": {
         return hasCapabilityFailure
-          ? getToolFailedLabel(toolName)
+          ? getToolTriedLabel(toolName)
           : getToolLabel(toolName);
-      }
-      case "failed": {
-        return getToolFailedLabel(toolName);
       }
       case "streaming": {
         return getToolStreamingLabel(toolName, hasValue);
+      }
+      case "tried": {
+        return getToolTriedLabel(toolName);
       }
     }
   }
@@ -155,7 +155,7 @@ export function getToolLabelForPart({
       : undefined;
 
   const taskState =
-    state === "completed" && hasCapabilityFailure ? "failed" : state;
+    state === "completed" && hasCapabilityFailure ? "tried" : state;
 
   return getTaskToolLabel(taskAgentName, taskState);
 }
@@ -172,7 +172,7 @@ export function getToolStreamingLabel(
 
 function getTaskToolLabel(
   agentName: string | undefined,
-  state: "completed" | "failed" | "streaming",
+  state: "completed" | "streaming" | "tried",
 ): string {
   if (typeof agentName !== "string" || !isTaskAgentName(agentName)) {
     return "Planning…";
@@ -182,15 +182,15 @@ function getTaskToolLabel(
     case "completed": {
       return TASK_DISPLAY_NAMES[agentName];
     }
-    case "failed": {
-      return TASK_FAILED_DISPLAY_NAMES[agentName];
-    }
     case "streaming": {
       return TASK_STREAMING_DISPLAY_NAMES[agentName];
+    }
+    case "tried": {
+      return TASK_TRIED_DISPLAY_NAMES[agentName];
     }
   }
 }
 
-function getToolFailedLabel(toolName: ToolName): string {
-  return TOOL_FAILED_DISPLAY_NAMES[toolName] ?? "Tool failed";
+function getToolTriedLabel(toolName: ToolName): string {
+  return TOOL_TRIED_DISPLAY_NAMES[toolName] ?? "Tried tool";
 }

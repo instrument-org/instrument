@@ -57,6 +57,11 @@ export interface AnalyticsEvents {
   "message.created": WithModelProperties<{
     files_count: number;
   }>;
+  "model_picker.opened": never;
+  "model_picker.searched": {
+    had_results: boolean;
+    query: string;
+  };
   "project.bulk_deleted": {
     project_count: number;
   };

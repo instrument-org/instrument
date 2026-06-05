@@ -16,6 +16,7 @@ export interface AnalyticsEvents {
   "auth.logged_in": never;
   "auth.logged_out": never;
   "auth.login_started": never;
+  "command_menu.opened": never;
   "eval.created": {
     eval_names: string[];
     model_ids: string[];
@@ -57,6 +58,7 @@ export interface AnalyticsEvents {
   "message.created": WithModelProperties<{
     files_count: number;
   }>;
+  "model_picker.model_selected": WithModelProperties;
   "model_picker.opened": never;
   "model_picker.searched": {
     had_results: boolean;

@@ -8,6 +8,7 @@ import {
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useToggleCommandMenu } from "@/client/hooks/use-toggle-command-menu";
+import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ProjectSubdomain } from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
@@ -110,7 +111,12 @@ export function StudioCommandMenu() {
 
   useToggleCommandMenu(
     useCallback(() => {
-      setOpen((prev) => !prev);
+      setOpen((prev) => {
+        if (!prev) {
+          captureClientEvent("command_menu.opened");
+        }
+        return !prev;
+      });
     }, []),
   );
 

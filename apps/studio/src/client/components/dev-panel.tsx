@@ -127,10 +127,6 @@ export function DevPanel() {
   }
 
   const envLabel = appEnvironment?.isPackaged === true ? "prod" : "dev";
-  const envTooltip =
-    appEnvironment?.isPackaged === true
-      ? "Node: production (packaged app)"
-      : "Node: development (unpackaged)";
 
   return (
     <div className="absolute right-0 bottom-0 rounded-tl-md border-t border-l border-dev-300/30 bg-dev-50 shadow-sm dark:border-dev-400/20 dark:bg-dev-950">
@@ -149,8 +145,19 @@ export function DevPanel() {
               )}
             </MenubarTrigger>
             <MenubarContent align="end" side="top">
-              <div className="px-2 py-1 font-mono text-[10px] text-muted-foreground">
-                {envTooltip}
+              <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-0.5 px-2 py-1.5">
+                <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
+                  env
+                </span>
+                <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
+                  {appEnvironment?.isPackaged ? "production" : "development"}
+                </span>
+                <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
+                  build
+                </span>
+                <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
+                  {appEnvironment?.isPackaged ? "packaged" : "unpackaged"}
+                </span>
               </div>
               <MenubarSeparator />
               <MenubarSub>
@@ -471,8 +478,8 @@ export function DevPanel() {
                 <MenubarSubTrigger className="font-mono text-xs">
                   Flags
                   {enabledFlagCount > 0 && (
-                    <span className="ml-1 rounded-full bg-dev-500/20 px-1 py-px font-mono text-[9px] leading-none text-dev-700 tabular-nums dark:bg-dev-400/20 dark:text-dev-300">
-                      {enabledFlagCount}
+                    <span className="ml-1 font-mono text-[9px] text-dev-500/70 dark:text-dev-400/60">
+                      {enabledFlagCount} enabled
                     </span>
                   )}
                 </MenubarSubTrigger>

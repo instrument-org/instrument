@@ -39,6 +39,8 @@ import { toast } from "sonner";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
+import { captureClientEvent } from "@/client/lib/capture-client-event";
+
 import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
 import { ModelBadges } from "./model-badges";
@@ -89,6 +91,15 @@ export function ModelPicker({
   const [searchQuery, setSearchQuery] = useState("");
 
   const closePopover = () => {
+    if (searchQuery) {
+      const hasFilteredResults = Object.values(filteredGroupedModels).some(
+        (g) => g.length > 0,
+      );
+      captureClientEvent("model_picker.searched", {
+        had_results: hasFilteredResults,
+        query: searchQuery,
+      });
+    }
     setOpen(false);
     setSearchQuery("");
     onClose?.();
@@ -184,6 +195,7 @@ export function ModelPicker({
       onOpenChange={(newOpen) => {
         if (newOpen) {
           setOpen(true);
+          captureClientEvent("model_picker.opened");
         } else {
           closePopover();
         }

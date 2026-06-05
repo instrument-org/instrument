@@ -138,22 +138,19 @@ function FileRowCard({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 transition-colors",
+            "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 transition-colors select-none",
             isSelected
               ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
               : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
           )}
+          onClick={onClick}
         >
           <FileThumbnail
             file={file}
             isActive={isSelected ?? false}
             variant="primary"
           />
-          <button
-            className="flex min-w-0 flex-1 flex-col justify-center text-left"
-            onClick={onClick}
-            type="button"
-          >
+          <div className="flex min-w-0 flex-1 flex-col justify-center text-left">
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="truncate text-sm leading-5 text-foreground">
@@ -173,9 +170,14 @@ function FileRowCard({
                 versionRef={versionRef}
               />
             </span>
-          </button>
+          </div>
           {!hideActionsMenu && (
-            <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
+            <div
+              className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
               <FileActionsMenu file={file} />
             </div>
           )}

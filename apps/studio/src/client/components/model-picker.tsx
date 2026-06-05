@@ -90,20 +90,6 @@ export function ModelPicker({
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const closePopover = () => {
-    if (searchQuery) {
-      const hasFilteredResults = Object.values(filteredGroupedModels).some(
-        (g) => g.length > 0,
-      );
-      captureClientEvent("model_picker.searched", {
-        had_results: hasFilteredResults,
-        query: searchQuery,
-      });
-    }
-    setOpen(false);
-    setSearchQuery("");
-    onClose?.();
-  };
   const { data: subscription } = useLiveSubscriptionStatus();
   const hasPremium =
     subscription?.plan !== null && subscription?.plan !== undefined;
@@ -170,6 +156,21 @@ export function ModelPicker({
 
     return result;
   }, [groupedModels, searchQuery]);
+
+  const closePopover = () => {
+    if (searchQuery) {
+      const hasFilteredResults = Object.values(filteredGroupedModels).some(
+        (g) => g.length > 0,
+      );
+      captureClientEvent("model_picker.searched", {
+        had_results: hasFilteredResults,
+        query: searchQuery,
+      });
+    }
+    setOpen(false);
+    setSearchQuery("");
+    onClose?.();
+  };
 
   const hasModels = modelsWithoutAuto.length > 0;
   const hasErrors = !!errors?.length;
@@ -313,15 +314,19 @@ export function ModelPicker({
                   closePopover();
                   onAddProvider?.();
                 }}
-                onSelectModel={(uri, requiresPremium, modelName) => {
+                onSelectModel={(model, requiresPremium) => {
                   if (requiresPremium) {
                     toast.info("Model requires a paid plan", {
-                      description: `${modelName} is available with a paid ${APP_NAME} plan.`,
+                      description: `${model.name} is available with a paid ${APP_NAME} plan.`,
                       dismissible: true,
                       duration: 7000,
                     });
                   } else {
-                    onValueChange(uri);
+                    captureClientEvent("model_picker.model_selected", {
+                      modelId: model.canonicalId,
+                      providerId: model.params.provider,
+                    });
+                    onValueChange(model.uri);
                   }
                   closePopover();
                 }}
@@ -474,11 +479,7 @@ function ModelGroups({
   groupedModels: Record<string, MatchedModel[]>;
   hasPremium: boolean;
   onAddProvider: () => void;
-  onSelectModel: (
-    uri: AIGatewayModelURI.Type,
-    requiresPremium: boolean,
-    modelName: string,
-  ) => void;
+  onSelectModel: (model: AIGatewayModel.Type, requiresPremium: boolean) => void;
   selectedModel?: AIGatewayModel.Type;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -570,7 +571,7 @@ function ModelGroups({
               <CommandItem
                 className="flex w-full items-center justify-between px-2 py-2"
                 onSelect={() => {
-                  onSelectModel(model.uri, requiresPremium, model.name);
+                  onSelectModel(model, requiresPremium);
                 }}
                 value={model.uri}
               >

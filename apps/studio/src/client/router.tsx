@@ -13,6 +13,7 @@ import { routeTree } from "./routeTree.gen";
 
 const IGNORED_PATHS = new Set<keyof FileRoutesByPath>([
   "/shell", // Always rendered as separate view in Electron app
+  "/studio-overlay-idle", // Internal warm-overlay idle state; not useful as a page view
 ]);
 
 function createRouter(options?: { history?: RouterHistory }) {

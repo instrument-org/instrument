@@ -90,7 +90,7 @@ export function ToolCallSummary({
         : getToolLabelForPart({
             hasCapabilityFailure,
             part,
-            state: isFailed ? "failed" : "completed",
+            state: isFailed ? "tried" : "completed",
             toolName,
           });
 

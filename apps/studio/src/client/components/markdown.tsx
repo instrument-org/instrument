@@ -1,8 +1,15 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { ImageIcon } from "@phosphor-icons/react";
 import { useSetAtom } from "jotai";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import ReactMarkdown, { type Options } from "react-markdown";
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remend from "remend";
@@ -53,7 +60,11 @@ const CodeWithCopy = ({
 );
 
 const CodeBlock = ({ code, language }: { code: string; language: string }) => {
-  const { highlightedHtml } = useSyntaxHighlighting({ code, language });
+  const deferredCode = useDeferredValue(code);
+  const { highlightedHtml } = useSyntaxHighlighting({
+    code: deferredCode,
+    language,
+  });
 
   if (!highlightedHtml) {
     return (
@@ -65,6 +76,41 @@ const CodeBlock = ({ code, language }: { code: string; language: string }) => {
 
   return (
     <div dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }} />
+  );
+};
+
+const markdownPre: Components["pre"] = ({ children }) => <>{children}</>;
+
+const markdownCode: Components["code"] = ({
+  children,
+  className,
+  node: _node,
+  ref: _ref,
+  ...props
+}) => {
+  const match = /language-(\w+)/.exec(className ?? "");
+  const language = match?.[1];
+  const isInline = !language;
+
+  if (isInline) {
+    return (
+      <code {...props} className={className}>
+        {children}
+      </code>
+    );
+  }
+
+  const codeString =
+    typeof children === "string"
+      ? children.replace(/\n$/, "")
+      : Array.isArray(children)
+        ? children.join("")
+        : "";
+
+  return (
+    <CodeWithCopy content={codeString}>
+      <CodeBlock code={codeString} language={language} />
+    </CodeWithCopy>
   );
 };
 
@@ -196,32 +242,7 @@ export const Markdown = memo(
               </ExternalLink>
             );
           },
-          code: ({ children, className, node: _node, ref: _ref, ...props }) => {
-            const match = /language-(\w+)/.exec(className ?? "");
-            const language = match?.[1];
-            const isInline = !language;
-
-            if (isInline) {
-              return (
-                <code {...props} className={className}>
-                  {children}
-                </code>
-              );
-            }
-
-            const codeString =
-              typeof children === "string"
-                ? children.replace(/\n$/, "")
-                : Array.isArray(children)
-                  ? children.join("")
-                  : "";
-
-            return (
-              <CodeWithCopy content={codeString}>
-                <CodeBlock code={codeString} language={language} />
-              </CodeWithCopy>
-            );
-          },
+          code: markdownCode,
           img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
             const resolvedSrc = resolveImageSrc(src, assetBaseUrl);
             if (!isImageAllowed(resolvedSrc)) {
@@ -241,9 +262,7 @@ export const Markdown = memo(
               />
             );
           },
-          pre: ({ children }) => {
-            return <>{children}</>;
-          },
+          pre: markdownPre,
         }}
         rehypePlugins={rehypePlugins}
         remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}

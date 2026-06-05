@@ -90,9 +90,8 @@ const markdownCode: Components["code"] = ({
 }) => {
   const match = /language-(\w+)/.exec(className ?? "");
   const language = match?.[1];
-  const isInline = !language;
 
-  if (isInline) {
+  if (!language) {
     return (
       <code {...props} className={className}>
         {children}
@@ -111,6 +110,36 @@ const markdownCode: Components["code"] = ({
     <CodeWithCopy content={codeString}>
       <CodeBlock code={codeString} language={language} />
     </CodeWithCopy>
+  );
+};
+
+const MarkdownLink: Components["a"] = ({
+  children,
+  className,
+  href,
+  node: _node,
+  ...props
+}) => {
+  const handleHashLinkClick = useHashLinkScroll();
+
+  if (href?.startsWith("#")) {
+    return (
+      // eslint-disable-next-line no-restricted-syntax
+      <a
+        {...props}
+        className={cn("cursor-pointer!", className)}
+        href={href}
+        onClick={handleHashLinkClick}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <ExternalLink {...props} className={className} href={href}>
+      {children}
+    </ExternalLink>
   );
 };
 
@@ -177,8 +206,6 @@ export const Markdown = memo(
       [openFilePreview],
     );
 
-    const handleHashLinkClick = useHashLinkScroll();
-
     useEffect(() => {
       let isCancelled = false;
 
@@ -221,34 +248,13 @@ export const Markdown = memo(
     return (
       <ReactMarkdown
         components={{
-          a: ({ children, className, href, node: _node, ...props }) => {
-            if (href?.startsWith("#")) {
-              return (
-                // eslint-disable-next-line no-restricted-syntax
-                <a
-                  {...props}
-                  className={cn("cursor-pointer!", className)}
-                  href={href}
-                  onClick={handleHashLinkClick}
-                >
-                  {children}
-                </a>
-              );
-            }
-
-            return (
-              <ExternalLink {...props} className={className} href={href}>
-                {children}
-              </ExternalLink>
-            );
-          },
+          a: MarkdownLink,
           code: markdownCode,
           img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
             const resolvedSrc = resolveImageSrc(src, assetBaseUrl);
             if (!isImageAllowed(resolvedSrc)) {
               return <ImagePlaceholder alt={alt} src={resolvedSrc} />;
             }
-
             return (
               <img
                 {...props}

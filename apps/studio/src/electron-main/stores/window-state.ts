@@ -82,8 +82,12 @@ function getDefaultState(): WindowState {
     bounds: {
       height: DEFAULT_HEIGHT,
       width: DEFAULT_WIDTH,
-      x: primaryDisplay.bounds.x,
-      y: primaryDisplay.bounds.y,
+      x:
+        primaryDisplay.bounds.x +
+        Math.round((primaryDisplay.bounds.width - DEFAULT_WIDTH) / 2),
+      y:
+        primaryDisplay.bounds.y +
+        Math.round((primaryDisplay.bounds.height - DEFAULT_HEIGHT) / 2),
     },
     isMaximized: false,
   };

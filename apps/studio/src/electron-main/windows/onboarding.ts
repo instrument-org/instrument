@@ -4,7 +4,7 @@ import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
 
 const ONBOARDING_WIDTH = 480;
@@ -29,6 +29,7 @@ export function openOnboardingWindow(): BrowserWindow {
     return onboardingWindow;
   }
 
+  const { bounds } = screen.getPrimaryDisplay();
   onboardingWindow = new BrowserWindow({
     autoHideMenuBar: true,
     backgroundColor: getBackgroundColor(),
@@ -47,6 +48,8 @@ export function openOnboardingWindow(): BrowserWindow {
       sandbox: false,
     },
     width: ONBOARDING_WIDTH,
+    x: bounds.x + Math.round((bounds.width - ONBOARDING_WIDTH) / 2),
+    y: bounds.y + Math.round((bounds.height - ONBOARDING_HEIGHT) / 2),
   });
 
   onboardingWindow.once("ready-to-show", () => {

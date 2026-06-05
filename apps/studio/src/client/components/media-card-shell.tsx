@@ -43,7 +43,7 @@ export function MediaCardShell({
             "group relative w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
             aspectRatio === "square" ? "aspect-square" : "aspect-video",
             isSelected &&
-              "ring-2 ring-primary ring-offset-2 ring-offset-background",
+              "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
           )}
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}

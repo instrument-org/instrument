@@ -238,7 +238,7 @@ export function ProjectView({
               id="artifact"
               minSize={PANEL_SIZES.artifactMin}
             >
-              <div className="flex h-full flex-1 flex-col p-2">
+              <div className="flex h-full flex-1 animate-in flex-col p-2 duration-150 fade-in-0 slide-in-from-right-2">
                 {isViewingFile ? (
                   currentFile ? (
                     <div className="flex h-full">

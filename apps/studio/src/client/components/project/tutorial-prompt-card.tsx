@@ -65,8 +65,8 @@ export function TutorialPromptCard({
                 </div>
                 <p className="mt-1 text-sm leading-5 text-black/60 dark:text-yellow-50/70">
                   Tasks in {APP_NAME} are where you talk to the {APP_NAME} AI
-                  and get things done. Here&apos;s an example task to teach you
-                  how to use {APP_NAME}.
+                  and get things done. This is an example task to teach you how
+                  to use {APP_NAME}.
                 </p>
               </div>
               <Button

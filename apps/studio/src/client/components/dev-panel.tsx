@@ -40,6 +40,8 @@ import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
 import { type StudioPath } from "@/shared/studio-path";
 import {
+  ArrowLineDownIcon,
+  ArrowsClockwiseIcon,
   BugIcon,
   ChartBarIcon,
   DatabaseIcon,
@@ -94,6 +96,14 @@ export function DevPanel() {
 
   const { mutate: openAuthTestPage } = useMutation(
     rpcClient.debug.openAuthTestPage.mutationOptions(),
+  );
+
+  const { mutate: simulateUpdateDownload } = useMutation(
+    rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
+  );
+
+  const { mutate: simulateUpdateError } = useMutation(
+    rpcClient.debug.trigger.testErrorNotification.mutationOptions(),
   );
 
   const { data: appEnvironment } = useQuery(
@@ -275,6 +285,40 @@ export function DevPanel() {
                       })}
                     </MenubarSubContent>
                   </MenubarSub>
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Updates
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      simulateUpdateDownload(undefined);
+                    }}
+                  >
+                    <ArrowLineDownIcon className="size-3" />
+                    Simulate download
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      simulateUpdateError(undefined);
+                    }}
+                  >
+                    <ArrowsClockwiseIcon className="size-3" />
+                    Simulate error
+                  </MenubarItem>
+                  <MenubarSeparator />
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      handleNavigate("/debug/notifications");
+                    }}
+                  >
+                    Debug page
+                  </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
               <MenubarSub>

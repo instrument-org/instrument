@@ -1,12 +1,57 @@
 import { Spinner } from "@/client/components/ui/spinner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { safe } from "@orpc/client";
 import { ArrowsClockwiseIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
 const PROGRESS_RING_CIRCUMFERENCE = 44;
 const ICON_CLASS_NAME = "size-3.5";
 const PROGRESS_ICON_CLASS_NAME = "size-3";
+
+export type UpdateStatusBadgeState =
+  | {
+      message?: string;
+      type: "error";
+    }
+  | {
+      progress: number;
+      type: "downloading";
+    }
+  | {
+      type: "downloaded";
+      version?: string;
+    }
+  | {
+      type: "installing";
+    };
+
+export function UpdateStatusBadge({
+  onClick,
+  state,
+}: {
+  onClick: () => void;
+  state: UpdateStatusBadgeState;
+}) {
+  const statusCopy = getStatusCopy(state);
+
+  return (
+    <button
+      aria-label={statusCopy.ariaLabel}
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border px-1.5 text-xs leading-none font-semibold whitespace-nowrap shadow-xs transition-colors [-webkit-app-region:no-drag]",
+        getTriggerClassName(state.type),
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      <span className="flex size-3.5 shrink-0 items-center justify-center">
+        {renderTriggerIcon(state)}
+      </span>
+      <span>{statusCopy.label}</span>
+    </button>
+  );
+}
 
 export function UpdateStatusIndicator() {
   const { data: updateState } = useQuery(
@@ -23,44 +68,41 @@ export function UpdateStatusIndicator() {
     return null;
   }
 
-  const progress =
-    updateState.type === "downloading"
-      ? Math.round(updateState.progress.percent)
-      : null;
-  const statusCopy = getStatusCopy({
+  const handleClick = () => {
+    void (async () => {
+      if (updateState.type === "downloaded") {
+        const [error] = await safe(rpcClient.preferences.quitAndInstall.call());
+        if (!error) {
+          return;
+        }
+        // No Toaster in the shell window, so fall through to Settings, which
+        // surfaces the failure with retry and manual-download options.
+      }
+
+      await safe(
+        rpcClient.studioOverlay.show.call({
+          kind: "settings",
+          props: { tab: "General" },
+        }),
+      );
+    })();
+  };
+
+  const badgeState = getBadgeState({
     errorMessage,
+    progress:
+      updateState.type === "downloading"
+        ? Math.round(updateState.progress.percent)
+        : undefined,
     status: updateState.type,
     version: updateVersion,
   });
 
-  const handleClick = () => {
-    if (updateState.type === "downloaded") {
-      void rpcClient.preferences.quitAndInstall.call();
-      return;
-    }
+  if (!badgeState) {
+    return null;
+  }
 
-    void rpcClient.studioOverlay.show.call({
-      kind: "settings",
-      props: { tab: "General" },
-    });
-  };
-
-  return (
-    <button
-      aria-label={statusCopy.ariaLabel}
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border px-1.5 text-xs leading-none font-semibold whitespace-nowrap shadow-xs transition-colors [-webkit-app-region:no-drag]",
-        getTriggerClassName(updateState.type),
-      )}
-      onClick={handleClick}
-      type="button"
-    >
-      <span className="flex size-3.5 shrink-0 items-center justify-center">
-        {renderTriggerIcon({ progress, status: updateState.type })}
-      </span>
-      <span>{statusCopy.label}</span>
-    </button>
-  );
+  return <UpdateStatusBadge onClick={handleClick} state={badgeState} />;
 }
 
 function CircularProgressIcon({
@@ -103,19 +145,54 @@ function CircularProgressIcon({
   );
 }
 
-function getStatusCopy({
+function getBadgeState({
   errorMessage,
+  progress,
   status,
   version,
 }: {
   errorMessage: string | undefined;
+  progress: number | undefined;
   status: string;
   version: string | undefined;
-}) {
+}): null | UpdateStatusBadgeState {
   switch (status) {
     case "downloaded": {
       return {
-        ariaLabel: version ? `Update ${version} ready` : "Update ready",
+        type: "downloaded",
+        version,
+      };
+    }
+    case "downloading": {
+      return {
+        progress: progress ?? 0,
+        type: "downloading",
+      };
+    }
+    case "error": {
+      return {
+        message: errorMessage,
+        type: "error",
+      };
+    }
+    case "installing": {
+      return {
+        type: "installing",
+      };
+    }
+    default: {
+      return null;
+    }
+  }
+}
+
+function getStatusCopy(state: UpdateStatusBadgeState) {
+  switch (state.type) {
+    case "downloaded": {
+      return {
+        ariaLabel: state.version
+          ? `Update ${state.version} ready`
+          : "Update ready",
         label: "Update",
       };
     }
@@ -127,8 +204,8 @@ function getStatusCopy({
     }
     case "error": {
       return {
-        ariaLabel: errorMessage
-          ? `Update failed: ${errorMessage}`
+        ariaLabel: state.message
+          ? `Update failed: ${state.message}`
           : "Update failed",
         label: "Update issue",
       };
@@ -175,27 +252,21 @@ function isHeaderStatus(status: string) {
   );
 }
 
-function renderTriggerIcon({
-  progress,
-  status,
-}: {
-  progress: null | number;
-  status: string;
-}) {
-  if (status === "downloading") {
+function renderTriggerIcon(state: UpdateStatusBadgeState) {
+  if (state.type === "downloading") {
     return (
       <CircularProgressIcon
-        progress={progress ?? 0}
+        progress={state.progress}
         sizeClassName={PROGRESS_ICON_CLASS_NAME}
       />
     );
   }
 
-  if (status === "installing") {
+  if (state.type === "installing") {
     return <Spinner className="size-3" />;
   }
 
-  if (status === "error") {
+  if (state.type === "error") {
     return <WarningCircleIcon className={ICON_CLASS_NAME} weight="fill" />;
   }
 

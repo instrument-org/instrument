@@ -9,7 +9,7 @@ const PROGRESS_RING_CIRCUMFERENCE = 44;
 const ICON_CLASS_NAME = "size-3.5";
 const PROGRESS_ICON_CLASS_NAME = "size-3";
 
-export type UpdateStatusBadgeState =
+type UpdateStatusBadgeState =
   | {
       message?: string;
       type: "error";

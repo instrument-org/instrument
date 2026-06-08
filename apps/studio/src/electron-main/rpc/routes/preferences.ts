@@ -81,8 +81,7 @@ const checkForUpdates = base
   });
 
 const quitAndInstall = base.handler(({ context }) => {
-  context.appUpdater.quitAndInstall();
-  return Promise.resolve();
+  return context.appUpdater.quitAndInstall();
 });
 
 const getAppVersion = base.handler(() => {

@@ -59,6 +59,25 @@ const bySubdomain = base
     }
   });
 
+const aliveAgentCount = base
+  .input(z.void())
+  .output(z.object({ count: z.number() }))
+  .handler(({ context }) => {
+    const { sessionRefsBySubdomain } =
+      context.workspaceRef.getSnapshot().context;
+    let count = 0;
+
+    for (const sessionRefs of sessionRefsBySubdomain.values()) {
+      for (const sessionRef of sessionRefs) {
+        if (sessionRef.getSnapshot().hasTag("agent.alive")) {
+          count += 1;
+        }
+      }
+    }
+
+    return { count };
+  });
+
 const bySubdomains = base
   .input(z.object({ subdomains: AppSubdomainSchema.array() }))
   .output(WorkspaceAppStateSchema.array())
@@ -83,6 +102,7 @@ const bySubdomains = base
   });
 
 export const appState = {
+  aliveAgentCount,
   bySubdomains,
   live: {
     bySubdomain,

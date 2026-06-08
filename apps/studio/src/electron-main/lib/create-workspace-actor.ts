@@ -1,11 +1,14 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   closeAllAgentBrowserSessions,
   workspaceMachine,
+  workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import { app, shell } from "electron";
+import { call } from "@orpc/server";
+import { app, dialog, shell } from "electron";
 import ms from "ms";
 import path from "node:path";
 import { createActor } from "xstate";
@@ -31,7 +34,13 @@ if (ENV_REGISTRY_DIR) {
   UNPACKAGED_REGISTRY_DIR = absolutePath;
 }
 
-export function createWorkspaceActor() {
+export function createWorkspaceActor({
+  isQuitAlreadyConfirmed,
+}: {
+  // True when quitAndInstall already confirmed, so before-quit skips a second
+  // prompt for the quit it triggered.
+  isQuitAlreadyConfirmed: () => boolean;
+}) {
   const rootDir = getWorkspaceFolder();
   const browserViewManager = createBrowserViewManager();
 
@@ -131,30 +140,84 @@ export function createWorkspaceActor() {
     throw error;
   }
 
-  app.on("before-quit", (e) => {
-    e.preventDefault();
-    // eslint-disable-next-line unicorn/consistent-function-scoping
-    const doExit = () => {
-      browserViewManager.teardown();
-      actor.stop();
-      app.exit(0);
-    };
-    const timeout = setTimeout(() => {
+  const workspaceConfig = snapshot.context.config;
+
+  // Warn before stopping in-flight agents. Fails open so a count error never
+  // blocks quitting.
+  const confirmQuitWithRunningAgents = async (): Promise<boolean> => {
+    let count = 0;
+    try {
+      ({ count } = await call(
+        workspaceRouter.app.state.aliveAgentCount,
+        undefined,
+        { context: { workspaceConfig, workspaceRef: actor } },
+      ));
+    } catch (error) {
       captureServerException(
-        new Error("agent-browser close --all timed out on quit"),
+        error instanceof Error ? error : new Error(String(error)),
         { scopes: ["studio"] },
       );
-      doExit();
-    }, 3000);
-    void closeAllAgentBrowserSessions().finally(() => {
-      clearTimeout(timeout);
-      doExit();
+      return true;
+    }
+
+    if (count === 0) {
+      return true;
+    }
+
+    const { response } = await dialog.showMessageBox({
+      buttons: ["Cancel", "Quit"],
+      cancelId: 0,
+      defaultId: 0,
+      detail: `Quitting ${APP_NAME} will stop ${count === 1 ? "this agent" : "these agents"} and you may lose in-progress work.`,
+      message: `One or more ${count === 1 ? "agent is still running" : "agents are still running"}.`,
+      noLink: true,
+      type: "warning",
     });
+
+    return response === 1;
+  };
+
+  let isQuitInProgress = false;
+
+  app.on("before-quit", (e) => {
+    if (isQuitInProgress) {
+      return;
+    }
+    e.preventDefault();
+
+    void (async () => {
+      if (
+        !isQuitAlreadyConfirmed() &&
+        !(await confirmQuitWithRunningAgents())
+      ) {
+        return;
+      }
+
+      isQuitInProgress = true;
+
+      const doExit = () => {
+        browserViewManager.teardown();
+        actor.stop();
+        app.exit(0);
+      };
+      const timeout = setTimeout(() => {
+        captureServerException(
+          new Error("agent-browser close --all timed out on quit"),
+          { scopes: ["studio"] },
+        );
+        doExit();
+      }, 3000);
+      void closeAllAgentBrowserSessions().finally(() => {
+        clearTimeout(timeout);
+        doExit();
+      });
+    })();
   });
 
   return {
     actor,
     browserViewManager,
-    workspaceConfig: snapshot.context.config,
+    confirmQuitWithRunningAgents,
+    workspaceConfig,
   };
 }

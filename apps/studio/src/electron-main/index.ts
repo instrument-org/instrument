@@ -151,14 +151,19 @@ void app.whenReady().then(async () => {
 
   runMigrations();
 
-  appUpdater = new StudioAppUpdater();
-  appUpdater.pollForUpdates();
-
   const {
     actor: workspaceRef,
     browserViewManager,
+    confirmQuitWithRunningAgents,
     workspaceConfig,
-  } = createWorkspaceActor();
+  } = createWorkspaceActor({
+    isQuitAlreadyConfirmed: () => appUpdater?.status?.type === "installing",
+  });
+
+  appUpdater = new StudioAppUpdater({
+    confirmQuit: confirmQuitWithRunningAgents,
+  });
+  appUpdater.pollForUpdates();
 
   initializeRPC({
     appUpdater,

@@ -14,6 +14,10 @@ import semver from "semver";
 
 import { getPreferencesStore, setLastUpdateCheck } from "../stores/preferences";
 
+// Returns false to abort the install when the user cancels the running-agents
+// warning.
+type ConfirmQuit = () => Promise<boolean>;
+
 // Required due to https://github.com/electron-userland/electron-builder/issues/7976
 const { autoUpdater } = pkg;
 const scopedLogger = logger.scope("appUpdater");
@@ -67,6 +71,7 @@ export class StudioAppUpdater {
     return this.#status;
   }
 
+  #confirmQuit: ConfirmQuit | undefined;
   #notify = false;
   #status: AppUpdaterStatus | null = null;
 
@@ -81,7 +86,8 @@ export class StudioAppUpdater {
     }
   }
 
-  public constructor() {
+  public constructor({ confirmQuit }: { confirmQuit?: ConfirmQuit } = {}) {
+    this.#confirmQuit = confirmQuit;
     autoUpdater.logger = logger.scope("appUpdater:autoUpdater");
     autoUpdater.autoDownload = true;
     autoUpdater.disableWebInstaller = true;
@@ -190,7 +196,14 @@ export class StudioAppUpdater {
     }, ms("1 hour"));
   }
 
-  public quitAndInstall() {
+  public async quitAndInstall() {
+    // Confirm before marking `installing`, so a cancel leaves the badge on
+    // `downloaded`. before-quit then sees the `installing` status and skips a
+    // second prompt.
+    if (this.#confirmQuit && !(await this.#confirmQuit())) {
+      return;
+    }
+
     try {
       if (os.platform() === "linux") {
         // On Linux, use app.relaunch() and app.quit() to avoid hanging issues
@@ -233,6 +246,7 @@ export class StudioAppUpdater {
       };
       autoUpdater.quitAndInstall();
     } catch (error) {
+      // The error status clears `installing`, so a later quit warns again.
       scopedLogger.error("Error quitting and installing:", error);
       this.status = {
         message: error instanceof Error ? error.message : String(error),

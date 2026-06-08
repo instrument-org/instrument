@@ -234,7 +234,7 @@ function getStatusCopy(state: UpdateStatusBadgeState) {
 function getTriggerClassName(status: string) {
   switch (status) {
     case "downloaded": {
-      return "border-brand-700 bg-brand-600 text-brand-foreground hover:bg-brand-700";
+      return "border-transparent bg-brand-600 text-brand-foreground hover:bg-brand-700";
     }
     case "downloading":
     case "installing": {

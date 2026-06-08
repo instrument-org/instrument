@@ -186,7 +186,7 @@ function WelcomeModal() {
                   key={title}
                 >
                   <Icon
-                    className="size-8 shrink-0 text-brand-300"
+                    className="size-8 shrink-0 text-brand-400"
                     weight="regular"
                   />
                   <p className="min-w-0 flex-1 text-base leading-6 text-gray-500">

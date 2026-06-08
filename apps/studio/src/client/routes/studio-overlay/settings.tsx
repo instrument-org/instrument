@@ -19,8 +19,8 @@ import { type StudioPath } from "@/shared/studio-path";
 import {
   BugIcon,
   CpuIcon,
+  FadersHorizontalIcon,
   FlagIcon,
-  GearIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
@@ -109,7 +109,11 @@ function SettingsModal() {
 function useNavItems(): NavItem[] {
   const isDeveloperMode = useDeveloperMode();
   return [
-    { icon: GearIcon, path: "/studio-overlay/settings", title: "General" },
+    {
+      icon: FadersHorizontalIcon,
+      path: "/studio-overlay/settings",
+      title: "General",
+    },
     {
       icon: CpuIcon,
       path: "/studio-overlay/settings/providers",

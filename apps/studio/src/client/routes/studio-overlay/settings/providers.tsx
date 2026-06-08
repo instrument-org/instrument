@@ -21,6 +21,9 @@ function SettingsProvidersPage() {
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
   const { showNewProviderDialog } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
@@ -49,8 +52,45 @@ function SettingsProvidersPage() {
 
       <div className="space-y-3">
         {providerConfigs?.length === 0 ? (
-          <div className="mt-32 py-8 text-center text-muted-foreground">
-            <p className="text-sm">No providers configured yet.</p>
+          <div className="mt-32 flex flex-col items-center gap-6 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              No providers configured yet.
+            </p>
+            {!hasToken && (
+              <>
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Sign in to get free AI usage without a provider
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => {
+                        void rpcClient.studioOverlay.show.call({
+                          kind: "login",
+                          props: { hideManualProvider: true },
+                        });
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Log in
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        void rpcClient.studioOverlay.show.call({
+                          kind: "login",
+                          props: { hideManualProvider: true },
+                        });
+                      }}
+                      size="sm"
+                      variant="brand"
+                    >
+                      Sign up
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           providerConfigs?.map((config) => (

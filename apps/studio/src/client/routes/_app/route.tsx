@@ -3,7 +3,6 @@ import { projectFileViewerAtom } from "@/client/atoms/project-file-viewer";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInvalidateRouterOnUserChange } from "@/client/hooks/use-invalidate-router-on-user-change";
-import { useUpdateNotifications } from "@/client/hooks/use-update-notifications";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense } from "react";
@@ -57,7 +56,6 @@ function RouteComponent() {
     projectFileViewerAtom,
   ).isModalOpen;
 
-  useUpdateNotifications();
   useInvalidateRouterOnUserChange();
 
   return (

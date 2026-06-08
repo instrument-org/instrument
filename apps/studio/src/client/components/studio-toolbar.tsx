@@ -1,6 +1,7 @@
 import { NavControls } from "@/client/components/nav-controls";
 import TabBar from "@/client/components/tab-bar";
 import { Button } from "@/client/components/ui/button";
+import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { cn, isLinux, isMacOS, isWindows } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
@@ -80,6 +81,9 @@ export function StudioToolbar() {
       >
         <div className="flex h-full min-w-0 flex-1 items-stretch">
           <TabBar />
+        </div>
+        <div className="flex h-full shrink-0 items-center px-3 [-webkit-app-region:no-drag]">
+          <UpdateStatusIndicator />
         </div>
       </header>
     </div>

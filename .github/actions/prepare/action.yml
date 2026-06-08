@@ -33,7 +33,16 @@ runs:
     - env:
         GITHUB_TOKEN: ${{ inputs.token }}
       name: install-dependencies
-      run: pnpm install --frozen-lockfile
+      run: |
+        for attempt in 1 2 3; do
+          pnpm install --frozen-lockfile && break
+          if [ $attempt -lt 3 ]; then
+            echo "Install failed (attempt $attempt/3), retrying in 15s..."
+            sleep 15
+          else
+            exit 1
+          fi
+        done
       shell: bash
     - env:
         GITHUB_TOKEN: ${{ inputs.token }}

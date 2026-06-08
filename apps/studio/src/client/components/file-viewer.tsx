@@ -62,6 +62,36 @@ import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
+function ImageResizeRecenter() {
+  const { centerView } = useControls();
+
+  useEffect(() => {
+    let animationFrame: number | undefined;
+
+    const handleResize = () => {
+      if (animationFrame !== undefined) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = undefined;
+        centerView(undefined, 0);
+      });
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      if (animationFrame !== undefined) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [centerView]);
+
+  return null;
+}
+
 function ImageZoomControls() {
   const { resetTransform, zoomIn, zoomOut } = useControls();
   const isZoomed = useTransformComponent(({ state }) => state.scale > 1.01);
@@ -515,6 +545,7 @@ export function FileViewer({
                   panning={{ allowRightClickPan: false }}
                 >
                   <div className="relative size-full">
+                    <ImageResizeRecenter />
                     <TransformComponent
                       wrapperStyle={{ height: "100%", width: "100%" }}
                     >

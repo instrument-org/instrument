@@ -41,6 +41,7 @@ import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/br
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
+import { Route as AppDebugComponentsUpdateStatusRouteImport } from './routes/_app/debug/components/update-status'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
 import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
 import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/debug/components/onboarding'
@@ -219,6 +220,12 @@ const AppDebugComponentsIndexRoute = AppDebugComponentsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugComponentsRoute,
 } as any)
+const AppDebugComponentsUpdateStatusRoute =
+  AppDebugComponentsUpdateStatusRouteImport.update({
+    id: '/update-status',
+    path: '/update-status',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsSpinnerRoute =
   AppDebugComponentsSpinnerRouteImport.update({
     id: '/spinner',
@@ -335,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
+  '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
@@ -375,6 +383,7 @@ export interface FileRoutesByTo {
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
+  '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
@@ -423,6 +432,7 @@ export interface FileRoutesById {
   '/_app/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
   '/_app/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
+  '/_app/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
   '/_app/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
@@ -470,6 +480,7 @@ export interface FileRouteTypes {
     | '/debug/components/onboarding'
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
+    | '/debug/components/update-status'
     | '/debug/components/'
     | '/projects/$subdomain'
     | '/debug/components/onboarding/complete'
@@ -510,6 +521,7 @@ export interface FileRouteTypes {
     | '/debug/components/error-card'
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
+    | '/debug/components/update-status'
     | '/debug/components'
     | '/projects/$subdomain'
     | '/debug/components/onboarding/complete'
@@ -557,6 +569,7 @@ export interface FileRouteTypes {
     | '/_app/debug/components/onboarding'
     | '/_app/debug/components/provider-icons'
     | '/_app/debug/components/spinner'
+    | '/_app/debug/components/update-status'
     | '/_app/debug/components/'
     | '/_app/projects/$subdomain/'
     | '/_app/debug/components/onboarding/complete'
@@ -801,6 +814,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsIndexRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/update-status': {
+      id: '/_app/debug/components/update-status'
+      path: '/update-status'
+      fullPath: '/debug/components/update-status'
+      preLoaderRoute: typeof AppDebugComponentsUpdateStatusRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/spinner': {
       id: '/_app/debug/components/spinner'
       path: '/spinner'
@@ -943,6 +963,7 @@ interface AppDebugComponentsRouteChildren {
   AppDebugComponentsOnboardingRoute: typeof AppDebugComponentsOnboardingRouteWithChildren
   AppDebugComponentsProviderIconsRoute: typeof AppDebugComponentsProviderIconsRoute
   AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
+  AppDebugComponentsUpdateStatusRoute: typeof AppDebugComponentsUpdateStatusRoute
   AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
 }
 
@@ -955,6 +976,7 @@ const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
     AppDebugComponentsOnboardingRouteWithChildren,
   AppDebugComponentsProviderIconsRoute: AppDebugComponentsProviderIconsRoute,
   AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
+  AppDebugComponentsUpdateStatusRoute: AppDebugComponentsUpdateStatusRoute,
   AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
 }
 

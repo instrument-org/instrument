@@ -10,6 +10,7 @@ import ms from "ms";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
+import semver from "semver";
 
 import { getPreferencesStore, setLastUpdateCheck } from "../stores/preferences";
 
@@ -71,6 +72,9 @@ export class StudioAppUpdater {
 
   // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
   private set status(status: AppUpdaterStatus | null) {
+    if (status && !this.#shouldApplyStatus(status)) {
+      return;
+    }
     this.#status = status;
     if (status) {
       publisher.publish("updates.status", { status });
@@ -237,6 +241,37 @@ export class StudioAppUpdater {
       };
     }
   }
+
+  // A ready-to-install update is a fact that must survive background polling.
+  // Once `downloaded`, drop transient/negative statuses (checking, downloading,
+  // not-available, error, cancelled) that would hide the badge. Only an explicit
+  // install or a strictly-newer build supersedes a staged update.
+  #shouldApplyStatus(next: AppUpdaterStatus): boolean {
+    const current = this.#status;
+    if (current?.type !== "downloaded") {
+      return true;
+    }
+
+    if (next.type === "installing") {
+      return true;
+    }
+
+    const stagedVersion = current.updateInfo?.version;
+    const nextVersion = getStatusVersion(next);
+    if (
+      stagedVersion &&
+      nextVersion &&
+      semver.valid(stagedVersion) &&
+      semver.valid(nextVersion) &&
+      semver.gt(nextVersion, stagedVersion)
+    ) {
+      return true;
+    }
+
+    // Re-emitting the same staged download refreshes harmlessly; everything
+    // else is background noise that must not erase the ready-to-install state.
+    return next.type === "downloaded";
+  }
 }
 
 function getChannel() {
@@ -257,6 +292,12 @@ function getChannel() {
   }
 
   return channel;
+}
+
+function getStatusVersion(status: AppUpdaterStatus): string | undefined {
+  return "updateInfo" in status
+    ? (status.updateInfo?.version ?? undefined)
+    : undefined;
 }
 
 function isUbuntu(): boolean {

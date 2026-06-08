@@ -68,6 +68,12 @@ export function UpdateStatusIndicator() {
     return null;
   }
 
+  // Errors from silent background polls (notifyUser=false) stay in Settings
+  // only; don't put a red pill in the toolbar for checks the user didn't run.
+  if (updateState.type === "error" && !updateState.notifyUser) {
+    return null;
+  }
+
   const handleClick = () => {
     void (async () => {
       if (updateState.type === "downloaded") {

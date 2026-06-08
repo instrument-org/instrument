@@ -1,6 +1,7 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { cn } from "@/client/lib/utils";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+import { useRef, useState } from "react";
 
 import { FileActionsMenuItems } from "./file-actions-menu";
 import {
@@ -9,6 +10,9 @@ import {
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
+const INTERACTIVE_DELAY_MS = 300;
+const VISIBLE_DELAY_MS = 400;
 
 export function MediaCardShell({
   aspectRatio,
@@ -35,6 +39,28 @@ export function MediaCardShell({
   overlayActions?: React.ReactNode;
   scrim?: React.ReactNode;
 }) {
+  const [interactive, setInteractive] = useState(false);
+  const hoverStartRef = useRef<null | number>(null);
+  const timerRef = useRef<null | number>(null);
+
+  const handleMouseEnter = () => {
+    hoverStartRef.current = Date.now();
+    timerRef.current = window.setTimeout(() => {
+      setInteractive(true);
+    }, INTERACTIVE_DELAY_MS);
+    onMouseEnter?.();
+  };
+
+  const handleMouseLeave = () => {
+    hoverStartRef.current = null;
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setInteractive(false);
+    onMouseLeave?.();
+  };
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -45,8 +71,8 @@ export function MediaCardShell({
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
           )}
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
           {children}
 
@@ -64,8 +90,7 @@ export function MediaCardShell({
             <button
               className={cn(
                 "absolute top-3 right-3 z-10 flex size-7 items-center justify-center",
-                "text-white opacity-0 drop-shadow-sm transition-opacity duration-200",
-                "group-hover:opacity-100",
+                "text-white opacity-0 drop-shadow-sm transition-opacity duration-200 group-hover:opacity-100",
               )}
               onClick={onClick}
               type="button"
@@ -75,7 +100,22 @@ export function MediaCardShell({
           )}
 
           {overlayActions && (
-            <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <div
+              className={cn(
+                "absolute top-3 left-3 z-10 flex flex-col items-start gap-1",
+                "opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-hover:delay-400",
+                !interactive && "pointer-events-none",
+              )}
+              onClickCapture={(e) => {
+                // block mouseup-race clicks that started before the protection window
+                if (
+                  hoverStartRef.current !== null &&
+                  Date.now() - hoverStartRef.current < VISIBLE_DELAY_MS
+                ) {
+                  e.stopPropagation();
+                }
+              }}
+            >
               {overlayActions}
             </div>
           )}

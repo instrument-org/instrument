@@ -110,6 +110,8 @@ export async function runToolCall({
               { signal },
             ));
         appConfig.workspaceConfig.captureEvent("llm.tool_executed", {
+          modelId: model.canonicalId,
+          providerId: model.params.provider,
           success: output.isOk(),
           tool_name: part.type,
         });

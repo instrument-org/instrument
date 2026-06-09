@@ -155,6 +155,7 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
   curl: "Download files or fetch HTTP responses (use `-L -o <path> <url>` to download a file)",
   jq: "Parse and manipulate JSON",
   xan: "Fast CSV processing, filtering, aggregation, and visualization",
+  yq: "Parse and manipulate YAML (like jq but for YAML; e.g. `yq '.key' file.yaml`)",
 };
 
 interface CustomCommandDef {

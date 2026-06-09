@@ -1,4 +1,4 @@
-import { defineCommand } from "just-bash";
+import { type CommandContext, defineCommand, type ExecResult } from "just-bash";
 import { dedent } from "radashi";
 
 import type { AppConfig } from "../app-config/types";
@@ -7,11 +7,27 @@ import { absolutePathJoin } from "../absolute-path-join";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { createTsCommand, TS_COMMAND } from "./ts";
+import { resolveCommandContext } from "./utils";
 
 export const PNPM_COMMAND = {
   description:
     "CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.",
   name: PNPM_NAME,
+} as const;
+
+export const NPX_COMMAND = {
+  description: "Compatibility fallback for accidental npx usage.",
+  name: "npx",
+} as const;
+
+export const PNPX_COMMAND = {
+  description: "Alias for pnpm dlx.",
+  name: "pnpx",
+} as const;
+
+export const PNX_COMMAND = {
+  description: "Alias for pnpm dlx.",
+  name: "pnx",
 } as const;
 
 const GLOBAL_FLAGS = new Set(["--global", "-g"]);
@@ -54,6 +70,14 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
 ]);
 
 const DEV_OR_START = new Set(["dev", "start"]);
+
+export function createNpxCommand(appConfig: AppConfig) {
+  return createDlxAliasCommand(
+    NPX_COMMAND.name,
+    appConfig,
+    stripNpxCompatibilityFlags,
+  );
+}
 
 export function createPnpmCommand(appConfig: AppConfig) {
   const tsCommand = createTsCommand(appConfig);
@@ -169,4 +193,97 @@ export function createPnpmCommand(appConfig: AppConfig) {
       stdout: installOutput + result.combined + globalNote,
     };
   });
+}
+
+export function createPnpxCommand(appConfig: AppConfig) {
+  return createDlxAliasCommand(PNPX_COMMAND.name, appConfig);
+}
+
+export function createPnxCommand(appConfig: AppConfig) {
+  return createDlxAliasCommand(PNX_COMMAND.name, appConfig);
+}
+
+function createDlxAliasCommand(
+  name: string,
+  appConfig: AppConfig,
+  normalizeArgs = (args: string[]) => args,
+) {
+  return defineCommand(name, async (args, ctx) => {
+    const normalizedArgs = normalizeArgs(args);
+    const aliasResult = registeredCommandAlias(normalizedArgs, ctx);
+    if (aliasResult) {
+      return aliasResult;
+    }
+
+    const { appCwd, env } = resolveCommandContext(appConfig, ctx);
+    const result = await runPnpmCommand({
+      appConfig,
+      args: ["dlx", ...normalizedArgs],
+      cwd: appCwd,
+      env,
+      pnpmLogLevel: "error",
+      signal: ctx.signal,
+      stdin: ctx.stdin || undefined,
+    });
+
+    return {
+      exitCode: result.exitCode,
+      stderr: "",
+      stdout: result.combined,
+    };
+  });
+}
+
+function isNpxCompatibilityFlag(arg: string) {
+  return (
+    arg === "-y" ||
+    arg === "--yes" ||
+    arg.startsWith("--yes=") ||
+    arg === "--no-install" ||
+    arg === "--ignore-existing"
+  );
+}
+
+function registeredCommandAlias(
+  args: string[],
+  ctx: CommandContext,
+): Promise<ExecResult> | undefined {
+  const commandName = args[0];
+  if (
+    !commandName ||
+    commandName === PNPM_COMMAND.name ||
+    commandName === NPX_COMMAND.name ||
+    commandName === PNPX_COMMAND.name ||
+    commandName === PNX_COMMAND.name ||
+    !ctx.exec ||
+    !ctx.getRegisteredCommands?.().includes(commandName)
+  ) {
+    return undefined;
+  }
+
+  return ctx.exec(commandName, {
+    args: args.slice(1),
+    cwd: ctx.cwd,
+    signal: ctx.signal,
+    stdin: ctx.stdin,
+  });
+}
+
+function stripNpxCompatibilityFlags(args: string[]) {
+  const normalizedArgs: string[] = [];
+  let foundCommand = false;
+
+  for (const arg of args) {
+    if (!foundCommand && isNpxCompatibilityFlag(arg)) {
+      continue;
+    }
+
+    normalizedArgs.push(arg);
+
+    if (!arg.startsWith("-")) {
+      foundCommand = true;
+    }
+  }
+
+  return normalizedArgs;
 }

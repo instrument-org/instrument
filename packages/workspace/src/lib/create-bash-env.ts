@@ -27,7 +27,16 @@ import {
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
-import { createPnpmCommand, PNPM_COMMAND } from "./shell-commands/pnpm";
+import {
+  createNpxCommand,
+  createPnpmCommand,
+  createPnpxCommand,
+  createPnxCommand,
+  NPX_COMMAND,
+  PNPM_COMMAND,
+  PNPX_COMMAND,
+  PNX_COMMAND,
+} from "./shell-commands/pnpm";
 import { createTsCommand, TS_COMMAND } from "./shell-commands/ts";
 import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
 import { createWhichCommand } from "./shell-commands/which";
@@ -193,6 +202,24 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     factory: createPnpmCommand,
     listInDescription: true,
     name: PNPM_COMMAND.name,
+  },
+  {
+    description: NPX_COMMAND.description,
+    factory: createNpxCommand,
+    listInDescription: false,
+    name: NPX_COMMAND.name,
+  },
+  {
+    description: PNPX_COMMAND.description,
+    factory: createPnpxCommand,
+    listInDescription: false,
+    name: PNPX_COMMAND.name,
+  },
+  {
+    description: PNX_COMMAND.description,
+    factory: createPnxCommand,
+    listInDescription: true,
+    name: PNX_COMMAND.name,
   },
   {
     description: TS_COMMAND.description,

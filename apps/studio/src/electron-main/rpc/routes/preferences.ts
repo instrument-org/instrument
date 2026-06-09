@@ -20,10 +20,9 @@ function getPreferencesData() {
   const preferencesStore = getPreferencesStore();
   return {
     developerMode: preferencesStore.get("developerMode"),
-    enableUsageMetrics: preferencesStore.get("enableUsageMetrics") || false,
+    enableUsageMetrics: preferencesStore.get("enableUsageMetrics"),
     lastUpdateCheck: preferencesStore.get("lastUpdateCheck"),
-    preferApiKeyOverAccount:
-      preferencesStore.get("preferApiKeyOverAccount") || false,
+    preferApiKeyOverAccount: preferencesStore.get("preferApiKeyOverAccount"),
     releaseChannel: preferencesStore.get("releaseChannel"),
     theme: preferencesStore.get("theme"),
   };

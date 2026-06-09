@@ -1,4 +1,4 @@
-import { type CommandContext, InMemoryFs } from "just-bash";
+import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
@@ -17,7 +17,7 @@ const mockCtx: CommandContext = {
   cwd: "/",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
-  stdin: "",
+  stdin: EMPTY_BYTES,
 };
 
 describe("createPnpmCommand", () => {
@@ -189,7 +189,7 @@ describe("createPnpmCommand", () => {
       args: ["-e", "console.log(1)"],
       cwd: "/",
       signal: undefined,
-      stdin: "",
+      stdin: EMPTY_BYTES,
     });
   });
 

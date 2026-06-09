@@ -1,4 +1,4 @@
-import { type CommandContext, InMemoryFs } from "just-bash";
+import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import mockFs from "mock-fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -14,7 +14,7 @@ const mockCtx: CommandContext = {
   cwd: "/",
   env: new Map<string, string>(),
   fs: realFs,
-  stdin: "",
+  stdin: EMPTY_BYTES,
 };
 
 describe("tsCommand", () => {

@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { defineCommand } from "just-bash";
+import { defineCommand, latin1FromBytes } from "just-bash";
 
 import type { AppConfig } from "../app-config/types";
 
@@ -115,7 +115,7 @@ export function createNodeCommand(appConfig: AppConfig) {
         ctx.signal,
         appCwd,
         env,
-        ctx.stdin || undefined,
+        latin1FromBytes(ctx.stdin) || undefined,
       );
       const combined = filterShellOutput(execResult.all, appConfig.appDir);
       return {
@@ -156,7 +156,7 @@ export function createNodeCommand(appConfig: AppConfig) {
       ctx.signal,
       appCwd,
       env,
-      ctx.stdin || undefined,
+      latin1FromBytes(ctx.stdin) || undefined,
     );
     const combined = filterShellOutput(execResult.all, appConfig.appDir);
 

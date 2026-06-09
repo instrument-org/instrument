@@ -285,6 +285,7 @@ jobs:
           fi
           echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
           RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
+          REPO_URL="https://github.com/${{ github.repository }}"
           COUNT=$(git log "$RANGE" --pretty=format:"%h" --no-merges | wc -l | tr -d ' ')
           ALL=$(git log "$RANGE" --pretty=format:"%h %s" --no-merges)
           SLACK=$(echo "$ALL" | head -n10 | sed 's/^[^ ]* /• /')
@@ -296,20 +297,43 @@ jobs:
           # Escape for JSON: backslash, double-quote, then newlines → \n
           SLACK_JSON=$(printf '%s' "$SLACK" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
           echo "slack_log_json=$SLACK_JSON" >> "$GITHUB_OUTPUT"
+          # Prereleases keep a commit-log body because GitHub's generated notes are PR-centric.
+          BODY=$(echo "$ALL" | awk -v repo="$REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}')
+          printf '## What'\''s changed\n\n%s\n' "$BODY" > /tmp/release-body.md
+          if [ -n "$PREV_TAG" ]; then
+            printf '\n**Full Changelog**: %s/compare/%s...%s\n' "$REPO_URL" "$PREV_TAG" "${{ github.ref_name }}" >> /tmp/release-body.md
+          fi
 
       - name: Remove smoke test screenshots from artifacts
         run: find artifacts -name "*.png" -delete
 
-      - name: GitHub Release
-        id: release
+      - name: GitHub Prerelease
+        id: prerelease_release
+        if: contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
           draft: true
-          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+          prerelease: true
+          generate_release_notes: false
+          body_path: /tmp/release-body.md
+
+      - name: GitHub Stable Release
+        id: stable_release
+        if: ${{ !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-alpha') }}
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+        with:
+          draft: true
+          prerelease: false
           generate_release_notes: true
           previous_tag: ${{ steps.slack_summary.outputs.previous_tag }}
+
+      - name: Capture release URL
+        id: release
+        run: echo "url=${{ steps.prerelease_release.outputs.url || steps.stable_release.outputs.url }}" >> "$GITHUB_OUTPUT"
 
       - name: Delete workflow artifacts
         uses: geekyeggo/delete-artifact@176a747ab7e287e3ff4787bf8a148716375ca118 # v6.0.0
@@ -330,7 +354,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Prerelease *${{ github.ref_name }}* draft created successfully. <${{ steps.release.outputs.url }}|View draft release>"
+                    "text": "Instrument ${{ contains(github.ref_name, '-alpha') && 'alpha' || 'beta' }} *${{ github.ref_name }}* is now available. <${{ steps.release.outputs.url }}|View release notes>"
                   }
                 },
                 {
@@ -356,7 +380,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Stable release *${{ github.ref_name }}* draft created successfully. <${{ steps.release.outputs.url }}|View draft release>"
+                    "text": "Instrument *${{ github.ref_name }}* is now available."
                   }
                 },
                 {
@@ -370,7 +394,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "${{ vars.SLACK_RELEASE_NOTES_MENTION || '<!channel>' }}: publish the draft release when the release notes are ready. <${{ steps.release.outputs.url }}|Open the draft release>"
+                    "text": "${{ vars.SLACK_RELEASE_NOTES_MENTION || '<!channel>' }}: review and publish the draft GitHub release notes for this version. <${{ steps.release.outputs.url }}|Open the draft>"
                   }
                 }
               ]

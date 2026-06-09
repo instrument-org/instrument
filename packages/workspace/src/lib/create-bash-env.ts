@@ -341,6 +341,7 @@ export function createBashEnv({
     // use sed, uname, etc when on unix systems.
     env: {
       NO_COLOR: "1",
+      TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
       ...(process.env.PATH && { PATH: process.env.PATH }),
       ...providerEnv,
     },

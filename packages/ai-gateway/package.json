@@ -17,6 +17,7 @@
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:types": "tsgo --noEmit",
     "fix:lint": "eslint . --max-warnings 0 --fix",
+    "smoke:apple-intelligence": "jiti scripts/apple-intelligence-smoke.ts",
     "test": "vitest",
     "test:ci": "cross-env CI=true vitest",
     "turbo:check": "turbo run check:types check:lint"
@@ -55,7 +56,11 @@
     "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
+    "jiti": "2.6.1",
     "vitest": "catalog:"
+  },
+  "optionalDependencies": {
+    "@meridius-labs/apple-on-device-ai": "^1.6.2"
   },
   "engines": {
     "node": ">=24.14.1"

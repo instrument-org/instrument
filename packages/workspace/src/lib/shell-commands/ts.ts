@@ -1,4 +1,4 @@
-import { defineCommand } from "just-bash";
+import { defineCommand, latin1FromBytes } from "just-bash";
 import { mkdir, writeFile } from "node:fs/promises";
 
 import type { AppConfig } from "../app-config/types";
@@ -93,7 +93,7 @@ export function createTsCommand(appConfig: AppConfig) {
       env,
       pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
       signal: ctx.signal,
-      stdin: ctx.stdin || undefined,
+      stdin: latin1FromBytes(ctx.stdin) || undefined,
     });
 
     return {

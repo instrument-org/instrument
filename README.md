@@ -36,4 +36,4 @@ pnpm run dev:studio
 
 - `@types/node` locked in `package.json` to avoid constant `pnpm dedupe --check` failures.
 - `better-sqlite3` is ignored in `pnpm-workspace.yaml` to avoid the native dependency installation because we are using Node's native SQLite support.
-- `@mongodb-js/zstd` and `node-liblzma` are ignored because they are included by `just-bash` but not working.
+- `@mongodb-js/zstd` and `node-liblzma` are ignored because they are native addons pulled in by `just-bash`'s `tar` command for zstd/xz support; tar works without them via fallback.

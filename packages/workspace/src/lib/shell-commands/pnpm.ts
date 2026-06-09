@@ -1,4 +1,9 @@
-import { type CommandContext, defineCommand, type ExecResult } from "just-bash";
+import {
+  type CommandContext,
+  defineCommand,
+  type ExecResult,
+  latin1FromBytes,
+} from "just-bash";
 import { dedent } from "radashi";
 
 import type { AppConfig } from "../app-config/types";
@@ -175,7 +180,7 @@ export function createPnpmCommand(appConfig: AppConfig) {
       cwd,
       env,
       signal: ctx.signal,
-      stdin: ctx.stdin || undefined,
+      stdin: latin1FromBytes(ctx.stdin) || undefined,
     });
 
     let globalNote = "";
@@ -223,7 +228,7 @@ function createDlxAliasCommand(
       env,
       pnpmLogLevel: "error",
       signal: ctx.signal,
-      stdin: ctx.stdin || undefined,
+      stdin: latin1FromBytes(ctx.stdin) || undefined,
     });
 
     return {
@@ -265,7 +270,7 @@ function registeredCommandAlias(
     args: args.slice(1),
     cwd: ctx.cwd,
     signal: ctx.signal,
-    stdin: ctx.stdin,
+    stdin: latin1FromBytes(ctx.stdin),
   });
 }
 

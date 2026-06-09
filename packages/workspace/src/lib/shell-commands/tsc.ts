@@ -1,4 +1,4 @@
-import { defineCommand } from "just-bash";
+import { defineCommand, latin1FromBytes } from "just-bash";
 
 import type { AppConfig } from "../app-config/types";
 
@@ -22,7 +22,7 @@ export function createTscCommand(appConfig: AppConfig) {
       env,
       pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
       signal: ctx.signal,
-      stdin: ctx.stdin || undefined,
+      stdin: latin1FromBytes(ctx.stdin) || undefined,
     });
 
     return {

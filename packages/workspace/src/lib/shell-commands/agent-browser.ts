@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { defineCommand } from "just-bash";
+import { defineCommand, latin1FromBytes } from "just-bash";
 import { spawn } from "node:child_process";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
@@ -225,7 +225,7 @@ export function createAgentBrowserCommand({
         AGENT_BROWSER_STATE: undefined,
         HOME: homeDir,
       },
-      input: ctx.stdin || undefined,
+      input: latin1FromBytes(ctx.stdin) || undefined,
       stateDir: agentBrowserStateDir,
     });
 

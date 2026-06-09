@@ -1,4 +1,4 @@
-import { type CommandContext, InMemoryFs } from "just-bash";
+import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
@@ -13,7 +13,7 @@ const mockCtx: CommandContext = {
   cwd: "/",
   env: new Map<string, string>(),
   fs: realFs,
-  stdin: "",
+  stdin: EMPTY_BYTES,
 };
 
 describe("nodeCommand", () => {

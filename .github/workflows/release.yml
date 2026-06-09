@@ -254,18 +254,37 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          CURRENT_IS_PRERELEASE="${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}"
+          if [ "$CURRENT_IS_PRERELEASE" = "true" ]; then
+            RELEASE_JQ='.[] | select(.tag_name != "${{ github.ref_name }}") | .tag_name'
+          else
+            RELEASE_JQ='.[] | select(.tag_name != "${{ github.ref_name }}" and .prerelease == false and .draft == false) | .tag_name'
+          fi
+
           PREV_TAG=$(
             gh api \
               "repos/${{ github.repository }}/releases?per_page=100" \
-              --jq '.[] | select(.tag_name != "${{ github.ref_name }}") | .tag_name' \
-              | head -n1
+              --jq "$RELEASE_JQ" \
+              | head -n1 || true
           )
           if [ -z "$PREV_TAG" ]; then
-            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -n1)
+            if [ "$CURRENT_IS_PRERELEASE" = "true" ]; then
+              PREV_TAG=$(
+                git tag --sort=-version:refname \
+                  | grep -v "^${{ github.ref_name }}$" \
+                  | head -n1 || true
+              )
+            else
+              PREV_TAG=$(
+                git tag --sort=-version:refname \
+                  | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                  | grep -v "^${{ github.ref_name }}$" \
+                  | head -n1 || true
+              )
+            fi
           fi
           echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
           RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
-          REPO_URL="https://github.com/${{ github.repository }}"
           COUNT=$(git log "$RANGE" --pretty=format:"%h" --no-merges | wc -l | tr -d ' ')
           ALL=$(git log "$RANGE" --pretty=format:"%h %s" --no-merges)
           SLACK=$(echo "$ALL" | head -n10 | sed 's/^[^ ]* /• /')
@@ -277,9 +296,6 @@ jobs:
           # Escape for JSON: backslash, double-quote, then newlines → \n
           SLACK_JSON=$(printf '%s' "$SLACK" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
           echo "slack_log_json=$SLACK_JSON" >> "$GITHUB_OUTPUT"
-          # Write full commit list to release body file (short hash links)
-          BODY=$(echo "$ALL" | awk -v repo="$REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}')
-          printf '## What'\''s changed\n\n%s\n' "$BODY" > /tmp/release-body.md
 
       - name: Remove smoke test screenshots from artifacts
         run: find artifacts -name "*.png" -delete
@@ -294,7 +310,6 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           generate_release_notes: true
           previous_tag: ${{ steps.slack_summary.outputs.previous_tag }}
-          body_path: /tmp/release-body.md
 
       - name: Delete workflow artifacts
         uses: geekyeggo/delete-artifact@176a747ab7e287e3ff4787bf8a148716375ca118 # v6.0.0
@@ -303,6 +318,7 @@ jobs:
           failOnError: false
 
       - name: Notify Slack
+        if: contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
           webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
@@ -314,7 +330,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "${{ (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'Beta' || 'Stable' }} release *${{ github.ref_name }}* published successfully. <${{ steps.release.outputs.url }}|View release>"
+                    "text": "Prerelease *${{ github.ref_name }}* draft created successfully. <${{ steps.release.outputs.url }}|View draft release>"
                   }
                 },
                 {
@@ -322,6 +338,39 @@ jobs:
                   "text": {
                     "type": "mrkdwn",
                     "text": "${{ steps.slack_summary.outputs.slack_log_json }}"
+                  }
+                }
+              ]
+            }
+
+      - name: Notify Slack with release notes nudge
+        if: ${{ !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-alpha') }}
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Stable release *${{ github.ref_name }}* draft created successfully. <${{ steps.release.outputs.url }}|View draft release>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.slack_summary.outputs.slack_log_json }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ vars.SLACK_RELEASE_NOTES_MENTION || '<!channel>' }}: publish the draft release when the release notes are ready. <${{ steps.release.outputs.url }}|Open the draft release>"
                   }
                 }
               ]

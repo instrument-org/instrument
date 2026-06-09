@@ -4,11 +4,15 @@ import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import Store from "electron-store";
 import { z } from "zod";
 
+function getDefaultEnableUsageMetrics() {
+  return process.env.ELECTRON_USE_NEW_USER_FOLDER !== "true";
+}
+
 /* eslint-disable unicorn/prefer-top-level-await */
 export const PreferencesStoreSchema = z.object({
   defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
   developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
-  enableUsageMetrics: z.boolean().catch(true),
+  enableUsageMetrics: z.boolean().catch(getDefaultEnableUsageMetrics()),
   lastUpdateCheck: z.number().optional(),
   preferApiKeyOverAccount: z.boolean().catch(false),
   // Release channels are not exposed to the user and are used internally for testing

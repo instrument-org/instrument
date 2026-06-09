@@ -51,10 +51,10 @@ export interface AnalyticsEvents {
   "llm.tool_called": WithModelProperties<{
     tool_name: string;
   }>;
-  "llm.tool_executed": {
+  "llm.tool_executed": WithModelProperties<{
     success: boolean;
     tool_name: string;
-  };
+  }>;
   "message.created": WithModelProperties<{
     files_count: number;
   }>;

@@ -5,9 +5,7 @@ import readline from "node:readline/promises";
 import { createAppConfig } from "../src/lib/app-config/create";
 import { getProjects } from "../src/lib/get-apps";
 import { Store } from "../src/lib/store";
-import { WorkspaceDirSchema } from "../src/schemas/paths";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-app-config";
-import { type WorkspaceConfig } from "../src/types";
+import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
 const workspaceDir = process.argv[2];
 
@@ -16,31 +14,10 @@ if (!workspaceDir) {
 }
 
 const absoluteWorkspaceDir = path.resolve(workspaceDir);
-const projectsDir = path.join(absoluteWorkspaceDir, "projects");
 
-const workspaceConfig: WorkspaceConfig = {
-  appVersion: "0.0.0-test",
-  browser: createStubBrowserConfig(),
-  captureEvent: () => {
-    return;
-  },
-  captureException: () => {
-    return;
-  },
-  getAIProviderConfigs: () => [],
-  nodeExecEnv: {},
-  pnpmBinPath: WorkspaceDirSchema.parse("/usr/bin/pnpm"),
-  previewsDir: WorkspaceDirSchema.parse(
-    path.join(absoluteWorkspaceDir, "previews"),
-  ),
-  projectsDir: WorkspaceDirSchema.parse(projectsDir),
-  registryDir: WorkspaceDirSchema.parse("/tmp/registry"),
-  rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
-  templatesDir: WorkspaceDirSchema.parse(
-    path.join(absoluteWorkspaceDir, "registry", "templates"),
-  ),
-  trashItem: () => Promise.resolve(),
-};
+const workspaceConfig = createStubWorkspaceConfig({
+  projectsDir: path.join(absoluteWorkspaceDir, "projects"),
+});
 
 const { projects } = await getProjects(workspaceConfig, {
   direction: "desc",

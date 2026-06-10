@@ -1,8 +1,4 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
-import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { ulid } from "ulid";
 
 import { AppDirSchema } from "../schemas/paths";
@@ -10,11 +6,11 @@ import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
+import { extractProjectZip } from "./extract-project-zip";
 import { folderNameForSubdomain } from "./folder-name-for-subdomain";
 import { git } from "./git";
 import { GitCommands } from "./git/commands";
 import { ensureGitRepo } from "./git/ensure-git-repo";
-import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 
 interface ImportProjectOptions {
@@ -51,42 +47,10 @@ export async function importProject(
     }
 
     yield* ResultAsync.fromPromise(
-      (async () => {
-        const buffer = Buffer.from(zipFileData, "base64");
-        const blob = new Blob([buffer]);
-        const zipReader = new ZipReader(new BlobReader(blob));
-        const entries = await zipReader.getEntries();
-
-        const hasQuestManifest = entries.some(
-          (entry) => entry.filename === PROJECT_MANIFEST_FILE_NAME,
-        );
-        if (!hasQuestManifest) {
-          throw new TypedError.NotFound(
-            `Zip file does not contain ${PROJECT_MANIFEST_FILE_NAME}`,
-          );
-        }
-
-        await fs.mkdir(projectDir, { recursive: true });
-
-        for (const entry of entries) {
-          if (!entry.filename || entry.directory) {
-            continue;
-          }
-
-          // Needed for importing a project from Windows on a POSIX machine.
-          const normalizedFilename = normalizePath(entry.filename);
-          const fullPath = absolutePathJoin(projectDir, normalizedFilename);
-          const dirPath = path.dirname(fullPath);
-          await fs.mkdir(dirPath, { recursive: true });
-
-          const writer = new BlobWriter();
-          const entryBlob = await entry.getData(writer);
-          const arrayBuffer = await entryBlob.arrayBuffer();
-          await fs.writeFile(fullPath, Buffer.from(arrayBuffer));
-        }
-
-        await zipReader.close();
-      })(),
+      extractProjectZip({
+        outputDir: projectDir,
+        zipBlob: new Blob([Buffer.from(zipFileData, "base64")]),
+      }),
       (error) =>
         new TypedError.FileSystem(
           `Failed to extract zip file: ${error instanceof Error ? error.message : String(error)}`,

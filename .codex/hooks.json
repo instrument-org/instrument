@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.cursor/hooks/format.mjs\"",
+            "command": "node \"$(git rev-parse --show-toplevel)/node_modules/@instrument-org/agent-hooks/format.mjs\"",
             "timeout": 30,
             "statusMessage": "Formatting edited files"
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.cursor/hooks/format.mjs\"",
+            "command": "node \"$(git rev-parse --show-toplevel)/node_modules/@instrument-org/agent-hooks/format.mjs\"",
             "timeout": 180,
             "statusMessage": "Formatting dirty files"
           }

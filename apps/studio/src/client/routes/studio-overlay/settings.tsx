@@ -57,7 +57,7 @@ function SettingsModal() {
         </DialogClose>
       </div>
       <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-        <div className="shrink-0 px-6 pt-2 pb-4 text-center font-semibold">
+        <div className="shrink-0 p-3 text-center text-sm font-semibold">
           Settings
         </div>
         <div className="flex min-h-0 flex-1 px-3">

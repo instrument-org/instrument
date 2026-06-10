@@ -84,6 +84,19 @@ function buildTaskSessionIdMap(
   return map;
 }
 
+// Wraps raw tool output in a code fence so embedded markdown (headings, lists)
+// doesn't bleed into the transcript's structure. Fence length adapts to the
+// longest backtick run inside the content so nested fences don't break out.
+// The language tag drives syntax highlighting for the fenced block.
+function fenceText(text: string, language = "markdown"): string {
+  const longestBacktickRun = Math.max(
+    0,
+    ...[...text.matchAll(/`+/g)].map((match) => match[0].length),
+  );
+  const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
+  return `${fence}${language}\n${text}\n${fence}`;
+}
+
 function inputToXml(toolName: string, input: unknown): string {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return `<${toolName}>${JSON.stringify(input)}</${toolName}>`;
@@ -325,7 +338,7 @@ function renderToolResult(
       break;
     }
     case "text": {
-      lines.push(output.value);
+      lines.push(fenceText(output.value));
       break;
     }
   }

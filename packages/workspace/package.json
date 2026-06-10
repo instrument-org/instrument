@@ -23,6 +23,7 @@
     "check:types": "tsgo --noEmit",
     "eval": "NODE_ENV=test NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx evals/cli.ts",
     "fix:lint": "eslint . --max-warnings 0 --fix",
+    "script:dump-session-transcript": "tsx scripts/dump-session-transcript.ts",
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",
     "script:run-workspace": "NODE_ENV=development tsx scripts/run-workspace.ts",
     "test": "vitest",

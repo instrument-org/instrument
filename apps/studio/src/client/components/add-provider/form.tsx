@@ -271,8 +271,8 @@ export function AddProviderForm({
         void handleSave();
       }}
     >
-      <div className="flex flex-col gap-2 text-center">
-        <h2 className="font-serif text-3xl leading-tight font-medium">
+      <div className="mb-4 flex flex-col gap-2 text-center">
+        <h2 className="font-serif text-xl leading-tight font-medium">
           Add an AI provider
         </h2>
       </div>

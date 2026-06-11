@@ -66,7 +66,8 @@ that invoke turbo).
 - `pnpm exec turbo run check:types check:lint` — all packages
 - `pnpm exec turbo run check:types check:lint --filter=@instrument-org/workspace`
 - `pnpm exec turbo run check:types check:lint --filter=@instrument-org/studio`
-- `pnpm check-and-test` — full CI
+- `pnpm check-and-test` — full local check (includes spelling, format, etc.)
+- `pnpm check-and-test:ci` — what CI runs (omits pedantic checks that don't affect correctness)
 - `pnpm turbo:fix:lint` — fix lint
 
 Single test file: `cd packages/<name> && pnpm test run <file>` or

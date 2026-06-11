@@ -9,6 +9,7 @@ import {
   fromPromise,
   log,
   setup,
+  stopChild,
 } from "xstate";
 
 import { type AgentName, type AnyAgent } from "../agents/types";
@@ -74,6 +75,8 @@ export const sessionMachine = setup({
     assignEventError: createAssignEventError(),
 
     clearAgentRef: assign({ agentRef: undefined }),
+
+    forceStopAgent: stopChild(({ context }) => context.agentRef ?? "agent"),
 
     markUsedNonReadOnlyTools: assign({ usedNonReadOnlyTools: true }),
 
@@ -392,8 +395,11 @@ export const sessionMachine = setup({
 
         Stopping: {
           after: {
-            // Failsafe if agent never stops
-            1000: "AgentDone",
+            // Failsafe if the agent does not stop itself promptly.
+            1000: {
+              actions: ["forceStopAgent", "clearAgentRef"],
+              target: "AgentDone",
+            },
           },
           always: [{ guard: "isAgentRefActive" }, { target: "AgentDone" }],
           on: {

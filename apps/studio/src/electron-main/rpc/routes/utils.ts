@@ -21,6 +21,8 @@ import {
   createAppConfig,
   ProjectSubdomainSchema,
   readProjectFile,
+  RelativePathSchema,
+  resolvePathWithinAppDir,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
@@ -309,10 +311,13 @@ const showProjectFileInFolder = base
     FILE_NOT_FOUND: {
       message: "File not found",
     },
+    INVALID_PATH: {
+      message: "Invalid file path",
+    },
   })
   .input(
     z.object({
-      filePath: z.string(),
+      filePath: RelativePathSchema,
       subdomain: ProjectSubdomainSchema,
     }),
   )
@@ -323,7 +328,13 @@ const showProjectFileInFolder = base
       workspaceConfig: snapshot.context.config,
     });
 
-    const fullPath = path.join(appConfig.appDir, input.filePath);
+    const fullPath = resolvePathWithinAppDir({
+      appDir: appConfig.appDir,
+      filePath: input.filePath,
+    });
+    if (!fullPath) {
+      throw errors.INVALID_PATH();
+    }
 
     try {
       await fs.access(fullPath);

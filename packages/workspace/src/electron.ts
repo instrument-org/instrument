@@ -1,6 +1,7 @@
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
 export { createAppConfig } from "./lib/app-config/create";
 export { readProjectFile } from "./lib/read-project-file";
+export { resolvePathWithinAppDir } from "./lib/resolve-path-within-app-dir";
 export {
   type WorkspaceActorRef,
   type WorkspaceEvent,
@@ -9,7 +10,7 @@ export {
 export { router as workspaceRouter } from "./rpc";
 export type { WorkspaceRPCContext } from "./rpc/base";
 export { publisher as workspacePublisher } from "./rpc/publisher";
-export { type AbsolutePath } from "./schemas/paths";
+export { type AbsolutePath, RelativePathSchema } from "./schemas/paths";
 export { SessionMessage } from "./schemas/session/message";
 export { StoreId } from "./schemas/store-id";
 export { type SubdomainPart } from "./schemas/subdomain-part";

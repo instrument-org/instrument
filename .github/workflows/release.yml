@@ -286,8 +286,15 @@ jobs:
           echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
           RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
           REPO_URL="https://github.com/${{ github.repository }}"
-          COUNT=$(git log "$RANGE" --pretty=format:"%h" --no-merges | wc -l | tr -d ' ')
-          ALL=$(git log "$RANGE" --pretty=format:"%h %s" --no-merges)
+          ALL=$(
+            git log "$RANGE" \
+              --pretty=format:"%h %s" \
+              --no-merges \
+              --extended-regexp \
+              --invert-grep \
+              --grep='^release\([^)]*\):'
+          )
+          COUNT=$(printf '%s\n' "$ALL" | sed '/^$/d' | wc -l | tr -d ' ')
           SLACK=$(echo "$ALL" | head -n10 | sed 's/^[^ ]* /• /')
           if [ "$COUNT" -gt 10 ]; then
             SLACK="$SLACK
@@ -297,7 +304,8 @@ jobs:
           # Escape for JSON: backslash, double-quote, then newlines → \n
           SLACK_JSON=$(printf '%s' "$SLACK" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
           echo "slack_log_json=$SLACK_JSON" >> "$GITHUB_OUTPUT"
-          # Prereleases keep a commit-log body because GitHub's generated notes are PR-centric.
+          # Use the commit log because GitHub's generated notes are PR-centric and
+          # miss direct commits that Slack includes.
           BODY=$(echo "$ALL" | awk -v repo="$REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}')
           printf '## What'\''s changed\n\n%s\n' "$BODY" > /tmp/release-body.md
           if [ -n "$PREV_TAG" ]; then
@@ -328,8 +336,8 @@ jobs:
         with:
           draft: true
           prerelease: false
-          generate_release_notes: true
-          previous_tag: ${{ steps.slack_summary.outputs.previous_tag }}
+          generate_release_notes: false
+          body_path: /tmp/release-body.md
 
       - name: Capture release URL
         id: release

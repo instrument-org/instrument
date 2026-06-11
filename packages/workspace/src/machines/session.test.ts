@@ -1157,6 +1157,46 @@ describe("sessionMachine", () => {
       `);
   });
 
+  it("should force stop agents before the stopping failsafe completes", async () => {
+    let finishOnFinish: (() => void) | undefined;
+    const onFinishPromise = new Promise<void>((resolve) => {
+      finishOnFinish = resolve;
+    });
+    const result = await createActorAndApp({
+      agent: setupAgent({
+        agentTools: pick(TOOLS, ["ReadFile"]),
+        name: "main",
+      }).create(() => ({
+        getMessages: mainAgent.getMessages,
+        onFinish: async () => {
+          await onFinishPromise;
+        },
+        onStart: mainAgent.onStart,
+        shouldContinue: mainAgent.shouldContinue,
+      })),
+      chunkSets: [finishChunks],
+    });
+    result.actor.start();
+
+    await waitFor(result.actor, (state) =>
+      state.matches({ Agent: "UsingReadOnlyTools" }),
+    );
+    const agentRef = result.actor.getSnapshot().context.agentRef;
+    if (!agentRef) {
+      throw new Error("Expected agent ref");
+    }
+
+    result.actor.send({ type: "stop" });
+    await waitFor(result.actor, (state) => state.status === "done");
+
+    const snapshot = result.actor.getSnapshot();
+    expect(snapshot.hasTag("agent.alive")).toBe(false);
+    expect(snapshot.context.agentRef).toBeUndefined();
+    expect(agentRef.getSnapshot().status).toBe("stopped");
+
+    finishOnFinish?.();
+  });
+
   it("should handle interactive tool calls with choose tool", async () => {
     const result = await createActorAndApp({
       agent: setupAgent({

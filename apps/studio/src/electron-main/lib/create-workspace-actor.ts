@@ -177,40 +177,56 @@ export function createWorkspaceActor({
     return response === 1;
   };
 
+  let isQuitHandling = false;
   let isQuitInProgress = false;
 
   app.on("before-quit", (e) => {
-    if (isQuitInProgress) {
-      return;
-    }
+    // Always intercept; we call app.exit(0) after teardown. A second quit
+    // during shutdown must not bypass preventDefault and skip cleanup.
     e.preventDefault();
 
+    if (isQuitInProgress || isQuitHandling) {
+      return;
+    }
+
     void (async () => {
-      if (
-        !isQuitAlreadyConfirmed() &&
-        !(await confirmQuitWithRunningAgents())
-      ) {
-        return;
+      isQuitHandling = true;
+      try {
+        if (
+          !isQuitAlreadyConfirmed() &&
+          !(await confirmQuitWithRunningAgents())
+        ) {
+          return;
+        }
+
+        isQuitInProgress = true;
+
+        let hasExited = false;
+        const doExit = () => {
+          if (hasExited) {
+            return;
+          }
+          hasExited = true;
+          browserViewManager.teardown();
+          actor.stop();
+          app.exit(0);
+        };
+        const timeout = setTimeout(() => {
+          captureServerException(
+            new Error("agent-browser close --all timed out on quit"),
+            { scopes: ["studio"] },
+          );
+          doExit();
+        }, 3000);
+        void closeAllAgentBrowserSessions().finally(() => {
+          clearTimeout(timeout);
+          doExit();
+        });
+      } finally {
+        if (!isQuitInProgress) {
+          isQuitHandling = false;
+        }
       }
-
-      isQuitInProgress = true;
-
-      const doExit = () => {
-        browserViewManager.teardown();
-        actor.stop();
-        app.exit(0);
-      };
-      const timeout = setTimeout(() => {
-        captureServerException(
-          new Error("agent-browser close --all timed out on quit"),
-          { scopes: ["studio"] },
-        );
-        doExit();
-      }, 3000);
-      void closeAllAgentBrowserSessions().finally(() => {
-        clearTimeout(timeout);
-        doExit();
-      });
     })();
   });
 

@@ -1,4 +1,6 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { arch, platform } from "node:os";
 import path from "node:path";
@@ -24,7 +26,7 @@ function getBinaryName() {
       break;
     }
     case "linux": {
-      osKey = "linux";
+      osKey = isMusl() ? "linux-musl" : "linux";
       break;
     }
     case "win32": {
@@ -53,6 +55,23 @@ function getBinaryName() {
 
   const ext = userPlatform === "win32" ? ".exe" : "";
   return `agent-browser-${osKey}-${archKey}${ext}`;
+}
+
+function isMusl() {
+  if (platform() !== "linux") {
+    return false;
+  }
+  try {
+    const result = execSync("ldd --version 2>&1 || true", {
+      encoding: "utf8",
+    });
+    return result.toLowerCase().includes("musl");
+  } catch {
+    return (
+      existsSync("/lib/ld-musl-x86_64.so.1") ||
+      existsSync("/lib/ld-musl-aarch64.so.1")
+    );
+  }
 }
 
 const binDir =

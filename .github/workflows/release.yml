@@ -292,7 +292,8 @@ jobs:
               --no-merges \
               --extended-regexp \
               --invert-grep \
-              --grep='^release\([^)]*\):'
+              --grep='^release\([^)]*\):' \
+              --grep='^feat\(registry\): update to latest$'
           )
           COUNT=$(printf '%s\n' "$ALL" | sed '/^$/d' | wc -l | tr -d ' ')
           SLACK=$(echo "$ALL" | head -n10 | sed 's/^[^ ]* /• /')

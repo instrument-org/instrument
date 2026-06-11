@@ -3,8 +3,11 @@ import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { type AbsolutePath, AppDirSchema } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
+import {
+  type AbsolutePath,
+  AbsolutePathSchema,
+  AppDirSchema,
+} from "../schemas/paths";
 import { TypedError } from "./errors";
 import { normalizePath } from "./normalize-path";
 
@@ -38,7 +41,10 @@ export async function extractProjectZip({
 
     // Needed for importing a project from Windows on a POSIX machine.
     const normalizedFilename = normalizePath(entry.filename);
-    const fullPath = absolutePathJoin(outputDir, normalizedFilename);
+    const fullPath = resolvePathWithinOutputDir({
+      outputDir,
+      relativePath: normalizedFilename,
+    });
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
 
     const writer = new BlobWriter();
@@ -50,4 +56,20 @@ export async function extractProjectZip({
   await zipReader.close();
 
   return { appDir: AppDirSchema.parse(outputDir) };
+}
+
+function resolvePathWithinOutputDir({
+  outputDir,
+  relativePath,
+}: {
+  outputDir: AbsolutePath;
+  relativePath: string;
+}): AbsolutePath {
+  const fullPath = path.resolve(outputDir, relativePath);
+  if (!`${fullPath}${path.sep}`.startsWith(`${outputDir}${path.sep}`)) {
+    throw new TypedError.FileSystem(
+      `Zip entry escapes output directory: ${relativePath}`,
+    );
+  }
+  return AbsolutePathSchema.parse(fullPath);
 }

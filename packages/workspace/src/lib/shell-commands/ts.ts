@@ -14,7 +14,7 @@ import {
 
 export const TS_COMMAND = {
   description:
-    "Execute a TypeScript or JavaScript file. For quick one-liners, prefer -e <code> over writing a file.",
+    "Execute a TypeScript or JavaScript file. In -e: relative paths resolve from cwd; avoid absolute paths like /tmp/file — they hit the real root, not the task root.",
   name: "tsx",
 } as const;
 

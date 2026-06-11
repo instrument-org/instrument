@@ -47,7 +47,8 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: "Run a JavaScript/CommonJS file with Node.js.",
+  description:
+    "Run a JavaScript file with Node.js. In -e: relative paths resolve from cwd; avoid absolute paths like /tmp/file — they hit the real root, not the task root.",
   name: "node",
 } as const;
 

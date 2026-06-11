@@ -41,7 +41,7 @@ describe("createBashDescription", () => {
         ffprobe - Probe and inspect audio and video files using FFprobe.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
-        tsx - Execute a TypeScript or JavaScript file. For quick one-liners, prefer -e <code> over writing a file.
+        tsx - Execute a TypeScript or JavaScript file. In -e: relative paths resolve from cwd; avoid absolute paths like /tmp/file — they hit the real root, not the task root.
         tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the local config."
     `);
   });

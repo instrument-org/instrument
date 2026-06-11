@@ -17,7 +17,7 @@ jobs:
       - uses: ./.github/actions/prepare
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - run: pnpm check-and-test
+      - run: pnpm check-and-test:ci
 
 concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}

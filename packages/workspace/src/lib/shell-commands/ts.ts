@@ -1,9 +1,8 @@
 import { defineCommand, latin1FromBytes } from "just-bash";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 
 import type { AppConfig } from "../app-config/types";
 
-import { APP_FOLDER_NAMES } from "../../constants";
 import { absolutePathJoin } from "../absolute-path-join";
 import { runPnpmCommand } from "../run-pnpm";
 import {
@@ -57,6 +56,7 @@ export function createTsCommand(appConfig: AppConfig) {
 
     let filePath: string;
     let scriptArgs: string[];
+    let evalFileToCleanup: string | undefined;
 
     if (evalCode === undefined) {
       const fileAndArgs = extractFileAndScriptArgs(
@@ -77,29 +77,43 @@ export function createTsCommand(appConfig: AppConfig) {
 
       ({ filePath, scriptArgs } = fileAndArgs);
     } else {
-      const tmpDir = absolutePathJoin(appConfig.appDir, APP_FOLDER_NAMES.tmp);
-      await mkdir(tmpDir, { recursive: true });
-      filePath = absolutePathJoin(tmpDir, `ts-eval-${Date.now()}.ts`);
-      await writeFile(filePath, evalCode, "utf8");
+      // Write the eval file into the current working directory (not a fixed
+      // app-root tmp dir) so jiti resolves modules and relative paths from
+      // where the agent is. Matches real `tsx -e` and `tsx <file>`: after
+      // `cd skills/<skill>`, `tsx -e 'import sharp'` finds the skill's
+      // node_modules. A root tmp dir broke this regardless of cwd.
+      const fileName = `.ts-eval-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ts`;
+      await mkdir(appCwd, { recursive: true });
+      await writeFile(absolutePathJoin(appCwd, fileName), evalCode, "utf8");
+      // Pass relative to appCwd (the jiti cwd) so the host appDir is not
+      // exposed in jiti stack traces.
+      filePath = fileName;
       scriptArgs = [];
+      evalFileToCleanup = absolutePathJoin(appCwd, fileName);
     }
 
-    // Use pnpm dlx for faster execution via cached packages and avoid
-    // installing all packages eagerly.
-    const result = await runPnpmCommand({
-      appConfig,
-      args: ["dlx", "jiti@2.6.1", filePath, ...scriptArgs],
-      cwd: appCwd,
-      env,
-      pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
-      signal: ctx.signal,
-      stdin: latin1FromBytes(ctx.stdin) || undefined,
-    });
+    try {
+      // Use pnpm dlx for faster execution via cached packages and avoid
+      // installing all packages eagerly.
+      const result = await runPnpmCommand({
+        appConfig,
+        args: ["dlx", "jiti@2.6.1", filePath, ...scriptArgs],
+        cwd: appCwd,
+        env,
+        pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
+        signal: ctx.signal,
+        stdin: latin1FromBytes(ctx.stdin) || undefined,
+      });
 
-    return {
-      exitCode: result.exitCode,
-      stderr: "",
-      stdout: result.combined,
-    };
+      return {
+        exitCode: result.exitCode,
+        stderr: "",
+        stdout: result.combined,
+      };
+    } finally {
+      if (evalFileToCleanup !== undefined) {
+        await rm(evalFileToCleanup, { force: true });
+      }
+    }
   });
 }

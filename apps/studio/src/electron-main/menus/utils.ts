@@ -2,7 +2,7 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getTabsManager } from "@/electron-main/tabs";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { APP_URL, NEW_ISSUE_URL } from "@instrument-org/shared";
+import { APP_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
 
 export function createAppMenu(): MenuItemConstructorOptions {
@@ -110,7 +110,7 @@ export function createHelpMenu(): MenuItemConstructorOptions {
       },
       {
         click: () => {
-          void openExternal(NEW_ISSUE_URL);
+          void openExternal(SUPPORT_URL);
         },
         label: "Report an Issue",
       },

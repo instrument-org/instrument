@@ -256,17 +256,15 @@ jobs:
         run: |
           CURRENT_IS_PRERELEASE="${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}"
           if [ "$CURRENT_IS_PRERELEASE" = "true" ]; then
-            RELEASE_JQ='.[] | select(.tag_name != "${{ github.ref_name }}") | .tag_name'
+            PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" || true)
           else
-            RELEASE_JQ='.[] | select(.tag_name != "${{ github.ref_name }}" and .prerelease == false and .draft == false) | .tag_name'
+            PREV_TAG=$(
+              gh api \
+                "repos/${{ github.repository }}/releases?per_page=100" \
+                --jq '.[] | select(.tag_name != "${{ github.ref_name }}" and .prerelease == false and .draft == false) | .tag_name' \
+                | head -n1 || true
+            )
           fi
-
-          PREV_TAG=$(
-            gh api \
-              "repos/${{ github.repository }}/releases?per_page=100" \
-              --jq "$RELEASE_JQ" \
-              | head -n1 || true
-          )
           if [ -z "$PREV_TAG" ]; then
             if [ "$CURRENT_IS_PRERELEASE" = "true" ]; then
               PREV_TAG=$(

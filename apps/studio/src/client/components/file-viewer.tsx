@@ -547,11 +547,12 @@ export function FileViewer({
                   <div className="relative size-full">
                     <ImageResizeRecenter />
                     <TransformComponent
+                      contentStyle={{ height: "100%", width: "100%" }}
                       wrapperStyle={{ height: "100%", width: "100%" }}
                     >
                       <ImageWithFallback
                         alt={filename}
-                        className="select-none"
+                        className="size-full object-contain select-none"
                         filename={filename}
                         onError={() => {
                           setImageErrorUrl(url);

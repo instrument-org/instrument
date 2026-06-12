@@ -112,7 +112,7 @@ export function createHelpMenu(): MenuItemConstructorOptions {
         click: () => {
           void openExternal(SUPPORT_URL);
         },
-        label: "Report an Issue",
+        label: "Share Feedback",
       },
     ],
   };

@@ -10,7 +10,11 @@ export {
 export { router as workspaceRouter } from "./rpc";
 export type { WorkspaceRPCContext } from "./rpc/base";
 export { publisher as workspacePublisher } from "./rpc/publisher";
-export { type AbsolutePath, RelativePathSchema } from "./schemas/paths";
+export {
+  type AbsolutePath,
+  RelativePathSchema,
+  RelativeProjectPathSchema,
+} from "./schemas/paths";
 export { SessionMessage } from "./schemas/session/message";
 export { StoreId } from "./schemas/store-id";
 export { type SubdomainPart } from "./schemas/subdomain-part";

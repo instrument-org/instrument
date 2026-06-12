@@ -23,3 +23,10 @@ export const RelativePathSchema =
   UnbrandedRelativePathSchema.brand("RelativePath");
 
 export type RelativePath = z.output<typeof RelativePathSchema>;
+
+// A relative path that must stay within the task dir: rejects ".." segments.
+// Use for RPC inputs naming real project files, where traversal is never valid.
+export const RelativeProjectPathSchema = RelativePathSchema.refine(
+  (val) => !val.split(/[/\\]/).includes(".."),
+  "Path must not contain '..' segments",
+);

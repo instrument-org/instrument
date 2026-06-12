@@ -12,7 +12,7 @@ import {
 } from "../../../lib/get-project-files";
 import { getTrackedFileCount } from "../../../lib/get-tracked-file-count";
 import { hasAppModifications } from "../../../lib/has-app-modifications";
-import { RelativePathSchema } from "../../../schemas/paths";
+import { RelativeProjectPathSchema } from "../../../schemas/paths";
 import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
@@ -42,7 +42,7 @@ const ref = base
 const commitsList = base
   .input(
     z.object({
-      filterByPath: RelativePathSchema.optional(),
+      filterByPath: RelativeProjectPathSchema.optional(),
       limit: z.number().optional(),
       projectSubdomain: ProjectSubdomainSchema,
     }),
@@ -75,7 +75,7 @@ const commits = {
     list: base
       .input(
         z.object({
-          filterByPath: RelativePathSchema.optional(),
+          filterByPath: RelativeProjectPathSchema.optional(),
           limit: z.number().optional(),
           projectSubdomain: ProjectSubdomainSchema,
         }),
@@ -151,7 +151,7 @@ const liveHasAppModifications = base
 const fileVersionRefs = base
   .input(
     z.object({
-      filePath: RelativePathSchema,
+      filePath: RelativeProjectPathSchema,
       projectSubdomain: ProjectSubdomainSchema,
     }),
   )
@@ -236,7 +236,7 @@ const listFiles = base
 const fileInfo = base
   .input(
     z.object({
-      filePath: RelativePathSchema,
+      filePath: RelativeProjectPathSchema,
       projectSubdomain: ProjectSubdomainSchema,
       versionRef: z.string().optional(),
     }),

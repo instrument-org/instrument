@@ -21,7 +21,7 @@ import {
   createAppConfig,
   ProjectSubdomainSchema,
   readProjectFile,
-  RelativePathSchema,
+  RelativeProjectPathSchema,
   resolvePathWithinAppDir,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
@@ -295,7 +295,7 @@ const showProjectFileInFolder = base
   })
   .input(
     z.object({
-      filePath: RelativePathSchema,
+      filePath: RelativeProjectPathSchema,
       subdomain: ProjectSubdomainSchema,
     }),
   )
@@ -434,7 +434,7 @@ const copyFileToClipboard = base
   })
   .input(
     z.object({
-      filePath: z.string(),
+      filePath: RelativeProjectPathSchema,
       isImage: z.boolean(),
       subdomain: ProjectSubdomainSchema,
       versionRef: z.string().optional(),

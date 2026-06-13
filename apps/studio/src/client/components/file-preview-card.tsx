@@ -19,7 +19,6 @@ import { toast } from "sonner";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
-import { FileVersionBadge } from "./file-version-badge";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
 import { MediaCardShell } from "./media-card-shell";
@@ -131,7 +130,7 @@ function FileRowCard({
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, filePath, projectSubdomain, versionRef } = file;
+  const { filename, filePath } = file;
 
   return (
     <ContextMenu>
@@ -163,12 +162,6 @@ function FileRowCard({
             </Tooltip>
             <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
               {fileKindLabel(getFileType(file))}
-              <FileVersionBadge
-                className="ml-1 inline text-[10px]"
-                filePath={filePath}
-                projectSubdomain={projectSubdomain}
-                versionRef={versionRef}
-              />
             </span>
           </div>
           {!hideActionsMenu && (

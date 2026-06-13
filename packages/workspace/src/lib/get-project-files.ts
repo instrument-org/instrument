@@ -42,6 +42,8 @@ export const ProjectFileChangeSchema = ProjectFileSchema.extend({
 
 export const ProjectFileChangesSchema = z.array(ProjectFileChangeSchema);
 
+export const MAX_PROJECT_FILE_INDEX_FILES = 5000;
+
 export type ProjectFileChange = z.output<typeof ProjectFileChangeSchema>;
 export type ProjectFileEntry = z.output<typeof ProjectFileSchema> & {
   mtimeMs: number;
@@ -81,16 +83,23 @@ export function diffProjectFileIndexes({
 
 export async function getProjectFileIndex(
   appDir: AppDir,
-  { signal }: { signal?: AbortSignal } = {},
+  {
+    maxFiles = MAX_PROJECT_FILE_INDEX_FILES,
+    signal,
+  }: { maxFiles?: number; signal?: AbortSignal } = {},
 ) {
   try {
     const ignore = await getIgnore(appDir, { signal });
     ignore.add(INTERNAL_IGNORE_PATTERNS);
 
     const files: ProjectFileEntry[] = [];
+    let reachedFileLimit = false;
 
     async function walk(relativeDir: string) {
       signal?.throwIfAborted();
+      if (reachedFileLimit) {
+        return;
+      }
 
       const absoluteDir = relativeDir
         ? absolutePathJoin(appDir, relativeDir)
@@ -117,14 +126,23 @@ export async function getProjectFileIndex(
 
         const absolutePath = absolutePathJoin(appDir, relativePath);
 
+        if (entry.isSymbolicLink()) {
+          continue;
+        }
+
         if (entry.isDirectory()) {
           await walk(relativePath);
           continue;
         }
 
-        const stats = await fs.stat(absolutePath);
+        const stats = await fs.lstat(absolutePath);
         if (!stats.isFile()) {
           continue;
+        }
+
+        if (files.length >= maxFiles) {
+          reachedFileLimit = true;
+          return;
         }
 
         const filePath = RelativePathSchema.parse(`./${relativePath}`);

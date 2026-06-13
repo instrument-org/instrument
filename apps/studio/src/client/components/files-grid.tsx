@@ -68,12 +68,13 @@ export function FilesGrid({
     if (!search) {
       return;
     }
+    const filePath = normalizeProjectFilePath(file.filePath);
     void navigate({
       replace: true,
       search: (prev) => ({
         ...prev,
         artifactPanel: {
-          filePath: file.filePath,
+          filePath,
           fileVersion: file.versionRef,
           type: "file",
         },
@@ -397,7 +398,9 @@ function hasRowCardPreview(file: ProjectFileViewerFile) {
 }
 
 function isAgentRetrievedFile(file: ProjectFileViewerFile) {
-  return file.filePath.startsWith(`${APP_FOLDER_NAMES.agentRetrieved}/`);
+  return normalizeProjectFilePath(file.filePath).startsWith(
+    `${APP_FOLDER_NAMES.agentRetrieved}/`,
+  );
 }
 
 function isArtifactPanelFileSelected(
@@ -408,7 +411,10 @@ function isArtifactPanelFileSelected(
     return false;
   }
 
-  if (file.filePath !== artifactPanel.filePath) {
+  if (
+    normalizeProjectFilePath(file.filePath) !==
+    normalizeProjectFilePath(artifactPanel.filePath)
+  ) {
     return false;
   }
 
@@ -420,23 +426,35 @@ function isArtifactPanelFileSelected(
 }
 
 function isOutputFile(file: ProjectFileViewerFile) {
-  return file.filePath.startsWith(`${APP_FOLDER_NAMES.output}/`);
+  return normalizeProjectFilePath(file.filePath).startsWith(
+    `${APP_FOLDER_NAMES.output}/`,
+  );
 }
 
 function isScriptFile(file: ProjectFileViewerFile) {
-  return file.filePath.startsWith(`${APP_FOLDER_NAMES.scripts}/`);
+  return normalizeProjectFilePath(file.filePath).startsWith(
+    `${APP_FOLDER_NAMES.scripts}/`,
+  );
 }
 
 function isSkillFile(file: ProjectFileViewerFile) {
-  return file.filePath.startsWith(`${APP_FOLDER_NAMES.skills}/`);
+  return normalizeProjectFilePath(file.filePath).startsWith(
+    `${APP_FOLDER_NAMES.skills}/`,
+  );
 }
 
 function isTempFile(file: ProjectFileViewerFile) {
-  return file.filePath.startsWith("tmp/");
+  return normalizeProjectFilePath(file.filePath).startsWith("tmp/");
 }
 
 function isUserProvidedFile(file: ProjectFileViewerFile) {
-  return file.filePath.startsWith(`${APP_FOLDER_NAMES.userProvided}/`);
+  return normalizeProjectFilePath(file.filePath).startsWith(
+    `${APP_FOLDER_NAMES.userProvided}/`,
+  );
+}
+
+function normalizeProjectFilePath(filePath: string) {
+  return filePath.startsWith("./") ? filePath.slice(2) : filePath;
 }
 
 function sortByRichPreview(files: ProjectFileViewerFile[]) {
@@ -466,7 +484,11 @@ function splitSupportingFiles(files: ProjectFileViewerFile[]) {
     { key: "skills", matches: isSkillFile },
     { key: "temporary", matches: isTempFile },
     { key: "agentRetrieved", matches: isAgentRetrievedFile },
-    { key: "other", matches: (f) => isUnknownTopLevelDirFile(f.filePath) },
+    {
+      key: "other",
+      matches: (f) =>
+        isUnknownTopLevelDirFile(normalizeProjectFilePath(f.filePath)),
+    },
   ];
 
   for (const { key, matches } of matchingOrder) {

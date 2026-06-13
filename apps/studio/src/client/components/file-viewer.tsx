@@ -34,7 +34,6 @@ import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FilePreviewFallback } from "./file-preview-fallback";
-import { FileVersionBadge } from "./file-version-badge";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
@@ -395,14 +394,6 @@ export function FileViewer({
             {filePath}
           </TooltipContent>
         </Tooltip>
-        {filePath && projectSubdomain && versionRef && (
-          <FileVersionBadge
-            className="dark:bg-background"
-            filePath={filePath}
-            projectSubdomain={projectSubdomain}
-            versionRef={versionRef}
-          />
-        )}
         <div className="ml-auto flex min-w-7 shrink items-center justify-end gap-1 overflow-hidden">
           {fileActions.showDownload && (
             <Button

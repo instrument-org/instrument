@@ -3,7 +3,6 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 
 import { FileIcon } from "./file-icon";
-import { FileVersionBadge } from "./file-version-badge";
 import { ImageWithFallback } from "./image-with-fallback";
 import { PreviewListItem } from "./preview-list-item";
 import { Button } from "./ui/button";
@@ -18,8 +17,7 @@ export function FilePreviewListItem({
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, filePath, mimeType, projectSubdomain, url, versionRef } =
-    file;
+  const { filename, filePath, mimeType, url } = file;
   const fileType = getFileType(file);
 
   if (url && fileType === "image") {
@@ -50,15 +48,7 @@ export function FilePreviewListItem({
           className="max-w-[min(500px,90vw)] wrap-break-word"
           collisionPadding={10}
         >
-          <div className="flex items-center gap-x-2">
-            <span>{filePath}</span>
-            <FileVersionBadge
-              className="shrink-0 text-[10px]"
-              filePath={filePath}
-              projectSubdomain={projectSubdomain}
-              versionRef={versionRef}
-            />
-          </div>
+          {filePath}
         </TooltipContent>
       </Tooltip>
     );
@@ -76,14 +66,6 @@ export function FilePreviewListItem({
       isSelected={isSelected}
       label={filename}
       onClick={onClick}
-      rightElement={
-        <FileVersionBadge
-          className="text-[10px]"
-          filePath={filePath}
-          projectSubdomain={projectSubdomain}
-          versionRef={versionRef}
-        />
-      }
       tooltipContent={filePath}
     />
   );

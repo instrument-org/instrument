@@ -60,6 +60,29 @@ describe("getProjectFileIndex", () => {
     `);
   });
 
+  it("skips symbolic links and caps recursive scans", async () => {
+    await fs.mkdir(path.join(appDirPath, "many"), { recursive: true });
+    await fs.symlink(
+      path.join(appDirPath, "notes.md"),
+      path.join(appDirPath, "linked-notes.md"),
+    );
+
+    for (let i = 0; i < 5; i++) {
+      await fs.writeFile(path.join(appDirPath, "many", `${i}.txt`), `${i}`);
+    }
+
+    const result = await getProjectFileIndex(appDir, { maxFiles: 4 });
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    const filePaths = [...result.value.keys()];
+    expect(filePaths).toHaveLength(4);
+    expect(filePaths).not.toContain("./linked-notes.md");
+  });
+
   it("diffs file index snapshots and extracts output artifacts", async () => {
     const beforeResult = await getProjectFileIndex(appDir);
     expect(beforeResult.isOk()).toBe(true);

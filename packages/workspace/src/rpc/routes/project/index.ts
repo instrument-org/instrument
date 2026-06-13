@@ -272,11 +272,6 @@ const create = base
       publisher.publish("project.updated", {
         subdomain: projectConfig.subdomain,
       });
-      if (files && files.length > 0) {
-        publisher.publish("project.files.changed", {
-          subdomain: projectConfig.subdomain,
-        });
-      }
 
       context.workspaceRef.send({
         type: "createSession",

@@ -67,7 +67,7 @@ export function FileChangesCard({
         <div className="text-xs text-muted-foreground">{summary}</div>
       )}
       {currentFiles.length > 0 && (
-        <FilesGrid compact files={currentFiles} initialVisibleCount={4} />
+        <FilesGrid files={currentFiles} initialVisibleCount={4} />
       )}
     </div>
   );

@@ -21,11 +21,12 @@ export function ProjectStatsCard({
     }),
   );
 
-  const { data: filesAddedCount } = useQuery({
-    ...rpcClient.workspace.project.git.filesAddedSinceInitial.queryOptions({
+  const { data: files } = useQuery({
+    ...rpcClient.workspace.project.files.list.queryOptions({
       input: { projectSubdomain: project.subdomain },
     }),
   });
+  const fileCount = files?.length;
 
   return (
     <div className="flex items-center gap-3 overflow-hidden rounded-lg border bg-muted/50 p-4">
@@ -56,17 +57,14 @@ export function ProjectStatsCard({
               </span>
             </div>
           )}
-          {filesAddedCount !== null &&
-            filesAddedCount !== undefined &&
-            filesAddedCount > 0 && (
-              <div className="flex items-center gap-1">
-                <FileTextIcon className="size-3" />
-                <span>
-                  {filesAddedCount} {filesAddedCount === 1 ? "file" : "files"}{" "}
-                  added
-                </span>
-              </div>
-            )}
+          {fileCount !== undefined && fileCount > 0 && (
+            <div className="flex items-center gap-1">
+              <FileTextIcon className="size-3" />
+              <span>
+                {fileCount} {fileCount === 1 ? "file" : "files"}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

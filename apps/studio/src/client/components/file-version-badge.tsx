@@ -1,40 +1,13 @@
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
-
-import { rpcClient } from "../rpc/client";
-import { Badge } from "./ui/badge";
-
 export function FileVersionBadge({
-  className,
-  filePath,
-  projectSubdomain,
-  versionRef,
+  className: _className,
+  filePath: _filePath,
+  projectSubdomain: _projectSubdomain,
+  versionRef: _versionRef,
 }: {
   className?: string;
   filePath: string;
-  projectSubdomain: ProjectSubdomain;
+  projectSubdomain: string;
   versionRef?: string;
 }) {
-  const { data: versionRefs } = useQuery(
-    rpcClient.workspace.project.git.fileVersionRefs.queryOptions({
-      input: versionRef ? { filePath, projectSubdomain } : skipToken,
-    }),
-  );
-
-  if (!versionRef || !versionRefs || versionRefs.length <= 1) {
-    return null;
-  }
-
-  const versionNumber = versionRefs.indexOf(versionRef) + 1;
-
-  // Version somehow doesn't exist yet, so we don't show anything
-  if (versionNumber === 0) {
-    return null;
-  }
-
-  return (
-    <Badge className={className} variant="secondary">
-      v{versionNumber}
-    </Badge>
-  );
+  return null;
 }

@@ -35,8 +35,10 @@ export const publisher = new EventPublisher<{
     part: SessionMessagePart.Type;
     subdomain: AppSubdomain;
   };
+  "project.files.changed": {
+    subdomain: ProjectSubdomain;
+  };
   "project.outputArtifactsCreated": {
-    commitRef: string;
     filePaths: string[];
     sessionId: StoreId.Session;
     subdomain: ProjectSubdomain;

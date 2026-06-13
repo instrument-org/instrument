@@ -4,9 +4,9 @@ import {
   type SessionMessagePart,
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
-import { type useNavigate } from "@tanstack/react-router";
 
 import { AssistantMessage } from "./assistant-message";
+import { FileChangesCard } from "./file-changes-card";
 import { ToolCall } from "./message-part/tool-call";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
 import { type RenderStream } from "./message-part/tool-task";
@@ -14,10 +14,8 @@ import { ReasoningMessage } from "./reasoning-message";
 import { ContextMessage } from "./session-context-message";
 import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
-import { VersionAndFilesCard } from "./version-and-files-card";
 
 export interface RenderPartContext {
-  gitCommitParts: GitCommitPart[];
   hideUserMessages: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
@@ -25,19 +23,11 @@ export interface RenderPartContext {
     part: SessionMessagePart.ToolPart,
     message: SessionMessage.WithParts,
   ) => boolean;
-  isViewingApp: boolean;
   lastMessageId: string | undefined;
-  navigate: ReturnType<typeof useNavigate>;
   onRetry: (prompt: string) => void;
   project: WorkspaceAppProject;
   renderStream: RenderStream;
-  versionRef: string | undefined;
 }
-
-type GitCommitPart = Extract<
-  SessionMessagePart.Type,
-  { type: "data-gitCommit" }
->;
 
 // Returns null for parts that don't render inline (kept in sync with
 // `isRenderableInlinePart`).
@@ -93,37 +83,24 @@ export function renderChatPart({
   }
 
   if (part.type === "data-gitCommit") {
-    const lastGitCommitPart = ctx.gitCommitParts.at(-1);
-    const isLastVersion = lastGitCommitPart?.data.ref === part.data.ref;
-    const isSelected =
-      ctx.versionRef === part.data.ref || (isLastVersion && !ctx.versionRef);
-    const shouldSetVersion = !isSelected && !isLastVersion;
-
     return (
-      <VersionAndFilesCard
+      <div
+        className="mt-2 rounded-lg border bg-card p-3 text-xs text-muted-foreground shadow-sm"
+        key={part.metadata.id}
+      >
+        Legacy version {part.data.ref.slice(0, 8)}
+      </div>
+    );
+  }
+
+  if (part.type === "data-fileChanges") {
+    return (
+      <FileChangesCard
         assetBaseUrl={ctx.project.urls.assetBase}
         className="mt-2"
-        isLastGitCommit={isLastVersion}
-        isSelected={isSelected}
-        isViewingApp={ctx.isViewingApp}
+        files={part.data.files}
         key={part.metadata.id}
-        onVersionClick={() => {
-          void ctx.navigate({
-            from: "/projects/$subdomain",
-            params: { subdomain: ctx.project.subdomain },
-            replace: true,
-            search: (prev) => ({
-              ...prev,
-              artifactPanel: {
-                type: "app",
-                versionRef: shouldSetVersion ? part.data.ref : undefined,
-              },
-            }),
-          });
-        }}
         projectSubdomain={ctx.project.subdomain}
-        restoredFromRef={part.data.restoredFromRef}
-        versionRef={part.data.ref}
       />
     );
   }
@@ -189,14 +166,4 @@ export function renderChatPart({
 
   const _exhaustiveCheck: never = part;
   return <UnknownPart key={partIndex} part={_exhaustiveCheck} />;
-}
-
-export function selectGitCommitParts(
-  messages: SessionMessage.WithParts[],
-): GitCommitPart[] {
-  return messages.flatMap((message) =>
-    message.parts.filter(
-      (part): part is GitCommitPart => part.type === "data-gitCommit",
-    ),
-  );
 }

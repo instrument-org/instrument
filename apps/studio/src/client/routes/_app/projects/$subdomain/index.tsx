@@ -10,7 +10,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
 import { createIconMeta, createProjectSubdomainMeta } from "@/shared/tabs";
 import {
-  type ProjectSubdomain,
   ProjectSubdomainSchema,
   StoreId,
   type WorkspaceAppProject,
@@ -28,7 +27,6 @@ import {
   useMatchRoute,
   useNavigate,
 } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
 import { z } from "zod";
 
 const projectSearchSchema = z.object({
@@ -40,10 +38,6 @@ const projectSearchSchema = z.object({
   showVersions: z.boolean().optional(),
   sidebar: ProjectSidebarModeSchema.optional(),
 });
-
-// No known lifecycle method in TanStack Router to track when the param changes
-// so we do it with a global variable.
-let LAST_SUBDOMAIN: ProjectSubdomain | undefined;
 
 function title(project?: WorkspaceAppProject) {
   return project?.title ?? "Not Found";
@@ -66,13 +60,8 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
     // Garbage collect project atoms
     promptValueAtomFamily.remove(params.subdomain);
   },
-  beforeLoad: async ({ cause, context, params, search }) => {
-    const isProjectSwitch = params.subdomain !== LAST_SUBDOMAIN;
-    LAST_SUBDOMAIN = params.subdomain;
-
+  beforeLoad: async ({ context, params, search }) => {
     const needsSessionDefault = !search.selectedSessionId;
-    const needsArtifactPanelDefault =
-      (cause === "enter" || isProjectSwitch) && !search.artifactPanel;
 
     const [sessionError, sessions, isDefined] = await safe(
       rpcClient.workspace.session.list.call({
@@ -115,29 +104,13 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
 
     const newestSession = sessions.at(-1);
 
-    const [, hasModifications] = needsArtifactPanelDefault
-      ? await safe(
-          rpcClient.workspace.project.git.hasAppModifications.call({
-            projectSubdomain: params.subdomain,
-          }),
-        )
-      : ([null, false] as const);
-
-    if (
-      (needsSessionDefault && newestSession) ||
-      (hasModifications && needsArtifactPanelDefault)
-    ) {
+    if (needsSessionDefault && newestSession) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({
         params: { subdomain: params.subdomain },
         search: (prev) => ({
           ...prev,
-          ...(needsSessionDefault && newestSession
-            ? { selectedSessionId: newestSession.id }
-            : {}),
-          ...(hasModifications && needsArtifactPanelDefault
-            ? { artifactPanel: { type: "app" } }
-            : {}),
+          selectedSessionId: newestSession.id,
         }),
         to: "/projects/$subdomain",
       });
@@ -175,7 +148,6 @@ function RouteComponent() {
     showDelete,
     showDuplicate,
     showSettings,
-    showVersions,
     sidebar,
   } = Route.useSearch();
   const navigate = useNavigate();
@@ -238,17 +210,8 @@ function RouteComponent() {
     }),
   );
 
-  const { data: hasAppModifications } = useQuery(
-    rpcClient.workspace.project.git.live.hasAppModifications.experimental_liveOptions(
-      {
-        input: { projectSubdomain: subdomain },
-        placeholderData: keepPreviousData,
-      },
-    ),
-  );
-
   const { data: files } = useQuery(
-    rpcClient.workspace.project.git.live.listFiles.experimental_liveOptions({
+    rpcClient.workspace.project.files.live.list.experimental_liveOptions({
       input: { projectSubdomain: subdomain },
       placeholderData: keepPreviousData,
     }),
@@ -263,37 +226,9 @@ function RouteComponent() {
     }),
   );
 
-  // Tracks the settled (post-load) value. Stays undefined until the query resolves
-  // for the first time, so we don't treat undefined→true as a live transition.
-  const settledHasAppModificationsRef = useRef<boolean | undefined>(undefined);
-
-  useEffect(() => {
-    if (hasAppModifications === undefined) {
-      return;
-    }
-
-    const prev = settledHasAppModificationsRef.current;
-    settledHasAppModificationsRef.current = hasAppModifications;
-
-    // Only navigate when transitioning from false to true after initial load
-    if (
-      prev === false &&
-      hasAppModifications &&
-      artifactPanel?.type !== "app"
-    ) {
-      void navigate({
-        from: "/projects/$subdomain",
-        params: { subdomain },
-        replace: true,
-        search: (s) => ({ ...s, artifactPanel: { type: "app" } }),
-      });
-    }
-  }, [hasAppModifications, artifactPanel, navigate, subdomain]);
-
-  // App auto-open above takes priority over focusing an output artifact.
+  // Focuses output artifacts produced by the active turn.
   useAutoOpenOutputArtifact({
     artifactPanel,
-    hasAppModifications,
     selectedSessionId,
     subdomain,
   });
@@ -321,12 +256,10 @@ function RouteComponent() {
         artifactPanel={artifactPanel}
         attachedFolders={projectState.attachedFolders}
         files={files}
-        hasAppModifications={hasAppModifications ?? false}
         project={project}
         selectedModelURI={projectState.selectedModelURI}
         selectedSessionId={selectedSessionId}
         showTutorial={projectState.showTutorial}
-        showVersions={showVersions}
         sidebar={sidebar ?? "chat"}
       />
 

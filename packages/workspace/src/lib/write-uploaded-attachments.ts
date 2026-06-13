@@ -10,6 +10,7 @@ import {
   type AbsolutePath,
   AbsolutePathSchema,
   type AppDir,
+  type RelativePath,
   RelativePathSchema,
 } from "../schemas/paths";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -26,6 +27,14 @@ type FileAttachmentWithoutRef = Omit<
   SessionMessageDataPart.FileAttachmentDataPart,
   "gitRef"
 >;
+type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
+interface PreparedUploadedFile {
+  filename: string;
+  filePath: AbsolutePath;
+  input: FileUpload.Type;
+  mimeType: string;
+  relativePath: RelativePath;
+}
 
 export async function writeUploadedAttachments({
   appDir,
@@ -45,88 +54,15 @@ export async function writeUploadedAttachments({
     const folderAttachments: FolderAttachment.Type[] = [];
 
     if (files && files.length > 0) {
-      const inputDir = absolutePathJoin(appDir, APP_FOLDER_NAMES.userProvided);
-      yield* ResultAsync.fromPromise(
-        fs.mkdir(inputDir, { recursive: true }),
-        (error) =>
-          new TypedError.FileSystem(
-            error instanceof Error ? error.message : "Unknown error",
-            { cause: error },
-          ),
-      );
+      const preparedFiles = yield* await prepareUploadedFiles({
+        appDir,
+        files,
+      });
 
-      for (const file of files) {
-        const sanitized = sanitizeFilename(file.filename);
-        const uniqueFilename = yield* ResultAsync.fromPromise(
-          getUniqueFilename(inputDir, sanitized),
-          (error) =>
-            new TypedError.FileSystem(
-              error instanceof Error ? error.message : "Unknown error",
-              { cause: error },
-            ),
-        );
-
-        const relativePath = `./${APP_FOLDER_NAMES.userProvided}/${uniqueFilename}`;
-        const filePath = absolutePathJoin(appDir, relativePath);
-        const mimeType =
-          "path" in file ? file.mimeType : getMimeType(uniqueFilename);
-
-        if ("path" in file) {
-          if (!path.isAbsolute(file.path)) {
-            yield* err(
-              new TypedError.FileSystem(
-                `Uploaded file path is not absolute: ${file.filename}`,
-              ),
-            );
-          }
-
-          const sourceFilename = path.basename(file.path);
-          if (sourceFilename !== file.filename) {
-            yield* err(
-              new TypedError.FileSystem(
-                `Uploaded file path does not match filename: ${file.filename}`,
-              ),
-            );
-          }
-
-          const relativeSourcePath = path.relative(appDir, file.path);
-          if (
-            relativeSourcePath === "" ||
-            (!relativeSourcePath.startsWith("..") &&
-              !path.isAbsolute(relativeSourcePath))
-          ) {
-            yield* err(
-              new TypedError.FileSystem(
-                `Uploaded file is already inside the task: ${file.filename}`,
-              ),
-            );
-          }
-
-          const sourceStats = yield* ResultAsync.fromPromise(
-            fs.stat(file.path),
-            (error) =>
-              new TypedError.FileSystem(
-                error instanceof Error ? error.message : "Unknown error",
-                { cause: error },
-              ),
-          );
-          if (!sourceStats.isFile()) {
-            yield* err(
-              new TypedError.FileSystem(
-                `Uploaded path is not a file: ${file.filename}`,
-              ),
-            );
-          }
-          if (sourceStats.size !== file.size) {
-            yield* err(
-              new TypedError.FileSystem(
-                `Uploaded file size changed before copy: ${file.filename}`,
-              ),
-            );
-          }
-
+      for (const preparedFile of preparedFiles) {
+        if ("path" in preparedFile.input) {
           yield* ResultAsync.fromPromise(
-            fs.copyFile(file.path, filePath),
+            fs.copyFile(preparedFile.input.path, preparedFile.filePath),
             (error) =>
               new TypedError.FileSystem(
                 error instanceof Error ? error.message : "Unknown error",
@@ -134,9 +70,9 @@ export async function writeUploadedAttachments({
               ),
           );
         } else {
-          const buffer = Buffer.from(file.content, "base64");
+          const buffer = Buffer.from(preparedFile.input.content, "base64");
           yield* ResultAsync.fromPromise(
-            fs.writeFile(filePath, buffer),
+            fs.writeFile(preparedFile.filePath, buffer),
             (error) =>
               new TypedError.FileSystem(
                 error instanceof Error ? error.message : "Unknown error",
@@ -146,7 +82,7 @@ export async function writeUploadedAttachments({
         }
 
         const stats = yield* ResultAsync.fromPromise(
-          fs.stat(filePath),
+          fs.stat(preparedFile.filePath),
           (error) =>
             new TypedError.FileSystem(
               error instanceof Error ? error.message : "Unknown error",
@@ -154,10 +90,21 @@ export async function writeUploadedAttachments({
             ),
         );
 
+        if (
+          "path" in preparedFile.input &&
+          stats.size !== preparedFile.input.size
+        ) {
+          yield* err(
+            new TypedError.FileSystem(
+              `Uploaded file size changed during copy: ${preparedFile.input.filename}`,
+            ),
+          );
+        }
+
         fileInfos.push({
-          filename: uniqueFilename,
-          filePath: RelativePathSchema.parse(relativePath),
-          mimeType,
+          filename: preparedFile.filename,
+          filePath: preparedFile.relativePath,
+          mimeType: preparedFile.mimeType,
           size: stats.size,
         });
       }
@@ -214,9 +161,17 @@ export async function writeUploadedAttachments({
   });
 }
 
+function fileSystemError(error: unknown) {
+  return new TypedError.FileSystem(
+    error instanceof Error ? error.message : "Unknown error",
+    { cause: error },
+  );
+}
+
 async function getUniqueFilename(
   inputDir: AbsolutePath,
   filename: string,
+  reservedFilenames: ReadonlySet<string>,
 ): Promise<string> {
   const ext = path.extname(filename);
   const base = path.basename(filename, ext);
@@ -226,6 +181,12 @@ async function getUniqueFilename(
 
   while (true) {
     const filePath = absolutePathJoin(inputDir, candidate);
+    if (reservedFilenames.has(candidate)) {
+      candidate = `${base}-${counter}${ext}`;
+      counter++;
+      continue;
+    }
+
     try {
       await fs.access(filePath);
       candidate = `${base}-${counter}${ext}`;
@@ -250,4 +211,112 @@ function getUniqueFolderName(
   }
 
   return candidate;
+}
+
+function prepareUploadedFiles({
+  appDir,
+  files,
+}: {
+  appDir: AppDir;
+  files: FileUpload.Type[];
+}) {
+  return safeTry(async function* () {
+    const inputDir = absolutePathJoin(appDir, APP_FOLDER_NAMES.userProvided);
+    yield* ResultAsync.fromPromise(
+      fs.mkdir(inputDir, { recursive: true }),
+      fileSystemError,
+    );
+
+    const preparedFiles: PreparedUploadedFile[] = [];
+    const reservedFilenames = new Set<string>();
+
+    for (const file of files) {
+      const sanitized = sanitizeFilename(file.filename);
+      const uniqueFilename = yield* ResultAsync.fromPromise(
+        getUniqueFilename(inputDir, sanitized, reservedFilenames),
+        fileSystemError,
+      );
+
+      reservedFilenames.add(uniqueFilename);
+
+      if ("path" in file) {
+        yield* await validatePathUpload({ appDir, file });
+      }
+
+      const relativePath = RelativePathSchema.parse(
+        `./${APP_FOLDER_NAMES.userProvided}/${uniqueFilename}`,
+      );
+
+      preparedFiles.push({
+        filename: uniqueFilename,
+        filePath: absolutePathJoin(appDir, relativePath),
+        input: file,
+        mimeType: "path" in file ? file.mimeType : getMimeType(uniqueFilename),
+        relativePath,
+      });
+    }
+
+    return ok(preparedFiles);
+  });
+}
+
+function validatePathUpload({
+  appDir,
+  file,
+}: {
+  appDir: AppDir;
+  file: PathFileUpload;
+}) {
+  return safeTry(async function* () {
+    if (!path.isAbsolute(file.path)) {
+      yield* err(
+        new TypedError.FileSystem(
+          `Uploaded file path is not absolute: ${file.filename}`,
+        ),
+      );
+    }
+
+    const sourceFilename = path.basename(file.path);
+    if (sourceFilename !== file.filename) {
+      yield* err(
+        new TypedError.FileSystem(
+          `Uploaded file path does not match filename: ${file.filename}`,
+        ),
+      );
+    }
+
+    const relativeSourcePath = path.relative(appDir, file.path);
+    if (
+      relativeSourcePath === "" ||
+      (!relativeSourcePath.startsWith("..") &&
+        !path.isAbsolute(relativeSourcePath))
+    ) {
+      yield* err(
+        new TypedError.FileSystem(
+          `Uploaded file is already inside the task: ${file.filename}`,
+        ),
+      );
+    }
+
+    const sourceStats = yield* ResultAsync.fromPromise(
+      fs.stat(file.path),
+      fileSystemError,
+    );
+    if (!sourceStats.isFile()) {
+      yield* err(
+        new TypedError.FileSystem(
+          `Uploaded path is not a file: ${file.filename}`,
+        ),
+      );
+    }
+    if (sourceStats.size !== file.size) {
+      yield* err(
+        new TypedError.FileSystem(
+          `Uploaded file size changed before copy: ${file.filename}`,
+        ),
+      );
+    }
+
+    return ok(undefined);
+  });
 }

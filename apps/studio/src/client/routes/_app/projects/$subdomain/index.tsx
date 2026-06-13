@@ -211,9 +211,12 @@ function RouteComponent() {
   );
 
   const { data: files } = useQuery(
-    rpcClient.workspace.project.files.live.list.experimental_liveOptions({
+    rpcClient.workspace.project.files.list.queryOptions({
       input: { projectSubdomain: subdomain },
       placeholderData: keepPreviousData,
+      refetchInterval: 5000,
+      refetchOnWindowFocus: "always",
+      staleTime: 5000,
     }),
   );
 

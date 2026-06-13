@@ -15,10 +15,13 @@ import {
   diffProjectFileIndexes,
   getProjectFileIndex,
   outputArtifactPathsFromChanges,
-  type ProjectFileIndex,
 } from "../lib/get-project-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
+import {
+  consumeTurnStartProjectFileIndex,
+  rememberTurnStartProjectFileIndex,
+} from "../lib/project-file-change-tracker";
 import { getProjectState } from "../lib/project-state-store";
 import { readFileWithAnyCase } from "../lib/read-file-with-any-case";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
@@ -38,8 +41,6 @@ import {
   shouldContinueWithToolCalls,
 } from "./shared";
 import { RETRIEVAL_AGENT_NAME } from "./types";
-
-const turnStartFileIndexes = new Map<StoreId.Session, ProjectFileIndex>();
 
 export const mainAgent = setupAgent({
   agentTools: pick(TOOLS, [
@@ -303,8 +304,7 @@ export const mainAgent = setupAgent({
         return ok(undefined);
       }
 
-      const before = turnStartFileIndexes.get(sessionId);
-      turnStartFileIndexes.delete(sessionId);
+      const before = consumeTurnStartProjectFileIndex(sessionId);
 
       const messageIds = yield* Store.getMessageIdsAfter(
         sessionId,
@@ -379,9 +379,6 @@ export const mainAgent = setupAgent({
           subdomain: appConfig.subdomain,
         });
       }
-      publisher.publish("project.files.changed", {
-        subdomain: appConfig.subdomain,
-      });
 
       return ok(undefined);
     });
@@ -400,7 +397,10 @@ export const mainAgent = setupAgent({
       return;
     }
 
-    turnStartFileIndexes.set(sessionId, result.value);
+    rememberTurnStartProjectFileIndex({
+      fileIndex: result.value,
+      sessionId,
+    });
   },
   shouldContinue: shouldContinueWithToolCalls,
 }));

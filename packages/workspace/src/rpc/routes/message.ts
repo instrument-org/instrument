@@ -160,11 +160,6 @@ const create = base
         publisher.publish("project.updated", {
           subdomain: appConfig.subdomain,
         });
-        if (files && files.length > 0) {
-          publisher.publish("project.files.changed", {
-            subdomain: appConfig.subdomain,
-          });
-        }
       }
 
       return { sessionId: message.metadata.sessionId };

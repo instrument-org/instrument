@@ -17,7 +17,49 @@ export const FileInfoSchema = z.object({
   versionRef: z.string(),
 });
 
+export const CurrentFileInfoSchema = FileInfoSchema.omit({
+  versionRef: true,
+});
+
+export function getCurrentFileInfo({
+  filePath,
+  projectSubdomain,
+}: {
+  filePath: RelativePath;
+  projectSubdomain: ProjectSubdomain;
+}) {
+  return getBaseFileInfo({
+    filePath,
+    projectSubdomain,
+  });
+}
+
 export function getFileInfo({
+  filePath,
+  projectSubdomain,
+  versionRef,
+}: {
+  filePath: RelativePath;
+  projectSubdomain: ProjectSubdomain;
+  versionRef?: string;
+}) {
+  const result = getBaseFileInfo({
+    filePath,
+    projectSubdomain,
+    versionRef,
+  });
+
+  if (result.isErr()) {
+    return result;
+  }
+
+  return ok({
+    ...result.value,
+    versionRef: versionRef ?? "",
+  });
+}
+
+function getBaseFileInfo({
   filePath,
   projectSubdomain,
   versionRef,
@@ -45,6 +87,5 @@ export function getFileInfo({
     filePath,
     mimeType,
     url,
-    versionRef: versionRef ?? "",
   });
 }

@@ -1,4 +1,4 @@
-import { ok, ResultAsync, safeTry } from "neverthrow";
+import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { ulid } from "ulid";
@@ -19,9 +19,6 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { getMimeType } from "./get-mime-type";
-import { git } from "./git";
-import { GitCommands } from "./git/commands";
-import { ensureGitRepo } from "./git/ensure-git-repo";
 import { getProjectState, setProjectState } from "./project-state-store";
 import { sanitizeFilename } from "./sanitize-filename";
 
@@ -71,17 +68,83 @@ export async function writeUploadedAttachments({
 
         const relativePath = `./${APP_FOLDER_NAMES.userProvided}/${uniqueFilename}`;
         const filePath = absolutePathJoin(appDir, relativePath);
-        const buffer = Buffer.from(file.content, "base64");
-        yield* ResultAsync.fromPromise(
-          fs.writeFile(filePath, buffer),
-          (error) =>
-            new TypedError.FileSystem(
-              error instanceof Error ? error.message : "Unknown error",
-              { cause: error },
-            ),
-        );
+        const mimeType =
+          "path" in file ? file.mimeType : getMimeType(uniqueFilename);
 
-        const mimeType = getMimeType(uniqueFilename);
+        if ("path" in file) {
+          if (!path.isAbsolute(file.path)) {
+            yield* err(
+              new TypedError.FileSystem(
+                `Uploaded file path is not absolute: ${file.filename}`,
+              ),
+            );
+          }
+
+          const sourceFilename = path.basename(file.path);
+          if (sourceFilename !== file.filename) {
+            yield* err(
+              new TypedError.FileSystem(
+                `Uploaded file path does not match filename: ${file.filename}`,
+              ),
+            );
+          }
+
+          const relativeSourcePath = path.relative(appDir, file.path);
+          if (
+            relativeSourcePath === "" ||
+            (!relativeSourcePath.startsWith("..") &&
+              !path.isAbsolute(relativeSourcePath))
+          ) {
+            yield* err(
+              new TypedError.FileSystem(
+                `Uploaded file is already inside the task: ${file.filename}`,
+              ),
+            );
+          }
+
+          const sourceStats = yield* ResultAsync.fromPromise(
+            fs.stat(file.path),
+            (error) =>
+              new TypedError.FileSystem(
+                error instanceof Error ? error.message : "Unknown error",
+                { cause: error },
+              ),
+          );
+          if (!sourceStats.isFile()) {
+            yield* err(
+              new TypedError.FileSystem(
+                `Uploaded path is not a file: ${file.filename}`,
+              ),
+            );
+          }
+          if (sourceStats.size !== file.size) {
+            yield* err(
+              new TypedError.FileSystem(
+                `Uploaded file size changed before copy: ${file.filename}`,
+              ),
+            );
+          }
+
+          yield* ResultAsync.fromPromise(
+            fs.copyFile(file.path, filePath),
+            (error) =>
+              new TypedError.FileSystem(
+                error instanceof Error ? error.message : "Unknown error",
+                { cause: error },
+              ),
+          );
+        } else {
+          const buffer = Buffer.from(file.content, "base64");
+          yield* ResultAsync.fromPromise(
+            fs.writeFile(filePath, buffer),
+            (error) =>
+              new TypedError.FileSystem(
+                error instanceof Error ? error.message : "Unknown error",
+                { cause: error },
+              ),
+          );
+        }
+
         const stats = yield* ResultAsync.fromPromise(
           fs.stat(filePath),
           (error) =>
@@ -98,17 +161,6 @@ export async function writeUploadedAttachments({
           size: stats.size,
         });
       }
-
-      yield* ensureGitRepo({ appDir });
-
-      const commitMessage =
-        files.length === 1
-          ? `Added ${fileInfos[0]?.filename ?? "file"}`
-          : `Added ${files.length} files`;
-
-      const filePaths = fileInfos.map((file) => file.filePath);
-      yield* git(GitCommands.addFiles(filePaths), appDir, {});
-      yield* git(GitCommands.commitWithAuthor(commitMessage), appDir, {});
     }
 
     if (folders && folders.length > 0) {
@@ -141,21 +193,8 @@ export async function writeUploadedAttachments({
       });
     }
 
-    let gitRef: string | undefined;
-    if (fileInfos.length > 0) {
-      const commitRefResult = yield* git(
-        GitCommands.revParse("HEAD"),
-        appDir,
-        {},
-      );
-      gitRef = commitRefResult.stdout.toString("utf8").trim();
-    }
-
     const fileMetadata: SessionMessageDataPart.FileAttachmentDataPart[] =
-      fileInfos.map((file) => ({
-        ...file,
-        gitRef: gitRef ?? "",
-      }));
+      fileInfos.map((file) => ({ ...file }));
 
     const part: SessionMessagePart.Type = {
       data: {

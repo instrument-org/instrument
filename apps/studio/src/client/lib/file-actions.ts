@@ -47,7 +47,7 @@ export async function downloadFile(file: ProjectFileViewerFile) {
       throw new Error(`Failed to fetch file: ${response.statusText}`);
     }
     const blob = await response.blob();
-    await downloadProjectFile({
+    downloadProjectFile({
       ...file,
       blob,
     });

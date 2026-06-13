@@ -6,7 +6,6 @@ import {
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 
 import { cn } from "../lib/utils";
@@ -15,7 +14,6 @@ import { AttachmentsCard } from "./attachments-card";
 import {
   renderChatPart,
   type RenderPartContext,
-  selectGitCommitParts,
 } from "./chat-stream-render-part";
 import {
   buildToolBoundaryMap,
@@ -42,7 +40,6 @@ interface ChatStreamProps {
   onRetry: (prompt: string) => void;
   onStartNewChat: () => void;
   project: WorkspaceAppProject;
-  versionRef?: string;
 }
 
 export function ChatStream({
@@ -57,15 +54,7 @@ export function ChatStream({
   onRetry,
   onStartNewChat,
   project,
-  versionRef,
 }: ChatStreamProps) {
-  const navigate = useNavigate();
-
-  const gitCommitParts = useMemo(
-    () => selectGitCommitParts(messages),
-    [messages],
-  );
-
   const { contextMessages, regularMessages } = useMemo(() => {
     const result = {
       contextMessages: [] as SessionMessage.ContextWithParts[],
@@ -171,32 +160,24 @@ export function ChatStream({
 
   const renderCtx: RenderPartContext = useMemo(
     () => ({
-      gitCommitParts,
       hideUserMessages,
       isAgentRunning,
       isDeveloperMode,
       isToolStreaming,
-      isViewingApp,
       lastMessageId,
-      navigate,
       onRetry,
       project,
       renderStream,
-      versionRef,
     }),
     [
-      gitCommitParts,
       hideUserMessages,
       isAgentRunning,
       isDeveloperMode,
       isToolStreaming,
-      isViewingApp,
       lastMessageId,
-      navigate,
       onRetry,
       project,
       renderStream,
-      versionRef,
     ],
   );
 

@@ -8,12 +8,10 @@ import {
   type WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import { FileArchiveIcon, FolderIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
-import { RestoreVersionModal } from "../restore-version-modal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,38 +28,18 @@ export function ProjectToolbar({
   project,
   selectedSessionId,
   sidebar,
-  versionRef,
 }: {
   onSidebarChange: (sidebar: "chat" | "files") => void;
   project: WorkspaceAppProject;
   selectedSessionId?: StoreId.Session;
   sidebar: "chat" | "files";
-  versionRef?: string;
 }) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [exportZipModalOpen, setExportZipModalOpen] = useState(false);
   const [debugDialogOpen, setDebugDialogOpen] = useState(false);
   const [replayModalOpen, setReplayModalOpen] = useState(false);
-  const navigate = useNavigate();
 
   const isDeveloperMode = useDeveloperMode();
-
-  const handleExitVersion = () => {
-    void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain: project.subdomain },
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { type: "app" },
-      }),
-    });
-  };
-
-  const handleRestoreVersion = () => {
-    setRestoreModalOpen(true);
-  };
 
   return (
     <>
@@ -105,71 +83,51 @@ export function ProjectToolbar({
                 />
               </div>
             )}
-            {versionRef ? (
-              <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
-                <Button
-                  className="shrink"
-                  onClick={handleExitVersion}
-                  size="sm"
-                  variant="secondary"
-                >
-                  Exit
-                </Button>
-                <Button
-                  className="min-w-0 shrink overflow-hidden"
-                  onClick={handleRestoreVersion}
-                  size="sm"
-                >
-                  <span className="min-w-0 truncate">Restore this version</span>
-                </Button>
+            <div className="flex min-w-8 items-center justify-end gap-x-2 overflow-hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className={toolbarClassName({
+                      className:
+                        "min-w-8 shrink overflow-hidden gap-2 px-2 has-[>svg]:px-2 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                      pressed: false,
+                    })}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <ShareExport className="size-4 shrink-0" />
+                    <span className="hidden min-w-0 truncate @min-[380px]:inline">
+                      Share
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setExportZipModalOpen(true);
+                    }}
+                  >
+                    <FileArchiveIcon className="size-4" />
+                    Export as zip
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <div className="shrink-0">
+                <ProjectActionsMenu
+                  onDebugClick={() => {
+                    setDebugDialogOpen(true);
+                  }}
+                  onReplayClick={() => {
+                    setReplayModalOpen(true);
+                  }}
+                  onSettingsClick={() => {
+                    setSettingsDialogOpen(true);
+                  }}
+                  selectedSessionId={selectedSessionId}
+                  subdomain={project.subdomain}
+                />
               </div>
-            ) : (
-              <div className="flex min-w-8 items-center justify-end gap-x-2 overflow-hidden">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      className={toolbarClassName({
-                        className:
-                          "min-w-8 shrink overflow-hidden gap-2 px-2 has-[>svg]:px-2 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
-                        pressed: false,
-                      })}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      <ShareExport className="size-4 shrink-0" />
-                      <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                        Share
-                      </span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setExportZipModalOpen(true);
-                      }}
-                    >
-                      <FileArchiveIcon className="size-4" />
-                      Export as zip
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <div className="shrink-0">
-                  <ProjectActionsMenu
-                    onDebugClick={() => {
-                      setDebugDialogOpen(true);
-                    }}
-                    onReplayClick={() => {
-                      setReplayModalOpen(true);
-                    }}
-                    onSettingsClick={() => {
-                      setSettingsDialogOpen(true);
-                    }}
-                    selectedSessionId={selectedSessionId}
-                    subdomain={project.subdomain}
-                  />
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
@@ -179,21 +137,6 @@ export function ProjectToolbar({
         open={settingsDialogOpen}
         project={project}
       />
-
-      {versionRef && (
-        <RestoreVersionModal
-          isOpen={restoreModalOpen}
-          onClose={() => {
-            setRestoreModalOpen(false);
-          }}
-          onRestore={() => {
-            // The modal handles the restore logic and navigation
-            setRestoreModalOpen(false);
-          }}
-          projectSubdomain={project.subdomain}
-          versionRef={versionRef}
-        />
-      )}
 
       <ExportZipModal
         isOpen={exportZipModalOpen}

@@ -110,7 +110,10 @@ function SessionStatusText({
       displayText = getToolStreamingLabel(toolName, false);
       shouldAnimate = isAgentAlive;
     }
-  } else if (latestPart.type === "data-gitCommit") {
+  } else if (
+    latestPart.type === "data-fileChanges" ||
+    latestPart.type === "data-gitCommit"
+  ) {
     displayText = "Done";
   } else if (latestPart.type === "reasoning") {
     displayText = isAgentAlive ? "Thinking" : "Thought";

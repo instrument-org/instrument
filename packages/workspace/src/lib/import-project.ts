@@ -8,9 +8,6 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { extractProjectZip } from "./extract-project-zip";
 import { folderNameForSubdomain } from "./folder-name-for-subdomain";
-import { git } from "./git";
-import { GitCommands } from "./git/commands";
-import { ensureGitRepo } from "./git/ensure-git-repo";
 import { pathExists } from "./path-exists";
 
 interface ImportProjectOptions {
@@ -20,7 +17,7 @@ interface ImportProjectOptions {
 
 export async function importProject(
   { workspaceConfig, zipFileData }: ImportProjectOptions,
-  { signal }: { signal?: AbortSignal } = {},
+  _options: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
     const subdomain = ProjectSubdomainSchema.parse(
@@ -57,23 +54,6 @@ export async function importProject(
           { cause: error },
         ),
     );
-
-    const ensureResult = yield* ensureGitRepo({
-      appDir: projectDir,
-      signal,
-    });
-
-    if (ensureResult.created) {
-      yield* git(GitCommands.addAll(), projectDir, { signal });
-      // If "import" is used literally at the end of a string, it will cause an
-      // unterminated string literal error with Electron Vite.
-      const reservedWord = "import";
-      yield* git(
-        GitCommands.commitWithAuthor(`Initial commit after ${reservedWord}`),
-        projectDir,
-        { signal },
-      );
-    }
 
     return ok({ projectConfig: { appDir: projectDir, subdomain } });
   });

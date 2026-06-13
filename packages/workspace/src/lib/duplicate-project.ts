@@ -3,14 +3,11 @@ import fs from "node:fs/promises";
 
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
-import { absolutePathJoin } from "./absolute-path-join";
 import { createAppConfig } from "./app-config/create";
 import { newProjectConfig } from "./app-config/new";
 import { getAppPrivateDir, sessionStorePath } from "./app-dir-utils";
+import { copyProject } from "./copy-project";
 import { TypedError } from "./errors";
-import { git } from "./git";
-import { GitCommands } from "./git/commands";
-import { ensureGitRepo } from "./git/ensure-git-repo";
 import { pathExists } from "./path-exists";
 import { getProjectManifest, updateProjectManifest } from "./project-manifest";
 import { getProjectState, setProjectState } from "./project-state-store";
@@ -23,7 +20,7 @@ interface DuplicateProjectOptions {
 
 export async function duplicateProject(
   { keepHistory, sourceSubdomain, workspaceConfig }: DuplicateProjectOptions,
-  { signal }: { signal?: AbortSignal } = {},
+  _options: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
     const sourceConfig = createAppConfig({
@@ -53,39 +50,11 @@ export async function duplicateProject(
       );
     }
 
-    const ensureResult = yield* ensureGitRepo({
-      appDir: sourceConfig.appDir,
-      signal,
-    });
-
-    const statusResult = yield* git(GitCommands.status(), sourceConfig.appDir, {
-      signal,
-    });
-
-    if (
-      ensureResult.created ||
-      statusResult.stdout.toString("utf8").trim() !== ""
-    ) {
-      yield* git(GitCommands.addAll(), sourceConfig.appDir, { signal });
-      const commitMessage = ensureResult.created
-        ? "Initial commit"
-        : "Auto-commit before duplicate";
-      yield* git(
-        GitCommands.commitWithAuthor(commitMessage),
-        sourceConfig.appDir,
-        { signal },
-      );
-    }
-
-    yield* git(
-      GitCommands.clone(sourceConfig.appDir, projectConfig.appDir),
-      workspaceConfig.rootDir,
-      { signal },
-    );
-
-    // Remove the remote origin because we're duplicating the project
-    yield* git(GitCommands.removeRemote("origin"), projectConfig.appDir, {
-      signal,
+    yield* copyProject({
+      includePrivateFolder: false,
+      isTemplate: false,
+      sourceDir: sourceConfig.appDir,
+      targetDir: projectConfig.appDir,
     });
 
     const sourceManifest = await getProjectManifest(sourceConfig.appDir);
@@ -106,18 +75,12 @@ export async function duplicateProject(
 
       await setProjectState(projectConfig.appDir, sourceProjectState);
     } else {
-      // Remove .git directory to clear history
-      const gitDir = absolutePathJoin(projectConfig.appDir, ".git");
-      await fs.rm(gitDir, { force: true, recursive: true });
-
       // Preserve only the selected model from the source project
       if (sourceProjectState.selectedModelURI) {
         await setProjectState(projectConfig.appDir, {
           selectedModelURI: sourceProjectState.selectedModelURI,
         });
       }
-
-      yield* ensureGitRepo({ appDir: projectConfig.appDir, signal });
     }
 
     const existingManifest = await getProjectManifest(projectConfig.appDir);
@@ -126,16 +89,6 @@ export async function duplicateProject(
       ...(existingManifest && { iconName: existingManifest.iconName }),
       name: duplicateName,
     });
-
-    yield* git(GitCommands.addAll(), projectConfig.appDir, { signal });
-    const commitMessage = keepHistory
-      ? `Duplicated from "${sourceName}"`
-      : `Initial commit of duplicated task "${duplicateName}"`;
-    yield* git(
-      GitCommands.commitWithAuthor(commitMessage),
-      projectConfig.appDir,
-      { signal },
-    );
 
     return ok({ projectConfig });
   });

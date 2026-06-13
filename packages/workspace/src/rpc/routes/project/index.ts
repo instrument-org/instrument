@@ -37,6 +37,7 @@ import { SubdomainPartSchema } from "../../../schemas/subdomain-part";
 import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
+import { projectFiles } from "./files";
 import { projectGit } from "./git";
 import { projectState } from "./state";
 import { projectVersion } from "./version";
@@ -271,6 +272,11 @@ const create = base
       publisher.publish("project.updated", {
         subdomain: projectConfig.subdomain,
       });
+      if (files && files.length > 0) {
+        publisher.publish("project.files.changed", {
+          subdomain: projectConfig.subdomain,
+        });
+      }
 
       context.workspaceRef.send({
         type: "createSession",
@@ -525,7 +531,6 @@ const exportZip = base
   });
 
 const OutputArtifactsCreatedSchema = z.object({
-  commitRef: z.string(),
   filePaths: z.string().array(),
   sessionId: StoreId.SessionSchema,
 });
@@ -606,7 +611,6 @@ const live = {
       for await (const payload of events) {
         if (payload.subdomain === input.subdomain) {
           yield {
-            commitRef: payload.commitRef,
             filePaths: payload.filePaths,
             sessionId: payload.sessionId,
           };
@@ -664,6 +668,7 @@ export const project = {
   createTutorial,
   duplicate,
   exportZip,
+  files: projectFiles,
   git: projectGit,
   import: importProject,
   list,

@@ -11,11 +11,13 @@ import { buildAIProviderInstructions } from "../lib/build-ai-provider-instructio
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
-import { git } from "../lib/git";
-import { GitCommands } from "../lib/git/commands";
-import { ensureGitRepo } from "../lib/git/ensure-git-repo";
+import {
+  diffProjectFileIndexes,
+  getProjectFileIndex,
+  outputArtifactPathsFromChanges,
+  type ProjectFileIndex,
+} from "../lib/get-project-files";
 import { isToolPart } from "../lib/is-tool-part";
-import { parseOutputArtifactPaths } from "../lib/parse-output-artifact-paths";
 import { pathExists } from "../lib/path-exists";
 import { getProjectState } from "../lib/project-state-store";
 import { readFileWithAnyCase } from "../lib/read-file-with-any-case";
@@ -24,7 +26,6 @@ import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
 import { Store } from "../lib/store";
-import { textForMessage } from "../lib/text-for-message";
 import { publisher } from "../rpc/publisher";
 import { StoreId } from "../schemas/store-id";
 import { getToolByType, TOOLS } from "../tools/all";
@@ -38,13 +39,7 @@ import {
 } from "./shared";
 import { RETRIEVAL_AGENT_NAME } from "./types";
 
-function formatCommitMessage(text: string): string {
-  if (!text.trim()) {
-    return "Automatic commit by agent";
-  }
-
-  return text.slice(0, 4096);
-}
+const turnStartFileIndexes = new Map<StoreId.Session, ProjectFileIndex>();
 
 export const mainAgent = setupAgent({
   agentTools: pick(TOOLS, [
@@ -133,9 +128,8 @@ export const mainAgent = setupAgent({
     IMPORTANT: The task folder is a self-contained, isolated workspace -- a folder that lives in the app's sandboxed workspace directory.
 
     - Each task has its own isolated task folder.
-    - Users work with tasks through the app, not by directly accessing the folder in their file system.
-    - IMPORTANT: Users CANNOT manually copy files into the task folder. All files must be created by you using tools or uploaded by the user. If a user needs to bring in external files, simply tell them "you can upload files or attach folders" without mentioning any directory paths.
-    - CRITICAL: NEVER instruct users to run terminal commands (like cp, mv, etc.) to move files into the task. Users interact with the app through its interface, not the command line. Instead, tell them to upload files or attach folders using the app's interface.
+    - Users can work with task files through the app, and they may also add, remove, or edit files in the task folder from their file system.
+    - If a user needs to bring in external files, prefer telling them they can upload files or attach folders unless they specifically ask about the local folder.
     - IMPORTANT: All your work must be confined to the current task folder.
     - IMPORTANT: User-attached folders are external folders outside the task folder and are NOT accessible to you directly. Only the ${RETRIEVAL_AGENT_NAME} agent can access and copy files from those external attached folders into the task folder.
     - IMPORTANT: Files the user uploads directly to a message are placed in \`${F.userProvided}/\` inside the task folder and ARE directly accessible to you.
@@ -222,9 +216,9 @@ export const mainAgent = setupAgent({
     # Temporary Files
     - Use \`${F.tmp}/\` for intermediate or scratch files that would clutter or confuse the user if shown (e.g. intermediate processing files, staging data, temp downloads). Files here are hidden from the user by default.
     
-    # Git Repository
-    - You are working within a Git repository where commits happen automatically after each round of your tool calls that modify files.
-    - Old file versions are automatically stored and shown to the user in the conversation. Feel free to overwrite files without worrying about losing history.
+    # File Changes
+    - File changes are detected from the task folder after your turn finishes.
+    - There is no automatic version history for task files. If the user asks you to preserve an earlier version, create an explicit copy with a clear filename before overwriting it.
     `.trim();
 
     if (process.env.NODE_ENV === "development") {
@@ -305,15 +299,12 @@ export const mainAgent = setupAgent({
   },
   onFinish: async ({ appConfig, parentMessageId, sessionId, signal }) => {
     const result = await safeTry(async function* () {
-      yield* ensureGitRepo({ appDir: appConfig.appDir, signal });
-      const status = yield* git(GitCommands.status(), appConfig.appDir, {
-        signal,
-      });
-
-      if (status.stdout.toString().trim() === "") {
-        // No files were changed, so no commit is needed
+      if (appConfig.type !== "project") {
         return ok(undefined);
       }
+
+      const before = turnStartFileIndexes.get(sessionId);
+      turnStartFileIndexes.delete(sessionId);
 
       const messageIds = yield* Store.getMessageIdsAfter(
         sessionId,
@@ -350,35 +341,23 @@ export const mainAgent = setupAgent({
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
-      const lastUserMessage = [...messages]
-        .reverse()
-        .find((message) => message.role === "user");
+      if (!before) {
+        return ok(undefined);
+      }
 
-      const userMessageText = lastUserMessage
-        ? textForMessage(lastUserMessage)
-        : "";
+      const after = yield* await getProjectFileIndex(appConfig.appDir, {
+        signal,
+      });
+      const fileChanges = diffProjectFileIndexes({ after, before });
 
-      yield* git(GitCommands.addAll(), appConfig.appDir, { signal });
-
-      const commitMessage = formatCommitMessage(userMessageText);
-
-      yield* git(
-        GitCommands.commitWithAuthor(commitMessage),
-        appConfig.appDir,
-        { signal },
-      );
-      const commitRef = yield* git(
-        GitCommands.revParse("HEAD"),
-        appConfig.appDir,
-        { signal },
-      );
-
-      const ref = commitRef.stdout.toString().trim();
+      if (fileChanges.length === 0) {
+        return ok(undefined);
+      }
 
       yield* Store.savePart(
         {
           data: {
-            ref,
+            files: fileChanges,
           },
           metadata: {
             createdAt: new Date(),
@@ -386,29 +365,23 @@ export const mainAgent = setupAgent({
             messageId: lastAssistantMessage.id,
             sessionId,
           },
-          type: "data-gitCommit",
+          type: "data-fileChanges",
         },
         appConfig,
         { signal },
       );
 
-      // Announce any output/ artifacts this run produced so clients can decide
-      // whether to focus them. Derived from the commit for now; the contract is
-      // source-agnostic and will move to on-disk file events later.
-      const outputDiff = yield* git(
-        GitCommands.showNameStatus(ref, `${F.output}/`),
-        appConfig.appDir,
-        { signal },
-      );
-      const filePaths = parseOutputArtifactPaths(outputDiff.stdout.toString());
-      if (filePaths.length > 0 && appConfig.type === "project") {
+      const filePaths = outputArtifactPathsFromChanges(fileChanges);
+      if (filePaths.length > 0) {
         publisher.publish("project.outputArtifactsCreated", {
-          commitRef: ref,
           filePaths,
           sessionId,
           subdomain: appConfig.subdomain,
         });
       }
+      publisher.publish("project.files.changed", {
+        subdomain: appConfig.subdomain,
+      });
 
       return ok(undefined);
     });
@@ -416,8 +389,18 @@ export const mainAgent = setupAgent({
       appConfig.workspaceConfig.captureException(result.error);
     }
   },
-  onStart: async () => {
-    // no-op for now. may be used for snapshotting the app state
+  onStart: async ({ appConfig, sessionId, signal }) => {
+    if (appConfig.type !== "project") {
+      return;
+    }
+
+    const result = await getProjectFileIndex(appConfig.appDir, { signal });
+    if (result.isErr()) {
+      appConfig.workspaceConfig.captureException(result.error);
+      return;
+    }
+
+    turnStartFileIndexes.set(sessionId, result.value);
   },
   shouldContinue: shouldContinueWithToolCalls,
 }));

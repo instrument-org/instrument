@@ -66,6 +66,17 @@ type AttachedItem =
       mimeType: string;
       name: string;
       size: number;
+      source: "base64";
+      type: "file";
+      url?: string;
+    }
+  | {
+      id: string;
+      mimeType: string;
+      name: string;
+      path: string;
+      size: number;
+      source: "path";
       type: "file";
       url?: string;
     }
@@ -204,6 +215,24 @@ export const PromptInput = ({
     for (const file of files) {
       const shouldCreatePreview =
         file.size <= MAX_FILE_PREVIEW_SIZE && file.type.startsWith("image/");
+      const filePath = window.api.getFilePath(file);
+      const shouldUsePath = filePath.trim().length > 0;
+
+      if (shouldUsePath && !shouldCreatePreview) {
+        setAttachedItems((prev) => [
+          ...prev,
+          {
+            id: ulid(),
+            mimeType: file.type,
+            name: file.name,
+            path: filePath,
+            size: file.size,
+            source: "path",
+            type: "file",
+          },
+        ]);
+        continue;
+      }
 
       const reader = new FileReader();
       reader.addEventListener("load", () => {
@@ -211,15 +240,27 @@ export const PromptInput = ({
         const base64 = dataUrl.split(",")[1] ?? "";
         setAttachedItems((prev) => [
           ...prev,
-          {
-            content: base64,
-            id: ulid(),
-            mimeType: file.type,
-            name: file.name,
-            size: file.size,
-            type: "file",
-            url: shouldCreatePreview ? dataUrl : undefined,
-          },
+          shouldUsePath
+            ? {
+                id: ulid(),
+                mimeType: file.type,
+                name: file.name,
+                path: filePath,
+                size: file.size,
+                source: "path",
+                type: "file",
+                url: dataUrl,
+              }
+            : {
+                content: base64,
+                id: ulid(),
+                mimeType: file.type,
+                name: file.name,
+                size: file.size,
+                source: "base64",
+                type: "file",
+                url: shouldCreatePreview ? dataUrl : undefined,
+              },
         ]);
       });
       reader.readAsDataURL(file);
@@ -380,8 +421,14 @@ export const PromptInput = ({
       files:
         attachedFiles.length > 0
           ? attachedFiles.map((f) => ({
-              content: f.content,
               filename: f.name,
+              ...("path" in f
+                ? {
+                    mimeType: f.mimeType,
+                    path: f.path,
+                    size: f.size,
+                  }
+                : { content: f.content }),
             }))
           : undefined,
       folders: attachedFolders.length > 0 ? attachedFolders : undefined,
@@ -448,6 +495,7 @@ export const PromptInput = ({
             mimeType: "text/plain",
             name: filename,
             size: blob.size,
+            source: "base64",
             type: "file",
           },
         ]);

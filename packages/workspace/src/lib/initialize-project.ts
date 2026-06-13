@@ -1,7 +1,7 @@
 import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
-import { APP_FOLDER_NAMES, GIT_TRAILERS } from "../constants";
+import { APP_FOLDER_NAMES } from "../constants";
 import { type ProjectManifestUpdate } from "../schemas/project-manifest";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -9,9 +9,6 @@ import { type AppConfigProject } from "./app-config/types";
 import { templateExists } from "./app-dir-utils";
 import { copyProject } from "./copy-project";
 import { TypedError } from "./errors";
-import { git } from "./git";
-import { GitCommands } from "./git/commands";
-import { ensureGitRepo } from "./git/ensure-git-repo";
 import { updateProjectManifest } from "./project-manifest";
 
 export async function initializeProject(
@@ -26,7 +23,7 @@ export async function initializeProject(
     templateName: string;
     workspaceConfig: WorkspaceConfig;
   },
-  { signal }: { signal?: AbortSignal },
+  _options: { signal?: AbortSignal },
 ) {
   return safeTry(async function* () {
     // Ensure no folder exists
@@ -97,16 +94,6 @@ export async function initializeProject(
           ),
       );
     }
-
-    yield* ensureGitRepo({ appDir: projectConfig.appDir, signal });
-    yield* git(GitCommands.addAll(), projectConfig.appDir, { signal });
-    yield* git(
-      GitCommands.commitWithAuthor(
-        `Task created from ${templateName} template\n\n${GIT_TRAILERS.initialCommit}: true\n${GIT_TRAILERS.template}: ${templateName}`,
-      ),
-      projectConfig.appDir,
-      { signal },
-    );
 
     return ok({ projectConfig });
   });

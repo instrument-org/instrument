@@ -40,8 +40,6 @@ export function ProjectChat({
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   showTutorial,
-  showVersions,
-  versionRef,
 }: {
   isReplayActive?: boolean;
   isViewingApp?: boolean;
@@ -50,8 +48,6 @@ export function ProjectChat({
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
-  showVersions?: boolean;
-  versionRef?: string;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -233,21 +229,18 @@ export function ProjectChat({
           {
             onSuccess: ({ sessionId }) => {
               void scrollToBottom();
-              if (versionRef || showVersions) {
-                void navigate({
-                  params: {
-                    subdomain,
-                  },
-                  replace: true,
-                  search: (prev) => ({
-                    ...prev,
-                    artifactPanel: { type: "app" },
-                    selectedSessionId: sessionId,
-                    showVersions: undefined,
-                  }),
-                  to: "/projects/$subdomain",
-                });
-              }
+              void navigate({
+                params: {
+                  subdomain,
+                },
+                replace: true,
+                search: (prev) => ({
+                  ...prev,
+                  selectedSessionId: sessionId,
+                  showVersions: undefined,
+                }),
+                to: "/projects/$subdomain",
+              });
             },
           },
         );
@@ -319,7 +312,6 @@ export function ProjectChat({
                 onRetry={handleRetry}
                 onStartNewChat={handleNewSession}
                 project={project}
-                versionRef={versionRef}
               />
             )
           ) : (

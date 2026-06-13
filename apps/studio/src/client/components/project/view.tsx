@@ -9,7 +9,6 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/client/components/ui/resizable";
-import { VersionOverlay } from "@/client/components/version-overlay";
 import { useReload } from "@/client/hooks/use-reload";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
@@ -47,23 +46,19 @@ export function ProjectView({
   artifactPanel,
   attachedFolders,
   files,
-  hasAppModifications,
   project,
   selectedModelURI,
   selectedSessionId,
   showTutorial,
-  showVersions,
   sidebar,
 }: {
   artifactPanel: ArtifactPanel | undefined;
   attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["project"]["git"]["listFiles"] | undefined;
-  hasAppModifications: boolean;
+  files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
   project: WorkspaceAppProject;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
-  showVersions?: boolean;
   sidebar: ProjectSidebarMode;
 }) {
   const navigate = useNavigate();
@@ -89,18 +84,15 @@ export function ProjectView({
 
   const isViewingApp = artifactPanel?.type === "app";
   const isViewingFile = artifactPanel?.type === "file";
-  const selectedAppVersion =
-    artifactPanel?.type === "app" ? artifactPanel.versionRef : undefined;
   const showArtifactPanel = isViewingApp || isViewingFile;
 
   const { data: fileInfo } = useQuery(
-    rpcClient.workspace.project.git.fileInfo.queryOptions({
+    rpcClient.workspace.project.files.fileInfo.queryOptions({
       input:
         artifactPanel?.type === "file"
           ? {
               filePath: artifactPanel.filePath,
               projectSubdomain: project.subdomain,
-              versionRef: artifactPanel.fileVersion,
             }
           : skipToken,
       placeholderData: keepPreviousData,
@@ -144,21 +136,8 @@ export function ProjectView({
         ...prev,
         artifactPanel: {
           filePath: file.filePath,
-          fileVersion: file.versionRef,
           type: "file",
         },
-      }),
-    });
-  };
-
-  const handleVersionsToggle = () => {
-    void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain: project.subdomain },
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        showVersions: showVersions ? undefined : true,
       }),
     });
   };
@@ -192,8 +171,6 @@ export function ProjectView({
     selectedModelURI,
     selectedSessionId,
     showTutorial,
-    showVersions,
-    versionRef: selectedAppVersion,
   };
 
   return (
@@ -215,16 +192,12 @@ export function ProjectView({
             attachedFolders={attachedFolders}
             chatProps={chatProps}
             files={files}
-            hasAppModifications={hasAppModifications}
             isAppViewOpen={isViewingApp}
             onAppSelect={handleAppSelect}
             onFileSelect={handleFileSelect}
             onSidebarChange={handleSidebarChange}
-            onVersionsToggle={handleVersionsToggle}
             project={project}
-            selectedAppVersion={selectedAppVersion}
             selectedSessionId={selectedSessionId}
-            showVersions={showVersions}
             sidebar={sidebar}
           />
         </ResizablePanel>
@@ -257,17 +230,10 @@ export function ProjectView({
                     <AppView
                       app={project}
                       className="overflow-hidden rounded-lg"
-                      isVersionsOpen={showVersions}
+                      isVersionsOpen={false}
                       onClose={handleArtifactPanelClose}
-                      onVersionsToggle={handleVersionsToggle}
-                      shouldReload={!selectedAppVersion}
+                      shouldReload
                     />
-                    {selectedAppVersion && (
-                      <VersionOverlay
-                        projectSubdomain={project.subdomain}
-                        versionRef={selectedAppVersion}
-                      />
-                    )}
                   </div>
                 ) : null}
               </div>

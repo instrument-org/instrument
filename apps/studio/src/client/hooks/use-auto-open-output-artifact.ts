@@ -13,12 +13,10 @@ import { useEffect, useEffectEvent } from "react";
 // non-reactively, so the effect fires once per event, never re-opening one.
 export function useAutoOpenOutputArtifact({
   artifactPanel,
-  hasAppModifications,
   selectedSessionId,
   subdomain,
 }: {
   artifactPanel: ArtifactPanel | undefined;
-  hasAppModifications: boolean | undefined;
   selectedSessionId: StoreId.Session | undefined;
   subdomain: ProjectSubdomain;
 }) {
@@ -34,7 +32,6 @@ export function useAutoOpenOutputArtifact({
     const filePath = event.filePaths[0];
     if (
       event.sessionId !== selectedSessionId ||
-      hasAppModifications !== false ||
       artifactPanel !== undefined ||
       !filePath
     ) {
@@ -47,7 +44,7 @@ export function useAutoOpenOutputArtifact({
       replace: true,
       search: (s) => ({
         ...s,
-        artifactPanel: { filePath, fileVersion: event.commitRef, type: "file" },
+        artifactPanel: { filePath, type: "file" },
       }),
     });
   });

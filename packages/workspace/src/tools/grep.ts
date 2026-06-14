@@ -4,8 +4,10 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { ensureRelativePath } from "../lib/ensure-relative-path";
+import { executeError } from "../lib/execute-error";
 import { grep } from "../lib/grep";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
+import { resolvePathWithinAppDir } from "../lib/resolve-path-within-app-dir";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -107,6 +109,15 @@ export const Grep = setupTool({
         return err(pathResult.error);
       }
       const searchPath = pathResult.value;
+
+      if (
+        !resolvePathWithinAppDir({
+          appDir: appConfig.appDir,
+          filePath: searchPath,
+        })
+      ) {
+        return executeError(`Path escapes the task directory: ${input.path}`);
+      }
 
       const result = await grep({
         cwd: appConfig.appDir,

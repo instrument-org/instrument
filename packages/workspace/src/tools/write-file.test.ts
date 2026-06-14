@@ -29,6 +29,36 @@ function makeExecuteArgs(
   };
 }
 
+describe("WriteFile - path traversal security", () => {
+  afterEach(() => {
+    mockFs.restore();
+  });
+
+  it.each([
+    {
+      filePath: "./subdir\\..\\..\\outside.txt",
+      label: "Windows-style backslash traversal",
+    },
+    {
+      filePath: "./a\\..\\..\\b\\..\\..\\outside.txt",
+      label: "multi-segment backslash traversal",
+    },
+  ])("rejects $label", async ({ filePath }) => {
+    mockFs({ [MOCK_WORKSPACE_DIRS.projects]: { [appConfig.folderName]: {} } });
+
+    const result = await runTool(
+      WriteFile,
+      makeExecuteArgs({ content: "evil", explanation: "test", filePath }),
+    );
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().type).toBe("execute-error");
+    expect(result._unsafeUnwrapErr().message).toContain(
+      "Path escapes the task directory",
+    );
+  });
+});
+
 describe("WriteFile - toModelOutput", () => {
   afterEach(() => {
     mockFs.restore();

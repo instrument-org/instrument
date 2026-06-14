@@ -10,7 +10,6 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
 import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
@@ -19,6 +18,7 @@ import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import { applyUnicodeFallbacks } from "../lib/resolve-agent-path";
+import { resolvePathWithinAppDir } from "../lib/resolve-path-within-app-dir";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -742,7 +742,13 @@ export const EditFile = setupTool({
     }
     const fixedPath = fixedPathResult.value;
 
-    const resolvedPath = absolutePathJoin(appConfig.appDir, fixedPath);
+    const resolvedPath = resolvePathWithinAppDir({
+      appDir: appConfig.appDir,
+      filePath: fixedPath,
+    });
+    if (!resolvedPath) {
+      return executeError(`Path escapes the task directory: ${input.filePath}`);
+    }
     const absolutePath =
       input.oldString === ""
         ? resolvedPath

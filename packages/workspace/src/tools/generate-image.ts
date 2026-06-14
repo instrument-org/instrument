@@ -14,6 +14,7 @@ import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImages } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
+import { resolvePathWithinAppDir } from "../lib/resolve-path-within-app-dir";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
@@ -102,6 +103,15 @@ export const GenerateImage = setupTool({
     }
     const fixedPath = fixedPathResult.value;
 
+    if (
+      !resolvePathWithinAppDir({
+        appDir: appConfig.appDir,
+        filePath: fixedPath,
+      })
+    ) {
+      return executeError(`Path escapes the task directory: ${input.filePath}`);
+    }
+
     // Strip extension if mistakenly provided
     const parsedPath = path.parse(fixedPath);
     const pathWithoutExt = normalizePath(
@@ -110,11 +120,34 @@ export const GenerateImage = setupTool({
 
     let sourceImageBuffers: Buffer[] | undefined;
     if (input.sourceImages && input.sourceImages.length > 0) {
+      const resolvedSourcePaths: (
+        | { absolutePath: string }
+        | { error: string }
+      )[] = input.sourceImages.map((relativePath) => {
+        const fixedResult = ensureRelativePath(relativePath);
+        if (fixedResult.isErr()) {
+          return { error: fixedResult.error.message };
+        }
+        const resolved = resolvePathWithinAppDir({
+          appDir: appConfig.appDir,
+          filePath: fixedResult.value,
+        });
+        return resolved
+          ? { absolutePath: resolved }
+          : { error: `Path escapes the task directory: ${relativePath}` };
+      });
+
+      const firstError = resolvedSourcePaths.find(
+        (p): p is { error: string } => "error" in p,
+      );
+      if (firstError) {
+        return executeError(firstError.error);
+      }
+
       sourceImageBuffers = await Promise.all(
-        input.sourceImages.map((relativePath) => {
-          const absolutePath = absolutePathJoin(appConfig.appDir, relativePath);
-          return fs.readFile(absolutePath);
-        }),
+        (resolvedSourcePaths as { absolutePath: string }[]).map(
+          ({ absolutePath }) => fs.readFile(absolutePath),
+        ),
       );
     }
 

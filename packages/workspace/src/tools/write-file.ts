@@ -6,10 +6,10 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
 import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
+import { resolvePathWithinAppDir } from "../lib/resolve-path-within-app-dir";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -58,7 +58,13 @@ export const WriteFile = setupTool({
     }
     const fixedPath = fixedPathResult.value;
 
-    const absolutePath = absolutePathJoin(appConfig.appDir, fixedPath);
+    const absolutePath = resolvePathWithinAppDir({
+      appDir: appConfig.appDir,
+      filePath: fixedPath,
+    });
+    if (!absolutePath) {
+      return executeError(`Path escapes the task directory: ${input.filePath}`);
+    }
     const isNewFile = !(await pathExists(absolutePath));
 
     try {

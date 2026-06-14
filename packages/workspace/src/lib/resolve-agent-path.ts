@@ -5,13 +5,17 @@ import path from "node:path";
 
 import { type AgentName, RETRIEVAL_AGENT_NAME } from "../agents/types";
 import { type FolderAttachment } from "../schemas/folder-attachment";
-import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
+import {
+  type AbsolutePath,
+  AbsolutePathSchema,
+  type AppDir,
+} from "../schemas/paths";
 import { Task } from "../tools/task";
-import { absolutePathJoin } from "./absolute-path-join";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
+import { resolvePathWithinAppDir } from "./resolve-path-within-app-dir";
 import { validateAttachedFolderPath } from "./validate-attached-folder-path";
 
 const NARROW_NO_BREAK_SPACE = "\u202F";
@@ -111,7 +115,7 @@ export async function getSimilarPathSuggestions({
 
 export function resolveAgentPath(options: {
   agentName: AgentName;
-  appDir: AbsolutePath;
+  appDir: AppDir;
   attachedFolders?: Record<string, FolderAttachment.Type>;
   inputPath?: string;
   isRequired?: boolean;
@@ -183,8 +187,13 @@ export function resolveAgentPath(options: {
   }
   const fixedPath = fixedPathResult.value;
 
+  const absolutePath = resolvePathWithinAppDir({ appDir, filePath: fixedPath });
+  if (!absolutePath) {
+    return executeError(`Path escapes the task directory: ${trimmedPath}`);
+  }
+
   return ok({
-    absolutePath: absolutePathJoin(appDir, fixedPath),
+    absolutePath,
     displayPath: fixedPath,
   });
 }
@@ -196,7 +205,7 @@ export function resolveAgentPath(options: {
  */
 export function resolveExistingFilePath(options: {
   agentName: AgentName;
-  appDir: AbsolutePath;
+  appDir: AppDir;
   attachedFolders?: Record<string, FolderAttachment.Type>;
   inputPath?: string;
 }) {

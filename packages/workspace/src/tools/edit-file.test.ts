@@ -71,6 +71,41 @@ function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   });
 }
 
+describe("EditFile - path traversal security", () => {
+  afterEach(() => {
+    mockFs.restore();
+  });
+
+  it.each([
+    {
+      filePath: "./subdir\\..\\..\\outside.txt",
+      label: "Windows-style backslash traversal",
+    },
+    {
+      filePath: "./a\\..\\..\\b\\..\\..\\outside.txt",
+      label: "multi-segment backslash traversal",
+    },
+  ])("rejects $label", async ({ filePath }) => {
+    setupMockFs();
+
+    const result = await runTool(
+      TOOLS.EditFile,
+      makeExecuteArgs({
+        explanation: "test",
+        filePath,
+        newString: "new",
+        oldString: "old",
+      }),
+    );
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().type).toBe("execute-error");
+    expect(result._unsafeUnwrapErr().message).toContain(
+      "Path escapes the task directory",
+    );
+  });
+});
+
 describe("EditFile", () => {
   afterEach(() => {
     mockFs.restore();

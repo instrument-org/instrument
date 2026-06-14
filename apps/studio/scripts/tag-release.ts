@@ -144,7 +144,7 @@ async function main() {
     const commitMessage = `release(studio): ${tagName}`;
     execSync(`git commit -m "${commitMessage}"`, { stdio: "inherit" });
 
-    execSync(`git tag "${tagName}"`, { stdio: "inherit" });
+    execSync(`git tag -m "" "${tagName}"`, { stdio: "inherit" });
 
     console.log(`Successfully released version ${newVersion}`);
     console.log(`Commit: ${commitMessage}`);

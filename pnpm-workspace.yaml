@@ -28,7 +28,7 @@ catalog:
   "@orpc/server": ^1.14.3
   "@orpc/shared": ^1.14.3
   "@orpc/tanstack-query": ^1.14.3
-  "@types/node": 24.12.2
+  "@types/node": 24.13.1
   "@types/react": ^19.2.7
   "@types/react-dom": ^19.2.3
   "@typescript/native-preview": 7.0.0-dev.20260421.2

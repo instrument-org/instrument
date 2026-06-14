@@ -208,13 +208,13 @@ export function resolveExistingFilePath(options: {
 
 /**
  * Resolves a raw agent-provided path string to a validated absolute path
- * within the task directory, plus the normalised display path.
+ * within the task directory, plus the normalized display path.
  *
  * This is the standard entry point for every agent tool execute() function
  * that accepts a file path input. It combines:
  * 1. Format validation (ensureRelativePath) — rejects absolute paths and
  *    obviously malformed input.
- * 2. Containment check (resolvePathWithinAppDir) — normalises backslash
+ * 2. Containment check (resolvePathWithinAppDir) — normalizes backslash
  *    separators then verifies the resolved path stays inside appDir, so
  *    Windows-style traversal like "./subdir\\..\\.." is rejected on all
  *    platforms.

@@ -3,9 +3,8 @@ import { err, ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { grep } from "../lib/grep";
-import { resolveAgentPath } from "../lib/resolve-agent-path";
+import { resolveAgentPath, resolveToolPath } from "../lib/resolve-agent-path";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -102,11 +101,11 @@ export const Grep = setupTool({
 
     // Non-retrieval agent: search from appDir with optional relative searchPath
     if (input.path) {
-      const pathResult = ensureRelativePath(input.path);
+      const pathResult = resolveToolPath(appConfig.appDir, input.path);
       if (pathResult.isErr()) {
         return err(pathResult.error);
       }
-      const searchPath = pathResult.value;
+      const searchPath = pathResult.value.displayPath;
 
       const result = await grep({
         cwd: appConfig.appDir,

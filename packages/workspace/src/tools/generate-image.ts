@@ -9,11 +9,11 @@ import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
-import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImages } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
+import { resolveToolPath } from "../lib/resolve-agent-path";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
@@ -96,11 +96,11 @@ export const GenerateImage = setupTool({
     ${INPUT_PARAMS.prompt} alone.
   `,
   execute: async ({ appConfig, input, model, signal }) => {
-    const fixedPathResult = ensureRelativePath(input.filePath);
-    if (fixedPathResult.isErr()) {
-      return err(fixedPathResult.error);
+    const filePathResult = resolveToolPath(appConfig.appDir, input.filePath);
+    if (filePathResult.isErr()) {
+      return err(filePathResult.error);
     }
-    const fixedPath = fixedPathResult.value;
+    const { displayPath: fixedPath } = filePathResult.value;
 
     // Strip extension if mistakenly provided
     const parsedPath = path.parse(fixedPath);
@@ -110,11 +110,16 @@ export const GenerateImage = setupTool({
 
     let sourceImageBuffers: Buffer[] | undefined;
     if (input.sourceImages && input.sourceImages.length > 0) {
+      const resolvedSourcePaths = [];
+      for (const relativePath of input.sourceImages) {
+        const pathResult = resolveToolPath(appConfig.appDir, relativePath);
+        if (pathResult.isErr()) {
+          return err(pathResult.error);
+        }
+        resolvedSourcePaths.push(pathResult.value.absolutePath);
+      }
       sourceImageBuffers = await Promise.all(
-        input.sourceImages.map((relativePath) => {
-          const absolutePath = absolutePathJoin(appConfig.appDir, relativePath);
-          return fs.readFile(absolutePath);
-        }),
+        resolvedSourcePaths.map((p) => fs.readFile(p)),
       );
     }
 

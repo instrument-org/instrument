@@ -6,10 +6,9 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
-import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
+import { resolveToolPath } from "../lib/resolve-agent-path";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -52,13 +51,12 @@ export const WriteFile = setupTool({
     - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
   `,
   execute: async ({ appConfig, input, signal }) => {
-    const fixedPathResult = ensureRelativePath(input.filePath);
-    if (fixedPathResult.isErr()) {
-      return err(fixedPathResult.error);
+    const pathResult = resolveToolPath(appConfig.appDir, input.filePath);
+    if (pathResult.isErr()) {
+      return err(pathResult.error);
     }
-    const fixedPath = fixedPathResult.value;
+    const { absolutePath, displayPath: fixedPath } = pathResult.value;
 
-    const absolutePath = absolutePathJoin(appConfig.appDir, fixedPath);
     const isNewFile = !(await pathExists(absolutePath));
 
     try {

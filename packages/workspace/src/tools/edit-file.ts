@@ -14,11 +14,12 @@ import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
-import { ensureRelativePath } from "../lib/ensure-relative-path";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
-import { applyUnicodeFallbacks } from "../lib/resolve-agent-path";
-import { resolvePathWithinAppDir } from "../lib/resolve-path-within-app-dir";
+import {
+  applyUnicodeFallbacks,
+  resolveToolPath,
+} from "../lib/resolve-agent-path";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -736,19 +737,13 @@ export const EditFile = setupTool({
       return executeError("oldString and newString must be different");
     }
 
-    const fixedPathResult = ensureRelativePath(input.filePath);
-    if (fixedPathResult.isErr()) {
-      return err(fixedPathResult.error);
+    const pathResult = resolveToolPath(appConfig.appDir, input.filePath);
+    if (pathResult.isErr()) {
+      return err(pathResult.error);
     }
-    const fixedPath = fixedPathResult.value;
+    const { absolutePath: resolvedPath, displayPath: fixedPath } =
+      pathResult.value;
 
-    const resolvedPath = resolvePathWithinAppDir({
-      appDir: appConfig.appDir,
-      filePath: fixedPath,
-    });
-    if (!resolvedPath) {
-      return executeError(`Path escapes the task directory: ${input.filePath}`);
-    }
     const absolutePath =
       input.oldString === ""
         ? resolvedPath

@@ -15,27 +15,6 @@ const registryToolVersionsPath = path.join(registryPath, ".tool-versions");
 const registryNodeVersionPath = path.join(registryPath, ".node-version");
 const registryPackageJsonPath = path.join(registryPath, "package.json");
 
-function parseNodeVersionFromElectronOutput(output: string): string {
-  const versionLinePattern = /^v?(\d+\.\d+\.\d+)(?:[-+].*)?$/;
-  const lines = output.trim().split(/\r?\n/);
-
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index]?.trim();
-    if (!line) {
-      continue;
-    }
-
-    const match = versionLinePattern.exec(line);
-    if (match?.[1]) {
-      return match[1];
-    }
-  }
-
-  throw new Error(
-    `Could not parse Node version from Electron output: ${output}`,
-  );
-}
-
 function getElectronNodeVersion(): string {
   try {
     const output = execSync("pnpm exec electron -v", {
@@ -129,6 +108,27 @@ function normalizeVersion(version: string): string {
     throw new Error(`Invalid version format: ${version}`);
   }
   return normalized;
+}
+
+function parseNodeVersionFromElectronOutput(output: string): string {
+  const versionLinePattern = /^v?(\d+\.\d+\.\d+)(?:[-+].*)?$/;
+  const lines = output.trim().split(/\r?\n/);
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim();
+    if (!line) {
+      continue;
+    }
+
+    const match = versionLinePattern.exec(line);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  throw new Error(
+    `Could not parse Node version from Electron output: ${output}`,
+  );
 }
 
 function parseVersion(version: string): number[] {

@@ -78,7 +78,7 @@ async function main() {
   );
 
   if (answer !== "y" && answer !== "yes") {
-    console.log("\n❌ Deletion cancelled.");
+    console.log("\n❌ Deletion canceled.");
     return;
   }
 

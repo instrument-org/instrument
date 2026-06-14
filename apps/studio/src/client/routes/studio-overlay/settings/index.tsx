@@ -109,10 +109,10 @@ function About() {
           </div>
         );
       }
-      case "cancelled": {
+      case "canceled": {
         return (
           <div className="text-xs text-muted-foreground">
-            Update to version {updateState.updateInfo?.version} was cancelled
+            Update to version {updateState.updateInfo?.version} was canceled
           </div>
         );
       }
@@ -213,7 +213,7 @@ function About() {
           </Button>
         );
       }
-      case "cancelled": {
+      case "canceled": {
         return <Button onClick={handleCheckForUpdates}>Try again</Button>;
       }
       case "downloaded": {

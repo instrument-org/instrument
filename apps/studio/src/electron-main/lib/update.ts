@@ -58,7 +58,7 @@ interface AppUpdaterStatusNotAvailable extends BaseAppUpdaterStatus {
 }
 
 interface AppUpdaterStatusWithUpdateInfo extends BaseAppUpdaterStatus {
-  type: "available" | "cancelled" | "downloaded" | "inactive" | "not-available";
+  type: "available" | "canceled" | "downloaded" | "inactive" | "not-available";
   updateInfo: null | UpdateInfo;
 }
 
@@ -150,10 +150,10 @@ export class StudioAppUpdater {
     });
 
     autoUpdater.on("update-cancelled", (updateInfo) => {
-      scopedLogger.info("Update cancelled");
+      scopedLogger.info("Update canceled");
       this.status = {
         notifyUser: this.#notify,
-        type: "cancelled",
+        type: "canceled",
         updateInfo,
       };
     });
@@ -258,7 +258,7 @@ export class StudioAppUpdater {
 
   // A ready-to-install update is a fact that must survive background polling.
   // Once `downloaded`, drop transient/negative statuses (checking, downloading,
-  // not-available, error, cancelled) that would hide the badge. Only an explicit
+  // not-available, error, canceled) that would hide the badge. Only an explicit
   // install or a strictly-newer build supersedes a staged update.
   #shouldApplyStatus(next: AppUpdaterStatus): boolean {
     const current = this.#status;

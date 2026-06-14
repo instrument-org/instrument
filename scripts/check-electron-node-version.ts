@@ -23,14 +23,7 @@ function getElectronNodeVersion(): string {
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
     });
 
-    const nodeVersion = output.trim().replace(/^v/, "");
-    if (!nodeVersion) {
-      throw new Error(
-        `Could not parse Node version from Electron output: ${output}`,
-      );
-    }
-
-    return nodeVersion;
+    return parseNodeVersionFromElectronOutput(output);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown error occurred";
@@ -115,6 +108,27 @@ function normalizeVersion(version: string): string {
     throw new Error(`Invalid version format: ${version}`);
   }
   return normalized;
+}
+
+function parseNodeVersionFromElectronOutput(output: string): string {
+  const versionLinePattern = /^v?(\d+\.\d+\.\d+)(?:[-+].*)?$/;
+  const lines = output.trim().split(/\r?\n/);
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim();
+    if (!line) {
+      continue;
+    }
+
+    const match = versionLinePattern.exec(line);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  throw new Error(
+    `Could not parse Node version from Electron output: ${output}`,
+  );
 }
 
 function parseVersion(version: string): number[] {

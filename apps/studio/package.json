@@ -150,7 +150,7 @@
     "date-fns": "^4.1.0",
     "devtools-protocol": "^0.0.1617013",
     "dotenv": "^16.6.1",
-    "electron": "^41.2.1",
+    "electron": "^42.3.3",
     "electron-builder": "26.8.2",
     "electron-vite": "^5.0.0",
     "jiti": "2.6.1",
@@ -189,7 +189,7 @@
     "@vscode/ripgrep-win32-x64": "1.18.0"
   },
   "engines": {
-    "node": ">=24.14.1"
+    "node": ">=24.15.0"
   },
   "productName": "Instrument"
 }

@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../schemas/paths";
-import { applyUnicodeFallbacks } from "./resolve-agent-path";
+import { AbsolutePathSchema, AppDirSchema } from "../schemas/paths";
+import { applyUnicodeFallbacks, resolveToolPath } from "./resolve-agent-path";
 
 function abs(filePath: string) {
   return AbsolutePathSchema.parse(filePath);
@@ -92,5 +92,57 @@ describe("applyUnicodeFallbacks", () => {
     const result = applyUnicodeFallbacks(input);
     expect(result).not.toBe(input);
     await expect(fs.access(result)).resolves.toBeUndefined();
+  });
+});
+
+describe("resolveToolPath", () => {
+  const appDir = AppDirSchema.parse(path.join("/tmp", "project"));
+
+  it.each([
+    {
+      displayPath: "./src/index.ts",
+      input: "./src/index.ts",
+      label: "normal relative path",
+    },
+    { displayPath: "./file.txt", input: "file.txt", label: "bare filename" },
+    {
+      displayPath: "./nested/dir/file.ts",
+      input: "nested/dir/file.ts",
+      label: "nested path",
+    },
+  ])(
+    "resolves $label to absolutePath + displayPath",
+    ({ displayPath, input }) => {
+      const result = resolveToolPath(appDir, input);
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.displayPath).toBe(displayPath);
+        expect(result.value.absolutePath).toBe(
+          path.join("/tmp", "project", displayPath),
+        );
+      }
+    },
+  );
+
+  it.each([
+    { input: "../outside.txt", label: "forward-slash parent traversal" },
+    { input: "src/../../outside.txt", label: "nested forward-slash traversal" },
+    {
+      input: "./subdir\\..\\..\\outside.txt",
+      label: "Windows backslash traversal",
+    },
+    {
+      input: "./a\\..\\..\\b\\..\\..\\outside.txt",
+      label: "multi-segment backslash traversal",
+    },
+  ])("rejects $label with execute-error", ({ input }) => {
+    const result = resolveToolPath(appDir, input);
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.type).toBe("execute-error");
+      expect(result.error.message).toMatch(
+        /not relative|escapes the task directory/,
+      );
+    }
   });
 });

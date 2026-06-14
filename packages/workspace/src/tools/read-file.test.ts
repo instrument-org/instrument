@@ -35,39 +35,6 @@ const attachedFolders: Record<string, FolderAttachment.Type> = {
 };
 
 /* eslint-disable unicorn/no-await-expression-member */
-describe("ReadFile - path traversal security", () => {
-  const baseInput = {
-    agentName: "main" as const,
-    appConfig,
-    model,
-    projectState: {},
-    signal: AbortSignal.timeout(10_000),
-    spawnAgent: vi.fn(),
-  };
-
-  it.each([
-    {
-      filePath: "./subdir\\..\\..\\outside.txt",
-      label: "Windows-style backslash traversal",
-    },
-    {
-      filePath: "./a\\..\\..\\b\\..\\..\\outside.txt",
-      label: "multi-segment backslash traversal",
-    },
-  ])("rejects $label", async ({ filePath }) => {
-    const result = await runTool(TOOLS.ReadFile, {
-      ...baseInput,
-      input: { explanation: "test", filePath },
-    });
-
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("execute-error");
-    expect(result._unsafeUnwrapErr().message).toContain(
-      "Path escapes the task directory",
-    );
-  });
-});
-
 describe("ReadFile", () => {
   describe("main agent", () => {
     const baseInput = {

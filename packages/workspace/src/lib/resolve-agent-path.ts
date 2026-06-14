@@ -5,13 +5,17 @@ import path from "node:path";
 
 import { type AgentName, RETRIEVAL_AGENT_NAME } from "../agents/types";
 import { type FolderAttachment } from "../schemas/folder-attachment";
-import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
+import {
+  type AbsolutePath,
+  AbsolutePathSchema,
+  type AppDir,
+} from "../schemas/paths";
 import { Task } from "../tools/task";
-import { absolutePathJoin } from "./absolute-path-join";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
+import { resolvePathWithinAppDir } from "./resolve-path-within-app-dir";
 import { validateAttachedFolderPath } from "./validate-attached-folder-path";
 
 const NARROW_NO_BREAK_SPACE = "\u202F";
@@ -111,7 +115,7 @@ export async function getSimilarPathSuggestions({
 
 export function resolveAgentPath(options: {
   agentName: AgentName;
-  appDir: AbsolutePath;
+  appDir: AppDir;
   attachedFolders?: Record<string, FolderAttachment.Type>;
   inputPath?: string;
   isRequired?: boolean;
@@ -177,16 +181,7 @@ export function resolveAgentPath(options: {
     }
   }
 
-  const fixedPathResult = ensureRelativePath(trimmedPath);
-  if (fixedPathResult.isErr()) {
-    return fixedPathResult;
-  }
-  const fixedPath = fixedPathResult.value;
-
-  return ok({
-    absolutePath: absolutePathJoin(appDir, fixedPath),
-    displayPath: fixedPath,
-  });
+  return resolveToolPath(appDir, trimmedPath);
 }
 
 /**
@@ -196,7 +191,7 @@ export function resolveAgentPath(options: {
  */
 export function resolveExistingFilePath(options: {
   agentName: AgentName;
-  appDir: AbsolutePath;
+  appDir: AppDir;
   attachedFolders?: Record<string, FolderAttachment.Type>;
   inputPath?: string;
 }) {
@@ -209,6 +204,44 @@ export function resolveExistingFilePath(options: {
     absolutePath: applyUnicodeFallbacks(absolutePath),
     displayPath,
   });
+}
+
+/**
+ * Resolves a raw agent-provided path string to a validated absolute path
+ * within the task directory, plus the normalised display path.
+ *
+ * This is the standard entry point for every agent tool execute() function
+ * that accepts a file path input. It combines:
+ * 1. Format validation (ensureRelativePath) — rejects absolute paths and
+ *    obviously malformed input.
+ * 2. Containment check (resolvePathWithinAppDir) — normalises backslash
+ *    separators then verifies the resolved path stays inside appDir, so
+ *    Windows-style traversal like "./subdir\\..\\.." is rejected on all
+ *    platforms.
+ *
+ * Returns `{ absolutePath, displayPath }` on success:
+ * - `absolutePath` — use for all file I/O operations.
+ * - `displayPath` — use in tool output shown to the agent.
+ *
+ * For retrieval-agent / attached-folder paths use resolveAgentPath.
+ * For reads where the file must already exist use resolveExistingFilePath.
+ */
+export function resolveToolPath(appDir: AppDir, inputPath: string) {
+  const fixedPathResult = ensureRelativePath(inputPath);
+  if (fixedPathResult.isErr()) {
+    return fixedPathResult;
+  }
+  const displayPath = fixedPathResult.value;
+
+  const absolutePath = resolvePathWithinAppDir({
+    appDir,
+    filePath: displayPath,
+  });
+  if (!absolutePath) {
+    return executeError(`Path escapes the task directory: ${inputPath}`);
+  }
+
+  return ok({ absolutePath, displayPath });
 }
 
 function fileExistsSync(filePath: string): boolean {

@@ -11,7 +11,6 @@ import {
   ProjectFilesSchema,
 } from "../../../lib/get-project-files";
 import { getTrackedFileCount } from "../../../lib/get-tracked-file-count";
-import { hasAppModifications } from "../../../lib/has-app-modifications";
 import { RelativeProjectPathSchema } from "../../../schemas/paths";
 import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
 import { base, toORPCError } from "../../base";
@@ -100,53 +99,6 @@ const commits = {
       }),
   },
 };
-
-const hasAppModificationsEndpoint = base
-  .input(
-    z.object({
-      projectSubdomain: ProjectSubdomainSchema,
-    }),
-  )
-  .output(z.boolean())
-  .handler(async ({ context, errors, input: { projectSubdomain } }) => {
-    const result = await hasAppModifications(
-      projectSubdomain,
-      context.workspaceConfig,
-    );
-
-    if (result.isErr()) {
-      throw toORPCError(result.error, errors);
-    }
-
-    return result.value;
-  });
-
-const liveHasAppModifications = base
-  .input(
-    z.object({
-      projectSubdomain: ProjectSubdomainSchema,
-    }),
-  )
-  .output(eventIterator(z.boolean()))
-  .handler(async function* ({ context, input, signal }) {
-    yield call(hasAppModificationsEndpoint, input, { context, signal });
-
-    const partUpdates = publisher.subscribe("part.updated", {
-      signal,
-    });
-
-    for await (const payload of partUpdates) {
-      if (
-        payload.subdomain === input.projectSubdomain &&
-        payload.part.type === "data-gitCommit"
-      ) {
-        yield call(hasAppModificationsEndpoint, input, {
-          context,
-          signal,
-        });
-      }
-    }
-  });
 
 const fileVersionRefs = base
   .input(
@@ -261,10 +213,8 @@ export const projectGit = {
   fileInfo,
   filesAddedSinceInitial,
   fileVersionRefs,
-  hasAppModifications: hasAppModificationsEndpoint,
   listFiles,
   live: {
-    hasAppModifications: liveHasAppModifications,
     listFiles: base
       .input(
         z.object({

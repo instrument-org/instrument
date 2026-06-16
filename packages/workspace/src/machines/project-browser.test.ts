@@ -11,6 +11,7 @@ import {
 import { type AbsolutePath } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ProjectSubdomainSchema } from "../schemas/subdomains";
+import { createMockAppConfig } from "../test/helpers/mock-app-config";
 import {
   type BrowserConfig,
   type BrowserTargetId,
@@ -48,6 +49,13 @@ vi.mock(import("../lib/agent-browser-cleanup"), () => ({
   closeAllAgentBrowserSessions: vi.fn(asyncNoop),
 }));
 
+vi.mock(import("../lib/project-file-watcher"), () => ({
+  getCurrentProjectFiles: vi.fn(),
+  startWatchingProjectFiles: vi.fn(() => () => {
+    // no-op disposer
+  }),
+}));
+
 const { closeAgentBrowserSessionsForSessions } = await import(
   "../lib/agent-browser-cleanup"
 );
@@ -73,6 +81,7 @@ function makeBrowser(): BrowserConfig {
 
 const subdomain = ProjectSubdomainSchema.parse("test-project");
 const partitionDir = "/tmp/partition" as AbsolutePath;
+const workspaceConfig = createMockAppConfig(subdomain).workspaceConfig;
 
 interface Harness {
   actor: ActorRefFrom<typeof projectBrowserMachine>;
@@ -97,7 +106,7 @@ function spawnHarness(): Harness {
     context: ({ spawn }) => ({
       childRef: spawn("projectBrowserMachine", {
         id: "child",
-        input: { browser, subdomain },
+        input: { browser, subdomain, workspaceConfig },
       }),
     }),
     id: "harnessParent",

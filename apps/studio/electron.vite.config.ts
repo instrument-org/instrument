@@ -145,8 +145,9 @@ export default defineConfig(({ command }) => {
           entry: path.join(process.cwd(), "src/electron-main/index.ts"),
         },
         rollupOptions: {
-          // node-liblzma and @mongodb-js/zstd are optional dependencies of just-bash that fail to build in CI
-          external: ["node-liblzma", "@mongodb-js/zstd"],
+          // node-liblzma and @mongodb-js/zstd are optional dependencies of just-bash that fail to build in CI.
+          // @parcel/watcher (and its per-platform native bindings) must load from node_modules at runtime, never bundled.
+          external: ["node-liblzma", "@mongodb-js/zstd", /^@parcel\/watcher/],
           onwarn(warning, warn) {
             if (
               warning.code === "UNUSED_EXTERNAL_IMPORT" &&

@@ -6,7 +6,6 @@ import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import {
   hasVisibleProjectFiles,
-  isProjectFileSrcFile,
   isUnknownTopLevelDirFile,
   shouldFilterProjectFile,
 } from "@/client/lib/project-file-groups";
@@ -25,7 +24,6 @@ import {
   ChatTextIcon,
   DotsThreeOutlineVerticalIcon,
   FolderSimpleIcon,
-  GlobeIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -73,23 +71,15 @@ export function ProjectFiles({
   activeFilePath,
   attachedFolders,
   files,
-  isAppViewOpen,
-  onAppSelect,
   onFileSelect,
   project,
-  showAppEntry,
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["project"]["git"]["listFiles"] | undefined;
-  isAppViewOpen: boolean;
-  onAppSelect: () => void;
+  files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
   onFileSelect: (file: ProjectFileViewerFile) => void;
   project: WorkspaceAppProject;
-  showAppEntry: boolean;
 }) {
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
-
   const computed = useMemo(() => {
     if (!files) {
       return null;
@@ -111,7 +101,6 @@ export function ProjectFiles({
 
     for (const f of files) {
       if (
-        isProjectFileSrcFile(f.filePath) ||
         shouldFilterProjectFile(f.filePath) ||
         isUnknownTopLevelDirFile(f.filePath)
       ) {
@@ -144,16 +133,7 @@ export function ProjectFiles({
 
   const folderEntries = attachedFolders ? Object.values(attachedFolders) : [];
 
-  const hasSrcInProject = computed.hiddenFiles.some((f) =>
-    isProjectFileSrcFile(f.filePath),
-  );
-
-  if (
-    !hasVisibleProjectFiles(files) &&
-    folderEntries.length === 0 &&
-    !showAppEntry &&
-    !hasSrcInProject
-  ) {
+  if (!hasVisibleProjectFiles(files) && folderEntries.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
         There are no files yet.
@@ -161,51 +141,11 @@ export function ProjectFiles({
     );
   }
 
-  const appAddToChatLabel = `the app in ${APP_FOLDER_NAMES.src}/`;
-
-  const handleAppAddToChat = () => {
-    appendToPrompt({ key: project.subdomain, update: appAddToChatLabel });
-  };
-
   return (
     <SidebarProvider
       className="flex min-h-0 flex-1 flex-col overflow-y-auto px-1 py-1"
       style={{ "--sidebar-width": "100%" } as React.CSSProperties}
     >
-      {showAppEntry && (
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <ContextMenu>
-              <ContextMenuTrigger asChild>
-                <SidebarMenuButton
-                  className={cn(
-                    "h-7 min-w-0 flex-1 gap-1.5 rounded-md px-2 text-xs font-medium",
-                    isAppViewOpen
-                      ? "bg-sidebar-accent text-foreground"
-                      : "text-muted-foreground",
-                  )}
-                  onClick={onAppSelect}
-                >
-                  <GlobeIcon className="size-3.5! shrink-0" />
-                  <span className="truncate">App</span>
-                </SidebarMenuButton>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem onClick={handleAppAddToChat}>
-                  <ChatTextIcon className="size-4" />
-                  <span>Add to chat</span>
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-            <FilesItemMenu>
-              <DropdownMenuItem onClick={handleAppAddToChat}>
-                <ChatTextIcon className="size-4" />
-                <span>Add to chat</span>
-              </DropdownMenuItem>
-            </FilesItemMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      )}
       <SidebarMenu>
         {computed.tree.map((node, i) => (
           <TreeNode

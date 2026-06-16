@@ -36,19 +36,15 @@ const ProjectFileSchema = z.object({
 
 export const ProjectFilesSchema = z.array(ProjectFileSchema);
 
-export const ProjectFileChangeSchema = ProjectFileSchema.extend({
-  status: z.enum(["added", "deleted", "modified"]),
-});
+const MAX_PROJECT_FILE_INDEX_FILES = 5000;
 
-export const ProjectFileChangesSchema = z.array(ProjectFileChangeSchema);
-
-export const MAX_PROJECT_FILE_INDEX_FILES = 5000;
-
-export type ProjectFileChange = z.output<typeof ProjectFileChangeSchema>;
-export type ProjectFileEntry = z.output<typeof ProjectFileSchema> & {
+export type ProjectFileIndex = Map<string, ProjectFileEntry>;
+interface ProjectFileChange extends z.output<typeof ProjectFileSchema> {
+  status: "added" | "deleted" | "modified";
+}
+type ProjectFileEntry = z.output<typeof ProjectFileSchema> & {
   mtimeMs: number;
 };
-export type ProjectFileIndex = Map<string, ProjectFileEntry>;
 
 export function diffProjectFileIndexes({
   after,

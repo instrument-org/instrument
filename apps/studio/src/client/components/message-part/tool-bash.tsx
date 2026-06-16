@@ -35,12 +35,12 @@ export function BrowserChip({
   const extra = info.domains.length - 1;
 
   return (
-    <ToolChip isEmphasized={isEmphasized}>
+    <ToolChip className="max-w-[12rem]" isEmphasized={isEmphasized}>
       <Favicon
         className="size-3.5 border border-muted bg-background"
         url={`https://${topDomain}`}
       />
-      <span className="text-xs font-medium text-foreground/50">
+      <span className="truncate text-xs font-medium text-foreground/50">
         {topDomain}
         {extra > 0 && (
           <span className="text-foreground/30"> & {extra} more</span>

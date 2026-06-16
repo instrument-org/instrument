@@ -14,7 +14,7 @@ import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import { normalizePath } from "./normalize-path";
 
-const INTERNAL_IGNORE_PATTERNS = [
+export const INTERNAL_IGNORE_PATTERNS = [
   ".git",
   ".git/**",
   "node_modules",
@@ -36,13 +36,14 @@ const ProjectFileSchema = z.object({
 
 export const ProjectFilesSchema = z.array(ProjectFileSchema);
 
-const MAX_PROJECT_FILE_INDEX_FILES = 5000;
+export const MAX_PROJECT_FILE_INDEX_FILES = 5000;
 
-export type ProjectFileIndex = Map<string, ProjectFileEntry>;
-interface ProjectFileChange extends z.output<typeof ProjectFileSchema> {
+export type ProjectFile = z.output<typeof ProjectFileSchema>;
+export interface ProjectFileChange extends ProjectFile {
   status: "added" | "deleted" | "modified";
 }
-type ProjectFileEntry = z.output<typeof ProjectFileSchema> & {
+export type ProjectFileIndex = Map<string, ProjectFileEntry>;
+type ProjectFileEntry = ProjectFile & {
   mtimeMs: number;
 };
 
@@ -178,11 +179,7 @@ export async function getProjectFiles(
     return err(indexResult.error);
   }
 
-  return ok(
-    [...indexResult.value.values()].map(({ mtimeMs: _mtimeMs, ...file }) => {
-      return file;
-    }),
-  );
+  return ok(projectFilesFromIndex(indexResult.value));
 }
 
 export function outputArtifactPathsFromChanges(changes: ProjectFileChange[]) {
@@ -194,6 +191,12 @@ export function outputArtifactPathsFromChanges(changes: ProjectFileChange[]) {
     )
     .map((change) => change.filePath.slice(2))
     .sort((a, b) => a.localeCompare(b));
+}
+
+export function projectFilesFromIndex(index: ProjectFileIndex): ProjectFile[] {
+  return [...index.values()]
+    .map(({ mtimeMs: _mtimeMs, ...file }) => file)
+    .sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
 function withoutMtime({

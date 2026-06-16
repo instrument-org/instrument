@@ -225,7 +225,11 @@ export const workspaceMachine = setup({
           const ref =
             existing ??
             spawn("projectBrowserMachine", {
-              input: { browser: context.config.browser, subdomain },
+              input: {
+                browser: context.config.browser,
+                subdomain,
+                workspaceConfig: context.config,
+              },
             });
           ref.send({
             type: "updateCdpHeartbeat",
@@ -267,7 +271,11 @@ export const workspaceMachine = setup({
           const ref =
             existing ??
             spawn("projectBrowserMachine", {
-              input: { browser: context.config.browser, subdomain },
+              input: {
+                browser: context.config.browser,
+                subdomain,
+                workspaceConfig: context.config,
+              },
             });
           ref.send({ type: "updateUserHeartbeat" });
           if (existing) {

@@ -34,7 +34,6 @@ import { TutorialPromptCard } from "./tutorial-prompt-card";
 
 export function ProjectChat({
   isReplayActive = false,
-  isViewingApp = false,
   onCancelReplay,
   project,
   selectedModelURI: initialSelectedModelURI,
@@ -42,7 +41,6 @@ export function ProjectChat({
   showTutorial,
 }: {
   isReplayActive?: boolean;
-  isViewingApp?: boolean;
   onCancelReplay?: () => void;
   project: WorkspaceAppProject;
   selectedModelURI?: AIGatewayModelURI.Type;
@@ -305,7 +303,6 @@ export function ProjectChat({
               <ChatStream
                 isAgentRunning={isAgentRunning}
                 isDeveloperMode={isDeveloperMode}
-                isViewingApp={isViewingApp}
                 messages={messages}
                 onContinue={handleContinue}
                 onModelChange={setSelectedModelURI}

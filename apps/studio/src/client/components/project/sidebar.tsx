@@ -19,8 +19,6 @@ export function ProjectSidebar({
   attachedFolders,
   chatProps,
   files,
-  isAppViewOpen,
-  onAppSelect,
   onFileSelect,
   onSidebarChange,
   project,
@@ -31,8 +29,6 @@ export function ProjectSidebar({
   attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
   chatProps: ComponentProps<typeof ProjectChat>;
   files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
-  isAppViewOpen: boolean;
-  onAppSelect: () => void;
   onFileSelect: (file: ProjectFileViewerFile) => void;
   onSidebarChange: (sidebar: ProjectSidebarMode) => void;
   project: WorkspaceAppProject;
@@ -55,11 +51,8 @@ export function ProjectSidebar({
               activeFilePath={activeFilePath}
               attachedFolders={attachedFolders}
               files={files}
-              isAppViewOpen={isAppViewOpen}
-              onAppSelect={onAppSelect}
               onFileSelect={onFileSelect}
               project={project}
-              showAppEntry={false}
             />
           </div>
         </Activity>

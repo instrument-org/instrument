@@ -2,7 +2,6 @@ import {
   openFileViewerAtom,
   type ProjectFileViewerFile,
 } from "@/client/atoms/project-file-viewer";
-import { AppView } from "@/client/components/app-view";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
   ResizableHandle,
@@ -82,9 +81,10 @@ export function ProjectView({
     }
   };
 
-  const isViewingApp = artifactPanel?.type === "app";
   const isViewingFile = artifactPanel?.type === "file";
-  const showArtifactPanel = isViewingApp || isViewingFile;
+  // Dormant app-builder preview is intentionally disabled. Keep accepting the
+  // legacy route state, but do not open an app preview panel.
+  const showArtifactPanel = isViewingFile;
 
   const { data: fileInfo } = useQuery(
     rpcClient.workspace.project.files.fileInfo.queryOptions({
@@ -102,21 +102,6 @@ export function ProjectView({
   const currentFile: null | ProjectFileViewerFile = fileInfo
     ? { ...fileInfo, projectSubdomain: project.subdomain }
     : null;
-
-  const handleAppSelect = () => {
-    if (isViewingApp) {
-      return;
-    }
-    void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain: project.subdomain },
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { type: "app" },
-      }),
-    });
-  };
 
   const handleArtifactPanelClose = () => {
     void navigate({
@@ -144,10 +129,8 @@ export function ProjectView({
 
   useReload(
     useCallback(() => {
-      if (!isViewingApp) {
-        window.location.reload();
-      }
-    }, [isViewingApp]),
+      window.location.reload();
+    }, []),
   );
 
   const handleSidebarChange = (nextSidebar: ProjectSidebarMode) => {
@@ -165,7 +148,6 @@ export function ProjectView({
 
   const chatProps = {
     isReplayActive,
-    isViewingApp,
     onCancelReplay: handleCancelReplay,
     project,
     selectedModelURI,
@@ -192,8 +174,6 @@ export function ProjectView({
             attachedFolders={attachedFolders}
             chatProps={chatProps}
             files={files}
-            isAppViewOpen={isViewingApp}
-            onAppSelect={handleAppSelect}
             onFileSelect={handleFileSelect}
             onSidebarChange={handleSidebarChange}
             project={project}
@@ -212,27 +192,15 @@ export function ProjectView({
               minSize={PANEL_SIZES.artifactMin}
             >
               <div className="flex h-full flex-1 animate-in flex-col p-2 duration-150 fade-in-0 slide-in-from-right-2">
-                {isViewingFile ? (
-                  currentFile ? (
-                    <div className="flex h-full">
-                      <FileViewer
-                        file={currentFile}
-                        fullSize
-                        onClose={handleArtifactPanelClose}
-                        onExpand={() => {
-                          openFileViewer({ files: [currentFile] });
-                        }}
-                      />
-                    </div>
-                  ) : null
-                ) : isViewingApp ? (
-                  <div className="relative flex flex-1 flex-col">
-                    <AppView
-                      app={project}
-                      className="overflow-hidden rounded-lg"
-                      isVersionsOpen={false}
+                {currentFile ? (
+                  <div className="flex h-full">
+                    <FileViewer
+                      file={currentFile}
+                      fullSize
                       onClose={handleArtifactPanelClose}
-                      shouldReload
+                      onExpand={() => {
+                        openFileViewer({ files: [currentFile] });
+                      }}
                     />
                   </div>
                 ) : null}

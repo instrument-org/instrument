@@ -37,6 +37,7 @@
     "routes:generate": "tsr generate",
     "smoke-test": "vitest run --config vitest.smoke.config.ts",
     "start": "electron-vite preview",
+    "cleanup:releases": "node scripts/cleanup-releases.ts",
     "tag:release:minor": "node scripts/tag-release.ts minor",
     "tag:release:minor:beta": "node scripts/tag-release.ts minor beta",
     "tag:release:patch": "node scripts/tag-release.ts patch",

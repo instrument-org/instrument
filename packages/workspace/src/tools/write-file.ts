@@ -43,7 +43,7 @@ export const WriteFile = setupTool({
     Writes a file to the local filesystem.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./src/client/app.tsx
+    - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./output/report.md
     - This tool will overwrite the existing file if there is one at the provided path.
     - If this is an existing file, you MUST use the ${ReadFile.name} tool first to read the file's contents before writing.
     - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.

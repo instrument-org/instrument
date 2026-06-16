@@ -33,7 +33,6 @@ interface ChatStreamProps {
   hideUserMessages?: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
-  isViewingApp?: boolean;
   messages: SessionMessage.WithParts[];
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -47,7 +46,6 @@ export function ChatStream({
   hideUserMessages = false,
   isAgentRunning,
   isDeveloperMode,
-  isViewingApp = false,
   messages,
   onContinue,
   onModelChange,
@@ -82,7 +80,6 @@ export function ChatStream({
         hideUserMessages
         isAgentRunning={isNestedAgentRunning}
         isDeveloperMode={isDeveloperMode}
-        isViewingApp={isViewingApp}
         messages={nestedMessages}
         onContinue={onContinue}
         onModelChange={onModelChange}
@@ -93,7 +90,6 @@ export function ChatStream({
     ),
     [
       isDeveloperMode,
-      isViewingApp,
       onContinue,
       onModelChange,
       onRetry,

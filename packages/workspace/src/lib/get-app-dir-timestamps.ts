@@ -13,10 +13,8 @@ export async function getAppDirTimestamps(appDir: AppDir) {
     appDir,
     PROJECT_MANIFEST_FILE_NAME,
   );
-  const srcFolder = absolutePathJoin(appDir, "src");
   const paths = [
     privateDir, // Changes when agent changes
-    srcFolder, // Changes when code changes
     projectConfigPath, // Changes when app name/icon changes
   ];
 

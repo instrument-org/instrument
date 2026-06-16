@@ -11,6 +11,8 @@ const filePathSchema = z
   );
 
 export const artifactPanelSchema = z.discriminatedUnion("type", [
+  // Legacy app-preview route state is accepted for old links, but the project
+  // page intentionally ignores it while app-builder preview is dormant.
   z.object({ type: z.literal("app"), versionRef: z.string().optional() }),
   z.object({
     filePath: filePathSchema,

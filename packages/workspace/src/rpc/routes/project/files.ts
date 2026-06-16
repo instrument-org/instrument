@@ -1,3 +1,4 @@
+import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import {
@@ -8,9 +9,11 @@ import {
   getProjectFiles,
   ProjectFilesSchema,
 } from "../../../lib/get-project-files";
+import { getCurrentProjectFiles } from "../../../lib/project-file-watcher";
 import { RelativeProjectPathSchema } from "../../../schemas/paths";
 import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
 import { base, toORPCError } from "../../base";
+import { publisher } from "../../publisher";
 
 const list = base
   .input(
@@ -20,6 +23,13 @@ const list = base
   )
   .output(ProjectFilesSchema)
   .handler(async ({ context, errors, input: { projectSubdomain } }) => {
+    // Serve the live in-memory index when a watcher is active; otherwise fall
+    // back to a fresh walk of disk.
+    const live = getCurrentProjectFiles(projectSubdomain);
+    if (live) {
+      return live;
+    }
+
     const result = await getProjectFiles(
       projectSubdomain,
       context.workspaceConfig,
@@ -30,6 +40,24 @@ const list = base
     }
 
     return result.value;
+  });
+
+const live = base
+  .input(
+    z.object({
+      projectSubdomain: ProjectSubdomainSchema,
+    }),
+  )
+  .output(eventIterator(ProjectFilesSchema))
+  .handler(async function* ({ context, input, signal }) {
+    yield call(list, input, { context, signal });
+
+    const changes = publisher.subscribe("project.files.changed", { signal });
+    for await (const payload of changes) {
+      if (payload.subdomain === input.projectSubdomain) {
+        yield call(list, input, { context, signal });
+      }
+    }
   });
 
 const fileInfo = base
@@ -56,4 +84,5 @@ const fileInfo = base
 export const projectFiles = {
   fileInfo,
   list,
+  live,
 };

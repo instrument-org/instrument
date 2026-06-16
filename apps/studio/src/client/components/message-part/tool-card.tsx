@@ -37,8 +37,8 @@ export function FileChip({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <ToolChip className="px-2" isEmphasized={isEmphasized}>
-          <span className="text-xs font-medium text-foreground/50">
+        <ToolChip className="max-w-[12rem] px-2" isEmphasized={isEmphasized}>
+          <span className="truncate text-xs font-medium text-foreground/50">
             {filename}
           </span>
         </ToolChip>

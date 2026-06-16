@@ -11,17 +11,13 @@ import { buildAIProviderInstructions } from "../lib/build-ai-provider-instructio
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
-import {
-  diffProjectFileIndexes,
-  getProjectFileIndex,
-  outputArtifactPathsFromChanges,
-} from "../lib/get-project-files";
+import { outputArtifactPathsFromChanges } from "../lib/get-project-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
 import {
-  consumeTurnStartProjectFileIndex,
-  rememberTurnStartProjectFileIndex,
-} from "../lib/project-file-change-tracker";
+  beginTurnChangeTracking,
+  consumeTurnChanges,
+} from "../lib/project-file-watcher";
 import { getProjectState } from "../lib/project-state-store";
 import { readFileWithAnyCase } from "../lib/read-file-with-any-case";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
@@ -299,12 +295,22 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ appConfig, parentMessageId, sessionId, signal }) => {
+    if (appConfig.type !== "project") {
+      return;
+    }
+
+    // Resolve the changes recorded by the file watcher during this turn. Always
+    // called so the watcher ref acquired in onStart is released, even when we
+    // skip saving the change summary below.
+    const fileChanges = await consumeTurnChanges({
+      sessionId,
+      subdomain: appConfig.subdomain,
+    });
+
     const result = await safeTry(async function* () {
-      if (appConfig.type !== "project") {
+      if (fileChanges.length === 0) {
         return ok(undefined);
       }
-
-      const before = consumeTurnStartProjectFileIndex(sessionId);
 
       const messageIds = yield* Store.getMessageIdsAfter(
         sessionId,
@@ -341,19 +347,6 @@ export const mainAgent = setupAgent({
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
-      if (!before) {
-        return ok(undefined);
-      }
-
-      const after = yield* await getProjectFileIndex(appConfig.appDir, {
-        signal,
-      });
-      const fileChanges = diffProjectFileIndexes({ after, before });
-
-      if (fileChanges.length === 0) {
-        return ok(undefined);
-      }
-
       yield* Store.savePart(
         {
           data: {
@@ -386,20 +379,15 @@ export const mainAgent = setupAgent({
       appConfig.workspaceConfig.captureException(result.error);
     }
   },
-  onStart: async ({ appConfig, sessionId, signal }) => {
+  onStart: async ({ appConfig, sessionId }) => {
     if (appConfig.type !== "project") {
       return;
     }
 
-    const result = await getProjectFileIndex(appConfig.appDir, { signal });
-    if (result.isErr()) {
-      appConfig.workspaceConfig.captureException(result.error);
-      return;
-    }
-
-    rememberTurnStartProjectFileIndex({
-      fileIndex: result.value,
+    await beginTurnChangeTracking({
       sessionId,
+      subdomain: appConfig.subdomain,
+      workspaceConfig: appConfig.workspaceConfig,
     });
   },
   shouldContinue: shouldContinueWithToolCalls,

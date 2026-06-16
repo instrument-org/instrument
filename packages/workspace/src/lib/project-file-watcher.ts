@@ -1,0 +1,456 @@
+import type {
+  AsyncSubscription,
+  Options,
+  SubscribeCallback,
+} from "@parcel/watcher";
+
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { noop } from "radashi";
+
+import { publisher } from "../rpc/publisher";
+import { type AppDir, RelativePathSchema } from "../schemas/paths";
+import { type StoreId } from "../schemas/store-id";
+import { type ProjectSubdomain } from "../schemas/subdomains";
+import { type WorkspaceConfig } from "../types";
+import { createAppConfig } from "./app-config/create";
+import { getIgnore } from "./get-ignore";
+import { getMimeType } from "./get-mime-type";
+import {
+  diffProjectFileIndexes,
+  getProjectFileIndex,
+  INTERNAL_IGNORE_PATTERNS,
+  MAX_PROJECT_FILE_INDEX_FILES,
+  type ProjectFile,
+  type ProjectFileChange,
+  type ProjectFileIndex,
+  projectFilesFromIndex,
+} from "./get-project-files";
+import { normalizePath } from "./normalize-path";
+
+// Trailing window used to coalesce bursts of filesystem events (agents and
+// editors write many files in quick succession) into a single publish.
+const DEBOUNCE_MS = 150;
+// Re-walk cadence used only when the native watcher binding is unavailable.
+const FALLBACK_POLL_MS = 5000;
+
+type Ignore = Awaited<ReturnType<typeof getIgnore>>;
+
+// Minimal surface of @parcel/watcher we depend on; loaded dynamically so the
+// native binding resolves from node_modules at runtime instead of being bundled.
+interface ParcelWatcherApi {
+  subscribe: (
+    dir: string,
+    callback: SubscribeCallback,
+    opts?: Options,
+  ) => Promise<AsyncSubscription>;
+}
+
+// Per-turn state: the file index snapshotted at turn start (diffed against an
+// authoritative walk at turn end) plus the watcher ref acquired for the turn.
+interface TurnTracker {
+  before: ProjectFileIndex;
+  release: () => void;
+}
+
+interface WatcherEntry {
+  appDir: AppDir;
+  // Realpath of appDir. macOS fs-events reports canonical paths (e.g.
+  // /private/var/...) so we resolve relative paths against this base.
+  baseDir: string;
+  captureException: CaptureExceptionFunction;
+  debounceTimer: null | ReturnType<typeof setTimeout>;
+  disposed: boolean;
+  fallbackTimer: null | ReturnType<typeof setInterval>;
+  // Null until the first seed completes; seeding always precedes event handling.
+  ignore: Ignore | null;
+  index: ProjectFileIndex;
+  // Absolute paths buffered between debounce flushes.
+  pendingPaths: Set<string>;
+  // Resolves once the initial seed completes, so turn snapshots are accurate.
+  ready: Promise<void>;
+  refCount: number;
+  resolveReady: () => void;
+  seeded: boolean;
+  subdomain: ProjectSubdomain;
+  subscription: null | { unsubscribe: () => Promise<void> };
+  // Per-session turn trackers; populated only while a turn is in flight.
+  turns: Map<StoreId.Session, TurnTracker>;
+}
+
+const registry = new Map<ProjectSubdomain, WatcherEntry>();
+
+let parcelPromise: Promise<ParcelWatcherApi | undefined> | undefined;
+
+/**
+ * Starts tracking on-disk changes for a turn. Holds a watcher open for the
+ * subdomain (ref-counted) and snapshots the current file index as the turn's
+ * "before" state. Awaits the initial seed so the snapshot reflects pre-turn
+ * state. Must be paired with {@link consumeTurnChanges} to release the watcher.
+ */
+export async function beginTurnChangeTracking({
+  sessionId,
+  subdomain,
+  workspaceConfig,
+}: {
+  sessionId: StoreId.Session;
+  subdomain: ProjectSubdomain;
+  workspaceConfig: WorkspaceConfig;
+}): Promise<void> {
+  const release = startWatchingProjectFiles({ subdomain, workspaceConfig });
+  const entry = registry.get(subdomain);
+  if (!entry) {
+    release();
+    return;
+  }
+
+  // Re-tracking an already-tracked session would leak the existing ref.
+  if (entry.turns.has(sessionId)) {
+    release();
+    return;
+  }
+
+  await entry.ready;
+  if (entry.disposed) {
+    release();
+    return;
+  }
+  entry.turns.set(sessionId, { before: new Map(entry.index), release });
+}
+
+/**
+ * Diffs a turn's "before" snapshot against an authoritative walk of disk and
+ * releases the watcher ref acquired by {@link beginTurnChangeTracking}. The walk
+ * makes the result correct regardless of filesystem-event latency. Safe to call
+ * unconditionally; returns an empty list when nothing was tracked.
+ */
+export async function consumeTurnChanges({
+  sessionId,
+  subdomain,
+}: {
+  sessionId: StoreId.Session;
+  subdomain: ProjectSubdomain;
+}): Promise<ProjectFileChange[]> {
+  const entry = registry.get(subdomain);
+  const turn = entry?.turns.get(sessionId);
+  if (!entry || !turn) {
+    return [];
+  }
+
+  entry.turns.delete(sessionId);
+  try {
+    const after = await refreshIndex(entry);
+    return diffProjectFileIndexes({ after, before: turn.before });
+  } catch (error) {
+    entry.captureException(error);
+    return [];
+  } finally {
+    turn.release();
+  }
+}
+
+/**
+ * Returns the current in-memory file list for a subdomain, or undefined when no
+ * watcher is active (callers fall back to a fresh walk in that case).
+ */
+export function getCurrentProjectFiles(
+  subdomain: ProjectSubdomain,
+): ProjectFile[] | undefined {
+  const entry = registry.get(subdomain);
+  if (!entry?.seeded) {
+    return undefined;
+  }
+  return projectFilesFromIndex(entry.index);
+}
+
+/**
+ * Begins watching a task's files, maintaining an incremental in-memory index
+ * and publishing `project.files.changed` as the tree changes. Idempotent per
+ * subdomain via ref-counting; returns a disposer that stops watching once the
+ * last holder releases.
+ */
+export function startWatchingProjectFiles({
+  subdomain,
+  workspaceConfig,
+}: {
+  subdomain: ProjectSubdomain;
+  workspaceConfig: WorkspaceConfig;
+}): () => void {
+  const existing = registry.get(subdomain);
+  if (existing) {
+    existing.refCount += 1;
+    return () => {
+      releaseWatcher(subdomain);
+    };
+  }
+
+  const appDir = createAppConfig({ subdomain, workspaceConfig }).appDir;
+  let resolveReady: () => void = noop;
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = () => {
+      resolve();
+    };
+  });
+  const entry: WatcherEntry = {
+    appDir,
+    baseDir: appDir,
+    captureException: workspaceConfig.captureException,
+    debounceTimer: null,
+    disposed: false,
+    fallbackTimer: null,
+    ignore: null,
+    index: new Map(),
+    pendingPaths: new Set(),
+    ready,
+    refCount: 1,
+    resolveReady,
+    seeded: false,
+    subdomain,
+    subscription: null,
+    turns: new Map(),
+  };
+  registry.set(subdomain, entry);
+
+  void initWatcher(entry);
+
+  return () => {
+    releaseWatcher(subdomain);
+  };
+}
+
+// Reflects a single changed absolute path into the index. Returns true when the
+// index actually changed.
+async function applyChangedPath(
+  entry: WatcherEntry,
+  absPath: string,
+): Promise<boolean> {
+  const relative = toRelative(entry, absPath);
+  if (relative === undefined || !entry.ignore) {
+    return false;
+  }
+
+  const key = `./${relative}`;
+  if (entry.ignore.ignores(relative) || entry.ignore.ignores(`${relative}/`)) {
+    return deleteSubtree(entry, key);
+  }
+
+  try {
+    const stats = await fs.lstat(absPath);
+    if (stats.isSymbolicLink() || !stats.isFile()) {
+      return false;
+    }
+    const previous = entry.index.get(key);
+    if (!previous && entry.index.size >= MAX_PROJECT_FILE_INDEX_FILES) {
+      return false;
+    }
+    if (
+      previous &&
+      previous.size === stats.size &&
+      previous.mtimeMs === stats.mtimeMs
+    ) {
+      return false;
+    }
+    entry.index.set(key, {
+      filename: path.basename(relative),
+      filePath: RelativePathSchema.parse(key),
+      mimeType: getMimeType(relative),
+      mtimeMs: stats.mtimeMs,
+      size: stats.size,
+    });
+    return true;
+  } catch {
+    // Missing path: the file (or a directory) was removed.
+    return deleteSubtree(entry, key);
+  }
+}
+
+function deleteSubtree(entry: WatcherEntry, key: string): boolean {
+  let changed = entry.index.delete(key);
+  const prefix = `${key}/`;
+  for (const existing of entry.index.keys()) {
+    if (existing.startsWith(prefix)) {
+      entry.index.delete(existing);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+async function flush(entry: WatcherEntry) {
+  if (isDisposed(entry)) {
+    return;
+  }
+  const paths = [...entry.pendingPaths];
+  entry.pendingPaths.clear();
+
+  // A .gitignore change can alter which files are visible; rebuild the ignore
+  // matcher and re-walk rather than reasoning about every affected path.
+  if (paths.some((p) => path.basename(p) === ".gitignore")) {
+    await refreshIndex(entry);
+    return;
+  }
+
+  let changed = false;
+  for (const absPath of paths) {
+    try {
+      if (await applyChangedPath(entry, absPath)) {
+        changed = true;
+      }
+    } catch (error) {
+      entry.captureException(error);
+    }
+  }
+
+  if (changed && !isDisposed(entry)) {
+    publisher.publish("project.files.changed", { subdomain: entry.subdomain });
+  }
+}
+
+async function initWatcher(entry: WatcherEntry) {
+  try {
+    entry.baseDir = await fs.realpath(entry.appDir).catch(() => entry.appDir);
+    await reseed(entry);
+  } catch (error) {
+    entry.captureException(error);
+  }
+  // Unblock turn baseline capture once seeding has run (success or failure).
+  entry.resolveReady();
+  if (isDisposed(entry)) {
+    return;
+  }
+
+  // Sync any live subscriber to the freshly seeded index, closing the window
+  // between the subscriber's initial walk and the first watcher event.
+  if (entry.seeded) {
+    publisher.publish("project.files.changed", { subdomain: entry.subdomain });
+  }
+
+  const parcel = await loadParcelWatcher();
+  if (isDisposed(entry)) {
+    return;
+  }
+
+  if (!parcel) {
+    // No native binding: degrade to a low-frequency re-walk so the live
+    // subscription still reflects changes (only while a watcher is held).
+    entry.fallbackTimer = setInterval(() => {
+      void refreshIndex(entry);
+    }, FALLBACK_POLL_MS);
+    return;
+  }
+
+  try {
+    const subscription = await parcel.subscribe(
+      entry.baseDir,
+      (error, events) => {
+        if (error || isDisposed(entry)) {
+          return;
+        }
+        for (const event of events) {
+          entry.pendingPaths.add(event.path);
+        }
+        scheduleFlush(entry);
+      },
+      { ignore: INTERNAL_IGNORE_PATTERNS },
+    );
+    if (isDisposed(entry)) {
+      await subscription.unsubscribe().catch(noop);
+      return;
+    }
+    entry.subscription = subscription;
+  } catch (error) {
+    entry.captureException(error);
+  }
+}
+
+function isDisposed(entry: WatcherEntry): boolean {
+  return entry.disposed;
+}
+
+function loadParcelWatcher(): Promise<ParcelWatcherApi | undefined> {
+  parcelPromise ??= (async () => {
+    try {
+      const mod = await import("@parcel/watcher");
+      // CJS/ESM interop: the API is exposed on `default` under some modes and
+      // at the top level under others.
+      return (mod as { default?: ParcelWatcherApi }).default ?? mod;
+    } catch {
+      return;
+    }
+  })();
+  return parcelPromise;
+}
+
+// Re-walks disk to make the index authoritative, publishing if it changed, and
+// returns the refreshed index. Used both for live refreshes (gitignore change,
+// native-binding fallback) and for the authoritative turn-end diff.
+async function refreshIndex(entry: WatcherEntry): Promise<ProjectFileIndex> {
+  const before = projectFilesFromIndex(entry.index);
+  await reseed(entry);
+  if (
+    !isDisposed(entry) &&
+    JSON.stringify(before) !==
+      JSON.stringify(projectFilesFromIndex(entry.index))
+  ) {
+    publisher.publish("project.files.changed", { subdomain: entry.subdomain });
+  }
+  return entry.index;
+}
+
+function releaseWatcher(subdomain: ProjectSubdomain) {
+  const entry = registry.get(subdomain);
+  if (!entry) {
+    return;
+  }
+  entry.refCount -= 1;
+  if (entry.refCount > 0) {
+    return;
+  }
+  entry.disposed = true;
+  registry.delete(subdomain);
+  if (entry.debounceTimer) {
+    clearTimeout(entry.debounceTimer);
+  }
+  if (entry.fallbackTimer) {
+    clearInterval(entry.fallbackTimer);
+  }
+  entry.subscription?.unsubscribe().catch(noop);
+}
+
+async function reseed(entry: WatcherEntry) {
+  entry.ignore = await getIgnore(entry.appDir);
+  entry.ignore.add(INTERNAL_IGNORE_PATTERNS);
+  const result = await getProjectFileIndex(entry.appDir);
+  if (isDisposed(entry)) {
+    return;
+  }
+  if (result.isErr()) {
+    entry.captureException(result.error);
+    return;
+  }
+  entry.index = result.value;
+  entry.seeded = true;
+}
+
+function scheduleFlush(entry: WatcherEntry) {
+  if (entry.debounceTimer) {
+    clearTimeout(entry.debounceTimer);
+  }
+  entry.debounceTimer = setTimeout(() => {
+    entry.debounceTimer = null;
+    void flush(entry);
+  }, DEBOUNCE_MS);
+}
+
+// Resolves an absolute event path to a POSIX path relative to the task dir,
+// tolerating both the canonical and the original spelling of the base dir.
+function toRelative(entry: WatcherEntry, absPath: string): string | undefined {
+  for (const base of new Set([entry.appDir, entry.baseDir])) {
+    const relative = normalizePath(path.relative(base, absPath));
+    if (relative && relative !== "." && !relative.startsWith("..")) {
+      return relative;
+    }
+  }
+  return undefined;
+}

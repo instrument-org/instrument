@@ -40,6 +40,7 @@ const config: KnipConfig = {
         "dugite", // Needed to ensure the git binary is available
         "babel-plugin-react-compiler", // Used in electron.vite.config.ts as Babel plugin
         "agent-browser", // Imported in Vite build to resolve the binary path
+        "@parcel/watcher", // Needed for electron.vite.config.ts to build
       ],
       paths: {
         "@/*": ["src/*"],

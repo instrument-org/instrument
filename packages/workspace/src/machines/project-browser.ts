@@ -10,10 +10,15 @@ import {
 } from "xstate";
 
 import { closeAgentBrowserSessionsForSessions } from "../lib/agent-browser-cleanup";
+import { startWatchingProjectFiles } from "../lib/project-file-watcher";
 import { type AbsolutePath } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type ProjectSubdomain } from "../schemas/subdomains";
-import { type BrowserConfig, type BrowserTargetId } from "../types";
+import {
+  type BrowserConfig,
+  type BrowserTargetId,
+  type WorkspaceConfig,
+} from "../types";
 
 export const AGENT_IDLE_TIMEOUT_MS = ms("1 hour");
 export const USER_PRESENCE_TIMEOUT_MS = ms("5 minutes");
@@ -46,6 +51,7 @@ interface ProjectBrowserContext {
   // Targets we've already spawned a destruction watcher for. Used to gate
   // duplicate spawns on subsequent updateCdpHeartbeats for the same target.
   watchedTargets: Set<BrowserTargetId>;
+  workspaceConfig: WorkspaceConfig;
 }
 
 type ProjectBrowserEvent =
@@ -77,6 +83,20 @@ const watchTargetDestructionLogic = fromCallback<
       type: "targetDestroyedExternally",
       value: { targetId: input.targetId },
     });
+  }),
+);
+
+// Watches the task's files on disk while the task is being viewed (the machine
+// is kept alive by the user-presence heartbeat). Maintains an incremental file
+// index and publishes `project.files.changed`; the disposer stops watching when
+// the machine leaves Active.
+const watchProjectFilesLogic = fromCallback<
+  ProjectBrowserEvent,
+  { subdomain: ProjectSubdomain; workspaceConfig: WorkspaceConfig }
+>(({ input }) =>
+  startWatchingProjectFiles({
+    subdomain: input.subdomain,
+    workspaceConfig: input.workspaceConfig,
   }),
 );
 
@@ -159,6 +179,7 @@ export const projectBrowserMachine = setup({
 
   actors: {
     destroyAndCloseLogic,
+    watchProjectFilesLogic,
     watchTargetDestructionLogic,
   },
 
@@ -170,7 +191,11 @@ export const projectBrowserMachine = setup({
   types: {
     context: {} as ProjectBrowserContext,
     events: {} as ProjectBrowserEvent,
-    input: {} as { browser: BrowserConfig; subdomain: ProjectSubdomain },
+    input: {} as {
+      browser: BrowserConfig;
+      subdomain: ProjectSubdomain;
+      workspaceConfig: WorkspaceConfig;
+    },
   },
 }).createMachine({
   context: ({ input }) => ({
@@ -180,11 +205,19 @@ export const projectBrowserMachine = setup({
     partitionDir: null,
     subdomain: input.subdomain,
     watchedTargets: new Set<BrowserTargetId>(),
+    workspaceConfig: input.workspaceConfig,
   }),
   id: "projectBrowser",
   initial: "Active",
   states: {
     Active: {
+      invoke: {
+        input: ({ context }) => ({
+          subdomain: context.subdomain,
+          workspaceConfig: context.workspaceConfig,
+        }),
+        src: "watchProjectFilesLogic",
+      },
       on: {
         attachAgentSession: {
           actions: {

@@ -41,6 +41,7 @@
     "@instrument-org/shared": "workspace:*",
     "@netlify/build-info": "^10.0.9",
     "@orpc/server": "catalog:",
+    "@parcel/watcher": "2.5.1",
     "@types/ws": "^8.18.1",
     "@vscode/ripgrep": "^1.18.0",
     "@zip.js/zip.js": "^2.8.14",
@@ -89,6 +90,16 @@
     "typescript": "catalog:",
     "undici": "^8.1.0",
     "vitest": "catalog:"
+  },
+  "optionalDependencies": {
+    "@parcel/watcher-darwin-arm64": "2.5.1",
+    "@parcel/watcher-darwin-x64": "2.5.1",
+    "@parcel/watcher-linux-arm64-glibc": "2.5.1",
+    "@parcel/watcher-linux-arm64-musl": "2.5.1",
+    "@parcel/watcher-linux-x64-glibc": "2.5.1",
+    "@parcel/watcher-linux-x64-musl": "2.5.1",
+    "@parcel/watcher-win32-arm64": "2.5.1",
+    "@parcel/watcher-win32-x64": "2.5.1"
   },
   "engines": {
     "node": ">=24.15.0"

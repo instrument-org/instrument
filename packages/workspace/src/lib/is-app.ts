@@ -3,8 +3,6 @@ import {
   PreviewSubdomainSchema,
   type ProjectSubdomain,
   ProjectSubdomainSchema,
-  type SandboxSubdomain,
-  SandboxSubdomainSchema,
 } from "../schemas/subdomains";
 
 export function isPreviewSubdomain(
@@ -17,10 +15,4 @@ export function isProjectSubdomain(
   subdomain: string,
 ): subdomain is ProjectSubdomain {
   return ProjectSubdomainSchema.safeParse(subdomain).success;
-}
-
-export function isSandboxSubdomain(
-  subdomain: string,
-): subdomain is SandboxSubdomain {
-  return SandboxSubdomainSchema.safeParse(subdomain).success;
 }

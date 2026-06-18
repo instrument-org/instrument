@@ -2,27 +2,22 @@ import {
   type WorkspaceApp,
   type WorkspaceAppPreview,
   type WorkspaceAppProject,
-  type WorkspaceAppSandbox,
 } from "../schemas/app";
 import {
   type AppSubdomain,
   type PreviewSubdomain,
   type ProjectSubdomain,
-  type SandboxSubdomain,
 } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { createAppConfig } from "./app-config/create";
 import { getAppDirTimestamps } from "./get-app-dir-timestamps";
-import { projectSubdomainForSubdomain } from "./project-subdomain-for-subdomain";
 import { urlsForSubdomain } from "./url-for-subdomain";
 
 type GetWorkspaceAppResult<T extends AppSubdomain> = T extends PreviewSubdomain
   ? WorkspaceAppPreview
   : T extends ProjectSubdomain
     ? WorkspaceAppProject
-    : T extends SandboxSubdomain
-      ? WorkspaceAppSandbox
-      : WorkspaceApp;
+    : WorkspaceApp;
 
 export async function getWorkspaceAppForSubdomain<T extends AppSubdomain>(
   subdomain: T,
@@ -40,21 +35,6 @@ export async function getWorkspaceAppForSubdomain<T extends AppSubdomain>(
     updatedAt: timestamps.updatedAt,
     urls: urlsForSubdomain(appConfig.subdomain),
   };
-
-  if (appConfig.type === "sandbox") {
-    const projectSubdomain = projectSubdomainForSubdomain(appConfig.subdomain);
-    const project = await getWorkspaceAppForSubdomain(
-      projectSubdomain,
-      workspaceConfig,
-    );
-
-    return {
-      ...baseApp,
-      project,
-      subdomain: appConfig.subdomain,
-      type: "sandbox",
-    } satisfies WorkspaceAppSandbox as unknown as GetWorkspaceAppResult<T>;
-  }
 
   if (appConfig.type === "preview") {
     return {

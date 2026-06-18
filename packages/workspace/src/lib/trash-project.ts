@@ -4,12 +4,10 @@ import fs from "node:fs/promises";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
-import { type AppDir } from "../schemas/paths";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { createAppConfig } from "./app-config/create";
-import { getSandboxesDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import {
@@ -67,8 +65,6 @@ export async function trashProject({
           await rmrf(nodeModulesPath);
         }
 
-        await removeSandboxNodeModules(appConfig.appDir);
-
         const disposeResult = await disposeSessionsStoreStorage(subdomain);
         if (disposeResult.isErr()) {
           return err(disposeResult.error);
@@ -95,29 +91,6 @@ export async function trashProject({
         { cause: error },
       ),
   );
-}
-
-async function removeSandboxNodeModules(appDir: AppDir): Promise<void> {
-  const sandboxesDir = getSandboxesDir(appDir);
-
-  if (!(await pathExists(sandboxesDir))) {
-    return;
-  }
-
-  const sandboxEntries = await fs.readdir(sandboxesDir, {
-    withFileTypes: true,
-  });
-
-  for (const entry of sandboxEntries) {
-    if (entry.isDirectory()) {
-      const sandboxPath = absolutePathJoin(sandboxesDir, entry.name);
-      const nodeModulesPath = absolutePathJoin(sandboxPath, "node_modules");
-
-      if (await pathExists(nodeModulesPath)) {
-        await rmrf(nodeModulesPath);
-      }
-    }
-  }
 }
 
 async function rmrf(path: string): Promise<void> {

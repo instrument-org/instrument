@@ -67,7 +67,13 @@ catalogs:
       specifier: ^4.1.13
       version: 4.2.1
 
+overrides:
+  '@electron/rebuild>node-abi': 4.31.0
+
 patchedDependencies:
+  '@parcel/watcher@2.5.1':
+    hash: 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
+    path: patches/@parcel__watcher@2.5.1.patch
   conf@14.0.0:
     hash: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
     path: patches/conf@14.0.0.patch
@@ -213,7 +219,7 @@ importers:
         version: 1.14.3(@opentelemetry/api@1.9.1)(@orpc/client@1.14.3(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.90.12)
       '@parcel/watcher':
         specifier: 2.5.1
-        version: 2.5.1
+        version: 2.5.1(patch_hash=70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b)
       '@tanstack/query-core':
         specifier: ^5.90.12
         version: 5.90.12
@@ -889,7 +895,7 @@ importers:
         version: 1.14.3(@opentelemetry/api@1.9.1)(crossws@0.3.4)(ws@8.20.1)
       '@parcel/watcher':
         specifier: 2.5.1
-        version: 2.5.1
+        version: 2.5.1(patch_hash=70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b)
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -7263,8 +7269,8 @@ packages:
     resolution: {integrity: sha512-KdHvFWZjEKDf0cakgFjebl371GPsISX2oZHcuyKqM7DtogIsHrqKeLTo8wBHxaXRAQlY2PsPlZmfo+9ZCxEREQ==}
     engines: {node: '>=10'}
 
-  node-abi@4.24.0:
-    resolution: {integrity: sha512-u2EC1CeNe25uVtX3EZbdQ275c74zdZmmpzrHEQh2aIYqoVjlglfUpOX9YY85x1nlBydEKDVaSmMNhR7N82Qj8A==}
+  node-abi@4.31.0:
+    resolution: {integrity: sha512-Erq5w/t3syw3s4sDsUaX4QttIdBPsGKTT1DTRsCkTonGggczhlDKm/wDX3o+HPJpQ41EjXCbcmXf0tgr5YZJXw==}
     engines: {node: '>=22.12.0'}
 
   node-addon-api@1.7.2:
@@ -10121,7 +10127,7 @@ snapshots:
       detect-libc: 2.1.2
       got: 11.8.6
       graceful-fs: 4.2.11
-      node-abi: 4.24.0
+      node-abi: 4.31.0
       node-api-version: 0.2.1
       node-gyp: 11.5.0
       ora: 5.4.1
@@ -10920,7 +10926,7 @@ snapshots:
   '@parcel/watcher-win32-x64@2.5.1':
     optional: true
 
-  '@parcel/watcher@2.5.1':
+  '@parcel/watcher@2.5.1(patch_hash=70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b)':
     dependencies:
       detect-libc: 1.0.3
       is-glob: 4.0.3
@@ -16355,7 +16361,7 @@ snapshots:
       semver: 7.8.0
     optional: true
 
-  node-abi@4.24.0:
+  node-abi@4.31.0:
     dependencies:
       semver: 7.8.0
 

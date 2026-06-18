@@ -66,7 +66,6 @@ type AttachedItem =
       mimeType: string;
       name: string;
       size: number;
-      source: "base64";
       type: "file";
       url?: string;
     }
@@ -76,7 +75,6 @@ type AttachedItem =
       name: string;
       path: string;
       size: number;
-      source: "path";
       type: "file";
       url?: string;
     }
@@ -227,7 +225,6 @@ export const PromptInput = ({
             name: file.name,
             path: filePath,
             size: file.size,
-            source: "path",
             type: "file",
           },
         ]);
@@ -247,7 +244,6 @@ export const PromptInput = ({
                 name: file.name,
                 path: filePath,
                 size: file.size,
-                source: "path",
                 type: "file",
                 url: dataUrl,
               }
@@ -257,7 +253,6 @@ export const PromptInput = ({
                 mimeType: file.type,
                 name: file.name,
                 size: file.size,
-                source: "base64",
                 type: "file",
                 url: shouldCreatePreview ? dataUrl : undefined,
               },
@@ -495,7 +490,6 @@ export const PromptInput = ({
             mimeType: "text/plain",
             name: filename,
             size: blob.size,
-            source: "base64",
             type: "file",
           },
         ]);

@@ -47,9 +47,20 @@ export const captureServerException: CaptureExceptionFunction = function (
     error.name = errorCode;
   }
 
+  // PostHog drops non-Error exceptions silently; wrap plain objects so we
+  // always get a real stack trace and the object's data as the message.
+  const capturedError =
+    error instanceof Error
+      ? error
+      : new Error(
+          typeof error === "object" && error !== null
+            ? JSON.stringify(error)
+            : String(error),
+        );
+
   const appStateStore = getAppStateStore();
   const telemetryId = appStateStore.get("telemetryId");
-  telemetry?.captureException(error, telemetryId, finalProperties);
+  telemetry?.captureException(capturedError, telemetryId, finalProperties);
   if (isDeveloperMode()) {
     /* eslint-disable no-console */
     const errorMessage = error instanceof Error ? error.message : String(error);

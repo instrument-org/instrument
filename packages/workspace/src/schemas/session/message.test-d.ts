@@ -52,6 +52,7 @@ describe("SessionMessage", () => {
                 filename: "test.txt",
                 filePath: RelativePathSchema.parse("test.txt"),
                 mimeType: "text/plain",
+                modifiedAt: 1_234_567_890,
                 size: 100,
                 status: "modified",
               },

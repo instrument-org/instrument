@@ -14,6 +14,7 @@ export namespace SessionMessageDataPart {
     filename: z.string(),
     filePath: RelativePathSchema,
     mimeType: z.string(),
+    modifiedAt: z.number(),
     size: z.number(),
     status: FileChangeStatusSchema,
   });
@@ -32,6 +33,7 @@ export namespace SessionMessageDataPart {
     filename: z.string(),
     filePath: RelativePathSchema,
     mimeType: z.string(),
+    modifiedAt: z.number(),
     size: z.number(),
   });
 

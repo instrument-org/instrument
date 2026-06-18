@@ -20,6 +20,7 @@ const filePathSchema = z
 
 export const artifactPanelSchema = z.object({
   filePath: filePathSchema,
+  modifiedAt: z.number().optional(),
   type: z.literal("file"),
 });
 

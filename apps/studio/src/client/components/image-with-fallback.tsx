@@ -45,7 +45,6 @@ export function ImageWithFallback({
       >
         <FileIcon
           className="size-6 text-muted-foreground"
-          fallbackExtension="jpg"
           filename={filename}
         />
       </div>

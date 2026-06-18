@@ -1,53 +1,33 @@
-import { CheckIcon, type Icon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
 import { type ComponentProps, useState } from "react";
 
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { IconButton } from "./icon-button";
 
 export function ConfirmedIconButton({
-  className = "h-6 w-6 p-0",
-  icon: Icon,
+  icon,
   onClick,
-  size = "sm",
   successTooltip = "Done!",
   tooltip,
-  variant = "ghost",
-  ...buttonProps
-}: ComponentProps<typeof Button> & {
-  icon: Icon;
+  ...rest
+}: ComponentProps<typeof IconButton> & {
   successTooltip?: string;
-  tooltip: string;
 }) {
-  const [actionState, setActionState] = useState<"idle" | "success">("idle");
+  const [success, setSuccess] = useState(false);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     onClick?.(e);
-    setActionState("success");
+    setSuccess(true);
     setTimeout(() => {
-      setActionState("idle");
+      setSuccess(false);
     }, 1000);
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          className={className}
-          onClick={handleClick}
-          size={size}
-          variant={variant}
-          {...buttonProps}
-        >
-          {actionState === "success" ? (
-            <CheckIcon className="size-3.5" />
-          ) : (
-            <Icon className="size-3.5" />
-          )}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{actionState === "success" ? successTooltip : tooltip}</p>
-      </TooltipContent>
-    </Tooltip>
+    <IconButton
+      icon={success ? CheckIcon : icon}
+      onClick={handleClick}
+      tooltip={success ? successTooltip : tooltip}
+      {...rest}
+    />
   );
 }

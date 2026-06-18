@@ -79,9 +79,9 @@ interface WatcherEntry {
   turns: Map<StoreId.Session, TurnTracker>;
 }
 
-const registry = new Map<ProjectSubdomain, WatcherEntry>();
+const REGISTRY = new Map<ProjectSubdomain, WatcherEntry>();
 
-let parcelPromise: Promise<ParcelWatcherApi | undefined> | undefined;
+let PARCEL_PROMISE: Promise<ParcelWatcherApi | undefined> | undefined;
 
 /**
  * Starts tracking on-disk changes for a turn. Holds a watcher open for the
@@ -99,7 +99,7 @@ export async function beginTurnChangeTracking({
   workspaceConfig: WorkspaceConfig;
 }): Promise<void> {
   const release = startWatchingProjectFiles({ subdomain, workspaceConfig });
-  const entry = registry.get(subdomain);
+  const entry = REGISTRY.get(subdomain);
   if (!entry) {
     release();
     return;
@@ -132,7 +132,7 @@ export async function consumeTurnChanges({
   sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
 }): Promise<ProjectFileChange[]> {
-  const entry = registry.get(subdomain);
+  const entry = REGISTRY.get(subdomain);
   const turn = entry?.turns.get(sessionId);
   if (!entry || !turn) {
     return [];
@@ -157,7 +157,7 @@ export async function consumeTurnChanges({
 export function getCurrentProjectFiles(
   subdomain: ProjectSubdomain,
 ): ProjectFile[] | undefined {
-  const entry = registry.get(subdomain);
+  const entry = REGISTRY.get(subdomain);
   if (!entry?.seeded) {
     return undefined;
   }
@@ -177,7 +177,7 @@ export function startWatchingProjectFiles({
   subdomain: ProjectSubdomain;
   workspaceConfig: WorkspaceConfig;
 }): () => void {
-  const existing = registry.get(subdomain);
+  const existing = REGISTRY.get(subdomain);
   if (existing) {
     existing.refCount += 1;
     return () => {
@@ -210,7 +210,7 @@ export function startWatchingProjectFiles({
     subscription: null,
     turns: new Map(),
   };
-  registry.set(subdomain, entry);
+  REGISTRY.set(subdomain, entry);
 
   void initWatcher(entry);
 
@@ -219,8 +219,7 @@ export function startWatchingProjectFiles({
   };
 }
 
-// Reflects a single changed absolute path into the index. Returns true when the
-// index actually changed.
+/** Reflects a single changed absolute path into the index. Returns true when the index actually changed. */
 async function applyChangedPath(
   entry: WatcherEntry,
   absPath: string,
@@ -277,6 +276,7 @@ function deleteSubtree(entry: WatcherEntry, key: string): boolean {
   return changed;
 }
 
+/** Applies buffered path events to the index (or re-walks on a .gitignore change), then publishes if anything changed. */
 async function flush(entry: WatcherEntry) {
   if (isDisposed(entry)) {
     return;
@@ -307,6 +307,7 @@ async function flush(entry: WatcherEntry) {
   }
 }
 
+/** One-time setup for a new entry: seeds the index, then attaches a parcel subscription or the fallback poll. */
 async function initWatcher(entry: WatcherEntry) {
   try {
     entry.baseDir = await fs.realpath(entry.appDir).catch(() => entry.appDir);
@@ -369,7 +370,7 @@ function isDisposed(entry: WatcherEntry): boolean {
 }
 
 function loadParcelWatcher(): Promise<ParcelWatcherApi | undefined> {
-  parcelPromise ??= (async () => {
+  PARCEL_PROMISE ??= (async () => {
     try {
       const mod = await import("@parcel/watcher");
       // CJS/ESM interop: the API is exposed on `default` under some modes and
@@ -379,12 +380,10 @@ function loadParcelWatcher(): Promise<ParcelWatcherApi | undefined> {
       return;
     }
   })();
-  return parcelPromise;
+  return PARCEL_PROMISE;
 }
 
-// Re-walks disk to make the index authoritative, publishing if it changed, and
-// returns the refreshed index. Used both for live refreshes (gitignore change,
-// native-binding fallback) and for the authoritative turn-end diff.
+/** Re-walks disk to make the index authoritative, publishing if it changed, and returns the refreshed index. */
 async function refreshIndex(entry: WatcherEntry): Promise<ProjectFileIndex> {
   const before = projectFilesFromIndex(entry.index);
   await reseed(entry);
@@ -398,8 +397,9 @@ async function refreshIndex(entry: WatcherEntry): Promise<ProjectFileIndex> {
   return entry.index;
 }
 
+/** Drops a ref; tears down timers, the subscription, and the registry entry once the last holder releases. */
 function releaseWatcher(subdomain: ProjectSubdomain) {
-  const entry = registry.get(subdomain);
+  const entry = REGISTRY.get(subdomain);
   if (!entry) {
     return;
   }
@@ -408,7 +408,7 @@ function releaseWatcher(subdomain: ProjectSubdomain) {
     return;
   }
   entry.disposed = true;
-  registry.delete(subdomain);
+  REGISTRY.delete(subdomain);
   if (entry.debounceTimer) {
     clearTimeout(entry.debounceTimer);
   }
@@ -418,6 +418,7 @@ function releaseWatcher(subdomain: ProjectSubdomain) {
   entry.subscription?.unsubscribe().catch(noop);
 }
 
+/** Rebuilds the ignore matcher and walks disk to produce a fresh, authoritative index; marks the entry seeded. */
 async function reseed(entry: WatcherEntry) {
   entry.ignore = await getIgnore(entry.appDir);
   entry.ignore.add(INTERNAL_IGNORE_PATTERNS);
@@ -433,6 +434,7 @@ async function reseed(entry: WatcherEntry) {
   entry.seeded = true;
 }
 
+/** Restarts the debounce timer so a burst of events collapses into one flush. */
 function scheduleFlush(entry: WatcherEntry) {
   if (entry.debounceTimer) {
     clearTimeout(entry.debounceTimer);
@@ -443,8 +445,7 @@ function scheduleFlush(entry: WatcherEntry) {
   }, DEBOUNCE_MS);
 }
 
-// Resolves an absolute event path to a POSIX path relative to the task dir,
-// tolerating both the canonical and the original spelling of the base dir.
+/** Resolves an absolute event path to a POSIX path relative to the task dir, tolerating both the canonical and the original spelling of the base dir. */
 function toRelative(entry: WatcherEntry, absPath: string): string | undefined {
   for (const base of new Set([entry.appDir, entry.baseDir])) {
     const relative = normalizePath(path.relative(base, absPath));

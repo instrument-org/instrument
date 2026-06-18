@@ -30,7 +30,12 @@ import {
 import { z } from "zod";
 
 const projectSearchSchema = z.object({
-  artifactPanel: artifactPanelSchema.optional(),
+  // `.catch(undefined)` drops legacy persisted artifactPanel values (old
+  // `{ type: "app" }` panels and pre-`modifiedAt` file panels) instead of
+  // throwing in validateSearch. Safe to remove ~2026-07 once stale URLs/router
+  // state have aged out.
+  // eslint-disable-next-line unicorn/prefer-top-level-await
+  artifactPanel: artifactPanelSchema.optional().catch(undefined),
   selectedSessionId: StoreId.SessionSchema.optional(),
   showDelete: z.boolean().optional(),
   showDuplicate: z.boolean().optional(),

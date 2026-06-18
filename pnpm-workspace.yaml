@@ -50,8 +50,6 @@ ignoredOptionalDependencies:
   - node-liblzma
 
 minimumReleaseAge: 10080
-minimumReleaseAgeExclude:
-  - agent-browser
 
 overrides:
   "@electron/rebuild>node-abi": 4.31.0

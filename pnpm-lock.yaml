@@ -185,8 +185,8 @@ importers:
         specifier: ^5.2.8
         version: 5.2.8
       '@hono/node-server':
-        specifier: ^1.18.1
-        version: 1.18.1(hono@4.8.5)
+        specifier: ^2.0.4
+        version: 2.0.4(hono@4.8.5)
       '@instrument-org/ai-gateway':
         specifier: workspace:*
         version: link:../../packages/ai-gateway
@@ -873,8 +873,8 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@hono/node-server':
-        specifier: ^1.18.1
-        version: 1.18.1(hono@4.8.5)
+        specifier: ^2.0.4
+        version: 2.0.4(hono@4.8.5)
       '@instrument-org/ai-gateway':
         specifier: workspace:*
         version: link:../ai-gateway
@@ -1935,9 +1935,9 @@ packages:
   '@hexagon/base64@1.1.28':
     resolution: {integrity: sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw==}
 
-  '@hono/node-server@1.18.1':
-    resolution: {integrity: sha512-O3puG/b7owYYmoQ2XPBf3SxBz6Dhk5VmWFhbaBU8/5wcUaXUPS0goxaI2Zfyg+Cu14ILJHEU7IFRw7miFxuXxg==}
-    engines: {node: '>=18.14.1'}
+  '@hono/node-server@2.0.4':
+    resolution: {integrity: sha512-Ut3y0dMMPWy6bZ2kVfx25EOVbZlm15dhF4mOsezMlhpNHy+4MkU1qN9Y6lnruYi4wPmFzimGX2X7LF/FwHli4A==}
+    engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
 
@@ -10333,7 +10333,7 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hono/node-server@1.18.1(hono@4.8.5)':
+  '@hono/node-server@2.0.4(hono@4.8.5)':
     dependencies:
       hono: 4.8.5
 

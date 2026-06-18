@@ -11,7 +11,6 @@ import {
 import { type AbsolutePath } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ProjectSubdomainSchema } from "../schemas/subdomains";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
 import {
   type BrowserConfig,
   type BrowserTargetId,
@@ -49,13 +48,6 @@ vi.mock(import("../lib/agent-browser-cleanup"), () => ({
   closeAllAgentBrowserSessions: vi.fn(asyncNoop),
 }));
 
-vi.mock(import("../lib/project-file-watcher"), () => ({
-  getCurrentProjectFiles: vi.fn(),
-  startWatchingProjectFiles: vi.fn(() => () => {
-    // no-op disposer
-  }),
-}));
-
 const { closeAgentBrowserSessionsForSessions } = await import(
   "../lib/agent-browser-cleanup"
 );
@@ -81,7 +73,6 @@ function makeBrowser(): BrowserConfig {
 
 const subdomain = ProjectSubdomainSchema.parse("test-project");
 const partitionDir = "/tmp/partition" as AbsolutePath;
-const workspaceConfig = createMockAppConfig(subdomain).workspaceConfig;
 
 interface Harness {
   actor: ActorRefFrom<typeof projectBrowserMachine>;
@@ -106,7 +97,7 @@ function spawnHarness(): Harness {
     context: ({ spawn }) => ({
       childRef: spawn("projectBrowserMachine", {
         id: "child",
-        input: { browser, subdomain, workspaceConfig },
+        input: { browser, subdomain },
       }),
     }),
     id: "harnessParent",
@@ -156,34 +147,78 @@ describe("projectBrowserMachine", () => {
     expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
   });
 
-  it("user presence timer reaps after USER_PRESENCE_TIMEOUT_MS", async () => {
-    const { actor } = spawnHarness();
-
-    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS);
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(actor.getSnapshot().value).toBe("Stopped");
-  });
-
-  it("updateUserHeartbeat resets only the user timer, not the agent timer", async () => {
+  it("reaps after agent inactivity even while presence is acquired", async () => {
     const { actor, browser } = spawnHarness();
 
     actor.send({
       type: "updateCdpHeartbeat",
       value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
     });
+    actor.send({ type: "acquirePresence" });
 
-    // Pump heartbeats until just past the agent deadline.
-    const tick = USER_PRESENCE_TIMEOUT_MS / 2;
-    let elapsed = 0;
-    while (elapsed < AGENT_IDLE_TIMEOUT_MS) {
-      await vi.advanceTimersByTimeAsync(tick);
-      actor.send({ type: "updateUserHeartbeat" });
-      elapsed += tick;
-    }
-
+    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS);
     await waitFor(actor, (s) => s.status === "done");
-    expect(browser.closeTarget).toHaveBeenCalledTimes(1);
+
+    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
+  });
+
+  it("browser activity resets the idle timer while presence is acquired", async () => {
+    const { actor, browser } = spawnHarness();
+
+    actor.send({
+      type: "updateCdpHeartbeat",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+    actor.send({ type: "acquirePresence" });
+
+    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS / 2);
+    actor.send({
+      type: "updateCdpHeartbeat",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS / 2);
+
+    expect(actor.getSnapshot().value).toBe("Observed");
+    expect(browser.closeTarget).not.toHaveBeenCalled();
+  });
+
+  it("reaps after the last presence release and grace period", async () => {
+    const { actor, browser } = spawnHarness();
+
+    actor.send({
+      type: "updateCdpHeartbeat",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+    actor.send({ type: "acquirePresence" });
+    actor.send({ type: "acquirePresence" });
+    actor.send({ type: "releasePresence" });
+
+    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS);
+    expect(actor.getSnapshot().value).toBe("Observed");
+
+    actor.send({ type: "releasePresence" });
+    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS);
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
+  });
+
+  it("cancels the grace period when presence is reacquired", async () => {
+    const { actor, browser } = spawnHarness();
+
+    actor.send({
+      type: "updateCdpHeartbeat",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+    actor.send({ type: "acquirePresence" });
+    actor.send({ type: "releasePresence" });
+
+    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS / 2);
+    actor.send({ type: "acquirePresence" });
+    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS);
+
+    expect(actor.getSnapshot().value).toBe("Observed");
+    expect(browser.closeTarget).not.toHaveBeenCalled();
   });
 
   it("reap closes targets, runs daemon cleanup, and notifies parent", async () => {

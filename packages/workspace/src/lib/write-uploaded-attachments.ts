@@ -240,7 +240,7 @@ function prepareUploadedFiles({
       }
 
       const relativePath = RelativePathSchema.parse(
-        `./${APP_FOLDER_NAMES.userProvided}/${uniqueFilename}`,
+        `${APP_FOLDER_NAMES.userProvided}/${uniqueFilename}`,
       );
 
       preparedFiles.push({

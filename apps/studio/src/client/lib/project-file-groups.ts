@@ -13,7 +13,7 @@ const PROMINENT_TOP_LEVEL_DIRS = new Set([
 ]);
 
 export function isUnknownTopLevelDirFile(filePath: string): boolean {
-  const parts = filePath.replace(/^\.\//, "").split("/");
+  const parts = filePath.split("/");
   if (parts.length < 2) {
     return false;
   }
@@ -54,10 +54,10 @@ export function hasVisibleProjectFiles(
 }
 
 export function shouldFilterProjectFile(filePath: string): boolean {
-  if (filePath.startsWith("./patches/") || filePath.startsWith("./tmp/")) {
+  if (filePath.startsWith("patches/") || filePath.startsWith("tmp/")) {
     return true;
   }
-  const isRootFile = !filePath.slice(2).includes("/");
+  const isRootFile = !filePath.includes("/");
   if (!isRootFile) {
     return false;
   }

@@ -101,7 +101,7 @@ interface PromptInputProps {
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onStop?: () => void;
   onSubmit: (value: {
-    files?: FileUpload.Type[];
+    files?: FileUpload.Input[];
     folders?: { path: string }[];
     modelURI: AIGatewayModelURI.Type;
     openInNewTab?: boolean;

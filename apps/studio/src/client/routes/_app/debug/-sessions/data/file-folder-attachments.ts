@@ -3,7 +3,6 @@ import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { registerSession, SessionBuilder } from "../helpers";
 
 const builder = new SessionBuilder();
-const GIT_REF = "debug-files-grid-001";
 
 // Mock paths only; RelativePath assertions avoid client-side schema validation.
 function mockFile({
@@ -20,7 +19,6 @@ function mockFile({
   return {
     filename,
     filePath: filePath as never,
-    gitRef: GIT_REF,
     mimeType,
     size,
   };

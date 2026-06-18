@@ -7,7 +7,6 @@ export interface ProjectFileViewerFile {
   mimeType: string;
   projectSubdomain: ProjectSubdomain;
   url: string;
-  versionRef?: string;
 }
 
 interface ProjectFileViewerState {

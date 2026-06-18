@@ -7,24 +7,12 @@ import path from "node:path";
 import { Readable } from "node:stream";
 
 import { getMimeType } from "../../lib/get-mime-type";
-import { git } from "../../lib/git";
-import { GitCommands } from "../../lib/git/commands";
-import { normalizePath } from "../../lib/normalize-path";
-import { type AbsolutePath } from "../../schemas/paths";
 
 interface ServeStaticFileOptions {
-  /**
-   * App directory (git repository root) for git operations
-   */
-  appDir: AbsolutePath;
   /**
    * Absolute path to the file to serve
    */
   filePath: string;
-  /**
-   * Git reference (commit hash) to read file from. If provided, file will be read from git instead of disk.
-   */
-  gitRef?: string;
   /**
    * Index file name for directory requests (default: 'index.html')
    */
@@ -33,10 +21,6 @@ interface ServeStaticFileOptions {
    * Whether to support precompressed files
    */
   precompressed?: boolean;
-  /**
-   * Relative path within the app directory for git operations
-   */
-  relativePath: string;
 }
 
 const COMPRESSIBLE_CONTENT_TYPE_REGEX =
@@ -67,25 +51,8 @@ const getStats = (filePath: string): Stats | undefined => {
 
 const getFileBuffer = async (
   filePath: string,
-  gitRef: string | undefined,
-  appDir: AbsolutePath,
-  relativePath: string,
   signal?: AbortSignal,
 ): Promise<Buffer | null> => {
-  if (gitRef) {
-    const gitResult = await git(
-      GitCommands.showFile(gitRef, relativePath),
-      appDir,
-      { signal },
-    );
-
-    if (gitResult.isErr()) {
-      return null;
-    }
-
-    return gitResult.value.stdout;
-  }
-
   try {
     return await fs.readFile(filePath, { signal });
   } catch {
@@ -120,102 +87,60 @@ export async function serveStaticFile<E extends Env = Env>(
 ) {
   const signal = c.req.raw.signal;
   let filePath = options.filePath;
-  let relativePath = options.relativePath;
   let stats: Stats | undefined;
   let fileBuffer: Buffer | null = null;
 
-  // For git-based reading, we need to check if it's a directory first
-  if (options.gitRef) {
-    // Try to read as file first
-    fileBuffer = await getFileBuffer(
-      filePath,
-      options.gitRef,
-      options.appDir,
-      relativePath,
-      signal,
-    );
+  stats = getStats(filePath);
 
-    if (!fileBuffer) {
-      // Try as directory with index file
-      const indexFile = options.index ?? "index.html";
-      const indexRelativePath = normalizePath(
-        path.join(relativePath, indexFile),
-      );
-      fileBuffer = await getFileBuffer(
-        path.join(filePath, indexFile),
-        options.gitRef,
-        options.appDir,
-        indexRelativePath,
-        signal,
-      );
-
-      if (fileBuffer) {
-        filePath = path.join(filePath, indexFile);
-        relativePath = indexRelativePath;
-      }
-    }
-  } else {
-    // For disk-based reading, check stats first
+  if (stats?.isDirectory()) {
+    const indexFile = options.index ?? "index.html";
+    filePath = path.join(filePath, indexFile);
     stats = getStats(filePath);
+  }
 
-    if (stats?.isDirectory()) {
-      const indexFile = options.index ?? "index.html";
-      filePath = path.join(filePath, indexFile);
-      relativePath = normalizePath(path.join(relativePath, indexFile));
-      stats = getStats(filePath);
-    }
+  if (!stats) {
+    return null;
+  }
 
-    if (!stats) {
-      return null;
-    }
+  // Check for precompressed files
+  if (options.precompressed) {
+    const mimeType = getMimeType(filePath);
+    if (!mimeType || COMPRESSIBLE_CONTENT_TYPE_REGEX.test(mimeType)) {
+      const acceptEncodingSet = new Set(
+        c.req
+          .header("Accept-Encoding")
+          ?.split(",")
+          .map((encoding) => encoding.trim()),
+      );
 
-    // Check for precompressed files
-    if (options.precompressed) {
-      const mimeType = getMimeType(filePath);
-      if (!mimeType || COMPRESSIBLE_CONTENT_TYPE_REGEX.test(mimeType)) {
-        const acceptEncodingSet = new Set(
-          c.req
-            .header("Accept-Encoding")
-            ?.split(",")
-            .map((encoding) => encoding.trim()),
-        );
-
-        for (const encoding of ENCODINGS_ORDERED_KEYS) {
-          if (!acceptEncodingSet.has(encoding)) {
-            continue;
-          }
-          const precompressedPath = filePath + ENCODINGS[encoding];
-          const precompressedStats = getStats(precompressedPath);
-          if (precompressedStats) {
-            c.header("Content-Encoding", encoding);
-            c.header("Vary", "Accept-Encoding", { append: true });
-            stats = precompressedStats;
-            filePath = precompressedPath;
-            break;
-          }
+      for (const encoding of ENCODINGS_ORDERED_KEYS) {
+        if (!acceptEncodingSet.has(encoding)) {
+          continue;
+        }
+        const precompressedPath = filePath + ENCODINGS[encoding];
+        const precompressedStats = getStats(precompressedPath);
+        if (precompressedStats) {
+          c.header("Content-Encoding", encoding);
+          c.header("Vary", "Accept-Encoding", { append: true });
+          stats = precompressedStats;
+          filePath = precompressedPath;
+          break;
         }
       }
     }
   }
 
-  // Get file buffer if not already loaded (for git) or if we need it for range requests
+  // Get file buffer if we need it for range requests
   const rangeHeader = c.req.header("range");
-  const needsBuffer = options.gitRef || rangeHeader;
 
-  if (needsBuffer && !fileBuffer) {
-    fileBuffer = await getFileBuffer(
-      filePath,
-      options.gitRef,
-      options.appDir,
-      relativePath,
-      signal,
-    );
+  if (rangeHeader) {
+    fileBuffer = await getFileBuffer(filePath, signal);
     if (!fileBuffer) {
       return null;
     }
   }
 
-  const size = fileBuffer ? fileBuffer.length : (stats?.size ?? 0);
+  const size = fileBuffer ? fileBuffer.length : stats.size;
   const mimeType = getMimeType(filePath);
   c.header("Content-Type", mimeType);
   c.header("Accept-Ranges", "bytes");
@@ -237,33 +162,14 @@ export async function serveStaticFile<E extends Env = Env>(
     const chunkSize = end - start + 1;
 
     if (fileBuffer) {
-      // For git-based or when buffer is already loaded
       const chunk = fileBuffer.subarray(start, end + 1);
       c.header("Content-Length", chunkSize.toString());
       c.header("Content-Range", `bytes ${start}-${end}/${size}`);
       return c.body(chunk, 206);
     }
-
-    // For disk-based with range
-    if (stats) {
-      c.header("Date", stats.birthtime.toUTCString());
-      const stream = createReadStream(filePath, { end, start });
-      c.header("Content-Length", chunkSize.toString());
-      c.header("Content-Range", `bytes ${start}-${end}/${size}`);
-      return c.body(createStreamBody(stream), 206);
-    }
   }
 
   // Full file response
-  if (fileBuffer) {
-    c.header("Content-Length", size.toString());
-    return c.body(fileBuffer, 200);
-  }
-
-  if (stats) {
-    c.header("Content-Length", size.toString());
-    return c.body(createStreamBody(createReadStream(filePath)), 200);
-  }
-
-  return null;
+  c.header("Content-Length", size.toString());
+  return c.body(createStreamBody(createReadStream(filePath)), 200);
 }

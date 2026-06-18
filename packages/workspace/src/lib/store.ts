@@ -5,6 +5,7 @@ import { publisher } from "../rpc/publisher";
 import { Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
+import { SessionMessageRelaxedPart } from "../schemas/session/message-relaxed-part";
 import { type StoreId } from "../schemas/store-id";
 import { type AppConfig } from "./app-config/types";
 import { TypedError } from "./errors";
@@ -198,14 +199,24 @@ export namespace Store {
           const partKey = StorageKey.part(sessionId, messageId, partId);
           return getParsedStorageItem(
             partKey,
-            SessionMessagePart.CoercedSchema,
+            SessionMessageRelaxedPart.Schema,
             storage,
             { signal },
           );
         },
       );
 
-      return Result.combine(partResults);
+      const relaxedParts = yield* Result.combine(partResults);
+
+      // Sessions predating the git-to-disk-files migration may still have
+      // gitCommit parts on disk; drop them here so nothing downstream needs
+      // to know they ever existed.
+      // Remove after 2026-07-18
+      return ok(
+        relaxedParts
+          .filter((part) => part.type !== "data-gitCommit")
+          .map((part) => SessionMessagePart.coerce(part)),
+      );
     });
   }
 

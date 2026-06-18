@@ -7,11 +7,11 @@ import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 // cspell:ignore devstral
 const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
   "claude-sonnet-4.6": ["default"],
-  "devstral-medium-2507": ["coding", "recommended"],
-  "gemini-2.5-flash": ["recommended"],
+  "devstral-2512": ["coding", "recommended"],
   "gemini-2.5-pro": ["coding"],
-  "kimi-k2-0905": ["coding", "recommended"],
+  "grok-build-0.1": ["coding", "recommended"],
   "qwen3-coder": ["coding", "recommended"],
+  "qwen3-coder-next": ["coding", "recommended"],
   "qwen3-coder-plus": ["coding", "recommended"],
   "qwen3-max": ["coding"],
   "qwen-3-coder-480b": ["coding", "recommended"],
@@ -21,12 +21,13 @@ const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
 const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
   Record<AIGatewayProviderConfig.Type["type"], string[]>
 > = {
+  anthropic: ["claude-sonnet-4.6"],
   cerebras: ["glm-4.7", "gpt-oss-120b"],
-  google: ["gemini-3.1-pro", "gemini-3.1-pro-preview"],
+  google: ["gemini-3.5-flash"],
   groq: ["gpt-oss-120b"],
-  openai: ["gpt-5.3-codex"],
+  openai: ["gpt-5.4"],
   "x-ai": ["grok-4.3"],
-  "z-ai": ["glm-4.6"],
+  "z-ai": ["glm-5"],
 };
 
 export function addHeuristicTags(
@@ -47,7 +48,10 @@ export function addHeuristicTags(
     tags.push("legacy");
   }
 
-  if (config.type === "openai-compatible" && canonicalId.endsWith("-codex")) {
+  if (
+    (config.type === "openai" || config.type === "openai-compatible") &&
+    canonicalId.endsWith("-codex")
+  ) {
     tags = tags.filter((tag) => tag !== "recommended" && tag !== "default");
   }
 
@@ -159,6 +163,10 @@ function isLegacy(canonicalId: AIGatewayModel.CanonicalId): boolean {
   }
 
   if (canonicalId.startsWith("claude-3")) {
+    return true;
+  }
+
+  if (canonicalId.startsWith("gemini-2.5")) {
     return true;
   }
 

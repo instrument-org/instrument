@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  isPreviewSubdomain,
-  isProjectSubdomain,
-  isSandboxSubdomain,
-} from "./is-app";
+import { isPreviewSubdomain, isProjectSubdomain } from "./is-app";
 
 describe("isPreviewSubdomain", () => {
   it.each([
@@ -29,20 +25,7 @@ describe("isProjectSubdomain", () => {
     ["sandbox-test.my-app", false],
     ["version-abc.my-app", false],
     ["preview", false],
-    ["sandbox-test", false],
   ])("should return %s for %s", (subdomain, expected) => {
     expect(isProjectSubdomain(subdomain)).toBe(expected);
-  });
-});
-
-describe("isSandboxSubdomain", () => {
-  it.each([
-    ["sandbox-test.my-app", true],
-    ["sandbox-123.project", true],
-    ["my-app", false],
-    ["my-app.preview", false],
-    ["version-abc.my-app", false],
-  ])("should return %s for %s", (subdomain, expected) => {
-    expect(isSandboxSubdomain(subdomain)).toBe(expected);
   });
 });

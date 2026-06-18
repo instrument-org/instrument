@@ -7,15 +7,6 @@ import {
 import { TypedError } from "./errors";
 
 export function folderNameForSubdomain(subdomain: AppSubdomain) {
-  // Handle sandbox subdomains which have format: sandbox-{name}.{project-subdomain}
-  if (subdomain.startsWith("sandbox-")) {
-    const [sandboxPart] = subdomain.split(".");
-    if (!sandboxPart) {
-      return err(new TypedError.Parse("Invalid sandbox format"));
-    }
-    return ok(sandboxPart.slice("sandbox-".length));
-  }
-
   // Handle preview subdomains which have format: {name}.preview
   if (subdomain.endsWith(`.${PREVIEW_SUBDOMAIN_PART}`)) {
     const [previewPart] = subdomain.split(".");

@@ -24,10 +24,6 @@ export function getBrowserSessionDir(appDir: AppDir): AbsolutePath {
   );
 }
 
-export function getSandboxesDir(appDir: AppDir): AbsolutePath {
-  return absolutePathJoin(getAppPrivateDir(appDir), "sandboxes");
-}
-
 export function isRunnable(appDir: AppDir): Promise<boolean> {
   return fs
     .access(path.join(appDir, "package.json"))

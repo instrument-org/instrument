@@ -33,6 +33,7 @@ const ProjectFileSchema = z.object({
   filename: z.string(),
   filePath: RelativePathSchema,
   mimeType: z.string(),
+  modifiedAt: z.number(),
   size: z.number(),
 });
 
@@ -41,11 +42,11 @@ export const ProjectFilesSchema = z.array(ProjectFileSchema);
 export const MAX_PROJECT_FILE_INDEX_FILES = 5000;
 
 export type ProjectFile = z.output<typeof ProjectFileSchema>;
-export interface ProjectFileChange extends ProjectFile {
+export type ProjectFileChange = ProjectFile & {
   status: "added" | "deleted" | "modified";
-}
+};
 export type ProjectFileIndex = Map<string, ProjectFileEntry>;
-type ProjectFileEntry = ProjectFile & {
+type ProjectFileEntry = Omit<ProjectFile, "modifiedAt"> & {
   mtimeMs: number;
 };
 
@@ -61,12 +62,12 @@ export function diffProjectFileIndexes({
   for (const [filePath, file] of after) {
     const previous = before.get(filePath);
     if (!previous) {
-      changes.push({ ...withoutMtime(file), status: "added" });
+      changes.push({ ...toProjectFile(file), status: "added" });
       continue;
     }
 
     if (previous.size !== file.size || previous.mtimeMs !== file.mtimeMs) {
-      changes.push({ ...withoutMtime(file), status: "modified" });
+      changes.push({ ...toProjectFile(file), status: "modified" });
     }
   }
 
@@ -74,7 +75,7 @@ export function diffProjectFileIndexes({
     if (after.has(filePath)) {
       continue;
     }
-    changes.push({ ...withoutMtime(file), status: "deleted" });
+    changes.push({ ...toProjectFile(file), status: "deleted" });
   }
 
   return changes.sort((a, b) => a.filePath.localeCompare(b.filePath));
@@ -197,13 +198,13 @@ export function outputArtifactPathsFromChanges(changes: ProjectFileChange[]) {
 
 export function projectFilesFromIndex(index: ProjectFileIndex): ProjectFile[] {
   return [...index.values()]
-    .map(({ mtimeMs: _mtimeMs, ...file }) => file)
+    .map(toProjectFile)
     .sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
-function withoutMtime({
-  mtimeMs: _mtimeMs,
-  ...file
-}: ProjectFileEntry): z.output<typeof ProjectFileSchema> {
-  return file;
+function toProjectFile({ mtimeMs, ...file }: ProjectFileEntry): ProjectFile {
+  return {
+    ...file,
+    modifiedAt: mtimeMs,
+  };
 }

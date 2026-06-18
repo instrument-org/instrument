@@ -120,6 +120,7 @@ const EXTENSION_ICON_MAP: Record<string, AnyIcon | null> = {
   heic: BsFileEarmarkImage,
   psd: BsFileEarmarkImage,
   raw: BsFileEarmarkImage,
+  tif: BsFileEarmarkImage,
   tiff: BsFileEarmarkImage,
   webp: BsFileEarmarkImage,
 

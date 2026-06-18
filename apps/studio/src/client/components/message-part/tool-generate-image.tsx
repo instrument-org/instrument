@@ -19,6 +19,7 @@ import { filenameFromFilePath } from "../../lib/path-utils";
 import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
+import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { useCurrentProjectFile } from "../project/current-project-files";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
@@ -327,19 +328,17 @@ function ImageActions({
 
   return (
     <div className="flex shrink-0 items-center gap-3">
-      <ConfirmedIconButton
+      <IconButton
         className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
         icon={ChatIcon}
         onClick={handleAddToChat}
-        successTooltip="Added!"
         tooltip="Add to chat"
         variant="ghost"
       />
-      <ConfirmedIconButton
+      <IconButton
         className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
         icon={ArrowsOutSimpleIcon}
         onClick={handleExpand}
-        successTooltip="Opened!"
         tooltip="Open in panel"
         variant="ghost"
       />

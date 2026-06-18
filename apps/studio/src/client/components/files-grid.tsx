@@ -1,6 +1,9 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
-import { isUnknownTopLevelDirFile } from "@/client/lib/project-file-groups";
+import {
+  isUnknownTopLevelDirFile,
+  shouldFilterProjectFile,
+} from "@/client/lib/project-file-groups";
 import { cn } from "@/client/lib/utils";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
@@ -453,7 +456,9 @@ function splitSupportingFiles(files: ProjectFileViewerFile[]) {
     },
     {
       key: "other",
-      matches: (f) => isUnknownTopLevelDirFile(f.filePath),
+      matches: (f) =>
+        isUnknownTopLevelDirFile(f.filePath) ||
+        shouldFilterProjectFile(f.filePath),
     },
   ];
 

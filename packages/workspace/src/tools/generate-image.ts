@@ -50,6 +50,7 @@ export const GenerateImage = setupTool({
         z.object({
           filePath: RelativePathSchema,
           height: z.number().optional(),
+          modifiedAt: z.number(),
           sizeBytes: z.number(),
           width: z.number().optional(),
         }),
@@ -186,6 +187,7 @@ export const GenerateImage = setupTool({
         const imageBuffer = Buffer.from(image.base64, "base64");
 
         await writeFileWithDir(absolutePath, imageBuffer, { signal });
+        const stats = await fs.stat(absolutePath);
 
         // Try to get image dimensions, but don't fail if it doesn't work
         let dimensions: { height?: number; width?: number } = {};
@@ -202,6 +204,7 @@ export const GenerateImage = setupTool({
         return {
           filePath: RelativePathSchema.parse(filename),
           ...dimensions,
+          modifiedAt: stats.mtimeMs,
           sizeBytes: imageBuffer.length,
         };
       }),

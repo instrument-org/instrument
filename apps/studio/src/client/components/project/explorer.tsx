@@ -93,6 +93,7 @@ export function ProjectFiles({
       url: getAssetUrl({
         assetBase: project.urls.assetBase,
         filePath: f.filePath,
+        version: f.modifiedAt,
       }),
     });
 

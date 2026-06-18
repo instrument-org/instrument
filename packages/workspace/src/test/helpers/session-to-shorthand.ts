@@ -47,8 +47,19 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         break;
       }
       case "output-available": {
+        // Tool outputs are intentionally generic in this snapshot serializer.
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const output =
+          part.type === "tool-generate_image" && part.output.state === "success"
+            ? {
+                ...part.output,
+                images: part.output.images.map(
+                  ({ modifiedAt: _modifiedAt, ...image }) => image,
+                ),
+              }
+            : part.output;
         content += `\n${indent("<input>")}\n${indent(JSON.stringify(part.input, null, 2), 2)}\n${indent("</input>")}`;
-        content += `\n${indent("<output>")}\n${indent(JSON.stringify(part.output, null, 2), 2)}\n${indent("</output>")}\n`;
+        content += `\n${indent("<output>")}\n${indent(JSON.stringify(output, null, 2), 2)}\n${indent("</output>")}\n`;
 
         break;
       }

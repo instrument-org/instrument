@@ -36,6 +36,8 @@ app.get("/assets/*", async (c) => {
 
   const fullPath = absolutePathJoin(appConfig.appDir, assetPath);
 
+  c.header("Cache-Control", "no-store");
+
   const result = await serveStaticFile(c, {
     filePath: fullPath,
   });

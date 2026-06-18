@@ -25,10 +25,12 @@ export function FileChangesCard({
       filename: file.filename,
       filePath: file.filePath,
       mimeType: file.mimeType,
+      modifiedAt: file.modifiedAt,
       projectSubdomain,
       url: getAssetUrl({
         assetBase: assetBaseUrl,
         filePath: file.filePath,
+        version: file.modifiedAt,
       }),
     }));
 

@@ -73,6 +73,7 @@ export function FilesGrid({
         ...prev,
         artifactPanel: {
           filePath: file.filePath,
+          modifiedAt: file.modifiedAt,
           type: "file",
         },
       }),
@@ -400,7 +401,11 @@ function isArtifactPanelFileSelected(
   file: ProjectFileViewerFile,
   artifactPanel: ArtifactPanel | null,
 ) {
-  return artifactPanel != null && file.filePath === artifactPanel.filePath;
+  return (
+    artifactPanel != null &&
+    file.filePath === artifactPanel.filePath &&
+    file.modifiedAt === artifactPanel.modifiedAt
+  );
 }
 
 function isFileInAppFolder(file: ProjectFileViewerFile, folderName: string) {

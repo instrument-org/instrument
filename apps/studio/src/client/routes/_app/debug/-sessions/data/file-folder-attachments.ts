@@ -20,6 +20,7 @@ function mockFile({
     filename,
     filePath: filePath as never,
     mimeType,
+    modifiedAt: 1_718_198_400_000,
     size,
   };
 }

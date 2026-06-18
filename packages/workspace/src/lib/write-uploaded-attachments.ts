@@ -101,6 +101,7 @@ export async function writeUploadedAttachments({
           filename: preparedFile.filename,
           filePath: preparedFile.relativePath,
           mimeType: preparedFile.mimeType,
+          modifiedAt: stats.mtimeMs,
           size: stats.size,
         });
       }

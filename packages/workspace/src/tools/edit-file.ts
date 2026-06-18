@@ -716,6 +716,7 @@ export const EditFile = setupTool({
   outputSchema: z.object({
     diff: z.string().optional(),
     filePath: RelativePathSchema,
+    modifiedAt: z.number(),
   }),
 }).create({
   description: dedent`
@@ -801,10 +802,12 @@ export const EditFile = setupTool({
           normalizeLineEndings(contentNew),
         ),
       );
+      const stats = await fs.stat(absolutePath);
 
       return ok({
         diff,
         filePath: fixedPath,
+        modifiedAt: stats.mtimeMs,
       });
     } catch (error) {
       return executeError(

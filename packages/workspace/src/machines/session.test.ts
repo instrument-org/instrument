@@ -1389,6 +1389,7 @@ describe("sessionMachine", () => {
           content: "console.log('Hello, world!');",
           filePath: "test.js" as RelativePath,
           isNewFile: false,
+          modifiedAt: 1_234_567_890,
         });
       });
     });

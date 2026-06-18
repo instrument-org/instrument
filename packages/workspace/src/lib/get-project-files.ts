@@ -185,15 +185,15 @@ export async function getProjectFiles(
   return ok(projectFilesFromIndex(indexResult.value));
 }
 
-export function outputArtifactPathsFromChanges(changes: ProjectFileChange[]) {
+export function outputArtifactsFromChanges(changes: ProjectFileChange[]) {
   return changes
     .filter(
       (change) =>
         change.status !== "deleted" &&
         change.filePath.startsWith(`${APP_FOLDER_NAMES.output}/`),
     )
-    .map((change) => change.filePath)
-    .sort((a, b) => a.localeCompare(b));
+    .map(({ filePath, modifiedAt }) => ({ filePath, modifiedAt }))
+    .sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
 export function projectFilesFromIndex(index: ProjectFileIndex): ProjectFile[] {

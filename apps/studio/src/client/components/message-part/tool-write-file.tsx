@@ -23,12 +23,19 @@ export function ToolWriteFile({
       : (part.input?.filePath ?? "");
 
   const content = part.input?.content ?? "";
+  const modifiedAt =
+    part.state === "output-available" ? part.output.modifiedAt : undefined;
 
   if (!filePath) {
     return null;
   }
 
   return (
-    <FileToolCard content={content} filePath={filePath} subdomain={subdomain} />
+    <FileToolCard
+      content={content}
+      filePath={filePath}
+      modifiedAt={modifiedAt}
+      subdomain={subdomain}
+    />
   );
 }

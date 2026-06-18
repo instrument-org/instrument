@@ -30,6 +30,11 @@ const INPUT_PARAMS = {
   sourceImages: "sourceImages",
 } as const;
 
+const GeneratedImageFileSchema = z.object({
+  filePath: RelativePathSchema,
+  modifiedAt: z.number(),
+});
+
 export const GenerateImage = setupTool({
   inputSchema: BaseInputSchema.extend({
     [INPUT_PARAMS.filePath]: z.string().meta({
@@ -47,16 +52,15 @@ export const GenerateImage = setupTool({
   outputSchema: z.discriminatedUnion("state", [
     z.object({
       images: z.array(
-        z.object({
-          filePath: RelativePathSchema,
+        GeneratedImageFileSchema.extend({
           height: z.number().optional(),
-          modifiedAt: z.number(),
           sizeBytes: z.number(),
           width: z.number().optional(),
         }),
       ),
       modelId: z.string(),
       provider: ProviderOutputSchema,
+      sourceImages: z.array(GeneratedImageFileSchema),
       state: z.literal("success"),
       usage: UsageOutputSchema,
     }),
@@ -110,6 +114,7 @@ export const GenerateImage = setupTool({
     );
 
     let sourceImageBuffers: Buffer[] | undefined;
+    const sourceImages: z.output<typeof GeneratedImageFileSchema>[] = [];
     if (input.sourceImages && input.sourceImages.length > 0) {
       const resolvedSourcePaths = [];
       for (const relativePath of input.sourceImages) {
@@ -118,6 +123,11 @@ export const GenerateImage = setupTool({
           return err(pathResult.error);
         }
         resolvedSourcePaths.push(pathResult.value.absolutePath);
+        const stats = await fs.stat(pathResult.value.absolutePath);
+        sourceImages.push({
+          filePath: RelativePathSchema.parse(pathResult.value.displayPath),
+          modifiedAt: stats.mtimeMs,
+        });
       }
       sourceImageBuffers = await Promise.all(
         resolvedSourcePaths.map((p) => fs.readFile(p)),
@@ -218,6 +228,7 @@ export const GenerateImage = setupTool({
         id: config.id,
         type: config.type,
       },
+      sourceImages,
       state: "success" as const,
       usage: {
         inputTokens: usage.inputTokens,

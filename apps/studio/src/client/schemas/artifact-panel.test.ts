@@ -19,6 +19,15 @@ describe("artifactPanelSchema", () => {
     expect(result.success && result.data.filePath).toBe("src/index.ts");
   });
 
+  it("preserves the file modification time used for chat item identity", () => {
+    const result = artifactPanelSchema.safeParse({
+      filePath: "output/video.mp4",
+      modifiedAt: 1_234_567_890,
+      type: "file",
+    });
+    expect(result.success && result.data.modifiedAt).toBe(1_234_567_890);
+  });
+
   it.each([
     { filePath: "../../../../.ssh/id_rsa", label: "parent traversal" },
     { filePath: "src/../../secret.txt", label: "nested traversal" },

@@ -23,11 +23,13 @@ export function AttachmentsCard({
     filename: file.filename,
     filePath: file.filePath,
     mimeType: file.mimeType,
+    modifiedAt: file.modifiedAt,
     projectSubdomain,
     size: file.size,
     url: getAssetUrl({
       assetBase: assetBaseUrl,
       filePath: file.filePath,
+      version: file.modifiedAt,
     }),
   }));
 

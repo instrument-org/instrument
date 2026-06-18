@@ -107,15 +107,22 @@ export function ToolGenerateImage({
 
   const primaryFilePath =
     successOutput?.images[0]?.filePath ?? part.input.filePath;
+  const primaryModifiedAt = successOutput?.images[0]?.modifiedAt;
   const filename = filenameFromFilePath(primaryFilePath ?? "");
   const prompt = typeof part.input.prompt === "string" ? part.input.prompt : "";
 
-  const openInPanel = (filePath: string) => {
+  const openInPanel = ({
+    filePath,
+    modifiedAt,
+  }: {
+    filePath: string;
+    modifiedAt?: number;
+  }) => {
     void navigate({
       replace: true,
       search: (prev) => ({
         ...prev,
-        artifactPanel: { filePath, type: "file" as const },
+        artifactPanel: { filePath, modifiedAt, type: "file" as const },
       }),
     });
   };
@@ -139,9 +146,15 @@ export function ToolGenerateImage({
           </div>
         )}
 
-        {successOutput && primaryFilePath && (
-          <ImageActions filePath={primaryFilePath} subdomain={subdomain} />
-        )}
+        {successOutput &&
+          primaryFilePath &&
+          primaryModifiedAt !== undefined && (
+            <ImageActions
+              filePath={primaryFilePath}
+              modifiedAt={primaryModifiedAt}
+              subdomain={subdomain}
+            />
+          )}
       </ToolCardHeader>
 
       {successOutput?.images.map((image, index) => (
@@ -149,6 +162,7 @@ export function ToolGenerateImage({
           assetBaseUrl={assetBaseUrl}
           filePath={image.filePath}
           key={index}
+          modifiedAt={image.modifiedAt}
           onOpen={openInPanel}
         />
       ))}
@@ -209,20 +223,26 @@ function GeneratedImage({
   assetBaseUrl,
   filePath,
   maxHeight = "",
+  modifiedAt,
   onOpen,
   thumbnail = false,
 }: {
   assetBaseUrl: string;
   filePath: string;
   maxHeight?: string;
-  onOpen: (filePath: string) => void;
+  modifiedAt?: number;
+  onOpen: (file: { filePath: string; modifiedAt?: number }) => void;
   thumbnail?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
+  const src = getAssetUrl({
+    assetBase: assetBaseUrl,
+    filePath,
+    version: modifiedAt,
+  });
 
   const handleClick = () => {
-    onOpen(filePath);
+    onOpen({ filePath, modifiedAt });
   };
 
   return (
@@ -264,9 +284,11 @@ function GeneratedImage({
 
 function ImageActions({
   filePath,
+  modifiedAt,
   subdomain,
 }: {
   filePath: string;
+  modifiedAt: number;
   subdomain: ProjectSubdomain;
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
@@ -281,7 +303,7 @@ function ImageActions({
       replace: true,
       search: (prev) => ({
         ...prev,
-        artifactPanel: { filePath, type: "file" as const },
+        artifactPanel: { filePath, modifiedAt, type: "file" as const },
       }),
     });
   };

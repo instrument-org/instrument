@@ -9,6 +9,7 @@ import {
   ResizablePanelGroup,
 } from "@/client/components/ui/resizable";
 import { useReload } from "@/client/hooks/use-reload";
+import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -95,8 +96,21 @@ export function ProjectView({
     }),
   );
 
+  const currentFileMetadata = files?.find(
+    (file) => file.filePath === artifactPanel?.filePath,
+  );
   const currentFile: null | ProjectFileViewerFile = fileInfo
-    ? { ...fileInfo, projectSubdomain: project.subdomain }
+    ? {
+        ...fileInfo,
+        modifiedAt:
+          artifactPanel?.modifiedAt ?? currentFileMetadata?.modifiedAt,
+        projectSubdomain: project.subdomain,
+        url: getAssetUrl({
+          assetBase: project.urls.assetBase,
+          filePath: fileInfo.filePath,
+          version: artifactPanel?.modifiedAt ?? currentFileMetadata?.modifiedAt,
+        }),
+      }
     : null;
 
   const handleArtifactPanelClose = () => {
@@ -117,6 +131,7 @@ export function ProjectView({
         ...prev,
         artifactPanel: {
           filePath: file.filePath,
+          modifiedAt: file.modifiedAt,
           type: "file",
         },
       }),
@@ -190,6 +205,7 @@ export function ProjectView({
                     <FileViewer
                       file={currentFile}
                       fullSize
+                      key={currentFile.url}
                       onClose={handleArtifactPanelClose}
                       onExpand={() => {
                         openFileViewer({ files: [currentFile] });

@@ -10,6 +10,7 @@ import { absolutePathJoin } from "../lib/absolute-path-join";
 import { buildAIProviderInstructions } from "../lib/build-ai-provider-instructions";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
+import { setFileIndexBaseline } from "../lib/file-index-baseline";
 import { getCurrentDate } from "../lib/get-current-date";
 import { outputArtifactsFromChanges } from "../lib/get-project-files";
 import { isToolPart } from "../lib/is-tool-part";
@@ -217,7 +218,7 @@ export const mainAgent = setupAgent({
     - File changes are detected from the task folder after your turn finishes.
     - There is no automatic version history for task files.
     - Editing an existing source or working file in place is normal.
-    - Be careful when commands or scripts generate files, especially when using overwrite flags such as \`-y\`. If a revision or alternative would discard a useful earlier output, preserve it and use a clear sibling filename unless the user's request clearly calls for updating the existing artifact.
+    - Be careful when commands or scripts generate files. If a revision or alternative would discard a useful earlier output, preserve it and use a clear sibling filename unless the user's request clearly calls for updating the existing artifact.
     `.trim();
 
     if (process.env.NODE_ENV === "development") {
@@ -304,10 +305,23 @@ export const mainAgent = setupAgent({
     // Resolve the changes recorded by the file watcher during this turn. Always
     // called so the watcher ref acquired in onStart is released, even when we
     // skip saving the change summary below.
-    const fileChanges = await consumeTurnChanges({
+    const { after, changes: fileChanges } = await consumeTurnChanges({
       sessionId,
       subdomain: appConfig.subdomain,
     });
+
+    // Advance the cross-turn baseline to the post-turn tree so the agent's own
+    // changes aren't re-reported as external on the next user message.
+    if (after) {
+      const baselineResult = await setFileIndexBaseline(
+        appConfig,
+        sessionId,
+        after,
+      );
+      if (baselineResult.isErr()) {
+        appConfig.workspaceConfig.captureException(baselineResult.error);
+      }
+    }
 
     const result = await safeTry(async function* () {
       if (fileChanges.length === 0) {

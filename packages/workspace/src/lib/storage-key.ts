@@ -16,6 +16,13 @@ export namespace StorageKey {
     return StoreId.SessionSchema.parse(sessionKey.split(SEPARATOR).at(-1));
   }
 
+  // Per-session baseline of the on-disk file index, diffed against a fresh walk
+  // when composing a user message to detect changes made between turns. Keyed by
+  // session so concurrent chats in the same task each track what they witnessed.
+  export function fileIndexBaseline(sessionId: StoreId.Session) {
+    return ["file-index-baseline", sessionId].join(SEPARATOR);
+  }
+
   export function message(
     sessionId: StoreId.Session,
     messageId: StoreId.Message,

@@ -213,6 +213,78 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("injects a system note for external file changes on a user message", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: messageMetadata,
+        parts: [
+          {
+            metadata: partMetadata,
+            state: "done",
+            text: "Use the latest data.",
+            type: "text",
+          },
+          {
+            data: {
+              files: [
+                {
+                  filename: "data.csv",
+                  filePath: RelativePathSchema.parse("output/data.csv"),
+                  mimeType: "text/csv",
+                  modifiedAt: 1_234_567_890,
+                  size: 42,
+                  status: "added",
+                },
+                {
+                  filename: "notes.md",
+                  filePath: RelativePathSchema.parse("notes.md"),
+                  mimeType: "text/markdown",
+                  modifiedAt: 1_234_567_999,
+                  size: 10,
+                  status: "modified",
+                },
+              ],
+            },
+            metadata: { ...partMetadata, id: StoreId.newPartId() },
+            type: "data-externalFileChanges",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "Use the latest data.",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      These files changed on disk outside this session since your last activity (e.g. edited by the user or another tool). Re-read them if relevant before relying on their contents.
+      - output/data.csv (added)
+      - notes.md (modified)
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   it("includes tool parts in output-available state", async () => {
     const { sessionId } = baseMetadata();
 

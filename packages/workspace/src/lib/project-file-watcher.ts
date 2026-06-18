@@ -131,23 +131,41 @@ export async function consumeTurnChanges({
 }: {
   sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
-}): Promise<ProjectFileChange[]> {
+}): Promise<{ after?: ProjectFileIndex; changes: ProjectFileChange[] }> {
   const entry = REGISTRY.get(subdomain);
   const turn = entry?.turns.get(sessionId);
   if (!entry || !turn) {
-    return [];
+    return { changes: [] };
   }
 
   entry.turns.delete(sessionId);
   try {
     const after = await refreshIndex(entry);
-    return diffProjectFileIndexes({ after, before: turn.before });
+    return {
+      after: new Map(after),
+      changes: diffProjectFileIndexes({ after, before: turn.before }),
+    };
   } catch (error) {
     entry.captureException(error);
-    return [];
+    return { changes: [] };
   } finally {
     turn.release();
   }
+}
+
+/**
+ * Returns a copy of the current in-memory file index for a subdomain, or
+ * undefined when no watcher is active. Lets callers diff against the index the
+ * watcher already maintains instead of walking disk again.
+ */
+export function getCurrentProjectFileIndex(
+  subdomain: ProjectSubdomain,
+): ProjectFileIndex | undefined {
+  const entry = REGISTRY.get(subdomain);
+  if (!entry?.seeded) {
+    return undefined;
+  }
+  return new Map(entry.index);
 }
 
 /**

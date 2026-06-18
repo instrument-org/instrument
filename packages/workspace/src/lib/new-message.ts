@@ -9,6 +9,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type AppConfig } from "./app-config/types";
+import { detectExternalFileChanges } from "./external-file-changes";
 import { setProjectState } from "./project-state-store";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
@@ -59,6 +60,20 @@ export async function newMessage({
     }
 
     parts.push(uploadResult.value.part);
+  }
+
+  if (appConfig.type === "project") {
+    const externalChanges = await detectExternalFileChanges({
+      appConfig,
+      messageId,
+      sessionId,
+    });
+    if (externalChanges.isErr()) {
+      // Awareness of disk changes is best-effort; never block sending.
+      appConfig.workspaceConfig.captureException(externalChanges.error);
+    } else if (externalChanges.value) {
+      parts.push(externalChanges.value);
+    }
   }
 
   const message: SessionMessage.UserWithParts = {

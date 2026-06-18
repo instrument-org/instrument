@@ -4,7 +4,11 @@ import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 
 export namespace SessionMessageDataPart {
-  export const NameSchema = z.enum(["attachments", "fileChanges"]);
+  export const NameSchema = z.enum([
+    "attachments",
+    "externalFileChanges",
+    "fileChanges",
+  ]);
 
   export type Name = z.output<typeof NameSchema>;
 
@@ -28,6 +32,16 @@ export namespace SessionMessageDataPart {
   });
 
   export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
+
+  // Changes detected on disk between turns (created outside the agent), attached
+  // to the user message that triggered the next turn so the model is aware.
+  const ExternalFileChangesDataPartSchema = z.object({
+    files: z.array(FileChangeDataPartItemSchema),
+  });
+
+  export type ExternalFileChangesDataPart = z.output<
+    typeof ExternalFileChangesDataPartSchema
+  >;
 
   const FileAttachmentDataPartSchema = z.object({
     filename: z.string(),
@@ -55,6 +69,7 @@ export namespace SessionMessageDataPart {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
+    [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;

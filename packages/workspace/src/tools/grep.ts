@@ -53,7 +53,9 @@ export const Grep = setupTool({
 }).create({
   description: ({ agentName }) => {
     const pathExample =
-      agentName === "retrieval" ? "/path/to/attached/folder" : "./";
+      agentName === "retrieval"
+        ? "/path/to/attached/folder"
+        : "./path/to/search";
 
     return dedent`
       - Fast content search tool that uses ripgrep (rg) that works with any codebase size.

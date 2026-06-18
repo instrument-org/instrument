@@ -21,8 +21,9 @@ export interface WorkspaceContext {
   // projectBrowser.stopped event arrives (or immediately if no machine
   // existed when prepareToTrashApp ran).
   pendingBrowserReapResolvers: Map<ProjectSubdomain, (() => void)[]>;
-  // One projectBrowser actor per project subdomain that has had any view or
-  // user-presence activity. Spawned lazily, reaped on projectBrowser.stopped.
+  // One projectBrowser actor per project subdomain with browser activity or an
+  // active project-page presence subscription. Spawned lazily and reaped on
+  // projectBrowser.stopped.
   projectBrowserRefs: Map<ProjectSubdomain, ProjectBrowserActorRef>;
   runtimeRefs: Map<AppSubdomain, RuntimeActorRef>;
   sessionRefsBySubdomain: Map<AppSubdomain, SessionActorRef[]>;

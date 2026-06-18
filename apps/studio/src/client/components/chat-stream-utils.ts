@@ -103,6 +103,7 @@ export function isVisibleAssistantPart({
   return (
     part.type !== "step-start" &&
     part.type !== "data-attachments" &&
+    part.type !== "data-externalFileChanges" &&
     part.type !== "source-document" &&
     part.type !== "source-url" &&
     part.type !== "file"
@@ -131,6 +132,11 @@ function isRenderableInlinePart({
       return false;
     }
     return true;
+  }
+
+  if (part.type === "data-externalFileChanges") {
+    // Developer-mode-only debug peek; otherwise hidden like attachments.
+    return isDeveloperMode;
   }
 
   if (part.type === "step-start" || part.type === "data-attachments") {

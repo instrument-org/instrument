@@ -58,7 +58,7 @@ describe("project file watcher turn tracking", () => {
     await fs.writeFile(path.join(appDir, "c.txt"), "c");
     await fs.rm(path.join(appDir, "sub", "b.txt"));
 
-    const changes = await consumeTurnChanges({ sessionId, subdomain });
+    const { changes } = await consumeTurnChanges({ sessionId, subdomain });
     expect(
       changes.map(({ filePath, status }) => ({
         filePath: String(filePath),
@@ -81,7 +81,8 @@ describe("project file watcher turn tracking", () => {
     const sessionId = StoreId.newSessionId();
     await beginTurnChangeTracking({ sessionId, subdomain, workspaceConfig });
 
-    expect(await consumeTurnChanges({ sessionId, subdomain })).toEqual([]);
+    const { changes } = await consumeTurnChanges({ sessionId, subdomain });
+    expect(changes).toEqual([]);
     expect(getCurrentProjectFiles(subdomain)).toBeUndefined();
   }, 15_000);
 
@@ -96,6 +97,7 @@ describe("project file watcher turn tracking", () => {
     await fs.writeFile(ephemeral, "x");
     await fs.rm(ephemeral);
 
-    expect(await consumeTurnChanges({ sessionId, subdomain })).toEqual([]);
+    const { changes } = await consumeTurnChanges({ sessionId, subdomain });
+    expect(changes).toEqual([]);
   }, 15_000);
 });

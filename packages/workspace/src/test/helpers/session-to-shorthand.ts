@@ -93,6 +93,16 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-attachments>\n${indent(filesList)}\n</data-attachments>`;
     }
+    case "data-externalFileChanges": {
+      const filesList = part.data.files
+        .map((file) => {
+          const filename = ` filename="${file.filename}"`;
+          const status = ` status="${file.status}"`;
+          return `<file${filename}${status} />`;
+        })
+        .join("\n");
+      return `<data-externalFileChanges>\n${indent(filesList)}\n</data-externalFileChanges>`;
+    }
     case "data-fileChanges": {
       const filesList = part.data.files
         .map((file) => {

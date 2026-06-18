@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { type AgentName, RETRIEVAL_AGENT_NAME } from "../../agents/types";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
+import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { injectContextItemsIntoOutput } from "../../lib/tool-output-context-items";
@@ -270,6 +271,20 @@ export namespace SessionMessage {
             });
 
             parts.push({ text: folderAttachmentText, type: "text" });
+          }
+        }
+
+        const externalChangesPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-externalFileChanges";
+          } => part.type === "data-externalFileChanges",
+        );
+        if (externalChangesPart) {
+          const note = externalFileChangesModelNote(externalChangesPart.data);
+          if (note) {
+            parts.push({ text: note, type: "text" });
           }
         }
       }

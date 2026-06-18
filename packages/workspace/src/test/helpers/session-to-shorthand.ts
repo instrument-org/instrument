@@ -86,10 +86,6 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-fileChanges>\n${indent(filesList)}\n</data-fileChanges>`;
     }
-    case "data-gitCommit": {
-      const ref = ` ref="${part.data.ref}"`;
-      return `<data-gitCommit${ref} />`;
-    }
     case "file": {
       const filename = part.filename ? ` filename="${part.filename}"` : "";
       const mediaType = ` mediaType="${part.mediaType}"`;

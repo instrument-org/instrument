@@ -81,20 +81,16 @@ export function ProjectView({
     }
   };
 
-  const isViewingFile = artifactPanel?.type === "file";
-  // Dormant app-builder preview is intentionally disabled. Keep accepting the
-  // legacy route state, but do not open an app preview panel.
-  const showArtifactPanel = isViewingFile;
+  const showArtifactPanel = artifactPanel !== undefined;
 
   const { data: fileInfo } = useQuery(
     rpcClient.workspace.project.files.fileInfo.queryOptions({
-      input:
-        artifactPanel?.type === "file"
-          ? {
-              filePath: artifactPanel.filePath,
-              projectSubdomain: project.subdomain,
-            }
-          : skipToken,
+      input: artifactPanel
+        ? {
+            filePath: artifactPanel.filePath,
+            projectSubdomain: project.subdomain,
+          }
+        : skipToken,
       placeholderData: keepPreviousData,
     }),
   );
@@ -140,7 +136,6 @@ export function ProjectView({
       replace: true,
       search: (prev) => ({
         ...prev,
-        showVersions: undefined,
         sidebar: nextSidebar === "chat" ? undefined : nextSidebar,
       }),
     });
@@ -168,9 +163,7 @@ export function ProjectView({
           minSize={PANEL_SIZES.sidebarMin}
         >
           <ProjectSidebar
-            activeFilePath={
-              artifactPanel?.type === "file" ? artifactPanel.filePath : null
-            }
+            activeFilePath={artifactPanel?.filePath ?? null}
             attachedFolders={attachedFolders}
             chatProps={chatProps}
             files={files}

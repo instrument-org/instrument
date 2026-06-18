@@ -28,9 +28,7 @@ export function AttachmentsCard({
     url: getAssetUrl({
       assetBase: assetBaseUrl,
       filePath: file.filePath,
-      versionRef: file.gitRef,
     }),
-    versionRef: file.gitRef,
   }));
 
   return (

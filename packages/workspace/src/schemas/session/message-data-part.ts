@@ -4,7 +4,7 @@ import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 
 export namespace SessionMessageDataPart {
-  export const NameSchema = z.enum(["attachments", "fileChanges", "gitCommit"]);
+  export const NameSchema = z.enum(["attachments", "fileChanges"]);
 
   export type Name = z.output<typeof NameSchema>;
 
@@ -28,17 +28,9 @@ export namespace SessionMessageDataPart {
 
   export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
 
-  const GitCommitDataPartSchema = z.object({
-    ref: z.string(),
-    restoredFromRef: z.string().optional(),
-  });
-
-  export type GitCommitDataPart = z.output<typeof GitCommitDataPartSchema>;
-
   const FileAttachmentDataPartSchema = z.object({
     filename: z.string(),
     filePath: RelativePathSchema,
-    gitRef: z.string().optional(),
     mimeType: z.string(),
     size: z.number(),
   });
@@ -62,7 +54,6 @@ export namespace SessionMessageDataPart {
   const DataPartsSchema = z.object({
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
-    [NameSchema.enum.gitCommit]: GitCommitDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;
 }

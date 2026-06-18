@@ -10,15 +10,9 @@ const filePathSchema = z
     "Path must not contain '..' segments",
   );
 
-export const artifactPanelSchema = z.discriminatedUnion("type", [
-  // Legacy app-preview route state is accepted for old links, but the project
-  // page intentionally ignores it while app-builder preview is dormant.
-  z.object({ type: z.literal("app"), versionRef: z.string().optional() }),
-  z.object({
-    filePath: filePathSchema,
-    fileVersion: z.string().optional(),
-    type: z.literal("file"),
-  }),
-]);
+export const artifactPanelSchema = z.object({
+  filePath: filePathSchema,
+  type: z.literal("file"),
+});
 
 export type ArtifactPanel = z.output<typeof artifactPanelSchema>;

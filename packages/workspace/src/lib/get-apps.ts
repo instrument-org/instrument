@@ -9,32 +9,22 @@ import {
   type WorkspaceApp,
   type WorkspaceAppPreview,
   type WorkspaceAppProject,
-  type WorkspaceAppSandbox,
 } from "../schemas/app";
 import { type AbsolutePath, type AppDir, AppDirSchema } from "../schemas/paths";
 import { SubdomainPartSchema } from "../schemas/subdomain-part";
 import {
   type AppSubdomain,
-  AppSubdomainSchema,
   PREVIEW_SUBDOMAIN_PART,
   type PreviewSubdomain,
   PreviewSubdomainSchema,
   type ProjectSubdomain,
   ProjectSubdomainSchema,
-  type SandboxSubdomain,
-  SandboxSubdomainSchema,
 } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
-import { createAppConfig } from "./app-config/create";
-import { getSandboxesDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { folderNameForSubdomain } from "./folder-name-for-subdomain";
 import { getAppDirTimestamps } from "./get-app-dir-timestamps";
-import {
-  isPreviewSubdomain,
-  isProjectSubdomain,
-  isSandboxSubdomain,
-} from "./is-app";
+import { isPreviewSubdomain, isProjectSubdomain } from "./is-app";
 import { getProjectManifest } from "./project-manifest";
 import { urlsForSubdomain } from "./url-for-subdomain";
 
@@ -43,9 +33,7 @@ type GetAppResult<T extends AppSubdomain> = T extends PreviewSubdomain
   ? WorkspaceAppPreview
   : T extends ProjectSubdomain
     ? WorkspaceAppProject
-    : T extends SandboxSubdomain
-      ? WorkspaceAppSandbox
-      : WorkspaceApp;
+    : WorkspaceApp;
 
 export async function getApp<T extends AppSubdomain>(
   subdomain: T,
@@ -58,62 +46,6 @@ export async function getApp<T extends AppSubdomain>(
         cause: rawFolderName.error,
       }),
     );
-  }
-
-  // Handle sandbox subdomains which have format: sandbox-{name}.{project-subdomain}
-  if (isSandboxSubdomain(subdomain)) {
-    const [_sandboxPartialSubdomain, rawProjectSubdomain] =
-      subdomain.split(".");
-    const projectSubdomain = AppSubdomainSchema.parse(rawProjectSubdomain);
-    if (!isProjectSubdomain(projectSubdomain)) {
-      return err(
-        new TypedError.Parse("Invalid folder name", {
-          cause: projectSubdomain,
-        }),
-      );
-    }
-
-    // First get the project app
-    const projectConfig = createAppConfig({
-      subdomain: AppSubdomainSchema.parse(rawProjectSubdomain),
-      workspaceConfig,
-    });
-
-    if (projectConfig.type !== "project") {
-      return err(
-        new TypedError.Parse("Invalid folder name", {
-          cause: projectConfig.type,
-        }),
-      );
-    }
-
-    const sandboxDir = AppDirSchema.parse(
-      path.resolve(getSandboxesDir(projectConfig.appDir), rawFolderName.value),
-    );
-
-    // Check if the sandbox directory exists
-    try {
-      await fs.access(sandboxDir);
-    } catch (error) {
-      return err(new TypedError.NotFound("App not found", { cause: error }));
-    }
-
-    const parent = await getApp(projectConfig.subdomain, workspaceConfig);
-    if (parent.isErr()) {
-      return err(parent.error);
-    }
-
-    // Create the sandbox app
-    const sandboxResult = await workspaceApp({
-      appDir: sandboxDir,
-      parent: parent.value,
-    });
-
-    if (sandboxResult.isErr()) {
-      return sandboxResult;
-    }
-
-    return ok(sandboxResult.value as GetAppResult<T>);
   }
 
   // Handle preview and project subdomains
@@ -214,32 +146,6 @@ export async function getProjects(
   return { projects: sortedProjects, total };
 }
 
-export async function getSandboxesForProject(
-  projectApp: WorkspaceAppProject,
-  workspaceConfig: WorkspaceConfig,
-): Promise<WorkspaceAppSandbox[]> {
-  const projectConfig = createAppConfig({
-    subdomain: projectApp.subdomain,
-    workspaceConfig,
-  });
-
-  const sandboxesDir = getSandboxesDir(projectConfig.appDir);
-  const sandboxDirs = await appDirsInRootDir(sandboxesDir);
-  const sandboxes: WorkspaceAppSandbox[] = [];
-
-  for (const sandboxDir of sandboxDirs) {
-    const sandboxApp = await workspaceApp({
-      appDir: sandboxDir,
-      parent: projectApp,
-    });
-    if (sandboxApp.isOk() && sandboxApp.value.type === "sandbox") {
-      sandboxes.push(sandboxApp.value);
-    }
-  }
-
-  return sandboxes;
-}
-
 async function appDirsInRootDir(rootDir: AbsolutePath): Promise<AppDir[]> {
   // First check if the root dir exists
   const rootDirExists = await fs
@@ -279,7 +185,7 @@ async function workspaceApp({
   parent,
 }: {
   appDir: AppDir;
-  parent: "previews" | "projects" | WorkspaceAppProject;
+  parent: "previews" | "projects";
 }) {
   const rawFolderName = path.basename(appDir);
   const folderNameResult = SubdomainPartSchema.safeParse(rawFolderName);
@@ -326,54 +232,26 @@ async function workspaceApp({
     return ok(projectApp);
   }
 
-  if (parent === "previews") {
-    const possibleSubdomain = `${folderNameResult.data}.${PREVIEW_SUBDOMAIN_PART}`;
-    const rawSubdomain = PreviewSubdomainSchema.safeParse(possibleSubdomain);
+  const possibleSubdomain = `${folderNameResult.data}.${PREVIEW_SUBDOMAIN_PART}`;
+  const rawSubdomain = PreviewSubdomainSchema.safeParse(possibleSubdomain);
 
-    if (!rawSubdomain.success) {
-      return err(
-        new TypedError.Parse("Invalid folder name", {
-          cause: rawSubdomain.error,
-        }),
-      );
-    }
-
-    const title = await getAppTitle(appDir, rawFolderName);
-
-    const previewApp: WorkspaceAppPreview = {
-      ...(await getAppDirTimestamps(appDir)),
-      folderName: rawFolderName,
-      subdomain: rawSubdomain.data,
-      title,
-      type: "preview",
-      urls: urlsForSubdomain(rawSubdomain.data),
-    };
-    return ok(previewApp);
+  if (!rawSubdomain.success) {
+    return err(
+      new TypedError.Parse("Invalid folder name", {
+        cause: rawSubdomain.error,
+      }),
+    );
   }
 
-  const possibleSandboxSubdomain = `sandbox-${folderNameResult.data}.${parent.subdomain}`;
-  const sandboxSubdomainResult = SandboxSubdomainSchema.safeParse(
-    possibleSandboxSubdomain,
-  );
+  const title = await getAppTitle(appDir, rawFolderName);
 
-  if (sandboxSubdomainResult.success) {
-    const title = await getAppTitle(appDir, rawFolderName);
-
-    const sandboxApp: WorkspaceAppSandbox = {
-      ...(await getAppDirTimestamps(appDir)),
-      folderName: rawFolderName,
-      project: parent,
-      subdomain: sandboxSubdomainResult.data,
-      title,
-      type: "sandbox",
-      urls: urlsForSubdomain(sandboxSubdomainResult.data),
-    };
-    return ok(sandboxApp);
-  }
-
-  return err(
-    new TypedError.Parse("Invalid folder name", {
-      cause: sandboxSubdomainResult.error,
-    }),
-  );
+  const previewApp: WorkspaceAppPreview = {
+    ...(await getAppDirTimestamps(appDir)),
+    folderName: rawFolderName,
+    subdomain: rawSubdomain.data,
+    title,
+    type: "preview",
+    urls: urlsForSubdomain(rawSubdomain.data),
+  };
+  return ok(previewApp);
 }

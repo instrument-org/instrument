@@ -4,13 +4,7 @@ import { PackageManager } from "./package-manager";
 export function getPackageManager({ appConfig }: { appConfig: AppConfig }) {
   // For now, we only support PNPM
   return {
-    arguments:
-      appConfig.type === "sandbox"
-        ? // This app type is nested in the project directory, so we need
-          // to ignore the workspace config otherwise PNPM may not install the
-          // dependencies correctly
-          ["install", "--ignore-workspace"]
-        : ["install"],
+    arguments: ["install"],
     command: appConfig.workspaceConfig.pnpmBinPath,
     name: PackageManager.PNPM,
   };

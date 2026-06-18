@@ -3,6 +3,8 @@ import os from "node:os";
 
 export function getSystemProperties() {
   return {
+    arch: os.arch(),
+
     // Electron-specific
     chrome_version: process.versions.chrome,
     electron_version: process.versions.electron,

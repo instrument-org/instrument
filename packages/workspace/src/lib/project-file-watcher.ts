@@ -333,8 +333,14 @@ async function initWatcher(entry: WatcherEntry) {
   }
 
   if (!parcel) {
-    // No native binding: degrade to a low-frequency re-walk so the live
-    // subscription still reflects changes (only while a watcher is held).
+    // No native binding: this should never happen given the prebuilt
+    // bindings we ship for every supported platform, so treat it as
+    // exceptional. Still degrade to a low-frequency re-walk so the live
+    // subscription reflects changes (only while a watcher is held).
+    entry.captureException(
+      new Error("project file watcher: native binding unavailable"),
+      { scopes: ["workspace"] },
+    );
     entry.fallbackTimer = setInterval(() => {
       void refreshIndex(entry);
     }, FALLBACK_POLL_MS);

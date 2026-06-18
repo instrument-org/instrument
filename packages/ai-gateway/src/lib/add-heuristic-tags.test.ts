@@ -86,8 +86,8 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "claude-opus-5.5" },
     { expected: [], modelId: "gemini-2-pro" },
     { expected: [], modelId: "gemini-2-flash" },
-    { expected: ["coding"], modelId: "gemini-2.5-pro" },
-    { expected: ["recommended"], modelId: "gemini-2.5-flash" },
+    { expected: ["coding", "legacy"], modelId: "gemini-2.5-pro" },
+    { expected: ["legacy"], modelId: "gemini-2.5-flash" },
     { expected: ["coding", "recommended"], modelId: "gemini-3" },
     { expected: ["coding", "recommended"], modelId: "gemini-3-pro" },
     { expected: ["coding", "recommended"], modelId: "gemini-3-pro-preview" },
@@ -115,7 +115,7 @@ describe("addHeuristicTags", () => {
     { expected: [], modelId: "kimi-k1" },
     { expected: [], modelId: "kimi-k2" },
     { expected: ["coding", "recommended"], modelId: "kimi-k2.5" },
-    { expected: ["coding", "recommended"], modelId: "kimi-k2-0905" },
+    { expected: [], modelId: "kimi-k2-0905" },
     { expected: ["coding", "recommended"], modelId: "kimi-k3" },
     { expected: [], modelId: "minimax-m2" },
     { expected: [], modelId: "minimax-m2.5" },
@@ -128,6 +128,11 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "grok-4.20" },
     { expected: ["coding", "recommended"], modelId: "kimi-k2.6" },
     { expected: ["coding", "recommended"], modelId: "kimi-k2.6-code" },
+    // cspell:ignore devstral
+    { expected: ["coding", "recommended"], modelId: "devstral-2512" },
+    { expected: ["coding", "recommended"], modelId: "gemini-3.5-flash" },
+    { expected: ["coding", "recommended"], modelId: "grok-build-0.1" },
+    { expected: ["coding", "recommended"], modelId: "qwen3-coder-next" },
   ].map(({ expected, modelId }) => ({
     expected: expected.map((tag) => AIGatewayModel.ModelTagSchema.parse(tag)),
     modelId,
@@ -142,30 +147,83 @@ describe("addHeuristicTags", () => {
     },
   );
 
-  it("should add default tag for provider-specific defaults", () => {
+  it("should add default tag for openai provider defaults", () => {
     const openaiConfig: AIGatewayProviderConfig.Type = {
       apiKey: "NOT_NEEDED",
       cacheIdentifier: "openai",
       id: AIProviderConfigIdSchema.parse("openai"),
       type: "openai",
     };
-    const model = createMockModel("openai/gpt-5.3-codex");
+    const model = createMockModel("openai/gpt-5.4");
     const result = addHeuristicTags(model, openaiConfig);
     expect(result.tags).toContain("default");
   });
 
-  it("should not recommend gpt-5-codex for openai-compatible", () => {
-    const compatConfig: AIGatewayProviderConfig.Type = {
+  it("should add default tag for anthropic provider defaults", () => {
+    const anthropicConfig: AIGatewayProviderConfig.Type = {
       apiKey: "NOT_NEEDED",
-      cacheIdentifier: "openai-compatible",
-      id: AIProviderConfigIdSchema.parse("openai-compatible"),
-      type: "openai-compatible",
+      cacheIdentifier: "anthropic",
+      id: AIProviderConfigIdSchema.parse("anthropic"),
+      type: "anthropic",
     };
-    const model = createMockModel("openai-compatible/gpt-5-codex");
-    const result = addHeuristicTags(model, compatConfig);
-    expect(result.tags).not.toContain("recommended");
-    expect(result.tags).not.toContain("default");
+    const model = createMockModel("anthropic/claude-sonnet-4.6");
+    const result = addHeuristicTags(model, anthropicConfig);
+    expect(result.tags).toContain("default");
   });
+
+  it("should add default tag for z-ai provider defaults", () => {
+    const zAiConfig: AIGatewayProviderConfig.Type = {
+      apiKey: "NOT_NEEDED",
+      cacheIdentifier: "z-ai",
+      id: AIProviderConfigIdSchema.parse("z-ai"),
+      type: "z-ai",
+    };
+    const model = createMockModel("z-ai/glm-5");
+    const result = addHeuristicTags(model, zAiConfig);
+    expect(result.tags).toContain("default");
+  });
+
+  it("should add default tag for google provider defaults", () => {
+    const googleConfig: AIGatewayProviderConfig.Type = {
+      apiKey: "NOT_NEEDED",
+      cacheIdentifier: "google",
+      id: AIProviderConfigIdSchema.parse("google"),
+      type: "google",
+    };
+    const model = createMockModel("google/gemini-3.5-flash");
+    const result = addHeuristicTags(model, googleConfig);
+    expect(result.tags).toContain("default");
+  });
+
+  it.each([
+    {
+      config: {
+        apiKey: "NOT_NEEDED",
+        cacheIdentifier: "openai",
+        id: AIProviderConfigIdSchema.parse("openai"),
+        type: "openai",
+      } satisfies AIGatewayProviderConfig.Type,
+      providerId: "openai/gpt-5.3-codex",
+    },
+    {
+      config: {
+        apiKey: "NOT_NEEDED",
+        cacheIdentifier: "openai-compatible",
+        id: AIProviderConfigIdSchema.parse("openai-compatible"),
+        type: "openai-compatible",
+      } satisfies AIGatewayProviderConfig.Type,
+      providerId: "openai-compatible/gpt-5-codex",
+    },
+  ])(
+    "should not recommend or default codex models for $config.type",
+    ({ config, providerId }) => {
+      const model = createMockModel(providerId);
+      const result = addHeuristicTags(model, config);
+      expect(result.tags).not.toContain("recommended");
+      expect(result.tags).not.toContain("default");
+      expect(result.tags).toContain("coding");
+    },
+  );
 
   it("should mark o- models as legacy for OpenAI provider", () => {
     const openaiConfig: AIGatewayProviderConfig.Type = {

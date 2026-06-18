@@ -113,7 +113,8 @@ export function getSystemInfoText() {
   const now = getCurrentDate();
   return dedent`
     <system_info>
-    Operating system: ${getSystemInfo()}
+    Host operating system: ${getSystemInfo()}
+    Shell environment: unix-like (POSIX), regardless of the host OS.
     Current date: ${now.toLocaleDateString("en-US", { day: "numeric", month: "long", weekday: "long", year: "numeric" })}
     </system_info>
   `.trim();

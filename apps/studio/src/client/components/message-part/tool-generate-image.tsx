@@ -50,7 +50,9 @@ export function SourceImagesChip({
 
   const sourceImages =
     part.state === "output-available" && part.output.state === "success"
-      ? part.output.sourceImages
+      ? // `sourceImages` was added after initial release; old persisted outputs lack it
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        (part.output.sourceImages ?? [])
       : [];
 
   if (sourceImages.length === 0) {

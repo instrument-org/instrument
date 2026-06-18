@@ -145,16 +145,16 @@ export function ErrorCard({
               onClick={() => {
                 void rpcClient.studioOverlay.dismiss.call();
               }}
-              variant="outline"
+              variant="secondary"
             >
               Close
             </Button>
           ) : isRoot ? (
-            <Button asChild variant="outline">
+            <Button asChild variant="secondary">
               <InternalLink to="/">Home</InternalLink>
             </Button>
           ) : (
-            <Button asChild variant="outline">
+            <Button asChild variant="secondary">
               <InternalLink
                 onClick={(e) => {
                   e.preventDefault();

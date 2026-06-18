@@ -229,7 +229,7 @@ async function applyChangedPath(
     return false;
   }
 
-  const key = `./${relative}`;
+  const key = relative;
   if (entry.ignore.ignores(relative) || entry.ignore.ignores(`${relative}/`)) {
     return deleteSubtree(entry, key);
   }

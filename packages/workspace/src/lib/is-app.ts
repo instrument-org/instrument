@@ -5,8 +5,6 @@ import {
   ProjectSubdomainSchema,
   type SandboxSubdomain,
   SandboxSubdomainSchema,
-  type VersionSubdomain,
-  VersionSubdomainSchema,
 } from "../schemas/subdomains";
 
 export function isPreviewSubdomain(
@@ -25,10 +23,4 @@ export function isSandboxSubdomain(
   subdomain: string,
 ): subdomain is SandboxSubdomain {
   return SandboxSubdomainSchema.safeParse(subdomain).success;
-}
-
-export function isVersionSubdomain(
-  subdomain: string,
-): subdomain is VersionSubdomain {
-  return VersionSubdomainSchema.safeParse(subdomain).success;
 }

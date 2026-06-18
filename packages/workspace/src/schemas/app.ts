@@ -5,7 +5,6 @@ import {
   PreviewSubdomainSchema,
   ProjectSubdomainSchema,
   SandboxSubdomainSchema,
-  VersionSubdomainSchema,
 } from "./subdomains";
 
 const WorkspaceAppBaseSchema = z.object({
@@ -39,22 +38,14 @@ const WorkspaceAppSandboxSchema = WorkspaceAppBaseSchema.extend({
   type: z.literal("sandbox"),
 });
 
-const WorkspaceAppVersionSchema = WorkspaceAppBaseSchema.extend({
-  project: z.lazy(() => WorkspaceAppProjectSchema),
-  subdomain: VersionSubdomainSchema,
-  type: z.literal("version"),
-});
-
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const WorkspaceAppSchema = z.discriminatedUnion("type", [
   WorkspaceAppPreviewSchema,
   WorkspaceAppProjectSchema,
   WorkspaceAppSandboxSchema,
-  WorkspaceAppVersionSchema,
 ]);
 
 export type WorkspaceApp = z.output<typeof WorkspaceAppSchema>;
 export type WorkspaceAppPreview = z.output<typeof WorkspaceAppPreviewSchema>;
 export type WorkspaceAppProject = z.output<typeof WorkspaceAppProjectSchema>;
 export type WorkspaceAppSandbox = z.output<typeof WorkspaceAppSandboxSchema>;
-export type WorkspaceAppVersion = z.output<typeof WorkspaceAppVersionSchema>;

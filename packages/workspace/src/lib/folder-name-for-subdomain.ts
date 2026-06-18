@@ -16,15 +16,6 @@ export function folderNameForSubdomain(subdomain: AppSubdomain) {
     return ok(sandboxPart.slice("sandbox-".length));
   }
 
-  // Handle version subdomains which have format: version-{ref}.{project-subdomain}
-  if (subdomain.startsWith("version-")) {
-    const [versionPart] = subdomain.split(".");
-    if (!versionPart) {
-      return err(new TypedError.Parse("Invalid version format"));
-    }
-    return ok(versionPart.slice("version-".length));
-  }
-
   // Handle preview subdomains which have format: {name}.preview
   if (subdomain.endsWith(`.${PREVIEW_SUBDOMAIN_PART}`)) {
     const [previewPart] = subdomain.split(".");

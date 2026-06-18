@@ -30,7 +30,5 @@ export {
   ProjectSubdomainSchema,
   type SandboxSubdomain,
   SandboxSubdomainSchema,
-  type VersionSubdomain,
-  VersionSubdomainSchema,
 } from "./schemas/subdomains";
 export type { ToolName } from "./tools/types";

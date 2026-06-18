@@ -6,14 +6,10 @@ import { type Subscription } from "xstate";
 
 import { createAppConfig } from "../../../lib/app-config/create";
 import { isRunnable, registryAppExists } from "../../../lib/app-dir-utils";
-import { folderNameForSubdomain } from "../../../lib/folder-name-for-subdomain";
-import { git } from "../../../lib/git";
-import { GitCommands } from "../../../lib/git/commands";
 import {
   isPreviewExpired,
   removeExpiredPreview,
 } from "../../../lib/preview-cache";
-import { projectSubdomainForSubdomain } from "../../../lib/project-subdomain-for-subdomain";
 import { type RuntimeSnapshot } from "../../../machines/runtime";
 import { type AppStatus } from "../../../types";
 import { APPS_SERVER_API_PATH, HEARTBEAT_STREAM_ROUTE } from "../constants";
@@ -141,51 +137,6 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
           if (!doesAppExist) {
             return pushResponse({ status: "not-found" });
           }
-          c.var.parentRef.send({
-            type: "workspaceServer.heartbeat",
-            value: {
-              appConfig,
-              createdAt: Date.now(),
-              shouldCreate: true,
-            },
-          });
-          return pushResponse({ status: "loading" });
-        }
-
-        if (appConfig.type === "version") {
-          const projectSubdomain = projectSubdomainForSubdomain(
-            appConfig.subdomain,
-          );
-          const gitRefFolderResult = folderNameForSubdomain(
-            appConfig.subdomain,
-          );
-
-          if (gitRefFolderResult.isErr()) {
-            return pushResponse({ status: "not-found" });
-          }
-
-          const gitRef = gitRefFolderResult.value;
-
-          const projectConfig = createAppConfig({
-            subdomain: projectSubdomain,
-            workspaceConfig: c.var.workspaceConfig,
-          });
-
-          const projectExists = await isRunnable(projectConfig.appDir);
-          if (!projectExists) {
-            return pushResponse({ status: "not-found" });
-          }
-
-          const gitRefResult = await git(
-            GitCommands.verifyCommitRef(gitRef),
-            projectConfig.appDir,
-            { signal: AbortSignal.timeout(ms("5 seconds")) },
-          );
-
-          if (gitRefResult.isErr()) {
-            return pushResponse({ status: "not-found" });
-          }
-
           c.var.parentRef.send({
             type: "workspaceServer.heartbeat",
             value: {

@@ -29,10 +29,6 @@ import { createAssignEventError } from "../../lib/assign-event-error";
 import { isProjectSubdomain } from "../../lib/is-app";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
 import {
-  checkoutVersionLogic,
-  type CheckoutVersionParentEvent,
-} from "../../logic/checkout-version";
-import {
   createPreviewLogic,
   type CreatePreviewParentEvent,
 } from "../../logic/create-preview";
@@ -68,7 +64,6 @@ import {
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
-  | CheckoutVersionParentEvent
   | CreatePreviewParentEvent
   | ProjectBrowserParentEvent
   | SessionMachineParentEvent
@@ -362,8 +357,6 @@ export const workspaceMachine = setup({
   },
 
   actors: {
-    checkoutVersionLogic,
-
     createPreviewLogic,
 
     projectBrowserMachine,
@@ -420,7 +413,6 @@ export const workspaceMachine = setup({
     };
     return {
       appsBeingTrashed: [],
-      checkoutVersionRefs: new Map(),
       config: workspaceConfig,
       createPreviewRefs: new Map(),
       pendingBrowserReapResolvers: new Map(),
@@ -498,16 +490,6 @@ export const workspaceMachine = setup({
         }),
       },
     ],
-    "checkoutVersion.done": {
-      actions: assign(({ context, event }) => {
-        const subdomain = event.value.appConfig.subdomain;
-        const checkoutVersionRefs = new Map(context.checkoutVersionRefs);
-        checkoutVersionRefs.delete(subdomain);
-        return {
-          checkoutVersionRefs,
-        };
-      }),
-    },
     "createPreview.done": {
       actions: assign(({ context, event }) => {
         const subdomain = event.value.appConfig.subdomain;
@@ -564,36 +546,6 @@ export const workspaceMachine = setup({
         }),
         guard: ({ event }) =>
           event.value.shouldCreate && event.value.appConfig.type === "preview",
-      },
-      {
-        actions: assign({
-          checkoutVersionRefs: ({ context, event, self, spawn }) => {
-            invariant(
-              event.value.appConfig.type === "version",
-              "Expected version app config",
-            );
-            const appConfig = event.value.appConfig;
-
-            if (context.checkoutVersionRefs.has(appConfig.subdomain)) {
-              // Already creating a version for this app
-              return context.checkoutVersionRefs;
-            }
-
-            const checkoutVersionRef = spawn("checkoutVersionLogic", {
-              input: {
-                appConfig,
-                parentRef: self,
-              },
-            });
-
-            return new Map(context.checkoutVersionRefs).set(
-              appConfig.subdomain,
-              checkoutVersionRef,
-            );
-          },
-        }),
-        guard: ({ event }) =>
-          event.value.shouldCreate && event.value.appConfig.type === "version",
       },
       {
         actions: raise(({ context, event }) => {

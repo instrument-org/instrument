@@ -3,15 +3,10 @@ import {
   type PreviewSubdomain,
   type ProjectSubdomain,
   type SandboxSubdomain,
-  type VersionSubdomain,
 } from "../../schemas/subdomains";
 import { type WorkspaceConfig } from "../../types";
 
-export type AppConfig =
-  | AppConfigPreview
-  | AppConfigProject
-  | AppConfigSandbox
-  | AppConfigVersion;
+export type AppConfig = AppConfigPreview | AppConfigProject | AppConfigSandbox;
 
 export type AppConfigPreview = AppConfigBase & {
   subdomain: PreviewSubdomain;
@@ -21,11 +16,6 @@ export type AppConfigPreview = AppConfigBase & {
 export type AppConfigProject = AppConfigBase & {
   subdomain: ProjectSubdomain;
   type: "project";
-};
-
-export type AppConfigVersion = AppConfigBase & {
-  subdomain: VersionSubdomain;
-  type: "version";
 };
 
 interface AppConfigBase {

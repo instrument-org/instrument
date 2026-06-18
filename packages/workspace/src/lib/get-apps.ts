@@ -10,7 +10,6 @@ import {
   type WorkspaceAppPreview,
   type WorkspaceAppProject,
   type WorkspaceAppSandbox,
-  type WorkspaceAppVersion,
 } from "../schemas/app";
 import { type AbsolutePath, type AppDir, AppDirSchema } from "../schemas/paths";
 import { SubdomainPartSchema } from "../schemas/subdomain-part";
@@ -24,8 +23,6 @@ import {
   ProjectSubdomainSchema,
   type SandboxSubdomain,
   SandboxSubdomainSchema,
-  type VersionSubdomain,
-  VersionSubdomainSchema,
 } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { createAppConfig } from "./app-config/create";
@@ -37,10 +34,8 @@ import {
   isPreviewSubdomain,
   isProjectSubdomain,
   isSandboxSubdomain,
-  isVersionSubdomain,
 } from "./is-app";
 import { getProjectManifest } from "./project-manifest";
-import { projectSubdomainForSubdomain } from "./project-subdomain-for-subdomain";
 import { urlsForSubdomain } from "./url-for-subdomain";
 
 // Type mapping for generic subdomain to workspace app type conversion
@@ -50,9 +45,7 @@ type GetAppResult<T extends AppSubdomain> = T extends PreviewSubdomain
     ? WorkspaceAppProject
     : T extends SandboxSubdomain
       ? WorkspaceAppSandbox
-      : T extends VersionSubdomain
-        ? WorkspaceAppVersion
-        : WorkspaceApp;
+      : WorkspaceApp;
 
 export async function getApp<T extends AppSubdomain>(
   subdomain: T,
@@ -123,31 +116,7 @@ export async function getApp<T extends AppSubdomain>(
     return ok(sandboxResult.value as GetAppResult<T>);
   }
 
-  // Handle version subdomains which have format: version-{ref}.{project-subdomain}
-  if (isVersionSubdomain(subdomain)) {
-    const projectSubdomain = projectSubdomainForSubdomain(subdomain);
-
-    // First get the project app
-    const parent = await getApp(projectSubdomain, workspaceConfig);
-    if (parent.isErr()) {
-      return err(parent.error);
-    }
-
-    // Create the version app directly without checking directory existence
-    const versionResult = await workspaceAppForVersion({
-      parent: parent.value,
-      subdomain,
-      workspaceConfig,
-    });
-
-    if (versionResult.isErr()) {
-      return versionResult;
-    }
-
-    return ok(versionResult.value as GetAppResult<T>);
-  }
-
-  // Handle preview, project, and version subdomains
+  // Handle preview and project subdomains
 
   let appDir: AppDir;
   let parent: "previews" | "projects";
@@ -402,74 +371,9 @@ async function workspaceApp({
     return ok(sandboxApp);
   }
 
-  const possibleVersionSubdomain = `version-${folderNameResult.data}.${parent.subdomain}`;
-  const versionSubdomainResult = VersionSubdomainSchema.safeParse(
-    possibleVersionSubdomain,
-  );
-
-  if (versionSubdomainResult.success) {
-    const title = await getAppTitle(appDir, rawFolderName);
-
-    const versionApp: WorkspaceAppVersion = {
-      ...(await getAppDirTimestamps(appDir)),
-      folderName: rawFolderName,
-      project: parent,
-      subdomain: versionSubdomainResult.data,
-      title,
-      type: "version",
-      urls: urlsForSubdomain(versionSubdomainResult.data),
-    };
-    return ok(versionApp);
-  }
-
   return err(
     new TypedError.Parse("Invalid folder name", {
       cause: sandboxSubdomainResult.error,
     }),
   );
-}
-
-async function workspaceAppForVersion({
-  parent,
-  subdomain,
-  workspaceConfig,
-}: {
-  parent: WorkspaceAppProject;
-  subdomain: AppSubdomain;
-  workspaceConfig: WorkspaceConfig;
-}) {
-  const rawFolderName = folderNameForSubdomain(subdomain);
-  if (rawFolderName.isErr()) {
-    return err(
-      new TypedError.Parse("Invalid folder name", {
-        cause: rawFolderName.error,
-      }),
-    );
-  }
-
-  const versionSubdomainResult = VersionSubdomainSchema.safeParse(subdomain);
-  if (!versionSubdomainResult.success) {
-    return err(
-      new TypedError.Parse("Invalid folder name", {
-        cause: versionSubdomainResult.error,
-      }),
-    );
-  }
-
-  const versionConfig = createAppConfig({
-    subdomain: versionSubdomainResult.data,
-    workspaceConfig,
-  });
-
-  const versionApp: WorkspaceAppVersion = {
-    ...(await getAppDirTimestamps(versionConfig.appDir)),
-    folderName: rawFolderName.value,
-    project: parent,
-    subdomain: versionSubdomainResult.data,
-    title: rawFolderName.value, // Version apps use folder name as title since they don't have physical directories
-    type: "version",
-    urls: urlsForSubdomain(versionSubdomainResult.data),
-  };
-
-  return ok(versionApp);
 }

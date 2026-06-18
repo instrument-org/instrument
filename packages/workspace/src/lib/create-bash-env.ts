@@ -249,6 +249,8 @@ export function createBashDescription() {
   return [
     "Execute bash commands in the task directory.",
     "",
+    "IMPORTANT: This is a unix-like (POSIX) shell, regardless of the host OS.",
+    "",
     "IMPORTANT: This is a sandboxed environment. python and other runtimes",
     "are NOT available as system binaries. Do NOT attempt to run them directly.",
     "Use the specialized `tsx` command below to execute TypeScript/JavaScript files.",
@@ -268,7 +270,7 @@ export function createBashDescription() {
     "",
     "TIP: Heredoc pipes/redirects go on the `<<EOF` line, not after `EOF`: `cmd <<'EOF' | jq` (not `cmd <<'EOF'` ... `EOF` ... `| jq`).",
     "",
-    `Available commands: ${namedOnly.join(", ")}`,
+    `Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}`,
     "",
     "Specialized commands:",
     ...described,

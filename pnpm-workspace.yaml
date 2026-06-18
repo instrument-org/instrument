@@ -50,8 +50,6 @@ ignoredOptionalDependencies:
   - node-liblzma
 
 minimumReleaseAge: 10080
-minimumReleaseAgeExclude:
-  - agent-browser
 
 patchedDependencies:
   conf@14.0.0: patches/conf@14.0.0.patch

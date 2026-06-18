@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { createAppConfig } from "../../lib/app-config/create";
 import { type AppConfig } from "../../lib/app-config/types";
-import { getProjects, getSandboxesForProject } from "../../lib/get-apps";
+import { getProjects } from "../../lib/get-apps";
 import { type RuntimeActorRef } from "../../machines/runtime";
 import { type WorkspaceApp } from "../../schemas/app";
 import { type AppSubdomain } from "../../schemas/subdomains";
@@ -12,7 +12,6 @@ import { getWorkspaceServerPort } from "./url";
 
 interface AppAndStatus {
   app: WorkspaceApp;
-  children: AppAndStatus[];
   config: AppConfig;
   port?: number;
   status: string;
@@ -26,13 +25,11 @@ export async function RuntimeList({
   workspaceConfig: WorkspaceConfig;
 }) {
   const projects = await getProjects(workspaceConfig);
-  const projectsWithExtra = await Promise.all(
-    projects.projects.map(async (project) => {
-      return await getAppWithExtra({
-        project,
-        runtimeRefs,
-        workspaceConfig,
-      });
+  const projectsWithExtra = projects.projects.map((project) =>
+    getAppWithExtra({
+      project,
+      runtimeRefs,
+      workspaceConfig,
     }),
   );
 
@@ -192,67 +189,6 @@ export async function RuntimeList({
                           : ""}
                       </div>
                     </div>
-                    ${app.children.length > 0
-                      ? html`
-                          <div class="ml-8 space-y-2 mt-2">
-                            ${app.children.map(
-                              (child) => html`
-                                <div
-                                  class="bg-neutral-800/50 rounded-lg p-3 border border-neutral-700/50 flex items-center justify-between"
-                                >
-                                  <div class="flex items-center">
-                                    <div
-                                      class="w-2 h-2 rounded-full ${getStatusColor(
-                                        child.status,
-                                      )} mr-2"
-                                      title="${child.status}"
-                                    ></div>
-                                    <div class="flex flex-col">
-                                      <div class="flex items-center gap-2">
-                                        <a
-                                          href="${child.app.urls.localhost}"
-                                          class="text-blue-400/80 font-medium text-sm"
-                                        >
-                                          ${child.app.subdomain}
-                                        </a>
-                                        <span
-                                          class="px-1.5 py-0.5 text-xs rounded ${getAppTypeColor(
-                                            child.app.type,
-                                          )}"
-                                        >
-                                          ${child.app.type}
-                                        </span>
-                                      </div>
-                                      <span class="text-xs text-neutral-400">
-                                        ${path.relative(
-                                          child.config.workspaceConfig.rootDir,
-                                          child.config.appDir,
-                                        )}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div class="flex items-center space-x-2">
-                                    <span
-                                      class="px-2 py-1 text-xs rounded bg-neutral-700/50 text-neutral-300"
-                                    >
-                                      ${child.status}
-                                    </span>
-                                    ${child.port
-                                      ? html`
-                                          <span
-                                            class="px-2 py-1 text-xs rounded bg-blue-900/50 text-blue-300"
-                                          >
-                                            port:${child.port}
-                                          </span>
-                                        `
-                                      : ""}
-                                  </div>
-                                </div>
-                              `,
-                            )}
-                          </div>
-                        `
-                      : ""}
                   `,
                 )}
               </div>`}
@@ -273,16 +209,10 @@ export async function RuntimeList({
 }
 
 function getAppTypeColor(type: AppConfig["type"]): string {
-  if (type === "preview") {
-    return "bg-blue-500";
-  }
-  if (type === "project") {
-    return "bg-green-500";
-  }
-  return "bg-yellow-500";
+  return type === "preview" ? "bg-blue-500" : "bg-green-500";
 }
 
-async function getAppWithExtra({
+function getAppWithExtra({
   project: app,
   runtimeRefs,
   workspaceConfig,
@@ -290,7 +220,7 @@ async function getAppWithExtra({
   project: WorkspaceApp;
   runtimeRefs: Map<AppSubdomain, RuntimeActorRef>;
   workspaceConfig: WorkspaceConfig;
-}): Promise<AppAndStatus> {
+}): AppAndStatus {
   const runtimeRef = runtimeRefs.get(app.subdomain);
   const runtimeSnapshot = runtimeRef?.getSnapshot();
   const port = runtimeSnapshot?.context.port;
@@ -298,23 +228,8 @@ async function getAppWithExtra({
     ? ([...runtimeSnapshot.tags.values()][0] ?? "stopped")
     : "stopped";
 
-  let children: AppAndStatus[] = [];
-  if (app.type === "project") {
-    const sandboxes = await getSandboxesForProject(app, workspaceConfig);
-    children = await Promise.all(
-      sandboxes.map(async (sandbox) => {
-        return await getAppWithExtra({
-          project: sandbox,
-          runtimeRefs,
-          workspaceConfig,
-        });
-      }),
-    );
-  }
-
   return {
     app,
-    children,
     config: createAppConfig({
       subdomain: app.subdomain,
       workspaceConfig,

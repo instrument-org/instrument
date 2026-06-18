@@ -2,11 +2,10 @@ import { type AppDir } from "../../schemas/paths";
 import {
   type PreviewSubdomain,
   type ProjectSubdomain,
-  type SandboxSubdomain,
 } from "../../schemas/subdomains";
 import { type WorkspaceConfig } from "../../types";
 
-export type AppConfig = AppConfigPreview | AppConfigProject | AppConfigSandbox;
+export type AppConfig = AppConfigPreview | AppConfigProject;
 
 export type AppConfigPreview = AppConfigBase & {
   subdomain: PreviewSubdomain;
@@ -23,8 +22,3 @@ interface AppConfigBase {
   folderName: string;
   workspaceConfig: WorkspaceConfig;
 }
-
-type AppConfigSandbox = AppConfigBase & {
-  subdomain: SandboxSubdomain;
-  type: "sandbox";
-};

@@ -6,7 +6,6 @@ export const PREVIEW_SUBDOMAIN_PART = "preview" as const;
 export type PreviewSubdomain = `${SubdomainPart}.${PreviewSubdomainPart}`;
 export type ProjectSubdomain = SubdomainPart & z.$brand<"ProjectSubdomain">;
 
-export type SandboxSubdomain = `sandbox-${SubdomainPart}.${ProjectSubdomain}`;
 type PreviewSubdomainPart = typeof PREVIEW_SUBDOMAIN_PART;
 
 function ensureString(val: unknown, ctx: z.core.$RefinementCtx): val is string {
@@ -20,22 +19,6 @@ function ensureString(val: unknown, ctx: z.core.$RefinementCtx): val is string {
     return false;
   }
   return true;
-}
-
-function validateSubdomainPrefix(
-  ctx: z.core.$RefinementCtx,
-  val: string,
-  prefix: string,
-  name: string,
-) {
-  if (!val.startsWith(prefix)) {
-    ctx.addIssue({
-      code: "custom",
-      fatal: true,
-      input: val,
-      message: `${name} subdomain must start with '${prefix}'`,
-    });
-  }
 }
 
 function validateTwoPartSubdomain(
@@ -111,53 +94,12 @@ export const ProjectSubdomainSchema = z
       });
     }
 
-    if (val.startsWith("sandbox-")) {
-      ctx.addIssue({
-        code: "custom",
-        fatal: true,
-        input: val,
-        message: "Task subdomains cannot start with 'sandbox-'",
-      });
-    }
-
     validateSubdomainPart(val, ctx);
-  });
-
-export const SandboxSubdomainSchema = z
-  .custom<SandboxSubdomain>()
-  .superRefine((val: unknown, ctx) => {
-    if (!ensureString(val, ctx)) {
-      return;
-    }
-
-    const parts = validateTwoPartSubdomain(
-      val,
-      ctx,
-      "Sandbox subdomains must have exactly two parts (e.g., sandbox-name.task-name)",
-    );
-    if (!parts) {
-      return;
-    }
-
-    const [sandboxPart, projectPart] = parts;
-
-    validateSubdomainPrefix(
-      ctx,
-      sandboxPart,
-      "sandbox-",
-      "First part of sandbox",
-    );
-
-    const sandboxSubdomainPart = sandboxPart.slice("sandbox-".length);
-
-    validateSubdomainPart(sandboxSubdomainPart, ctx);
-    validateSubdomainPart(projectPart, ctx);
   });
 
 export const AppSubdomainSchema = z.union([
   PreviewSubdomainSchema,
   ProjectSubdomainSchema,
-  SandboxSubdomainSchema,
 ]);
 
 export type AppSubdomain = z.output<typeof AppSubdomainSchema>;

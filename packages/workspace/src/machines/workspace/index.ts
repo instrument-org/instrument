@@ -616,7 +616,7 @@ export const workspaceMachine = setup({
         return !context.appsBeingTrashed.some(
           (trashingSubdomain) =>
             subdomain === trashingSubdomain ||
-            // Includes sandboxes for projects being trashed
+            // Includes any subdomain nested under the project being trashed
             subdomain.endsWith(trashingSubdomain),
         );
       },
@@ -640,8 +640,7 @@ export const workspaceMachine = setup({
         });
 
         // Track every projectBrowser whose subdomain matches the trashed
-        // project (the project itself, plus any sandbox-suffixed entries
-        // that happen to share the prefix).
+        // project (the project itself, plus any subdomain nested under it).
         const matchingSubdomains: ProjectSubdomain[] = [];
         for (const [
           browserSubdomain,
@@ -808,7 +807,7 @@ export const workspaceMachine = setup({
         return !context.appsBeingTrashed.some(
           (trashingSubdomain) =>
             subdomain === trashingSubdomain ||
-            // Includes sandboxes for projects being trashed
+            // Includes any subdomain nested under the project being trashed
             subdomain.endsWith(trashingSubdomain),
         );
       },

@@ -5,17 +5,10 @@ import {
   type AppSubdomain,
   type PreviewSubdomain,
   type ProjectSubdomain,
-  type SandboxSubdomain,
 } from "../../schemas/subdomains";
 import { type WorkspaceConfig } from "../../types";
-import { getSandboxesDir } from "../app-dir-utils";
 import { folderNameForSubdomain } from "../folder-name-for-subdomain";
-import {
-  isPreviewSubdomain,
-  isProjectSubdomain,
-  isSandboxSubdomain,
-} from "../is-app";
-import { projectSubdomainForSubdomain } from "../project-subdomain-for-subdomain";
+import { isPreviewSubdomain, isProjectSubdomain } from "../is-app";
 import { type AppConfig } from "./types";
 
 export type CreateAppConfigReturn<T extends AppSubdomain> =
@@ -23,12 +16,9 @@ export type CreateAppConfigReturn<T extends AppSubdomain> =
     ? PreviewConfig
     : T extends ProjectSubdomain
       ? ProjectConfig
-      : T extends SandboxSubdomain
-        ? SandboxConfig
-        : never;
+      : never;
 type PreviewConfig = Extract<AppConfig, { type: "preview" }>;
 type ProjectConfig = Extract<AppConfig, { type: "project" }>;
-type SandboxConfig = Extract<AppConfig, { type: "sandbox" }>;
 
 export function createAppConfig<T extends AppSubdomain>({
   subdomain,
@@ -46,13 +36,6 @@ export function createAppConfig<T extends AppSubdomain>({
 
   if (isPreviewSubdomain(subdomain)) {
     return createPreviewConfig(
-      subdomain,
-      workspaceConfig,
-    ) as CreateAppConfigReturn<T>;
-  }
-
-  if (isSandboxSubdomain(subdomain)) {
-    return createSandboxConfig(
       subdomain,
       workspaceConfig,
     ) as CreateAppConfigReturn<T>;
@@ -97,34 +80,6 @@ function createProjectConfig(
     folderName,
     subdomain,
     type: "project",
-    workspaceConfig,
-  };
-}
-
-function createSandboxConfig(
-  subdomain: SandboxSubdomain,
-  workspaceConfig: WorkspaceConfig,
-): SandboxConfig {
-  const folderNameResult = folderNameForSubdomain(subdomain);
-  if (folderNameResult.isErr()) {
-    throw new Error(`Invalid sandbox subdomain format: ${subdomain}`);
-  }
-  const folderName = folderNameResult.value;
-
-  const projectSubdomain = projectSubdomainForSubdomain(subdomain);
-
-  const projectConfig = createAppConfig({
-    subdomain: projectSubdomain,
-    workspaceConfig,
-  });
-
-  return {
-    appDir: AppDirSchema.parse(
-      path.join(getSandboxesDir(projectConfig.appDir), folderName),
-    ),
-    folderName,
-    subdomain,
-    type: "sandbox",
     workspaceConfig,
   };
 }

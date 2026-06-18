@@ -15,7 +15,6 @@ export type {
   WorkspaceApp,
   WorkspaceAppPreview,
   WorkspaceAppProject,
-  WorkspaceAppSandbox,
 } from "./schemas/app";
 export type { SessionTag } from "./schemas/app-state";
 export { FileUpload } from "./schemas/file-upload";
@@ -28,7 +27,5 @@ export {
   AppSubdomainSchema,
   type ProjectSubdomain,
   ProjectSubdomainSchema,
-  type SandboxSubdomain,
-  SandboxSubdomainSchema,
 } from "./schemas/subdomains";
 export type { ToolName } from "./tools/types";

@@ -38,9 +38,7 @@ import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 import { projectFiles } from "./files";
-import { projectGit } from "./git";
 import { projectState } from "./state";
-import { projectVersion } from "./version";
 
 const DEFAULT_TEMPLATE_NAME = "basic";
 
@@ -664,7 +662,6 @@ export const project = {
   duplicate,
   exportZip,
   files: projectFiles,
-  git: projectGit,
   import: importProject,
   list,
   live: {
@@ -675,5 +672,4 @@ export const project = {
   trash,
   update,
   usageSummary,
-  version: projectVersion,
 };

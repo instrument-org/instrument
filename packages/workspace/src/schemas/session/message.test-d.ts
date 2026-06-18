@@ -1,5 +1,6 @@
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
+import { RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
 import { type SessionMessage } from "./message";
 
@@ -46,8 +47,15 @@ describe("SessionMessage", () => {
       parts: [
         {
           data: {
-            ref: "abc123",
-            restoredFromRef: "def456",
+            files: [
+              {
+                filename: "test.txt",
+                filePath: RelativePathSchema.parse("test.txt"),
+                mimeType: "text/plain",
+                size: 100,
+                status: "modified",
+              },
+            ],
           },
           metadata: {
             createdAt: new Date(),
@@ -55,7 +63,7 @@ describe("SessionMessage", () => {
             messageId: StoreId.newMessageId(),
             sessionId: StoreId.newSessionId(),
           },
-          type: "data-gitCommit",
+          type: "data-fileChanges",
         },
       ],
       role: "user",

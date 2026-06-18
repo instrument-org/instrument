@@ -437,7 +437,6 @@ const copyFileToClipboard = base
       filePath: RelativeProjectPathSchema,
       isImage: z.boolean(),
       subdomain: ProjectSubdomainSchema,
-      versionRef: z.string().optional(),
     }),
   )
   .handler(async ({ context, errors, input, signal }) => {
@@ -447,7 +446,6 @@ const copyFileToClipboard = base
       filePath: input.filePath,
       projectSubdomain: input.subdomain,
       signal,
-      versionRef: input.versionRef,
       workspaceConfig: snapshot.context.config,
     });
 

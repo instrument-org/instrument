@@ -211,7 +211,6 @@ function ImagePreviewCard({
         filePath: file.filePath,
         isImage: mimeType.startsWith("image/"),
         subdomain: file.projectSubdomain,
-        versionRef: file.versionRef,
       });
       triggerCopied();
     } catch {

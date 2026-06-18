@@ -23,10 +23,6 @@ import { getMimeType } from "./get-mime-type";
 import { getProjectState, setProjectState } from "./project-state-store";
 import { sanitizeFilename } from "./sanitize-filename";
 
-type FileAttachmentWithoutRef = Omit<
-  SessionMessageDataPart.FileAttachmentDataPart,
-  "gitRef"
->;
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
   filename: string;
@@ -50,7 +46,7 @@ export async function writeUploadedAttachments({
   sessionId: StoreId.Session;
 }) {
   return safeTry(async function* () {
-    const fileInfos: FileAttachmentWithoutRef[] = [];
+    const fileInfos: SessionMessageDataPart.FileAttachmentDataPart[] = [];
     const folderAttachments: FolderAttachment.Type[] = [];
 
     if (files && files.length > 0) {

@@ -235,7 +235,6 @@ export function ProjectChat({
                 search: (prev) => ({
                   ...prev,
                   selectedSessionId: sessionId,
-                  showVersions: undefined,
                 }),
                 to: "/projects/$subdomain",
               });

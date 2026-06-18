@@ -120,10 +120,6 @@ export namespace GitCommands {
     return ["rev-parse", ref];
   }
 
-  export function showFile(ref: string, filePath: string) {
-    return ["show", `${ref}:${filePath}`];
-  }
-
   export function showNameStatus(ref: string, pathspec?: string) {
     const args = ["show", "--name-status", "--format=", ref];
     if (pathspec) {

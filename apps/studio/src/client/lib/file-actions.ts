@@ -11,19 +11,16 @@ export async function copyFileToClipboard({
   filePath,
   isImage,
   subdomain,
-  versionRef,
 }: {
   filePath: string;
   isImage: boolean;
   subdomain: ProjectSubdomain;
-  versionRef?: string;
 }) {
   const [error] = await safe(
     rpcClient.utils.copyFileToClipboard.call({
       filePath,
       isImage,
       subdomain,
-      versionRef,
     }),
   );
   if (error) {

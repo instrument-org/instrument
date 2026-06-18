@@ -15,6 +15,6 @@ export function useFileActionVisibility(file: ProjectFileViewerFile) {
   return {
     showCopy: isCopyableByMime || (isTextLike && isDownloadable),
     showDownload: isDownloadable,
-    showReveal: !file.versionRef,
+    showReveal: true,
   };
 }

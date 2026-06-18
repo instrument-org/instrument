@@ -53,10 +53,6 @@ export namespace TypedError {
     }
   }
 
-  export class NoChanges extends Error {
-    readonly type = `${PREFIX}-no-changes-error`;
-  }
-
   export class NotFound extends Error {
     readonly type = `${PREFIX}-not-found-error`;
   }

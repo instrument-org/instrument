@@ -7,7 +7,7 @@ import { AppDirSchema } from "../schemas/paths";
 import {
   diffProjectFileIndexes,
   getProjectFileIndex,
-  outputArtifactPathsFromChanges,
+  outputArtifactsFromChanges,
 } from "./get-project-files";
 
 describe("getProjectFileIndex", () => {
@@ -122,6 +122,11 @@ describe("getProjectFileIndex", () => {
           ],
         ]
       `);
-    expect(outputArtifactPathsFromChanges(changes)).toEqual(["output/new.txt"]);
+    expect(outputArtifactsFromChanges(changes)).toEqual([
+      {
+        filePath: "output/new.txt",
+        modifiedAt: expect.any(Number),
+      },
+    ]);
   });
 });

@@ -5,7 +5,7 @@ export interface ProjectFileViewerFile {
   filename: string;
   filePath: string;
   mimeType: string;
-  modifiedAt?: number;
+  modifiedAt: number;
   projectSubdomain: ProjectSubdomain;
   url: string;
 }

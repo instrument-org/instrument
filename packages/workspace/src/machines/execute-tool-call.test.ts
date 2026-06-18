@@ -345,7 +345,22 @@ describe("executeToolCallMachine", () => {
             p.type === "tool-read_file" && p.toolCallId === "test_tool_call_2",
         );
 
-      expect(updatedPart).toMatchInlineSnapshot(`
+      expect(updatedPart?.type).toBe("tool-read_file");
+      if (
+        updatedPart?.type !== "tool-read_file" ||
+        updatedPart.state !== "output-available" ||
+        updatedPart.output.state !== "exists"
+      ) {
+        return;
+      }
+
+      const { modifiedAt, ...outputWithoutModifiedAt } = updatedPart.output;
+      expect(modifiedAt).toEqual(expect.any(Number));
+
+      expect({
+        ...updatedPart,
+        output: outputWithoutModifiedAt,
+      }).toMatchInlineSnapshot(`
         {
           "input": {
             "explanation": "Reading test file",

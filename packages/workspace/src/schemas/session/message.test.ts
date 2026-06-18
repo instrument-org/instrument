@@ -247,6 +247,7 @@ describe("SessionMessage.toModelMessages", () => {
               displayedLines: 1,
               filePath: RelativePathSchema.parse("test.txt"),
               hasMoreLines: false,
+              modifiedAt: 1_234_567_890,
               offset: 0,
               state: "exists",
               totalLines: 1,

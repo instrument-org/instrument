@@ -1,5 +1,6 @@
 import ms from "ms";
 import { err, ok } from "neverthrow";
+import fs from "node:fs/promises";
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/write.ts
 import { dedent } from "radashi";
@@ -37,6 +38,7 @@ export const WriteFile = setupTool({
     content: z.string(),
     filePath: RelativePathSchema,
     isNewFile: z.boolean(),
+    modifiedAt: z.number(),
   }),
 }).create({
   description: dedent`
@@ -61,11 +63,13 @@ export const WriteFile = setupTool({
 
     try {
       await writeFileWithDir(absolutePath, input.content, { signal });
+      const stats = await fs.stat(absolutePath);
 
       return ok({
         content: input.content,
         filePath: fixedPath,
         isNewFile,
+        modifiedAt: stats.mtimeMs,
       });
     } catch (error) {
       return executeError(

@@ -11,7 +11,7 @@ import { buildAIProviderInstructions } from "../lib/build-ai-provider-instructio
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
-import { outputArtifactPathsFromChanges } from "../lib/get-project-files";
+import { outputArtifactsFromChanges } from "../lib/get-project-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
 import {
@@ -366,10 +366,10 @@ export const mainAgent = setupAgent({
         { signal },
       );
 
-      const filePaths = outputArtifactPathsFromChanges(fileChanges);
-      if (filePaths.length > 0) {
+      const outputArtifacts = outputArtifactsFromChanges(fileChanges);
+      if (outputArtifacts.length > 0) {
         publisher.publish("project.outputArtifactsCreated", {
-          filePaths,
+          files: outputArtifacts,
           sessionId,
           subdomain: appConfig.subdomain,
         });

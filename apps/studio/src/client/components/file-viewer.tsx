@@ -296,8 +296,7 @@ export function FileViewer({
   onClose: () => void;
   onExpand?: () => void;
 }) {
-  const { filename, filePath, mimeType, projectSubdomain, url, versionRef } =
-    file;
+  const { filename, filePath, mimeType, projectSubdomain, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
@@ -338,7 +337,6 @@ export function FileViewer({
         filePath,
         isImage: mimeType.startsWith("image/"),
         subdomain: projectSubdomain,
-        versionRef,
       });
       triggerCopied();
     } catch {

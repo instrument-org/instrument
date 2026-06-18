@@ -96,7 +96,6 @@ export function FileActionsMenuItems({
         filePath: file.filePath,
         isImage: file.mimeType.startsWith("image/"),
         subdomain: file.projectSubdomain,
-        versionRef: file.versionRef,
       });
       triggerCopied();
     } catch {

@@ -35,7 +35,6 @@ const projectSearchSchema = z.object({
   showDelete: z.boolean().optional(),
   showDuplicate: z.boolean().optional(),
   showSettings: z.boolean().optional(),
-  showVersions: z.boolean().optional(),
   sidebar: ProjectSidebarModeSchema.optional(),
 });
 

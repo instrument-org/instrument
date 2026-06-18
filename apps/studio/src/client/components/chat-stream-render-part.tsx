@@ -82,17 +82,6 @@ export function renderChatPart({
     return null;
   }
 
-  if (part.type === "data-gitCommit") {
-    return (
-      <div
-        className="mt-2 rounded-lg border bg-card p-3 text-xs text-muted-foreground shadow-sm"
-        key={part.metadata.id}
-      >
-        Legacy version {part.data.ref.slice(0, 8)}
-      </div>
-    );
-  }
-
   if (part.type === "data-fileChanges") {
     return (
       <FileChangesCard
@@ -157,6 +146,7 @@ export function renderChatPart({
     return null;
   }
 
+  // Still checking condition just in case schema and type mismatch
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (part.type === "file") {
     // eslint-disable-next-line no-console

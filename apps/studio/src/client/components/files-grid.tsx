@@ -61,8 +61,7 @@ export function FilesGrid({
     from: "/_app/projects/$subdomain/",
     shouldThrow: false,
   });
-  const selectedArtifactFile =
-    search?.artifactPanel?.type === "file" ? search.artifactPanel : null;
+  const selectedArtifactFile = search?.artifactPanel ?? null;
 
   const handleFileClick = (file: ProjectFileViewerFile) => {
     if (!search) {
@@ -75,7 +74,6 @@ export function FilesGrid({
         ...prev,
         artifactPanel: {
           filePath,
-          fileVersion: file.versionRef,
           type: "file",
         },
       }),
@@ -332,7 +330,7 @@ function CategorizedFileSection({
   isExpanded: boolean;
   onFileClick: (file: ProjectFileViewerFile) => void;
   onToggle: () => void;
-  selectedArtifactFile: Extract<ArtifactPanel, { type: "file" }> | null;
+  selectedArtifactFile: ArtifactPanel | null;
   title: string;
 }) {
   return (
@@ -405,24 +403,16 @@ function isAgentRetrievedFile(file: ProjectFileViewerFile) {
 
 function isArtifactPanelFileSelected(
   file: ProjectFileViewerFile,
-  artifactPanel: Extract<ArtifactPanel, { type: "file" }> | null,
+  artifactPanel: ArtifactPanel | null,
 ) {
   if (!artifactPanel) {
     return false;
   }
 
-  if (
-    normalizeProjectFilePath(file.filePath) !==
+  return (
+    normalizeProjectFilePath(file.filePath) ===
     normalizeProjectFilePath(artifactPanel.filePath)
-  ) {
-    return false;
-  }
-
-  if (artifactPanel.fileVersion !== undefined) {
-    return file.versionRef === artifactPanel.fileVersion;
-  }
-
-  return true;
+  );
 }
 
 function isOutputFile(file: ProjectFileViewerFile) {

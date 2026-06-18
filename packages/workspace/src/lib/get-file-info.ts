@@ -1,4 +1,3 @@
-import { VERSION_REF_QUERY_PARAM } from "@instrument-org/shared";
 import { err, ok } from "neverthrow";
 import path from "node:path";
 import { z } from "zod";
@@ -9,16 +8,11 @@ import { TypedError } from "./errors";
 import { getMimeType } from "./get-mime-type";
 import { urlsForSubdomain } from "./url-for-subdomain";
 
-export const FileInfoSchema = z.object({
+export const CurrentFileInfoSchema = z.object({
   filename: z.string(),
   filePath: z.string(),
   mimeType: z.string(),
   url: z.string(),
-  versionRef: z.string(),
-});
-
-export const CurrentFileInfoSchema = FileInfoSchema.omit({
-  versionRef: true,
 });
 
 export function getCurrentFileInfo({
@@ -28,52 +22,9 @@ export function getCurrentFileInfo({
   filePath: RelativePath;
   projectSubdomain: ProjectSubdomain;
 }) {
-  return getBaseFileInfo({
-    filePath,
-    projectSubdomain,
-  });
-}
-
-export function getFileInfo({
-  filePath,
-  projectSubdomain,
-  versionRef,
-}: {
-  filePath: RelativePath;
-  projectSubdomain: ProjectSubdomain;
-  versionRef?: string;
-}) {
-  const result = getBaseFileInfo({
-    filePath,
-    projectSubdomain,
-    versionRef,
-  });
-
-  if (result.isErr()) {
-    return result;
-  }
-
-  return ok({
-    ...result.value,
-    versionRef: versionRef ?? "",
-  });
-}
-
-function getBaseFileInfo({
-  filePath,
-  projectSubdomain,
-  versionRef,
-}: {
-  filePath: RelativePath;
-  projectSubdomain: ProjectSubdomain;
-  versionRef?: string;
-}) {
   const urls = urlsForSubdomain(projectSubdomain);
   const cleanPath = filePath.startsWith("./") ? filePath.slice(2) : filePath;
-  const baseUrl = `${urls.assetBase}/${cleanPath}`;
-  const url = versionRef
-    ? `${baseUrl}?${VERSION_REF_QUERY_PARAM}=${versionRef}`
-    : baseUrl;
+  const url = `${urls.assetBase}/${cleanPath}`;
 
   const filename = path.basename(filePath);
   const mimeType = getMimeType(filename);

@@ -1,4 +1,3 @@
-import { VERSION_REF_QUERY_PARAM } from "@instrument-org/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
@@ -33,13 +32,9 @@ app.get("/assets/*", async (c) => {
   }
 
   const fullPath = absolutePathJoin(appConfig.appDir, assetPath);
-  const versionRef = c.req.query(VERSION_REF_QUERY_PARAM);
 
   const result = await serveStaticFile(c, {
-    appDir: appConfig.appDir,
     filePath: fullPath,
-    gitRef: versionRef,
-    relativePath: assetPath,
   });
 
   if (!result) {

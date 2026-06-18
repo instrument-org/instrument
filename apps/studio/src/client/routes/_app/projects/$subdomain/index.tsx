@@ -210,7 +210,7 @@ function RouteComponent() {
   );
 
   const { data: files } = useQuery(
-    rpcClient.workspace.project.files.live.experimental_liveOptions({
+    rpcClient.workspace.project.files.live.list.experimental_liveOptions({
       input: { projectSubdomain: subdomain },
       placeholderData: keepPreviousData,
     }),

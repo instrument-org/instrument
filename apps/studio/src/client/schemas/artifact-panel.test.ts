@@ -11,6 +11,14 @@ describe("artifactPanelSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("strips a leading ./ so both conventions compare equal", () => {
+    const result = artifactPanelSchema.safeParse({
+      filePath: "./src/index.ts",
+      type: "file",
+    });
+    expect(result.success && result.data.filePath).toBe("src/index.ts");
+  });
+
   it.each([
     { filePath: "../../../../.ssh/id_rsa", label: "parent traversal" },
     { filePath: "src/../../secret.txt", label: "nested traversal" },

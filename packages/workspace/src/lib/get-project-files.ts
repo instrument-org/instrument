@@ -1,3 +1,4 @@
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -25,6 +26,7 @@ export const INTERNAL_IGNORE_PATTERNS = [
   `${APP_FOLDER_NAMES.state}/**`,
   APP_FOLDER_NAMES.tmp,
   `${APP_FOLDER_NAMES.tmp}/**`,
+  PROJECT_MANIFEST_FILE_NAME,
 ];
 
 const ProjectFileSchema = z.object({
@@ -142,7 +144,7 @@ export async function getProjectFileIndex(
           return;
         }
 
-        const filePath = RelativePathSchema.parse(`./${relativePath}`);
+        const filePath = RelativePathSchema.parse(relativePath);
         files.push({
           filename: path.basename(relativePath),
           filePath,
@@ -187,9 +189,9 @@ export function outputArtifactPathsFromChanges(changes: ProjectFileChange[]) {
     .filter(
       (change) =>
         change.status !== "deleted" &&
-        change.filePath.startsWith(`./${APP_FOLDER_NAMES.output}/`),
+        change.filePath.startsWith(`${APP_FOLDER_NAMES.output}/`),
     )
-    .map((change) => change.filePath.slice(2))
+    .map((change) => change.filePath)
     .sort((a, b) => a.localeCompare(b));
 }
 

@@ -8,6 +8,9 @@ import { serveStaticFile } from "../serve-static";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
 
+// Blocks `.`/`..` segments, consecutive slashes, and backslashes (hono/node-server's traversal check).
+const UNSAFE_PATH_SEGMENT_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
+
 const app = new Hono<WorkspaceServerEnv>().basePath(APPS_SERVER_API_PATH);
 
 app.use("/assets/*", cors());
@@ -27,7 +30,7 @@ app.get("/assets/*", async (c) => {
 
   const assetPath = c.req.path.replace(`${APPS_SERVER_API_PATH}/assets/`, "");
 
-  if (!assetPath || assetPath.includes("..")) {
+  if (!assetPath || UNSAFE_PATH_SEGMENT_REGEX.test(assetPath)) {
     return c.notFound();
   }
 

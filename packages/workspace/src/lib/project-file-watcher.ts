@@ -34,6 +34,17 @@ import { normalizePath } from "./normalize-path";
 const DEBOUNCE_MS = 150;
 // Re-walk cadence used only when the native watcher binding is unavailable.
 const FALLBACK_POLL_MS = 5000;
+// Pin the in-process native backend per platform. Auto-detection prefers
+// Watchman when it's on PATH, but on Windows that path pops a console window
+// and stalls subscribe for seconds (parcel-bundler/watcher#155, #168). Forcing
+// the OS-native backend bypasses Watchman entirely; an unavailable choice
+// silently falls back to the platform default.
+const NATIVE_BACKEND: Options["backend"] =
+  process.platform === "win32"
+    ? "windows"
+    : process.platform === "darwin"
+      ? "fs-events"
+      : "inotify";
 
 type Ignore = Awaited<ReturnType<typeof getIgnore>>;
 
@@ -377,7 +388,7 @@ async function initWatcher(entry: WatcherEntry) {
         }
         scheduleFlush(entry);
       },
-      { ignore: INTERNAL_IGNORE_PATTERNS },
+      { backend: NATIVE_BACKEND, ignore: INTERNAL_IGNORE_PATTERNS },
     );
     if (isDisposed(entry)) {
       await subscription.unsubscribe().catch(noop);

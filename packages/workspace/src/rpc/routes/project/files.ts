@@ -42,24 +42,6 @@ const list = base
     return result.value;
   });
 
-const live = base
-  .input(
-    z.object({
-      projectSubdomain: ProjectSubdomainSchema,
-    }),
-  )
-  .output(eventIterator(ProjectFilesSchema))
-  .handler(async function* ({ context, input, signal }) {
-    yield call(list, input, { context, signal });
-
-    const changes = publisher.subscribe("project.files.changed", { signal });
-    for await (const payload of changes) {
-      if (payload.subdomain === input.projectSubdomain) {
-        yield call(list, input, { context, signal });
-      }
-    }
-  });
-
 const fileInfo = base
   .input(
     z.object({
@@ -84,5 +66,25 @@ const fileInfo = base
 export const projectFiles = {
   fileInfo,
   list,
-  live,
+  live: {
+    list: base
+      .input(
+        z.object({
+          projectSubdomain: ProjectSubdomainSchema,
+        }),
+      )
+      .output(eventIterator(ProjectFilesSchema))
+      .handler(async function* ({ context, input, signal }) {
+        yield call(list, input, { context, signal });
+
+        const changes = publisher.subscribe("project.files.changed", {
+          signal,
+        });
+        for await (const payload of changes) {
+          if (payload.subdomain === input.projectSubdomain) {
+            yield call(list, input, { context, signal });
+          }
+        }
+      }),
+  },
 };

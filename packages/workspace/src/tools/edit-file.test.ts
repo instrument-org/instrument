@@ -240,7 +240,9 @@ describe("EditFile", () => {
         }),
       );
 
-      expect(result._unsafeUnwrap()).toMatchInlineSnapshot(`
+      const { modifiedAt, ...output } = result._unsafeUnwrap();
+      expect(modifiedAt).toEqual(expect.any(Number));
+      expect(output).toMatchInlineSnapshot(`
           {
             "diff": "Index: ./grep-test.txt
           ===================================================================

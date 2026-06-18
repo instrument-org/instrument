@@ -26,6 +26,7 @@ export function MediaCardShell({
   onMouseLeave,
   overlayActions,
   scrim,
+  statusLabel,
 }: {
   aspectRatio: "square" | "video";
   bottomBar?: React.ReactNode;
@@ -38,6 +39,7 @@ export function MediaCardShell({
   onMouseLeave?: () => void;
   overlayActions?: React.ReactNode;
   scrim?: React.ReactNode;
+  statusLabel?: string;
 }) {
   const [interactive, setInteractive] = useState(false);
   const hoverStartRef = useRef<null | number>(null);
@@ -121,6 +123,12 @@ export function MediaCardShell({
           )}
 
           {bottomBar}
+
+          {statusLabel && (
+            <div className="pointer-events-none absolute right-3 bottom-3 z-10 rounded-full bg-background/90 px-2 py-1 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+              {statusLabel}
+            </div>
+          )}
 
           <Tooltip>
             <TooltipTrigger asChild>

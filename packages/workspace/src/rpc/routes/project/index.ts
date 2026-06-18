@@ -524,7 +524,12 @@ const exportZip = base
   });
 
 const OutputArtifactsCreatedSchema = z.object({
-  filePaths: z.string().array(),
+  files: z
+    .object({
+      filePath: z.string(),
+      modifiedAt: z.number(),
+    })
+    .array(),
   sessionId: StoreId.SessionSchema,
 });
 
@@ -604,7 +609,7 @@ const live = {
       for await (const payload of events) {
         if (payload.subdomain === input.subdomain) {
           yield {
-            filePaths: payload.filePaths,
+            files: payload.files,
             sessionId: payload.sessionId,
           };
         }

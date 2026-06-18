@@ -9,6 +9,7 @@ import {
 import { Activity, type ComponentProps } from "react";
 import { z } from "zod";
 
+import { CurrentProjectFilesProvider } from "./current-project-files";
 import { ProjectToolbar } from "./toolbar";
 
 export const ProjectSidebarModeSchema = z.enum(["chat", "files"]);
@@ -44,23 +45,25 @@ export function ProjectSidebar({
         sidebar={sidebar}
       />
 
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <Activity mode={sidebar === "files" ? "visible" : "hidden"}>
-          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
-            <ProjectFiles
-              activeFilePath={activeFilePath}
-              attachedFolders={attachedFolders}
-              files={files}
-              onFileSelect={onFileSelect}
-              project={project}
-            />
-          </div>
-        </Activity>
+      <CurrentProjectFilesProvider files={files}>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <Activity mode={sidebar === "files" ? "visible" : "hidden"}>
+            <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+              <ProjectFiles
+                activeFilePath={activeFilePath}
+                attachedFolders={attachedFolders}
+                files={files}
+                onFileSelect={onFileSelect}
+                project={project}
+              />
+            </div>
+          </Activity>
 
-        <Activity mode={sidebar === "chat" ? "visible" : "hidden"}>
-          <ProjectChat {...chatProps} />
-        </Activity>
-      </div>
+          <Activity mode={sidebar === "chat" ? "visible" : "hidden"}>
+            <ProjectChat {...chatProps} />
+          </Activity>
+        </div>
+      </CurrentProjectFilesProvider>
     </div>
   );
 }

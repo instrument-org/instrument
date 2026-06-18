@@ -29,11 +29,11 @@ export function useAutoOpenOutputArtifact({
   );
 
   const onArtifacts = useEffectEvent((event: NonNullable<typeof artifacts>) => {
-    const filePath = event.filePaths[0];
+    const file = event.files[0];
     if (
       event.sessionId !== selectedSessionId ||
       artifactPanel !== undefined ||
-      !filePath
+      !file
     ) {
       return;
     }
@@ -44,7 +44,11 @@ export function useAutoOpenOutputArtifact({
       replace: true,
       search: (s) => ({
         ...s,
-        artifactPanel: { filePath, type: "file" },
+        artifactPanel: {
+          filePath: file.filePath,
+          modifiedAt: file.modifiedAt,
+          type: "file",
+        },
       }),
     });
   });

@@ -1,4 +1,5 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { useCurrentProjectFile } from "@/client/components/project/current-project-files";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 
@@ -19,6 +20,9 @@ export function FilePreviewListItem({
 }) {
   const { filename, filePath, mimeType, url } = file;
   const fileType = getFileType(file);
+  const currentFile = useCurrentProjectFile(filePath);
+  const isStale =
+    currentFile !== undefined && currentFile.modifiedAt !== file.modifiedAt;
 
   if (url && fileType === "image") {
     return (
@@ -26,7 +30,7 @@ export function FilePreviewListItem({
         <TooltipTrigger asChild>
           <Button
             className={cn(
-              "size-12 shrink-0 overflow-hidden p-0",
+              "relative size-12 shrink-0 overflow-hidden p-0",
               isSelected &&
                 "ring-2 ring-primary ring-offset-2 ring-offset-background",
             )}
@@ -42,6 +46,11 @@ export function FilePreviewListItem({
               showCheckerboard
               src={url}
             />
+            {isStale && (
+              <span className="absolute inset-x-0 bottom-0 bg-background/90 py-0.5 text-[9px] font-medium">
+                Updated
+              </span>
+            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent
@@ -64,7 +73,7 @@ export function FilePreviewListItem({
         />
       }
       isSelected={isSelected}
-      label={filename}
+      label={isStale ? `${filename} (updated)` : filename}
       onClick={onClick}
       tooltipContent={filePath}
     />

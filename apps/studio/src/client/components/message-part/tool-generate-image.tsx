@@ -20,6 +20,7 @@ import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { ImageWithFallback } from "../image-with-fallback";
+import { useCurrentProjectFile } from "../project/current-project-files";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
@@ -46,9 +47,10 @@ export function SourceImagesChip({
     return null;
   }
 
-  const sourceImages = (part.input?.sourceImages ?? []).filter(
-    (s): s is string => typeof s === "string",
-  );
+  const sourceImages =
+    part.state === "output-available" && part.output.state === "success"
+      ? part.output.sourceImages
+      : [];
 
   if (sourceImages.length === 0) {
     return null;
@@ -56,8 +58,12 @@ export function SourceImagesChip({
 
   return (
     <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
-      {sourceImages.slice(0, 3).map((filePath, index) => {
-        const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
+      {sourceImages.slice(0, 3).map((file, index) => {
+        const src = getAssetUrl({
+          assetBase: assetBaseUrl,
+          filePath: file.filePath,
+          version: file.modifiedAt,
+        });
         return (
           <img
             alt="Reference"
@@ -101,9 +107,7 @@ export function ToolGenerateImage({
     part.state === "output-available" && part.output.state === "failure"
       ? part.output
       : null;
-  const sourceImages = (part.input.sourceImages ?? []).filter(
-    Boolean,
-  ) as string[];
+  const sourceImageFiles = successOutput?.sourceImages ?? [];
 
   const primaryFilePath =
     successOutput?.images[0]?.filePath ?? part.input.filePath;
@@ -116,7 +120,7 @@ export function ToolGenerateImage({
     modifiedAt,
   }: {
     filePath: string;
-    modifiedAt?: number;
+    modifiedAt: number;
   }) => {
     void navigate({
       replace: true,
@@ -169,21 +173,22 @@ export function ToolGenerateImage({
 
       {!failureOutput && (
         <ToolCardSection maxHeight="max-h-32">
-          {sourceImages.length > 0 ? (
+          {sourceImageFiles.length > 0 ? (
             <div className="flex items-start gap-3">
               <div className="shrink-0">
                 <div
                   className={cn(
                     "grid gap-1",
-                    sourceImages.length > 1 ? "grid-cols-2" : "grid-cols-1",
+                    sourceImageFiles.length > 1 ? "grid-cols-2" : "grid-cols-1",
                   )}
                 >
-                  {sourceImages.slice(0, 4).map((filePath, index) => (
+                  {sourceImageFiles.slice(0, 4).map((file, index) => (
                     <GeneratedImage
                       assetBaseUrl={assetBaseUrl}
-                      filePath={filePath}
+                      filePath={file.filePath}
                       key={index}
                       maxHeight="max-h-14"
+                      modifiedAt={file.modifiedAt}
                       onOpen={openInPanel}
                       thumbnail
                     />
@@ -230,11 +235,14 @@ function GeneratedImage({
   assetBaseUrl: string;
   filePath: string;
   maxHeight?: string;
-  modifiedAt?: number;
-  onOpen: (file: { filePath: string; modifiedAt?: number }) => void;
+  modifiedAt: number;
+  onOpen: (file: { filePath: string; modifiedAt: number }) => void;
   thumbnail?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
+  const currentFile = useCurrentProjectFile(filePath);
+  const isStale =
+    currentFile !== undefined && currentFile.modifiedAt !== modifiedAt;
   const src = getAssetUrl({
     assetBase: assetBaseUrl,
     filePath,
@@ -248,7 +256,7 @@ function GeneratedImage({
   return (
     <button
       className={cn(
-        "cursor-zoom-in focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "relative cursor-zoom-in focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         thumbnail ? "block rounded-md" : "block w-full",
       )}
       onClick={handleClick}
@@ -278,6 +286,11 @@ function GeneratedImage({
         filename={filename}
         src={src}
       />
+      {isStale && (
+        <span className="absolute right-2 bottom-2 rounded-full bg-background/90 px-2 py-1 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+          Updated since this message
+        </span>
+      )}
     </button>
   );
 }

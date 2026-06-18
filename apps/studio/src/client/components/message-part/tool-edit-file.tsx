@@ -45,6 +45,7 @@ export function ToolEditFile({
       content={content}
       filePath={filePath}
       language={language}
+      modifiedAt={isDone ? part.output.modifiedAt : undefined}
       subdomain={subdomain}
     />
   );

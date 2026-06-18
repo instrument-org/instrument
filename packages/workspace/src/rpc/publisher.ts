@@ -39,7 +39,7 @@ export const publisher = new EventPublisher<{
     subdomain: ProjectSubdomain;
   };
   "project.outputArtifactsCreated": {
-    filePaths: string[];
+    files: { filePath: string; modifiedAt: number }[];
     sessionId: StoreId.Session;
     subdomain: ProjectSubdomain;
   };

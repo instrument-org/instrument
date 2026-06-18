@@ -9,7 +9,10 @@ import {
   getProjectFiles,
   ProjectFilesSchema,
 } from "../../../lib/get-project-files";
-import { getCurrentProjectFiles } from "../../../lib/project-file-watcher";
+import {
+  getCurrentProjectFiles,
+  startWatchingProjectFiles,
+} from "../../../lib/project-file-watcher";
 import { RelativeProjectPathSchema } from "../../../schemas/paths";
 import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
 import { base, toORPCError } from "../../base";
@@ -75,15 +78,24 @@ export const projectFiles = {
       )
       .output(eventIterator(ProjectFilesSchema))
       .handler(async function* ({ context, input, signal }) {
-        yield call(list, input, { context, signal });
-
-        const changes = publisher.subscribe("project.files.changed", {
-          signal,
+        const release = startWatchingProjectFiles({
+          subdomain: input.projectSubdomain,
+          workspaceConfig: context.workspaceConfig,
         });
-        for await (const payload of changes) {
-          if (payload.subdomain === input.projectSubdomain) {
-            yield call(list, input, { context, signal });
+
+        try {
+          const changes = publisher.subscribe("project.files.changed", {
+            signal,
+          });
+          yield call(list, input, { context, signal });
+
+          for await (const payload of changes) {
+            if (payload.subdomain === input.projectSubdomain) {
+              yield call(list, input, { context, signal });
+            }
           }
+        } finally {
+          release();
         }
       }),
   },

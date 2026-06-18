@@ -10,19 +10,13 @@ import {
 } from "xstate";
 
 import { closeAgentBrowserSessionsForSessions } from "../lib/agent-browser-cleanup";
-import { startWatchingProjectFiles } from "../lib/project-file-watcher";
 import { type AbsolutePath } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type ProjectSubdomain } from "../schemas/subdomains";
-import {
-  type BrowserConfig,
-  type BrowserTargetId,
-  type WorkspaceConfig,
-} from "../types";
+import { type BrowserConfig, type BrowserTargetId } from "../types";
 
 export const AGENT_IDLE_TIMEOUT_MS = ms("1 hour");
 export const USER_PRESENCE_TIMEOUT_MS = ms("5 minutes");
-export const USER_HEARTBEAT_INTERVAL_MS = ms("5 seconds");
 
 export interface ProjectBrowserParentEvent {
   type: "projectBrowser.stopped";
@@ -47,16 +41,18 @@ interface ProjectBrowserContext {
   // ever observed before reap.
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
   partitionDir: AbsolutePath | null;
+  presenceCount: number;
   subdomain: ProjectSubdomain;
   // Targets we've already spawned a destruction watcher for. Used to gate
   // duplicate spawns on subsequent updateCdpHeartbeats for the same target.
   watchedTargets: Set<BrowserTargetId>;
-  workspaceConfig: WorkspaceConfig;
 }
 
 type ProjectBrowserEvent =
+  | { type: "acquirePresence" }
   | { type: "attachAgentSession"; value: { sessionId: StoreId.Session } }
   | { type: "forceReap" }
+  | { type: "releasePresence" }
   | {
       type: "targetDestroyedExternally";
       value: { targetId: BrowserTargetId };
@@ -68,8 +64,7 @@ type ProjectBrowserEvent =
         sessionId: StoreId.Session;
         targetId: BrowserTargetId;
       };
-    }
-  | { type: "updateUserHeartbeat" };
+    };
 
 // Bridges the engine-agnostic BrowserConfig.onTargetDestroyed callback into a
 // machine event. Spawned per target on first observation; unsubscribes when
@@ -83,20 +78,6 @@ const watchTargetDestructionLogic = fromCallback<
       type: "targetDestroyedExternally",
       value: { targetId: input.targetId },
     });
-  }),
-);
-
-// Watches the task's files on disk while the task is being viewed (the machine
-// is kept alive by the user-presence heartbeat). Maintains an incremental file
-// index and publishes `project.files.changed`; the disposer stops watching when
-// the machine leaves Active.
-const watchProjectFilesLogic = fromCallback<
-  ProjectBrowserEvent,
-  { subdomain: ProjectSubdomain; workspaceConfig: WorkspaceConfig }
->(({ input }) =>
-  startWatchingProjectFiles({
-    subdomain: input.subdomain,
-    workspaceConfig: input.workspaceConfig,
   }),
 );
 
@@ -122,6 +103,10 @@ const destroyAndCloseLogic = fromPromise<undefined, DestroyAndCloseInput>(
 
 export const projectBrowserMachine = setup({
   actions: {
+    acquirePresence: assign({
+      presenceCount: ({ context }) => context.presenceCount + 1,
+    }),
+
     addKnownSession: assign({
       knownTargets: (
         { context },
@@ -145,6 +130,10 @@ export const projectBrowserMachine = setup({
       type: "projectBrowser.stopped" as const,
       value: { subdomain: context.subdomain },
     })),
+
+    releasePresence: assign({
+      presenceCount: ({ context }) => Math.max(0, context.presenceCount - 1),
+    }),
 
     setTargetMeta: enqueueActions(
       (
@@ -179,7 +168,6 @@ export const projectBrowserMachine = setup({
 
   actors: {
     destroyAndCloseLogic,
-    watchProjectFilesLogic,
     watchTargetDestructionLogic,
   },
 
@@ -188,14 +176,14 @@ export const projectBrowserMachine = setup({
     USER_PRESENCE_TIMEOUT_MS,
   },
 
+  guards: {
+    hasOnePresence: ({ context }) => context.presenceCount === 1,
+  },
+
   types: {
     context: {} as ProjectBrowserContext,
     events: {} as ProjectBrowserEvent,
-    input: {} as {
-      browser: BrowserConfig;
-      subdomain: ProjectSubdomain;
-      workspaceConfig: WorkspaceConfig;
-    },
+    input: {} as { browser: BrowserConfig; subdomain: ProjectSubdomain },
   },
 }).createMachine({
   context: ({ input }) => ({
@@ -203,75 +191,70 @@ export const projectBrowserMachine = setup({
     destroyedExternallyTargets: new Set<BrowserTargetId>(),
     knownTargets: new Map<StoreId.Session, BrowserTargetId | undefined>(),
     partitionDir: null,
+    presenceCount: 0,
     subdomain: input.subdomain,
     watchedTargets: new Set<BrowserTargetId>(),
-    workspaceConfig: input.workspaceConfig,
   }),
   id: "projectBrowser",
-  initial: "Active",
+  initial: "Unobserved",
+  on: {
+    attachAgentSession: {
+      actions: {
+        params: ({ event }) => event.value,
+        type: "addKnownSession",
+      },
+    },
+    forceReap: { target: ".Stopping" },
+    targetDestroyedExternally: {
+      actions: {
+        params: ({ event }) => ({ targetId: event.value.targetId }),
+        type: "markExternalDestruction",
+      },
+      target: ".Stopping",
+    },
+  },
   states: {
-    Active: {
-      invoke: {
-        input: ({ context }) => ({
-          subdomain: context.subdomain,
-          workspaceConfig: context.workspaceConfig,
-        }),
-        src: "watchProjectFilesLogic",
+    GracePeriod: {
+      after: {
+        USER_PRESENCE_TIMEOUT_MS: { target: "Stopping" },
       },
       on: {
-        attachAgentSession: {
+        acquirePresence: {
+          actions: "acquirePresence",
+          target: "Observed",
+        },
+        updateCdpHeartbeat: {
           actions: {
             params: ({ event }) => event.value,
-            type: "addKnownSession",
+            type: "setTargetMeta",
           },
+          target: "Unobserved",
         },
-        forceReap: { target: "Stopping" },
-        targetDestroyedExternally: {
+      },
+    },
+    Observed: {
+      after: {
+        AGENT_IDLE_TIMEOUT_MS: { target: "Stopping" },
+      },
+      on: {
+        acquirePresence: { actions: "acquirePresence" },
+        releasePresence: [
+          {
+            actions: "releasePresence",
+            guard: "hasOnePresence",
+            target: "GracePeriod",
+          },
+          { actions: "releasePresence" },
+        ],
+        updateCdpHeartbeat: {
           actions: {
-            params: ({ event }) => ({ targetId: event.value.targetId }),
-            type: "markExternalDestruction",
+            params: ({ event }) => event.value,
+            type: "setTargetMeta",
           },
-          target: "Stopping",
+          reenter: true,
+          target: "Observed",
         },
       },
-      states: {
-        Agent: {
-          initial: "Watching",
-          states: {
-            Watching: {
-              after: {
-                AGENT_IDLE_TIMEOUT_MS: { target: "#projectBrowser.Stopping" },
-              },
-              on: {
-                updateCdpHeartbeat: {
-                  actions: {
-                    params: ({ event }) => event.value,
-                    type: "setTargetMeta",
-                  },
-                  reenter: true,
-                  target: "Watching",
-                },
-              },
-            },
-          },
-        },
-        User: {
-          initial: "Watching",
-          states: {
-            Watching: {
-              after: {
-                USER_PRESENCE_TIMEOUT_MS: {
-                  target: "#projectBrowser.Stopping",
-                },
-              },
-              on: {
-                updateUserHeartbeat: { reenter: true, target: "Watching" },
-              },
-            },
-          },
-        },
-      },
-      type: "parallel",
     },
     Stopped: {
       entry: "notifyParentStopped",
@@ -287,6 +270,25 @@ export const projectBrowserMachine = setup({
         onDone: { target: "Stopped" },
         onError: { target: "Stopped" },
         src: "destroyAndCloseLogic",
+      },
+    },
+    Unobserved: {
+      after: {
+        AGENT_IDLE_TIMEOUT_MS: { target: "Stopping" },
+      },
+      on: {
+        acquirePresence: {
+          actions: "acquirePresence",
+          target: "Observed",
+        },
+        updateCdpHeartbeat: {
+          actions: {
+            params: ({ event }) => event.value,
+            type: "setTargetMeta",
+          },
+          reenter: true,
+          target: "Unobserved",
+        },
       },
     },
   },

@@ -216,11 +216,8 @@ function RouteComponent() {
     }),
   );
 
-  // User-presence heartbeat for the projectBrowser machine. Subscribed on
-  // mount; the workspace-side machine reaps the per-subdomain browser if
-  // pings stop arriving.
   useQuery(
-    rpcClient.workspace.browser.live.heartbeat.experimental_liveOptions({
+    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
       input: { subdomain },
     }),
   );

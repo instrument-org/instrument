@@ -69,6 +69,10 @@ export type WorkspaceEvent =
   | SessionMachineParentEvent
   | WorkspaceServerParentEvent
   | {
+      type: "acquireBrowserPresence";
+      value: { subdomain: ProjectSubdomain };
+    }
+  | {
       type: "addMessage";
       value: {
         agentName: AgentName;
@@ -116,6 +120,10 @@ export type WorkspaceEvent =
       type: "prepareToTrashApp";
       value: { onBrowserReaped?: () => void; subdomain: AppSubdomain };
     }
+  | {
+      type: "releaseBrowserPresence";
+      value: { subdomain: ProjectSubdomain };
+    }
   | { type: "removeAppBeingTrashed"; value: { subdomain: AppSubdomain } }
   | {
       type: "restartAllRuntimes";
@@ -145,14 +153,36 @@ export type WorkspaceEvent =
         subdomain: AppSubdomain;
         update: ToolCallUpdate;
       };
-    }
-  | {
-      type: "updateUserHeartbeat";
-      value: { subdomain: ProjectSubdomain };
     };
 
 export const workspaceMachine = setup({
   actions: {
+    acquireBrowserPresence: enqueueActions(
+      ({ enqueue }, { subdomain }: { subdomain: ProjectSubdomain }) => {
+        enqueue.assign(({ context, spawn }) => {
+          const existing = context.projectBrowserRefs.get(subdomain);
+          const ref =
+            existing ??
+            spawn("projectBrowserMachine", {
+              input: {
+                browser: context.config.browser,
+                subdomain,
+              },
+            });
+          ref.send({ type: "acquirePresence" });
+          if (existing) {
+            return {};
+          }
+          return {
+            projectBrowserRefs: new Map(context.projectBrowserRefs).set(
+              subdomain,
+              ref,
+            ),
+          };
+        });
+      },
+    ),
+
     assignEventError: createAssignEventError(),
 
     clearSessionRefsBySubdomain: assign(
@@ -223,7 +253,6 @@ export const workspaceMachine = setup({
               input: {
                 browser: context.config.browser,
                 subdomain,
-                workspaceConfig: context.config,
               },
             });
           ref.send({
@@ -259,33 +288,6 @@ export const workspaceMachine = setup({
       },
     ),
 
-    forwardUpdateUserHeartbeat: enqueueActions(
-      ({ enqueue }, { subdomain }: { subdomain: ProjectSubdomain }) => {
-        enqueue.assign(({ context, spawn }) => {
-          const existing = context.projectBrowserRefs.get(subdomain);
-          const ref =
-            existing ??
-            spawn("projectBrowserMachine", {
-              input: {
-                browser: context.config.browser,
-                subdomain,
-                workspaceConfig: context.config,
-              },
-            });
-          ref.send({ type: "updateUserHeartbeat" });
-          if (existing) {
-            return {};
-          }
-          return {
-            projectBrowserRefs: new Map(context.projectBrowserRefs).set(
-              subdomain,
-              ref,
-            ),
-          };
-        });
-      },
-    ),
-
     handleProjectBrowserStopped: enqueueActions(
       (
         { context, enqueue },
@@ -308,6 +310,14 @@ export const workspaceMachine = setup({
           nextResolvers.delete(subdomain);
           enqueue.assign({ pendingBrowserReapResolvers: nextResolvers });
         }
+      },
+    ),
+
+    releaseBrowserPresence: enqueueActions(
+      ({ context }, { subdomain }: { subdomain: ProjectSubdomain }) => {
+        context.projectBrowserRefs
+          .get(subdomain)
+          ?.send({ type: "releasePresence" });
       },
     ),
 
@@ -442,6 +452,12 @@ export const workspaceMachine = setup({
           event,
           self,
         });
+      },
+    },
+    acquireBrowserPresence: {
+      actions: {
+        params: ({ event }) => ({ subdomain: event.value.subdomain }),
+        type: "acquireBrowserPresence",
       },
     },
     addMessage: [
@@ -703,6 +719,12 @@ export const workspaceMachine = setup({
         type: "handleProjectBrowserStopped",
       },
     },
+    releaseBrowserPresence: {
+      actions: {
+        params: ({ event }) => ({ subdomain: event.value.subdomain }),
+        type: "releaseBrowserPresence",
+      },
+    },
     removeAppBeingTrashed: {
       actions: assign(({ context, event }) => {
         return {
@@ -880,13 +902,6 @@ export const workspaceMachine = setup({
         }),
       },
     ],
-
-    updateUserHeartbeat: {
-      actions: {
-        params: ({ event }) => ({ subdomain: event.value.subdomain }),
-        type: "forwardUpdateUserHeartbeat",
-      },
-    },
 
     "workspaceServer.attachAgentSession": {
       actions: {

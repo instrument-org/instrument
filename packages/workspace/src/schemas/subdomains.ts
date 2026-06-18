@@ -7,7 +7,6 @@ export type PreviewSubdomain = `${SubdomainPart}.${PreviewSubdomainPart}`;
 export type ProjectSubdomain = SubdomainPart & z.$brand<"ProjectSubdomain">;
 
 export type SandboxSubdomain = `sandbox-${SubdomainPart}.${ProjectSubdomain}`;
-export type VersionSubdomain = `version-${SubdomainPart}.${ProjectSubdomain}`;
 type PreviewSubdomainPart = typeof PREVIEW_SUBDOMAIN_PART;
 
 function ensureString(val: unknown, ctx: z.core.$RefinementCtx): val is string {
@@ -121,15 +120,6 @@ export const ProjectSubdomainSchema = z
       });
     }
 
-    if (val.startsWith("version-")) {
-      ctx.addIssue({
-        code: "custom",
-        fatal: true,
-        input: val,
-        message: "Task subdomains cannot start with 'version-'",
-      });
-    }
-
     validateSubdomainPart(val, ctx);
   });
 
@@ -164,42 +154,10 @@ export const SandboxSubdomainSchema = z
     validateSubdomainPart(projectPart, ctx);
   });
 
-export const VersionSubdomainSchema = z
-  .custom<VersionSubdomain>()
-  .superRefine((val: unknown, ctx) => {
-    if (!ensureString(val, ctx)) {
-      return;
-    }
-
-    const parts = validateTwoPartSubdomain(
-      val,
-      ctx,
-      "Version subdomains must have exactly two parts (e.g., version-commit.task-name)",
-    );
-    if (!parts) {
-      return;
-    }
-
-    const [versionPart, projectPart] = parts;
-
-    validateSubdomainPrefix(
-      ctx,
-      versionPart,
-      "version-",
-      "First part of version",
-    );
-
-    const versionSubdomainPart = versionPart.slice("version-".length);
-
-    validateSubdomainPart(versionSubdomainPart, ctx);
-    validateSubdomainPart(projectPart, ctx);
-  });
-
 export const AppSubdomainSchema = z.union([
   PreviewSubdomainSchema,
   ProjectSubdomainSchema,
   SandboxSubdomainSchema,
-  VersionSubdomainSchema,
 ]);
 
 export type AppSubdomain = z.output<typeof AppSubdomainSchema>;

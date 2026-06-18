@@ -52,7 +52,7 @@ describe("project file watcher turn tracking", () => {
     const sessionId = StoreId.newSessionId();
     await beginTurnChangeTracking({ sessionId, subdomain, workspaceConfig });
 
-    expect(trackedPaths()).toEqual(["./a.txt", "./sub/b.txt"]);
+    expect(trackedPaths()).toEqual(["a.txt", "sub/b.txt"]);
 
     await fs.writeFile(path.join(appDir, "a.txt"), "aaaa");
     await fs.writeFile(path.join(appDir, "c.txt"), "c");
@@ -65,9 +65,9 @@ describe("project file watcher turn tracking", () => {
         status,
       })),
     ).toEqual([
-      { filePath: "./a.txt", status: "modified" },
-      { filePath: "./c.txt", status: "added" },
-      { filePath: "./sub/b.txt", status: "deleted" },
+      { filePath: "a.txt", status: "modified" },
+      { filePath: "c.txt", status: "added" },
+      { filePath: "sub/b.txt", status: "deleted" },
     ]);
 
     // The turn held the only watcher ref, so consuming disposes it.

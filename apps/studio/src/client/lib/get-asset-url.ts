@@ -1,3 +1,5 @@
+import { normalizeProjectFilePath } from "@instrument-org/workspace/client";
+
 export function getAssetUrl({
   assetBase,
   filePath,
@@ -5,6 +7,5 @@ export function getAssetUrl({
   assetBase: string;
   filePath: string;
 }): string {
-  const cleanPath = filePath.startsWith("./") ? filePath.slice(2) : filePath;
-  return `${assetBase}/${cleanPath}`;
+  return `${assetBase}/${normalizeProjectFilePath(filePath)}`;
 }

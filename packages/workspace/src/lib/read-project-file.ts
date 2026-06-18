@@ -4,6 +4,7 @@ import { RelativePathSchema } from "../schemas/paths";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { createAppConfig } from "./app-config/create";
+import { normalizeProjectFilePath } from "./normalize-project-file-path";
 import { resolvePathWithinAppDir } from "./resolve-path-within-app-dir";
 
 interface ReadProjectFileOptions {
@@ -24,7 +25,7 @@ export async function readProjectFile({
     workspaceConfig,
   });
 
-  const cleanPath = filePath.startsWith("./") ? filePath.slice(2) : filePath;
+  const cleanPath = normalizeProjectFilePath(filePath);
 
   // Fail closed: reject absolute paths and any traversal outside appDir.
   const parsedPath = RelativePathSchema.safeParse(cleanPath);

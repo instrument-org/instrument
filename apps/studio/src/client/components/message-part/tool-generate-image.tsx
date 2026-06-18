@@ -57,7 +57,7 @@ export function SourceImagesChip({
   return (
     <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
       {sourceImages.slice(0, 3).map((filePath, index) => {
-        const src = `${assetBaseUrl}/${filePath.startsWith("./") ? filePath.slice(2) : filePath}`;
+        const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
         return (
           <img
             alt="Reference"

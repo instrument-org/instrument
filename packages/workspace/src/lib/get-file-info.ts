@@ -6,6 +6,7 @@ import { type RelativePath } from "../schemas/paths";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { TypedError } from "./errors";
 import { getMimeType } from "./get-mime-type";
+import { normalizeProjectFilePath } from "./normalize-project-file-path";
 import { urlsForSubdomain } from "./url-for-subdomain";
 
 export const CurrentFileInfoSchema = z.object({
@@ -23,7 +24,7 @@ export function getCurrentFileInfo({
   projectSubdomain: ProjectSubdomain;
 }) {
   const urls = urlsForSubdomain(projectSubdomain);
-  const cleanPath = filePath.startsWith("./") ? filePath.slice(2) : filePath;
+  const cleanPath = normalizeProjectFilePath(filePath);
   const url = `${urls.assetBase}/${cleanPath}`;
 
   const filename = path.basename(filePath);

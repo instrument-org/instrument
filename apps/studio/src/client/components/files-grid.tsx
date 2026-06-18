@@ -67,13 +67,12 @@ export function FilesGrid({
     if (!search) {
       return;
     }
-    const filePath = normalizeProjectFilePath(file.filePath);
     void navigate({
       replace: true,
       search: (prev) => ({
         ...prev,
         artifactPanel: {
-          filePath,
+          filePath: file.filePath,
           type: "file",
         },
       }),
@@ -85,10 +84,12 @@ export function FilesGrid({
     DEFAULT_EXPANDED_SECTIONS,
   );
 
-  const [outputFiles, nonOutputFiles] = fork(files, isOutputFile);
+  const [outputFiles, nonOutputFiles] = fork(files, (file) =>
+    isFileInAppFolder(file, APP_FOLDER_NAMES.output),
+  );
   const [userProvidedFiles, nonUserProvidedFiles] = fork(
     nonOutputFiles,
-    isUserProvidedFile,
+    (file) => isFileInAppFolder(file, APP_FOLDER_NAMES.userProvided),
   );
   const [supportingFilesByKey, regularFiles] =
     splitSupportingFiles(nonUserProvidedFiles);
@@ -395,56 +396,15 @@ function hasRowCardPreview(file: ProjectFileViewerFile) {
   );
 }
 
-function isAgentRetrievedFile(file: ProjectFileViewerFile) {
-  return normalizeProjectFilePath(file.filePath).startsWith(
-    `${APP_FOLDER_NAMES.agentRetrieved}/`,
-  );
-}
-
 function isArtifactPanelFileSelected(
   file: ProjectFileViewerFile,
   artifactPanel: ArtifactPanel | null,
 ) {
-  if (!artifactPanel) {
-    return false;
-  }
-
-  return (
-    normalizeProjectFilePath(file.filePath) ===
-    normalizeProjectFilePath(artifactPanel.filePath)
-  );
+  return artifactPanel != null && file.filePath === artifactPanel.filePath;
 }
 
-function isOutputFile(file: ProjectFileViewerFile) {
-  return normalizeProjectFilePath(file.filePath).startsWith(
-    `${APP_FOLDER_NAMES.output}/`,
-  );
-}
-
-function isScriptFile(file: ProjectFileViewerFile) {
-  return normalizeProjectFilePath(file.filePath).startsWith(
-    `${APP_FOLDER_NAMES.scripts}/`,
-  );
-}
-
-function isSkillFile(file: ProjectFileViewerFile) {
-  return normalizeProjectFilePath(file.filePath).startsWith(
-    `${APP_FOLDER_NAMES.skills}/`,
-  );
-}
-
-function isTempFile(file: ProjectFileViewerFile) {
-  return normalizeProjectFilePath(file.filePath).startsWith("tmp/");
-}
-
-function isUserProvidedFile(file: ProjectFileViewerFile) {
-  return normalizeProjectFilePath(file.filePath).startsWith(
-    `${APP_FOLDER_NAMES.userProvided}/`,
-  );
-}
-
-function normalizeProjectFilePath(filePath: string) {
-  return filePath.startsWith("./") ? filePath.slice(2) : filePath;
+function isFileInAppFolder(file: ProjectFileViewerFile, folderName: string) {
+  return file.filePath.startsWith(`${folderName}/`);
 }
 
 function sortByRichPreview(files: ProjectFileViewerFile[]) {
@@ -470,14 +430,25 @@ function splitSupportingFiles(files: ProjectFileViewerFile[]) {
     key: SupportingSectionKey;
     matches: (file: ProjectFileViewerFile) => boolean;
   }[] = [
-    { key: "scripts", matches: isScriptFile },
-    { key: "skills", matches: isSkillFile },
-    { key: "temporary", matches: isTempFile },
-    { key: "agentRetrieved", matches: isAgentRetrievedFile },
+    {
+      key: "scripts",
+      matches: (f) => isFileInAppFolder(f, APP_FOLDER_NAMES.scripts),
+    },
+    {
+      key: "skills",
+      matches: (f) => isFileInAppFolder(f, APP_FOLDER_NAMES.skills),
+    },
+    {
+      key: "temporary",
+      matches: (f) => isFileInAppFolder(f, APP_FOLDER_NAMES.tmp),
+    },
+    {
+      key: "agentRetrieved",
+      matches: (f) => isFileInAppFolder(f, APP_FOLDER_NAMES.agentRetrieved),
+    },
     {
       key: "other",
-      matches: (f) =>
-        isUnknownTopLevelDirFile(normalizeProjectFilePath(f.filePath)),
+      matches: (f) => isUnknownTopLevelDirFile(f.filePath),
     },
   ];
 

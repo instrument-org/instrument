@@ -53,9 +53,9 @@ describe("getProjectFileIndex", () => {
 
     expect([...result.value.keys()]).toMatchInlineSnapshot(`
       [
-        "./.gitignore",
-        "./notes.md",
-        "./output/chart.png",
+        ".gitignore",
+        "notes.md",
+        "output/chart.png",
       ]
     `);
   });
@@ -80,7 +80,7 @@ describe("getProjectFileIndex", () => {
 
     const filePaths = [...result.value.keys()];
     expect(filePaths).toHaveLength(4);
-    expect(filePaths).not.toContain("./linked-notes.md");
+    expect(filePaths).not.toContain("linked-notes.md");
   });
 
   it("diffs file index snapshots and extracts output artifacts", async () => {
@@ -109,15 +109,15 @@ describe("getProjectFileIndex", () => {
       .toMatchInlineSnapshot(`
         [
           [
-            "./notes.md",
+            "notes.md",
             "modified",
           ],
           [
-            "./output/chart.png",
+            "output/chart.png",
             "deleted",
           ],
           [
-            "./output/new.txt",
+            "output/new.txt",
             "added",
           ],
         ]

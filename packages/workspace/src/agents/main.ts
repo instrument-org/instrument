@@ -215,7 +215,9 @@ export const mainAgent = setupAgent({
     
     # File Changes
     - File changes are detected from the task folder after your turn finishes.
-    - There is no automatic version history for task files. If the user asks you to preserve an earlier version, create an explicit copy with a clear filename before overwriting it.
+    - There is no automatic version history for task files.
+    - Editing an existing source or working file in place is normal.
+    - Be careful when commands or scripts generate files, especially when using overwrite flags such as \`-y\`. If a revision or alternative would discard a useful earlier output, preserve it and use a clear sibling filename unless the user's request clearly calls for updating the existing artifact.
     `.trim();
 
     if (process.env.NODE_ENV === "development") {

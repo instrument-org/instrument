@@ -6,6 +6,7 @@ describe("artifactPanelSchema", () => {
   it("accepts a plain relative file path", () => {
     const result = artifactPanelSchema.safeParse({
       filePath: "src/index.ts",
+      modifiedAt: 1_234_567_890,
       type: "file",
     });
     expect(result.success).toBe(true);
@@ -14,6 +15,7 @@ describe("artifactPanelSchema", () => {
   it("strips a leading ./ so both conventions compare equal", () => {
     const result = artifactPanelSchema.safeParse({
       filePath: "./src/index.ts",
+      modifiedAt: 1_234_567_890,
       type: "file",
     });
     expect(result.success && result.data.filePath).toBe("src/index.ts");

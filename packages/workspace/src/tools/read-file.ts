@@ -76,17 +76,18 @@ async function handleMediaFile({
   state: MediaFileState;
 }) {
   const config = MEDIA_CONFIG[state];
+  const stats = await fs.stat(absolutePath);
 
   if (state === "image" && !SUPPORTED_IMAGE_FORMATS.includes(mimeType)) {
     return ok({
       filePath: fixedPath,
       mimeType,
+      modifiedAt: stats.mtimeMs,
       reason: "unsupported-image-format" as const,
       state: "unsupported-format" as const,
     });
   }
 
-  const stats = await fs.stat(absolutePath);
   if (stats.size > config.maxSize) {
     return executeError(
       [
@@ -123,6 +124,7 @@ async function handleMediaFile({
     base64Data,
     filePath: fixedPath,
     mimeType,
+    modifiedAt: stats.mtimeMs,
     state,
   });
 }
@@ -157,6 +159,7 @@ export const ReadFile = setupTool({
       displayedLines: z.number(),
       filePath: z.string(),
       hasMoreLines: z.boolean(),
+      modifiedAt: z.number(),
       offset: z.number(),
       state: z.literal("exists"),
       totalLines: z.number(),
@@ -166,24 +169,28 @@ export const ReadFile = setupTool({
       base64Data: z.string(),
       filePath: z.string(),
       mimeType: z.string(),
+      modifiedAt: z.number(),
       state: z.literal("image"),
     }),
     z.object({
       base64Data: z.string(),
       filePath: z.string(),
       mimeType: z.string(),
+      modifiedAt: z.number(),
       state: z.literal("pdf"),
     }),
     z.object({
       base64Data: z.string(),
       filePath: z.string(),
       mimeType: z.string(),
+      modifiedAt: z.number(),
       state: z.literal("audio"),
     }),
     z.object({
       base64Data: z.string(),
       filePath: z.string(),
       mimeType: z.string(),
+      modifiedAt: z.number(),
       state: z.literal("video"),
     }),
     z.object({
@@ -194,6 +201,7 @@ export const ReadFile = setupTool({
     z.object({
       filePath: z.string(),
       mimeType: z.string().optional(),
+      modifiedAt: z.number(),
       reason: z.enum(["binary-file", "unsupported-image-format"]),
       state: z.literal("unsupported-format"),
     }),
@@ -323,6 +331,7 @@ export const ReadFile = setupTool({
         displayedLines: selectedLines.length,
         filePath: displayPath,
         hasMoreLines,
+        modifiedAt: stats.mtimeMs,
         offset: clampedOffset,
         state: "exists" as const,
         totalLines: lines.length,
@@ -375,6 +384,7 @@ export const ReadFile = setupTool({
     return ok({
       filePath: displayPath,
       mimeType,
+      modifiedAt: stats.mtimeMs,
       reason: "binary-file" as const,
       state: "unsupported-format" as const,
     });

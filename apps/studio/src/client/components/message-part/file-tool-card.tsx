@@ -17,11 +17,13 @@ export function FileToolCard({
   content,
   filePath,
   language,
+  modifiedAt,
   subdomain,
 }: {
   content: string;
   filePath: string;
   language?: string;
+  modifiedAt?: number;
   subdomain: ProjectSubdomain;
 }) {
   const { isStreaming } = useToolCallSession();
@@ -48,11 +50,14 @@ export function FileToolCard({
   };
 
   const handleExpand = () => {
+    if (modifiedAt === undefined) {
+      return;
+    }
     void navigate({
       replace: true,
       search: (prev) => ({
         ...prev,
-        artifactPanel: { filePath, type: "file" as const },
+        artifactPanel: { filePath, modifiedAt, type: "file" as const },
       }),
     });
   };
@@ -74,7 +79,7 @@ export function FileToolCard({
           </span>
         </div>
 
-        {!isStreaming && (
+        {!isStreaming && modifiedAt !== undefined && (
           <div className="flex shrink-0 items-center gap-3">
             <ConfirmedIconButton
               className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"

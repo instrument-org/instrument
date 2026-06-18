@@ -99,19 +99,19 @@ export function ProjectView({
   const currentFileMetadata = files?.find(
     (file) => file.filePath === artifactPanel?.filePath,
   );
-  const currentFile: null | ProjectFileViewerFile = fileInfo
-    ? {
-        ...fileInfo,
-        modifiedAt:
-          artifactPanel?.modifiedAt ?? currentFileMetadata?.modifiedAt,
-        projectSubdomain: project.subdomain,
-        url: getAssetUrl({
-          assetBase: project.urls.assetBase,
-          filePath: fileInfo.filePath,
-          version: artifactPanel?.modifiedAt ?? currentFileMetadata?.modifiedAt,
-        }),
-      }
-    : null;
+  const currentFile: null | ProjectFileViewerFile =
+    fileInfo && currentFileMetadata
+      ? {
+          ...fileInfo,
+          modifiedAt: currentFileMetadata.modifiedAt,
+          projectSubdomain: project.subdomain,
+          url: getAssetUrl({
+            assetBase: project.urls.assetBase,
+            filePath: fileInfo.filePath,
+            version: currentFileMetadata.modifiedAt,
+          }),
+        }
+      : null;
 
   const handleArtifactPanelClose = () => {
     void navigate({

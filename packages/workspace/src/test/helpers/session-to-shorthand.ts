@@ -53,13 +53,19 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           part.type === "tool-generate_image" && part.output.state === "success"
             ? {
                 ...part.output,
-                images: part.output.images.map(
-                  ({ modifiedAt: _modifiedAt, ...image }) => image,
-                ),
+                sourceImages: undefined,
               }
             : part.output;
         content += `\n${indent("<input>")}\n${indent(JSON.stringify(part.input, null, 2), 2)}\n${indent("</input>")}`;
-        content += `\n${indent("<output>")}\n${indent(JSON.stringify(output, null, 2), 2)}\n${indent("</output>")}\n`;
+        content += `\n${indent("<output>")}\n${indent(
+          JSON.stringify(
+            output,
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            (key, value) => (key === "modifiedAt" ? undefined : value),
+            2,
+          ),
+          2,
+        )}\n${indent("</output>")}\n`;
 
         break;
       }

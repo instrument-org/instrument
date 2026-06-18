@@ -27,6 +27,11 @@ export const INTERNAL_IGNORE_PATTERNS = [
   APP_FOLDER_NAMES.tmp,
   `${APP_FOLDER_NAMES.tmp}/**`,
   PROJECT_MANIFEST_FILE_NAME,
+  // Generated lockfile (rewritten by every pnpm install, incl. inside loaded
+  // skills). Never read or hand-edited; bare name matches at any depth. We do
+  // not ignore pnpm-workspace.yaml: it is real, occasionally agent-edited config
+  // that should stay enumerated and surface in chat when changed.
+  "pnpm-lock.yaml",
 ];
 
 const ProjectFileSchema = z.object({

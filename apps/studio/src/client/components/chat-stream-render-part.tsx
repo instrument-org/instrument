@@ -6,6 +6,7 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { AssistantMessage } from "./assistant-message";
+import { ExternalFileChangesDebugCard } from "./external-file-changes-debug-card";
 import { FileChangesCard } from "./file-changes-card";
 import { ToolCall } from "./message-part/tool-call";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
@@ -96,6 +97,19 @@ export function renderChatPart({
 
   if (part.type === "data-attachments") {
     return null;
+  }
+
+  if (part.type === "data-externalFileChanges") {
+    if (!ctx.isDeveloperMode) {
+      return null;
+    }
+    return (
+      <ExternalFileChangesDebugCard
+        className="mt-2"
+        files={part.data.files}
+        key={part.metadata.id}
+      />
+    );
   }
 
   if (isToolPart(part)) {

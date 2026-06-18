@@ -46,9 +46,21 @@ export type ProjectFileChange = ProjectFile & {
   status: "added" | "deleted" | "modified";
 };
 export type ProjectFileIndex = Map<string, ProjectFileEntry>;
-type ProjectFileEntry = Omit<ProjectFile, "modifiedAt"> & {
-  mtimeMs: number;
-};
+
+const ProjectFileIndexEntrySchema = z.object({
+  filename: z.string(),
+  filePath: RelativePathSchema,
+  mimeType: z.string(),
+  mtimeMs: z.number(),
+  size: z.number(),
+});
+
+type ProjectFileEntry = z.output<typeof ProjectFileIndexEntrySchema>;
+
+// Serializable form of the index, used to persist a baseline across turns.
+export const ProjectFileIndexSnapshotSchema = z.array(
+  ProjectFileIndexEntrySchema,
+);
 
 export function diffProjectFileIndexes({
   after,
@@ -194,6 +206,18 @@ export function outputArtifactsFromChanges(changes: ProjectFileChange[]) {
     )
     .map(({ filePath, modifiedAt }) => ({ filePath, modifiedAt }))
     .sort((a, b) => a.filePath.localeCompare(b.filePath));
+}
+
+export function projectFileIndexFromSnapshot(
+  snapshot: ProjectFileEntry[],
+): ProjectFileIndex {
+  return new Map(snapshot.map((entry) => [entry.filePath, entry]));
+}
+
+export function projectFileIndexToSnapshot(
+  index: ProjectFileIndex,
+): ProjectFileEntry[] {
+  return [...index.values()];
 }
 
 export function projectFilesFromIndex(index: ProjectFileIndex): ProjectFile[] {

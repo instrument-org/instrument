@@ -1,7 +1,6 @@
 export type { AgentName, TaskAgentName } from "./agents/types";
 export {
   APP_FOLDER_NAMES,
-  GIT_AUTHOR,
   MAX_PROMPT_STORAGE_LENGTH,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";

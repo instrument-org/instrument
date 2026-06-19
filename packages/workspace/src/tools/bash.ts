@@ -6,12 +6,10 @@ import { z } from "zod";
 
 import { APP_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
-import { agentBrowserScreenshotsNote } from "../lib/agent-browser-screenshots-note";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { Store } from "../lib/store";
 import { systemNote } from "../lib/system-note";
-import { extractContextItemsFromOutput } from "../lib/tool-output-context-items";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -178,13 +176,6 @@ export const BashTool = setupTool({
           \`${PNPM_COMMAND.name} install\`
         `,
       );
-    }
-
-    const screenshotsNote = agentBrowserScreenshotsNote(
-      extractContextItemsFromOutput(output),
-    );
-    if (screenshotsNote) {
-      outputParts.push(screenshotsNote);
     }
 
     return {

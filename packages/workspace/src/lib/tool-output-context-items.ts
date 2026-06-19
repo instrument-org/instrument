@@ -5,15 +5,6 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 // side channel into part metadata. Never persisted, never sent to the client.
 const FIELD = "__contextItems";
 
-export function extractContextItemsFromOutput(
-  output: unknown,
-): SessionMessagePart.ToolPartContextItem[] {
-  return (
-    (output as { [FIELD]?: SessionMessagePart.ToolPartContextItem[] })[FIELD] ??
-    []
-  );
-}
-
 export function injectContextItemsIntoOutput<T>(
   output: T,
   contextItems: SessionMessagePart.ToolPartContextItem[] | undefined,

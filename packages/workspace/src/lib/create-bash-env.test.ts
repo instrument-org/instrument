@@ -13,6 +13,9 @@ describe("createBashDescription", () => {
       IMPORTANT: This is a sandboxed environment. python and other runtimes
       are NOT available as system binaries. Do NOT attempt to run them directly.
       Use the specialized \`tsx\` command below to execute TypeScript/JavaScript files.
+      If a system command is unavailable, do not keep probing for equivalent binaries
+      when a short TypeScript script using Node.js built-in APIs can perform the operation.
+      A missing command does not mean the task is impossible.
 
       IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all package management.
 

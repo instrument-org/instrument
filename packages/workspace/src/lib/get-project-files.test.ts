@@ -1,8 +1,10 @@
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { APP_FOLDER_NAMES } from "../constants";
 import { AppDirSchema } from "../schemas/paths";
 import {
   diffProjectFileIndexes,
@@ -58,6 +60,37 @@ describe("getProjectFileIndex", () => {
         "output/chart.png",
       ]
     `);
+  });
+
+  it("excludes every internal folder and generated file from the index", async () => {
+    const internalEntries: { dir: string; file: string }[] = [
+      { dir: APP_FOLDER_NAMES.private, file: "secret.json" },
+      { dir: APP_FOLDER_NAMES.state, file: "state.json" },
+      { dir: APP_FOLDER_NAMES.tmp, file: "scratch.txt" },
+      { dir: "node_modules", file: "dep.js" },
+    ];
+
+    for (const { dir, file } of internalEntries) {
+      await fs.mkdir(path.join(appDirPath, dir), { recursive: true });
+      await fs.writeFile(path.join(appDirPath, dir, file), "internal");
+    }
+
+    await fs.writeFile(path.join(appDirPath, PROJECT_MANIFEST_FILE_NAME), "{}");
+    await fs.writeFile(path.join(appDirPath, "pnpm-lock.yaml"), "lockfile");
+
+    const result = await getProjectFileIndex(appDir);
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    const filePaths = [...result.value.keys()];
+    for (const { dir } of internalEntries) {
+      expect(filePaths.some((p) => p.startsWith(`${dir}/`))).toBe(false);
+    }
+    expect(filePaths).not.toContain(PROJECT_MANIFEST_FILE_NAME);
+    expect(filePaths).not.toContain("pnpm-lock.yaml");
   });
 
   it("skips symbolic links and caps recursive scans", async () => {

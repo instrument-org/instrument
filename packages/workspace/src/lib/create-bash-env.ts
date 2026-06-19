@@ -275,6 +275,8 @@ export function createBashDescription() {
     "",
     `Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}`,
     "",
+    "IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. `which`/`command -v`/`type` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside tsx/node scripts, so a script may shell out to `ffmpeg`/`ffprobe` directly.",
+    "",
     "Specialized commands:",
     ...described,
     ...customLines,

@@ -2,6 +2,7 @@ import { execa, type Options } from "execa";
 
 import { type AbsolutePath } from "../schemas/paths";
 import { type AppConfig } from "./app-config/types";
+import { ffmpegSubprocessEnv } from "./ffmpeg";
 
 export function execaNodeForApp<
   OptionsType extends Omit<Options, "cwd"> = Omit<Options, "cwd">,
@@ -17,6 +18,7 @@ export function execaNodeForApp<
     cwd: cwd ?? appConfig.appDir,
     env: {
       ...options?.env,
+      ...ffmpegSubprocessEnv(),
       ...appConfig.workspaceConfig.nodeExecEnv,
     },
     node: true,

@@ -1,6 +1,6 @@
+import { BrandIcon } from "@/client/components/brand-icon";
 import { EmailLink } from "@/client/components/email-link";
 import { ErrorCard } from "@/client/components/error-card";
-import { AppIcon } from "@/client/components/studio-icon";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -169,7 +169,7 @@ function SubscribePage() {
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 text-center">
             <div className="my-6 flex justify-center">
-              <AppIcon className="size-16" />
+              <BrandIcon className="size-16" />
             </div>
             <h1 className="mb-2 bg-linear-to-r from-foreground to-foreground/70 bg-clip-text text-4xl font-bold text-transparent">
               Choose your plan
@@ -196,7 +196,7 @@ function SubscribePage() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 text-center">
           <div className="my-6 flex justify-center">
-            <AppIcon className="size-16" />
+            <BrandIcon className="size-16" />
           </div>
           <h1 className="mb-2 bg-linear-to-r from-foreground to-foreground/70 bg-clip-text text-4xl font-bold text-transparent">
             Choose your plan

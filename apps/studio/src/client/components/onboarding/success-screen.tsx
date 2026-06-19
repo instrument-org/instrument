@@ -1,4 +1,4 @@
-import { AppIconStylized } from "@/client/components/app-icon-stylized";
+import { BrandMark } from "@/client/components/brand-mark";
 import { Button } from "@/client/components/ui/button";
 import { APP_NAME } from "@instrument-org/shared";
 import { motion } from "motion/react";
@@ -22,7 +22,7 @@ export function OnboardingSuccessScreen({
               initial={initial}
               transition={{ ...fade, delay: 0.5 }}
             >
-              <AppIconStylized className="size-20 drop-shadow-md" />
+              <BrandMark className="size-20 drop-shadow-md" />
             </motion.div>
 
             <motion.div

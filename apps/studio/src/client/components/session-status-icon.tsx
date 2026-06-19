@@ -10,32 +10,6 @@ import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { Spinner } from "./ui/spinner";
 
-export function AppStatusIcon({
-  className,
-  subdomain,
-}: {
-  className?: string;
-  subdomain: ProjectSubdomain;
-}) {
-  const { data: appState } = useAppState({ subdomain });
-  const { data: replayStatus } = useQuery(
-    rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
-      input: { subdomain },
-    }),
-  );
-
-  const tags = appState?.sessionActors.flatMap((a) => a.tags) ?? [];
-  const isReplayRunning = (replayStatus?.activeSessionIds.length ?? 0) > 0;
-
-  return (
-    <SessionStatusIcon
-      className={className}
-      isReplayRunning={isReplayRunning}
-      tags={tags}
-    />
-  );
-}
-
 export function SessionStatusIcon({
   className = "h-4 w-4",
   isReplayRunning = false,
@@ -60,4 +34,30 @@ export function SessionStatusIcon({
       return null;
     }
   }
+}
+
+export function TaskStatusIcon({
+  className,
+  subdomain,
+}: {
+  className?: string;
+  subdomain: ProjectSubdomain;
+}) {
+  const { data: appState } = useAppState({ subdomain });
+  const { data: replayStatus } = useQuery(
+    rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
+      input: { subdomain },
+    }),
+  );
+
+  const tags = appState?.sessionActors.flatMap((a) => a.tags) ?? [];
+  const isReplayRunning = (replayStatus?.activeSessionIds.length ?? 0) > 0;
+
+  return (
+    <SessionStatusIcon
+      className={className}
+      isReplayRunning={isReplayRunning}
+      tags={tags}
+    />
+  );
 }

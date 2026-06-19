@@ -1,5 +1,5 @@
-import { ProjectIcon } from "@/client/components/app-icon";
-import { AppStatusIcon } from "@/client/components/app-status-icon";
+import { TaskStatusIcon } from "@/client/components/session-status-icon";
+import { TaskIcon } from "@/client/components/task-icon";
 import { cn } from "@/client/lib/utils";
 import { type Tab as TabData } from "@/shared/tabs";
 import { XIcon } from "@phosphor-icons/react";
@@ -34,7 +34,7 @@ export const Tab = ({
   showSeparator: boolean;
 }) => {
   const iconSlot = item.iconName ? (
-    <ProjectIcon isSelected={isSelected} name={item.iconName} size="sm" />
+    <TaskIcon isSelected={isSelected} name={item.iconName} size="sm" />
   ) : null;
 
   return (
@@ -115,7 +115,7 @@ export const Tab = ({
         <div className="flex shrink-0 items-center gap-1 pl-1">
           {item.projectSubdomain && !isSelected ? (
             <div className="group-hover:hidden">
-              <AppStatusIcon
+              <TaskStatusIcon
                 className="size-3 shrink-0"
                 subdomain={item.projectSubdomain}
               />

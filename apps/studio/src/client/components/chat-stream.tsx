@@ -21,12 +21,12 @@ import {
   isVisibleAssistantPart,
 } from "./chat-stream-utils";
 import { ContextMessages } from "./context-messages";
-import { AppLogo } from "./logo";
 import { MessageError } from "./message-error";
 import { type RenderStream } from "./message-part/tool-task";
 import { ReasoningMessage } from "./reasoning-message";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
+import { Wordmark } from "./wordmark";
 
 interface ChatStreamProps {
   hideLogo?: boolean;
@@ -260,7 +260,7 @@ export function ChatStream({
             className="flex justify-start"
             key={`assistant-header-${message.id}`}
           >
-            <AppLogo className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
+            <Wordmark className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
           </div>,
         );
       }

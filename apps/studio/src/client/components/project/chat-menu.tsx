@@ -1,5 +1,5 @@
 import { promptInputRefAtom } from "@/client/atoms/prompt-value";
-import { SessionStatusIcon } from "@/client/components/app-status-icon";
+import { SessionStatusIcon } from "@/client/components/session-status-icon";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,

@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
+import { BrandIconGlyph } from "@/client/components/brand-icon";
 import { Anyscale } from "@/client/components/icons/anyscale";
 import { Cerebras } from "@/client/components/icons/cerebras";
 import { DeepInfra } from "@/client/components/icons/deepinfra";
@@ -20,7 +21,6 @@ import { Together } from "@/client/components/icons/together";
 import { XAI } from "@/client/components/icons/x-ai";
 import { ZAI } from "@/client/components/icons/z-ai";
 import { OpenRouter } from "@/client/components/service-icons";
-import { AppIconGlyph } from "@/client/components/studio-icon";
 import {
   Tooltip,
   TooltipContent,
@@ -61,7 +61,7 @@ const PROVIDER_ICON_MAP: Record<
   openai: SiOpenai,
   "openai-compatible": GrNodes,
   openrouter: OpenRouter,
-  [OUR_MODELS.providerType]: AppIconGlyph,
+  [OUR_MODELS.providerType]: BrandIconGlyph,
   perplexity: Perplexity,
   together: Together,
   vercel: SiVercel,

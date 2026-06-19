@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-import { AppIconGlyph } from "@/client/components/studio-icon";
+import { BrandIconGlyph } from "@/client/components/brand-icon";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -136,7 +136,7 @@ export function ModelBadges({
         <Badge
           config={{
             color: "brand",
-            icon: AppIconGlyph,
+            icon: BrandIconGlyph,
             key: "premium",
             shouldShow: () => true,
             tooltip: `This model requires a paid ${APP_NAME} plan`,

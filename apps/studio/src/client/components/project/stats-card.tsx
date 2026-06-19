@@ -1,4 +1,4 @@
-import { ProjectIcon } from "@/client/components/app-icon";
+import { TaskIcon } from "@/client/components/task-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import {
@@ -30,7 +30,7 @@ export function ProjectStatsCard({
 
   return (
     <div className="flex items-center gap-3 overflow-hidden rounded-lg border bg-muted/50 p-4">
-      <ProjectIcon name={project.iconName} size="lg" />
+      <TaskIcon name={project.iconName} size="lg" />
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="truncate font-medium text-foreground">
           {project.title}

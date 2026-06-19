@@ -1,5 +1,5 @@
-import { ProjectIcon } from "@/client/components/app-icon";
 import { InternalLink } from "@/client/components/internal-link";
+import { TaskIcon } from "@/client/components/task-icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +29,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { memo, useEffect, useRef, useState } from "react";
 
-import { AppStatusIcon } from "./app-status-icon";
+import { TaskStatusIcon } from "./session-status-icon";
 
 interface NavProjectItemProps {
   isActive: boolean;
@@ -155,14 +155,14 @@ export const NavProjectItem = memo(function NavProjectItem({
               params={{ subdomain: project.subdomain }}
               to="/projects/$subdomain"
             >
-              <ProjectIcon name={project.iconName} size="xs" />
+              <TaskIcon name={project.iconName} size="xs" />
               <span>{project.title}</span>
             </InternalLink>
           </SidebarMenuButton>
 
           {!isMenuOpen && (
             <div className="pointer-events-none absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md group-hover:hidden">
-              <AppStatusIcon
+              <TaskStatusIcon
                 className="mt-1 size-4 shrink-0"
                 subdomain={project.subdomain}
               />

@@ -48,6 +48,7 @@ export function ExportZipModal({
           },
           closeButton: true,
           dismissible: true,
+          duration: 60_000,
         });
         onClose();
       },

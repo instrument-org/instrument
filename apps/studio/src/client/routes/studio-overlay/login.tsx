@@ -42,9 +42,9 @@ function LoginModal() {
       aria-describedby={undefined}
       className={cn(
         `w-full max-w-[472px] gap-0 overflow-hidden rounded-3xl border-0 p-0
-        shadow-[inset_0_0_0_2px_rgba(0,0,0,0.05)] drop-shadow-2xl outline-none
+        shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] drop-shadow-2xl outline-none
         focus:outline-none focus-visible:outline-none
-        dark:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.05)]`,
+        dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]`,
         FIXED_HEIGHT_PAGES.has(page) && "h-[640px] max-h-[85vh]",
         page === "add-provider" ? SHARED.subtleGradient : SHARED.brandGradient,
       )}

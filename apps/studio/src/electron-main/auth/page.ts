@@ -102,9 +102,9 @@ export function renderAuthPage({
           .auth-serif {
             font-family: "Roboto Serif", ui-serif, Georgia, serif;
           }
-          /* brandGradient light: --brand-200 → --brown-50 */
+          /* brandGradient light: --brand-100 → --brown-50 */
           html {
-            background: linear-gradient(180deg, #9dbfb6 0%, #fcfbf8 100%);
+            background: linear-gradient(180deg, #c5d5d0 0%, #fcfbf8 100%);
           }
           /* brandGradient dark: color-mix(--brand-700 50%, --background) → --background */
           @media (prefers-color-scheme: dark) {

@@ -78,7 +78,7 @@ export function renderAuthPage({
         You're signed in
       </h1>
       <p class="text-sm text-stone-600 dark:text-white/60 text-center">
-        You may close this window and open ${APP_NAME}
+        Taking you back to ${APP_NAME}. You can close this tab.
       </p>
       <div class="flex gap-3">
         ${button("default", `${APP_PROTOCOL}://home`, `Open ${APP_NAME}`)}

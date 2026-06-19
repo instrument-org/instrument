@@ -210,23 +210,33 @@ const live = {
       const messageRemoved = publisher.subscribe("message.removed", { signal });
       const partUpdates = publisher.subscribe("part.updated", { signal });
 
-      async function* filterBySubdomain(
+      // Scope to this session so a token streaming in one session doesn't
+      // reload every other live subscription in the same app. message.updated/
+      // .removed carry sessionId directly; part.updated carries it on the part.
+      async function* filterBySession(
         generator:
           | typeof messageRemoved
           | typeof messageUpdates
           | typeof partUpdates,
       ) {
         for await (const payload of generator) {
-          if (payload.subdomain === input.subdomain) {
+          if (payload.subdomain !== input.subdomain) {
+            continue;
+          }
+          const sessionId =
+            "part" in payload
+              ? payload.part.metadata.sessionId
+              : payload.sessionId;
+          if (sessionId === input.sessionId) {
             yield null;
           }
         }
       }
 
       for await (const _ of mergeGenerators([
-        filterBySubdomain(messageUpdates),
-        filterBySubdomain(messageRemoved),
-        filterBySubdomain(partUpdates),
+        filterBySession(messageUpdates),
+        filterBySession(messageRemoved),
+        filterBySession(partUpdates),
       ])) {
         yield call(listWithParts, input, { context, signal });
       }

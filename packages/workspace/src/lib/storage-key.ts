@@ -4,6 +4,12 @@ export namespace StorageKey {
   const SEPARATOR = ":";
   export const MESSAGES_KEY = "messages";
 
+  // Per-session marker and last-known page for managed browser use. Live
+  // browser presence remains authoritative for whether a tab is currently open.
+  export function browserState(sessionId: StoreId.Session) {
+    return ["browser-state", sessionId].join(SEPARATOR);
+  }
+
   export function extractMessageId(messageKey: string): StoreId.Message {
     return StoreId.MessageSchema.parse(messageKey.split(SEPARATOR).at(-1));
   }

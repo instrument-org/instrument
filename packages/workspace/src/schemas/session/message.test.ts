@@ -285,6 +285,120 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("injects browser status on a user message", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: messageMetadata,
+        parts: [
+          {
+            metadata: partMetadata,
+            state: "done",
+            text: "Continue in the browser.",
+            type: "text",
+          },
+          {
+            data: {
+              status: "open",
+              target: {
+                title: "Example",
+                url: "https://example.com",
+              },
+            },
+            metadata: { ...partMetadata, id: StoreId.newPartId() },
+            type: "data-browserStatus",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "Continue in the browser.",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      \`agent-browser\` already has an in-app browser tab open for this task. Current URL: https://example.com. Page title: Example.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
+  it("injects closed browser status on a user message", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: messageMetadata,
+        parts: [
+          {
+            metadata: partMetadata,
+            state: "done",
+            text: "Continue where you left off.",
+            type: "text",
+          },
+          {
+            data: {
+              previousTarget: {
+                title: "Example",
+                url: "https://example.com/work",
+              },
+              status: "closed",
+            },
+            metadata: { ...partMetadata, id: StoreId.newPartId() },
+            type: "data-browserStatus",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "Continue where you left off.",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      This session previously used \`agent-browser\`, but its in-app browser tab is no longer open. Last known URL: https://example.com/work. Page title: Example. If browser work needs to continue, reopen the relevant page and restore any required page state before proceeding.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   it("includes tool parts in output-available state", async () => {
     const { sessionId } = baseMetadata();
 

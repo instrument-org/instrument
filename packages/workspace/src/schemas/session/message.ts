@@ -10,6 +10,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type AgentName, RETRIEVAL_AGENT_NAME } from "../../agents/types";
+import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
 import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
 import { formatBytes } from "../../lib/format-bytes";
@@ -272,6 +273,16 @@ export namespace SessionMessage {
 
             parts.push({ text: folderAttachmentText, type: "text" });
           }
+        }
+
+        const browserStatusPart = message.parts.find(
+          (part) => part.type === "data-browserStatus",
+        );
+        if (browserStatusPart) {
+          parts.push({
+            text: browserStatusModelNote(browserStatusPart.data),
+            type: "text",
+          });
         }
 
         const externalChangesPart = message.parts.find(

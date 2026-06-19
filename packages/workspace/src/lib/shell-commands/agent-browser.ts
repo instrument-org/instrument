@@ -12,13 +12,16 @@ import { APP_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
+import { type ProjectSubdomain } from "../../schemas/subdomains";
 import { WebSearch } from "../../tools/web-search";
+import { type BrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
 import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
 import {
   getAgentBrowserStateDir,
   getBrowserSessionDir,
 } from "../app-dir-utils";
+import { recordBrowserUse } from "../browser-state";
 import {
   beginBrowserCommandObservation,
   type UpsertContextItem,
@@ -142,6 +145,7 @@ export function createAgentBrowserCommand({
     // touching a browser target, so don't spin up a WebContentsView or attach
     // to the CDP bridge.
     const commandArgs: string[] = isInfoOnly ? [...resolvedArgs] : [];
+    let targetId: BrowserTargetId | undefined;
 
     if (!isInfoOnly) {
       // Idempotent: createTarget returns the existing view for this
@@ -149,11 +153,13 @@ export function createAgentBrowserCommand({
       // repeat invocations within the same session reuse the same browsing
       // surface (cookies, page, debugger).
       const partitionDir = getBrowserSessionDir(appConfig.appDir);
-      const { targetId } = await workspaceConfig.browser.createTarget(
+      const target = await workspaceConfig.browser.createTarget(
         subdomain,
         sessionId,
         partitionDir,
       );
+      targetId = target.targetId;
+      await recordBrowserUseBestEffort({ appConfig, sessionId });
 
       const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
       commandArgs.push(
@@ -203,31 +209,43 @@ export function createAgentBrowserCommand({
           upsertContextItem,
         });
 
-    const result = await runAgentBrowser({
-      args: commandArgs,
-      cancelSignal: ctx.signal,
-      cwd: appCwd,
-      env: {
-        ...env,
-        // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
-        // can't bypass the rejection above.
-        AGENT_BROWSER_AUTO_CONNECT: undefined,
-        AGENT_BROWSER_CDP: undefined,
-        // Uncomment this to enable debug mode.
-        // AGENT_BROWSER_DEBUG:
-        //   process.env.NODE_ENV === "development" ? "1" : undefined,
-        AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
-        AGENT_BROWSER_IDLE_TIMEOUT_MS: IDLE_TIMEOUT_MS,
-        AGENT_BROWSER_PROFILE: undefined,
-        AGENT_BROWSER_PROVIDER: undefined,
-        AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
-        AGENT_BROWSER_SOCKET_DIR,
-        AGENT_BROWSER_STATE: undefined,
-        HOME: homeDir,
-      },
-      input: latin1FromBytes(ctx.stdin) || undefined,
-      stateDir: agentBrowserStateDir,
-    });
+    let result: Awaited<ReturnType<typeof runAgentBrowser>>;
+    try {
+      result = await runAgentBrowser({
+        args: commandArgs,
+        cancelSignal: ctx.signal,
+        cwd: appCwd,
+        env: {
+          ...env,
+          // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
+          // can't bypass the rejection above.
+          AGENT_BROWSER_AUTO_CONNECT: undefined,
+          AGENT_BROWSER_CDP: undefined,
+          // Uncomment this to enable debug mode.
+          // AGENT_BROWSER_DEBUG:
+          //   process.env.NODE_ENV === "development" ? "1" : undefined,
+          AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
+          AGENT_BROWSER_IDLE_TIMEOUT_MS: IDLE_TIMEOUT_MS,
+          AGENT_BROWSER_PROFILE: undefined,
+          AGENT_BROWSER_PROVIDER: undefined,
+          AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
+          AGENT_BROWSER_SOCKET_DIR,
+          AGENT_BROWSER_STATE: undefined,
+          HOME: homeDir,
+        },
+        input: latin1FromBytes(ctx.stdin) || undefined,
+        stateDir: agentBrowserStateDir,
+      });
+    } finally {
+      if (targetId) {
+        await enrichBrowserState({
+          appConfig,
+          sessionId,
+          subdomain,
+          targetId,
+        });
+      }
+    }
 
     const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
 
@@ -249,6 +267,56 @@ export function createAgentBrowserCommand({
       stdout: combined,
     };
   });
+}
+
+async function enrichBrowserState({
+  appConfig,
+  sessionId,
+  subdomain,
+  targetId,
+}: {
+  appConfig: AppConfig;
+  sessionId: StoreId.Session;
+  subdomain: ProjectSubdomain;
+  targetId: BrowserTargetId;
+}) {
+  try {
+    const targets =
+      await appConfig.workspaceConfig.browser.listTargets(subdomain);
+    const target = targets.find(({ id }) => id === targetId);
+    if (target) {
+      await recordBrowserUseBestEffort({
+        appConfig,
+        sessionId,
+        title: target.title,
+        url: target.url,
+      });
+    }
+  } catch (error) {
+    appConfig.workspaceConfig.captureException(error);
+  }
+}
+
+async function recordBrowserUseBestEffort({
+  appConfig,
+  sessionId,
+  title,
+  url,
+}: {
+  appConfig: AppConfig;
+  sessionId: StoreId.Session;
+  title?: string;
+  url?: string;
+}) {
+  const result = await recordBrowserUse({
+    appConfig,
+    sessionId,
+    title,
+    url,
+  });
+  if (result.isErr()) {
+    appConfig.workspaceConfig.captureException(result.error);
+  }
 }
 
 async function runAgentBrowser({

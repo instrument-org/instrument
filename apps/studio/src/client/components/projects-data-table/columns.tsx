@@ -4,9 +4,9 @@ import type {
 } from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
-import { ProjectIcon } from "@/client/components/app-icon";
-import { AppStatusIcon } from "@/client/components/app-status-icon";
 import { InternalLink } from "@/client/components/internal-link";
+import { TaskStatusIcon } from "@/client/components/session-status-icon";
+import { TaskIcon } from "@/client/components/task-icon";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import { ArrowsDownUpIcon, StarIcon } from "@phosphor-icons/react";
@@ -97,9 +97,9 @@ export function createColumns({
               params={{ subdomain: project.subdomain }}
               to="/projects/$subdomain"
             >
-              <ProjectIcon name={project.iconName} size="sm" />
+              <TaskIcon name={project.iconName} size="sm" />
               <span className="truncate font-medium">{project.title}</span>
-              <AppStatusIcon
+              <TaskStatusIcon
                 className="ml-auto size-4 shrink-0"
                 subdomain={project.subdomain}
               />

@@ -1,4 +1,4 @@
-export function AppLogo({
+export function Wordmark({
   className,
   ref,
   size,

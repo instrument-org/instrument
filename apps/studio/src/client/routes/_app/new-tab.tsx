@@ -1,5 +1,5 @@
+import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import { PromptInput } from "@/client/components/prompt-input";
-import { AnimatedOutlineAppIconGlyph } from "@/client/components/studio-icon";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
@@ -69,7 +69,7 @@ function RouteComponent() {
       <div className="relative w-full max-w-2xl">
         <div className="absolute bottom-full left-1/2 mb-12 flex -translate-x-1/2 flex-col items-center gap-y-5">
           <div className="text-brown-300/34 dark:text-brown-900/34">
-            <AnimatedOutlineAppIconGlyph className="size-18" />
+            <AnimatedOutlineBrandIconGlyph className="size-18" />
           </div>
           <h1 className="font-serif text-2xl leading-none font-normal tracking-[-0.03em] whitespace-nowrap text-foreground sm:text-3xl md:text-4xl">
             How can I help?

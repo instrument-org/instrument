@@ -1,3 +1,4 @@
+import { applyThemeClass, THEME_STORAGE_KEY } from "@/client/lib/initial-theme";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -48,22 +49,15 @@ export function ThemeProvider({
     theme === "system" ? systemTheme : theme;
 
   useEffect(() => {
-    const root = window.document.documentElement;
-
-    root.classList.remove("light", "dark");
+    // Cache for the synchronous pre-paint bootstrap in initial-theme.ts.
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    applyThemeClass(theme);
 
     if (theme === "system") {
-      // set the initial theme based on the system preference
       const queryMedia = window.matchMedia("(prefers-color-scheme: dark)");
-      const currentSystemTheme = queryMedia.matches ? "dark" : "light";
-      root.classList.add(currentSystemTheme);
-
-      // listen for changes to the system theme
       const listener = (e: MediaQueryListEvent) => {
-        const newTheme = e.matches ? "dark" : "light";
-        root.classList.remove("light", "dark");
-        root.classList.add(newTheme);
-        setSystemTheme(newTheme);
+        applyThemeClass("system");
+        setSystemTheme(e.matches ? "dark" : "light");
       };
       queryMedia.addEventListener("change", listener);
       return () => {
@@ -71,7 +65,6 @@ export function ThemeProvider({
       };
     }
 
-    root.classList.add(theme);
     return;
   }, [theme]);
 

@@ -3,10 +3,14 @@ import "./styles/globals.css";
 import ReactDOM, { type Root } from "react-dom/client";
 
 import { App } from "./app";
+import { applyInitialTheme } from "./lib/initial-theme";
 
 declare global {
   var __studioRoot: Root | undefined;
 }
+
+// Apply the theme class before React mounts to avoid a light-mode flash.
+applyInitialTheme();
 
 const rootElement = document.querySelector("#root");
 

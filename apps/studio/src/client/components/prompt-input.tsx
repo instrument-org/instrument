@@ -14,6 +14,7 @@ import {
   TextareaInner,
 } from "@/client/components/ui/textarea-container";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
+import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import {
   type DroppedFolder,
@@ -452,15 +453,19 @@ export const PromptInput = ({
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = e.clipboardData.getData("text/plain");
+    const hasText = text.trim().length > 0;
+
     const items = e.clipboardData.items;
     const files: File[] = [];
 
     for (const item of items) {
-      if (item.kind === "file") {
-        const file = item.getAsFile();
-        if (file) {
-          files.push(file);
-        }
+      if (!shouldAttachClipboardItem({ hasText, item })) {
+        continue;
+      }
+      const file = item.getAsFile();
+      if (file) {
+        files.push(file);
       }
     }
 
@@ -470,7 +475,6 @@ export const PromptInput = ({
       return;
     }
 
-    const text = e.clipboardData.getData("text/plain");
     if (text && text.length > MAX_PASTE_TEXT_LENGTH) {
       e.preventDefault();
 

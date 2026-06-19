@@ -10,6 +10,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type AppConfig } from "./app-config/types";
 import { TypedError } from "./errors";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
+import { migrateGitCommitPart } from "./migrate-git-commit-part";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
@@ -208,13 +209,23 @@ export namespace Store {
 
       const relaxedParts = yield* Result.combine(partResults);
 
-      // Sessions predating the git-to-disk-files migration may still have
-      // gitCommit parts on disk; drop them here so nothing downstream needs
-      // to know they ever existed.
-      // Remove after 2026-07-18
+      // Translate legacy gitCommit parts to fileChanges parts so old sessions
+      // still show their file output. Falls back to dropping the part when
+      // git history is unavailable. Remove after 2026-07-18.
+      const migratedParts = await Promise.all(
+        relaxedParts.map(async (part) => {
+          if (part.type !== "data-gitCommit") {
+            return part;
+          }
+          return migrateGitCommitPart(part, appConfig.appDir);
+        }),
+      );
+
       return ok(
-        relaxedParts
-          .filter((part) => part.type !== "data-gitCommit")
+        migratedParts
+          .filter(
+            (part): part is SessionMessageRelaxedPart.Type => part !== null,
+          )
           .map((part) => SessionMessagePart.coerce(part)),
       );
     });

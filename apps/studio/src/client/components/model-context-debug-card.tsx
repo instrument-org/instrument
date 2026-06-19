@@ -19,7 +19,7 @@ export function ModelContextDebugCard({
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <DeveloperModeBadge />
         <span className="text-[10px] leading-tight text-muted-foreground">
-          Model context added for this message.
+          Injected into prompt.
         </span>
       </div>
       <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap text-muted-foreground">

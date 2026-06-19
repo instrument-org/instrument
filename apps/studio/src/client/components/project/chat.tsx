@@ -182,9 +182,12 @@ export function ProjectChat({
     promptTextarea?.focus();
   }, [selectedSessionId, promptTextarea]);
 
-  const isTutorialVisible = isProjectRouteSettled && showTutorial === true;
+  const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
+  const isTutorialVisible =
+    isProjectRouteSettled && showTutorial === true && !isTutorialDismissed;
 
   const handleDismissTutorial = () => {
+    setIsTutorialDismissed(true);
     dismissTutorial.mutate({
       state: {
         showTutorial: false,

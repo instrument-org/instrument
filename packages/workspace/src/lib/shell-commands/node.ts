@@ -4,6 +4,7 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import type { AppConfig } from "../app-config/types";
 
 import { type AbsolutePath } from "../../schemas/paths";
+import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { TS_COMMAND } from "./ts";
 import {
@@ -29,6 +30,8 @@ function execNode(
     env: {
       ...appConfig.workspaceConfig.nodeExecEnv,
       ...env,
+      // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
+      ...ffmpegSubprocessEnv(),
     },
     reject: false,
     ...(stdin ? { input: stdin } : { stdin: "ignore" }),

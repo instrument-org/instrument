@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import path from "node:path";
 
 import { unpackAsarPath } from "./asar";
 
@@ -19,3 +20,27 @@ const ffprobePath: null | string = req(__FFPROBE_STATIC_PATH__);
 
 export const FFMPEG_PATH = unpackAsarPath(ffmpegPath ?? "ffmpeg");
 export const FFPROBE_PATH = unpackAsarPath(ffprobePath ?? "ffprobe");
+
+/**
+ * Env overlay that makes the bundled ffmpeg/ffprobe binaries resolvable from the
+ * real subprocesses spawned by the escape hatches (tsx/node/pnpm). In the bash
+ * tool `ffmpeg`/`ffprobe` are just-bash intercepts, but a script that shells out
+ * (e.g. `execSync('ffmpeg ...')`) sees only the host PATH, which lacks them.
+ * Prepends their dirs to PATH and sets the conventional FFMPEG_PATH/FFPROBE_PATH
+ * vars that libraries like fluent-ffmpeg respect.
+ */
+export function ffmpegSubprocessEnv(): Record<string, string> {
+  const env: Record<string, string> = {
+    FFMPEG_PATH,
+    FFPROBE_PATH,
+  };
+  const dirs = [FFMPEG_PATH, FFPROBE_PATH]
+    .filter((p) => path.isAbsolute(p))
+    .map((p) => path.dirname(p));
+  if (dirs.length > 0) {
+    env.PATH = [...dirs, ...(process.env.PATH ? [process.env.PATH] : [])].join(
+      path.delimiter,
+    );
+  }
+  return env;
+}

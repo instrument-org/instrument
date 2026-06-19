@@ -6,11 +6,11 @@ export function TermsFooter({ className }: { className?: string }) {
   return (
     <p
       className={cn(
-        "text-center text-xs text-balance text-foreground/50 [&_a]:underline [&_a]:underline-offset-4",
+        "text-center text-xs text-balance text-foreground/40 [&_a]:underline [&_a]:underline-offset-4",
         className,
       )}
     >
-      By clicking continue, you agree to our{" "}
+      By continuing, you agree to our{" "}
       <ExternalLink href={`${APP_URL}/terms`}>Terms of Service</ExternalLink>{" "}
       and{" "}
       <ExternalLink href={`${APP_URL}/privacy`}>Privacy Policy</ExternalLink>.

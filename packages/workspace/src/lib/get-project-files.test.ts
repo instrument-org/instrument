@@ -83,6 +83,28 @@ describe("getProjectFileIndex", () => {
     expect(filePaths).not.toContain("linked-notes.md");
   });
 
+  it("skips filenames that normalize into a traversal path instead of aborting", async () => {
+    await fs.writeFile(
+      path.join(appDirPath, "a\\..\\..\\b\\..\\..\\outside.txt"),
+      "adversarial",
+    );
+
+    const result = await getProjectFileIndex(appDir);
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    expect([...result.value.keys()]).toMatchInlineSnapshot(`
+      [
+        ".gitignore",
+        "notes.md",
+        "output/chart.png",
+      ]
+    `);
+  });
+
   it("diffs file index snapshots and extracts output artifacts", async () => {
     const beforeResult = await getProjectFileIndex(appDir);
     expect(beforeResult.isOk()).toBe(true);

@@ -134,6 +134,13 @@ export async function getProjectFileIndex(
           relativeDir ? `${relativeDir}/${entry.name}` : entry.name,
         );
 
+        // A filename containing backslashes (treated as separators by
+        // normalizePath) can collapse into a traversal path that escapes
+        // appDir. Skip rather than letting lstat throw and abort the walk.
+        if (relativePath === ".." || relativePath.startsWith("../")) {
+          continue;
+        }
+
         if (
           ignore.ignores(relativePath) ||
           ignore.ignores(`${relativePath}/`)

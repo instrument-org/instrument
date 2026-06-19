@@ -16,7 +16,7 @@ import {
   isToolPart,
 } from "@instrument-org/workspace/client";
 import { BrainIcon, ChatTextIcon, QuestionIcon } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
 export function SessionStatusPreview({
   subdomain,
@@ -51,13 +51,16 @@ function SessionStatusText({
   sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
 }) {
+  const { isAgentAlive } = useAgentSessionStatus({ sessionId, subdomain });
+
+  // Only stream full message parts while the agent is live. Idle/completed rows
+  // render "Done" without opening a per-row session stream, which otherwise
+  // fans out to one full listWithParts subscription per visible table row.
   const { data: messages = [] } = useQuery(
     rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
-      input: { sessionId, subdomain },
+      input: isAgentAlive ? { sessionId, subdomain } : skipToken,
     }),
   );
-
-  const { isAgentAlive } = useAgentSessionStatus({ sessionId, subdomain });
 
   const nonSystemMessages = messages.filter(
     (msg) => msg.role !== "session-context",

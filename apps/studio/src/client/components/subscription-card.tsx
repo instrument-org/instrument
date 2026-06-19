@@ -104,7 +104,7 @@ export function SubscriptionCard() {
     <Card className="p-4">
       <div className="space-y-4">
         <div>
-          <h4 className="font-medium">{APP_NAME} Free</h4>
+          <h4 className="text-sm leading-none font-medium">{APP_NAME} Free</h4>
         </div>
 
         <div className="space-y-1">

@@ -53,6 +53,25 @@ export function hasVisibleProjectFiles(
   return rawFiles.some((f) => !shouldFilterProjectFile(f.filePath));
 }
 
+/**
+ * Named root scaffolding files (package.json, lock files, tsconfig, etc.) plus
+ * patches. Unlike shouldFilterProjectFile, this keeps root source files
+ * (index.ts, app.tsx, …) visible, so the files grid only demotes config noise.
+ */
+export function isRootScaffoldingFile(filePath: string): boolean {
+  if (filePath.startsWith("patches/")) {
+    return true;
+  }
+  const isRootFile = !filePath.includes("/");
+  if (!isRootFile) {
+    return false;
+  }
+  const baseName = filenameFromFilePath(filePath).toLowerCase();
+  return FILTERED_FILENAMES.some(
+    (filtered) => baseName === filtered.toLowerCase(),
+  );
+}
+
 export function shouldFilterProjectFile(filePath: string): boolean {
   if (filePath.startsWith("patches/") || filePath.startsWith("tmp/")) {
     return true;

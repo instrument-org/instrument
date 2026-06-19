@@ -59,7 +59,7 @@ export function ProviderSetupScreen({
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex flex-1 flex-col items-center justify-center px-6">
-        <div className="flex w-full flex-col items-center gap-8">
+        <div className="flex w-full flex-col items-center gap-10">
           <div className="flex flex-col items-center gap-6">
             <AppIconStylized className="size-20 drop-shadow-md" />
 
@@ -95,7 +95,7 @@ export function ProviderSetupScreen({
               </div>
             )}
 
-            <div className="flex w-full flex-col items-center gap-y-2">
+            <div className="flex w-full flex-col items-center gap-y-4">
               <div className="flex items-center justify-center gap-x-2">
                 <BrandLeafIcon className="size-3" />
                 <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
@@ -110,28 +110,28 @@ export function ProviderSetupScreen({
               />
             </div>
 
-            {!hideManualProvider && (
-              <Button
-                className="w-full justify-center bg-white/30 text-foreground/70
-                  hover:bg-white/40 dark:bg-white/5 dark:hover:bg-white/10"
-                onClick={
-                  onAddProvider ??
-                  (() => {
-                    onPageChange("add-provider");
-                  })
-                }
-                type="button"
-                variant="outline"
-              >
-                Or add an AI provider manually
-              </Button>
-            )}
+            <TermsFooter />
           </div>
         </div>
       </div>
 
-      <div className="shrink-0 px-6 pb-6">
-        <TermsFooter />
+      <div className="flex shrink-0 justify-center px-6 pb-6">
+        {!hideManualProvider && (
+          <Button
+            className="text-foreground/40 hover:bg-transparent hover:text-foreground/60"
+            onClick={
+              onAddProvider ??
+              (() => {
+                onPageChange("add-provider");
+              })
+            }
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            Or add an AI provider manually
+          </Button>
+        )}
       </div>
     </div>
   );

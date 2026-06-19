@@ -122,8 +122,8 @@ importers:
         specifier: ^1.13.0
         version: 1.13.0
       chrome-devtools-mcp:
-        specifier: ^0.23.0
-        version: 0.23.0
+        specifier: ^1.2.0
+        version: 1.2.0
       cross-env:
         specifier: ^10.0.0
         version: 10.0.0
@@ -4704,8 +4704,8 @@ packages:
     resolution: {integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==}
     engines: {node: '>=18'}
 
-  chrome-devtools-mcp@0.23.0:
-    resolution: {integrity: sha512-VISjVEzdJGJo5hwMfZsGZTX7uQx6P8t3/pfvG/YR7g6dHS78R5j2WB9RZ2H4omFAEzScYtrNN5laykvGAHWx1g==}
+  chrome-devtools-mcp@1.2.0:
+    resolution: {integrity: sha512-xHd8hoLZQArDsYhu8OUHvKBIiihx1Co9DgAPHWaM4kzRf41TpZ0IuxKioIWTEGzFKpRqQzIxpFqydY4AKqP5sQ==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=23}
     hasBin: true
 
@@ -13214,7 +13214,7 @@ snapshots:
 
   chownr@3.0.0: {}
 
-  chrome-devtools-mcp@0.23.0: {}
+  chrome-devtools-mcp@1.2.0: {}
 
   chromium-pickle-js@0.2.0: {}
 

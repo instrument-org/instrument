@@ -35,8 +35,9 @@ Important CLI nuances:
 - `pnpm exec chrome-devtools start` may print very little on success. Verify with `pnpm exec chrome-devtools list_pages`.
 - All subsequent subcommands operate on the currently selected page. Use `select_page <id>` to switch pages.
 - `list_pages --output-format=json` returns `{ pages: [{ id, url, selected }], extensionServiceWorkers: [] }`.
+- The daemon persists across invocations. `chrome-devtools status` shows its pid, socket, and version; `chrome-devtools stop` kills it. After updating the `chrome-devtools-mcp` package, run `stop` then `start` so the daemon picks up the new version (a running daemon keeps its old version until restarted).
 
-If the CLI wrapper reports an `ENOENT` socket error under the sandbox, retry outside the sandbox. In this repo, the Electron endpoint itself is usually fine. The failure is often the local CLI daemon socket, not Studio.
+If the CLI wrapper reports an `ENOENT` socket error under the sandbox, retry outside the sandbox. In this repo, the Electron endpoint itself is usually fine. The failure is often the local CLI daemon socket, not Studio; `chrome-devtools stop` followed by `start` clears a stale socket.
 
 ## Quick Start Script
 

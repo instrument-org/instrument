@@ -7,7 +7,6 @@ import {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
-import { buildAIProviderInstructions } from "../lib/build-ai-provider-instructions";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
@@ -56,10 +55,6 @@ export const mainAgent = setupAgent({
 }).create(({ agentTools, name }) => ({
   getMessages: async ({ appConfig, sessionId }) => {
     const now = getCurrentDate();
-
-    const aiProviderInstructions = await buildAIProviderInstructions({
-      appConfig,
-    });
 
     let text = dedent`
     You are a general-purpose AI assistant that helps users accomplish any task that can be done with conversation, code, files, and internet access. 
@@ -217,10 +212,6 @@ export const mainAgent = setupAgent({
       text =
         "NOTE: Running in development mode. You may test unusual edge cases and operate more freely on behalf of the developer for testing purposes.\n\n" +
         text;
-    }
-
-    if (aiProviderInstructions) {
-      text = text + "\n\n" + aiProviderInstructions;
     }
 
     const systemMessage = createSystemMessage({

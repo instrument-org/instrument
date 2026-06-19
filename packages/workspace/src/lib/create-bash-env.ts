@@ -1,4 +1,3 @@
-import { envForProviderConfigs } from "@instrument-org/ai-gateway";
 import {
   Bash,
   type CommandName,
@@ -14,7 +13,6 @@ import {
 
 import type { AppConfig } from "./app-config/types";
 
-import { getWorkspaceServerURL } from "../logic/server/url";
 import { type StoreId } from "../schemas/store-id";
 import { type UpsertContextItem } from "./capture-browser-screenshot";
 import {
@@ -304,11 +302,6 @@ export function createBashEnv({
     (name) => !BROKEN_COMMANDS.has(name as CommandName),
   ) as CommandName[];
 
-  const providerEnv = envForProviderConfigs({
-    configs: appConfig.workspaceConfig.getAIProviderConfigs(),
-    workspaceServerURL: getWorkspaceServerURL(),
-  });
-
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
@@ -343,14 +336,12 @@ export function createBashEnv({
       maxResponseSize: SANDBOX_MAX_BYTES,
     },
     // Seed with process.env so PATH and other system vars are available to
-    // commands that pass ctx.env explicitly (e.g. pnpm, tsx). Provider env
-    // overrides last so AI keys are always present. pnpm shim files also
-    // use sed, uname, etc when on unix systems.
+    // commands that pass ctx.env explicitly (e.g. pnpm, tsx). pnpm shim files
+    // also use sed, uname, etc when on unix systems.
     env: {
       NO_COLOR: "1",
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
       ...(process.env.PATH && { PATH: process.env.PATH }),
-      ...providerEnv,
     },
     fs,
   });

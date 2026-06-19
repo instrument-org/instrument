@@ -93,6 +93,17 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-attachments>\n${indent(filesList)}\n</data-attachments>`;
     }
+    case "data-browserStatus": {
+      const target =
+        part.data.status === "open"
+          ? `${part.data.target.title ? ` title="${part.data.target.title}"` : ""} url="${part.data.target.url}"`
+          : "";
+      const previousUrl =
+        part.data.status === "closed" && part.data.previousTarget
+          ? ` previousUrl="${part.data.previousTarget.url}"`
+          : "";
+      return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
+    }
     case "data-externalFileChanges": {
       const filesList = part.data.files
         .map((file) => {

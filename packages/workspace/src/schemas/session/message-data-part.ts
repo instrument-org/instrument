@@ -6,6 +6,7 @@ import { RelativePathSchema } from "../paths";
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
     "attachments",
+    "browserStatus",
     "externalFileChanges",
     "fileChanges",
   ]);
@@ -66,9 +67,30 @@ export namespace SessionMessageDataPart {
     typeof FileAttachmentsDataPartSchema
   >;
 
+  const BrowserTargetSchema = z.object({
+    title: z.string().optional(),
+    url: z.string(),
+  });
+
+  const BrowserStatusDataPartSchema = z.discriminatedUnion("status", [
+    z.object({
+      previousTarget: BrowserTargetSchema.optional(),
+      status: z.literal("closed"),
+    }),
+    z.object({
+      status: z.literal("open"),
+      target: BrowserTargetSchema,
+    }),
+  ]);
+
+  export type BrowserStatusDataPart = z.output<
+    typeof BrowserStatusDataPartSchema
+  >;
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
+    [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
   });

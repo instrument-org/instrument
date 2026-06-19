@@ -6,6 +6,7 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { AssistantMessage } from "./assistant-message";
+import { BrowserStatusDebugCard } from "./browser-status-debug-card";
 import { ExternalFileChangesDebugCard } from "./external-file-changes-debug-card";
 import { FileChangesCard } from "./file-changes-card";
 import { ToolCall } from "./message-part/tool-call";
@@ -97,6 +98,19 @@ export function renderChatPart({
 
   if (part.type === "data-attachments") {
     return null;
+  }
+
+  if (part.type === "data-browserStatus") {
+    if (!ctx.isDeveloperMode) {
+      return null;
+    }
+    return (
+      <BrowserStatusDebugCard
+        className="mt-2"
+        data={part.data}
+        key={part.metadata.id}
+      />
+    );
   }
 
   if (part.type === "data-externalFileChanges") {

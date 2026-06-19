@@ -103,6 +103,7 @@ export function isVisibleAssistantPart({
   return (
     part.type !== "step-start" &&
     part.type !== "data-attachments" &&
+    part.type !== "data-browserStatus" &&
     part.type !== "data-externalFileChanges" &&
     part.type !== "source-document" &&
     part.type !== "source-url" &&
@@ -134,7 +135,10 @@ function isRenderableInlinePart({
     return true;
   }
 
-  if (part.type === "data-externalFileChanges") {
+  if (
+    part.type === "data-browserStatus" ||
+    part.type === "data-externalFileChanges"
+  ) {
     // Developer-mode-only debug peek; otherwise hidden like attachments.
     return isDeveloperMode;
   }

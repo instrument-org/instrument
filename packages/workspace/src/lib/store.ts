@@ -684,6 +684,7 @@ export namespace Store {
       yield* storage.removeItem(StorageKey.fileIndexBaseline(sessionId), {
         signal,
       });
+      yield* storage.removeItem(StorageKey.browserState(sessionId), { signal });
 
       const messageIds = yield* getMessageIds(sessionId, appConfig, {
         signal,

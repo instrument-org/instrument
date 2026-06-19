@@ -4,6 +4,8 @@ export {
   MAX_PROMPT_STORAGE_LENGTH,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
+export { browserStatusModelNote } from "./lib/browser-status-model-text";
+export { externalFileChangesModelNote } from "./lib/external-file-changes-model-text";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export * from "./lib/is-app";

@@ -9,6 +9,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type AppConfig } from "./app-config/types";
+import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectExternalFileChanges } from "./external-file-changes";
 import { setProjectState } from "./project-state-store";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
@@ -63,6 +64,16 @@ export async function newMessage({
   }
 
   if (appConfig.type === "project") {
+    const browserStatusPart = await createBrowserStatusPart({
+      appConfig,
+      createdAt,
+      messageId,
+      sessionId,
+    });
+    if (browserStatusPart) {
+      parts.push(browserStatusPart);
+    }
+
     const externalChanges = await detectExternalFileChanges({
       appConfig,
       messageId,

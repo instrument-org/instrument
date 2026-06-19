@@ -204,6 +204,8 @@ export namespace SessionMessage {
     messages: WithParts[],
     tools: ToolSet,
   ): Promise<ModelMessage[]> {
+    let previousBrowserStatusNote: string | undefined;
+
     const uiMessages: UIMessage[] = messages.map((message) => {
       const filteredParts = message.parts
         .filter(
@@ -279,10 +281,11 @@ export namespace SessionMessage {
           (part) => part.type === "data-browserStatus",
         );
         if (browserStatusPart) {
-          parts.push({
-            text: browserStatusModelNote(browserStatusPart.data),
-            type: "text",
-          });
+          const note = browserStatusModelNote(browserStatusPart.data);
+          if (note !== previousBrowserStatusNote) {
+            parts.push({ text: note, type: "text" });
+          }
+          previousBrowserStatusNote = note;
         }
 
         const externalChangesPart = message.parts.find(

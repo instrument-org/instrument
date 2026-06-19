@@ -1,5 +1,6 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
+  browserStatusModelNote,
   isToolPart,
   type SessionMessage,
   type SessionMessagePart,
@@ -180,6 +181,7 @@ export function ChatStream({
   const chatElements = useMemo(() => {
     const elements: React.ReactNode[] = [];
     let lastFooterIndex = 0;
+    let previousBrowserStatusNote: string | undefined;
     let visibleAssistantContentCount = 0;
 
     for (const [messageIndex, message] of regularMessages.entries()) {
@@ -200,6 +202,13 @@ export function ChatStream({
       const seenSourceIds = new Set<string>();
 
       for (const [partIndex, part] of message.parts.entries()) {
+        let browserStatusContextAdded = false;
+        if (part.type === "data-browserStatus") {
+          const note = browserStatusModelNote(part.data);
+          browserStatusContextAdded = note !== previousBrowserStatusNote;
+          previousBrowserStatusNote = note;
+        }
+
         if (part.type === "source-document" || part.type === "source-url") {
           if (seenSourceIds.has(part.sourceId)) {
             continue;
@@ -214,6 +223,7 @@ export function ChatStream({
         }
 
         const node = renderChatPart({
+          browserStatusContextAdded,
           ctx: renderCtx,
           message,
           part,

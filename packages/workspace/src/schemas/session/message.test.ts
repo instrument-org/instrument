@@ -399,6 +399,98 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("does not repeat unchanged browser status", async () => {
+    const first = baseMetadata();
+    const second = baseMetadata();
+    const browserStatus = {
+      status: "open" as const,
+      target: {
+        title: "Example",
+        url: "https://example.com",
+      },
+    };
+
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: first.messageId,
+        metadata: first.messageMetadata,
+        parts: [
+          {
+            metadata: first.partMetadata,
+            state: "done",
+            text: "First message.",
+            type: "text",
+          },
+          {
+            data: browserStatus,
+            metadata: {
+              ...first.partMetadata,
+              id: StoreId.newPartId(),
+            },
+            type: "data-browserStatus",
+          },
+        ],
+        role: "user",
+      },
+      {
+        id: second.messageId,
+        metadata: second.messageMetadata,
+        parts: [
+          {
+            metadata: second.partMetadata,
+            state: "done",
+            text: "Second message.",
+            type: "text",
+          },
+          {
+            data: browserStatus,
+            metadata: {
+              ...second.partMetadata,
+              id: StoreId.newPartId(),
+            },
+            type: "data-browserStatus",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "First message.",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      \`agent-browser\` already has an in-app browser tab open for this task. Current URL: https://example.com. Page title: Example.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+        {
+          "content": [
+            {
+              "text": "Second message.",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   it("includes tool parts in output-available state", async () => {
     const { sessionId } = baseMetadata();
 

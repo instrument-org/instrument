@@ -34,11 +34,13 @@ export interface RenderPartContext {
 // Returns null for parts that don't render inline (kept in sync with
 // `isRenderableInlinePart`).
 export function renderChatPart({
+  browserStatusContextAdded,
   ctx,
   message,
   part,
   partIndex,
 }: {
+  browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
   message: SessionMessage.WithParts;
   part: SessionMessagePart.Type;
@@ -101,7 +103,7 @@ export function renderChatPart({
   }
 
   if (part.type === "data-browserStatus") {
-    if (!ctx.isDeveloperMode) {
+    if (!ctx.isDeveloperMode || !browserStatusContextAdded) {
       return null;
     }
     return (

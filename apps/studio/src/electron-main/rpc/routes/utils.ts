@@ -427,6 +427,21 @@ const live = {
   }),
 };
 
+const copyProjectPathToClipboard = base
+  .input(
+    z.object({
+      subdomain: ProjectSubdomainSchema,
+    }),
+  )
+  .handler(({ context, input }) => {
+    const snapshot = context.workspaceRef.getSnapshot();
+    const appConfig = createAppConfig({
+      subdomain: input.subdomain,
+      workspaceConfig: snapshot.context.config,
+    });
+    clipboard.writeText(appConfig.appDir);
+  });
+
 const copyFileToClipboard = base
   .errors({
     FILE_NOT_FOUND: { message: "File not found" },
@@ -481,6 +496,7 @@ const showFolderPicker = base
 export const utils = {
   clearExceptions,
   copyFileToClipboard,
+  copyProjectPathToClipboard,
   exportZip,
   getSupportedEditors,
   live,

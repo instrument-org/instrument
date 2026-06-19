@@ -24,6 +24,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 import { ProjectOpenInSubmenu } from "./open-in-submenu";
 
@@ -54,6 +55,19 @@ export function ProjectActionsMenu({
 
   const { mutateAsync: addFavorite } = useMutation(
     rpcClient.favorites.add.mutationOptions(),
+  );
+
+  const copyFolderPathMutation = useMutation(
+    rpcClient.utils.copyProjectPathToClipboard.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to copy folder path", {
+          description: error.message,
+        });
+      },
+      onSuccess: () => {
+        toast.success("Folder path copied to clipboard");
+      },
+    }),
   );
 
   const handleDebugChat = () => {
@@ -133,6 +147,15 @@ export function ProjectActionsMenu({
             >
               <ArrowCounterClockwiseIcon className="size-4 text-dev-700 dark:text-dev-300" />
               Replay chat
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-dev-700 dark:text-dev-300"
+              onClick={() => {
+                void copyFolderPathMutation.mutateAsync({ subdomain });
+              }}
+            >
+              <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />
+              Copy folder path
             </DropdownMenuItem>
             <ProjectOpenInSubmenu subdomain={subdomain} />
           </>

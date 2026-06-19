@@ -1,4 +1,3 @@
-import { ThemeProvider } from "@/client/components/theme-provider";
 import { queryClient, router } from "@/client/router";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -11,11 +10,9 @@ const IconContextValue: IconProps = {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <IconContext.Provider value={IconContextValue}>
-          <RouterProvider router={router} />
-        </IconContext.Provider>
-      </ThemeProvider>
+      <IconContext.Provider value={IconContextValue}>
+        <RouterProvider router={router} />
+      </IconContext.Provider>
     </QueryClientProvider>
   );
 }

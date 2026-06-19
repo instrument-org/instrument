@@ -14,8 +14,7 @@ import { getAgentBrowserStateDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
 
 // Tail of stderr/stdout to attach as `error` on a failed observation. Sized
-// to surface the actionable error message without flooding the array entry
-// or the system note that the agent reads.
+// to surface the actionable error message without flooding the array entry.
 const MAX_ERROR_LENGTH = 500;
 
 export type UpsertContextItem = (
@@ -27,6 +26,11 @@ interface BrowserCommandObservation {
   // resulting context item is what the UI and the system note treat as
   // "this command did not succeed". Omit it for successful runs.
   complete: (args: { error?: string }) => Promise<void>;
+}
+
+interface CapturedScreenshot {
+  hash: string;
+  screenshot: SessionMessagePart.AgentBrowserScreenshot;
 }
 
 // Records that the agent has started running a browser command. Captures
@@ -60,11 +64,12 @@ export async function beginBrowserCommandObservation({
     return undefined;
   }
 
-  const startScreenshot = await captureBrowserScreenshot({
+  const start = await captureBrowserScreenshot({
     appConfig,
     sessionId,
     subdomain,
   });
+  const startScreenshot = start?.screenshot;
 
   const id = StoreId.newPartContextItemId();
   const startedAt = getCurrentDate();
@@ -87,11 +92,17 @@ export async function beginBrowserCommandObservation({
   return {
     complete: async ({ error }) => {
       try {
-        const endScreenshot = await captureBrowserScreenshot({
+        const end = await captureBrowserScreenshot({
           appConfig,
           sessionId,
           subdomain,
         });
+        // Reuse the start screenshot when content is unchanged so the UI
+        // collapses no-op commands (e.g. `get title`) into one frame.
+        const endScreenshot =
+          end && start && end.hash === start.hash
+            ? start.screenshot
+            : end?.screenshot;
         await upsertContextItem({
           createdAt: startedAt,
           ...(endScreenshot ? { endScreenshot } : {}),
@@ -120,7 +131,7 @@ async function captureBrowserScreenshot({
   appConfig: AppConfig;
   sessionId: StoreId.Session;
   subdomain: ProjectSubdomain;
-}): Promise<SessionMessagePart.AgentBrowserScreenshot | undefined> {
+}): Promise<CapturedScreenshot | undefined> {
   try {
     const { workspaceConfig } = appConfig;
     const targetId = encodeBrowserTargetId(subdomain, sessionId);
@@ -143,22 +154,20 @@ async function captureBrowserScreenshot({
     if (!buffer) {
       return undefined;
     }
-    // Truncated SHA-1: 12 hex chars = 48 bits. The namespace is the
-    // project's on-disk screenshot folder; a collision would mean two
-    // screenshots with different content land at the same path. At 48
-    // bits the birthday bound is ~16M files before a 50% chance, well
-    // beyond any realistic per-project volume.
+    // Content hash: keys no-op dedupe and disambiguates filenames.
     const hash = createHash("sha1").update(buffer).digest("hex").slice(0, 12);
 
-    // Filename is the content hash, so identical pre/post pairs (typical
-    // for non-mutating commands like `get title`) naturally collapse to a
-    // single file on disk that both startScreenshot and endScreenshot
-    // reference. Re-writing the same bytes to the same path on a hash
-    // collision within a session is idempotent and cheaper than tracking
-    // a process-lifetime cache.
+    // Descriptive filename so `ls -lt .state/agent-browser` is self-explanatory:
+    // timestamp + host + title + hash, unique enough to be multi-agent safe.
+    // The `.state/agent-browser/` dir is also surfaced to the agent in the
+    // agent-browser skill (separate `skills` repo); keep that in sync if renamed.
     const dir = getAgentBrowserStateDir(appConfig.appDir);
     await fs.mkdir(dir, { recursive: true });
-    const fileName = `${hash}.jpg`;
+    const fileName = buildScreenshotFileName({
+      hash,
+      title: target.title,
+      url: target.url,
+    });
     const fullPath = absolutePathJoin(dir, fileName);
     await fs.writeFile(fullPath, buffer);
     const relativePath = path.posix.join(
@@ -168,9 +177,12 @@ async function captureBrowserScreenshot({
     );
 
     return {
-      path: relativePath,
-      ...(target.title ? { title: target.title } : {}),
-      url: target.url,
+      hash,
+      screenshot: {
+        path: relativePath,
+        ...(target.title ? { title: target.title } : {}),
+        url: target.url,
+      },
     };
   } catch (error) {
     appConfig.workspaceConfig.captureException(error, {
@@ -178,6 +190,44 @@ async function captureBrowserScreenshot({
     });
     return undefined;
   }
+}
+
+// Filenames are scanned by humans/agents via `ls -lt`, so keep them readable
+// but safe across filesystems: lowercase, only [a-z0-9.-], bounded length.
+const MAX_TITLE_SEGMENT_LENGTH = 40;
+
+function buildScreenshotFileName({
+  hash,
+  title,
+  url,
+}: {
+  hash: string;
+  title?: string;
+  url: string;
+}): string {
+  const timestamp = getCurrentDate().toISOString().replaceAll(/[:.]/g, "-");
+  const host = hostnameFromUrl(url);
+  const titleSegment = sanitizeSegment(title ?? "").slice(
+    0,
+    MAX_TITLE_SEGMENT_LENGTH,
+  );
+  const segments = [timestamp, host, titleSegment].filter(Boolean);
+  return `${segments.join("--")}--${hash}.jpg`;
+}
+
+function hostnameFromUrl(url: string): string {
+  try {
+    return sanitizeSegment(new URL(url).hostname);
+  } catch {
+    return "";
+  }
+}
+
+function sanitizeSegment(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "");
 }
 
 function truncateError(error: string): string {

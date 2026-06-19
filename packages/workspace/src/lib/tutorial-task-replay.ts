@@ -272,53 +272,61 @@ async function runTutorialTaskReplay({
       sessionId,
       text: userStep.text,
     });
-    const introMessageId = StoreId.newMessageId();
-    const introMessageCreatedAt = new Date();
-    await saveAssistantMessage({
+    await mainAgent.onStart({
       appConfig,
-      createdAt: introMessageCreatedAt,
-      finishReason: "unknown",
-      messageId: introMessageId,
-      sessionId,
-    });
-    await delay({ delayMs: timing.assistantStartDelayMs, signal });
-
-    await streamAssistantText({
-      appConfig,
-      createdAt: introMessageCreatedAt,
-      messageId: introMessageId,
-      sessionId,
-      signal,
-      text: introStep.text,
-      textChunkDelayMs: timing.textChunkDelayMs,
-    });
-
-    const toolMessageId = await runWriteGuideFileTool({
-      appConfig,
-      noAbort,
-      sessionId,
-      signal,
-      step: writeGuideFileStep,
-      stepDelayMs: timing.stepDelayMs,
-      toolInputDurationMs: timing.toolInputDurationMs,
-    });
-
-    await streamAssistantText({
-      appConfig,
-      messageId: toolMessageId,
-      sessionId,
-      signal,
-      text: completionStep.text,
-      textChunkDelayMs: timing.textChunkDelayMs,
-    });
-
-    await mainAgent.onFinish({
-      appConfig,
-      model: replayModel(),
-      parentMessageId: userMessageId,
       sessionId,
       signal: noAbort,
     });
+
+    try {
+      const introMessageId = StoreId.newMessageId();
+      const introMessageCreatedAt = new Date();
+      await saveAssistantMessage({
+        appConfig,
+        createdAt: introMessageCreatedAt,
+        finishReason: "unknown",
+        messageId: introMessageId,
+        sessionId,
+      });
+      await delay({ delayMs: timing.assistantStartDelayMs, signal });
+
+      await streamAssistantText({
+        appConfig,
+        createdAt: introMessageCreatedAt,
+        messageId: introMessageId,
+        sessionId,
+        signal,
+        text: introStep.text,
+        textChunkDelayMs: timing.textChunkDelayMs,
+      });
+
+      const toolMessageId = await runWriteGuideFileTool({
+        appConfig,
+        noAbort,
+        sessionId,
+        signal,
+        step: writeGuideFileStep,
+        stepDelayMs: timing.stepDelayMs,
+        toolInputDurationMs: timing.toolInputDurationMs,
+      });
+
+      await streamAssistantText({
+        appConfig,
+        messageId: toolMessageId,
+        sessionId,
+        signal,
+        text: completionStep.text,
+        textChunkDelayMs: timing.textChunkDelayMs,
+      });
+    } finally {
+      await mainAgent.onFinish({
+        appConfig,
+        model: replayModel(),
+        parentMessageId: userMessageId,
+        sessionId,
+        signal: noAbort,
+      });
+    }
   } catch (error) {
     if (!signal.aborted) {
       workspaceConfig.captureException(error);

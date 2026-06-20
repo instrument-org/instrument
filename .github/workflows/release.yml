@@ -231,7 +231,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-          submodules: false
+          submodules: recursive
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -284,7 +284,8 @@ jobs:
           echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
           RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
           REPO_URL="https://github.com/${{ github.repository }}"
-          ALL=$(
+          REGISTRY_REPO_URL="https://github.com/instrument-org/skills"
+          APP_COMMITS=$(
             git log "$RANGE" \
               --pretty=format:"%h %s" \
               --no-merges \
@@ -293,8 +294,31 @@ jobs:
               --grep='^release\([^)]*\):' \
               --grep='^feat\(registry\): update to latest$'
           )
-          COUNT=$(printf '%s\n' "$ALL" | sed '/^$/d' | wc -l | tr -d ' ')
-          SLACK=$(echo "$ALL" | head -n10 | sed 's/^[^ ]* /• /')
+          REGISTRY_COMMITS=""
+          REGISTRY_PREV=""
+          REGISTRY_CURRENT=$(git rev-parse "${{ github.ref_name }}:registry" 2>/dev/null || true)
+          if [ -n "$PREV_TAG" ]; then
+            REGISTRY_PREV=$(git rev-parse "${PREV_TAG}:registry" 2>/dev/null || true)
+          fi
+          if [ -n "$REGISTRY_PREV" ] && [ -n "$REGISTRY_CURRENT" ] && [ "$REGISTRY_PREV" != "$REGISTRY_CURRENT" ]; then
+            REGISTRY_COMMITS=$(
+              git -C registry log "$REGISTRY_PREV..$REGISTRY_CURRENT" \
+                --pretty=format:"%h %s" \
+                --no-merges
+            )
+          fi
+          SUMMARY=$(
+            {
+              echo "$APP_COMMITS" | sed 's/^[^ ]* /• /'
+              echo "$REGISTRY_COMMITS" | sed 's/^[^ ]* /• [skills] /'
+            } | sed '/^$/d'
+          )
+          COUNT=$(printf '%s\n' "$SUMMARY" | sed '/^$/d' | wc -l | tr -d ' ')
+          if [ "$COUNT" -eq 0 ]; then
+            SLACK="_No user-facing changes in this release._"
+          else
+            SLACK=$(echo "$SUMMARY" | head -n10)
+          fi
           if [ "$COUNT" -gt 10 ]; then
             SLACK="$SLACK
           _…and $((COUNT - 10)) more commits_"
@@ -303,12 +327,24 @@ jobs:
           # Escape for JSON: backslash, double-quote, then newlines → \n
           SLACK_JSON=$(printf '%s' "$SLACK" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
           echo "slack_log_json=$SLACK_JSON" >> "$GITHUB_OUTPUT"
-          # Use the commit log because GitHub's generated notes are PR-centric and
-          # miss direct commits that Slack includes.
-          BODY=$(echo "$ALL" | awk -v repo="$REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}')
-          printf '## What'\''s changed\n\n%s\n' "$BODY" > /tmp/release-body.md
+          printf '## What'\''s changed\n' > /tmp/release-body.md
+          if [ "$COUNT" -eq 0 ]; then
+            printf '\n_No user-facing changes in this release._\n' >> /tmp/release-body.md
+          else
+            if [ -n "$APP_COMMITS" ]; then
+              printf '\n### Instrument\n\n' >> /tmp/release-body.md
+              echo "$APP_COMMITS" | awk -v repo="$REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}' >> /tmp/release-body.md
+            fi
+            if [ -n "$REGISTRY_COMMITS" ]; then
+              printf '\n### Skills\n\n' >> /tmp/release-body.md
+              echo "$REGISTRY_COMMITS" | awk -v repo="$REGISTRY_REPO_URL" '{hash=$1; $1=""; sub(/^ /,""); printf "• [`%s`](%s/commit/%s) %s\n", hash, repo, hash, $0}' >> /tmp/release-body.md
+            fi
+          fi
           if [ -n "$PREV_TAG" ]; then
             printf '\n**Full Changelog**: %s/compare/%s...%s\n' "$REPO_URL" "$PREV_TAG" "${{ github.ref_name }}" >> /tmp/release-body.md
+          fi
+          if [ -n "$REGISTRY_PREV" ] && [ -n "$REGISTRY_CURRENT" ] && [ "$REGISTRY_PREV" != "$REGISTRY_CURRENT" ]; then
+            printf '\n**Skills Changelog**: %s/compare/%s...%s\n' "$REGISTRY_REPO_URL" "$REGISTRY_PREV" "$REGISTRY_CURRENT" >> /tmp/release-body.md
           fi
 
       - name: Remove smoke test screenshots from artifacts
@@ -354,6 +390,7 @@ jobs:
         with:
           webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
           webhook-type: incoming-webhook
+          errors: true
           payload: |
             {
               "blocks": [
@@ -380,6 +417,7 @@ jobs:
         with:
           webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
           webhook-type: incoming-webhook
+          errors: true
           payload: |
             {
               "blocks": [

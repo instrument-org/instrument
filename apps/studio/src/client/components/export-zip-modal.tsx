@@ -3,14 +3,14 @@ import { Button } from "@/client/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/client/components/ui/dialog";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type Task } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 interface ExportZipModalProps {
   isOpen: boolean;
   onClose: () => void;
-  project: WorkspaceAppProject;
+  project: Task;
 }
 
 export function ExportZipModal({

@@ -2,7 +2,7 @@ import { SidebarGroup, SidebarGroupLabel, SidebarMenu } from "@/client/component
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
@@ -28,7 +28,7 @@ export function NavProjects({
   favoriteSubdomains: Set<string>;
   isFavorites: boolean;
   matches: MakeRouteMatchUnion[];
-  projects: WorkspaceAppProject[];
+  projects: Task[];
   sortFavoritesBy?: "activity" | "added";
   title: string;
 }) {
@@ -143,7 +143,7 @@ function ProjectsList({
   favoriteSubdomains: Set<string>;
   matches: MakeRouteMatchUnion[];
   onOpenInNewTab: (subdomain: TaskId) => void;
-  projects: WorkspaceAppProject[];
+  projects: Task[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);

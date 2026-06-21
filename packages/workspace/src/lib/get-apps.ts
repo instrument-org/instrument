@@ -17,7 +17,7 @@ import {
 } from "radashi";
 
 import {
-  type WorkspaceAppProject,
+  type Task,
 } from "../schemas/app";
 import {
   type AbsolutePath,
@@ -54,7 +54,7 @@ export async function getApp(
   subdomain: TaskId,
   workspaceConfig: WorkspaceConfig,
 ): Promise<
-  Result<WorkspaceAppProject, TypedError.NotFound | TypedError.Parse>
+  Result<Task, TypedError.NotFound | TypedError.Parse>
 > {
   if (!isProjectSubdomain(subdomain)) {
     return err(new TypedError.Parse("Invalid folder name"));
@@ -82,7 +82,7 @@ export async function getProjects(
     limit?: number;
     sortBy?: "createdAt" | "updatedAt";
   } = {},
-): Promise<{ projects: WorkspaceAppProject[]; total: number }> {
+): Promise<{ projects: Task[]; total: number }> {
   const { direction, limit, sortBy } = assign(
     {
       direction: "desc",
@@ -90,11 +90,11 @@ export async function getProjects(
     },
     options,
   );
-  const projects: WorkspaceAppProject[] = [];
+  const projects: Task[] = [];
   const sortByFn =
     sortBy === "createdAt"
-      ? (project: WorkspaceAppProject) => project.createdAt.getTime()
-      : (project: WorkspaceAppProject) => project.updatedAt.getTime();
+      ? (project: Task) => project.createdAt.getTime()
+      : (project: Task) => project.updatedAt.getTime();
 
   const projectAppDirs = await appDirsInRootDir(workspaceConfig.projectsDir);
   for (const appDir of projectAppDirs) {
@@ -189,7 +189,7 @@ async function workspaceApp({ appDir }: { appDir: AppDir }) {
       ? "flask-conical"
       : undefined);
 
-  const projectApp: WorkspaceAppProject = {
+  const projectApp: Task = {
     ...(await getAppDirTimestamps(appDir)),
     description: manifest?.description,
     folderName: rawFolderName,

@@ -1,6 +1,6 @@
 import { useSyntaxHighlighting } from "@/client/hooks/use-syntax-highlighting";
 import { rpcClient } from "@/client/rpc/client";
-import { formatBytes, type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { formatBytes, type StoreId, type Task } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon, BracketsCurlyIcon, FileTextIcon } from "@phosphor-icons/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
@@ -22,7 +22,7 @@ export function ProjectDebugDialog({
 }: {
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  project: WorkspaceAppProject;
+  project: Task;
   selectedSessionId: StoreId.Session | undefined;
 }) {
   const [tab, setTab] = useState<DebugTab>("markdown");

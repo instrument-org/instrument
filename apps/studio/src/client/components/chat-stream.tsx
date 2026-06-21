@@ -1,5 +1,5 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { browserStatusModelNote, isToolPart, type SessionMessage, type SessionMessagePart, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { browserStatusModelNote, isToolPart, type SessionMessage, type SessionMessagePart, type Task } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useMemo } from "react";
 
@@ -26,7 +26,7 @@ interface ChatStreamProps {
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
   onStartNewChat: () => void;
-  project: WorkspaceAppProject;
+  project: Task;
 }
 
 export function ChatStream({

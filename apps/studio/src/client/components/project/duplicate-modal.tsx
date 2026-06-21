@@ -10,7 +10,7 @@ import {
 } from "@/client/components/ui/alert-dialog";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type Task } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -23,7 +23,7 @@ export function DuplicateProjectModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  project: WorkspaceAppProject;
+  project: Task;
 }) {
   const { addTab } = useTabActions();
 

@@ -6,7 +6,7 @@ import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { keepPreviousData, skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
@@ -40,7 +40,7 @@ export function ProjectView({
   artifactPanel: ArtifactPanel | undefined;
   attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
   files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
-  project: WorkspaceAppProject;
+  project: Task;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;

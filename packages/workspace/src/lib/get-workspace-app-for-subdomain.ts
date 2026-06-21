@@ -1,5 +1,5 @@
 import {
-  type WorkspaceAppProject,
+  type Task,
 } from "../schemas/app";
 import {
   type TaskId,
@@ -19,7 +19,7 @@ import {
 
 export async function getWorkspaceAppForSubdomain(
   subdomain: TaskId,
-): Promise<WorkspaceAppProject> {
+): Promise<Task> {
   const appConfig = createAppConfig({ subdomain });
 
   const timestamps = await getAppDirTimestamps(taskDir(appConfig));

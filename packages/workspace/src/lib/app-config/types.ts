@@ -1,16 +1,13 @@
 import { type AppDir } from "../../schemas/paths";
 import { type ProjectSubdomain } from "../../schemas/subdomains";
 
-// Previews were removed; an app config is always a project (task) config.
-// WorkspaceConfig is no longer carried here — read it via getWorkspaceConfig().
+// A minimal task handle: the subdomain (which is also the folder name) plus its
+// resolved directory. Previews were removed, so there is no longer a union or a
+// `type` discriminant, and WorkspaceConfig is read via getWorkspaceConfig()
+// rather than carried here.
 export type AppConfig = AppConfigProject;
 
-export type AppConfigProject = AppConfigBase & {
-  subdomain: ProjectSubdomain;
-  type: "project";
-};
-
-interface AppConfigBase {
+export interface AppConfigProject {
   appDir: AppDir;
-  folderName: string;
+  subdomain: ProjectSubdomain;
 }

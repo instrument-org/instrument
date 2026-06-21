@@ -15,8 +15,6 @@ export function createAppConfig({
     appDir: AppDirSchema.parse(
       path.join(getWorkspaceConfig().projectsDir, subdomain),
     ),
-    folderName: subdomain,
     subdomain,
-    type: "project",
   };
 }

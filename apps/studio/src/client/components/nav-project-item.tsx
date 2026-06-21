@@ -132,8 +132,8 @@ export const NavProjectItem = memo(function NavProjectItem({
             <InternalLink
               onDoubleClick={handleStartEdit}
               openInCurrentTab
-              params={{ subdomain: project.subdomain }}
-              to="/projects/$subdomain"
+              params={{ id: project.subdomain }}
+              to="/tasks/$id"
             >
               <TaskIcon name={project.iconName} size="xs" />
               <span>{project.title}</span>
@@ -176,9 +176,9 @@ export const NavProjectItem = memo(function NavProjectItem({
             )}
             <InternalLink
               openInCurrentTab
-              params={{ subdomain: project.subdomain }}
+              params={{ id: project.subdomain }}
               search={{ showDuplicate: true }}
-              to="/projects/$subdomain"
+              to="/tasks/$id"
             >
               <DropdownMenuItem>
                 <CopyIcon className="text-muted-foreground" />
@@ -201,9 +201,9 @@ export const NavProjectItem = memo(function NavProjectItem({
             <DropdownMenuSeparator />
             <InternalLink
               openInCurrentTab
-              params={{ subdomain: project.subdomain }}
+              params={{ id: project.subdomain }}
               search={{ showDelete: true }}
-              to="/projects/$subdomain"
+              to="/tasks/$id"
             >
               <DropdownMenuItem variant="destructive">
                 <TrashIcon className="size-4" />

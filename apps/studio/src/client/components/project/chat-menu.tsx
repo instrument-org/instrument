@@ -95,16 +95,14 @@ export function ProjectChatMenu({
         },
         onSuccess: (result) => {
           void navigate({
-            params: {
-              subdomain,
-            },
+            params: { id: subdomain },
             replace: true,
             search: (prev) => ({
               ...prev,
               selectedSessionId: result.id,
               sidebar: undefined,
             }),
-            to: "/projects/$subdomain",
+            to: "/tasks/$id",
           });
         },
       },
@@ -114,15 +112,13 @@ export function ProjectChatMenu({
   const navigateToSession = (sessionId: StoreId.Session) => {
     skipCloseFocusToTriggerRef.current = true;
     void navigate({
-      params: {
-        subdomain,
-      },
+      params: { id: subdomain },
       replace: true,
       search: (prev) => ({
         ...prev,
         selectedSessionId: sessionId,
       }),
-      to: "/projects/$subdomain",
+      to: "/tasks/$id",
     });
   };
 

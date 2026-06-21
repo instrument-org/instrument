@@ -17,7 +17,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 const PAGES = [
-  { label: "/projects", to: "/projects" },
+  { label: "/projects", to: "/tasks" },
   { label: "/evals", to: "/evals" },
   { label: "/tutorial-task", to: "/tutorial-task" },
   { label: "/subscribe", to: "/subscribe" },

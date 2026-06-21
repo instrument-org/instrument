@@ -46,7 +46,7 @@ export function ChatZeroState({
                     ...prev,
                     selectedSessionId: session.id,
                   })}
-                  to="/projects/$subdomain"
+                  to="/tasks/$id"
                 >
                   {session.title || "Untitled chat"}
                 </InternalLink>

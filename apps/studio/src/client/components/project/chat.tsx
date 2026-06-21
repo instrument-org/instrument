@@ -154,15 +154,13 @@ export function ProjectChat({
         },
         onSuccess: (result) => {
           void navigate({
-            params: {
-              subdomain,
-            },
+            params: { id: subdomain },
             replace: true,
             search: (prev) => ({
               ...prev,
               selectedSessionId: result.id,
             }),
-            to: "/projects/$subdomain",
+            to: "/tasks/$id",
           });
         },
       },
@@ -223,15 +221,13 @@ export function ProjectChat({
             onSuccess: ({ sessionId }) => {
               void scrollToBottom();
               void navigate({
-                params: {
-                  subdomain,
-                },
+                params: { id: subdomain },
                 replace: true,
                 search: (prev) => ({
                   ...prev,
                   selectedSessionId: sessionId,
                 }),
-                to: "/projects/$subdomain",
+                to: "/tasks/$id",
               });
             },
           },

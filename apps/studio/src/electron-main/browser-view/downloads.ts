@@ -1,9 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { Session } from "electron";
 
-import {
-  type BrowserTargetId,
-} from "@instrument-org/workspace/electron";
+import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 
 import type { BrowserEntry } from "./entry";
 

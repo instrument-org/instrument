@@ -1,58 +1,28 @@
-import {
-  AIGatewayModel,
-  AIGatewayModelURI,
-} from "@instrument-org/ai-gateway";
+import { AIGatewayModel, AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import {
   AIProviderConfigIdSchema,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  type AgentName,
-} from "../../agents/types";
-import {
-  ActiveReplays,
-} from "../../lib/active-replays";
-import {
-  createAppConfig,
-} from "../../lib/app-config/create";
-import {
-  taskDir,
-} from "../../lib/app-dir-utils";
-import {
-  getCurrentDate,
-} from "../../lib/get-current-date";
-import {
-  getProjectManifest,
-} from "../../lib/project-manifest";
+import { type AgentName } from "../../agents/types";
+import { ActiveReplays } from "../../lib/active-replays";
+import { createAppConfig } from "../../lib/app-config/create";
+import { taskDir } from "../../lib/app-dir-utils";
+import { getCurrentDate } from "../../lib/get-current-date";
+import { getProjectManifest } from "../../lib/project-manifest";
 import {
   createReplaySession,
   executeSessionReplay,
   prepareProjectReplay,
   type ReplayMessage,
 } from "../../lib/session-replay";
-import {
-  type SpawnAgentFunction,
-} from "../../lib/spawn-agent";
-import {
-  Store,
-} from "../../lib/store";
-import {
-  StoreId,
-} from "../../schemas/store-id";
-import {
-  TaskIdSchema,
-} from "../../schemas/task-id";
-import {
-  base,
-  toORPCError,
-} from "../base";
-import {
-  publisher,
-} from "../publisher";
+import { type SpawnAgentFunction } from "../../lib/spawn-agent";
+import { Store } from "../../lib/store";
+import { StoreId } from "../../schemas/store-id";
+import { TaskIdSchema } from "../../schemas/task-id";
+import { base, toORPCError } from "../base";
+import { publisher } from "../publisher";
 
 const REPLAY_SESSION_NAME_PREFIX = "Replay";
 

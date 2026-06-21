@@ -1,7 +1,5 @@
 import os from "node:os";
-import {
-  draw,
-} from "radashi";
+import { draw } from "radashi";
 import topUserAgents from "top-user-agents/desktop";
 
 // Attempt to generate a user agent that is compatible with the Chrome browser.

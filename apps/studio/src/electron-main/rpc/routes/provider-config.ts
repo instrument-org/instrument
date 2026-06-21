@@ -1,12 +1,6 @@
-import {
-  setDefaultModel,
-} from "@/electron-main/lib/set-default-model";
-import {
-  base,
-} from "@/electron-main/rpc/base";
-import {
-  ClientAIProviderConfigSchema,
-} from "@/shared/schemas/provider";
+import { setDefaultModel } from "@/electron-main/lib/set-default-model";
+import { base } from "@/electron-main/rpc/base";
+import { ClientAIProviderConfigSchema } from "@/shared/schemas/provider";
 import {
   AIGatewayProviderConfig,
   baseURLWithDefault,
@@ -16,37 +10,17 @@ import {
   ProviderMetadataSchema,
   verifyAPIKey,
 } from "@instrument-org/ai-gateway";
-import {
-  AIProviderConfigIdSchema,
-  APP_DOMAIN,
-} from "@instrument-org/shared";
-import {
-  call,
-  eventIterator,
-} from "@orpc/server";
-import {
-  safeStorage,
-} from "electron";
+import { AIProviderConfigIdSchema, APP_DOMAIN } from "@instrument-org/shared";
+import { call, eventIterator } from "@orpc/server";
+import { safeStorage } from "electron";
 import ms from "ms";
-import {
-  ulid,
-} from "ulid";
-import {
-  z,
-} from "zod";
+import { ulid } from "ulid";
+import { z } from "zod";
 
-import {
-  getAppStateStore,
-} from "../../stores/app-state";
-import {
-  getProviderConfigsStore,
-} from "../../stores/provider-configs";
-import {
-  cacheMiddleware,
-} from "../middleware/cache";
-import {
-  publisher,
-} from "../publisher";
+import { getAppStateStore } from "../../stores/app-state";
+import { getProviderConfigsStore } from "../../stores/provider-configs";
+import { cacheMiddleware } from "../middleware/cache";
+import { publisher } from "../publisher";
 
 const list = base.output(z.array(ClientAIProviderConfigSchema)).handler(() => {
   const providersStore = getProviderConfigsStore();

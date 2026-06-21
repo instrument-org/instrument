@@ -1,10 +1,24 @@
 import { Button } from "@/client/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/client/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
-import { ArrowCounterClockwiseIcon, BugIcon, CopyIcon, DotsThreeOutlineVerticalIcon, PencilSimpleLineIcon, StarIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  ArrowCounterClockwiseIcon,
+  BugIcon,
+  CopyIcon,
+  DotsThreeOutlineVerticalIcon,
+  PencilSimpleLineIcon,
+  StarIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";

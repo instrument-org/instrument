@@ -1,13 +1,7 @@
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  StoreId,
-} from "../store-id";
-import {
-  SessionMessage,
-} from "./message";
+import { StoreId } from "../store-id";
+import { SessionMessage } from "./message";
 
 export namespace Session {
   export const Schema = z.object({

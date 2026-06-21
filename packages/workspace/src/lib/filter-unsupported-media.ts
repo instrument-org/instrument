@@ -1,11 +1,7 @@
 import type { ModelMessage } from "ai";
 
-import {
-  type AIGatewayModel,
-} from "@instrument-org/ai-gateway";
-import {
-  dedent,
-} from "radashi";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { dedent } from "radashi";
 
 type MediaCategory = "audio" | "file" | "image" | "video";
 

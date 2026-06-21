@@ -2,7 +2,13 @@ import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { ArrowLineDownIcon, ChatTextIcon, CheckIcon, CopyIcon, DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react";
+import {
+  ArrowLineDownIcon,
+  ChatTextIcon,
+  CheckIcon,
+  CopyIcon,
+  DotsThreeOutlineVerticalIcon,
+} from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -11,7 +17,13 @@ import { getRevealInFolderLabel } from "../lib/utils";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { Button, type ButtonVariant } from "./ui/button";
 import { ContextMenuItem, ContextMenuSeparator } from "./ui/context-menu";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 type MenuVariant = "context" | "dropdown";
 

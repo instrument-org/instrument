@@ -1,7 +1,4 @@
-import {
-  type ImageModelV3,
-  type LanguageModelV3,
-} from "@ai-sdk/provider";
+import { type ImageModelV3, type LanguageModelV3 } from "@ai-sdk/provider";
 import {
   type AIGatewayModel,
   AIGatewayProviderConfig,
@@ -11,38 +8,23 @@ import {
   TEST_MODEL_OVERRIDE_KEY,
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway";
-import {
-  AI_GATEWAY_API_KEY_NOT_NEEDED,
-} from "@instrument-org/shared";
+import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import path from "node:path";
-import {
-  noop,
-} from "radashi";
+import { noop } from "radashi";
 
-import {
-  createAppConfig,
-} from "../../lib/app-config/create";
+import { createAppConfig } from "../../lib/app-config/create";
 import {
   getWorkspaceConfig,
-  resetWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
-import {
-  AbsolutePathSchema,
-  WorkspaceDirSchema,
-} from "../../schemas/paths";
-import {
-  type TaskId,
-  TaskIdSchema,
-} from "../../schemas/task-id";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import {
   type BrowserConfig,
   encodeBrowserTargetId,
   type WorkspaceConfig,
 } from "../../types";
-import {
-  createMockAIGatewayModel,
-} from "./mock-ai-gateway-model";
+import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
@@ -55,8 +37,7 @@ export const MOCK_WORKSPACE_DIRS = {
 // Provider configs registered by createMockAppConfig. The singleton's
 // getAIProviderConfigs returns all of them so a test running two sessions with
 // distinct models (distinct providerConfigIds) resolves each to its own model
-// override. Configs are keyed by id so same-id mocks overwrite; a test that
-// needs full isolation can call resetMockWorkspaceConfig().
+// override. Configs are keyed by id so same-id mocks overwrite.
 const mockProviderConfigs = new Map<
   string,
   ReturnType<typeof AIGatewayProviderConfig.Schema.parse>
@@ -165,9 +146,4 @@ export function createStubBrowserConfig(): BrowserConfig {
     stopScreencast: noop,
     subscribeEvents: () => noop,
   };
-}
-
-export function resetMockWorkspaceConfig(): void {
-  mockProviderConfigs.clear();
-  resetWorkspaceConfig();
 }

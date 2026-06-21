@@ -1,30 +1,13 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  AbsolutePathSchema,
-} from "../schemas/paths";
-import {
-  TaskIdSchema,
-} from "../schemas/task-id";
-import {
-  createMockAppConfig,
-} from "../test/helpers/mock-app-config";
-import {
-  readProjectFile,
-} from "./read-project-file";
-import {
-  getWorkspaceConfig,
-  setWorkspaceConfig,
-} from "./workspace-config";
+import { AbsolutePathSchema } from "../schemas/paths";
+import { TaskIdSchema } from "../schemas/task-id";
+import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { readProjectFile } from "./read-project-file";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("readProjectFile", () => {
   const subdomain = TaskIdSchema.parse("test-project");
@@ -32,9 +15,7 @@ describe("readProjectFile", () => {
   let dir: string;
 
   beforeEach(async () => {
-    tasksDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), "read-project-file-"),
-    );
+    tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "read-project-file-"));
     dir = path.join(tasksDir, subdomain);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, "inside.txt"), "inside contents");

@@ -2,26 +2,13 @@ import {
   MAX_PROMPT_STORAGE_LENGTH,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  atom,
-  type SetStateAction,
-} from "jotai";
-import {
-  atomFamily,
-  atomWithStorage,
-} from "jotai/utils";
-import {
-  debounce,
-} from "radashi";
+import { atom, type SetStateAction } from "jotai";
+import { atomFamily, atomWithStorage } from "jotai/utils";
+import { debounce } from "radashi";
 
-import {
-  rpcClient,
-} from "../rpc/client";
+import { rpcClient } from "../rpc/client";
 
-export type PromptValueAtomKey =
-  | "$$new-tab$$"
-  | "$$template$$"
-  | TaskId;
+export type PromptValueAtomKey = "$$new-tab$$" | "$$template$$" | TaskId;
 
 export const promptInputRefAtom = atom<HTMLTextAreaElement | null>(null);
 

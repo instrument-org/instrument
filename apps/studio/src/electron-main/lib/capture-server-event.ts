@@ -2,25 +2,13 @@ import {
   type AnalyticsEvents,
   type CaptureEventFunction,
 } from "@instrument-org/shared";
-import {
-  app,
-} from "electron";
+import { app } from "electron";
 
-import {
-  getAppStateStore,
-} from "../stores/app-state";
-import {
-  getPreferencesStore,
-} from "../stores/preferences";
-import {
-  logger,
-} from "./electron-logger";
-import {
-  getSystemProperties,
-} from "./system-properties";
-import {
-  telemetry,
-} from "./telemetry";
+import { getAppStateStore } from "../stores/app-state";
+import { getPreferencesStore } from "../stores/preferences";
+import { logger } from "./electron-logger";
+import { getSystemProperties } from "./system-properties";
+import { telemetry } from "./telemetry";
 
 export const captureServerEvent: CaptureEventFunction = function <
   T extends keyof AnalyticsEvents,

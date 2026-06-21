@@ -1,11 +1,6 @@
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  type SubdomainPart,
-  validateSubdomainPart,
-} from "./subdomain-part";
+import { type SubdomainPart, validateSubdomainPart } from "./subdomain-part";
 
 // A task id. It doubles as the on-disk folder name and, for the local asset
 // server, a DNS-valid subdomain label — but those are implementation details;

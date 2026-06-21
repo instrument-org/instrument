@@ -1,5 +1,9 @@
 import { rpcClient } from "@/client/rpc/client";
-import { createFileRoute, type FileRoutesByPath, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  type FileRoutesByPath,
+  useRouter,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 
 const PRELOAD_ROUTE_PATHS = [

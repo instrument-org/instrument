@@ -1,4 +1,7 @@
-import { type SessionMessagePart, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type SessionMessagePart,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 
 import { FileToolCard } from "./file-tool-card";
 

@@ -1,40 +1,16 @@
-import {
-  type Connector,
-  createDatabase,
-  type Database,
-} from "db0";
+import { type Connector, createDatabase, type Database } from "db0";
 import sqlite from "db0/connectors/node-sqlite";
-import {
-  err,
-  ok,
-  ResultAsync,
-} from "neverthrow";
+import { err, ok, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
-import {
-  type DatabaseSync,
-} from "node:sqlite";
-import {
-  createStorage,
-} from "unstorage";
+import { type DatabaseSync } from "node:sqlite";
+import { createStorage } from "unstorage";
 import dbDriver from "unstorage/drivers/db0";
 
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  type AppConfig,
-} from "./app-config/types";
-import {
-  sessionStorePath,
-  taskDir,
-} from "./app-dir-utils";
-import {
-  TypedError,
-} from "./errors";
-import {
-  type WrappedStorage,
-  wrapStorage,
-} from "./wrap-storage";
+import { type TaskId } from "../schemas/task-id";
+import { type AppConfig } from "./app-config/types";
+import { sessionStorePath, taskDir } from "./app-dir-utils";
+import { TypedError } from "./errors";
+import { type WrappedStorage, wrapStorage } from "./wrap-storage";
 
 // Avoids possible SQLite database lock errors if we create the same storage
 // multiple times.

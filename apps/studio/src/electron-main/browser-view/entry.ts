@@ -6,13 +6,9 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/electron";
-import {
-  noop,
-} from "radashi";
+import { noop } from "radashi";
 
-import {
-  log,
-} from "./log";
+import { log } from "./log";
 
 export interface BrowserEntry {
   authorizedDownloadPath: null | string;

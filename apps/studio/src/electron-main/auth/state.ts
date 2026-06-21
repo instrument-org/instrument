@@ -1,6 +1,4 @@
-import {
-  type ServerType,
-} from "@hono/node-server";
+import { type ServerType } from "@hono/node-server";
 
 let authServerPort: null | number = null;
 let authServer: null | ServerType = null;

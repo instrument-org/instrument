@@ -1,9 +1,34 @@
 import { InternalLink } from "@/client/components/internal-link";
-import { Collapsible, CollapsibleContent } from "@/client/components/ui/collapsible";
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider } from "@/client/components/ui/sidebar";
-import { createFileRoute, Outlet, useLocation, useSearch } from "@tanstack/react-router";
+import {
+  Collapsible,
+  CollapsibleContent,
+} from "@/client/components/ui/collapsible";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+} from "@/client/components/ui/sidebar";
+import {
+  createFileRoute,
+  Outlet,
+  useLocation,
+  useSearch,
+} from "@tanstack/react-router";
 
-import { componentPages, getDebugRoute, onboardingScreens } from "./-debug-routes";
+import {
+  componentPages,
+  getDebugRoute,
+  onboardingScreens,
+} from "./-debug-routes";
 import { presetSessions } from "./-sessions";
 
 export const Route = createFileRoute("/_app/debug/components")({

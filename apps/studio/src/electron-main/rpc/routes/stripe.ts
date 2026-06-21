@@ -1,12 +1,6 @@
-import {
-  platformApiRpcClient,
-} from "@/electron-main/platform-api/client";
-import {
-  authenticated,
-} from "@/electron-main/rpc/base";
-import {
-  z,
-} from "zod";
+import { platformApiRpcClient } from "@/electron-main/platform-api/client";
+import { authenticated } from "@/electron-main/rpc/base";
+import { z } from "zod";
 
 const createCheckoutSession = authenticated
   .input(z.object({ priceId: z.string() }))

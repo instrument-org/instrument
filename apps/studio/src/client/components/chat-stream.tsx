@@ -1,13 +1,26 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { browserStatusModelNote, isToolPart, type SessionMessage, type SessionMessagePart, type Task } from "@instrument-org/workspace/client";
+import {
+  browserStatusModelNote,
+  isToolPart,
+  type SessionMessage,
+  type SessionMessagePart,
+  type Task,
+} from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useMemo } from "react";
 
 import { cn } from "../lib/utils";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
-import { renderChatPart, type RenderPartContext } from "./chat-stream-render-part";
-import { buildToolBoundaryMap, isActiveToolPart, isVisibleAssistantPart } from "./chat-stream-utils";
+import {
+  renderChatPart,
+  type RenderPartContext,
+} from "./chat-stream-render-part";
+import {
+  buildToolBoundaryMap,
+  isActiveToolPart,
+  isVisibleAssistantPart,
+} from "./chat-stream-utils";
 import { ContextMessages } from "./context-messages";
 import { MessageError } from "./message-error";
 import { type RenderStream } from "./message-part/tool-task";

@@ -9,21 +9,10 @@ import {
   StoreId,
   TaskIdSchema,
 } from "@instrument-org/workspace/electron";
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  sendCommand,
-} from "./dispatch-command";
-import {
-  type BrowserEntry,
-  createEntry,
-} from "./entry";
+import { sendCommand } from "./dispatch-command";
+import { type BrowserEntry, createEntry } from "./entry";
 
 const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();

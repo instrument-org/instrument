@@ -1,37 +1,19 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  afterEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  AbsolutePathSchema,
-} from "../schemas/paths";
-import {
-  StoreId,
-} from "../schemas/store-id";
-import {
-  TaskIdSchema,
-} from "../schemas/task-id";
-import {
-  createMockAppConfig,
-} from "../test/helpers/mock-app-config";
-import {
-  type WorkspaceConfig,
-} from "../types";
+import { AbsolutePathSchema } from "../schemas/paths";
+import { StoreId } from "../schemas/store-id";
+import { TaskIdSchema } from "../schemas/task-id";
+import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { type WorkspaceConfig } from "../types";
 import {
   beginTurnChangeTracking,
   consumeTurnChanges,
   getCurrentProjectFiles,
 } from "./project-file-watcher";
-import {
-  getWorkspaceConfig,
-  setWorkspaceConfig,
-} from "./workspace-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const subdomain = TaskIdSchema.parse("watcher-test");
 

@@ -1,21 +1,9 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  TOOLS_FOR_MODEL_OUTPUT,
-} from "../../tools/all";
-import {
-  RelativePathSchema,
-} from "../paths";
-import {
-  StoreId,
-} from "../store-id";
-import {
-  SessionMessage,
-} from "./message";
+import { TOOLS_FOR_MODEL_OUTPUT } from "../../tools/all";
+import { RelativePathSchema } from "../paths";
+import { StoreId } from "../store-id";
+import { SessionMessage } from "./message";
 
 const mockDate = new Date("2024-01-01T10:00:00Z");
 

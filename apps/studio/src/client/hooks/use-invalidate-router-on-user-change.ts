@@ -1,14 +1,7 @@
-import {
-  useRouter,
-} from "@tanstack/react-router";
-import {
-  useEffect,
-  useRef,
-} from "react";
+import { useRouter } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 
-import {
-  useLiveUser,
-} from "./use-live-user";
+import { useLiveUser } from "./use-live-user";
 
 // Invalidates the router when the user authentication state changes.
 // This is necessary because main tab pages can have authentication requirements,

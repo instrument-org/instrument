@@ -1,9 +1,5 @@
-import {
-  APP_NAME_SLUG,
-} from "@instrument-org/shared";
-import {
-  dedent,
-} from "radashi";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { dedent } from "radashi";
 
 export function systemNote(
   strings: TemplateStringsArray,

@@ -3,7 +3,16 @@ import type { ComponentType } from "react";
 import { BrandIconGlyph } from "@/client/components/brand-icon";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { CrosshairIcon, HourglassIcon, type Icon, ImageIcon, TextTSlashIcon, VideoCameraIcon, WaveformIcon, WrenchIcon } from "@phosphor-icons/react";
+import {
+  CrosshairIcon,
+  HourglassIcon,
+  type Icon,
+  ImageIcon,
+  TextTSlashIcon,
+  VideoCameraIcon,
+  WaveformIcon,
+  WrenchIcon,
+} from "@phosphor-icons/react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";

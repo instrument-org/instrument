@@ -9,25 +9,15 @@ import {
   StoreId,
   TaskIdSchema,
 } from "@instrument-org/workspace/electron";
-import {
-  EventEmitter,
-} from "node:events";
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { EventEmitter } from "node:events";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   applyDownloadBehavior,
   attachDownloadHandler,
   captureDownloadWillBeginGuid,
 } from "./downloads";
-import {
-  type BrowserEntry,
-  createEntry,
-} from "./entry";
+import { type BrowserEntry, createEntry } from "./entry";
 
 const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();

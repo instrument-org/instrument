@@ -2,9 +2,16 @@ import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { QuestionIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
-import { CollapsiblePartMainContent, CollapsiblePartTrigger } from "./collapsible-part";
+import {
+  CollapsiblePartMainContent,
+  CollapsiblePartTrigger,
+} from "./collapsible-part";
 import { ToolPartListItemCompact } from "./tool-part/list-item-compact";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 
 interface UnknownPartProps {
   part: SessionMessagePart.Type;

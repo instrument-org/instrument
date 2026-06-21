@@ -1,15 +1,7 @@
-import {
-  getToken,
-} from "@/electron-main/platform-api/utils";
-import {
-  getProviderConfigsStore,
-} from "@/electron-main/stores/provider-configs";
-import {
-  type AIGatewayProviderConfig,
-} from "@instrument-org/ai-gateway";
-import {
-  OUR_PROVIDER_CONFIG,
-} from "@instrument-org/shared";
+import { getToken } from "@/electron-main/platform-api/utils";
+import { getProviderConfigsStore } from "@/electron-main/stores/provider-configs";
+import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 
 // Helper to get stored configs and add our config if the user is logged in.
 export function getAIProviderConfigs(): AIGatewayProviderConfig.Type[] {

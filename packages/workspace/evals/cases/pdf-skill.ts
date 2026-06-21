@@ -1,13 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  type SessionMessagePart,
-} from "../../src/schemas/session/message-part";
-import {
-  type Assertion,
-  defineEval,
-} from "../harness";
+import { type SessionMessagePart } from "../../src/schemas/session/message-part";
+import { type Assertion, defineEval } from "../harness";
 
 const PDF_SKILL_NAME = "pdf";
 

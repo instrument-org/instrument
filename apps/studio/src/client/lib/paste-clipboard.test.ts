@@ -1,12 +1,6 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  shouldAttachClipboardItem,
-} from "./paste-clipboard";
+import { shouldAttachClipboardItem } from "./paste-clipboard";
 
 describe("shouldAttachClipboardItem", () => {
   it.each([

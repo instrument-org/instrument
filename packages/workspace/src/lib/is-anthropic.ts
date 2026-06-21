@@ -1,8 +1,6 @@
 import type { AIGatewayModel } from "@instrument-org/ai-gateway";
 
-import {
-  OUR_MODELS,
-} from "@instrument-org/shared";
+import { OUR_MODELS } from "@instrument-org/shared";
 
 export function isAnthropic(model: AIGatewayModel.Type): boolean {
   return (

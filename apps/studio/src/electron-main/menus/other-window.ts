@@ -1,10 +1,6 @@
-import {
-  type MenuItemConstructorOptions,
-} from "electron";
+import { type MenuItemConstructorOptions } from "electron";
 
-import {
-  isDeveloperMode,
-} from "../stores/preferences";
+import { isDeveloperMode } from "../stores/preferences";
 import {
   createAppMenu,
   createDevToolsMenu,

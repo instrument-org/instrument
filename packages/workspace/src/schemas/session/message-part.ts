@@ -10,18 +10,10 @@ import {
   type UIMessagePart,
 } from "ai";
 
-import {
-  type AISDKTools,
-} from "../../tools/all";
-import {
-  type StoreId,
-} from "../store-id";
-import {
-  type SessionMessageDataPart,
-} from "./message-data-part";
-import {
-  SessionMessageRelaxedPart,
-} from "./message-relaxed-part";
+import { type AISDKTools } from "../../tools/all";
+import { type StoreId } from "../store-id";
+import { type SessionMessageDataPart } from "./message-data-part";
+import { SessionMessageRelaxedPart } from "./message-relaxed-part";
 
 interface BaseMetadata extends Record<string, unknown> {
   createdAt: Date;

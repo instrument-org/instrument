@@ -1,6 +1,4 @@
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
 export const FeatureNameSchema = z.enum(["context_ring"]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;

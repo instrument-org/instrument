@@ -1,16 +1,9 @@
-import {
-  err,
-  ok,
-} from "neverthrow";
+import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  TypedError,
-} from "./errors";
+import { type AbsolutePath } from "../schemas/paths";
+import { TypedError } from "./errors";
 
 const SHEBANG = "#!/bin/sh";
 

@@ -1,12 +1,6 @@
-import {
-  APP_NAME_SLUG,
-} from "@instrument-org/shared";
-import {
-  type TabIconName,
-} from "@instrument-org/shared/icons";
-import {
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { type TabIconName } from "@instrument-org/shared/icons";
+import { type TaskId } from "@instrument-org/workspace/client";
 
 export interface Tab {
   iconName?: TabIconName;

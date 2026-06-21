@@ -1,7 +1,16 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/client/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/client/components/ui/accordion";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/client/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { rpcClient } from "@/client/rpc/client";
 import { WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";

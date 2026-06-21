@@ -1,10 +1,28 @@
 import { InternalLink } from "@/client/components/internal-link";
 import { Button } from "@/client/components/ui/button";
-import { DialogClose, DialogContent, DialogTitle } from "@/client/components/ui/dialog";
-import { Sidebar, SidebarContent, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "@/client/components/ui/sidebar";
+import {
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+} from "@/client/components/ui/sidebar";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { type StudioPath } from "@/shared/studio-path";
-import { BugIcon, CpuIcon, FadersHorizontalIcon, FlagIcon, XIcon } from "@phosphor-icons/react";
+import {
+  BugIcon,
+  CpuIcon,
+  FadersHorizontalIcon,
+  FlagIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/studio-overlay/settings")({

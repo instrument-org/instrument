@@ -1,10 +1,6 @@
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  AbsolutePathSchema,
-} from "./paths";
+import { AbsolutePathSchema } from "./paths";
 
 export namespace FolderAttachment {
   export const IdSchema = z.string().brand("FolderAttachmentId");

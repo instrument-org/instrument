@@ -1,32 +1,16 @@
-import {
-  type LanguageModelV3Source,
-} from "@ai-sdk/provider";
+import { type LanguageModelV3Source } from "@ai-sdk/provider";
 import {
   type AIGatewayModel,
   type AIGatewayProviderConfig,
   type AIGatewayTypedError,
   getWebSearchModel,
 } from "@instrument-org/ai-gateway";
-import {
-  type WorkspaceServerURL,
-} from "@instrument-org/shared";
-import {
-  APICallError,
-  type LanguageModelUsage,
-  streamText,
-} from "ai";
-import {
-  err,
-  ok,
-  type Result,
-} from "neverthrow";
+import { type WorkspaceServerURL } from "@instrument-org/shared";
+import { APICallError, type LanguageModelUsage, streamText } from "ai";
+import { err, ok, type Result } from "neverthrow";
 
-import {
-  type WorkspaceConfig,
-} from "../types";
-import {
-  TypedError,
-} from "./errors";
+import { type WorkspaceConfig } from "../types";
+import { TypedError } from "./errors";
 
 type WebSearchError = AIGatewayTypedError.NotFound | TypedError.APICall;
 

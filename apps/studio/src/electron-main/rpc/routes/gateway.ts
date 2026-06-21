@@ -1,25 +1,14 @@
-import {
-  base,
-} from "@/electron-main/rpc/base";
+import { base } from "@/electron-main/rpc/base";
 import {
   AIGatewayModel,
   AIGatewayProviderConfig,
   fetchModelResultsForProviders,
 } from "@instrument-org/ai-gateway";
-import {
-  mergeGenerators,
-} from "@instrument-org/shared/merge-generators";
-import {
-  call,
-  eventIterator,
-} from "@orpc/server";
-import {
-  z,
-} from "zod";
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { call, eventIterator } from "@orpc/server";
+import { z } from "zod";
 
-import {
-  publisher,
-} from "../publisher";
+import { publisher } from "../publisher";
 
 const ListSchema = z.object({
   errors: z.array(

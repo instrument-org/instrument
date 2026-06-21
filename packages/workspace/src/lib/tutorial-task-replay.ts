@@ -1,75 +1,32 @@
-import {
-  AIGatewayModel,
-  AIGatewayModelURI,
-} from "@instrument-org/ai-gateway";
+import { AIGatewayModel, AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import {
   AIProviderConfigIdSchema,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
-import {
-  ok,
-  type Result,
-  safeTry,
-} from "neverthrow";
+import { ok, type Result, safeTry } from "neverthrow";
 
-import {
-  mainAgent,
-} from "../agents/main";
-import {
-  publisher,
-} from "../rpc/publisher";
-import {
-  type Session,
-} from "../schemas/session";
-import {
-  type SessionMessage,
-} from "../schemas/session/message";
-import {
-  type SessionMessagePart,
-} from "../schemas/session/message-part";
-import {
-  StoreId,
-} from "../schemas/store-id";
-import {
-  SubdomainPartSchema,
-} from "../schemas/subdomain-part";
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  type WorkspaceConfig,
-} from "../types";
-import {
-  ActiveReplays,
-} from "./active-replays";
-import {
-  newProjectConfig,
-} from "./app-config/new";
-import {
-  type AppConfigProject,
-} from "./app-config/types";
-import {
-  taskDir,
-} from "./app-dir-utils";
+import { mainAgent } from "../agents/main";
+import { publisher } from "../rpc/publisher";
+import { type Session } from "../schemas/session";
+import { type SessionMessage } from "../schemas/session/message";
+import { type SessionMessagePart } from "../schemas/session/message-part";
+import { StoreId } from "../schemas/store-id";
+import { SubdomainPartSchema } from "../schemas/subdomain-part";
+import { type TaskId } from "../schemas/task-id";
+import { type WorkspaceConfig } from "../types";
+import { ActiveReplays } from "./active-replays";
+import { newProjectConfig } from "./app-config/new";
+import { type AppConfigProject } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import {
   TUTORIAL_TASK_REPLAY,
   type TutorialTaskWriteFileStep,
 } from "./data/tutorial-task-replay";
-import {
-  initializeProject,
-} from "./initialize-project";
-import {
-  setProjectState,
-} from "./project-state-store";
-import {
-  runToolCall,
-} from "./run-tool-call";
-import {
-  type SpawnAgentFunction,
-} from "./spawn-agent";
-import {
-  Store,
-} from "./store";
+import { initializeProject } from "./initialize-project";
+import { setProjectState } from "./project-state-store";
+import { runToolCall } from "./run-tool-call";
+import { type SpawnAgentFunction } from "./spawn-agent";
+import { Store } from "./store";
 
 const DEFAULT_REPLAY_TIMING = {
   assistantStartDelayMs: 1500,

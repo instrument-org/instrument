@@ -1,6 +1,10 @@
 import { type Button, buttonVariants } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
-import { CaretLeftIcon, CaretRightIcon, DotsThreeOutlineIcon } from "@phosphor-icons/react";
+import {
+  CaretLeftIcon,
+  CaretRightIcon,
+  DotsThreeOutlineIcon,
+} from "@phosphor-icons/react";
 import * as React from "react";
 
 type PaginationLinkProps = Pick<React.ComponentProps<typeof Button>, "size"> &

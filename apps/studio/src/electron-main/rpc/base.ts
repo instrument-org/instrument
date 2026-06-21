@@ -1,20 +1,9 @@
-import {
-  type ErrorMap,
-  os,
-} from "@orpc/server";
+import { type ErrorMap, os } from "@orpc/server";
 
-import {
-  hasToken,
-} from "../platform-api/utils";
-import {
-  isDeveloperMode,
-} from "../stores/preferences";
-import {
-  getTabsManager,
-} from "../tabs";
-import {
-  type InitialRPCContext,
-} from "./context";
+import { hasToken } from "../platform-api/utils";
+import { isDeveloperMode } from "../stores/preferences";
+import { getTabsManager } from "../tabs";
+import { type InitialRPCContext } from "./context";
 
 const ORPC_ERRORS = {
   API_ERROR: {},

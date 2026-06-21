@@ -1,6 +1,9 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
-import { isRootScaffoldingFile, isUnknownTopLevelDirFile } from "@/client/lib/project-file-groups";
+import {
+  isRootScaffoldingFile,
+  isUnknownTopLevelDirFile,
+} from "@/client/lib/project-file-groups";
 import { cn } from "@/client/lib/utils";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";

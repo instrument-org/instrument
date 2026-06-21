@@ -1,20 +1,12 @@
-import {
-  platformApiQueryClient,
-} from "@/electron-main/platform-api/client";
-import {
-  hasToken,
-} from "@/electron-main/platform-api/utils";
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
+import { platformApiQueryClient } from "@/electron-main/platform-api/client";
+import { hasToken } from "@/electron-main/platform-api/utils";
+import { publisher } from "@/electron-main/rpc/publisher";
 import {
   type QueryKey,
   QueryObserver,
   type QueryObserverOptions,
 } from "@tanstack/query-core";
-import {
-  isEqual,
-} from "radashi";
+import { isEqual } from "radashi";
 
 /**
  * Creates an async generator for ORPC that yields TanStack Query data and reacts

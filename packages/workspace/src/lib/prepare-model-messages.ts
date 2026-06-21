@@ -1,53 +1,20 @@
-import {
-  type AIGatewayModel,
-} from "@instrument-org/ai-gateway";
-import {
-  differenceInMinutes,
-} from "date-fns";
-import {
-  ok,
-  Result,
-} from "neverthrow";
-import {
-  alphabetical,
-} from "radashi";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { differenceInMinutes } from "date-fns";
+import { ok, Result } from "neverthrow";
+import { alphabetical } from "radashi";
 
-import {
-  type AnyAgent,
-} from "../agents/types";
-import {
-  SessionMessage,
-} from "../schemas/session/message";
-import {
-  type StoreId,
-} from "../schemas/store-id";
-import {
-  TOOLS_FOR_MODEL_OUTPUT,
-} from "../tools/all";
-import {
-  addCacheControlToMessages,
-} from "./add-cache-control";
-import {
-  type AppConfig,
-} from "./app-config/types";
-import {
-  filterUnsupportedMedia,
-} from "./filter-unsupported-media";
-import {
-  normalizeToolCallIds,
-} from "./normalize-tool-call-ids";
-import {
-  removeCrossModelReasoningDetails,
-} from "./remove-cross-model-reasoning-details";
-import {
-  splitMultipartToolResults,
-} from "./split-multipart-tool-results";
-import {
-  Store,
-} from "./store";
-import {
-  getWorkspaceConfig,
-} from "./workspace-config";
+import { type AnyAgent } from "../agents/types";
+import { SessionMessage } from "../schemas/session/message";
+import { type StoreId } from "../schemas/store-id";
+import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
+import { addCacheControlToMessages } from "./add-cache-control";
+import { type AppConfig } from "./app-config/types";
+import { filterUnsupportedMedia } from "./filter-unsupported-media";
+import { normalizeToolCallIds } from "./normalize-tool-call-ids";
+import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
+import { splitMultipartToolResults } from "./split-multipart-tool-results";
+import { Store } from "./store";
+import { getWorkspaceConfig } from "./workspace-config";
 
 const STALE_MESSAGE_THRESHOLD_MINUTES = 60;
 

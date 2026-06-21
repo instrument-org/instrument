@@ -1,13 +1,6 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  readWindowsShim,
-  resolveShimTarget,
-} from "./read-pnpm-shim";
+import { readWindowsShim, resolveShimTarget } from "./read-pnpm-shim";
 
 const createWindowsShim = (targetPath: string) => {
   return `@SETLOCAL

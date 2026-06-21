@@ -1,6 +1,4 @@
-import {
-  type SessionMessagePart,
-} from "../schemas/session/message-part";
+import { type SessionMessagePart } from "../schemas/session/message-part";
 
 export function isToolPart(
   part: SessionMessagePart.Type,

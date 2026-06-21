@@ -1,68 +1,30 @@
-import {
-  serve,
-  type ServerType,
-} from "@hono/node-server";
+import { serve, type ServerType } from "@hono/node-server";
 import {
   type AIGatewayApp,
   type AIGatewayEnv,
 } from "@instrument-org/ai-gateway";
-import {
-  AI_GATEWAY_API_PATH,
-} from "@instrument-org/shared";
-import {
-  Hono,
-} from "hono";
+import { AI_GATEWAY_API_PATH } from "@instrument-org/shared";
+import { Hono } from "hono";
 import invariant from "tiny-invariant";
-import {
-  type ActorRefFrom,
-  type AnyEventObject,
-  fromCallback,
-} from "xstate";
+import { type ActorRefFrom, type AnyEventObject, fromCallback } from "xstate";
 
-import {
-  type AbsolutePath,
-} from "../../schemas/paths";
-import {
-  type TaskId,
-} from "../../schemas/task-id";
-import {
-  type WorkspaceConfig,
-} from "../../types";
-import {
-  DEFAULT_APPS_SERVER_PORT,
-} from "./constants";
-import {
-  allProxyRoute,
-} from "./routes/all-proxy";
-import {
-  assetsRoute,
-} from "./routes/assets";
-import {
-  cdpBridgeRoute,
-  setupCdpWebSocketBridge,
-} from "./routes/cdp-bridge";
-import {
-  heartbeatRoute,
-} from "./routes/heartbeat";
-import {
-  redirectRoute,
-} from "./routes/redirect";
-import {
-  shimIFrameRoute,
-} from "./routes/shim-iframe";
-import {
-  shimScriptRoute,
-} from "./routes/shim-script";
+import { type AbsolutePath } from "../../schemas/paths";
+import { type TaskId } from "../../schemas/task-id";
+import { type WorkspaceConfig } from "../../types";
+import { DEFAULT_APPS_SERVER_PORT } from "./constants";
+import { allProxyRoute } from "./routes/all-proxy";
+import { assetsRoute } from "./routes/assets";
+import { cdpBridgeRoute, setupCdpWebSocketBridge } from "./routes/cdp-bridge";
+import { heartbeatRoute } from "./routes/heartbeat";
+import { redirectRoute } from "./routes/redirect";
+import { shimIFrameRoute } from "./routes/shim-iframe";
+import { shimScriptRoute } from "./routes/shim-script";
 import {
   type WorkspaceServerEnv,
   type WorkspaceServerParentRef,
 } from "./types";
-import {
-  generateWorkspaceServerPort,
-} from "./url";
-import {
-  setupWebSocketProxy,
-} from "./websocket-proxy";
+import { generateWorkspaceServerPort } from "./url";
+import { setupWebSocketProxy } from "./websocket-proxy";
 
 export const workspaceServerLogic = fromCallback<
   AnyEventObject,

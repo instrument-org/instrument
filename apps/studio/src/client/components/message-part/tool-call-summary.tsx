@@ -1,11 +1,22 @@
-import { getToolNameByType, type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  getToolNameByType,
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
 import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
-import { getToolLabelForPart, getToolStreamingLabel, TOOL_ICONS } from "../../lib/tool-display";
+import {
+  getToolLabelForPart,
+  getToolStreamingLabel,
+  TOOL_ICONS,
+} from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../ui/collapsible";
 import { Spinner } from "../ui/spinner";
 import { BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";

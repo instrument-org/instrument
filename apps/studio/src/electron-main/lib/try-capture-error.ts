@@ -1,10 +1,6 @@
-import {
-  Result,
-} from "typescript-result";
+import { Result } from "typescript-result";
 
-import {
-  captureServerException,
-} from "./capture-server-exception";
+import { captureServerException } from "./capture-server-exception";
 
 /**
  * Calls `op`, captures any thrown error as a `Result`, logs it, and reports it

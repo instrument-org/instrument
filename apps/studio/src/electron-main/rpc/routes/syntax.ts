@@ -1,20 +1,12 @@
-import {
-  base,
-} from "@/electron-main/rpc/base";
+import { base } from "@/electron-main/rpc/base";
 import {
   type BundledLanguage,
   bundledLanguages,
   type HighlighterCore,
 } from "shiki";
-import {
-  createHighlighterCore,
-} from "shiki/core";
-import {
-  createJavaScriptRegexEngine,
-} from "shiki/engine/javascript";
-import {
-  z,
-} from "zod";
+import { createHighlighterCore } from "shiki/core";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import { z } from "zod";
 
 const SHIKI_THEMES = {
   dark: "github-dark-default",

@@ -1,30 +1,13 @@
-import {
-  err,
-  ok,
-} from "neverthrow";
+import { err, ok } from "neverthrow";
 import path from "node:path";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  type RelativePath,
-} from "../schemas/paths";
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  TypedError,
-} from "./errors";
-import {
-  getMimeType,
-} from "./get-mime-type";
-import {
-  normalizeProjectFilePath,
-} from "./normalize-project-file-path";
-import {
-  urlsForSubdomain,
-} from "./url-for-subdomain";
+import { type RelativePath } from "../schemas/paths";
+import { type TaskId } from "../schemas/task-id";
+import { TypedError } from "./errors";
+import { getMimeType } from "./get-mime-type";
+import { normalizeProjectFilePath } from "./normalize-project-file-path";
+import { urlsForSubdomain } from "./url-for-subdomain";
 
 export const CurrentFileInfoSchema = z.object({
   filename: z.string(),

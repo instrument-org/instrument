@@ -1,11 +1,6 @@
-import {
-  StoreId,
-} from "@instrument-org/workspace/client";
+import { StoreId } from "@instrument-org/workspace/client";
 
-import {
-  registerSession,
-  SessionBuilder,
-} from "../helpers";
+import { registerSession, SessionBuilder } from "../helpers";
 
 // Fixture for the empty-leading-assistant-message edge case. The first
 // assistant message in the consecutive group has no visible parts (only a

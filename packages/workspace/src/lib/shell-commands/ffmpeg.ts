@@ -1,28 +1,13 @@
-import {
-  execa,
-} from "execa";
-import {
-  defineCommand,
-} from "just-bash";
+import { execa } from "execa";
+import { defineCommand } from "just-bash";
 
 import type { AppConfig } from "../app-config/types";
 
-import {
-  taskDir,
-} from "../app-dir-utils";
-import {
-  FFMPEG_PATH,
-} from "../ffmpeg";
-import {
-  filterShellOutput,
-} from "../filter-shell-output";
-import {
-  getWorkspaceConfig,
-} from "../workspace-config";
-import {
-  resolveCommandContext,
-  resolvePathArgs,
-} from "./utils";
+import { taskDir } from "../app-dir-utils";
+import { FFMPEG_PATH } from "../ffmpeg";
+import { filterShellOutput } from "../filter-shell-output";
+import { getWorkspaceConfig } from "../workspace-config";
+import { resolveCommandContext, resolvePathArgs } from "./utils";
 
 export const FFMPEG_COMMAND = {
   description: "Process audio and video files using FFmpeg.",

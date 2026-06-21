@@ -1,15 +1,11 @@
 import type * as z from "zod";
 
-import {
-  tool,
-} from "ai";
+import { tool } from "ai";
 
 import type { AgentName } from "../agents/types";
 import type { AgentTool, ToolName } from "./types";
 
-import {
-  toolInputSchemaForLLM,
-} from "./base";
+import { toolInputSchemaForLLM } from "./base";
 
 type CreateOptions<
   TName extends ToolName,

@@ -1,13 +1,7 @@
-import {
-  TOOLBAR_HEIGHT,
-} from "@/shared/constants";
-import {
-  nativeTheme,
-} from "electron";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { nativeTheme } from "electron";
 
-import {
-  getPreferencesStore,
-} from "../stores/preferences";
+import { getPreferencesStore } from "../stores/preferences";
 
 export function getBackgroundColor() {
   // Must be manually synced with globals.css var(--background) (gray-900 / gray-50).

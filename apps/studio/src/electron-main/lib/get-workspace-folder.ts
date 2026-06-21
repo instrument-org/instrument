@@ -1,6 +1,4 @@
-import {
-  app,
-} from "electron";
+import { app } from "electron";
 import path from "node:path";
 
 export function getWorkspaceFolder(): string {

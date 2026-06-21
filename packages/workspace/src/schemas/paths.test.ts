@@ -1,12 +1,6 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  RelativeProjectPathSchema,
-} from "./paths";
+import { RelativeProjectPathSchema } from "./paths";
 
 describe("RelativeProjectPathSchema", () => {
   it.each(["src/index.ts", "./src/index.ts", "file.txt"])(

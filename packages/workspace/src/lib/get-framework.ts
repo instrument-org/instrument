@@ -1,39 +1,15 @@
-import {
-  type Info,
-} from "@netlify/build-info/node";
-import {
-  parseCommandString,
-} from "execa";
-import {
-  err,
-  ok,
-  type Result,
-} from "neverthrow";
-import {
-  readPackage,
-} from "read-pkg";
+import { type Info } from "@netlify/build-info/node";
+import { parseCommandString } from "execa";
+import { err, ok, type Result } from "neverthrow";
+import { readPackage } from "read-pkg";
 
-import {
-  type TaskDir,
-} from "../schemas/paths";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  type AppConfig,
-} from "./app-config/types";
-import {
-  taskDir,
-} from "./app-dir-utils";
-import {
-  TypedError,
-} from "./errors";
-import {
-  readPNPMShim,
-} from "./read-pnpm-shim";
-import {
-  getWorkspaceConfig,
-} from "./workspace-config";
+import { type TaskDir } from "../schemas/paths";
+import { absolutePathJoin } from "./absolute-path-join";
+import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
+import { TypedError } from "./errors";
+import { readPNPMShim } from "./read-pnpm-shim";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export async function getFramework({
   appConfig,

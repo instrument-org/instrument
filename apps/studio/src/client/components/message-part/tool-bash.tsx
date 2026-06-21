@@ -6,7 +6,12 @@ import { cn } from "../../lib/utils";
 import { Favicon } from "../favicon";
 import { AgentBrowserPlayer } from "../tool-part/agent-browser-player";
 import { useToolCallSession } from "./tool-call-session";
-import { ToolCard, ToolCardHeader, ToolCardSection, ToolChip } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardHeader,
+  ToolCardSection,
+  ToolChip,
+} from "./tool-card";
 
 export interface BrowserInfo {
   /** Sorted by visit count, descending. */

@@ -1,6 +1,4 @@
-import {
-  StoreId,
-} from "@instrument-org/workspace/client";
+import { StoreId } from "@instrument-org/workspace/client";
 
 import {
   createDefaultAIGatewayModel,

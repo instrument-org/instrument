@@ -214,7 +214,7 @@ export function startWatchingProjectFiles({
     };
   }
 
-  const appDir = createAppConfig({ subdomain, workspaceConfig }).appDir;
+  const appDir = createAppConfig({ subdomain }).appDir;
   let resolveReady: () => void = noop;
   const ready = new Promise<void>((resolve) => {
     resolveReady = () => {

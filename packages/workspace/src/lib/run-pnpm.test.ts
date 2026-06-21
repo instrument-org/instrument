@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { createMockAppConfig } from "../test/helpers/mock-app-config";
 import { runPnpmCommand } from "./run-pnpm";
+import { getWorkspaceConfig } from "./workspace-config";
 
 vi.mock(import("./execa-node-for-app"));
 
@@ -34,7 +35,7 @@ describe("runPnpmCommand", () => {
     ];
 
     expect(passedApp).toBe(appConfig);
-    expect(pnpmBin).toBe(appConfig.workspaceConfig.pnpmBinPath);
+    expect(pnpmBin).toBe(getWorkspaceConfig().pnpmBinPath);
     expect(cliArgs).toEqual(["install"]);
     expect(execaOpts.env).toMatchObject({
       npm_config_reporter: "append-only",
@@ -59,7 +60,7 @@ describe("runPnpmCommand", () => {
 
     expect(execaNodeForApp).toHaveBeenCalledWith(
       appConfig,
-      appConfig.workspaceConfig.pnpmBinPath,
+      getWorkspaceConfig().pnpmBinPath,
       ["dlx", "jiti@2.6.1", "x.ts"],
       expect.objectContaining({
         env: expect.objectContaining({

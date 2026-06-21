@@ -23,6 +23,7 @@ import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -50,7 +51,7 @@ export const llmRequestLogic = fromPromise<
     saveMessage: (message: Parameters<typeof Store.saveMessage>[0]) =>
       Store.saveMessage(message, input.appConfig, { signal }).then((result) => {
         if (result.isErr()) {
-          input.appConfig.workspaceConfig.captureException(result.error, {
+          getWorkspaceConfig().captureException(result.error, {
             scopes: ["workspace", "llm-request"],
           });
           return;
@@ -60,7 +61,7 @@ export const llmRequestLogic = fromPromise<
     savePart: (part: Parameters<typeof Store.savePart>[0]) =>
       Store.savePart(part, input.appConfig, { signal }).then((result) => {
         if (result.isErr()) {
-          input.appConfig.workspaceConfig.captureException(result.error, {
+          getWorkspaceConfig().captureException(result.error, {
             scopes: ["workspace", "llm-request"],
           });
           return;
@@ -69,7 +70,7 @@ export const llmRequestLogic = fromPromise<
       }),
   };
 
-  const captureEvent = input.appConfig.workspaceConfig.captureEvent;
+  const captureEvent = getWorkspaceConfig().captureEvent;
   const providerId = input.model.params.provider;
   const modelId = input.model.canonicalId;
   const assistantMessage: SessionMessage.Assistant = {
@@ -103,7 +104,7 @@ export const llmRequestLogic = fromPromise<
       { signal },
     );
     if (partsResult.isErr()) {
-      input.appConfig.workspaceConfig.captureException(partsResult.error, {
+      getWorkspaceConfig().captureException(partsResult.error, {
         scopes: ["workspace", "llm-request"],
       });
     }
@@ -163,8 +164,8 @@ export const llmRequestLogic = fromPromise<
   try {
     // Fetch AI SDK model at the last moment before making the LLM request
     const aiSDKModelResult = await fetchAISDKModel({
-      captureException: input.appConfig.workspaceConfig.captureException,
-      configs: input.appConfig.workspaceConfig.getAIProviderConfigs(),
+      captureException: getWorkspaceConfig().captureException,
+      configs: getWorkspaceConfig().getAIProviderConfigs(),
       modelURI: input.model.uri,
       workspaceServerURL: getWorkspaceServerURL(),
     });
@@ -419,7 +420,7 @@ export const llmRequestLogic = fromPromise<
             await scopedStore.savePart(updatedPart);
           } else if (existingPart) {
             // Unexpected state, but don't throw - just log
-            input.appConfig.workspaceConfig.captureException(
+            getWorkspaceConfig().captureException(
               new Error("Unexpected tool call state"),
               {
                 existing_part_state: existingPart.state,
@@ -496,7 +497,7 @@ export const llmRequestLogic = fromPromise<
               continue;
             } else {
               // Unexpected state, capture exception
-              input.appConfig.workspaceConfig.captureException(
+              getWorkspaceConfig().captureException(
                 new Error("Unexpected tool error state"),
                 {
                   scopes: ["workspace", "llm-request"],
@@ -577,7 +578,7 @@ export const llmRequestLogic = fromPromise<
           break;
         }
         case "tool-output-denied": {
-          input.appConfig.workspaceConfig.captureException(
+          getWorkspaceConfig().captureException(
             new Error(`Unexpected tool output denied: ${JSON.stringify(part)}`),
           );
           break;
@@ -586,7 +587,7 @@ export const llmRequestLogic = fromPromise<
           throw new Error(`Unexpected tool result: ${JSON.stringify(part)}`);
         }
         case "tool-approval-request": {
-          input.appConfig.workspaceConfig.captureException(
+          getWorkspaceConfig().captureException(
             new Error(
               `Unexpected tool approval request: ${JSON.stringify(part)}`,
             ),
@@ -681,7 +682,7 @@ export const llmRequestLogic = fromPromise<
           message:
             error instanceof Error ? error.message : JSON.stringify(error),
         };
-        input.appConfig.workspaceConfig.captureException(error, {
+        getWorkspaceConfig().captureException(error, {
           scopes: ["workspace", "llm-request"],
         });
       }
@@ -691,7 +692,7 @@ export const llmRequestLogic = fromPromise<
     for (const part of parts) {
       if (isToolPart(part) && part.state === "input-streaming") {
         const inputStreamText = toolCallInputText[part.toolCallId];
-        input.appConfig.workspaceConfig.captureException(
+        getWorkspaceConfig().captureException(
           new Error("Unhandled tool input streaming part"),
           {
             assistant_error_kind: assistantMessage.metadata.error.kind,

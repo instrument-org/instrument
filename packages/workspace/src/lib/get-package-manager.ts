@@ -1,11 +1,11 @@
-import { type AppConfig } from "./app-config/types";
 import { PackageManager } from "./package-manager";
+import { getWorkspaceConfig } from "./workspace-config";
 
-export function getPackageManager({ appConfig }: { appConfig: AppConfig }) {
+export function getPackageManager() {
   // For now, we only support PNPM
   return {
     arguments: ["install"],
-    command: appConfig.workspaceConfig.pnpmBinPath,
+    command: getWorkspaceConfig().pnpmBinPath,
     name: PackageManager.PNPM,
   };
 }

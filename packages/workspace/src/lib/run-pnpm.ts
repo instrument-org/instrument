@@ -2,6 +2,7 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type AppConfig } from "./app-config/types";
 import { execaNodeForApp } from "./execa-node-for-app";
 import { filterShellOutput } from "./filter-shell-output";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export const PNPM_NAME = "pnpm";
 
@@ -25,7 +26,7 @@ export async function runPnpmCommand({
 }) {
   const execResult = await execaNodeForApp(
     appConfig,
-    appConfig.workspaceConfig.pnpmBinPath,
+    getWorkspaceConfig().pnpmBinPath,
     args,
     {
       all: true,

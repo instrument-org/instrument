@@ -12,6 +12,7 @@ import { encodeBrowserTargetId } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getAgentBrowserStateDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
+import { getWorkspaceConfig } from "./workspace-config";
 
 // Tail of stderr/stdout to attach as `error` on a failed observation. Sized
 // to surface the actionable error message without flooding the array entry.
@@ -59,7 +60,7 @@ export async function beginBrowserCommandObservation({
   upsertContextItem: UpsertContextItem;
 }): Promise<BrowserCommandObservation | undefined> {
   const targetId = encodeBrowserTargetId(subdomain, sessionId);
-  const meta = appConfig.workspaceConfig.browser.getTargetMeta(targetId);
+  const meta = getWorkspaceConfig().browser.getTargetMeta(targetId);
   if (!meta) {
     return undefined;
   }
@@ -84,7 +85,7 @@ export async function beginBrowserCommandObservation({
       subcommand,
     });
   } catch (error) {
-    appConfig.workspaceConfig.captureException(error, {
+    getWorkspaceConfig().captureException(error, {
       scopes: ["workspace"],
     });
   }
@@ -115,7 +116,7 @@ export async function beginBrowserCommandObservation({
           subcommand,
         });
       } catch (error_) {
-        appConfig.workspaceConfig.captureException(error_, {
+        getWorkspaceConfig().captureException(error_, {
           scopes: ["workspace"],
         });
       }
@@ -133,7 +134,7 @@ async function captureBrowserScreenshot({
   subdomain: ProjectSubdomain;
 }): Promise<CapturedScreenshot | undefined> {
   try {
-    const { workspaceConfig } = appConfig;
+    const workspaceConfig = getWorkspaceConfig();
     const targetId = encodeBrowserTargetId(subdomain, sessionId);
     const targets = await workspaceConfig.browser.listTargets(subdomain);
     const target = targets.find((t) => t.id === targetId);
@@ -185,7 +186,7 @@ async function captureBrowserScreenshot({
       },
     };
   } catch (error) {
-    appConfig.workspaceConfig.captureException(error, {
+    getWorkspaceConfig().captureException(error, {
       scopes: ["workspace"],
     });
     return undefined;

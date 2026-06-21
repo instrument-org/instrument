@@ -6,6 +6,7 @@ import type { AppConfig } from "../app-config/types";
 import { type AbsolutePath } from "../../schemas/paths";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
+import { getWorkspaceConfig } from "../workspace-config";
 import { TS_COMMAND } from "./ts";
 import {
   extractFileAndScriptArgs,
@@ -28,7 +29,7 @@ function execNode(
     cancelSignal: signal,
     cwd: cwd ?? appConfig.appDir,
     env: {
-      ...appConfig.workspaceConfig.nodeExecEnv,
+      ...getWorkspaceConfig().nodeExecEnv,
       ...env,
       // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
       ...ffmpegSubprocessEnv(),
@@ -68,7 +69,6 @@ export function createNodeCommand(appConfig: AppConfig) {
     }
 
     const { positionals, values } = parseScriptRunnerArgs(
-      appConfig,
       NODE_COMMAND.name,
       args,
       KNOWN_OPTIONS,

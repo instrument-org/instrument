@@ -37,10 +37,7 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
 
   const { subdomain } = uriDetails.value;
 
-  const appConfig = createAppConfig({
-    subdomain,
-    workspaceConfig: c.var.workspaceConfig,
-  });
+  const appConfig = createAppConfig({ subdomain });
 
   return streamSSE(c, async (stream) => {
     let lastResponse: HeartbeatResponse | null = null;

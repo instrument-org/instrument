@@ -13,11 +13,8 @@ import { base } from "../../base";
 const get = base
   .input(z.object({ subdomain: ProjectSubdomainSchema }))
   .output(ProjectStateSchema)
-  .handler(async ({ context, input }) => {
-    const appConfig = createAppConfig({
-      subdomain: input.subdomain,
-      workspaceConfig: context.workspaceConfig,
-    });
+  .handler(async ({ input }) => {
+    const appConfig = createAppConfig({ subdomain: input.subdomain });
 
     return getProjectState(appConfig.appDir);
   });
@@ -30,11 +27,8 @@ const set = base
     }),
   )
   .output(z.void())
-  .handler(async ({ context, input }) => {
-    const appConfig = createAppConfig({
-      subdomain: input.subdomain,
-      workspaceConfig: context.workspaceConfig,
-    });
+  .handler(async ({ input }) => {
+    const appConfig = createAppConfig({ subdomain: input.subdomain });
 
     const stateToSave = { ...input.state };
 

@@ -47,10 +47,7 @@ export async function trashProject({
       markStorageAsDisposing(subdomain);
 
       try {
-        const appConfig = createAppConfig({
-          subdomain,
-          workspaceConfig,
-        });
+        const appConfig = createAppConfig({ subdomain });
 
         // Delete node_modules folder before trashing to avoid issues with hard links.
         // On Windows (and potentially other OS) with PNPM hard links, trashing

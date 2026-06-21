@@ -38,7 +38,6 @@ export function createTsCommand(appConfig: AppConfig) {
     }
 
     const { positionals, values } = parseScriptRunnerArgs(
-      appConfig,
       "ts",
       args,
       KNOWN_OPTIONS,

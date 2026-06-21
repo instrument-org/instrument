@@ -25,7 +25,7 @@ const list = base
     }),
   )
   .output(ProjectFilesSchema)
-  .handler(async ({ context, errors, input: { projectSubdomain } }) => {
+  .handler(async ({ errors, input: { projectSubdomain } }) => {
     // Serve the live in-memory index when a watcher is active; otherwise fall
     // back to a fresh walk of disk.
     const live = getCurrentProjectFiles(projectSubdomain);
@@ -33,10 +33,7 @@ const list = base
       return live;
     }
 
-    const result = await getProjectFiles(
-      projectSubdomain,
-      context.workspaceConfig,
-    );
+    const result = await getProjectFiles(projectSubdomain);
 
     if (result.isErr()) {
       throw toORPCError(result.error, errors);

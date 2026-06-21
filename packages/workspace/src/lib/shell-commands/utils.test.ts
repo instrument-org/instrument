@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { getWorkspaceConfig } from "../workspace-config";
 import { extractFileAndScriptArgs, parseScriptRunnerArgs } from "./utils";
 
 const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"));
@@ -177,13 +178,9 @@ const KNOWN_OPTIONS = { v: { type: "boolean" } } as const;
 
 describe("parseScriptRunnerArgs", () => {
   it("does not report unknown options that appear after the script file", () => {
-    const captureException = vi.spyOn(
-      appConfig.workspaceConfig,
-      "captureException",
-    );
+    const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
 
     parseScriptRunnerArgs(
-      appConfig,
       "tsx",
       ["scripts/remove-background.ts", "--output", "out.png"],
       KNOWN_OPTIONS,
@@ -194,13 +191,9 @@ describe("parseScriptRunnerArgs", () => {
   });
 
   it("reports unknown options that appear before the script file", () => {
-    const captureException = vi.spyOn(
-      appConfig.workspaceConfig,
-      "captureException",
-    );
+    const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
 
     parseScriptRunnerArgs(
-      appConfig,
       "tsx",
       ["--unknown-flag", "scripts/run.ts"],
       KNOWN_OPTIONS,

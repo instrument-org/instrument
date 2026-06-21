@@ -479,12 +479,9 @@ export const workspaceMachine = setup({
         },
       },
       {
-        actions: raise(({ context, event }) => {
+        actions: raise(({ event }) => {
           const subdomain = event.value.subdomain;
-          const appConfig = createAppConfig({
-            subdomain,
-            workspaceConfig: context.config,
-          });
+          const appConfig = createAppConfig({ subdomain });
           return {
             type: "internal.spawnSession",
             value: {
@@ -499,11 +496,8 @@ export const workspaceMachine = setup({
       },
     ],
     createSession: {
-      actions: raise(({ context, event }) => {
-        const appConfig = createAppConfig({
-          subdomain: event.value.subdomain,
-          workspaceConfig: context.config,
-        });
+      actions: raise(({ event }) => {
+        const appConfig = createAppConfig({ subdomain: event.value.subdomain });
         return {
           type: "internal.spawnSession",
           value: {
@@ -708,12 +702,9 @@ export const workspaceMachine = setup({
         },
       },
       {
-        actions: raise(({ context, event }) => {
+        actions: raise(({ event }) => {
           const { subdomain } = event.value;
-          const appConfig = createAppConfig({
-            subdomain,
-            workspaceConfig: context.config,
-          });
+          const appConfig = createAppConfig({ subdomain });
           return {
             type: "spawnRuntime",
             value: { appConfig },

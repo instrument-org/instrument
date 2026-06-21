@@ -5,6 +5,7 @@ import type { AppConfig } from "../app-config/types";
 
 import { absolutePathJoin } from "../absolute-path-join";
 import { normalizePath } from "../normalize-path";
+import { getWorkspaceConfig } from "../workspace-config";
 
 /**
  * Extract the resolved file path and trailing script args from positionals + original args.
@@ -51,7 +52,7 @@ export function firstString(
 /** Parse args and warn about unrecognized options via captureException. */
 export function parseScriptRunnerArgs<
   T extends NonNullable<ParseArgsConfig["options"]>,
->(appConfig: AppConfig, commandName: string, args: string[], options: T) {
+>(commandName: string, args: string[], options: T) {
   const result = parseArgs({
     allowPositionals: true,
     args,
@@ -70,7 +71,7 @@ export function parseScriptRunnerArgs<
     .map((t) => `--${(t as { kind: "option"; name: string }).name}`);
 
   if (unknownOptions.length > 0) {
-    appConfig.workspaceConfig.captureException(
+    getWorkspaceConfig().captureException(
       new Error(
         `[${commandName}] Unrecognized options ignored: ${unknownOptions.join(", ")}`,
       ),

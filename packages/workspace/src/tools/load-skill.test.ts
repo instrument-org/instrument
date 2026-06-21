@@ -4,6 +4,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { APP_FOLDER_NAMES, REGISTRY_FOLDER_NAMES } from "../constants";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../lib/workspace-config";
 import { AbsolutePathSchema, AppDirSchema } from "../schemas/paths";
 import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -46,13 +50,14 @@ function createAppConfigWithDirs() {
   const base = createMockAppConfig(ProjectSubdomainSchema.parse("test"), {
     model,
   });
+  // createMockAppConfig publishes the singleton; override registryDir on it.
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    registryDir: AbsolutePathSchema.parse(registryDir),
+  });
   return {
     ...base,
     appDir: AppDirSchema.parse(appDir),
-    workspaceConfig: {
-      ...base.workspaceConfig,
-      registryDir: AbsolutePathSchema.parse(registryDir),
-    },
   };
 }
 

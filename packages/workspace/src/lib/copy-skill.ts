@@ -1,31 +1,13 @@
-import {
-  err,
-  ok,
-  type Result,
-} from "neverthrow";
+import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  APP_FOLDER_NAMES,
-} from "../constants";
-import {
-  type AbsolutePath,
-  type TaskDir,
-} from "../schemas/paths";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  TypedError,
-} from "./errors";
-import {
-  getIgnore,
-} from "./get-ignore";
-import {
-  normalizedPathJoin,
-  normalizePath,
-} from "./normalize-path";
+import { APP_FOLDER_NAMES } from "../constants";
+import { type AbsolutePath, type TaskDir } from "../schemas/paths";
+import { absolutePathJoin } from "./absolute-path-join";
+import { TypedError } from "./errors";
+import { getIgnore } from "./get-ignore";
+import { normalizedPathJoin, normalizePath } from "./normalize-path";
 
 export async function copySkill({
   dir,

@@ -1,6 +1,4 @@
-import {
-  type BrowserWindow,
-} from "electron";
+import { type BrowserWindow } from "electron";
 
 let mainWindow: BrowserWindow | null = null;
 

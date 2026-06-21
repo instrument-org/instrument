@@ -9,22 +9,11 @@ import {
   setup,
 } from "xstate";
 
-import {
-  closeAgentBrowserSessionsForSessions,
-} from "../lib/agent-browser-cleanup";
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  type StoreId,
-} from "../schemas/store-id";
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  type BrowserConfig,
-  type BrowserTargetId,
-} from "../types";
+import { closeAgentBrowserSessionsForSessions } from "../lib/agent-browser-cleanup";
+import { type AbsolutePath } from "../schemas/paths";
+import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
+import { type BrowserConfig, type BrowserTargetId } from "../types";
 
 export const AGENT_IDLE_TIMEOUT_MS = ms("1 hour");
 export const USER_PRESENCE_TIMEOUT_MS = ms("5 minutes");

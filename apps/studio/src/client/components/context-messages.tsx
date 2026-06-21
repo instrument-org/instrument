@@ -6,7 +6,11 @@ import { CopyButton } from "./copy-button";
 import { ContextMessage } from "./session-context-message";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 
 export const ContextMessages = memo(function ContextMessages({
   messages,

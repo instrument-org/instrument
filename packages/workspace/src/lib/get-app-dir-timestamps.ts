@@ -1,30 +1,15 @@
-import {
-  PROJECT_MANIFEST_FILE_NAME,
-} from "@instrument-org/shared";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
-import {
-  type TaskDir,
-} from "../schemas/paths";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  getTaskPrivateDir,
-} from "./app-dir-utils";
-import {
-  getCurrentDate,
-} from "./get-current-date";
-import {
-  pathExists,
-} from "./path-exists";
+import { type TaskDir } from "../schemas/paths";
+import { absolutePathJoin } from "./absolute-path-join";
+import { getTaskPrivateDir } from "./app-dir-utils";
+import { getCurrentDate } from "./get-current-date";
+import { pathExists } from "./path-exists";
 
 export async function getTaskDirTimestamps(dir: TaskDir) {
   const privateDir = getTaskPrivateDir(dir);
-  const projectConfigPath = absolutePathJoin(
-    dir,
-    PROJECT_MANIFEST_FILE_NAME,
-  );
+  const projectConfigPath = absolutePathJoin(dir, PROJECT_MANIFEST_FILE_NAME);
   const paths = [
     privateDir, // Changes when agent changes
     projectConfigPath, // Changes when app name/icon changes

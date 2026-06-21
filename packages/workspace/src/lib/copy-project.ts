@@ -1,28 +1,13 @@
-import {
-  PROJECT_MANIFEST_FILE_NAME,
-} from "@instrument-org/shared";
-import {
-  ok,
-  ResultAsync,
-} from "neverthrow";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { ok, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  APP_FOLDER_NAMES,
-} from "../constants";
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  TypedError,
-} from "./errors";
-import {
-  getIgnore,
-} from "./get-ignore";
-import {
-  normalizePath,
-} from "./normalize-path";
+import { APP_FOLDER_NAMES } from "../constants";
+import { type AbsolutePath } from "../schemas/paths";
+import { TypedError } from "./errors";
+import { getIgnore } from "./get-ignore";
+import { normalizePath } from "./normalize-path";
 
 export function copyProject({
   includePrivateFolder,

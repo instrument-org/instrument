@@ -1,10 +1,6 @@
-import {
-  dedent,
-} from "radashi";
+import { dedent } from "radashi";
 
-import {
-  RETRIEVAL_AGENT_NAME,
-} from "../agents/types";
+import { RETRIEVAL_AGENT_NAME } from "../agents/types";
 
 export function buildAttachedFoldersText({
   folderNames,

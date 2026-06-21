@@ -1,9 +1,5 @@
-import {
-  AIGatewayProviderConfig,
-} from "@instrument-org/ai-gateway/client";
-import {
-  z,
-} from "zod";
+import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway/client";
+import { z } from "zod";
 
 export const ClientAIProviderConfigSchema = AIGatewayProviderConfig.Schema.omit(
   { apiKey: true },

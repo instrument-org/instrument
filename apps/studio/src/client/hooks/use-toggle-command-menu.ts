@@ -1,9 +1,5 @@
-import {
-  rpcClient,
-} from "@/client/rpc/client";
-import {
-  useEffect,
-} from "react";
+import { rpcClient } from "@/client/rpc/client";
+import { useEffect } from "react";
 
 export function useToggleCommandMenu(onToggle: () => void) {
   useEffect(() => {

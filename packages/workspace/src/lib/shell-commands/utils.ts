@@ -1,23 +1,12 @@
 import path from "node:path";
-import {
-  parseArgs,
-  type ParseArgsConfig,
-} from "node:util";
+import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import type { AppConfig } from "../app-config/types";
 
-import {
-  absolutePathJoin,
-} from "../absolute-path-join";
-import {
-  taskDir,
-} from "../app-dir-utils";
-import {
-  normalizePath,
-} from "../normalize-path";
-import {
-  getWorkspaceConfig,
-} from "../workspace-config";
+import { absolutePathJoin } from "../absolute-path-join";
+import { taskDir } from "../app-dir-utils";
+import { normalizePath } from "../normalize-path";
+import { getWorkspaceConfig } from "../workspace-config";
 
 /**
  * Extract the resolved file path and trailing script args from positionals + original args.

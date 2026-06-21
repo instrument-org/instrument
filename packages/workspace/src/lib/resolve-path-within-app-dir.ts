@@ -6,9 +6,7 @@ import {
   type RelativePath,
   type TaskDir,
 } from "../schemas/paths";
-import {
-  normalizePath,
-} from "./normalize-path";
+import { normalizePath } from "./normalize-path";
 
 export function resolvePathWithinTaskDir({
   dir,

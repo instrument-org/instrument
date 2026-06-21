@@ -1,115 +1,45 @@
-import {
-  AIGatewayModelURI,
-  fetchModel,
-} from "@instrument-org/ai-gateway";
-import {
-  mergeGenerators,
-} from "@instrument-org/shared/merge-generators";
-import {
-  call,
-  eventIterator,
-} from "@orpc/server";
-import {
-  z,
-} from "zod";
+import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { call, eventIterator } from "@orpc/server";
+import { z } from "zod";
 
-import {
-  createAppConfig,
-} from "../../../lib/app-config/create";
-import {
-  newProjectConfig,
-} from "../../../lib/app-config/new";
-import {
-  taskDir,
-} from "../../../lib/app-dir-utils";
-import {
-  createSession,
-} from "../../../lib/create-session";
-import {
-  defaultProjectName,
-} from "../../../lib/default-project-name";
-import {
-  duplicateProject,
-} from "../../../lib/duplicate-project";
-import {
-  exportProjectZip,
-} from "../../../lib/export-project-zip";
-import {
-  generateTitleFromUserMessage,
-} from "../../../lib/generate-title-from-user-message";
-import {
-  getApp,
-  getProjects,
-} from "../../../lib/get-apps";
-import {
-  getWorkspaceAppForSubdomain,
-} from "../../../lib/get-workspace-app-for-subdomain";
-import {
-  importProject as importProjectLib,
-} from "../../../lib/import-project";
-import {
-  initializeProject,
-} from "../../../lib/initialize-project";
-import {
-  newMessage,
-} from "../../../lib/new-message";
-import {
-  pathExists,
-} from "../../../lib/path-exists";
+import { createAppConfig } from "../../../lib/app-config/create";
+import { newProjectConfig } from "../../../lib/app-config/new";
+import { taskDir } from "../../../lib/app-dir-utils";
+import { createSession } from "../../../lib/create-session";
+import { defaultProjectName } from "../../../lib/default-project-name";
+import { duplicateProject } from "../../../lib/duplicate-project";
+import { exportProjectZip } from "../../../lib/export-project-zip";
+import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
+import { getApp, getProjects } from "../../../lib/get-apps";
+import { getWorkspaceAppForSubdomain } from "../../../lib/get-workspace-app-for-subdomain";
+import { importProject as importProjectLib } from "../../../lib/import-project";
+import { initializeProject } from "../../../lib/initialize-project";
+import { newMessage } from "../../../lib/new-message";
+import { pathExists } from "../../../lib/path-exists";
 import {
   getProjectManifest,
   updateProjectManifest,
 } from "../../../lib/project-manifest";
-import {
-  Store,
-} from "../../../lib/store";
-import {
-  trashProject,
-} from "../../../lib/trash-project";
-import {
-  startTutorialTaskReplay,
-} from "../../../lib/tutorial-task-replay";
-import {
-  updateSessionTitle,
-} from "../../../lib/update-session-title";
+import { Store } from "../../../lib/store";
+import { trashProject } from "../../../lib/trash-project";
+import { startTutorialTaskReplay } from "../../../lib/tutorial-task-replay";
+import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
   getProjectUsageSummary,
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
-import {
-  TaskSchema,
-} from "../../../schemas/app";
-import {
-  FileUpload,
-} from "../../../schemas/file-upload";
-import {
-  AbsolutePathSchema,
-} from "../../../schemas/paths";
-import {
-  ProjectManifestUpdateSchema,
-} from "../../../schemas/project-manifest";
-import {
-  StoreId,
-} from "../../../schemas/store-id";
-import {
-  SubdomainPartSchema,
-} from "../../../schemas/subdomain-part";
-import {
-  TaskIdSchema,
-} from "../../../schemas/task-id";
-import {
-  base,
-  toORPCError,
-} from "../../base";
-import {
-  publisher,
-} from "../../publisher";
-import {
-  projectFiles,
-} from "./files";
-import {
-  projectState,
-} from "./state";
+import { TaskSchema } from "../../../schemas/app";
+import { FileUpload } from "../../../schemas/file-upload";
+import { AbsolutePathSchema } from "../../../schemas/paths";
+import { ProjectManifestUpdateSchema } from "../../../schemas/project-manifest";
+import { StoreId } from "../../../schemas/store-id";
+import { SubdomainPartSchema } from "../../../schemas/subdomain-part";
+import { TaskIdSchema } from "../../../schemas/task-id";
+import { base, toORPCError } from "../../base";
+import { publisher } from "../../publisher";
+import { projectFiles } from "./files";
+import { projectState } from "./state";
 
 const DEFAULT_TEMPLATE_NAME = "basic";
 

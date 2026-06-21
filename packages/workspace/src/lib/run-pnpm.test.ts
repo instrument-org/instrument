@@ -1,22 +1,9 @@
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {
-  TaskIdSchema,
-} from "../schemas/task-id";
-import {
-  createMockAppConfig,
-} from "../test/helpers/mock-app-config";
-import {
-  runPnpmCommand,
-} from "./run-pnpm";
-import {
-  getWorkspaceConfig,
-} from "./workspace-config";
+import { TaskIdSchema } from "../schemas/task-id";
+import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { runPnpmCommand } from "./run-pnpm";
+import { getWorkspaceConfig } from "./workspace-config";
 
 vi.mock(import("./execa-node-for-app"));
 

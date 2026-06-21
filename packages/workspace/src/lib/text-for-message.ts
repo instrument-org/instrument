@@ -1,6 +1,4 @@
-import {
-  type SessionMessage,
-} from "../schemas/session/message";
+import { type SessionMessage } from "../schemas/session/message";
 
 export function textForMessage(
   message: SessionMessage.WithParts,

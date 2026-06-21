@@ -1,24 +1,10 @@
-import {
-  getFeaturesStore,
-} from "@/electron-main/stores/features";
-import {
-  FeatureNameSchema,
-  FeaturesSchema,
-} from "@/shared/features";
-import {
-  call,
-  eventIterator,
-} from "@orpc/server";
-import {
-  z,
-} from "zod";
+import { getFeaturesStore } from "@/electron-main/stores/features";
+import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
+import { call, eventIterator } from "@orpc/server";
+import { z } from "zod";
 
-import {
-  base,
-} from "../base";
-import {
-  publisher,
-} from "../publisher";
+import { base } from "../base";
+import { publisher } from "../publisher";
 
 const getAll = base.output(FeaturesSchema).handler(() => {
   const store = getFeaturesStore();

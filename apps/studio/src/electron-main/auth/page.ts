@@ -1,12 +1,5 @@
-import {
-  APP_NAME,
-  APP_PROTOCOL,
-  SUPPORT_URL,
-} from "@instrument-org/shared";
-import {
-  html,
-  raw,
-} from "hono/html";
+import { APP_NAME, APP_PROTOCOL, SUPPORT_URL } from "@instrument-org/shared";
+import { html, raw } from "hono/html";
 
 // Light mode: dark text on warm gradient. Dark mode: white text on dark gradient.
 const defaultBtn = [

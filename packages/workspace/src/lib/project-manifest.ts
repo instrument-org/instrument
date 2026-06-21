@@ -1,46 +1,24 @@
-import {
-  PROJECT_MANIFEST_FILE_NAME,
-} from "@instrument-org/shared";
-import {
-  err,
-  ok,
-  ResultAsync,
-  safeTry,
-} from "neverthrow";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
-import {
-  publisher,
-} from "../rpc/publisher";
-import {
-  type TaskDir,
-} from "../schemas/paths";
+import { publisher } from "../rpc/publisher";
+import { type TaskDir } from "../schemas/paths";
 import {
   type ProjectManifest,
   ProjectManifestSchema,
   type ProjectManifestUpdate,
   ProjectManifestUpdateSchema,
 } from "../schemas/project-manifest";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  type AppConfigProject,
-} from "./app-config/types";
-import {
-  taskDir,
-} from "./app-dir-utils";
-import {
-  TypedError,
-} from "./errors";
+import { absolutePathJoin } from "./absolute-path-join";
+import { type AppConfigProject } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
+import { TypedError } from "./errors";
 
 export async function getProjectManifest(
   dir: TaskDir,
 ): Promise<ProjectManifest | undefined> {
-  const projectManifestPath = absolutePathJoin(
-    dir,
-    PROJECT_MANIFEST_FILE_NAME,
-  );
+  const projectManifestPath = absolutePathJoin(dir, PROJECT_MANIFEST_FILE_NAME);
 
   try {
     const manifestContent = await fs.readFile(projectManifestPath, "utf8");

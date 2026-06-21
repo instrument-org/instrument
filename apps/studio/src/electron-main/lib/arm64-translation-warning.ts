@@ -1,11 +1,6 @@
-import {
-  app,
-  dialog,
-} from "electron";
+import { app, dialog } from "electron";
 
-import {
-  logger,
-} from "./electron-logger";
+import { logger } from "./electron-logger";
 
 interface RuntimeEnvironment {
   arch: typeof process.arch;

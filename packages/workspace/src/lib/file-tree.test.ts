@@ -1,16 +1,8 @@
 import path from "node:path";
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  AbsolutePathSchema,
-} from "../schemas/paths";
-import {
-  fileTree,
-} from "./file-tree";
+import { AbsolutePathSchema } from "../schemas/paths";
+import { fileTree } from "./file-tree";
 
 describe("file-tree", () => {
   it("should show directories that contain only dot files", async () => {

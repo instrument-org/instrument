@@ -1,32 +1,13 @@
 import path from "node:path";
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {
-  FolderAttachment,
-} from "../schemas/folder-attachment";
-import {
-  TaskDirSchema,
-} from "../schemas/paths";
-import {
-  createMockAIGatewayModel,
-} from "../test/helpers/mock-ai-gateway-model";
-import {
-  createMockAppConfigForDir,
-} from "../test/helpers/mock-app-config";
-import {
-  runTool,
-} from "../test/helpers/run-tool";
-import {
-  TOOLS,
-} from "./all";
-import {
-  Grep,
-} from "./grep";
+import { FolderAttachment } from "../schemas/folder-attachment";
+import { TaskDirSchema } from "../schemas/paths";
+import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { runTool } from "../test/helpers/run-tool";
+import { TOOLS } from "./all";
+import { Grep } from "./grep";
 
 const model = createMockAIGatewayModel();
 

@@ -1,35 +1,14 @@
-import {
-  call,
-  eventIterator,
-} from "@orpc/server";
-import {
-  isEqual,
-} from "radashi";
-import {
-  ulid,
-} from "ulid";
-import {
-  z,
-} from "zod";
+import { call, eventIterator } from "@orpc/server";
+import { isEqual } from "radashi";
+import { ulid } from "ulid";
+import { z } from "zod";
 
-import {
-  createAppConfig,
-} from "../../lib/app-config/create";
-import {
-  redactWorkspacePaths,
-} from "../../lib/redact-workspace-paths";
-import {
-  RuntimeLogEntrySchema,
-} from "../../machines/runtime";
-import {
-  TaskIdSchema,
-} from "../../schemas/task-id";
-import {
-  base,
-} from "../base";
-import {
-  publisher,
-} from "../publisher";
+import { createAppConfig } from "../../lib/app-config/create";
+import { redactWorkspacePaths } from "../../lib/redact-workspace-paths";
+import { RuntimeLogEntrySchema } from "../../machines/runtime";
+import { TaskIdSchema } from "../../schemas/task-id";
+import { base } from "../base";
+import { publisher } from "../publisher";
 
 const restart = base
   .input(

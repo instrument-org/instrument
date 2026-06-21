@@ -1,19 +1,9 @@
-import {
-  EventPublisher,
-} from "@orpc/server";
+import { EventPublisher } from "@orpc/server";
 
-import {
-  type WorkspaceSnapshot,
-} from "../machines/workspace";
-import {
-  type SessionMessagePart,
-} from "../schemas/session/message-part";
-import {
-  type StoreId,
-} from "../schemas/store-id";
-import {
-  type TaskId,
-} from "../schemas/task-id";
+import { type WorkspaceSnapshot } from "../machines/workspace";
+import { type SessionMessagePart } from "../schemas/session/message-part";
+import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 
 export const publisher = new EventPublisher<{
   "appState.session.added": {

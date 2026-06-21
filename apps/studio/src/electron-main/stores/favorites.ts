@@ -1,17 +1,11 @@
-import {
-  logger,
-} from "@/electron-main/lib/electron-logger";
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
+import { logger } from "@/electron-main/lib/electron-logger";
+import { publisher } from "@/electron-main/rpc/publisher";
 import {
   TaskIdSchema,
   workspacePublisher,
 } from "@instrument-org/workspace/electron";
 import Store from "electron-store";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
 const FavoritesSchema = z.object({
   // eslint-disable-next-line unicorn/prefer-top-level-await

@@ -1,12 +1,6 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  shouldShowARM64TranslationWarning,
-} from "./arm64-translation-warning";
+import { shouldShowARM64TranslationWarning } from "./arm64-translation-warning";
 
 describe("shouldShowARM64TranslationWarning", () => {
   it("shows only for packaged x64 macOS apps running under ARM64 translation", () => {

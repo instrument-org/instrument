@@ -2,23 +2,13 @@ import {
   type ImageModelV3,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
-import {
-  type AISDKWebSearchModelResult,
-} from "@instrument-org/ai-gateway";
-import {
-  simulateReadableStream,
-} from "ai";
-import {
-  MockLanguageModelV3,
-} from "ai/test";
+import { type AISDKWebSearchModelResult } from "@instrument-org/ai-gateway";
+import { simulateReadableStream } from "ai";
+import { MockLanguageModelV3 } from "ai/test";
 import mockFs from "mock-fs";
-import {
-  ok,
-} from "neverthrow";
+import { ok } from "neverthrow";
 import path from "node:path";
-import {
-  pick,
-} from "radashi";
+import { pick } from "radashi";
 import {
   afterEach,
   beforeEach,
@@ -35,53 +25,24 @@ import {
   waitFor,
 } from "xstate";
 
-import {
-  setupAgent,
-} from "../agents/create-agent";
-import {
-  mainAgent,
-} from "../agents/main";
-import {
-  type AnyAgent,
-} from "../agents/types";
-import {
-  type AppConfig,
-} from "../lib/app-config/types";
-import {
-  Store,
-} from "../lib/store";
-import {
-  publisher,
-} from "../rpc/publisher";
-import {
-  type RelativePath,
-} from "../schemas/paths";
-import {
-  type SessionMessage,
-} from "../schemas/session/message";
-import {
-  StoreId,
-} from "../schemas/store-id";
-import {
-  TaskIdSchema,
-} from "../schemas/task-id";
-import {
-  createMockAIGatewayModel,
-} from "../test/helpers/mock-ai-gateway-model";
+import { setupAgent } from "../agents/create-agent";
+import { mainAgent } from "../agents/main";
+import { type AnyAgent } from "../agents/types";
+import { type AppConfig } from "../lib/app-config/types";
+import { Store } from "../lib/store";
+import { publisher } from "../rpc/publisher";
+import { type RelativePath } from "../schemas/paths";
+import { type SessionMessage } from "../schemas/session/message";
+import { StoreId } from "../schemas/store-id";
+import { TaskIdSchema } from "../schemas/task-id";
+import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
   createMockAppConfig,
   MOCK_WORKSPACE_DIRS,
 } from "../test/helpers/mock-app-config";
-import {
-  sessionToShorthand,
-} from "../test/helpers/session-to-shorthand";
-import {
-  TOOLS,
-} from "../tools/all";
-import {
-  sessionMachine,
-  type SessionMachineParentEvent,
-} from "./session";
+import { sessionToShorthand } from "../test/helpers/session-to-shorthand";
+import { TOOLS } from "../tools/all";
+import { sessionMachine, type SessionMachineParentEvent } from "./session";
 
 vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));

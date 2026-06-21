@@ -1,22 +1,10 @@
-import {
-  APP_NAME_SLUG,
-} from "@instrument-org/shared";
-import {
-  platform,
-} from "node:os";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { platform } from "node:os";
 import path from "node:path";
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  StoreId,
-} from "../schemas/store-id";
-import {
-  AGENT_BROWSER_SOCKET_DIR,
-} from "./agent-browser";
+import { StoreId } from "../schemas/store-id";
+import { AGENT_BROWSER_SOCKET_DIR } from "./agent-browser";
 
 const isUnix = platform() !== "win32";
 

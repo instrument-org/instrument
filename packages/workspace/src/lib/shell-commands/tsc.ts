@@ -1,16 +1,9 @@
-import {
-  defineCommand,
-  latin1FromBytes,
-} from "just-bash";
+import { defineCommand, latin1FromBytes } from "just-bash";
 
 import type { AppConfig } from "../app-config/types";
 
-import {
-  runPnpmCommand,
-} from "../run-pnpm";
-import {
-  resolveCommandContext,
-} from "./utils";
+import { runPnpmCommand } from "../run-pnpm";
+import { resolveCommandContext } from "./utils";
 
 export const TSC_COMMAND = {
   description:

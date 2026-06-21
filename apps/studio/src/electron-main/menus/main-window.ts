@@ -1,29 +1,12 @@
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
-import {
-  isDeveloperMode,
-} from "@/electron-main/stores/preferences";
-import {
-  getTabsManager,
-} from "@/electron-main/tabs";
-import {
-  getMainWindow,
-} from "@/electron-main/windows/main/instance";
-import {
-  STUDIO_OVERLAY_DISMISSIBLE,
-} from "@/shared/studio-overlay";
-import {
-  type MenuItemConstructorOptions,
-} from "electron";
+import { publisher } from "@/electron-main/rpc/publisher";
+import { isDeveloperMode } from "@/electron-main/stores/preferences";
+import { getTabsManager } from "@/electron-main/tabs";
+import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { STUDIO_OVERLAY_DISMISSIBLE } from "@/shared/studio-overlay";
+import { type MenuItemConstructorOptions } from "electron";
 
-import {
-  captureServerEvent,
-} from "../lib/capture-server-event";
-import {
-  getSidebarVisible,
-  setSidebarVisible,
-} from "../stores/app-state";
+import { captureServerEvent } from "../lib/capture-server-event";
+import { getSidebarVisible, setSidebarVisible } from "../stores/app-state";
 import {
   createAppMenu,
   createDevToolsMenu,

@@ -1,30 +1,12 @@
-import {
-  type ActorRef,
-  type MachineSnapshot,
-} from "xstate";
+import { type ActorRef, type MachineSnapshot } from "xstate";
 
-import {
-  type AppConfig,
-} from "../../lib/app-config/types";
-import {
-  type RuntimeActorRef,
-} from "../../machines/runtime";
-import {
-  type WorkspaceContext,
-} from "../../machines/workspace/types";
-import {
-  type AbsolutePath,
-} from "../../schemas/paths";
-import {
-  type StoreId,
-} from "../../schemas/store-id";
-import {
-  type TaskId,
-} from "../../schemas/task-id";
-import {
-  type BrowserTargetId,
-  type WorkspaceConfig,
-} from "../../types";
+import { type AppConfig } from "../../lib/app-config/types";
+import { type RuntimeActorRef } from "../../machines/runtime";
+import { type WorkspaceContext } from "../../machines/workspace/types";
+import { type AbsolutePath } from "../../schemas/paths";
+import { type StoreId } from "../../schemas/store-id";
+import { type TaskId } from "../../schemas/task-id";
+import { type BrowserTargetId, type WorkspaceConfig } from "../../types";
 
 export interface WorkspaceServerEnv {
   Variables: {

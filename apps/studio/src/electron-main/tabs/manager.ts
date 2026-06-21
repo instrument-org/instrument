@@ -1,59 +1,27 @@
-import {
-  createContextMenu,
-} from "@/electron-main/lib/context-menu";
-import {
-  logger,
-} from "@/electron-main/lib/electron-logger";
-import {
-  openExternal,
-} from "@/electron-main/lib/open-external";
-import {
-  getBackgroundColor,
-} from "@/electron-main/lib/theme-utils";
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
-import {
-  TOOLBAR_HEIGHT,
-} from "@/shared/constants";
-import {
-  type StudioPath,
-} from "@/shared/studio-path";
+import { createContextMenu } from "@/electron-main/lib/context-menu";
+import { logger } from "@/electron-main/lib/electron-logger";
+import { openExternal } from "@/electron-main/lib/open-external";
+import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
+import { publisher } from "@/electron-main/rpc/publisher";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { type StudioPath } from "@/shared/studio-path";
 import {
   META_TAGS,
   SingleTabOnlyRoutes,
   type Tab,
   type TabState,
 } from "@/shared/tabs";
-import {
-  TabIconsSchema,
-} from "@instrument-org/shared/icons";
-import {
-  TaskIdSchema,
-} from "@instrument-org/workspace/electron";
-import {
-  type BaseWindow,
-  nativeTheme,
-  WebContentsView,
-} from "electron";
-import {
-  type LogFunctions,
-} from "electron-log";
+import { TabIconsSchema } from "@instrument-org/shared/icons";
+import { TaskIdSchema } from "@instrument-org/workspace/electron";
+import { type BaseWindow, nativeTheme, WebContentsView } from "electron";
+import { type LogFunctions } from "electron-log";
 import Store from "electron-store";
 import path from "node:path";
 
-import {
-  captureServerException,
-} from "../lib/capture-server-exception";
-import {
-  tryCaptureError,
-} from "../lib/try-capture-error";
-import {
-  unsafe_studioURL,
-} from "../lib/urls";
-import {
-  getPreferencesStore,
-} from "../stores/preferences";
+import { captureServerException } from "../lib/capture-server-exception";
+import { tryCaptureError } from "../lib/try-capture-error";
+import { unsafe_studioURL } from "../lib/urls";
+import { getPreferencesStore } from "../stores/preferences";
 import {
   createStudioOverlayController,
   type StudioOverlayController,

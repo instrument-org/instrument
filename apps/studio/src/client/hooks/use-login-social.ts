@@ -1,12 +1,6 @@
-import {
-  captureClientEvent,
-} from "@/client/lib/capture-client-event";
-import {
-  rpcClient,
-} from "@/client/rpc/client";
-import {
-  useMutation,
-} from "@tanstack/react-query";
+import { captureClientEvent } from "@/client/lib/capture-client-event";
+import { rpcClient } from "@/client/rpc/client";
+import { useMutation } from "@tanstack/react-query";
 
 export function useLoginSocial() {
   const { mutateAsync: loginSocial, ...rest } = useMutation(

@@ -1,46 +1,22 @@
-import {
-  ok,
-} from "neverthrow";
-import {
-  accessSync,
-  constants,
-} from "node:fs";
+import { ok } from "neverthrow";
+import { accessSync, constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  type AgentName,
-  RETRIEVAL_AGENT_NAME,
-} from "../agents/types";
-import {
-  type FolderAttachment,
-} from "../schemas/folder-attachment";
+import { type AgentName, RETRIEVAL_AGENT_NAME } from "../agents/types";
+import { type FolderAttachment } from "../schemas/folder-attachment";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
   type TaskDir,
 } from "../schemas/paths";
-import {
-  Task,
-} from "../tools/task";
-import {
-  ensureRelativePath,
-} from "./ensure-relative-path";
-import {
-  executeError,
-} from "./execute-error";
-import {
-  normalizePath,
-} from "./normalize-path";
-import {
-  pathExists,
-} from "./path-exists";
-import {
-  resolvePathWithinTaskDir,
-} from "./resolve-path-within-app-dir";
-import {
-  validateAttachedFolderPath,
-} from "./validate-attached-folder-path";
+import { Task } from "../tools/task";
+import { ensureRelativePath } from "./ensure-relative-path";
+import { executeError } from "./execute-error";
+import { normalizePath } from "./normalize-path";
+import { pathExists } from "./path-exists";
+import { resolvePathWithinTaskDir } from "./resolve-path-within-app-dir";
+import { validateAttachedFolderPath } from "./validate-attached-folder-path";
 
 const NARROW_NO_BREAK_SPACE = "\u202F";
 

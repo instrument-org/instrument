@@ -1,9 +1,5 @@
-import {
-  type StudioPath,
-} from "@/shared/studio-path";
-import {
-  z,
-} from "zod";
+import { type StudioPath } from "@/shared/studio-path";
+import { z } from "zod";
 
 /**
  * The app-wide modal overlay can host different kinds of UI. Each kind is its

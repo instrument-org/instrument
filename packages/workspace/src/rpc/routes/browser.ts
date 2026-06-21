@@ -1,17 +1,9 @@
-import {
-  eventIterator,
-} from "@orpc/server";
+import { eventIterator } from "@orpc/server";
 import invariant from "tiny-invariant";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  TaskIdSchema,
-} from "../../schemas/task-id";
-import {
-  base,
-} from "../base";
+import { TaskIdSchema } from "../../schemas/task-id";
+import { base } from "../base";
 
 const PresenceSchema = z.object({ active: z.literal(true) });
 

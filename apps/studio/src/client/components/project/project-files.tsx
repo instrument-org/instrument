@@ -4,14 +4,27 @@ import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
-import { hasVisibleProjectFiles, isUnknownTopLevelDirFile, shouldFilterProjectFile } from "@/client/lib/project-file-groups";
+import {
+  hasVisibleProjectFiles,
+  isUnknownTopLevelDirFile,
+  shouldFilterProjectFile,
+} from "@/client/lib/project-file-groups";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { APP_FOLDER_NAMES, type Task, type TaskId } from "@instrument-org/workspace/client";
+import {
+  APP_FOLDER_NAMES,
+  type Task,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { CaretRightIcon, ChatTextIcon, DotsThreeOutlineVerticalIcon, FolderSimpleIcon } from "@phosphor-icons/react";
+import {
+  CaretRightIcon,
+  ChatTextIcon,
+  DotsThreeOutlineVerticalIcon,
+  FolderSimpleIcon,
+} from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
@@ -19,10 +32,32 @@ import { toast } from "sonner";
 
 import { FileActionsMenuItems } from "../file-actions-menu";
 import { FileThumbnail } from "../file-thumbnail";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "../ui/context-menu";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
-import { SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "../ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../ui/collapsible";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "../ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+} from "../ui/sidebar";
 
 type AttachedFolder = NonNullable<
   RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"]

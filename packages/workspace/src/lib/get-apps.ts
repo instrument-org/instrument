@@ -1,61 +1,29 @@
-import {
-  EVAL_SUBDOMAIN_PREFIX,
-} from "@instrument-org/shared";
-import {
-  glob,
-} from "glob";
-import {
-  err,
-  ok,
-  type Result,
-} from "neverthrow";
+import { EVAL_SUBDOMAIN_PREFIX } from "@instrument-org/shared";
+import { glob } from "glob";
+import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  assign,
-  sort,
-} from "radashi";
+import { assign, sort } from "radashi";
 
-import {
-  type Task,
-} from "../schemas/app";
+import { type Task } from "../schemas/app";
 import {
   type AbsolutePath,
   type TaskDir,
   TaskDirSchema,
 } from "../schemas/paths";
-import {
-  SubdomainPartSchema,
-} from "../schemas/subdomain-part";
-import {
-  type TaskId,
-  TaskIdSchema,
-} from "../schemas/task-id";
-import {
-  type WorkspaceConfig,
-} from "../types";
-import {
-  TypedError,
-} from "./errors";
-import {
-  getTaskDirTimestamps,
-} from "./get-app-dir-timestamps";
-import {
-  isProjectSubdomain,
-} from "./is-app";
-import {
-  getProjectManifest,
-} from "./project-manifest";
-import {
-  urlsForSubdomain,
-} from "./url-for-subdomain";
+import { SubdomainPartSchema } from "../schemas/subdomain-part";
+import { type TaskId, TaskIdSchema } from "../schemas/task-id";
+import { type WorkspaceConfig } from "../types";
+import { TypedError } from "./errors";
+import { getTaskDirTimestamps } from "./get-app-dir-timestamps";
+import { isProjectSubdomain } from "./is-app";
+import { getProjectManifest } from "./project-manifest";
+import { urlsForSubdomain } from "./url-for-subdomain";
 
 export async function getApp(
   subdomain: TaskId,
   workspaceConfig: WorkspaceConfig,
-): Promise<
-  Result<Task, TypedError.NotFound | TypedError.Parse>
-> {
+): Promise<Result<Task, TypedError.NotFound | TypedError.Parse>> {
   if (!isProjectSubdomain(subdomain)) {
     return err(new TypedError.Parse("Invalid folder name"));
   }
@@ -144,10 +112,7 @@ async function appDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
     return [];
   }
 }
-async function getAppTitle(
-  dir: TaskDir,
-  folderName: string,
-): Promise<string> {
+async function getAppTitle(dir: TaskDir, folderName: string): Promise<string> {
   try {
     const questManifest = await getProjectManifest(dir);
     return questManifest?.name ?? folderName;
@@ -168,9 +133,7 @@ async function workspaceApp({ dir }: { dir: TaskDir }) {
     );
   }
 
-  const subdomainResult = TaskIdSchema.safeParse(
-    folderNameResult.data,
-  );
+  const subdomainResult = TaskIdSchema.safeParse(folderNameResult.data);
 
   if (!subdomainResult.success) {
     return err(

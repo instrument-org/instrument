@@ -1,4 +1,7 @@
-import { type SessionMessagePart, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type SessionMessagePart,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon, ChatIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";

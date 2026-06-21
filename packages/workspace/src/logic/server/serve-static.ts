@@ -1,19 +1,12 @@
 import type { Context, Env } from "hono";
 import type { ReadStream, Stats } from "node:fs";
 
-import {
-  createReadStream,
-  statSync,
-} from "node:fs";
+import { createReadStream, statSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  Readable,
-} from "node:stream";
+import { Readable } from "node:stream";
 
-import {
-  getMimeType,
-} from "../../lib/get-mime-type";
+import { getMimeType } from "../../lib/get-mime-type";
 
 interface ServeStaticFileOptions {
   /**

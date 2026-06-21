@@ -1,4 +1,8 @@
-import { SidebarGroup, SidebarGroupLabel, SidebarMenu } from "@/client/components/ui/sidebar";
+import {
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+} from "@/client/components/ui/sidebar";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -72,8 +76,7 @@ export function NavProjects({
   const isProjectActive = (subdomain: string) =>
     matches.some(
       (match) =>
-        match.routeId === "/_app/tasks/$id/" &&
-        match.params.id === subdomain,
+        match.routeId === "/_app/tasks/$id/" && match.params.id === subdomain,
     );
 
   return (

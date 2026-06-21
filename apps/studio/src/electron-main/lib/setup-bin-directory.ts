@@ -1,15 +1,9 @@
-import {
-  rgPath,
-} from "@vscode/ripgrep";
-import {
-  app,
-} from "electron";
+import { rgPath } from "@vscode/ripgrep";
+import { app } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  captureServerException,
-} from "./capture-server-exception";
+import { captureServerException } from "./capture-server-exception";
 
 const BIN_DIR_NAME = "bin";
 

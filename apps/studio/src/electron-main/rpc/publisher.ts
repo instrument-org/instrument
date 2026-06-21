@@ -1,12 +1,6 @@
-import {
-  type AppUpdaterStatus,
-} from "@/electron-main/lib/update";
-import {
-  type TabState,
-} from "@/shared/tabs";
-import {
-  EventPublisher,
-} from "@orpc/server";
+import { type AppUpdaterStatus } from "@/electron-main/lib/update";
+import { type TabState } from "@/shared/tabs";
+import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
   "app.reload": { webContentsId: number };

@@ -1,25 +1,11 @@
-import {
-  APP_NAME_SLUG,
-} from "@instrument-org/shared";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  AbsolutePathSchema,
-  TaskDirSchema,
-} from "../schemas/paths";
-import {
-  applyUnicodeFallbacks,
-  resolveToolPath,
-} from "./resolve-agent-path";
+import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
+import { applyUnicodeFallbacks, resolveToolPath } from "./resolve-agent-path";
 
 function abs(filePath: string) {
   return AbsolutePathSchema.parse(filePath);

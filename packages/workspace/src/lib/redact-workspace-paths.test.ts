@@ -1,18 +1,8 @@
-import {
-  APP_NAME,
-} from "@instrument-org/shared";
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { APP_NAME } from "@instrument-org/shared";
+import { describe, expect, it } from "vitest";
 
-import {
-  createMockAppConfigForDir,
-} from "../test/helpers/mock-app-config";
-import {
-  redactWorkspacePaths,
-} from "./redact-workspace-paths";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { redactWorkspacePaths } from "./redact-workspace-paths";
 
 describe("redactWorkspacePaths", () => {
   const APP_DIR_NAME = `${APP_NAME} (Dev)`;

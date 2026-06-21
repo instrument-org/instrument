@@ -1,22 +1,10 @@
-import {
-  logger,
-} from "@/electron-main/lib/electron-logger";
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
-import {
-  is,
-} from "@electron-toolkit/utils";
-import {
-  AIGatewayProviderConfig,
-} from "@instrument-org/ai-gateway";
-import {
-  safeStorage,
-} from "electron";
+import { logger } from "@/electron-main/lib/electron-logger";
+import { publisher } from "@/electron-main/rpc/publisher";
+import { is } from "@electron-toolkit/utils";
+import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
+import { safeStorage } from "electron";
 import Store from "electron-store";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
 const ProviderConfigsStoreSchema = z
   .object({

@@ -1,47 +1,19 @@
-import {
-  PROJECT_MANIFEST_FILE_NAME,
-} from "@instrument-org/shared";
-import {
-  err,
-  ok,
-} from "neverthrow";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  APP_FOLDER_NAMES,
-} from "../constants";
-import {
-  RelativePathSchema,
-  type TaskDir,
-} from "../schemas/paths";
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  createAppConfig,
-} from "./app-config/create";
-import {
-  taskDir,
-} from "./app-dir-utils";
-import {
-  TypedError,
-} from "./errors";
-import {
-  getIgnore,
-} from "./get-ignore";
-import {
-  getMimeType,
-} from "./get-mime-type";
-import {
-  normalizePath,
-} from "./normalize-path";
+import { APP_FOLDER_NAMES } from "../constants";
+import { RelativePathSchema, type TaskDir } from "../schemas/paths";
+import { type TaskId } from "../schemas/task-id";
+import { absolutePathJoin } from "./absolute-path-join";
+import { createAppConfig } from "./app-config/create";
+import { taskDir } from "./app-dir-utils";
+import { TypedError } from "./errors";
+import { getIgnore } from "./get-ignore";
+import { getMimeType } from "./get-mime-type";
+import { normalizePath } from "./normalize-path";
 
 export const INTERNAL_IGNORE_PATTERNS = [
   ".git",

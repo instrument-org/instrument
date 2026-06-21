@@ -1,6 +1,17 @@
 import { InternalLink } from "@/client/components/internal-link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/client/components/ui/card";
-import { Table, TableBody, TableCell, TableRow } from "@/client/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/client/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+} from "@/client/components/ui/table";
 import { rpcClient } from "@/client/rpc/client";
 import { ArrowRightIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";

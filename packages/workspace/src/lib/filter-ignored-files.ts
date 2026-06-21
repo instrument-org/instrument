@@ -1,15 +1,9 @@
-import {
-  type Ignore,
-} from "ignore";
+import { type Ignore } from "ignore";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
+import { type AbsolutePath } from "../schemas/paths";
+import { absolutePathJoin } from "./absolute-path-join";
 
 export async function filterIgnoredFiles({
   ignore,

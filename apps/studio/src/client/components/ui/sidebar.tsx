@@ -2,7 +2,11 @@
 
 import { Input } from "@/client/components/ui/input";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/client/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
 import { SIDEBAR_WIDTH } from "@/shared/constants";
 import { Slot } from "@radix-ui/react-slot";

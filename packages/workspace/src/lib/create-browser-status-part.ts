@@ -1,21 +1,9 @@
-import {
-  type SessionMessagePart,
-} from "../schemas/session/message-part";
-import {
-  StoreId,
-} from "../schemas/store-id";
-import {
-  encodeBrowserTargetId,
-} from "../types";
-import {
-  type AppConfigProject,
-} from "./app-config/types";
-import {
-  getBrowserState,
-} from "./browser-state";
-import {
-  getWorkspaceConfig,
-} from "./workspace-config";
+import { type SessionMessagePart } from "../schemas/session/message-part";
+import { StoreId } from "../schemas/store-id";
+import { encodeBrowserTargetId } from "../types";
+import { type AppConfigProject } from "./app-config/types";
+import { getBrowserState } from "./browser-state";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createBrowserStatusPart({
   appConfig,

@@ -1,9 +1,5 @@
-import {
-  type AppConfig,
-} from "./app-config/types";
-import {
-  taskDir,
-} from "./app-dir-utils";
+import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 
 export function redactWorkspacePaths(
   message: string,

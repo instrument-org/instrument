@@ -1,8 +1,19 @@
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/client/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/client/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/client/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { type ProviderMetadata } from "@instrument-org/ai-gateway/client";
 import { type AIProviderType } from "@instrument-org/shared";

@@ -1,9 +1,5 @@
-import {
-  type TaskDir,
-} from "../schemas/paths";
-import {
-  normalizePath,
-} from "./normalize-path";
+import { type TaskDir } from "../schemas/paths";
+import { normalizePath } from "./normalize-path";
 
 export function filterShellOutput(output: string, dir: TaskDir): string {
   const normalizedAppDir = normalizePath(dir);

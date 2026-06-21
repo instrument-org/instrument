@@ -1,49 +1,24 @@
 import ms from "ms";
-import {
-  ok,
-} from "neverthrow";
+import { ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  APP_FOLDER_NAMES,
-} from "../constants";
-import {
-  absolutePathJoin,
-} from "../lib/absolute-path-join";
-import {
-  taskDir,
-} from "../lib/app-dir-utils";
-import {
-  createBashDescription,
-  createBashEnv,
-} from "../lib/create-bash-env";
-import {
-  PNPM_COMMAND,
-} from "../lib/shell-commands/pnpm";
-import {
-  Store,
-} from "../lib/store";
-import {
-  systemNote,
-} from "../lib/system-note";
+import { APP_FOLDER_NAMES } from "../constants";
+import { absolutePathJoin } from "../lib/absolute-path-join";
+import { taskDir } from "../lib/app-dir-utils";
+import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
+import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
+import { Store } from "../lib/store";
+import { systemNote } from "../lib/system-note";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
   truncateMiddle,
 } from "../lib/truncate-buffer";
-import {
-  RelativePathSchema,
-} from "../schemas/paths";
-import {
-  BaseInputSchema,
-} from "./base";
-import {
-  setupTool,
-} from "./create-tool";
+import { RelativePathSchema } from "../schemas/paths";
+import { BaseInputSchema } from "./base";
+import { setupTool } from "./create-tool";
 
 const DEFAULT_TIMEOUT_MS = ms("30 seconds");
 

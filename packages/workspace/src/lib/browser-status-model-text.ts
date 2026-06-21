@@ -1,9 +1,5 @@
-import {
-  type SessionMessageDataPart,
-} from "../schemas/session/message-data-part";
-import {
-  systemNote,
-} from "./system-note";
+import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { systemNote } from "./system-note";
 
 export function browserStatusModelNote(
   data: SessionMessageDataPart.BrowserStatusDataPart,

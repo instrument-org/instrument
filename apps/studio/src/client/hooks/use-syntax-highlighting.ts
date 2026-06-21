@@ -1,17 +1,8 @@
-import {
-  toSupportedLanguage,
-} from "@/client/lib/file-extension-to-language";
-import {
-  rpcClient,
-} from "@/client/rpc/client";
-import {
-  skipToken,
-  useQuery,
-} from "@tanstack/react-query";
+import { toSupportedLanguage } from "@/client/lib/file-extension-to-language";
+import { rpcClient } from "@/client/rpc/client";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
-import {
-  useTheme,
-} from "../components/theme-provider";
+import { useTheme } from "../components/theme-provider";
 
 export function useSyntaxHighlighting({
   code,

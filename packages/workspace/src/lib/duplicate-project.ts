@@ -1,44 +1,16 @@
-import {
-  errAsync,
-  ok,
-  safeTry,
-} from "neverthrow";
+import { errAsync, ok, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  type WorkspaceConfig,
-} from "../types";
-import {
-  createAppConfig,
-} from "./app-config/create";
-import {
-  newProjectConfig,
-} from "./app-config/new";
-import {
-  getTaskPrivateDir,
-  sessionStorePath,
-  taskDir,
-} from "./app-dir-utils";
-import {
-  copyProject,
-} from "./copy-project";
-import {
-  TypedError,
-} from "./errors";
-import {
-  pathExists,
-} from "./path-exists";
-import {
-  getProjectManifest,
-  updateProjectManifest,
-} from "./project-manifest";
-import {
-  getProjectState,
-  setProjectState,
-} from "./project-state-store";
+import { type TaskId } from "../schemas/task-id";
+import { type WorkspaceConfig } from "../types";
+import { createAppConfig } from "./app-config/create";
+import { newProjectConfig } from "./app-config/new";
+import { getTaskPrivateDir, sessionStorePath, taskDir } from "./app-dir-utils";
+import { copyProject } from "./copy-project";
+import { TypedError } from "./errors";
+import { pathExists } from "./path-exists";
+import { getProjectManifest, updateProjectManifest } from "./project-manifest";
+import { getProjectState, setProjectState } from "./project-state-store";
 
 interface DuplicateProjectOptions {
   keepHistory: boolean;

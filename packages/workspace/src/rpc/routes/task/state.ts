@@ -1,27 +1,15 @@
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  MAX_PROMPT_STORAGE_LENGTH,
-} from "../../../constants";
-import {
-  createAppConfig,
-} from "../../../lib/app-config/create";
-import {
-  taskDir,
-} from "../../../lib/app-dir-utils";
+import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
+import { createAppConfig } from "../../../lib/app-config/create";
+import { taskDir } from "../../../lib/app-dir-utils";
 import {
   getProjectState,
   ProjectStateSchema,
   setProjectState,
 } from "../../../lib/project-state-store";
-import {
-  TaskIdSchema,
-} from "../../../schemas/task-id";
-import {
-  base,
-} from "../../base";
+import { TaskIdSchema } from "../../../schemas/task-id";
+import { base } from "../../base";
 
 const get = base
   .input(z.object({ subdomain: TaskIdSchema }))

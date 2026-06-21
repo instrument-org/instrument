@@ -1,6 +1,4 @@
-import {
-  APP_NAME_SLUG,
-} from "@instrument-org/shared";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 
 /**
  * A debug logger for the browser that allows for easily filtering in Chrome

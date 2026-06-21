@@ -1,12 +1,6 @@
-import {
-  rpcClient,
-} from "@/client/rpc/client";
-import {
-  type Tab,
-} from "@/shared/tabs";
-import {
-  useQuery,
-} from "@tanstack/react-query";
+import { rpcClient } from "@/client/rpc/client";
+import { type Tab } from "@/shared/tabs";
+import { useQuery } from "@tanstack/react-query";
 
 const EMPTY_TABS: Tab[] = [];
 

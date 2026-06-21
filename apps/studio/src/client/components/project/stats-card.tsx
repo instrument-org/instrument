@@ -1,15 +1,16 @@
 import { TaskIcon } from "@/client/components/task-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import { CalendarIcon, ChatTextIcon, ClockIcon, FileTextIcon } from "@phosphor-icons/react";
+import {
+  CalendarIcon,
+  ChatTextIcon,
+  ClockIcon,
+  FileTextIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 
-export function ProjectStatsCard({
-  project,
-}: {
-  project: Task;
-}) {
+export function ProjectStatsCard({ project }: { project: Task }) {
   const { data: messageCount } = useQuery(
     rpcClient.workspace.message.count.queryOptions({
       input: { subdomain: project.subdomain },

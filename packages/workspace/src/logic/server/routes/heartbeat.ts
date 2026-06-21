@@ -1,40 +1,16 @@
-import {
-  Hono,
-} from "hono";
-import {
-  streamSSE,
-} from "hono/streaming";
+import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import ms from "ms";
-import {
-  isEqual,
-} from "radashi";
-import {
-  type Subscription,
-} from "xstate";
+import { isEqual } from "radashi";
+import { type Subscription } from "xstate";
 
-import {
-  createAppConfig,
-} from "../../../lib/app-config/create";
-import {
-  isRunnable,
-  taskDir,
-} from "../../../lib/app-dir-utils";
-import {
-  type RuntimeSnapshot,
-} from "../../../machines/runtime";
-import {
-  type AppStatus,
-} from "../../../types";
-import {
-  APPS_SERVER_API_PATH,
-  HEARTBEAT_STREAM_ROUTE,
-} from "../constants";
-import {
-  type WorkspaceServerEnv,
-} from "../types";
-import {
-  uriDetailsForHost,
-} from "../uri-details-for-host";
+import { createAppConfig } from "../../../lib/app-config/create";
+import { isRunnable, taskDir } from "../../../lib/app-dir-utils";
+import { type RuntimeSnapshot } from "../../../machines/runtime";
+import { type AppStatus } from "../../../types";
+import { APPS_SERVER_API_PATH, HEARTBEAT_STREAM_ROUTE } from "../constants";
+import { type WorkspaceServerEnv } from "../types";
+import { uriDetailsForHost } from "../uri-details-for-host";
 
 export interface HeartbeatResponse {
   status: AppStatus;

@@ -1,10 +1,6 @@
-import {
-  PostHog,
-} from "posthog-node";
+import { PostHog } from "posthog-node";
 
-import {
-  logger,
-} from "./electron-logger";
+import { logger } from "./electron-logger";
 
 const API_KEY = import.meta.env.VITE_POSTHOG_API_KEY;
 const API_HOST = import.meta.env.VITE_POSTHOG_API_HOST;

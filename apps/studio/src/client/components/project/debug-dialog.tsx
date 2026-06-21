@@ -1,13 +1,27 @@
 import { useSyntaxHighlighting } from "@/client/hooks/use-syntax-highlighting";
 import { rpcClient } from "@/client/rpc/client";
-import { formatBytes, type StoreId, type Task } from "@instrument-org/workspace/client";
-import { ArrowLineDownIcon, BracketsCurlyIcon, FileTextIcon } from "@phosphor-icons/react";
+import {
+  formatBytes,
+  type StoreId,
+  type Task,
+} from "@instrument-org/workspace/client";
+import {
+  ArrowLineDownIcon,
+  BracketsCurlyIcon,
+  FileTextIcon,
+} from "@phosphor-icons/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 
 import { CopyButton } from "../copy-button";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 
 const MAX_DISPLAY_SIZE = 1_000_000;

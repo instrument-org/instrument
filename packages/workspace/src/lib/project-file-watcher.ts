@@ -4,40 +4,19 @@ import type {
   SubscribeCallback,
 } from "@parcel/watcher";
 
-import {
-  type CaptureExceptionFunction,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  noop,
-} from "radashi";
+import { noop } from "radashi";
 
-import {
-  publisher,
-} from "../rpc/publisher";
-import {
-  RelativePathSchema,
-  type TaskDir,
-} from "../schemas/paths";
-import {
-  type StoreId,
-} from "../schemas/store-id";
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  type WorkspaceConfig,
-} from "../types";
-import {
-  taskDir,
-} from "./app-dir-utils";
-import {
-  getIgnore,
-} from "./get-ignore";
-import {
-  getMimeType,
-} from "./get-mime-type";
+import { publisher } from "../rpc/publisher";
+import { RelativePathSchema, type TaskDir } from "../schemas/paths";
+import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
+import { type WorkspaceConfig } from "../types";
+import { taskDir } from "./app-dir-utils";
+import { getIgnore } from "./get-ignore";
+import { getMimeType } from "./get-mime-type";
 import {
   diffProjectFileIndexes,
   getProjectFileIndex,
@@ -48,9 +27,7 @@ import {
   type ProjectFileIndex,
   projectFilesFromIndex,
 } from "./get-project-files";
-import {
-  normalizePath,
-} from "./normalize-path";
+import { normalizePath } from "./normalize-path";
 
 // Trailing window used to coalesce bursts of filesystem events (agents and
 // editors write many files in quick succession) into a single publish.

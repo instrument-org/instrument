@@ -1,22 +1,10 @@
-import {
-  draw,
-} from "radashi";
+import { draw } from "radashi";
 
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  SubdomainPartSchema,
-} from "../schemas/subdomain-part";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  getCurrentDate,
-} from "./get-current-date";
-import {
-  pathExists,
-} from "./path-exists";
+import { type AbsolutePath } from "../schemas/paths";
+import { SubdomainPartSchema } from "../schemas/subdomain-part";
+import { absolutePathJoin } from "./absolute-path-join";
+import { getCurrentDate } from "./get-current-date";
+import { pathExists } from "./path-exists";
 
 export const ADJECTIVES = [
   "bold",

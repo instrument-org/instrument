@@ -1,5 +1,8 @@
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
-import { type ProviderSetupPage, ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
+import {
+  type ProviderSetupPage,
+  ProviderSetupScreen,
+} from "@/client/components/onboarding/provider-setup-screen";
 import { createFileRoute } from "@tanstack/react-router";
 import { noop } from "radashi";
 import { useState } from "react";

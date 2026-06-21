@@ -1,22 +1,9 @@
-import {
-  asSchema,
-} from "ai";
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
-import {
-  z,
-} from "zod";
+import { asSchema } from "ai";
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import {
-  TOOL_EXPLANATION_PARAM_NAME,
-} from "../constants";
-import {
-  BaseInputSchema,
-  toolInputSchemaForLLM,
-} from "./base";
+import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { BaseInputSchema, toolInputSchemaForLLM } from "./base";
 
 const TestSchema = BaseInputSchema.extend({
   filePath: z.string().meta({ description: "path" }),

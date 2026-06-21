@@ -1,15 +1,7 @@
 import path from "node:path";
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  FFMPEG_PATH,
-  ffmpegSubprocessEnv,
-  FFPROBE_PATH,
-} from "./ffmpeg";
+import { FFMPEG_PATH, ffmpegSubprocessEnv, FFPROBE_PATH } from "./ffmpeg";
 
 describe("ffmpegSubprocessEnv", () => {
   it("exposes the bundled binaries to subprocesses", () => {

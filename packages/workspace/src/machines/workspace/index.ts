@@ -18,79 +18,43 @@ import {
   type SnapshotFrom,
 } from "xstate";
 
-import {
-  AGENTS,
-} from "../../agents/all";
-import {
-  type AgentName,
-} from "../../agents/types";
-import {
-  REGISTRY_FOLDER_NAMES,
-} from "../../constants";
-import {
-  absolutePathJoin,
-} from "../../lib/absolute-path-join";
-import {
-  createAppConfig,
-} from "../../lib/app-config/create";
-import {
-  type AppConfig,
-} from "../../lib/app-config/types";
-import {
-  createAssignEventError,
-} from "../../lib/assign-event-error";
-import {
-  isProjectSubdomain,
-} from "../../lib/is-app";
-import {
-  logUnhandledEvent,
-} from "../../lib/log-unhandled-event";
-import {
-  setWorkspaceConfig,
-} from "../../lib/workspace-config";
-import {
-  workspaceServerLogic,
-} from "../../logic/server";
-import {
-  type WorkspaceServerParentEvent,
-} from "../../logic/server/types";
+import { AGENTS } from "../../agents/all";
+import { type AgentName } from "../../agents/types";
+import { REGISTRY_FOLDER_NAMES } from "../../constants";
+import { absolutePathJoin } from "../../lib/absolute-path-join";
+import { createAppConfig } from "../../lib/app-config/create";
+import { type AppConfig } from "../../lib/app-config/types";
+import { createAssignEventError } from "../../lib/assign-event-error";
+import { isProjectSubdomain } from "../../lib/is-app";
+import { logUnhandledEvent } from "../../lib/log-unhandled-event";
+import { setWorkspaceConfig } from "../../lib/workspace-config";
+import { workspaceServerLogic } from "../../logic/server";
+import { type WorkspaceServerParentEvent } from "../../logic/server/types";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
   WorkspaceDirSchema,
 } from "../../schemas/paths";
-import {
-  type SessionMessage,
-} from "../../schemas/session/message";
-import {
-  type StoreId,
-} from "../../schemas/store-id";
-import {
-  type TaskId,
-} from "../../schemas/task-id";
+import { type SessionMessage } from "../../schemas/session/message";
+import { type StoreId } from "../../schemas/store-id";
+import { type TaskId } from "../../schemas/task-id";
 import {
   type BrowserConfig,
   type BrowserTargetId,
   type WorkspaceConfig,
 } from "../../types";
-import {
-  type ToolCallUpdate,
-} from "../agent";
+import { type ToolCallUpdate } from "../agent";
 import {
   projectBrowserMachine,
   type ProjectBrowserParentEvent,
 } from "../project-browser";
-import {
-  runtimeMachine,
-} from "../runtime";
+import { runtimeMachine } from "../runtime";
 import {
   type SessionActorRef,
   sessionMachine,
   type SessionMachineParentEvent,
 } from "../session";
-import {
-  type WorkspaceContext,
-} from "./types";
+import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
   | ProjectBrowserParentEvent
@@ -215,10 +179,7 @@ export const workspaceMachine = setup({
 
     clearSessionRefsBySubdomain: assign(
       ({ context }, { subdomain }: { subdomain: TaskId }) => {
-        const newsessionRefsBySubdomain = new Map<
-          TaskId,
-          SessionActorRef[]
-        >();
+        const newsessionRefsBySubdomain = new Map<TaskId, SessionActorRef[]>();
 
         for (const [
           sessionSubdomain,
@@ -303,10 +264,7 @@ export const workspaceMachine = setup({
     forwardUpdateHeartbeat: enqueueActions(
       (
         { context },
-        {
-          createdAt,
-          subdomain,
-        }: { createdAt: number; subdomain: TaskId },
+        { createdAt, subdomain }: { createdAt: number; subdomain: TaskId },
       ) => {
         const runtimeRef = context.runtimeRefs.get(subdomain);
         runtimeRef?.send({
@@ -317,10 +275,7 @@ export const workspaceMachine = setup({
     ),
 
     handleProjectBrowserStopped: enqueueActions(
-      (
-        { context, enqueue },
-        { subdomain }: { subdomain: TaskId },
-      ) => {
+      ({ context, enqueue }, { subdomain }: { subdomain: TaskId }) => {
         const ref = context.projectBrowserRefs.get(subdomain);
         if (ref) {
           enqueue.stopChild(ref);

@@ -1,23 +1,9 @@
-import {
-  rpcClient,
-} from "@/client/rpc/client";
-import {
-  type ArtifactPanel,
-} from "@/client/schemas/artifact-panel";
-import {
-  type StoreId,
-  type TaskId,
-} from "@instrument-org/workspace/client";
-import {
-  useQuery,
-} from "@tanstack/react-query";
-import {
-  useNavigate,
-} from "@tanstack/react-router";
-import {
-  useEffect,
-  useEffectEvent,
-} from "react";
+import { rpcClient } from "@/client/rpc/client";
+import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useEffectEvent } from "react";
 
 // Focuses the first output/ artifact a run produced, per the server's
 // outputArtifacts event stream. useEffectEvent reads current state

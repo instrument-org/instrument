@@ -1,12 +1,8 @@
 import type { CaptureResult } from "posthog-js";
 
-import {
-  FAUX_STUDIO_URL,
-} from "@instrument-org/shared";
+import { FAUX_STUDIO_URL } from "@instrument-org/shared";
 
-import {
-  rpcClient,
-} from "../rpc/client";
+import { rpcClient } from "../rpc/client";
 
 const API_KEY = import.meta.env.VITE_POSTHOG_API_KEY;
 const API_HOST = import.meta.env.VITE_POSTHOG_API_HOST;

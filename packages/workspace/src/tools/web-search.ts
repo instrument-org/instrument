@@ -1,37 +1,19 @@
 import ms from "ms";
-import {
-  ok,
-} from "neverthrow";
-import {
-  dedent,
-} from "radashi";
-import {
-  z,
-} from "zod";
+import { ok } from "neverthrow";
+import { dedent } from "radashi";
+import { z } from "zod";
 
-import {
-  TOOL_EXPLANATION_PARAM_NAME,
-} from "../constants";
-import {
-  executeError,
-} from "../lib/execute-error";
-import {
-  webSearch,
-} from "../lib/web-search";
-import {
-  getWorkspaceConfig,
-} from "../lib/workspace-config";
-import {
-  getWorkspaceServerURL,
-} from "../logic/server/url";
+import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { executeError } from "../lib/execute-error";
+import { webSearch } from "../lib/web-search";
+import { getWorkspaceConfig } from "../lib/workspace-config";
+import { getWorkspaceServerURL } from "../logic/server/url";
 import {
   BaseInputSchema,
   ProviderOutputSchema,
   UsageOutputSchema,
 } from "./base";
-import {
-  setupTool,
-} from "./create-tool";
+import { setupTool } from "./create-tool";
 
 const INPUT_PARAMS = {
   query: "query",

@@ -1,15 +1,36 @@
 import { promptInputRefAtom } from "@/client/atoms/prompt-value";
 import { SessionStatusIcon } from "@/client/components/session-status-icon";
 import { Button } from "@/client/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/client/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/client/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { getSessionTags } from "@/client/hooks/use-agent-session-status";
 import { useAppState } from "@/client/hooks/use-app-state";
 import { useProjectRouteSubdomain } from "@/client/hooks/use-project-route-subdomain";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionTag, StoreId } from "@instrument-org/workspace/client";
-import { CaretDownIcon, ChatCircleIcon, ChatsCircleIcon, CheckIcon, PlusIcon } from "@phosphor-icons/react";
+import {
+  CaretDownIcon,
+  ChatCircleIcon,
+  ChatsCircleIcon,
+  CheckIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";

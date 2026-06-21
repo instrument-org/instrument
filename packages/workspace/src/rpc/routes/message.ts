@@ -128,8 +128,7 @@ const create = base
 
       const message = messageResult.value;
 
-      if (isFirstMessageInSession && appConfig.type === "project") {
-        const projectAppConfig = appConfig;
+      if (isFirstMessageInSession) {
         generateTitleFromUserMessage({
           message,
           model,
@@ -137,7 +136,7 @@ const create = base
         }).then(async (title) => {
           if (title.isOk()) {
             await updateSessionTitle({
-              appConfig: projectAppConfig,
+              appConfig,
               sessionId: message.metadata.sessionId,
               title: title.value,
             });
@@ -156,11 +155,9 @@ const create = base
         },
       });
 
-      if (appConfig.type === "project") {
-        publisher.publish("project.updated", {
-          subdomain: appConfig.subdomain,
-        });
-      }
+      publisher.publish("project.updated", {
+        subdomain: appConfig.subdomain,
+      });
 
       return { sessionId: message.metadata.sessionId };
     },

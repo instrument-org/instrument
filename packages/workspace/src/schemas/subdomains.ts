@@ -2,11 +2,7 @@ import { z } from "zod";
 
 import { type SubdomainPart, validateSubdomainPart } from "./subdomain-part";
 
-export const PREVIEW_SUBDOMAIN_PART = "preview" as const;
-export type PreviewSubdomain = `${SubdomainPart}.${PreviewSubdomainPart}`;
 export type ProjectSubdomain = SubdomainPart & z.$brand<"ProjectSubdomain">;
-
-type PreviewSubdomainPart = typeof PREVIEW_SUBDOMAIN_PART;
 
 function ensureString(val: unknown, ctx: z.core.$RefinementCtx): val is string {
   if (typeof val !== "string") {
@@ -20,54 +16,6 @@ function ensureString(val: unknown, ctx: z.core.$RefinementCtx): val is string {
   }
   return true;
 }
-
-function validateTwoPartSubdomain(
-  val: string,
-  ctx: z.core.$RefinementCtx,
-  errorMessage: string,
-): [string, string] | null {
-  const parts = val.split(".");
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    ctx.addIssue({
-      code: "custom",
-      fatal: true,
-      input: val,
-      message: errorMessage,
-    });
-    return null;
-  }
-  return [parts[0], parts[1]];
-}
-
-export const PreviewSubdomainSchema = z
-  .custom<PreviewSubdomain>()
-  .superRefine((val: unknown, ctx) => {
-    if (!ensureString(val, ctx)) {
-      return;
-    }
-
-    const parts = validateTwoPartSubdomain(
-      val,
-      ctx,
-      "Preview subdomains must have exactly two parts (e.g., name.preview)",
-    );
-    if (!parts) {
-      return;
-    }
-
-    const [previewPart, suffix] = parts;
-
-    if (suffix !== PREVIEW_SUBDOMAIN_PART) {
-      ctx.addIssue({
-        code: "custom",
-        fatal: true,
-        input: val,
-        message: `Preview subdomains must end with '.${PREVIEW_SUBDOMAIN_PART}'`,
-      });
-    }
-
-    validateSubdomainPart(previewPart, ctx);
-  });
 
 export const ProjectSubdomainSchema = z
   .custom<ProjectSubdomain>()
@@ -85,21 +33,10 @@ export const ProjectSubdomainSchema = z
       });
     }
 
-    if (val === PREVIEW_SUBDOMAIN_PART) {
-      ctx.addIssue({
-        code: "custom",
-        fatal: true,
-        input: val,
-        message: `Task subdomains cannot be '${PREVIEW_SUBDOMAIN_PART}'`,
-      });
-    }
-
     validateSubdomainPart(val, ctx);
   });
 
-export const AppSubdomainSchema = z.union([
-  PreviewSubdomainSchema,
-  ProjectSubdomainSchema,
-]);
+// Previews were removed; an app subdomain is always a project (task) subdomain.
+export const AppSubdomainSchema = ProjectSubdomainSchema;
 
 export type AppSubdomain = z.output<typeof AppSubdomainSchema>;

@@ -404,7 +404,6 @@ describe("sessionMachine", () => {
 
   beforeEach(() => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.previews]: {},
       [MOCK_WORKSPACE_DIRS.projects]: {
         [projectFolder]: {
           "image.png": mockFs.load(

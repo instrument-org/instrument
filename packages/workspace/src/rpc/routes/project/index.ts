@@ -562,7 +562,7 @@ const exportZip = base
       }
 
       const result = await exportProjectZip({
-        appDir: taskDir(appConfig),
+        dir: taskDir(appConfig),
         outputPath: filepath,
       });
 

@@ -1,14 +1,14 @@
 import {
-  type AppDir,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   normalizePath,
 } from "./normalize-path";
 
-export function filterShellOutput(output: string, appDir: AppDir): string {
-  const normalizedAppDir = normalizePath(appDir);
+export function filterShellOutput(output: string, dir: TaskDir): string {
+  const normalizedAppDir = normalizePath(dir);
   const appDirVariants = new Set([
-    appDir,
+    dir,
     normalizedAppDir,
     normalizedAppDir.replaceAll("/", "\\"),
   ]);

@@ -26,7 +26,7 @@ import {
 } from "./utils";
 
 const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
-const appDir = taskDir(appConfig);
+const dir = taskDir(appConfig);
 const fs = new InMemoryFs();
 
 function resolvePath(cwd: string) {
@@ -39,7 +39,7 @@ describe("extractFileAndScriptArgs", () => {
       [],
       [],
       appConfig,
-      appDir,
+      dir,
       resolvePath("/"),
     );
     expect(result).toBeUndefined();
@@ -69,7 +69,7 @@ describe("extractFileAndScriptArgs", () => {
         cwd: "/",
         expected: "etc/passwd",
         input: "../../../etc/passwd",
-        label: "dot-dot traversal clamped to appDir from root cwd",
+        label: "dot-dot traversal clamped to dir from root cwd",
       },
       {
         cwd: "/skills/sharp-images",
@@ -99,10 +99,10 @@ describe("extractFileAndScriptArgs", () => {
         cwd: "/skills/sharp-images",
         expected: "../../etc/passwd",
         input: "../../../../../../../../etc/passwd",
-        label: "deep dot-dot traversal clamped to appDir",
+        label: "deep dot-dot traversal clamped to dir",
       },
     ])("$label", ({ cwd, expected, input }) => {
-      const appCwd = `${appDir}${cwd === "/" ? "" : cwd}`;
+      const appCwd = `${dir}${cwd === "/" ? "" : cwd}`;
       const result = extractFileAndScriptArgs(
         [input],
         [input],
@@ -112,7 +112,7 @@ describe("extractFileAndScriptArgs", () => {
       );
       expect(result).toBeDefined();
       expect(result?.filePath).toBe(expected);
-      expect(result?.filePath).not.toContain(appDir);
+      expect(result?.filePath).not.toContain(dir);
     });
   });
 
@@ -176,7 +176,7 @@ describe("extractFileAndScriptArgs", () => {
     ])("$label", ({ cwd, expected, scriptArgs }) => {
       const file = "script.ts";
       const args = [file, ...scriptArgs];
-      const appCwd = `${appDir}${cwd === "/" ? "" : cwd}`;
+      const appCwd = `${dir}${cwd === "/" ? "" : cwd}`;
       const result = extractFileAndScriptArgs(
         [file],
         args,
@@ -187,7 +187,7 @@ describe("extractFileAndScriptArgs", () => {
       expect(result).toBeDefined();
       expect(result?.scriptArgs).toEqual(expected);
       for (const arg of result?.scriptArgs ?? []) {
-        expect(arg).not.toContain(appDir);
+        expect(arg).not.toContain(dir);
       }
     });
   });

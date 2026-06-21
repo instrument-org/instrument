@@ -65,8 +65,8 @@ export const Glob = setupTool({
   execute: async ({ agentName, appConfig, input, projectState, signal }) => {
     const pathResult = resolveAgentPath({
       agentName,
-      appDir: taskDir(appConfig),
       attachedFolders: projectState.attachedFolders,
+      dir: taskDir(appConfig),
       inputPath: input.path,
       isRequired: agentName === "retrieval",
     });

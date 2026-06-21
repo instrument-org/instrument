@@ -13,7 +13,7 @@ import {
   publisher,
 } from "../rpc/publisher";
 import {
-  type AppDir,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   type ProjectManifest,
@@ -35,10 +35,10 @@ import {
 } from "./errors";
 
 export async function getProjectManifest(
-  appDir: AppDir,
+  dir: TaskDir,
 ): Promise<ProjectManifest | undefined> {
   const projectManifestPath = absolutePathJoin(
-    appDir,
+    dir,
     PROJECT_MANIFEST_FILE_NAME,
   );
 

@@ -190,7 +190,7 @@ describe("tsCommand", () => {
     );
   });
 
-  it("resolves the script file path without exposing the host appDir", async () => {
+  it("resolves the script file path without exposing the host dir", async () => {
     const { execaNodeForApp } = await import("../execa-node-for-app");
     vi.mocked(execaNodeForApp).mockResolvedValueOnce({
       all: "",

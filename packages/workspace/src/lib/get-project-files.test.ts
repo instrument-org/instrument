@@ -1,23 +1,11 @@
-import {
-  PROJECT_MANIFEST_FILE_NAME,
-} from "@instrument-org/shared";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  APP_FOLDER_NAMES,
-} from "../constants";
-import {
-  AppDirSchema,
-} from "../schemas/paths";
+import { APP_FOLDER_NAMES } from "../constants";
+import { TaskDirSchema } from "../schemas/paths";
 import {
   diffProjectFileIndexes,
   getProjectFileIndex,
@@ -26,11 +14,11 @@ import {
 
 describe("getProjectFileIndex", () => {
   let appDirPath: string;
-  let appDir: ReturnType<typeof AppDirSchema.parse>;
+  let dir: ReturnType<typeof TaskDirSchema.parse>;
 
   beforeEach(async () => {
     appDirPath = await fs.mkdtemp(path.join(os.tmpdir(), "project-files-"));
-    appDir = AppDirSchema.parse(appDirPath);
+    dir = TaskDirSchema.parse(appDirPath);
 
     await fs.mkdir(path.join(appDirPath, "output"), { recursive: true });
     await fs.mkdir(path.join(appDirPath, "tmp"), { recursive: true });
@@ -58,7 +46,7 @@ describe("getProjectFileIndex", () => {
   });
 
   it("lists task files from disk while ignoring git, ignored, and transient files", async () => {
-    const result = await getProjectFileIndex(appDir);
+    const result = await getProjectFileIndex(dir);
 
     expect(result.isOk()).toBe(true);
     if (result.isErr()) {
@@ -75,22 +63,22 @@ describe("getProjectFileIndex", () => {
   });
 
   it("excludes every internal folder and generated file from the index", async () => {
-    const internalEntries: { dir: string; file: string }[] = [
-      { dir: APP_FOLDER_NAMES.private, file: "secret.json" },
-      { dir: APP_FOLDER_NAMES.state, file: "state.json" },
-      { dir: APP_FOLDER_NAMES.tmp, file: "scratch.txt" },
-      { dir: "node_modules", file: "dep.js" },
+    const internalEntries: { file: string; subdir: string }[] = [
+      { file: "secret.json", subdir: APP_FOLDER_NAMES.private },
+      { file: "state.json", subdir: APP_FOLDER_NAMES.state },
+      { file: "scratch.txt", subdir: APP_FOLDER_NAMES.tmp },
+      { file: "dep.js", subdir: "node_modules" },
     ];
 
-    for (const { dir, file } of internalEntries) {
-      await fs.mkdir(path.join(appDirPath, dir), { recursive: true });
-      await fs.writeFile(path.join(appDirPath, dir, file), "internal");
+    for (const { file, subdir } of internalEntries) {
+      await fs.mkdir(path.join(appDirPath, subdir), { recursive: true });
+      await fs.writeFile(path.join(appDirPath, subdir, file), "internal");
     }
 
     await fs.writeFile(path.join(appDirPath, PROJECT_MANIFEST_FILE_NAME), "{}");
     await fs.writeFile(path.join(appDirPath, "pnpm-lock.yaml"), "lockfile");
 
-    const result = await getProjectFileIndex(appDir);
+    const result = await getProjectFileIndex(dir);
 
     expect(result.isOk()).toBe(true);
     if (result.isErr()) {
@@ -98,8 +86,8 @@ describe("getProjectFileIndex", () => {
     }
 
     const filePaths = [...result.value.keys()];
-    for (const { dir } of internalEntries) {
-      expect(filePaths.some((p) => p.startsWith(`${dir}/`))).toBe(false);
+    for (const { subdir } of internalEntries) {
+      expect(filePaths.some((p) => p.startsWith(`${subdir}/`))).toBe(false);
     }
     expect(filePaths).not.toContain(PROJECT_MANIFEST_FILE_NAME);
     expect(filePaths).not.toContain("pnpm-lock.yaml");
@@ -116,7 +104,7 @@ describe("getProjectFileIndex", () => {
       await fs.writeFile(path.join(appDirPath, "many", `${i}.txt`), `${i}`);
     }
 
-    const result = await getProjectFileIndex(appDir, { maxFiles: 4 });
+    const result = await getProjectFileIndex(dir, { maxFiles: 4 });
 
     expect(result.isOk()).toBe(true);
     if (result.isErr()) {
@@ -134,7 +122,7 @@ describe("getProjectFileIndex", () => {
       "adversarial",
     );
 
-    const result = await getProjectFileIndex(appDir);
+    const result = await getProjectFileIndex(dir);
 
     expect(result.isOk()).toBe(true);
     if (result.isErr()) {
@@ -151,7 +139,7 @@ describe("getProjectFileIndex", () => {
   });
 
   it("diffs file index snapshots and extracts output artifacts", async () => {
-    const beforeResult = await getProjectFileIndex(appDir);
+    const beforeResult = await getProjectFileIndex(dir);
     expect(beforeResult.isOk()).toBe(true);
     if (beforeResult.isErr()) {
       return;
@@ -161,7 +149,7 @@ describe("getProjectFileIndex", () => {
     await fs.writeFile(path.join(appDirPath, "output", "new.txt"), "new");
     await fs.rm(path.join(appDirPath, "output", "chart.png"));
 
-    const afterResult = await getProjectFileIndex(appDir);
+    const afterResult = await getProjectFileIndex(dir);
     expect(afterResult.isOk()).toBe(true);
     if (afterResult.isErr()) {
       return;

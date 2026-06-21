@@ -11,7 +11,7 @@ import {
   taskDir,
 } from "./app-dir-utils";
 import {
-  getAppDirTimestamps,
+  getTaskDirTimestamps,
 } from "./get-app-dir-timestamps";
 import {
   urlsForSubdomain,
@@ -22,7 +22,7 @@ export async function getWorkspaceAppForSubdomain(
 ): Promise<Task> {
   const appConfig = createAppConfig({ subdomain });
 
-  const timestamps = await getAppDirTimestamps(taskDir(appConfig));
+  const timestamps = await getTaskDirTimestamps(taskDir(appConfig));
 
   return {
     createdAt: timestamps.createdAt,

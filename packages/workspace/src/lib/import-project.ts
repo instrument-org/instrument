@@ -9,7 +9,7 @@ import {
 } from "ulid";
 
 import {
-  AppDirSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   TaskIdSchema,
@@ -45,7 +45,7 @@ export async function importProject(
     );
 
     // For tasks the folder name is identical to the subdomain.
-    const projectDir = AppDirSchema.parse(
+    const projectDir = TaskDirSchema.parse(
       absolutePathJoin(workspaceConfig.projectsDir, subdomain),
     );
 

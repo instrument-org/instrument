@@ -16,15 +16,15 @@ import {
 
 describe("redactWorkspacePaths", () => {
   const APP_DIR_NAME = `${APP_NAME} (Dev)`;
-  const appDir = `/Users/test/Library/Application Support/${APP_DIR_NAME}/workspace/projects/test`;
+  const dir = `/Users/test/Library/Application Support/${APP_DIR_NAME}/workspace/projects/test`;
   const appDirEncoded = `/Users/test/Library/Application%20Support/${APP_NAME}%20(Dev)/workspace/projects/test`;
   // The id is the dir's basename ("test"); points the singleton's projectsDir
-  // at its parent so taskDir(id) === appDir.
-  const mockAppConfig = createMockAppConfigForDir(appDir);
+  // at its parent so taskDir(id) === dir.
+  const mockAppConfig = createMockAppConfigForDir(dir);
 
   it("redacts literal workspace paths", () => {
     const result = redactWorkspacePaths(
-      `Error in ${appDir}/file.js`,
+      `Error in ${dir}/file.js`,
       mockAppConfig,
     );
     expect(result).toBe("Error in /file.js");
@@ -42,7 +42,7 @@ describe("redactWorkspacePaths", () => {
 
   it("redacts multiple occurrences", () => {
     const result = redactWorkspacePaths(
-      `Error at ${appDir}/file1.js and file:${appDirEncoded}/file2.js`,
+      `Error at ${dir}/file1.js and file:${appDirEncoded}/file2.js`,
       mockAppConfig,
     );
     expect(result).toBe("Error at /file1.js and file:/file2.js");
@@ -50,7 +50,7 @@ describe("redactWorkspacePaths", () => {
 
   it("handles mixed encoding within the same message", () => {
     const result = redactWorkspacePaths(
-      `Loading ${appDir}/src/index.ts and file:${appDirEncoded}/src/main.ts`,
+      `Loading ${dir}/src/index.ts and file:${appDirEncoded}/src/main.ts`,
       mockAppConfig,
     );
     expect(result).toBe("Loading /src/index.ts and file:/src/main.ts");

@@ -14,8 +14,8 @@ export type AbsolutePath = z.output<typeof AbsolutePathSchema>;
 export const WorkspaceDirSchema = AbsolutePathSchema.brand("WorkspaceDir");
 export type WorkspaceDir = z.output<typeof WorkspaceDirSchema>;
 
-export const AppDirSchema = AbsolutePathSchema.brand("AppDir");
-export type AppDir = z.output<typeof AppDirSchema>;
+export const TaskDirSchema = AbsolutePathSchema.brand("TaskDir");
+export type TaskDir = z.output<typeof TaskDirSchema>;
 
 const UnbrandedRelativePathSchema = z.string().refine((val) => {
   return !path.isAbsolute(val);

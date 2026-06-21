@@ -3,6 +3,7 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { taskDir } from "../app-dir-utils";
 import { createNodeCommand } from "./node";
 
 vi.mock("execa");
@@ -175,7 +176,7 @@ describe("nodeCommand", () => {
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     assert(Array.isArray(calledArgs), "expected args array");
-    expect(calledArgs[0]).not.toContain(appConfig.appDir);
+    expect(calledArgs[0]).not.toContain(taskDir(appConfig));
     expect(calledArgs[0]).toBe("scripts/run.js");
   });
 });

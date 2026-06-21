@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { createAppConfig } from "../../lib/app-config/create";
 import { type AppConfig } from "../../lib/app-config/types";
+import { taskDir } from "../../lib/app-dir-utils";
 import { getProjects } from "../../lib/get-apps";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type RuntimeActorRef } from "../../machines/runtime";
@@ -165,7 +166,7 @@ export async function RuntimeList({
                           <span class="text-xs text-neutral-400">
                             ${path.relative(
                               getWorkspaceConfig().rootDir,
-                              app.config.appDir,
+                              taskDir(app.config),
                             )}
                           </span>
                         </div>

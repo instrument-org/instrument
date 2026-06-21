@@ -17,6 +17,7 @@ import { type WorkspaceConfig } from "../types";
 import { ActiveReplays } from "./active-replays";
 import { newProjectConfig } from "./app-config/new";
 import { type AppConfigProject } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import {
   TUTORIAL_TASK_REPLAY,
   type TutorialTaskWriteFileStep,
@@ -85,7 +86,7 @@ export async function startTutorialTaskReplay({
       { signal },
     );
 
-    await setProjectState(projectResult.projectConfig.appDir, {
+    await setProjectState(taskDir(projectResult.projectConfig), {
       showTutorial: true,
     });
 
@@ -105,7 +106,7 @@ export async function startTutorialTaskReplay({
     return ok({
       appConfig: projectResult.projectConfig,
       sessionId: sessionResult.id,
-      subdomain: projectResult.projectConfig.subdomain,
+      subdomain: projectResult.projectConfig,
     });
   });
 
@@ -336,7 +337,7 @@ async function runTutorialTaskReplay({
     publishReplayChanged({
       isActive: false,
       sessionId,
-      subdomain: appConfig.subdomain,
+      subdomain: appConfig,
     });
   }
 }

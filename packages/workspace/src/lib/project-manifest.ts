@@ -12,6 +12,7 @@ import {
 } from "../schemas/project-manifest";
 import { absolutePathJoin } from "./absolute-path-join";
 import { type AppConfigProject } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 
 export async function getProjectManifest(
@@ -52,14 +53,14 @@ export function updateProjectManifest(
     const validatedUpdates = parseResult.data;
 
     const projectManifestPath = absolutePathJoin(
-      projectConfig.appDir,
+      taskDir(projectConfig),
       PROJECT_MANIFEST_FILE_NAME,
     );
 
     let existing: ProjectManifest = { name: "" };
 
     try {
-      existing = (await getProjectManifest(projectConfig.appDir)) ?? {
+      existing = (await getProjectManifest(taskDir(projectConfig))) ?? {
         name: "",
       };
     } catch {
@@ -86,7 +87,7 @@ export function updateProjectManifest(
     );
 
     publisher.publish("project.updated", {
-      subdomain: projectConfig.subdomain,
+      subdomain: projectConfig,
     });
 
     return ok(undefined);

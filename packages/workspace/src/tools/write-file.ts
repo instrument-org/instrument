@@ -7,6 +7,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import { resolveToolPath } from "../lib/resolve-agent-path";
@@ -53,7 +54,7 @@ export const WriteFile = setupTool({
     - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
   `,
   execute: async ({ appConfig, input, signal }) => {
-    const pathResult = resolveToolPath(appConfig.appDir, input.filePath);
+    const pathResult = resolveToolPath(taskDir(appConfig), input.filePath);
     if (pathResult.isErr()) {
       return err(pathResult.error);
     }

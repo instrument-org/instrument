@@ -9,6 +9,7 @@ import { type AppDir, RelativePathSchema } from "../schemas/paths";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { absolutePathJoin } from "./absolute-path-join";
 import { createAppConfig } from "./app-config/create";
+import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
@@ -194,7 +195,7 @@ export async function getProjectFileIndex(
 export async function getProjectFiles(projectSubdomain: ProjectSubdomain) {
   const projectConfig = createAppConfig({ subdomain: projectSubdomain });
 
-  const indexResult = await getProjectFileIndex(projectConfig.appDir);
+  const indexResult = await getProjectFileIndex(taskDir(projectConfig));
   if (indexResult.isErr()) {
     return err(indexResult.error);
   }

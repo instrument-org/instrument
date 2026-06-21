@@ -6,7 +6,7 @@ import { type ProjectManifestUpdate } from "../schemas/project-manifest";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { type AppConfigProject } from "./app-config/types";
-import { templateExists } from "./app-dir-utils";
+import { taskDir, templateExists } from "./app-dir-utils";
 import { copyProject } from "./copy-project";
 import { TypedError } from "./errors";
 import { updateProjectManifest } from "./project-manifest";
@@ -28,18 +28,18 @@ export async function initializeProject(
   return safeTry(async function* () {
     // Ensure no folder exists
     const exists = await fs
-      .access(projectConfig.appDir)
+      .access(taskDir(projectConfig))
       .then(() => true)
       .catch(() => false);
     if (exists) {
       return errAsync(
         new TypedError.Conflict(
-          `Task directory already exists: ${projectConfig.appDir}`,
+          `Task directory already exists: ${taskDir(projectConfig)}`,
         ),
       );
     }
     yield* ResultAsync.fromPromise(
-      fs.mkdir(projectConfig.appDir, { recursive: true }),
+      fs.mkdir(taskDir(projectConfig), { recursive: true }),
       (error) =>
         new TypedError.FileSystem(
           error instanceof Error ? error.message : "Unknown error",
@@ -67,7 +67,7 @@ export async function initializeProject(
       includePrivateFolder: false,
       isTemplate: true,
       sourceDir: templateDir,
-      targetDir: projectConfig.appDir,
+      targetDir: taskDir(projectConfig),
     });
 
     yield* updateProjectManifest(projectConfig, {
@@ -84,7 +84,7 @@ export async function initializeProject(
     ];
     for (const dirName of standardDirs) {
       yield* ResultAsync.fromPromise(
-        fs.mkdir(absolutePathJoin(projectConfig.appDir, dirName), {
+        fs.mkdir(absolutePathJoin(taskDir(projectConfig), dirName), {
           recursive: true,
         }),
         (error) =>

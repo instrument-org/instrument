@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { APP_FOLDER_NAMES } from "../constants";
 import { addLineNumbers } from "../lib/add-line-numbers";
+import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
 import { getMimeType } from "../lib/get-mime-type";
@@ -237,7 +238,7 @@ export const ReadFile = setupTool({
   execute: async ({ agentName, appConfig, input, projectState, signal }) => {
     const pathResult = resolveExistingFilePath({
       agentName,
-      appDir: appConfig.appDir,
+      appDir: taskDir(appConfig),
       attachedFolders: projectState.attachedFolders,
       inputPath: input.filePath,
     });

@@ -6,6 +6,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { APP_FOLDER_NAMES } from "../constants";
+import { taskDir } from "../lib/app-dir-utils";
 import { copySkill } from "../lib/copy-skill";
 import { executeError } from "../lib/execute-error";
 import { normalizedPathJoin } from "../lib/normalize-path";
@@ -137,7 +138,7 @@ export const LoadSkill = setupTool({
     }
 
     const copyResult = await copySkill({
-      appDir: appConfig.appDir,
+      appDir: taskDir(appConfig),
       signal,
       skillDir: skill.skillDir,
       skillName: skill.name,

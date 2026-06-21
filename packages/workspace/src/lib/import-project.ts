@@ -47,6 +47,6 @@ export async function importProject(
         ),
     );
 
-    return ok({ projectConfig: { appDir: projectDir, subdomain } });
+    return ok({ projectConfig: subdomain });
   });
 }

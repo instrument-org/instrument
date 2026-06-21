@@ -14,7 +14,7 @@ import { type AppDir, RelativePathSchema } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
-import { createAppConfig } from "./app-config/create";
+import { taskDir } from "./app-dir-utils";
 import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import {
@@ -214,7 +214,7 @@ export function startWatchingProjectFiles({
     };
   }
 
-  const appDir = createAppConfig({ subdomain }).appDir;
+  const appDir = taskDir(subdomain);
   let resolveReady: () => void = noop;
   const ready = new Promise<void>((resolve) => {
     resolveReady = () => {

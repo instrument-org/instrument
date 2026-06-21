@@ -1,8 +1,8 @@
-/* eslint-disable unicorn/prefer-string-slice */
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/edit.ts
 // Kept as a single file for now so we can easily merge changes from upstream.
 import { createTwoFilesPatch } from "diff";
+/* eslint-disable unicorn/prefer-string-slice */
 import ms from "ms";
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
@@ -14,6 +14,7 @@ import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
+import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import {
@@ -738,7 +739,7 @@ export const EditFile = setupTool({
       return executeError("oldString and newString must be different");
     }
 
-    const pathResult = resolveToolPath(appConfig.appDir, input.filePath);
+    const pathResult = resolveToolPath(taskDir(appConfig), input.filePath);
     if (pathResult.isErr()) {
       return err(pathResult.error);
     }

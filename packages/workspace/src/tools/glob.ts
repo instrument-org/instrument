@@ -2,6 +2,7 @@ import ms from "ms";
 import { ok } from "neverthrow";
 import { z } from "zod";
 
+import { taskDir } from "../lib/app-dir-utils";
 import { globSortedByMtime, resolveGlobPattern } from "../lib/glob";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { BaseInputSchema } from "./base";
@@ -49,7 +50,7 @@ export const Glob = setupTool({
   execute: async ({ agentName, appConfig, input, projectState, signal }) => {
     const pathResult = resolveAgentPath({
       agentName,
-      appDir: appConfig.appDir,
+      appDir: taskDir(appConfig),
       attachedFolders: projectState.attachedFolders,
       inputPath: input.path,
       isRequired: agentName === "retrieval",

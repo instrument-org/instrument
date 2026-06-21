@@ -3,6 +3,7 @@ import { defineCommand } from "just-bash";
 
 import type { AppConfig } from "../app-config/types";
 
+import { taskDir } from "../app-dir-utils";
 import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -33,7 +34,7 @@ export function createFfmpegCommand(appConfig: AppConfig) {
       },
     );
 
-    const combined = filterShellOutput(result.all, appConfig.appDir);
+    const combined = filterShellOutput(result.all, taskDir(appConfig));
     return {
       exitCode: result.exitCode ?? 1,
       stderr: "",

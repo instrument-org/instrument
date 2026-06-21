@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import { RelativePathSchema } from "../schemas/paths";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { createAppConfig } from "./app-config/create";
+import { taskDir } from "./app-dir-utils";
 import { normalizeProjectFilePath } from "./normalize-project-file-path";
 import { resolvePathWithinAppDir } from "./resolve-path-within-app-dir";
 
@@ -27,7 +28,7 @@ export async function readProjectFile({
     return null;
   }
   const fullPath = resolvePathWithinAppDir({
-    appDir: projectConfig.appDir,
+    appDir: taskDir(projectConfig),
     filePath: parsedPath.data,
   });
   if (!fullPath) {

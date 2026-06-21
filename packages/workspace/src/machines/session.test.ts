@@ -328,7 +328,7 @@ describe("sessionMachine", () => {
                   );
                   publisher.publish("appState.session.done", {
                     sessionId: event.value.sessionId,
-                    subdomain: testAppConfig.subdomain,
+                    subdomain: testAppConfig,
                   });
                 })();
               } else if (event.value.error) {

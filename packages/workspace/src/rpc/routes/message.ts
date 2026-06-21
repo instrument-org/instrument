@@ -149,7 +149,7 @@ const create = base
       });
 
       publisher.publish("project.updated", {
-        subdomain: appConfig.subdomain,
+        subdomain: appConfig,
       });
 
       return { sessionId: message.metadata.sessionId };

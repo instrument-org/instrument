@@ -35,7 +35,7 @@ describe("WriteFile - toModelOutput", () => {
   });
 
   it("returns a bare success line for a new file", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.projects]: { [appConfig.subdomain]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.projects]: { [appConfig]: {} } });
 
     const input = {
       content: "const x = 2;",
@@ -56,7 +56,7 @@ describe("WriteFile - toModelOutput", () => {
   it("returns a bare success line for an overwritten file", async () => {
     mockFs({
       [MOCK_WORKSPACE_DIRS.projects]: {
-        [appConfig.subdomain]: { "index.ts": "const x = 1;" },
+        [appConfig]: { "index.ts": "const x = 1;" },
       },
     });
 

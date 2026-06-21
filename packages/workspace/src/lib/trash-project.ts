@@ -8,6 +8,7 @@ import { type ProjectSubdomain } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { createAppConfig } from "./app-config/create";
+import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import {
@@ -54,7 +55,7 @@ export async function trashProject({
         // node_modules will fail. Since node_modules can be recreated, we delete
         // it first using the fastest removal method available.
         const nodeModulesPath = absolutePathJoin(
-          appConfig.appDir,
+          taskDir(appConfig),
           "node_modules",
         );
 
@@ -67,7 +68,7 @@ export async function trashProject({
           return err(disposeResult.error);
         }
 
-        await workspaceConfig.trashItem(appConfig.appDir);
+        await workspaceConfig.trashItem(taskDir(appConfig));
 
         // In the off chance that a future project with the same subdomain is
         // created, we remove the app being trashed.

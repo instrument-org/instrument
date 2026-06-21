@@ -4,6 +4,7 @@ import { parseArgs, type ParseArgsConfig } from "node:util";
 import type { AppConfig } from "../app-config/types";
 
 import { absolutePathJoin } from "../absolute-path-join";
+import { taskDir } from "../app-dir-utils";
 import { normalizePath } from "../normalize-path";
 import { getWorkspaceConfig } from "../workspace-config";
 
@@ -92,7 +93,7 @@ export function resolveCommandContext(
 ) {
   return {
     appCwd: absolutePathJoin(
-      appConfig.appDir,
+      taskDir(appConfig),
       ctx.fs.resolvePath(ctx.cwd, "."),
     ),
     env: Object.fromEntries(ctx.env),
@@ -117,7 +118,7 @@ export function resolvePathArgs(
       return arg;
     }
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
-    return absolutePathJoin(appConfig.appDir, virtualPath);
+    return absolutePathJoin(taskDir(appConfig), virtualPath);
   });
 }
 
@@ -157,7 +158,7 @@ function virtualToRealRelative(
 ): string {
   const normalizedVirtualPath = normalizePath(virtualPath);
   const realAbs = absolutePathJoin(
-    appConfig.appDir,
+    taskDir(appConfig),
     resolvePath(normalizedVirtualPath),
   );
   return path.relative(appCwd, realAbs);

@@ -5,6 +5,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { getToolByType } from "../tools/all";
 import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
 import { getProjectState } from "./project-state-store";
 import { type SpawnAgentFunction } from "./spawn-agent";
@@ -33,7 +34,7 @@ export async function runToolCall({
   let preliminarySaved = false;
 
   try {
-    const projectState = await getProjectState(appConfig.appDir);
+    const projectState = await getProjectState(taskDir(appConfig));
 
     for await (const { output, type } of streamTool({
       execute: tool.execute,

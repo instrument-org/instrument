@@ -94,8 +94,8 @@ export function ProjectActionsMenu({
         <DropdownMenuItem
           onClick={() => {
             void navigate({
-              from: "/projects/$subdomain",
-              params: { subdomain },
+              from: "/tasks/$id",
+              params: { id: subdomain },
               search: (prev) => ({ ...prev, showDuplicate: true }),
             });
           }}
@@ -149,8 +149,8 @@ export function ProjectActionsMenu({
         <DropdownMenuItem
           onSelect={() => {
             void navigate({
-              from: "/projects/$subdomain",
-              params: { subdomain },
+              from: "/tasks/$id",
+              params: { id: subdomain },
               search: (prev) => ({ ...prev, showDelete: true }),
             });
           }}

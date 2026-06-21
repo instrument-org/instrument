@@ -56,9 +56,9 @@ export function FilesGrid({
   initialVisibleCount = DEFAULT_INITIAL_VISIBLE_COUNT,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
-  const navigate = useNavigate({ from: "/projects/$subdomain" });
+  const navigate = useNavigate({ from: "/tasks/$id" });
   const search = useSearch({
-    from: "/_app/projects/$subdomain/",
+    from: "/_app/tasks/$id/",
     shouldThrow: false,
   });
   const selectedArtifactFile = search?.artifactPanel ?? null;

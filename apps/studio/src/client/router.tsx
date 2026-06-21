@@ -3,7 +3,10 @@ import type { FileRoutesByPath, RouterHistory } from "@tanstack/react-router";
 import { DefaultErrorComponent } from "@/client/components/default-error-component";
 import { NotFoundRouteComponent } from "@/client/components/not-found";
 import { QueryClient } from "@tanstack/react-query";
-import { createHashHistory, createRouter as createTanStackRouter } from "@tanstack/react-router";
+import {
+  createHashHistory,
+  createRouter as createTanStackRouter,
+} from "@tanstack/react-router";
 
 import { capturePageView } from "./lib/telemetry";
 import { routeTree } from "./routeTree.gen";
@@ -65,27 +68,27 @@ window.api.onNavigate((url) => {
   if (currentPath === url) {
     const matches = router.matchRoutes(url, {});
     const projectRouteMatch = matches.find(
-      (m) => m.routeId === "/_app/projects/$subdomain/",
+      (m) => m.routeId === "/_app/tasks/$id/",
     );
     if (projectRouteMatch) {
       // Same pathname as IPC: keep search params (bare path would strip them)
       // except clear `sidebar` so the default chat sidebar shows again.
       const loc = router.state.location;
-      const subdomain = projectRouteMatch.params.subdomain;
+      const subdomain = projectRouteMatch.params.id;
       if (
         (loc.search.sidebar !== undefined ||
           loc.search.artifactPanel !== undefined) &&
         subdomain
       ) {
         void router.navigate({
-          params: { subdomain },
+          params: { id: subdomain },
           replace: true,
           search: (prev) => ({
             ...prev,
             artifactPanel: undefined,
             sidebar: undefined,
           }),
-          to: "/projects/$subdomain",
+          to: "/tasks/$id",
         });
       }
       return;

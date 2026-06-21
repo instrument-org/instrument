@@ -64,9 +64,9 @@ export function ReplaySessionModal({
       onSuccess: (result) => {
         onClose();
         void navigate({
-          params: { subdomain: result.subdomain },
+          params: { id: result.subdomain },
           search: (prev) => ({ ...prev, selectedSessionId: result.sessionId }),
-          to: "/projects/$subdomain",
+          to: "/tasks/$id",
         });
       },
     }),

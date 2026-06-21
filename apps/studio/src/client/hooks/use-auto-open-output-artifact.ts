@@ -50,8 +50,8 @@ export function useAutoOpenOutputArtifact({
     }
 
     void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain },
+      from: "/tasks/$id",
+      params: { id: subdomain },
       replace: true,
       search: (s) => ({
         ...s,

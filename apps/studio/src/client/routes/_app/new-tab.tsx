@@ -52,7 +52,7 @@ function RouteComponent() {
   useEffect(() => {
     // Preload the project route chunk for faster navigation
     async function preloadRouteChunks() {
-      const projectRoute = router.routesByPath["/projects/$subdomain"];
+      const projectRoute = router.routesByPath["/tasks/$id"];
       await router.loadRouteChunk(projectRoute);
     }
 
@@ -94,17 +94,17 @@ function RouteComponent() {
                   if (openInNewTab) {
                     void addTab(
                       {
-                        params: { subdomain },
+                        params: { id: subdomain },
                         search: { selectedSessionId: sessionId },
-                        to: "/projects/$subdomain",
+                        to: "/tasks/$id",
                       },
                       { select: false },
                     );
                   } else {
                     void navigate({
-                      params: { subdomain },
+                      params: { id: subdomain },
                       search: { selectedSessionId: sessionId },
-                      to: "/projects/$subdomain",
+                      to: "/tasks/$id",
                     });
                   }
                 },

@@ -8,147 +8,55 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import {
-  Route as rootRouteImport,
-} from './routes/__root'
-import {
-  Route as StudioOverlayIdleRouteImport,
-} from './routes/studio-overlay-idle'
-import {
-  Route as StudioOverlayRouteImport,
-} from './routes/studio-overlay'
-import {
-  Route as ShellRouteImport,
-} from './routes/shell'
-import {
-  Route as OnboardingRouteRouteImport,
-} from './routes/onboarding/route'
-import {
-  Route as AppRouteRouteImport,
-} from './routes/_app/route'
-import {
-  Route as IndexRouteImport,
-} from './routes/index'
-import {
-  Route as OnboardingIndexRouteImport,
-} from './routes/onboarding/index'
-import {
-  Route as StudioOverlayWelcomeRouteImport,
-} from './routes/studio-overlay/welcome'
-import {
-  Route as StudioOverlaySettingsRouteImport,
-} from './routes/studio-overlay/settings'
-import {
-  Route as StudioOverlayLoginRouteImport,
-} from './routes/studio-overlay/login'
-import {
-  Route as StudioOverlayCrashRouteImport,
-} from './routes/studio-overlay/crash'
-import {
-  Route as OnboardingThemeRouteImport,
-} from './routes/onboarding/theme'
-import {
-  Route as OnboardingProvidersRouteImport,
-} from './routes/onboarding/providers'
-import {
-  Route as AppTutorialTaskRouteImport,
-} from './routes/_app/tutorial-task'
-import {
-  Route as AppReleaseNotesRouteImport,
-} from './routes/_app/release-notes'
-import {
-  Route as AppNewTabRouteImport,
-} from './routes/_app/new-tab'
-import {
-  Route as AppDebugRouteRouteImport,
-} from './routes/_app/debug/route'
-import {
-  Route as AppAuthenticatedRouteRouteImport,
-} from './routes/_app/_authenticated/route'
-import {
-  Route as StudioOverlaySettingsIndexRouteImport,
-} from './routes/studio-overlay/settings/index'
-import {
-  Route as AppProjectsIndexRouteImport,
-} from './routes/_app/projects/index'
-import {
-  Route as AppEvalsIndexRouteImport,
-} from './routes/_app/evals/index'
-import {
-  Route as AppDebugIndexRouteImport,
-} from './routes/_app/debug/index'
-import {
-  Route as StudioOverlaySettingsProvidersRouteImport,
-} from './routes/studio-overlay/settings/providers'
-import {
-  Route as StudioOverlaySettingsFeaturesRouteImport,
-} from './routes/studio-overlay/settings/features'
-import {
-  Route as StudioOverlaySettingsDebugRouteImport,
-} from './routes/studio-overlay/settings/debug'
-import {
-  Route as AppDebugNotificationsRouteImport,
-} from './routes/_app/debug/notifications'
-import {
-  Route as AppDebugErrorsRouteImport,
-} from './routes/_app/debug/errors'
-import {
-  Route as AppDebugComponentsRouteImport,
-} from './routes/_app/debug/components'
-import {
-  Route as AppDebugBrowserViewsRouteImport,
-} from './routes/_app/debug/browser-views'
-import {
-  Route as AppAuthenticatedSubscribeRouteImport,
-} from './routes/_app/_authenticated/subscribe'
-import {
-  Route as AppProjectsSubdomainIndexRouteImport,
-} from './routes/_app/projects/$subdomain/index'
-import {
-  Route as AppDebugComponentsIndexRouteImport,
-} from './routes/_app/debug/components/index'
-import {
-  Route as AppDebugComponentsUpdateStatusRouteImport,
-} from './routes/_app/debug/components/update-status'
-import {
-  Route as AppDebugComponentsSpinnerRouteImport,
-} from './routes/_app/debug/components/spinner'
-import {
-  Route as AppDebugComponentsProviderIconsRouteImport,
-} from './routes/_app/debug/components/provider-icons'
-import {
-  Route as AppDebugComponentsOnboardingRouteImport,
-} from './routes/_app/debug/components/onboarding'
-import {
-  Route as AppDebugComponentsErrorCardRouteImport,
-} from './routes/_app/debug/components/error-card'
-import {
-  Route as AppDebugComponentsColorsRouteImport,
-} from './routes/_app/debug/components/colors'
-import {
-  Route as AppDebugComponentsChatStreamRouteImport,
-} from './routes/_app/debug/components/chat-stream'
-import {
-  Route as AppDebugComponentsAlertsRouteImport,
-} from './routes/_app/debug/components/alerts'
-import {
-  Route as AppDebugBrowserViewTargetIdRouteImport,
-} from './routes/_app/debug/browser-view.$targetId'
-import {
-  Route as AppDebugComponentsOnboardingIndexRouteImport,
-} from './routes/_app/debug/components/onboarding/index'
-import {
-  Route as AppDebugComponentsOnboardingThemeRouteImport,
-} from './routes/_app/debug/components/onboarding/theme'
-import {
-  Route as AppDebugComponentsOnboardingProvidersRouteImport,
-} from './routes/_app/debug/components/onboarding/providers'
-import {
-  Route as AppDebugComponentsOnboardingLoginRouteImport,
-} from './routes/_app/debug/components/onboarding/login'
-import {
-  Route as AppDebugComponentsOnboardingCompleteRouteImport,
-} from './routes/_app/debug/components/onboarding/complete'
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as StudioOverlayIdleRouteImport } from './routes/studio-overlay-idle'
+import { Route as StudioOverlayRouteImport } from './routes/studio-overlay'
+import { Route as ShellRouteImport } from './routes/shell'
+import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
+import { Route as AppRouteRouteImport } from './routes/_app/route'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
+import { Route as StudioOverlayWelcomeRouteImport } from './routes/studio-overlay/welcome'
+import { Route as StudioOverlaySettingsRouteImport } from './routes/studio-overlay/settings'
+import { Route as StudioOverlayLoginRouteImport } from './routes/studio-overlay/login'
+import { Route as StudioOverlayCrashRouteImport } from './routes/studio-overlay/crash'
+import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
+import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
+import { Route as AppTutorialTaskRouteImport } from './routes/_app/tutorial-task'
+import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
+import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
+import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
+import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
+import { Route as StudioOverlaySettingsIndexRouteImport } from './routes/studio-overlay/settings/index'
+import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
+import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
+import { Route as AppEvalsIndexRouteImport } from './routes/_app/evals/index'
+import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
+import { Route as StudioOverlaySettingsProvidersRouteImport } from './routes/studio-overlay/settings/providers'
+import { Route as StudioOverlaySettingsFeaturesRouteImport } from './routes/studio-overlay/settings/features'
+import { Route as StudioOverlaySettingsDebugRouteImport } from './routes/studio-overlay/settings/debug'
+import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/notifications'
+import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
+import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
+import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
+import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
+import { Route as AppTasksIdIndexRouteImport } from './routes/_app/tasks/$id/index'
+import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
+import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
+import { Route as AppDebugComponentsUpdateStatusRouteImport } from './routes/_app/debug/components/update-status'
+import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
+import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
+import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/debug/components/onboarding'
+import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
+import { Route as AppDebugComponentsColorsRouteImport } from './routes/_app/debug/components/colors'
+import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/debug/components/chat-stream'
+import { Route as AppDebugComponentsAlertsRouteImport } from './routes/_app/debug/components/alerts'
+import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
+import { Route as AppDebugComponentsOnboardingIndexRouteImport } from './routes/_app/debug/components/onboarding/index'
+import { Route as AppDebugComponentsOnboardingThemeRouteImport } from './routes/_app/debug/components/onboarding/theme'
+import { Route as AppDebugComponentsOnboardingProvidersRouteImport } from './routes/_app/debug/components/onboarding/providers'
+import { Route as AppDebugComponentsOnboardingLoginRouteImport } from './routes/_app/debug/components/onboarding/login'
+import { Route as AppDebugComponentsOnboardingCompleteRouteImport } from './routes/_app/debug/components/onboarding/complete'
 
 const StudioOverlayIdleRoute = StudioOverlayIdleRouteImport.update({
   id: '/studio-overlay-idle',
@@ -244,6 +152,11 @@ const StudioOverlaySettingsIndexRoute =
     path: '/',
     getParentRoute: () => StudioOverlaySettingsRoute,
   } as any)
+const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -303,6 +216,11 @@ const AppAuthenticatedSubscribeRoute =
     path: '/subscribe',
     getParentRoute: () => AppAuthenticatedRouteRoute,
   } as any)
+const AppTasksIdIndexRoute = AppTasksIdIndexRouteImport.update({
+  id: '/tasks/$id/',
+  path: '/tasks/$id/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppProjectsSubdomainIndexRoute =
   AppProjectsSubdomainIndexRouteImport.update({
     id: '/projects/$subdomain/',
@@ -427,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/debug/': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/tasks': typeof AppTasksIndexRoute
   '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
@@ -439,6 +358,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
+  '/tasks/$id': typeof AppTasksIdIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
   '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
@@ -469,6 +389,7 @@ export interface FileRoutesByTo {
   '/debug': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/tasks': typeof AppTasksIndexRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
@@ -480,6 +401,7 @@ export interface FileRoutesByTo {
   '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
+  '/tasks/$id': typeof AppTasksIdIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
   '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
@@ -517,6 +439,7 @@ export interface FileRoutesById {
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
+  '/_app/tasks/': typeof AppTasksIndexRoute
   '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/_app/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
@@ -529,6 +452,7 @@ export interface FileRoutesById {
   '/_app/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
+  '/_app/tasks/$id/': typeof AppTasksIdIndexRoute
   '/_app/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/_app/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
   '/_app/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
@@ -565,6 +489,7 @@ export interface FileRouteTypes {
     | '/debug/'
     | '/evals'
     | '/projects'
+    | '/tasks'
     | '/studio-overlay/settings/'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
@@ -577,6 +502,7 @@ export interface FileRouteTypes {
     | '/debug/components/update-status'
     | '/debug/components/'
     | '/projects/$subdomain'
+    | '/tasks/$id'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
     | '/debug/components/onboarding/providers'
@@ -607,6 +533,7 @@ export interface FileRouteTypes {
     | '/debug'
     | '/evals'
     | '/projects'
+    | '/tasks'
     | '/studio-overlay/settings'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
@@ -618,6 +545,7 @@ export interface FileRouteTypes {
     | '/debug/components/update-status'
     | '/debug/components'
     | '/projects/$subdomain'
+    | '/tasks/$id'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
     | '/debug/components/onboarding/providers'
@@ -654,6 +582,7 @@ export interface FileRouteTypes {
     | '/_app/debug/'
     | '/_app/evals/'
     | '/_app/projects/'
+    | '/_app/tasks/'
     | '/studio-overlay/settings/'
     | '/_app/debug/browser-view/$targetId'
     | '/_app/debug/components/alerts'
@@ -666,6 +595,7 @@ export interface FileRouteTypes {
     | '/_app/debug/components/update-status'
     | '/_app/debug/components/'
     | '/_app/projects/$subdomain/'
+    | '/_app/tasks/$id/'
     | '/_app/debug/components/onboarding/complete'
     | '/_app/debug/components/onboarding/login'
     | '/_app/debug/components/onboarding/providers'
@@ -817,6 +747,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioOverlaySettingsIndexRouteImport
       parentRoute: typeof StudioOverlaySettingsRoute
     }
+    '/_app/tasks/': {
+      id: '/_app/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AppTasksIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/projects/': {
       id: '/_app/projects/'
       path: '/projects'
@@ -893,6 +830,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/subscribe'
       preLoaderRoute: typeof AppAuthenticatedSubscribeRouteImport
       parentRoute: typeof AppAuthenticatedRouteRoute
+    }
+    '/_app/tasks/$id/': {
+      id: '/_app/tasks/$id/'
+      path: '/tasks/$id'
+      fullPath: '/tasks/$id'
+      preLoaderRoute: typeof AppTasksIdIndexRouteImport
+      parentRoute: typeof AppRouteRoute
     }
     '/_app/projects/$subdomain/': {
       id: '/_app/projects/$subdomain/'
@@ -1107,7 +1051,9 @@ interface AppRouteRouteChildren {
   AppTutorialTaskRoute: typeof AppTutorialTaskRoute
   AppEvalsIndexRoute: typeof AppEvalsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
+  AppTasksIndexRoute: typeof AppTasksIndexRoute
   AppProjectsSubdomainIndexRoute: typeof AppProjectsSubdomainIndexRoute
+  AppTasksIdIndexRoute: typeof AppTasksIdIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
@@ -1118,7 +1064,9 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppTutorialTaskRoute: AppTutorialTaskRoute,
   AppEvalsIndexRoute: AppEvalsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
+  AppTasksIndexRoute: AppTasksIndexRoute,
   AppProjectsSubdomainIndexRoute: AppProjectsSubdomainIndexRoute,
+  AppTasksIdIndexRoute: AppTasksIdIndexRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(

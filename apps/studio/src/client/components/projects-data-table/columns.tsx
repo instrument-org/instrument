@@ -94,8 +94,8 @@ export function createColumns({
             <InternalLink
               className="flex min-w-0 flex-1 items-center gap-x-2"
               openInCurrentTab
-              params={{ subdomain: project.subdomain }}
-              to="/projects/$subdomain"
+              params={{ id: project.subdomain }}
+              to="/tasks/$id"
             >
               <TaskIcon name={project.iconName} size="sm" />
               <span className="truncate font-medium">{project.title}</span>

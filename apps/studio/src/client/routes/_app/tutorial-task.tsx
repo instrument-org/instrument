@@ -15,10 +15,10 @@ export const Route = createFileRoute("/_app/tutorial-task")({
 
     // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw redirect({
-      params: { subdomain: result.subdomain },
+      params: { id: result.subdomain },
       replace: true,
       search: { selectedSessionId: result.sessionId },
-      to: "/projects/$subdomain",
+      to: "/tasks/$id",
     });
   },
 });

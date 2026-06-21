@@ -40,8 +40,10 @@ export function useTrashApp({
       if (navigateOnDelete) {
         await navigate({ replace: true, to: "/new-tab" });
       } else {
-        const projectTabs = tabs.filter((tab) =>
-          tab.pathname.includes(`/projects/${projectSubdomain}`),
+        const projectTabs = tabs.filter(
+          (tab) =>
+            tab.pathname.includes(`/tasks/${projectSubdomain}`) ||
+            tab.pathname.includes(`/projects/${projectSubdomain}`),
         );
 
         for (const tab of projectTabs) {

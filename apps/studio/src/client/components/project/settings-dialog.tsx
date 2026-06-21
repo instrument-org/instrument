@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type Task } from "@instrument-org/workspace/client";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -16,7 +16,7 @@ export function ProjectSettingsDialog({
 }: {
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  project: WorkspaceAppProject;
+  project: Task;
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -36,7 +36,7 @@ function RenameForm({
   project,
 }: {
   onOpenChange: (open: boolean) => void;
-  project: WorkspaceAppProject;
+  project: Task;
 }) {
   const { isPending, mutateAsync: updateProject } = useMutation(
     rpcClient.workspace.project.update.mutationOptions({

@@ -1,6 +1,6 @@
 import type {
+  Task,
   TaskId,
-  WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -28,7 +28,7 @@ export function createColumns({
   onOpenInNewTab: (subdomain: TaskId) => void;
   onSettings: (subdomain: TaskId) => void;
   onStop: (subdomain: TaskId) => void;
-}): ColumnDef<WorkspaceAppProject>[] {
+}): ColumnDef<Task>[] {
   return [
     {
       accessorKey: "select",

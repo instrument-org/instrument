@@ -3,7 +3,7 @@ import { Button } from "@/client/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/client/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/client/components/ui/radio-group";
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -47,7 +47,7 @@ export function ReplaySessionModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  project: WorkspaceAppProject;
+  project: Task;
   selectedSessionId: StoreId.Session | undefined;
 }) {
   const [mode, setMode] = useState<ReplayMode>("new-session");

@@ -1,5 +1,5 @@
 import {
-  type WorkspaceAppProject,
+  type Task,
 } from "@instrument-org/workspace/client";
 import {
   useRouter,
@@ -9,7 +9,7 @@ import {
 } from "react";
 
 // Ensures TanStack Router re-renders meta tags so the tab title and icon are updated
-export function useProjectRouteSync(project?: WorkspaceAppProject) {
+export function useProjectRouteSync(project?: Task) {
   const router = useRouter();
 
   useEffect(() => {

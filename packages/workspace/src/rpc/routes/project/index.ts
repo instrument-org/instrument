@@ -77,7 +77,7 @@ import {
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
 import {
-  WorkspaceAppProjectSchema,
+  TaskSchema,
 } from "../../../schemas/app";
 import {
   FileUpload,
@@ -115,7 +115,7 @@ const DEFAULT_TEMPLATE_NAME = "basic";
 
 const bySubdomain = base
   .input(z.object({ subdomain: TaskIdSchema }))
-  .output(WorkspaceAppProjectSchema)
+  .output(TaskSchema)
   .handler(async ({ context, errors, input }) => {
     const result = await getApp(input.subdomain, context.workspaceConfig);
     if (result.isErr()) {
@@ -131,7 +131,7 @@ const bySubdomains = base
     z
       .discriminatedUnion("ok", [
         z.object({
-          data: WorkspaceAppProjectSchema,
+          data: TaskSchema,
           ok: z.literal(true),
         }),
         z.object({
@@ -166,7 +166,7 @@ const bySubdomains = base
   });
 
 const ProjectsWithTotalSchema = z.object({
-  projects: WorkspaceAppProjectSchema.array(),
+  projects: TaskSchema.array(),
   total: z.number(),
 });
 
@@ -395,7 +395,7 @@ const duplicate = base
       sourceSubdomain: TaskIdSchema,
     }),
   )
-  .output(WorkspaceAppProjectSchema)
+  .output(TaskSchema)
   .handler(
     async ({
       context,
@@ -595,7 +595,7 @@ const OutputArtifactsCreatedSchema = z.object({
 const live = {
   bySubdomain: base
     .input(z.object({ subdomain: TaskIdSchema }))
-    .output(eventIterator(WorkspaceAppProjectSchema))
+    .output(eventIterator(TaskSchema))
     .handler(async function* ({ context, input, signal }) {
       yield call(bySubdomain, input, { context, signal });
 
@@ -614,7 +614,7 @@ const live = {
         z
           .discriminatedUnion("ok", [
             z.object({
-              data: WorkspaceAppProjectSchema,
+              data: TaskSchema,
               ok: z.literal(true),
             }),
             z.object({

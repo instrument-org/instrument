@@ -9,7 +9,7 @@ import { useProjectRouteSync } from "@/client/hooks/use-project-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
 import { createIconMeta, createProjectSubdomainMeta } from "@/shared/tabs";
-import { StoreId, TaskIdSchema, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { StoreId, type Task, TaskIdSchema } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { CancelledError, keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound, redirect, useMatchRoute, useNavigate } from "@tanstack/react-router";
@@ -29,7 +29,7 @@ const projectSearchSchema = z.object({
   sidebar: ProjectSidebarModeSchema.optional(),
 });
 
-function title(project?: WorkspaceAppProject) {
+function title(project?: Task) {
   return project?.title ?? "Not Found";
 }
 

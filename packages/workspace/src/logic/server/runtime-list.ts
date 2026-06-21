@@ -22,7 +22,7 @@ import {
   type RuntimeActorRef,
 } from "../../machines/runtime";
 import {
-  type WorkspaceApp,
+  type Task,
 } from "../../schemas/app";
 import {
   type TaskId,
@@ -35,7 +35,7 @@ import {
 } from "./url";
 
 interface AppAndStatus {
-  app: WorkspaceApp;
+  app: Task;
   config: AppConfig;
   port?: number;
   status: string;
@@ -233,7 +233,7 @@ function getAppWithExtra({
   project: app,
   runtimeRefs,
 }: {
-  project: WorkspaceApp;
+  project: Task;
   runtimeRefs: Map<TaskId, RuntimeActorRef>;
 }): AppAndStatus {
   const runtimeRef = runtimeRefs.get(app.subdomain);

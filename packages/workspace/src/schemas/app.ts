@@ -1,15 +1,11 @@
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  ProjectManifestSchema,
-} from "./project-manifest";
-import {
-  TaskIdSchema,
-} from "./task-id";
+import { ProjectManifestSchema } from "./project-manifest";
+import { TaskIdSchema } from "./task-id";
 
-export const WorkspaceAppProjectSchema = z.object({
+// The loaded representation of a task: id + metadata read from disk. This is
+// the "full thing" the client fetches when it needs more than an id.
+export const TaskSchema = z.object({
   createdAt: z.date(),
   description: ProjectManifestSchema.shape.description.optional(),
   folderName: z.string(),
@@ -26,8 +22,4 @@ export const WorkspaceAppProjectSchema = z.object({
   }),
 });
 
-// Previews were removed; a workspace app is always a project (task).
-export const WorkspaceAppSchema = WorkspaceAppProjectSchema;
-
-export type WorkspaceApp = z.output<typeof WorkspaceAppSchema>;
-export type WorkspaceAppProject = z.output<typeof WorkspaceAppProjectSchema>;
+export type Task = z.output<typeof TaskSchema>;

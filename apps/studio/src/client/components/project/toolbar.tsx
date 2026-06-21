@@ -3,7 +3,7 @@ import { ProjectSettingsDialog } from "@/client/components/project/settings-dial
 import { Button } from "@/client/components/ui/button";
 import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { FileArchiveIcon, FolderIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
@@ -22,7 +22,7 @@ export function ProjectToolbar({
   sidebar,
 }: {
   onSidebarChange: (sidebar: "chat" | "files") => void;
-  project: WorkspaceAppProject;
+  project: Task;
   selectedSessionId?: StoreId.Session;
   sidebar: "chat" | "files";
 }) {

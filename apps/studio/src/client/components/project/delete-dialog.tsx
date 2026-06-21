@@ -1,7 +1,7 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { useTrashApp } from "@/client/hooks/use-trash-app";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
-import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type Task } from "@instrument-org/workspace/client";
 import { toast } from "sonner";
 
 import { ProjectStatsCard } from "./stats-card";
@@ -19,7 +19,7 @@ export function ProjectDeleteDialog({
   onDeleteStart?: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  project: WorkspaceAppProject;
+  project: Task;
 }) {
   const { trashApp } = useTrashApp({ navigateOnDelete });
   const trashTerminology = getTrashTerminology();

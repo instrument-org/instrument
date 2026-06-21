@@ -19,7 +19,7 @@ import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME, EVAL_SUBDOMAIN_PREFIX, PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
-import { isProjectSubdomain, type TaskId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { isProjectSubdomain, type Task, type TaskId } from "@instrument-org/workspace/client";
 import { StopCircleIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
@@ -60,9 +60,9 @@ function RouteComponent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] =
-    useState<null | WorkspaceAppProject>(null);
+    useState<null | Task>(null);
   const [projectToEdit, setProjectToEdit] =
-    useState<null | WorkspaceAppProject>(null);
+    useState<null | Task>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isSingleDeleting, setIsSingleDeleting] = useState(false);
@@ -143,7 +143,7 @@ function RouteComponent() {
       .map((subdomain) => {
         return projects.find((p) => p.subdomain === subdomain);
       })
-      .filter((p): p is WorkspaceAppProject => p !== undefined);
+      .filter((p): p is Task => p !== undefined);
   }, [projects, rowSelection]);
 
   const hasRunningAgents = useMemo(() => {
@@ -273,7 +273,7 @@ function RouteComponent() {
   };
 
   const confirmDeleteSelected = async (
-    projectsToDelete: WorkspaceAppProject[],
+    projectsToDelete: Task[],
   ) => {
     setIsBulkDeleting(true);
     let successCount = 0;

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { type AgentName } from "../../agents/types";
 import { ActiveReplays } from "../../lib/active-replays";
 import { createAppConfig } from "../../lib/app-config/create";
+import { taskDir } from "../../lib/app-dir-utils";
 import { getCurrentDate } from "../../lib/get-current-date";
 import { getProjectManifest } from "../../lib/project-manifest";
 import {
@@ -78,7 +79,7 @@ const replaySession = base
     let replayMessages: ReplayMessage[];
 
     if (mode === "new-project") {
-      const sourceManifest = await getProjectManifest(sourceAppConfig.appDir);
+      const sourceManifest = await getProjectManifest(taskDir(sourceAppConfig));
       const sourceProjectName = sourceManifest?.name ?? subdomain;
 
       const prepareResult = await prepareProjectReplay({
@@ -98,7 +99,7 @@ const replaySession = base
       replayMessages = prepareResult.value.replayMessages;
 
       publisher.publish("project.updated", {
-        subdomain: targetAppConfig.subdomain,
+        subdomain: targetAppConfig,
       });
     } else {
       const sessionResult = await createReplaySession({
@@ -118,15 +119,11 @@ const replaySession = base
 
     const agentName: AgentName = "main";
     const abortController = new AbortController();
-    ActiveReplays.register(
-      newSessionId,
-      abortController,
-      targetAppConfig.subdomain,
-    );
+    ActiveReplays.register(newSessionId, abortController, targetAppConfig);
     publisher.publish("replay.changed", {
       isActive: true,
       sessionId: newSessionId,
-      subdomain: targetAppConfig.subdomain,
+      subdomain: targetAppConfig,
     });
 
     const spawnAgent: SpawnAgentFunction = ({ signal: subSignal }) => {
@@ -186,7 +183,7 @@ const replaySession = base
         publisher.publish("replay.changed", {
           isActive: false,
           sessionId: newSessionId,
-          subdomain: targetAppConfig.subdomain,
+          subdomain: targetAppConfig,
         });
       }
     });
@@ -195,7 +192,7 @@ const replaySession = base
 
     return {
       sessionId: newSessionId,
-      subdomain: targetAppConfig.subdomain,
+      subdomain: targetAppConfig,
     };
   });
 

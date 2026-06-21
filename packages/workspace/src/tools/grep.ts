@@ -3,6 +3,7 @@ import { err, ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { taskDir } from "../lib/app-dir-utils";
 import { grep } from "../lib/grep";
 import { resolveAgentPath, resolveToolPath } from "../lib/resolve-agent-path";
 import { BaseInputSchema } from "./base";
@@ -75,7 +76,7 @@ export const Grep = setupTool({
     if (agentName === "retrieval") {
       const pathResult = resolveAgentPath({
         agentName,
-        appDir: appConfig.appDir,
+        appDir: taskDir(appConfig),
         attachedFolders: projectState.attachedFolders,
         inputPath: input.path,
         isRequired: true,
@@ -90,7 +91,7 @@ export const Grep = setupTool({
       // Use appDir as cwd, pass absolute path as searchPath
       // This makes ripgrep return absolute paths in results
       const result = await grep({
-        cwd: appConfig.appDir,
+        cwd: taskDir(appConfig),
         include: input.include,
         limit: GREP_LIMIT,
         pattern: input.pattern,
@@ -103,14 +104,14 @@ export const Grep = setupTool({
 
     // Non-retrieval agent: search from appDir with optional relative searchPath
     if (input.path) {
-      const pathResult = resolveToolPath(appConfig.appDir, input.path);
+      const pathResult = resolveToolPath(taskDir(appConfig), input.path);
       if (pathResult.isErr()) {
         return err(pathResult.error);
       }
       const searchPath = pathResult.value.displayPath;
 
       const result = await grep({
-        cwd: appConfig.appDir,
+        cwd: taskDir(appConfig),
         include: input.include,
         limit: GREP_LIMIT,
         pattern: input.pattern,
@@ -123,7 +124,7 @@ export const Grep = setupTool({
 
     // No path specified, search from root
     const result = await grep({
-      cwd: appConfig.appDir,
+      cwd: taskDir(appConfig),
       include: input.include,
       limit: GREP_LIMIT,
       pattern: input.pattern,

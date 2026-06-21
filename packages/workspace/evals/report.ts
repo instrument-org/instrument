@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { createAppConfig } from "../src/lib/app-config/create";
+import { taskDir } from "../src/lib/app-dir-utils";
 import { getProjects } from "../src/lib/get-apps";
 import { getProjectState } from "../src/lib/project-state-store";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
@@ -62,7 +63,7 @@ export async function generateReport({
   for (const project of projects) {
     const appConfig = createAppConfig({ subdomain: project.subdomain });
 
-    const projectState = await getProjectState(appConfig.appDir);
+    const projectState = await getProjectState(taskDir(appConfig));
     const projectModelURI = projectState.selectedModelURI;
     if (projectModelURI) {
       rollupModelURIs.add(projectModelURI);
@@ -114,7 +115,7 @@ export async function generateReport({
       "utf8",
     );
     const symlinkPath = path.join(projectOutputDir, "project");
-    await fs.symlink(appConfig.appDir, symlinkPath).catch(() => {
+    await fs.symlink(taskDir(appConfig), symlinkPath).catch(() => {
       return;
     });
 

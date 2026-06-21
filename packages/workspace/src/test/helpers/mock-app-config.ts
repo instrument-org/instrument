@@ -9,15 +9,21 @@ import {
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway";
 import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
+import path from "node:path";
 import { noop } from "radashi";
 
 import { createAppConfig } from "../../lib/app-config/create";
 import {
+  getWorkspaceConfig,
   resetWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import { type AppSubdomain } from "../../schemas/subdomains";
+import {
+  type AppSubdomain,
+  type ProjectSubdomain,
+  ProjectSubdomainSchema,
+} from "../../schemas/subdomains";
 import {
   type BrowserConfig,
   encodeBrowserTargetId,
@@ -113,6 +119,22 @@ export function createMockAppConfig(
   setWorkspaceConfig(workspaceConfig);
 
   return createAppConfig({ subdomain });
+}
+
+// Returns a task id whose taskDir(id) resolves to `appDir`, by pointing the
+// singleton's projectsDir at its parent. Replaces the old pattern of spreading
+// a mock AppConfig and overriding appDir. The dir's basename must be a valid id.
+export function createMockAppConfigForDir(
+  appDir: string,
+  options: Parameters<typeof createMockAppConfig>[1] = {},
+): ProjectSubdomain {
+  const id = ProjectSubdomainSchema.parse(path.basename(appDir));
+  createMockAppConfig(id, options);
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    projectsDir: AbsolutePathSchema.parse(path.dirname(appDir)),
+  });
+  return id;
 }
 
 export function createStubBrowserConfig(): BrowserConfig {

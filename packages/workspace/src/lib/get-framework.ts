@@ -6,6 +6,7 @@ import { readPackage } from "read-pkg";
 import { type AppDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { readPNPMShim } from "./read-pnpm-shim";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -38,7 +39,7 @@ export async function getFramework({
   const [framework] = frameworks; // First framework is already sorted by accuracy
 
   if (!framework) {
-    const packageJson = await readPackage({ cwd: appConfig.appDir });
+    const packageJson = await readPackage({ cwd: taskDir(appConfig) });
     const scripts = packageJson.scripts ?? {};
     const scriptName = scripts.dev ? "dev" : scripts.start ? "start" : null;
 
@@ -77,7 +78,7 @@ export async function getFramework({
   }
 
   const binPathResult = await readPNPMShim(
-    getBinShimPath(appConfig.appDir, devCommand),
+    getBinShimPath(taskDir(appConfig), devCommand),
   );
 
   if (binPathResult.isErr()) {

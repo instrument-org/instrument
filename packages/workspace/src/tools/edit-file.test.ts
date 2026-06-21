@@ -63,7 +63,7 @@ function makeExecuteArgs(
 function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   mockFs({
     [MOCK_WORKSPACE_DIRS.projects]: {
-      [appConfig.subdomain]: {
+      [appConfig]: {
         "grep-test.txt": GREP_FILE_CONTENT,
         ...files,
       },

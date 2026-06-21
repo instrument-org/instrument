@@ -7,6 +7,7 @@ import {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import { taskDir } from "../lib/app-dir-utils";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
@@ -222,15 +223,15 @@ export const mainAgent = setupAgent({
       text,
     });
 
-    const projectLayout = await getProjectLayoutContext(appConfig.appDir);
+    const projectLayout = await getProjectLayoutContext(taskDir(appConfig));
 
     const packageJsonContent = await readFileWithAnyCase(
-      appConfig.appDir,
+      taskDir(appConfig),
       "package.json",
     );
 
     const nodeModulesStatus = await pathExists(
-      absolutePathJoin(appConfig.appDir, "node_modules"),
+      absolutePathJoin(taskDir(appConfig), "node_modules"),
     );
 
     const userMessage = createContextMessage({
@@ -246,7 +247,7 @@ export const mainAgent = setupAgent({
             </dependencies>
           `,
         await (async () => {
-          const projectState = await getProjectState(appConfig.appDir);
+          const projectState = await getProjectState(taskDir(appConfig));
           if (
             !projectState.attachedFolders ||
             Object.keys(projectState.attachedFolders).length === 0
@@ -287,7 +288,7 @@ export const mainAgent = setupAgent({
     // skip saving the change summary below.
     const { after, changes: fileChanges } = await consumeTurnChanges({
       sessionId,
-      subdomain: appConfig.subdomain,
+      subdomain: appConfig,
     });
 
     // Advance the cross-turn baseline to the post-turn tree so the agent's own
@@ -365,7 +366,7 @@ export const mainAgent = setupAgent({
         publisher.publish("project.outputArtifactsCreated", {
           files: outputArtifacts,
           sessionId,
-          subdomain: appConfig.subdomain,
+          subdomain: appConfig,
         });
       }
 
@@ -378,7 +379,7 @@ export const mainAgent = setupAgent({
   onStart: async ({ appConfig, sessionId }) => {
     await beginTurnChangeTracking({
       sessionId,
-      subdomain: appConfig.subdomain,
+      subdomain: appConfig,
       workspaceConfig: getWorkspaceConfig(),
     });
   },

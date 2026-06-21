@@ -3,9 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AppDirSchema } from "../schemas/paths";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 
@@ -21,13 +20,7 @@ const FIXTURES_PATH = path.join(
 const model = createMockAIGatewayModel();
 
 function createFixturesAppConfig() {
-  const mockConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"), {
-    model,
-  });
-  return {
-    ...mockConfig,
-    appDir: AppDirSchema.parse(FIXTURES_PATH),
-  };
+  return createMockAppConfigForDir(FIXTURES_PATH, { model });
 }
 
 // Sort files deterministically for testing (ripgrep returns mtime-sorted)

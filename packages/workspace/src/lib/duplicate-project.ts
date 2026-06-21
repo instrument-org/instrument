@@ -5,7 +5,7 @@ import { type ProjectSubdomain } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { createAppConfig } from "./app-config/create";
 import { newProjectConfig } from "./app-config/new";
-import { getAppPrivateDir, sessionStorePath } from "./app-dir-utils";
+import { getAppPrivateDir, sessionStorePath, taskDir } from "./app-dir-utils";
 import { copyProject } from "./copy-project";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
@@ -29,20 +29,20 @@ export async function duplicateProject(
       workspaceConfig,
     });
 
-    const projectExists = await pathExists(projectConfig.appDir);
+    const projectExists = await pathExists(taskDir(projectConfig));
     if (projectExists) {
       return errAsync(
         new TypedError.Conflict(
-          `Task directory already exists: ${projectConfig.appDir}`,
+          `Task directory already exists: ${taskDir(projectConfig)}`,
         ),
       );
     }
 
-    const sourceExists = await pathExists(sourceConfig.appDir);
+    const sourceExists = await pathExists(taskDir(sourceConfig));
     if (!sourceExists) {
       return errAsync(
         new TypedError.NotFound(
-          `Source task directory does not exist: ${sourceConfig.appDir}`,
+          `Source task directory does not exist: ${taskDir(sourceConfig)}`,
         ),
       );
     }
@@ -50,37 +50,37 @@ export async function duplicateProject(
     yield* copyProject({
       includePrivateFolder: false,
       isTemplate: false,
-      sourceDir: sourceConfig.appDir,
-      targetDir: projectConfig.appDir,
+      sourceDir: taskDir(sourceConfig),
+      targetDir: taskDir(projectConfig),
     });
 
-    const sourceManifest = await getProjectManifest(sourceConfig.appDir);
-    const sourceName = sourceManifest?.name || sourceConfig.subdomain;
+    const sourceManifest = await getProjectManifest(taskDir(sourceConfig));
+    const sourceName = sourceManifest?.name || sourceConfig;
     const duplicateName = `Copy of ${sourceName}`;
 
-    const sourceProjectState = await getProjectState(sourceConfig.appDir);
+    const sourceProjectState = await getProjectState(taskDir(sourceConfig));
 
     if (keepHistory) {
-      const sourceSessionDbPath = sessionStorePath(sourceConfig.appDir);
-      const targetSessionDbPath = sessionStorePath(projectConfig.appDir);
+      const sourceSessionDbPath = sessionStorePath(taskDir(sourceConfig));
+      const targetSessionDbPath = sessionStorePath(taskDir(projectConfig));
 
       if (await pathExists(sourceSessionDbPath)) {
-        const targetPrivateDir = getAppPrivateDir(projectConfig.appDir);
+        const targetPrivateDir = getAppPrivateDir(taskDir(projectConfig));
         await fs.mkdir(targetPrivateDir, { recursive: true });
         await fs.copyFile(sourceSessionDbPath, targetSessionDbPath);
       }
 
-      await setProjectState(projectConfig.appDir, sourceProjectState);
+      await setProjectState(taskDir(projectConfig), sourceProjectState);
     } else {
       // Preserve only the selected model from the source project
       if (sourceProjectState.selectedModelURI) {
-        await setProjectState(projectConfig.appDir, {
+        await setProjectState(taskDir(projectConfig), {
           selectedModelURI: sourceProjectState.selectedModelURI,
         });
       }
     }
 
-    const existingManifest = await getProjectManifest(projectConfig.appDir);
+    const existingManifest = await getProjectManifest(taskDir(projectConfig));
 
     yield* updateProjectManifest(projectConfig, {
       ...(existingManifest && { iconName: existingManifest.iconName }),

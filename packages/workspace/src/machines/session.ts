@@ -222,7 +222,7 @@ export const sessionMachine = setup({
       if (!isEqual(currentTags, previousTags)) {
         publisher.publish("appState.session.tagsChanged", {
           sessionId: input.sessionId,
-          subdomain: input.appConfig.subdomain,
+          subdomain: input.appConfig,
         });
         previousTags = currentTags;
       }
@@ -230,7 +230,7 @@ export const sessionMachine = setup({
 
     publisher.publish("appState.session.added", {
       sessionId: input.sessionId,
-      subdomain: input.appConfig.subdomain,
+      subdomain: input.appConfig,
     });
 
     const spawnAgent: SpawnAgentFunction = ({
@@ -473,7 +473,7 @@ export const sessionMachine = setup({
 
         publisher.publish("appState.session.done", {
           sessionId: context.sessionId,
-          subdomain: context.appConfig.subdomain,
+          subdomain: context.appConfig,
         });
 
         context.parentRef.send({

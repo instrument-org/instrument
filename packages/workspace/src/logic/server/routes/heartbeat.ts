@@ -5,7 +5,7 @@ import { isEqual } from "radashi";
 import { type Subscription } from "xstate";
 
 import { createAppConfig } from "../../../lib/app-config/create";
-import { isRunnable } from "../../../lib/app-dir-utils";
+import { isRunnable, taskDir } from "../../../lib/app-dir-utils";
 import { type RuntimeSnapshot } from "../../../machines/runtime";
 import { type AppStatus } from "../../../types";
 import { APPS_SERVER_API_PATH, HEARTBEAT_STREAM_ROUTE } from "../constants";
@@ -72,7 +72,7 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
       const runtimeRef = c.var.getRuntimeRef(subdomain);
 
       if (!runtimeRef) {
-        const canRun = await isRunnable(appConfig.appDir);
+        const canRun = await isRunnable(taskDir(appConfig));
         if (canRun) {
           c.var.parentRef.send({
             type: "workspaceServer.heartbeat",

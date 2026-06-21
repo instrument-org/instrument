@@ -9,6 +9,7 @@ import { dedent } from "radashi";
 import type { AppConfig } from "../app-config/types";
 
 import { absolutePathJoin } from "../absolute-path-join";
+import { taskDir } from "../app-dir-utils";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { createTsCommand, TS_COMMAND } from "./ts";
@@ -173,7 +174,7 @@ export function createPnpmCommand(appConfig: AppConfig) {
       }
     }
 
-    const cwd = absolutePathJoin(appConfig.appDir, ctx.cwd);
+    const cwd = absolutePathJoin(taskDir(appConfig), ctx.cwd);
     const result = await runPnpmCommand({
       appConfig,
       args: filteredArgs,

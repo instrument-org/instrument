@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AppDirSchema } from "../schemas/paths";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
+import { type ProjectSubdomain } from "../schemas/subdomains";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 import { ReadFile } from "./read-file";
@@ -20,10 +20,7 @@ const fixturesPath = path.join(
   "../../fixtures/file-system",
 );
 
-const appConfig = {
-  ...createMockAppConfig(ProjectSubdomainSchema.parse("test"), { model }),
-  appDir: AppDirSchema.parse(fixturesPath),
-};
+const appConfig = createMockAppConfigForDir(fixturesPath, { model });
 
 const attachedFolders: Record<string, FolderAttachment.Type> = {
   "test-folder": {
@@ -221,18 +218,16 @@ describe("ReadFile", () => {
 
 describe("ReadFile Unicode path fallbacks", () => {
   let tmpDir: string;
-  let tmpAppConfig: ReturnType<typeof createMockAppConfig> & {
-    appDir: ReturnType<typeof AppDirSchema.parse>;
-  };
+  let taskRoot: string;
+  let tmpAppConfig: ProjectSubdomain;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), `${APP_NAME_SLUG}-read-unicode-`),
     );
-    tmpAppConfig = {
-      ...createMockAppConfig(ProjectSubdomainSchema.parse("test"), { model }),
-      appDir: AppDirSchema.parse(tmpDir),
-    };
+    taskRoot = path.join(tmpDir, "test");
+    await fs.mkdir(taskRoot, { recursive: true });
+    tmpAppConfig = createMockAppConfigForDir(taskRoot, { model });
   });
 
   afterEach(async () => {
@@ -242,7 +237,7 @@ describe("ReadFile Unicode path fallbacks", () => {
   it("reads a macOS screenshot with U+202F narrow no-break space before AM/PM", async () => {
     const diskName = `Screenshot 2025-01-01 at 9.00\u202FAM.png`;
     const inputName = `Screenshot 2025-01-01 at 9.00 AM.png`;
-    await fs.writeFile(path.join(tmpDir, diskName), "fake-png-data");
+    await fs.writeFile(path.join(taskRoot, diskName), "fake-png-data");
 
     const value = (
       await runTool(TOOLS.ReadFile, {

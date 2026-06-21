@@ -1,5 +1,6 @@
 import { dedent, pick } from "radashi";
 
+import { taskDir } from "../lib/app-dir-utils";
 import { getCurrentDate } from "../lib/get-current-date";
 import { pathExists } from "../lib/path-exists";
 import { getProjectState } from "../lib/project-state-store";
@@ -47,7 +48,7 @@ export const retrievalAgent = setupAgent({
       `.trim(),
     });
 
-    const projectState = await getProjectState(appConfig.appDir);
+    const projectState = await getProjectState(taskDir(appConfig));
 
     const attachedFoldersText = projectState.attachedFolders
       ? await Promise.all(

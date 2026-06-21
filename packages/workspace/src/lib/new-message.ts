@@ -9,6 +9,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectExternalFileChanges } from "./external-file-changes";
 import { setProjectState } from "./project-state-store";
@@ -50,7 +51,7 @@ export async function newMessage({
 
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      appDir: appConfig.appDir,
+      appDir: taskDir(appConfig),
       files,
       folders,
       messageId,
@@ -93,7 +94,7 @@ export async function newMessage({
     role: "user",
   };
 
-  await setProjectState(appConfig.appDir, { selectedModelURI: modelURI });
+  await setProjectState(taskDir(appConfig), { selectedModelURI: modelURI });
 
   getWorkspaceConfig().captureEvent("message.created", {
     files_count: files?.length ?? 0,

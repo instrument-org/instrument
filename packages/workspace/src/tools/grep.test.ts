@@ -3,9 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AppDirSchema } from "../schemas/paths";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 import { Grep } from "./grep";
@@ -13,17 +12,12 @@ import { Grep } from "./grep";
 const model = createMockAIGatewayModel();
 
 function createFixturesAppConfig() {
-  const mockConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"), {
-    model,
-  });
-  // Override appDir to point to fixtures directory
-  const appDir = AppDirSchema.parse(
-    path.join(import.meta.dirname, "../../fixtures/file-system"),
+  return createMockAppConfigForDir(
+    AppDirSchema.parse(
+      path.join(import.meta.dirname, "../../fixtures/file-system"),
+    ),
+    { model },
   );
-  return {
-    ...mockConfig,
-    appDir,
-  };
 }
 
 // Sort matches deterministically for testing

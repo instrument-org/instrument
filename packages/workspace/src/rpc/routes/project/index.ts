@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { createAppConfig } from "../../../lib/app-config/create";
 import { newProjectConfig } from "../../../lib/app-config/new";
+import { taskDir } from "../../../lib/app-dir-utils";
 import { createSession } from "../../../lib/create-session";
 import { defaultProjectName } from "../../../lib/default-project-name";
 import { duplicateProject } from "../../../lib/duplicate-project";
@@ -263,7 +264,7 @@ const create = base
       }
 
       publisher.publish("project.updated", {
-        subdomain: projectConfig.subdomain,
+        subdomain: projectConfig,
       });
 
       context.workspaceRef.send({
@@ -273,7 +274,7 @@ const create = base
           message,
           model,
           sessionId: message.metadata.sessionId,
-          subdomain: projectConfig.subdomain,
+          subdomain: projectConfig,
         },
       });
 
@@ -286,7 +287,7 @@ const create = base
 
       return {
         sessionId: message.metadata.sessionId,
-        subdomain: projectConfig.subdomain,
+        subdomain: projectConfig,
       };
     },
   );
@@ -347,11 +348,11 @@ const duplicate = base
       }
 
       publisher.publish("project.updated", {
-        subdomain: result.value.projectConfig.subdomain,
+        subdomain: result.value.projectConfig,
       });
 
       const workspaceApp = await getWorkspaceAppForSubdomain(
-        result.value.projectConfig.subdomain,
+        result.value.projectConfig,
       );
 
       context.workspaceConfig.captureEvent("project.forked");
@@ -386,12 +387,12 @@ const importProject = base
     }
 
     publisher.publish("project.updated", {
-      subdomain: result.value.projectConfig.subdomain,
+      subdomain: result.value.projectConfig,
     });
 
     context.workspaceConfig.captureEvent("project.imported");
 
-    return { subdomain: result.value.projectConfig.subdomain };
+    return { subdomain: result.value.projectConfig };
   });
 
 const trash = base
@@ -470,7 +471,7 @@ const exportZip = base
     try {
       const appConfig = createAppConfig({ subdomain: input.subdomain });
 
-      const manifest = await getProjectManifest(appConfig.appDir);
+      const manifest = await getProjectManifest(taskDir(appConfig));
       const projectName = manifest?.name ?? input.subdomain;
 
       const safeName = projectName
@@ -491,7 +492,7 @@ const exportZip = base
       }
 
       const result = await exportProjectZip({
-        appDir: appConfig.appDir,
+        appDir: taskDir(appConfig),
         outputPath: filepath,
       });
 

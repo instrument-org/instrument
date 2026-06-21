@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { APP_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import { taskDir } from "../lib/app-dir-utils";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { Store } from "../lib/store";
@@ -87,7 +88,7 @@ export const BashTool = setupTool({
       spillFilePath = RelativePathSchema.parse(
         path.posix.join(APP_FOLDER_NAMES.state, "bash-output", `${partId}.log`),
       );
-      const absPath = absolutePathJoin(appConfig.appDir, spillFilePath);
+      const absPath = absolutePathJoin(taskDir(appConfig), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });
       await fs.writeFile(absPath, combined, { encoding: "utf8", signal });
     }

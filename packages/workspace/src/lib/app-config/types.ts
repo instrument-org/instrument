@@ -1,13 +1,8 @@
-import { type AppDir } from "../../schemas/paths";
 import { type ProjectSubdomain } from "../../schemas/subdomains";
 
-// A minimal task handle: the subdomain (which is also the folder name) plus its
-// resolved directory. Previews were removed, so there is no longer a union or a
-// `type` discriminant, and WorkspaceConfig is read via getWorkspaceConfig()
-// rather than carried here.
-export type AppConfig = AppConfigProject;
-
-export interface AppConfigProject {
-  appDir: AppDir;
-  subdomain: ProjectSubdomain;
-}
+// The carrier object is gone: a task is identified by its id (the subdomain,
+// which is also the folder name), and its directory is derived on demand via
+// taskDir(id). `AppConfig`/`AppConfigProject` are transitional aliases for the
+// id, removed when subdomain→id lands.
+export type AppConfig = ProjectSubdomain;
+export type AppConfigProject = ProjectSubdomain;

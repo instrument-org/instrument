@@ -1,4 +1,5 @@
 import { type AppConfig, type AppConfigProject } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import { getProjectManifest } from "./project-manifest";
 import { Store } from "./store";
 
@@ -52,13 +53,13 @@ export async function isSessionTitleAutoReplaceable({
   appConfig,
   title,
 }: {
-  appConfig: Pick<AppConfigProject, "appDir">;
+  appConfig: AppConfigProject;
   title: string;
 }) {
   if (isUntitledChatSessionTitle(title)) {
     return true;
   }
-  const manifest = await getProjectManifest(appConfig.appDir);
+  const manifest = await getProjectManifest(taskDir(appConfig));
   return manifest?.name === title;
 }
 

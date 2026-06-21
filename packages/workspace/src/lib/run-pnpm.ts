@@ -1,5 +1,6 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import { execaNodeForApp } from "./execa-node-for-app";
 import { filterShellOutput } from "./filter-shell-output";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -49,7 +50,7 @@ export async function runPnpmCommand({
     },
     cwd,
   );
-  const combined = filterShellOutput(execResult.all, appConfig.appDir);
+  const combined = filterShellOutput(execResult.all, taskDir(appConfig));
   return {
     combined,
     command: `${PNPM_NAME} ${args.join(" ")}`,

@@ -23,6 +23,7 @@ import {
   readProjectFile,
   RelativeProjectPathSchema,
   resolvePathWithinAppDir,
+  taskDir,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
@@ -242,13 +243,17 @@ const openAppIn = base
 
     try {
       if (input.type === "show-in-folder") {
-        const errorMessage = await shell.openPath(appConfig.appDir);
+        const errorMessage = await shell.openPath(taskDir(appConfig));
         if (errorMessage) {
           captureServerException(errorMessage);
-          shell.showItemInFolder(appConfig.appDir);
+          shell.showItemInFolder(taskDir(appConfig));
         }
       } else {
-        const command = getOpenCommand(input.type, appConfig.appDir, platform);
+        const command = getOpenCommand(
+          input.type,
+          taskDir(appConfig),
+          platform,
+        );
         await execAsync(command);
       }
 
@@ -303,7 +308,7 @@ const showProjectFileInFolder = base
     });
 
     const fullPath = resolvePathWithinAppDir({
-      appDir: appConfig.appDir,
+      appDir: taskDir(appConfig),
       filePath: input.filePath,
     });
     if (!fullPath) {
@@ -433,7 +438,7 @@ const copyProjectPathToClipboard = base
     const appConfig = createAppConfig({
       subdomain: input.subdomain,
     });
-    clipboard.writeText(appConfig.appDir);
+    clipboard.writeText(taskDir(appConfig));
   });
 
 const copyFileToClipboard = base
@@ -449,7 +454,6 @@ const copyFileToClipboard = base
     }),
   )
   .handler(async ({ errors, input, signal }) => {
-
     const buffer = await readProjectFile({
       filePath: input.filePath,
       projectSubdomain: input.subdomain,

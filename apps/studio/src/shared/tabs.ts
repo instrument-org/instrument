@@ -17,9 +17,7 @@ export interface TabState {
   tabs: Tab[];
 }
 
-// Match both /tasks/<id> (current) and /projects/<id> (legacy, pre-redirect
-// tabs) so the single-tab behavior survives the route rename.
-export const SingleTabOnlyRoutes = /\/(?:projects|tasks)\/[^/]+|\/sign-in/;
+export const SingleTabOnlyRoutes = /\/tasks\/[^/]+|\/sign-in/;
 
 export const META_TAGS = {
   iconName: `${APP_NAME_SLUG}-icon-name`,

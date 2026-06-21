@@ -1,8 +1,6 @@
-import { type CreatePreviewActorRef } from "../../logic/create-preview";
 import { type WorkspaceServerActorRef } from "../../logic/server";
 import {
   type AppSubdomain,
-  type PreviewSubdomain,
   type ProjectSubdomain,
 } from "../../schemas/subdomains";
 import { type WorkspaceConfig } from "../../types";
@@ -14,7 +12,6 @@ import { type SessionActorRef } from "../session";
 export interface WorkspaceContext {
   appsBeingTrashed: AppSubdomain[];
   config: WorkspaceConfig;
-  createPreviewRefs: Map<PreviewSubdomain, CreatePreviewActorRef>;
   error?: unknown;
   // Resolvers waiting for the projectBrowser at `subdomain` to reach Stopped
   // before trash-project deletes the directory. Drained when the matching

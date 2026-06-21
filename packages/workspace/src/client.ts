@@ -13,11 +13,7 @@ export { isInteractiveTool } from "./lib/is-interactive-tool";
 export { isTaskAgentName } from "./lib/is-task-agent-name";
 export { isToolPart } from "./lib/is-tool-part";
 export { normalizeProjectFilePath } from "./lib/normalize-project-file-path";
-export type {
-  WorkspaceApp,
-  WorkspaceAppPreview,
-  WorkspaceAppProject,
-} from "./schemas/app";
+export type { WorkspaceApp, WorkspaceAppProject } from "./schemas/app";
 export type { SessionTag } from "./schemas/app-state";
 export { FileUpload } from "./schemas/file-upload";
 export { type SessionMessage } from "./schemas/session/message";

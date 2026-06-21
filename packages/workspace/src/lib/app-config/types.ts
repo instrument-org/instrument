@@ -1,16 +1,9 @@
 import { type AppDir } from "../../schemas/paths";
-import {
-  type PreviewSubdomain,
-  type ProjectSubdomain,
-} from "../../schemas/subdomains";
+import { type ProjectSubdomain } from "../../schemas/subdomains";
 import { type WorkspaceConfig } from "../../types";
 
-export type AppConfig = AppConfigPreview | AppConfigProject;
-
-export type AppConfigPreview = AppConfigBase & {
-  subdomain: PreviewSubdomain;
-  type: "preview";
-};
+// Previews were removed; an app config is always a project (task) config.
+export type AppConfig = AppConfigProject;
 
 export type AppConfigProject = AppConfigBase & {
   subdomain: ProjectSubdomain;

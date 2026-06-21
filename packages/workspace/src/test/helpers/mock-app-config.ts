@@ -20,7 +20,6 @@ import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
 export const MOCK_WORKSPACE_DIRS = {
-  previews: `${MOCK_WORKSPACE_DIR}/previews`,
   projects: `${MOCK_WORKSPACE_DIR}/projects`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   templates: `${MOCK_WORKSPACE_DIR}/registry/templates`,
@@ -84,7 +83,6 @@ export function createMockAppConfig(
       getAIProviderConfigs: () => [config],
       nodeExecEnv: {},
       pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
-      previewsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.previews),
       projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
       registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
       rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),

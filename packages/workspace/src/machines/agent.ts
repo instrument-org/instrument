@@ -22,6 +22,7 @@ import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
@@ -258,9 +259,9 @@ export const agentMachine = setup({
   initial: "Starting",
   on: {
     "*": {
-      actions: ({ context, event, self }) => {
+      actions: ({ event, self }) => {
         logUnhandledEvent({
-          captureException: context.appConfig.workspaceConfig.captureException,
+          captureException: getWorkspaceConfig().captureException,
           event,
           self,
         });

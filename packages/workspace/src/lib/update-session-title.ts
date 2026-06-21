@@ -2,6 +2,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type AppConfigProject } from "./app-config/types";
 import { isSessionTitleAutoReplaceable } from "./generate-session-title";
 import { Store } from "./store";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export async function updateSessionTitle({
   appConfig,
@@ -32,6 +33,6 @@ export async function updateSessionTitle({
     appConfig,
   );
   if (renameResult.isErr()) {
-    appConfig.workspaceConfig.captureException(renameResult.error);
+    getWorkspaceConfig().captureException(renameResult.error);
   }
 }

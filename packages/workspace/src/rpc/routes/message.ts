@@ -30,13 +30,9 @@ const listWithParts = base
     }),
   )
   .output(z.array(SessionMessage.WithPartsSchema))
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ errors, input }) => {
     const { sessionId, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({
-      subdomain,
-      workspaceConfig,
-    });
+    const appConfig = createAppConfig({ subdomain });
     const messages = await Store.getMessagesWithParts({
       appConfig,
       sessionId,
@@ -67,10 +63,7 @@ const create = base
       errors,
       input: { files, folders, modelURI, prompt, sessionId, subdomain },
     }) => {
-      const appConfig = createAppConfig({
-        subdomain,
-        workspaceConfig: context.workspaceConfig,
-      });
+      const appConfig = createAppConfig({ subdomain });
 
       const modelResult = await fetchModel({
         captureException: context.workspaceConfig.captureException,
@@ -171,13 +164,9 @@ const count = base
     }),
   )
   .output(z.number())
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ errors, input }) => {
     const { sessionId, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({
-      subdomain,
-      workspaceConfig,
-    });
+    const appConfig = createAppConfig({ subdomain });
 
     const messageIds = sessionId
       ? await Store.getMessageIds(sessionId, appConfig)
@@ -253,10 +242,9 @@ const usageSummary = base
     }),
   )
   .output(UsageSummarySchema)
-  .handler(async ({ context, input, signal }) => {
+  .handler(async ({ input, signal }) => {
     const { messages, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({ subdomain, workspaceConfig });
+    const appConfig = createAppConfig({ subdomain });
 
     const results = await parallel(
       { limit: 10, signal },

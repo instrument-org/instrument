@@ -19,6 +19,7 @@ import {
   getSkillSources,
   listSkillFiles,
 } from "../lib/skills";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { type AbsolutePath } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -78,8 +79,8 @@ export const LoadSkill = setupTool({
     }),
   ]),
 }).create({
-  description: async ({ appConfig }) => {
-    const sources = getSkillSources(appConfig.workspaceConfig.registryDir);
+  description: async () => {
+    const sources = getSkillSources(getWorkspaceConfig().registryDir);
     const skills = await findSkills(sources);
 
     const skillsBlock =
@@ -121,7 +122,7 @@ export const LoadSkill = setupTool({
     `.trim();
   },
   execute: async ({ appConfig, input, signal }) => {
-    const { registryDir } = appConfig.workspaceConfig;
+    const { registryDir } = getWorkspaceConfig();
     const { all, skill } = await findSkill(registryDir, input.name);
 
     if (!skill) {
@@ -187,10 +188,10 @@ export const LoadSkill = setupTool({
     });
   },
   readOnly: false,
-  timeoutMs: ({ appConfig, input }) => {
+  timeoutMs: ({ input }) => {
     const base = ms("10 seconds");
     const extra = skillHasPackageJson(
-      appConfig.workspaceConfig.registryDir,
+      getWorkspaceConfig().registryDir,
       input.name,
     )
       ? ms("2 minutes")

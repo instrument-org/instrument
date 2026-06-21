@@ -186,6 +186,7 @@ describe("sessionMachine", () => {
     initialChunkDelaysMs = [],
     llmRequestChunkTimeoutMs = 120_000,
     maxStepCount,
+    providerConfigId = "mock-provider-config-id",
     queuedMessages = [defaultQueuedMessage],
     sessionId = defaultSessionId,
     webSearchModel,
@@ -198,6 +199,7 @@ describe("sessionMachine", () => {
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
     maxStepCount?: number;
+    providerConfigId?: string;
     queuedMessages?: SessionMessage.UserWithParts[];
     sessionId?: StoreId.Session;
     webSearchModel?: AISDKWebSearchModelResult;
@@ -244,7 +246,10 @@ describe("sessionMachine", () => {
       },
     });
 
-    const model = createMockAIGatewayModel();
+    // Provider config id defaults to the shared mock; the parallel-sessions
+    // test passes distinct ids so each session resolves its own model override
+    // via the workspace singleton.
+    const model = createMockAIGatewayModel({ providerConfigId });
 
     const testAppConfig = createMockAppConfig(
       ProjectSubdomainSchema.parse(projectFolder),
@@ -827,6 +832,7 @@ describe("sessionMachine", () => {
           },
         ],
       ],
+      providerConfigId: "mock-provider-config-1",
       sessionId: defaultSessionId,
     });
 
@@ -845,6 +851,7 @@ describe("sessionMachine", () => {
           },
         ],
       ],
+      providerConfigId: "mock-provider-config-2",
       queuedMessages: [
         {
           id: secondMessageId,

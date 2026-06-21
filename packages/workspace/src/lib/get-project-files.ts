@@ -7,7 +7,6 @@ import { z } from "zod";
 import { APP_FOLDER_NAMES } from "../constants";
 import { type AppDir, RelativePathSchema } from "../schemas/paths";
 import { type ProjectSubdomain } from "../schemas/subdomains";
-import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { createAppConfig } from "./app-config/create";
 import { TypedError } from "./errors";
@@ -192,14 +191,8 @@ export async function getProjectFileIndex(
   }
 }
 
-export async function getProjectFiles(
-  projectSubdomain: ProjectSubdomain,
-  workspaceConfig: WorkspaceConfig,
-) {
-  const projectConfig = createAppConfig({
-    subdomain: projectSubdomain,
-    workspaceConfig,
-  });
+export async function getProjectFiles(projectSubdomain: ProjectSubdomain) {
+  const projectConfig = createAppConfig({ subdomain: projectSubdomain });
 
   const indexResult = await getProjectFileIndex(projectConfig.appDir);
   if (indexResult.isErr()) {

@@ -6,14 +6,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { createMockAppConfig } from "../test/helpers/mock-app-config";
-import { type WorkspaceConfig } from "../types";
 import { readProjectFile } from "./read-project-file";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("readProjectFile", () => {
   const subdomain = ProjectSubdomainSchema.parse("test-project");
   let projectsDir: string;
   let appDir: string;
-  let workspaceConfig: WorkspaceConfig;
 
   beforeEach(async () => {
     projectsDir = await fs.mkdtemp(
@@ -25,11 +24,13 @@ describe("readProjectFile", () => {
     // Sensitive file outside the task dir (sibling of appDir under projectsDir).
     await fs.writeFile(path.join(projectsDir, "secret.txt"), "ssh private key");
 
-    const { workspaceConfig: mockConfig } = createMockAppConfig(subdomain);
-    workspaceConfig = {
-      ...mockConfig,
+    // createMockAppConfig publishes the singleton; point it at the temp dir so
+    // readProjectFile (which reads the singleton) resolves under it.
+    createMockAppConfig(subdomain);
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
       projectsDir: AbsolutePathSchema.parse(projectsDir),
-    };
+    });
   });
 
   afterEach(async () => {
@@ -40,7 +41,6 @@ describe("readProjectFile", () => {
     const buffer = await readProjectFile({
       filePath: "inside.txt",
       projectSubdomain: subdomain,
-      workspaceConfig,
     });
     expect(buffer?.toString("utf8")).toBe("inside contents");
   });
@@ -54,7 +54,6 @@ describe("readProjectFile", () => {
     const buffer = await readProjectFile({
       filePath,
       projectSubdomain: subdomain,
-      workspaceConfig,
     });
     expect(buffer).toBeNull();
   });

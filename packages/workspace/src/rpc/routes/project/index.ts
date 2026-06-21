@@ -352,7 +352,6 @@ const duplicate = base
 
       const workspaceApp = await getWorkspaceAppForSubdomain(
         result.value.projectConfig.subdomain,
-        context.workspaceConfig,
       );
 
       context.workspaceConfig.captureEvent("project.forked");
@@ -423,10 +422,7 @@ const update = base
   )
   .output(z.void())
   .handler(async ({ context, errors, input: { subdomain, ...updates } }) => {
-    const projectConfig = createAppConfig({
-      subdomain,
-      workspaceConfig: context.workspaceConfig,
-    });
+    const projectConfig = createAppConfig({ subdomain });
 
     if (updates.name !== undefined) {
       const sessionsResult = await Store.getSessions(projectConfig);
@@ -472,10 +468,7 @@ const exportZip = base
   )
   .handler(async ({ context, errors, input }) => {
     try {
-      const appConfig = createAppConfig({
-        subdomain: input.subdomain,
-        workspaceConfig: context.workspaceConfig,
-      });
+      const appConfig = createAppConfig({ subdomain: input.subdomain });
 
       const manifest = await getProjectManifest(appConfig.appDir);
       const projectName = manifest?.name ?? input.subdomain;
@@ -615,10 +608,9 @@ const live = {
 const usageSummary = base
   .input(z.object({ subdomain: ProjectSubdomainSchema }))
   .output(UsageSummarySchema)
-  .handler(async ({ context, input, signal }) => {
+  .handler(async ({ input, signal }) => {
     const { subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({ subdomain, workspaceConfig });
+    const appConfig = createAppConfig({ subdomain });
     return getProjectUsageSummary(appConfig, { signal });
   });
 

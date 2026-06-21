@@ -233,11 +233,9 @@ const openAppIn = base
       type: OpenAppInTypeSchema,
     }),
   )
-  .handler(async ({ context, errors, input }) => {
-    const snapshot = context.workspaceRef.getSnapshot();
+  .handler(async ({ errors, input }) => {
     const appConfig = createAppConfig({
       subdomain: input.subdomain,
-      workspaceConfig: snapshot.context.config,
     });
 
     const platform = os.platform();
@@ -299,11 +297,9 @@ const showProjectFileInFolder = base
       subdomain: ProjectSubdomainSchema,
     }),
   )
-  .handler(async ({ context, errors, input }) => {
-    const snapshot = context.workspaceRef.getSnapshot();
+  .handler(async ({ errors, input }) => {
     const appConfig = createAppConfig({
       subdomain: input.subdomain,
-      workspaceConfig: snapshot.context.config,
     });
 
     const fullPath = resolvePathWithinAppDir({
@@ -433,11 +429,9 @@ const copyProjectPathToClipboard = base
       subdomain: ProjectSubdomainSchema,
     }),
   )
-  .handler(({ context, input }) => {
-    const snapshot = context.workspaceRef.getSnapshot();
+  .handler(({ input }) => {
     const appConfig = createAppConfig({
       subdomain: input.subdomain,
-      workspaceConfig: snapshot.context.config,
     });
     clipboard.writeText(appConfig.appDir);
   });
@@ -454,14 +448,12 @@ const copyFileToClipboard = base
       subdomain: ProjectSubdomainSchema,
     }),
   )
-  .handler(async ({ context, errors, input, signal }) => {
-    const snapshot = context.workspaceRef.getSnapshot();
+  .handler(async ({ errors, input, signal }) => {
 
     const buffer = await readProjectFile({
       filePath: input.filePath,
       projectSubdomain: input.subdomain,
       signal,
-      workspaceConfig: snapshot.context.config,
     });
 
     if (!buffer) {

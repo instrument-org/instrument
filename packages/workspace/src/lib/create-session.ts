@@ -2,6 +2,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type AppConfig } from "./app-config/types";
 import { generateSessionTitle } from "./generate-session-title";
 import { Store } from "./store";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createSession({
   appConfig,
@@ -35,7 +36,7 @@ export async function createSession({
   );
 
   if (result.isOk()) {
-    appConfig.workspaceConfig.captureEvent("session.created");
+    getWorkspaceConfig().captureEvent("session.created");
   }
 
   return result;

@@ -10,6 +10,7 @@ import { getProjectState } from "./project-state-store";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
   agentName,
@@ -109,7 +110,7 @@ export async function runToolCall({
               appConfig,
               { signal },
             ));
-        appConfig.workspaceConfig.captureEvent("llm.tool_executed", {
+        getWorkspaceConfig().captureEvent("llm.tool_executed", {
           modelId: model.canonicalId,
           providerId: model.params.provider,
           success: output.isOk(),

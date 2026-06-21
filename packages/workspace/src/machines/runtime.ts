@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { type AppConfig } from "../lib/app-config/types";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
   type SpawnRuntimeEvent,
   spawnRuntimeLogic,
@@ -145,9 +146,9 @@ export const runtimeMachine = setup({
   initial: "SpawningRuntime",
   on: {
     "*": {
-      actions: ({ context, event, self }) => {
+      actions: ({ event, self }) => {
         logUnhandledEvent({
-          captureException: context.appConfig.workspaceConfig.captureException,
+          captureException: getWorkspaceConfig().captureException,
           event,
           self,
         });
@@ -181,13 +182,10 @@ export const runtimeMachine = setup({
             });
           }
         }),
-        ({ context, event }) => {
-          context.appConfig.workspaceConfig.captureException(
-            event.value.error,
-            {
-              scopes: ["workspace"],
-            },
-          );
+        ({ event }) => {
+          getWorkspaceConfig().captureException(event.value.error, {
+            scopes: ["workspace"],
+          });
         },
         raise(({ event }) => {
           return event.isRetryable ? { type: "maybeRetry" } : { type: "fail" };

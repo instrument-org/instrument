@@ -25,6 +25,7 @@ import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
 import { Store } from "../lib/store";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { StoreId } from "../schemas/store-id";
 import { getToolByType, TOOLS } from "../tools/all";
@@ -298,7 +299,7 @@ export const mainAgent = setupAgent({
         after,
       );
       if (baselineResult.isErr()) {
-        appConfig.workspaceConfig.captureException(baselineResult.error);
+        getWorkspaceConfig().captureException(baselineResult.error);
       }
     }
 
@@ -371,14 +372,14 @@ export const mainAgent = setupAgent({
       return ok(undefined);
     });
     if (result.isErr()) {
-      appConfig.workspaceConfig.captureException(result.error);
+      getWorkspaceConfig().captureException(result.error);
     }
   },
   onStart: async ({ appConfig, sessionId }) => {
     await beginTurnChangeTracking({
       sessionId,
       subdomain: appConfig.subdomain,
-      workspaceConfig: appConfig.workspaceConfig,
+      workspaceConfig: getWorkspaceConfig(),
     });
   },
   shouldContinue: shouldContinueWithToolCalls,

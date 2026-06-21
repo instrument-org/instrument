@@ -186,10 +186,7 @@ export async function runEvals(
             ) {
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
-              const appConfig = createAppConfig({
-                subdomain,
-                workspaceConfig: context.workspaceConfig,
-              });
+              const appConfig = createAppConfig({ subdomain });
               const usage = await getProjectUsageSummary(appConfig);
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
@@ -200,13 +197,7 @@ export async function runEvals(
             }
 
             if (
-              await evalCase.shouldStop?.(
-                part,
-                createAppConfig({
-                  subdomain,
-                  workspaceConfig: context.workspaceConfig,
-                }),
-              )
+              await evalCase.shouldStop?.(part, createAppConfig({ subdomain }))
             ) {
               process.stdout.write(
                 `${evalPrefix(label)}${c.yellow}shouldStop returned true, stopping session...${c.reset}\n`,

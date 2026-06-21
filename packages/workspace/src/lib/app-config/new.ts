@@ -24,6 +24,5 @@ export async function newProjectConfig({
 
   return createAppConfig({
     subdomain: ProjectSubdomainSchema.parse(rawSubdomain),
-    workspaceConfig,
   });
 }

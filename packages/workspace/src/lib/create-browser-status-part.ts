@@ -3,6 +3,7 @@ import { StoreId } from "../schemas/store-id";
 import { encodeBrowserTargetId } from "../types";
 import { type AppConfigProject } from "./app-config/types";
 import { getBrowserState } from "./browser-state";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createBrowserStatusPart({
   appConfig,
@@ -16,7 +17,7 @@ export async function createBrowserStatusPart({
   sessionId: StoreId.Session;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const targets = await appConfig.workspaceConfig.browser.listTargets(
+    const targets = await getWorkspaceConfig().browser.listTargets(
       appConfig.subdomain,
     );
     const target = targets.find(
@@ -37,7 +38,7 @@ export async function createBrowserStatusPart({
 
     const browserStateResult = await getBrowserState(appConfig, sessionId);
     if (browserStateResult.isErr()) {
-      appConfig.workspaceConfig.captureException(browserStateResult.error);
+      getWorkspaceConfig().captureException(browserStateResult.error);
       return undefined;
     }
 
@@ -65,7 +66,7 @@ export async function createBrowserStatusPart({
       sessionId,
     });
   } catch (error) {
-    appConfig.workspaceConfig.captureException(error);
+    getWorkspaceConfig().captureException(error);
     return undefined;
   }
 }

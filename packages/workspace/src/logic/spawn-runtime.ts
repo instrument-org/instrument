@@ -18,6 +18,7 @@ import { getFramework } from "../lib/get-framework";
 import { getPackageManager } from "../lib/get-package-manager";
 import { pathExists } from "../lib/path-exists";
 import { PortManager } from "../lib/port-manager";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { DEFAULT_RUNTIME_BASE_PORT } from "./server/constants";
 import { getWorkspaceServerURL } from "./server/url";
 
@@ -147,7 +148,7 @@ export const spawnRuntimeLogic = fromCallback<
       abortController.signal,
       installTimeout.controller.signal,
     ]);
-    const packageManager = getPackageManager({ appConfig });
+    const packageManager = getPackageManager();
 
     parentRef.send({
       type: "spawnRuntime.log",
@@ -169,7 +170,7 @@ export const spawnRuntimeLogic = fromCallback<
     installTimeout.cancel();
 
     const providerEnv = envForProviderConfigs({
-      configs: appConfig.workspaceConfig.getAIProviderConfigs(),
+      configs: getWorkspaceConfig().getAIProviderConfigs(),
       workspaceServerURL: getWorkspaceServerURL(),
     });
 

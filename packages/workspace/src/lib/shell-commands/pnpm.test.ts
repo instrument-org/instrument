@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { getWorkspaceConfig } from "../workspace-config";
 import {
   createNpxCommand,
   createPnpmCommand,
@@ -156,7 +157,7 @@ describe("createPnpmCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
       appConfig,
-      appConfig.workspaceConfig.pnpmBinPath,
+      getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining(["dlx", "jiti@2.6.1"]),
       expect.any(Object),
       expect.any(String),
@@ -234,7 +235,7 @@ describe("createPnpmCommand", () => {
       expect(result.exitCode).toBe(0);
       expect(vi.mocked(execaNodeForApp)).toHaveBeenLastCalledWith(
         appConfig,
-        appConfig.workspaceConfig.pnpmBinPath,
+        getWorkspaceConfig().pnpmBinPath,
         expectedArgs,
         expect.any(Object),
         expect.any(String),

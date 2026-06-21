@@ -14,6 +14,7 @@ import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
+import { getWorkspaceConfig } from "./workspace-config";
 
 const STALE_MESSAGE_THRESHOLD_MINUTES = 60;
 
@@ -129,7 +130,7 @@ export async function prepareModelMessages({
   });
 
   if (portableMessagesResult.redactedReasoningDetailsCount > 0) {
-    appConfig.workspaceConfig.captureEvent("llm.reasoning_details_redacted", {
+    getWorkspaceConfig().captureEvent("llm.reasoning_details_redacted", {
       modelId: model.canonicalId,
       providerId: model.params.provider,
       redacted_message_count: portableMessagesResult.redactedMessageCount,

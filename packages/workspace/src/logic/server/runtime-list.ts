@@ -4,6 +4,7 @@ import path from "node:path";
 import { createAppConfig } from "../../lib/app-config/create";
 import { type AppConfig } from "../../lib/app-config/types";
 import { getProjects } from "../../lib/get-apps";
+import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type RuntimeActorRef } from "../../machines/runtime";
 import { type WorkspaceApp } from "../../schemas/app";
 import { type AppSubdomain } from "../../schemas/subdomains";
@@ -29,7 +30,6 @@ export async function RuntimeList({
     getAppWithExtra({
       project,
       runtimeRefs,
-      workspaceConfig,
     }),
   );
 
@@ -164,7 +164,7 @@ export async function RuntimeList({
                           </div>
                           <span class="text-xs text-neutral-400">
                             ${path.relative(
-                              app.config.workspaceConfig.rootDir,
+                              getWorkspaceConfig().rootDir,
                               app.config.appDir,
                             )}
                           </span>
@@ -209,11 +209,9 @@ export async function RuntimeList({
 function getAppWithExtra({
   project: app,
   runtimeRefs,
-  workspaceConfig,
 }: {
   project: WorkspaceApp;
   runtimeRefs: Map<AppSubdomain, RuntimeActorRef>;
-  workspaceConfig: WorkspaceConfig;
 }): AppAndStatus {
   const runtimeRef = runtimeRefs.get(app.subdomain);
   const runtimeSnapshot = runtimeRef?.getSnapshot();
@@ -224,10 +222,7 @@ function getAppWithExtra({
 
   return {
     app,
-    config: createAppConfig({
-      subdomain: app.subdomain,
-      workspaceConfig,
-    }),
+    config: createAppConfig({ subdomain: app.subdomain }),
     port,
     status,
   };

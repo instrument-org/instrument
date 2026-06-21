@@ -5,6 +5,7 @@ import type { AppConfig } from "../app-config/types";
 
 import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
+import { getWorkspaceConfig } from "../workspace-config";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
 export const FFMPEG_COMMAND = {
@@ -24,7 +25,7 @@ export function createFfmpegCommand(appConfig: AppConfig) {
         cancelSignal: ctx.signal,
         cwd: appCwd,
         env: {
-          ...appConfig.workspaceConfig.nodeExecEnv,
+          ...getWorkspaceConfig().nodeExecEnv,
           ...env,
         },
         reject: false,

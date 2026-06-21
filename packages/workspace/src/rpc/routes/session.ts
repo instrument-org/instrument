@@ -20,13 +20,9 @@ const byId = base
     }),
   )
   .output(Session.Schema)
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ errors, input }) => {
     const { sessionId, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({
-      subdomain,
-      workspaceConfig,
-    });
+    const appConfig = createAppConfig({ subdomain });
     const session = await Store.getSession(sessionId, appConfig);
 
     if (session.isErr()) {
@@ -44,13 +40,9 @@ const byIdWithMessagesAndParts = base
     }),
   )
   .output(Session.WithMessagesAndPartsSchema)
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ errors, input }) => {
     const { sessionId, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({
-      subdomain,
-      workspaceConfig,
-    });
+    const appConfig = createAppConfig({ subdomain });
     const session = await Store.getSessionWithMessagesAndParts(
       sessionId,
       appConfig,
@@ -71,13 +63,9 @@ const list = base
     }),
   )
   .output(z.array(Session.Schema))
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ errors, input }) => {
     const { includeChildSessions, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({
-      subdomain,
-      workspaceConfig,
-    });
+    const appConfig = createAppConfig({ subdomain });
     const sessions = await Store.getSessions(appConfig, {
       includeChildSessions,
     });
@@ -101,11 +89,7 @@ const remove = base
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
     const { sessionId, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({
-      subdomain,
-      workspaceConfig,
-    });
+    const appConfig = createAppConfig({ subdomain });
     const result = await Store.removeSession(sessionId, appConfig);
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);
@@ -120,11 +104,7 @@ const create = base
   .output(Session.Schema)
   .handler(async ({ context, errors, input }) => {
     const { subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({
-      subdomain,
-      workspaceConfig,
-    });
+    const appConfig = createAppConfig({ subdomain });
     const sessionResult = await createSession({
       appConfig,
       sessionId: StoreId.newSessionId(),
@@ -160,10 +140,9 @@ const toMarkdown = base
     }),
   )
   .output(z.object({ markdown: z.string() }))
-  .handler(async ({ context, input }) => {
+  .handler(async ({ input }) => {
     const { frontMatter, sessionId, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({ subdomain, workspaceConfig });
+    const appConfig = createAppConfig({ subdomain });
 
     const markdown = await getSessionMarkdown({
       appConfig,
@@ -181,10 +160,9 @@ const contextTokens = base
     }),
   )
   .output(z.object({ inputTokens: z.number() }))
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ errors, input }) => {
     const { sessionId, subdomain } = input;
-    const { workspaceConfig } = context;
-    const appConfig = createAppConfig({ subdomain, workspaceConfig });
+    const appConfig = createAppConfig({ subdomain });
 
     const messages = await Store.getMessagesWithParts({ appConfig, sessionId });
     if (messages.isErr()) {

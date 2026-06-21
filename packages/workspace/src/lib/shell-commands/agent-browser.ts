@@ -27,6 +27,7 @@ import {
   type UpsertContextItem,
 } from "../capture-browser-screenshot";
 import { isProjectSubdomain } from "../is-app";
+import { getWorkspaceConfig } from "../workspace-config";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
@@ -97,7 +98,7 @@ export function createAgentBrowserCommand({
   upsertContextItem: UpsertContextItem;
 }) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
-    const { workspaceConfig } = appConfig;
+    const workspaceConfig = getWorkspaceConfig();
     const serverPort = getWorkspaceServerPort();
 
     if (!isProjectSubdomain(appConfig.subdomain)) {
@@ -281,8 +282,7 @@ async function enrichBrowserState({
   targetId: BrowserTargetId;
 }) {
   try {
-    const targets =
-      await appConfig.workspaceConfig.browser.listTargets(subdomain);
+    const targets = await getWorkspaceConfig().browser.listTargets(subdomain);
     const target = targets.find(({ id }) => id === targetId);
     if (target) {
       await recordBrowserUseBestEffort({
@@ -293,7 +293,7 @@ async function enrichBrowserState({
       });
     }
   } catch (error) {
-    appConfig.workspaceConfig.captureException(error);
+    getWorkspaceConfig().captureException(error);
   }
 }
 
@@ -315,7 +315,7 @@ async function recordBrowserUseBestEffort({
     url,
   });
   if (result.isErr()) {
-    appConfig.workspaceConfig.captureException(result.error);
+    getWorkspaceConfig().captureException(result.error);
   }
 }
 

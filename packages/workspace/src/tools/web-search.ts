@@ -6,6 +6,7 @@ import { z } from "zod";
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { webSearch } from "../lib/web-search";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import {
   BaseInputSchema,
@@ -61,13 +62,13 @@ export const WebSearch = setupTool({
     Prefer this over navigating the browser manually when the goal is to discover
     URLs or find ranked/popular results for a topic.
   `,
-  async *execute({ appConfig, input, model, signal }) {
+  async *execute({ input, model, signal }) {
     for await (const result of webSearch({
       callingModel: model,
-      configs: appConfig.workspaceConfig.getAIProviderConfigs(),
+      configs: getWorkspaceConfig().getAIProviderConfigs(),
       prompt: input.query,
       signal,
-      workspaceConfig: appConfig.workspaceConfig,
+      workspaceConfig: getWorkspaceConfig(),
       workspaceServerURL: getWorkspaceServerURL(),
     })) {
       if (signal.aborted) {

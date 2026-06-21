@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 
 import { RelativePathSchema } from "../schemas/paths";
 import { type ProjectSubdomain } from "../schemas/subdomains";
-import { type WorkspaceConfig } from "../types";
 import { createAppConfig } from "./app-config/create";
 import { normalizeProjectFilePath } from "./normalize-project-file-path";
 import { resolvePathWithinAppDir } from "./resolve-path-within-app-dir";
@@ -11,19 +10,14 @@ interface ReadProjectFileOptions {
   filePath: string;
   projectSubdomain: ProjectSubdomain;
   signal?: AbortSignal;
-  workspaceConfig: WorkspaceConfig;
 }
 
 export async function readProjectFile({
   filePath,
   projectSubdomain,
   signal,
-  workspaceConfig,
 }: ReadProjectFileOptions): Promise<Buffer | null> {
-  const projectConfig = createAppConfig({
-    subdomain: projectSubdomain,
-    workspaceConfig,
-  });
+  const projectConfig = createAppConfig({ subdomain: projectSubdomain });
 
   const cleanPath = normalizeProjectFilePath(filePath);
 

@@ -80,10 +80,7 @@ const logList = base
       logsToReturn = [truncationMessage, ...recentLogs];
     }
 
-    const appConfig = createAppConfig({
-      subdomain: input.subdomain,
-      workspaceConfig: snapshot.context.config,
-    });
+    const appConfig = createAppConfig({ subdomain: input.subdomain });
 
     return logsToReturn.map((log) => ({
       ...log,

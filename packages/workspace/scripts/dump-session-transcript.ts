@@ -11,6 +11,7 @@ import { extractProjectZip } from "../src/lib/extract-project-zip";
 import { getProjectManifest } from "../src/lib/project-manifest";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
+import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { AbsolutePathSchema, AppDirSchema } from "../src/schemas/paths";
 import { ProjectSubdomainSchema } from "../src/schemas/subdomains";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
@@ -61,11 +62,8 @@ if (isZip) {
 const manifest = await getProjectManifest(appDir);
 const folderName = path.basename(appDir);
 const subdomain = ProjectSubdomainSchema.parse(folderName);
-const workspaceConfig = createStubWorkspaceConfig({ projectsDir });
-const appConfig = createAppConfig({
-  subdomain,
-  workspaceConfig,
-});
+setWorkspaceConfig(createStubWorkspaceConfig({ projectsDir }));
+const appConfig = createAppConfig({ subdomain });
 
 const sessionsResult = await Store.getSessions(appConfig, {
   includeChildSessions: true,

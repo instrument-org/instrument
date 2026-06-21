@@ -44,7 +44,7 @@ const replaySession = base
     const { delayMs, mode, sessionId, subdomain } = input;
     const { workspaceConfig } = context;
 
-    const sourceAppConfig = createAppConfig({ subdomain, workspaceConfig });
+    const sourceAppConfig = createAppConfig({ subdomain });
 
     const messagesResult = await Store.getMessagesWithParts(
       { appConfig: sourceAppConfig, sessionId },

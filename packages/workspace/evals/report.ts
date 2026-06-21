@@ -60,10 +60,7 @@ export async function generateReport({
   const rollupModelURIs = new Set<string>();
 
   for (const project of projects) {
-    const appConfig = createAppConfig({
-      subdomain: project.subdomain,
-      workspaceConfig,
-    });
+    const appConfig = createAppConfig({ subdomain: project.subdomain });
 
     const projectState = await getProjectState(appConfig.appDir);
     const projectModelURI = projectState.selectedModelURI;

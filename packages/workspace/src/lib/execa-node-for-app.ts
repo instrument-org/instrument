@@ -3,6 +3,7 @@ import { execa, type Options } from "execa";
 import { type AbsolutePath } from "../schemas/paths";
 import { type AppConfig } from "./app-config/types";
 import { ffmpegSubprocessEnv } from "./ffmpeg";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export function execaNodeForApp<
   OptionsType extends Omit<Options, "cwd"> = Omit<Options, "cwd">,
@@ -19,7 +20,7 @@ export function execaNodeForApp<
     env: {
       ...options?.env,
       ...ffmpegSubprocessEnv(),
-      ...appConfig.workspaceConfig.nodeExecEnv,
+      ...getWorkspaceConfig().nodeExecEnv,
     },
     node: true,
     stdin: options?.input === undefined ? (options?.stdin ?? "ignore") : "pipe",

@@ -23,10 +23,7 @@ export async function duplicateProject(
   _options: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const sourceConfig = createAppConfig({
-      subdomain: sourceSubdomain,
-      workspaceConfig,
-    });
+    const sourceConfig = createAppConfig({ subdomain: sourceSubdomain });
 
     const projectConfig = await newProjectConfig({
       workspaceConfig,

@@ -1,15 +1,13 @@
 import { type WorkspaceAppProject } from "../schemas/app";
 import { type AppSubdomain } from "../schemas/subdomains";
-import { type WorkspaceConfig } from "../types";
 import { createAppConfig } from "./app-config/create";
 import { getAppDirTimestamps } from "./get-app-dir-timestamps";
 import { urlsForSubdomain } from "./url-for-subdomain";
 
 export async function getWorkspaceAppForSubdomain(
   subdomain: AppSubdomain,
-  workspaceConfig: WorkspaceConfig,
 ): Promise<WorkspaceAppProject> {
-  const appConfig = createAppConfig({ subdomain, workspaceConfig });
+  const appConfig = createAppConfig({ subdomain });
 
   const timestamps = await getAppDirTimestamps(appConfig.appDir);
 

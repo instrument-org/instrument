@@ -10,6 +10,7 @@ export function createMockAIGatewayModel(
     author?: string;
     features?: AIGatewayModel.ModelFeatures[];
     provider?: AIProviderType;
+    providerConfigId?: string;
   } = {},
 ): AIGatewayModel.Type {
   const {
@@ -19,7 +20,7 @@ export function createMockAIGatewayModel(
   } = options;
   const canonicalId = AIGatewayModel.CanonicalIdSchema.parse("mock-model-id");
   const providerConfigId = AIProviderConfigIdSchema.parse(
-    "mock-provider-config-id",
+    options.providerConfigId ?? "mock-provider-config-id",
   );
   const providerId = AIGatewayModel.ProviderIdSchema.parse("mock-provider-id");
 

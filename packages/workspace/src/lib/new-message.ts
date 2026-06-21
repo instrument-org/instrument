@@ -12,6 +12,7 @@ import { type AppConfig } from "./app-config/types";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectExternalFileChanges } from "./external-file-changes";
 import { setProjectState } from "./project-state-store";
+import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 export async function newMessage({
@@ -80,7 +81,7 @@ export async function newMessage({
   });
   if (externalChanges.isErr()) {
     // Awareness of disk changes is best-effort; never block sending.
-    appConfig.workspaceConfig.captureException(externalChanges.error);
+    getWorkspaceConfig().captureException(externalChanges.error);
   } else if (externalChanges.value) {
     parts.push(externalChanges.value);
   }
@@ -94,7 +95,7 @@ export async function newMessage({
 
   await setProjectState(appConfig.appDir, { selectedModelURI: modelURI });
 
-  appConfig.workspaceConfig.captureEvent("message.created", {
+  getWorkspaceConfig().captureEvent("message.created", {
     files_count: files?.length ?? 0,
     modelId: model.canonicalId,
     providerId: model.params.provider,

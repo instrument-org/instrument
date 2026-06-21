@@ -5,6 +5,7 @@ import type { AppConfig } from "../app-config/types";
 
 import { FFPROBE_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
+import { getWorkspaceConfig } from "../workspace-config";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
 export const FFPROBE_COMMAND = {
@@ -24,7 +25,7 @@ export function createFfprobeCommand(appConfig: AppConfig) {
         cancelSignal: ctx.signal,
         cwd: appCwd,
         env: {
-          ...appConfig.workspaceConfig.nodeExecEnv,
+          ...getWorkspaceConfig().nodeExecEnv,
           ...env,
         },
         reject: false,

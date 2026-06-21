@@ -12,7 +12,10 @@ import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import { noop } from "radashi";
 
 import { createAppConfig } from "../../lib/app-config/create";
-import { setWorkspaceConfig } from "../../lib/workspace-config";
+import {
+  resetWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type AppSubdomain } from "../../schemas/subdomains";
 import {
@@ -29,6 +32,16 @@ export const MOCK_WORKSPACE_DIRS = {
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   templates: `${MOCK_WORKSPACE_DIR}/registry/templates`,
 } as const;
+
+// Provider configs registered by createMockAppConfig. The singleton's
+// getAIProviderConfigs returns all of them so a test running two sessions with
+// distinct models (distinct providerConfigIds) resolves each to its own model
+// override. Configs are keyed by id so same-id mocks overwrite; a test that
+// needs full isolation can call resetMockWorkspaceConfig().
+const mockProviderConfigs = new Map<
+  string,
+  ReturnType<typeof AIGatewayProviderConfig.Schema.parse>
+>();
 
 export function createMockAppConfig(
   subdomain: AppSubdomain,
@@ -83,7 +96,7 @@ export function createMockAppConfig(
       // eslint-disable-next-line no-console
       console.error("captureException", args);
     },
-    getAIProviderConfigs: () => [config],
+    getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
     projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
@@ -93,11 +106,13 @@ export function createMockAppConfig(
     trashItem: () => Promise.resolve(),
   };
 
-  // Mirror production, where the running workspace machine publishes its config
-  // as the process singleton read by getWorkspaceConfig().
+  // Register this model's provider config and mirror production, where the
+  // running workspace machine publishes its config as the process singleton
+  // read by getWorkspaceConfig().
+  mockProviderConfigs.set(config.id, config);
   setWorkspaceConfig(workspaceConfig);
 
-  return createAppConfig({ subdomain, workspaceConfig });
+  return createAppConfig({ subdomain });
 }
 
 export function createStubBrowserConfig(): BrowserConfig {
@@ -115,4 +130,9 @@ export function createStubBrowserConfig(): BrowserConfig {
     stopScreencast: noop,
     subscribeEvents: () => noop,
   };
+}
+
+export function resetMockWorkspaceConfig(): void {
+  mockProviderConfigs.clear();
+  resetWorkspaceConfig();
 }

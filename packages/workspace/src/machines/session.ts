@@ -23,6 +23,7 @@ import {
   type SpawnAgentResult,
 } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type SessionTag } from "../schemas/app-state";
 import { type SessionMessage } from "../schemas/session/message";
@@ -322,9 +323,9 @@ export const sessionMachine = setup({
   initial: "UpdatingSession",
   on: {
     "*": {
-      actions: ({ context, event, self }) => {
+      actions: ({ event, self }) => {
         logUnhandledEvent({
-          captureException: context.appConfig.workspaceConfig.captureException,
+          captureException: getWorkspaceConfig().captureException,
           event,
           self,
         });
@@ -366,12 +367,11 @@ export const sessionMachine = setup({
 
       on: {
         "agent.done": {
-          actions: ({ context, event }) => {
+          actions: ({ event }) => {
             if (event.value.error) {
-              context.appConfig.workspaceConfig.captureException(
-                event.value.error,
-                { scopes: ["workspace"] },
-              );
+              getWorkspaceConfig().captureException(event.value.error, {
+                scopes: ["workspace"],
+              });
             }
           },
           target: ".AgentDone",

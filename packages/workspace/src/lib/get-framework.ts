@@ -8,6 +8,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { type AppConfig } from "./app-config/types";
 import { TypedError } from "./errors";
 import { readPNPMShim } from "./read-pnpm-shim";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export async function getFramework({
   appConfig,
@@ -44,7 +45,7 @@ export async function getFramework({
     if (scriptName) {
       return ok({
         arguments: [scriptName],
-        command: appConfig.workspaceConfig.pnpmBinPath,
+        command: getWorkspaceConfig().pnpmBinPath,
         log: {
           message: `No framework found, falling back to npm ${scriptName}`,
           type: "normal",
@@ -53,7 +54,7 @@ export async function getFramework({
       });
     }
 
-    appConfig.workspaceConfig.captureEvent("framework.not_supported", {
+    getWorkspaceConfig().captureEvent("framework.not_supported", {
       framework: "unknown",
     });
 
@@ -132,7 +133,7 @@ export async function getFramework({
       });
     }
   }
-  appConfig.workspaceConfig.captureEvent("framework.not_supported", {
+  getWorkspaceConfig().captureEvent("framework.not_supported", {
     framework: framework.name,
   });
 

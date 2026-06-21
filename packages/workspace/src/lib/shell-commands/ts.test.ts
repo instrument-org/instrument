@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { getWorkspaceConfig } from "../workspace-config";
 import { createTsCommand } from "./ts";
 
 vi.mock(import("../execa-node-for-app"));
@@ -81,7 +82,7 @@ describe("tsCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
       appConfig,
-      appConfig.workspaceConfig.pnpmBinPath,
+      getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
         "dlx",
         "jiti@2.6.1",
@@ -109,7 +110,7 @@ describe("tsCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
       appConfig,
-      appConfig.workspaceConfig.pnpmBinPath,
+      getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
         "dlx",
         "jiti@2.6.1",
@@ -153,7 +154,7 @@ describe("tsCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
       appConfig,
-      appConfig.workspaceConfig.pnpmBinPath,
+      getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
         "dlx",
         "jiti@2.6.1",

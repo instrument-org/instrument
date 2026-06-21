@@ -13,6 +13,7 @@ import {
   consumeTurnChanges,
   getCurrentProjectFiles,
 } from "./project-file-watcher";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const subdomain = ProjectSubdomainSchema.parse("watcher-test");
 
@@ -25,10 +26,14 @@ async function setupTask() {
   const projectsDir = path.join(root, "projects");
   appDir = path.join(projectsDir, subdomain);
   await fs.mkdir(path.join(appDir, "sub"), { recursive: true });
+  // createMockAppConfig publishes the singleton; point it at the temp dir so
+  // the watcher's createAppConfig resolves appDir under it.
+  createMockAppConfig(subdomain);
   workspaceConfig = {
-    ...createMockAppConfig(subdomain).workspaceConfig,
+    ...getWorkspaceConfig(),
     projectsDir: AbsolutePathSchema.parse(projectsDir),
   };
+  setWorkspaceConfig(workspaceConfig);
 }
 
 function trackedPaths() {

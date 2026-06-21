@@ -8,6 +8,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockAppConfig } from "../test/helpers/mock-app-config";
 import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
 import { PROJECT_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
+import { getWorkspaceConfig } from "./workspace-config";
 
 function createMockLanguageModel(text: string) {
   return new MockLanguageModelV3({
@@ -70,17 +71,17 @@ function setupTest(
 ) {
   const mockLanguageModel = createMockLanguageModel(generatedText);
   const model = createMockAIGatewayModel();
-  const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("mock"), {
+  createMockAppConfig(ProjectSubdomainSchema.parse("mock"), {
     aiSDKModel: mockLanguageModel,
     model,
   });
 
   const workspaceConfig = options.captureException
     ? {
-        ...appConfig.workspaceConfig,
+        ...getWorkspaceConfig(),
         captureException: options.captureException,
       }
-    : appConfig.workspaceConfig;
+    : getWorkspaceConfig();
 
   return {
     generate: (message = mockMessage) =>
@@ -98,17 +99,17 @@ function setupTestWithModel(
   options: { captureException?: (...args: unknown[]) => void } = {},
 ) {
   const model = createMockAIGatewayModel();
-  const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("mock"), {
+  createMockAppConfig(ProjectSubdomainSchema.parse("mock"), {
     aiSDKModel: languageModel,
     model,
   });
 
   const workspaceConfig = options.captureException
     ? {
-        ...appConfig.workspaceConfig,
+        ...getWorkspaceConfig(),
         captureException: options.captureException,
       }
-    : appConfig.workspaceConfig;
+    : getWorkspaceConfig();
 
   return {
     generate: (message = mockMessage) =>

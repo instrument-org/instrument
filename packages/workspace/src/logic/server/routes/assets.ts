@@ -23,10 +23,7 @@ app.get("/assets/*", async (c) => {
   }
 
   const { subdomain } = uriDetails.value;
-  const appConfig = createAppConfig({
-    subdomain,
-    workspaceConfig: c.var.workspaceConfig,
-  });
+  const appConfig = createAppConfig({ subdomain });
 
   const assetPath = c.req.path.replace(`${APPS_SERVER_API_PATH}/assets/`, "");
 

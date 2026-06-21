@@ -14,6 +14,7 @@ import { formatBytes } from "../lib/format-bytes";
 import { generateImages } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
 import { resolveToolPath } from "../lib/resolve-agent-path";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
@@ -136,12 +137,12 @@ export const GenerateImage = setupTool({
 
     const result = await generateImages({
       callingModel: model,
-      configs: appConfig.workspaceConfig.getAIProviderConfigs(),
+      configs: getWorkspaceConfig().getAIProviderConfigs(),
       count: 1,
       prompt: input.prompt,
       signal,
       sourceImages: sourceImageBuffers,
-      workspaceConfig: appConfig.workspaceConfig,
+      workspaceConfig: getWorkspaceConfig(),
       workspaceServerURL: getWorkspaceServerURL(),
     });
 

@@ -211,15 +211,15 @@ function RouteComponent() {
         if (openInNewTab) {
           void addTab(
             {
-              params: { subdomain: createdProjects[0].subdomain },
-              to: "/projects/$subdomain",
+              params: { id: createdProjects[0].subdomain },
+              to: "/tasks/$id",
             },
             { select: false },
           );
         } else {
           void navigate({
-            params: { subdomain: createdProjects[0].subdomain },
-            to: "/projects/$subdomain",
+            params: { id: createdProjects[0].subdomain },
+            to: "/tasks/$id",
           });
         }
       } else if (createdProjects.length > 1) {
@@ -228,8 +228,8 @@ function RouteComponent() {
             for (const project of createdProjects) {
               void addTab(
                 {
-                  params: { subdomain: project.subdomain },
-                  to: "/projects/$subdomain",
+                  params: { id: project.subdomain },
+                  to: "/tasks/$id",
                 },
                 { select: false },
               );
@@ -238,7 +238,7 @@ function RouteComponent() {
             void addTab(
               {
                 search: { filter: "evals" },
-                to: "/projects",
+                to: "/tasks",
               },
               { select: false },
             );
@@ -246,7 +246,7 @@ function RouteComponent() {
         } else {
           void navigate({
             search: { filter: "evals" },
-            to: "/projects",
+            to: "/tasks",
           });
         }
       }

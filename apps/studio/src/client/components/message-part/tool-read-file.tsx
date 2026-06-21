@@ -157,7 +157,7 @@ function ReadFileCard({
     currentFile !== undefined &&
     currentFile.modifiedAt !== modifiedAt;
   const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/projects/$subdomain" });
+  const navigate = useNavigate({ from: "/tasks/$id" });
 
   const handleAddToChat = () => {
     appendToPrompt({ key: subdomain, update: filePath });

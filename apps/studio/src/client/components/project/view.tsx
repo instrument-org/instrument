@@ -100,8 +100,8 @@ export function ProjectView({
 
   const handleArtifactPanelClose = () => {
     void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain: project.subdomain },
+      from: "/tasks/$id",
+      params: { id: project.subdomain },
       replace: true,
       search: (prev) => ({ ...prev, artifactPanel: undefined }),
     });
@@ -109,8 +109,8 @@ export function ProjectView({
 
   const handleFileSelect = (file: ProjectFileViewerFile) => {
     void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain: project.subdomain },
+      from: "/tasks/$id",
+      params: { id: project.subdomain },
       replace: true,
       search: (prev) => ({
         ...prev,
@@ -131,8 +131,8 @@ export function ProjectView({
 
   const handleSidebarChange = (nextSidebar: ProjectSidebarMode) => {
     void navigate({
-      from: "/projects/$subdomain",
-      params: { subdomain: project.subdomain },
+      from: "/tasks/$id",
+      params: { id: project.subdomain },
       replace: true,
       search: (prev) => ({
         ...prev,

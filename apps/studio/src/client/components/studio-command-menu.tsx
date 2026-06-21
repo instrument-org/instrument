@@ -47,7 +47,7 @@ export function StudioCommandMenu() {
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
   const projectRouteMatch = useMatch({
-    from: "/_app/projects/$subdomain/",
+    from: "/_app/tasks/$id/",
     shouldThrow: false,
   });
   const newTabRouteMatch = useMatch({
@@ -64,7 +64,7 @@ export function StudioCommandMenu() {
 
   const projects = projectsData?.projects ?? [];
 
-  const currentProjectSubdomain = projectRouteMatch?.params.subdomain;
+  const currentProjectSubdomain = projectRouteMatch?.params.id;
 
   const candidateProjects = projects.filter(
     (project) => project.subdomain !== currentProjectSubdomain,
@@ -121,8 +121,8 @@ export function StudioCommandMenu() {
   const handleSelectProject = (subdomain: TaskId) => {
     handleClose();
     void navigateTab({
-      params: { subdomain },
-      to: "/projects/$subdomain",
+      params: { id: subdomain },
+      to: "/tasks/$id",
     });
   };
 

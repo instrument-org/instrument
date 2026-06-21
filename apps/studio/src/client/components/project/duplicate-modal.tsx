@@ -38,8 +38,8 @@ export function DuplicateProjectModal({
         onClose();
 
         void addTab({
-          params: { subdomain: duplicatedProject.subdomain },
-          to: "/projects/$subdomain",
+          params: { id: duplicatedProject.subdomain },
+          to: "/tasks/$id",
         });
       },
     }),

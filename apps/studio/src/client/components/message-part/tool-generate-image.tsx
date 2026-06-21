@@ -83,7 +83,7 @@ export function ToolGenerateImage({
   part: GenerateImagePart;
   subdomain: TaskId;
 }) {
-  const navigate = useNavigate({ from: "/projects/$subdomain" });
+  const navigate = useNavigate({ from: "/tasks/$id" });
 
   if (!part.input) {
     return null;
@@ -295,7 +295,7 @@ function ImageActions({
   subdomain: TaskId;
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/projects/$subdomain" });
+  const navigate = useNavigate({ from: "/tasks/$id" });
 
   const handleAddToChat = () => {
     appendToPrompt({ key: subdomain, update: filePath });

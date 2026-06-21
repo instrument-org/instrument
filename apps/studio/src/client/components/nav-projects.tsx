@@ -36,8 +36,8 @@ export function NavProjects({
 
   const handleOpenInNewTab = (subdomain: TaskId) => {
     void addTab({
-      params: { subdomain },
-      to: "/projects/$subdomain",
+      params: { id: subdomain },
+      to: "/tasks/$id",
     });
   };
 
@@ -49,7 +49,7 @@ export function NavProjects({
   };
 
   const projectsMatch = matches.find(
-    (match) => match.routeId === "/_app/projects/",
+    (match) => match.routeId === "/_app/tasks/",
   );
 
   const isProjectsPage = projectsMatch !== undefined;
@@ -72,8 +72,8 @@ export function NavProjects({
   const isProjectActive = (subdomain: string) =>
     matches.some(
       (match) =>
-        match.routeId === "/_app/projects/$subdomain/" &&
-        match.params.subdomain === subdomain,
+        match.routeId === "/_app/tasks/$id/" &&
+        match.params.id === subdomain,
     );
 
   return (
@@ -88,7 +88,7 @@ export function NavProjects({
         <InternalLink
           openInCurrentTab
           search={{ filter: isFavorites ? "favorites" : "all" }}
-          to="/projects"
+          to="/tasks"
         >
           {title}
         </InternalLink>
@@ -113,7 +113,7 @@ export function NavProjects({
                   className="flex items-center gap-0.5 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground/70"
                   openInCurrentTab
                   search={{ filter: "favorites" }}
-                  to="/projects"
+                  to="/tasks"
                 >
                   View all favorites
                   <CaretRightIcon className="size-3" />
@@ -186,8 +186,8 @@ function ProjectsList({
       projects.map((project) => ({
         isActive: matches.some(
           (match) =>
-            match.routeId === "/_app/projects/$subdomain/" &&
-            match.params.subdomain === project.subdomain,
+            match.routeId === "/_app/tasks/$id/" &&
+            match.params.id === project.subdomain,
         ),
         isFavorited: favoriteSubdomains.has(project.subdomain),
         subdomain: project.subdomain,

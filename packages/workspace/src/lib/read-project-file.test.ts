@@ -29,16 +29,16 @@ import {
 describe("readProjectFile", () => {
   const subdomain = TaskIdSchema.parse("test-project");
   let projectsDir: string;
-  let appDir: string;
+  let dir: string;
 
   beforeEach(async () => {
     projectsDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "read-project-file-"),
     );
-    appDir = path.join(projectsDir, subdomain);
-    await fs.mkdir(appDir, { recursive: true });
-    await fs.writeFile(path.join(appDir, "inside.txt"), "inside contents");
-    // Sensitive file outside the task dir (sibling of appDir under projectsDir).
+    dir = path.join(projectsDir, subdomain);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "inside.txt"), "inside contents");
+    // Sensitive file outside the task dir (sibling of dir under projectsDir).
     await fs.writeFile(path.join(projectsDir, "secret.txt"), "ssh private key");
 
     // createMockAppConfig publishes the singleton; point it at the temp dir so

@@ -12,7 +12,7 @@ import path from "node:path";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
-  AppDirSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   TypedError,
@@ -29,7 +29,7 @@ export async function extractProjectZip({
 }: {
   outputDir: AbsolutePath;
   zipBlob: Blob;
-}): Promise<{ appDir: ReturnType<typeof AppDirSchema.parse> }> {
+}): Promise<{ dir: ReturnType<typeof TaskDirSchema.parse> }> {
   const zipReader = new ZipReader(new BlobReader(zipBlob));
   const entries = await zipReader.getEntries();
 
@@ -65,7 +65,7 @@ export async function extractProjectZip({
 
   await zipReader.close();
 
-  return { appDir: AppDirSchema.parse(outputDir) };
+  return { dir: TaskDirSchema.parse(outputDir) };
 }
 
 function resolvePathWithinOutputDir({

@@ -95,7 +95,7 @@ export function createTsCommand(appConfig: AppConfig) {
       const fileName = `.ts-eval-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ts`;
       await mkdir(appCwd, { recursive: true });
       await writeFile(absolutePathJoin(appCwd, fileName), evalCode, "utf8");
-      // Pass relative to appCwd (the jiti cwd) so the host appDir is not
+      // Pass relative to appCwd (the jiti cwd) so the host dir is not
       // exposed in jiti stack traces.
       filePath = fileName;
       scriptArgs = [];

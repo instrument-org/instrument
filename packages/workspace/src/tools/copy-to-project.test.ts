@@ -14,8 +14,8 @@ import {
   FolderAttachment,
 } from "../schemas/folder-attachment";
 import {
-  AppDirSchema,
   RelativePathSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   createMockAIGatewayModel,
@@ -49,7 +49,7 @@ const attachedFolders: Record<string, FolderAttachment.Type> = {
     createdAt: Date.now(),
     id: FolderAttachment.IdSchema.parse("test-folder-id"),
     name: "Test Folder",
-    path: AppDirSchema.parse(FIXTURES_PATH),
+    path: TaskDirSchema.parse(FIXTURES_PATH),
   },
 };
 
@@ -471,7 +471,7 @@ describe("CopyToProject", () => {
       const nestedAttachedFolders: Record<string, FolderAttachment.Type> = {
         "test-folder": {
           ...baseFolder,
-          path: AppDirSchema.parse(nestedPath),
+          path: TaskDirSchema.parse(nestedPath),
         },
       };
 

@@ -11,7 +11,7 @@ export {
   readProjectFile,
 } from "./lib/read-project-file";
 export {
-  resolvePathWithinAppDir,
+  resolvePathWithinTaskDir,
 } from "./lib/resolve-path-within-app-dir";
 export {
   type WorkspaceActorRef,

@@ -9,8 +9,8 @@ import {
 } from "zod";
 
 import {
-  type AppDir,
   RelativePathSchema,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   type SessionMessageDataPart,
@@ -44,7 +44,7 @@ const GIT_STATUS_MAP: Partial<
   M: "modified",
 };
 
-// A ref's tree is immutable, so resolving the same (appDir, ref) twice yields
+// A ref's tree is immutable, so resolving the same (dir, ref) twice yields
 // the same files. Memoize the in-flight promise to dedupe the concurrent calls
 // store.ts fires per message and to avoid re-spawning git on repeated views.
 const fileChangesCache = new Map<
@@ -61,14 +61,14 @@ const fileChangesCache = new Map<
  */
 export async function migrateGitCommitPart(
   part: SessionMessageRelaxedPart.DataPart,
-  appDir: AppDir,
+  dir: TaskDir,
 ): Promise<null | SessionMessageRelaxedPart.DataPart> {
   const parseResult = GitCommitDataSchema.safeParse(part.data);
   if (!parseResult.success) {
     return null;
   }
 
-  const files = await resolveFileChanges(appDir, parseResult.data.ref);
+  const files = await resolveFileChanges(dir, parseResult.data.ref);
   if (!files) {
     return null;
   }
@@ -80,20 +80,20 @@ export async function migrateGitCommitPart(
   };
 }
 
-function resolveFileChanges(appDir: AppDir, ref: string) {
-  const cacheKey = `${appDir}\0${ref}`;
+function resolveFileChanges(dir: TaskDir, ref: string) {
+  const cacheKey = `${dir}\0${ref}`;
   const cached = fileChangesCache.get(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const promise = resolveFileChangesUncached(appDir, ref);
+  const promise = resolveFileChangesUncached(dir, ref);
   fileChangesCache.set(cacheKey, promise);
   return promise;
 }
 
 async function resolveFileChangesUncached(
-  appDir: AppDir,
+  dir: TaskDir,
   ref: string,
 ): Promise<null | SessionMessageDataPart.FileChangeDataPartItem[]> {
   try {
@@ -114,7 +114,7 @@ async function resolveFileChangesUncached(
         "--end-of-options",
         ref,
       ],
-      appDir,
+      dir,
       {
         // Ignore the user/system git config so diff-tree output is deterministic.
         env: { GIT_CONFIG_GLOBAL: "", GIT_CONFIG_NOSYSTEM: "1" },
@@ -127,7 +127,7 @@ async function resolveFileChangesUncached(
     if (result.exitCode !== 0) {
       // eslint-disable-next-line no-console
       console.warn("[migrate-git-commit-part] git diff-tree failed", {
-        appDir,
+        dir,
         exitCode: result.exitCode,
         ref,
         stderr: result.stderr,
@@ -165,7 +165,7 @@ async function resolveFileChangesUncached(
 
       if (status !== "deleted") {
         try {
-          const stat = await fs.stat(path.join(appDir, normalizedRelPath));
+          const stat = await fs.stat(path.join(dir, normalizedRelPath));
           size = stat.size;
           modifiedAt = stat.mtimeMs;
         } catch {
@@ -187,7 +187,7 @@ async function resolveFileChangesUncached(
     if (files.length === 0) {
       // eslint-disable-next-line no-console
       console.warn("[migrate-git-commit-part] no files found for ref", {
-        appDir,
+        dir,
         ref,
       });
       return null;
@@ -196,7 +196,7 @@ async function resolveFileChangesUncached(
     // eslint-disable-next-line no-console
     console.log(
       "[migrate-git-commit-part] translated gitCommit to fileChanges",
-      { appDir, fileCount: files.length, ref },
+      { dir, fileCount: files.length, ref },
     );
 
     return files;
@@ -205,7 +205,7 @@ async function resolveFileChangesUncached(
     // eslint-disable-next-line no-console
     console.warn(
       "[migrate-git-commit-part] failed to migrate gitCommit part",
-      { appDir, ref },
+      { dir, ref },
       error,
     );
     return null;

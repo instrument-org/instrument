@@ -17,7 +17,7 @@ import {
   FolderAttachment,
 } from "../schemas/folder-attachment";
 import {
-  AppDirSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   type TaskId,
@@ -52,7 +52,7 @@ const attachedFolders: Record<string, FolderAttachment.Type> = {
     createdAt: Date.now(),
     id: FolderAttachment.IdSchema.parse("test-folder-id"),
     name: "Test Folder",
-    path: AppDirSchema.parse(fixturesPath),
+    path: TaskDirSchema.parse(fixturesPath),
   },
 };
 

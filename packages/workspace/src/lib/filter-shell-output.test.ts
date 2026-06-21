@@ -6,7 +6,7 @@ import {
 } from "vitest";
 
 import {
-  AppDirSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   filterShellOutput,
@@ -14,21 +14,21 @@ import {
 } from "./filter-shell-output";
 
 describe("filterShellOutput", () => {
-  const appDir = AppDirSchema.parse("/absolute/path/to/my project");
+  const dir = TaskDirSchema.parse("/absolute/path/to/my project");
 
   it("replaces absolute path with relative path", () => {
     const output = `$ pnpm lint
 
-> instrument-template-basic@0.0.0 lint ${appDir}
+> instrument-template-basic@0.0.0 lint ${dir}
 > eslint .
 
 
-${appDir}/scripts/interleave-demo.ts
+${dir}/scripts/interleave-demo.ts
    6:1  warning  Unexpected console statement  no-console
 
 ✖ 1 problems (0 errors, 1 warnings)`;
 
-    const result = filterShellOutput(output, appDir);
+    const result = filterShellOutput(output, dir);
 
     expect(result).toMatchInlineSnapshot(`
       "$ pnpm lint
@@ -45,11 +45,11 @@ ${appDir}/scripts/interleave-demo.ts
   });
 
   it("replaces multiple occurrences of absolute path", () => {
-    const output = `${appDir}/file1.ts
-${appDir}/file2.ts
-${appDir}/file3.ts`;
+    const output = `${dir}/file1.ts
+${dir}/file2.ts
+${dir}/file3.ts`;
 
-    const result = filterShellOutput(output, appDir);
+    const result = filterShellOutput(output, dir);
 
     expect(result).toMatchInlineSnapshot(`
       "./file1.ts
@@ -60,9 +60,9 @@ ${appDir}/file3.ts`;
 
   it("normalizes backslash paths in output", () => {
     const output = String.raw`Converted -> output\smiley.png
-${appDir}\output\rainbow.pdf`;
+${dir}\output\rainbow.pdf`;
 
-    const result = filterShellOutput(output, appDir);
+    const result = filterShellOutput(output, dir);
 
     expect(result).toMatchInlineSnapshot(`
       "Converted -> output/smiley.png
@@ -71,9 +71,9 @@ ${appDir}\output\rainbow.pdf`;
   });
 
   it("redacts app dir variants case-insensitively", () => {
-    const output = `${appDir.toUpperCase()}/output/file.png`;
+    const output = `${dir.toUpperCase()}/output/file.png`;
 
-    const result = filterShellOutput(output, appDir);
+    const result = filterShellOutput(output, dir);
 
     expect(result).toMatchInlineSnapshot(`"./output/file.png"`);
   });
@@ -85,7 +85,7 @@ ${appDir}\output\rainbow.pdf`;
 
 ✓ All tests passed`;
 
-    const result = filterShellOutput(output, appDir);
+    const result = filterShellOutput(output, dir);
 
     expect(result).toMatchInlineSnapshot(`
       "$ pnpm test
@@ -97,7 +97,7 @@ ${appDir}\output\rainbow.pdf`;
   });
 
   it("handles empty output", () => {
-    const result = filterShellOutput("", appDir);
+    const result = filterShellOutput("", dir);
 
     expect(result).toMatchInlineSnapshot(`""`);
   });
@@ -115,7 +115,7 @@ ${appDir}\output\rainbow.pdf`;
     Waiting for the debugger to disconnect...
     Waiting for the debugger to disconnect...`;
 
-    const result = filterShellOutput(output, appDir);
+    const result = filterShellOutput(output, dir);
     expect(result).toMatchInlineSnapshot(`
       "Error: Tool call execution failed for 'tool-bash': Command failed with exit code 1: pnpm dlx jiti scripts/test-06-dependencies.ts
 

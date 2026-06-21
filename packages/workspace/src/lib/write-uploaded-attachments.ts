@@ -22,9 +22,9 @@ import {
 import {
   type AbsolutePath,
   AbsolutePathSchema,
-  type AppDir,
   type RelativePath,
   RelativePathSchema,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   type SessionMessageDataPart,
@@ -65,13 +65,13 @@ interface PreparedUploadedFile {
 }
 
 export async function writeUploadedAttachments({
-  appDir,
+  dir,
   files,
   folders,
   messageId,
   sessionId,
 }: {
-  appDir: AppDir;
+  dir: TaskDir;
   files?: FileUpload.Type[];
   folders?: { path: string }[];
   messageId: StoreId.Message;
@@ -83,7 +83,7 @@ export async function writeUploadedAttachments({
 
     if (files && files.length > 0) {
       const preparedFiles = yield* await prepareUploadedFiles({
-        appDir,
+        dir,
         files,
       });
 
@@ -140,7 +140,7 @@ export async function writeUploadedAttachments({
     }
 
     if (folders && folders.length > 0) {
-      const projectState = await getProjectState(appDir);
+      const projectState = await getProjectState(dir);
       const existingFolders = projectState.attachedFolders ?? {};
 
       const newFolders: Record<string, FolderAttachment.Type> = {};
@@ -164,7 +164,7 @@ export async function writeUploadedAttachments({
         folderAttachments.push(folderAttachment);
       }
 
-      await setProjectState(appDir, {
+      await setProjectState(dir, {
         attachedFolders: { ...existingFolders, ...newFolders },
       });
     }
@@ -243,14 +243,14 @@ function getUniqueFolderName(
 }
 
 function prepareUploadedFiles({
-  appDir,
+  dir,
   files,
 }: {
-  appDir: AppDir;
+  dir: TaskDir;
   files: FileUpload.Type[];
 }) {
   return safeTry(async function* () {
-    const inputDir = absolutePathJoin(appDir, APP_FOLDER_NAMES.userProvided);
+    const inputDir = absolutePathJoin(dir, APP_FOLDER_NAMES.userProvided);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -269,7 +269,7 @@ function prepareUploadedFiles({
       reservedFilenames.add(uniqueFilename);
 
       if ("path" in file) {
-        yield* await validatePathUpload({ appDir, file });
+        yield* await validatePathUpload({ dir, file });
       }
 
       const relativePath = RelativePathSchema.parse(
@@ -278,7 +278,7 @@ function prepareUploadedFiles({
 
       preparedFiles.push({
         filename: uniqueFilename,
-        filePath: absolutePathJoin(appDir, relativePath),
+        filePath: absolutePathJoin(dir, relativePath),
         input: file,
         mimeType: "path" in file ? file.mimeType : getMimeType(uniqueFilename),
         relativePath,
@@ -290,10 +290,10 @@ function prepareUploadedFiles({
 }
 
 function validatePathUpload({
-  appDir,
+  dir,
   file,
 }: {
-  appDir: AppDir;
+  dir: TaskDir;
   file: PathFileUpload;
 }) {
   return safeTry(async function* () {
@@ -314,7 +314,7 @@ function validatePathUpload({
       );
     }
 
-    const relativeSourcePath = path.relative(appDir, file.path);
+    const relativeSourcePath = path.relative(dir, file.path);
     if (
       relativeSourcePath === "" ||
       (!relativeSourcePath.startsWith("..") &&

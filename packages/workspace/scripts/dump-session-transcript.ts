@@ -30,7 +30,7 @@ import {
 } from "../src/lib/workspace-config";
 import {
   AbsolutePathSchema,
-  AppDirSchema,
+  TaskDirSchema,
 } from "../src/schemas/paths";
 import {
   TaskIdSchema,
@@ -65,8 +65,8 @@ const inputStats = await fs.stat(absoluteInputPath);
 const isZip = inputStats.isFile() && absoluteInputPath.endsWith(".zip");
 
 let cleanupDir: string | undefined;
-let appDir = AppDirSchema.parse(absoluteInputPath);
-let projectsDir = path.dirname(appDir);
+let dir = TaskDirSchema.parse(absoluteInputPath);
+let projectsDir = path.dirname(dir);
 
 if (isZip) {
   const tempRoot = await fs.mkdtemp(
@@ -79,11 +79,11 @@ if (isZip) {
     path.join(projectsDir, folderName),
   );
   const zipBlob = new Blob([await fs.readFile(absoluteInputPath)]);
-  ({ appDir } = await extractProjectZip({ outputDir: extractDir, zipBlob }));
+  ({ dir } = await extractProjectZip({ outputDir: extractDir, zipBlob }));
 }
 
-const manifest = await getProjectManifest(appDir);
-const folderName = path.basename(appDir);
+const manifest = await getProjectManifest(dir);
+const folderName = path.basename(dir);
 const subdomain = TaskIdSchema.parse(folderName);
 setWorkspaceConfig(createStubWorkspaceConfig({ projectsDir }));
 const appConfig = createAppConfig({ subdomain });
@@ -93,7 +93,7 @@ const sessionsResult = await Store.getSessions(appConfig, {
 });
 if (sessionsResult.isErr()) {
   throw new Error(
-    `Failed to load sessions from ${path.join(appDir, ".instrument", "sessions.db")}: ${sessionsResult.error.message}`,
+    `Failed to load sessions from ${path.join(dir, ".instrument", "sessions.db")}: ${sessionsResult.error.message}`,
   );
 }
 
@@ -108,7 +108,7 @@ if (rootSessions.length > 1) {
 
 const rootSession = rootSessions[0];
 if (!rootSession) {
-  throw new Error(`No root session found in ${appDir}`);
+  throw new Error(`No root session found in ${dir}`);
 }
 
 const markdown = await getSessionMarkdown({
@@ -117,7 +117,7 @@ const markdown = await getSessionMarkdown({
     projectName: manifest?.name ?? folderName,
     sessionId: rootSession.id,
     sessionTitle: rootSession.title,
-    source: isZip ? absoluteInputPath : appDir,
+    source: isZip ? absoluteInputPath : dir,
   },
   includeContextMessages,
   sessionId: rootSession.id,

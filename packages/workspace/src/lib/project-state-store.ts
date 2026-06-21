@@ -11,13 +11,13 @@ import {
 } from "../schemas/folder-attachment";
 import {
   type AbsolutePath,
-  type AppDir,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   absolutePathJoin,
 } from "./absolute-path-join";
 import {
-  getAppPrivateDir,
+  getTaskPrivateDir,
 } from "./app-dir-utils";
 
 const PROJECT_STATE_FILE_NAME = "project-state.json";
@@ -40,8 +40,8 @@ export const ProjectStateSchema = z.object({
 
 export type ProjectState = z.output<typeof StoredProjectStateSchema>;
 
-export async function getProjectState(appDir: AppDir): Promise<ProjectState> {
-  const stateFilePath = getProjectStateFilePath(appDir);
+export async function getProjectState(dir: TaskDir): Promise<ProjectState> {
+  const stateFilePath = getProjectStateFilePath(dir);
 
   try {
     const content = await fs.readFile(stateFilePath, "utf8");
@@ -56,15 +56,15 @@ export async function getProjectState(appDir: AppDir): Promise<ProjectState> {
 }
 
 export async function setProjectState(
-  appDir: AppDir,
+  dir: TaskDir,
   state: Partial<ProjectState>,
 ): Promise<void> {
-  const stateFilePath = getProjectStateFilePath(appDir);
-  const privateDir = getAppPrivateDir(appDir);
+  const stateFilePath = getProjectStateFilePath(dir);
+  const privateDir = getTaskPrivateDir(dir);
 
   await fs.mkdir(privateDir, { recursive: true });
 
-  const currentState = await getProjectState(appDir);
+  const currentState = await getProjectState(dir);
 
   const newState = StoredProjectStateSchema.parse({
     ...currentState,
@@ -74,6 +74,6 @@ export async function setProjectState(
   await fs.writeFile(stateFilePath, JSON.stringify(newState, null, 2), "utf8");
 }
 
-function getProjectStateFilePath(appDir: AppDir): AbsolutePath {
-  return absolutePathJoin(getAppPrivateDir(appDir), PROJECT_STATE_FILE_NAME);
+function getProjectStateFilePath(dir: TaskDir): AbsolutePath {
+  return absolutePathJoin(getTaskPrivateDir(dir), PROJECT_STATE_FILE_NAME);
 }

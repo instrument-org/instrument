@@ -18,7 +18,7 @@ import {
 import {
   type AbsolutePath,
   AbsolutePathSchema,
-  type AppDir,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   Task,
@@ -36,7 +36,7 @@ import {
   pathExists,
 } from "./path-exists";
 import {
-  resolvePathWithinAppDir,
+  resolvePathWithinTaskDir,
 } from "./resolve-path-within-app-dir";
 import {
   validateAttachedFolderPath,
@@ -139,15 +139,15 @@ export async function getSimilarPathSuggestions({
 
 export function resolveAgentPath(options: {
   agentName: AgentName;
-  appDir: AppDir;
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  dir: TaskDir;
   inputPath?: string;
   isRequired?: boolean;
 }) {
   const {
     agentName,
-    appDir,
     attachedFolders,
+    dir,
     inputPath,
     isRequired = true,
   } = options;
@@ -184,7 +184,7 @@ export function resolveAgentPath(options: {
   if (!inputPath?.trim()) {
     if (!isRequired) {
       return ok({
-        absolutePath: appDir,
+        absolutePath: dir,
         displayPath: "./",
       });
     }
@@ -205,7 +205,7 @@ export function resolveAgentPath(options: {
     }
   }
 
-  return resolveToolPath(appDir, trimmedPath);
+  return resolveToolPath(dir, trimmedPath);
 }
 
 /**
@@ -215,8 +215,8 @@ export function resolveAgentPath(options: {
  */
 export function resolveExistingFilePath(options: {
   agentName: AgentName;
-  appDir: AppDir;
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  dir: TaskDir;
   inputPath?: string;
 }) {
   const result = resolveAgentPath({ ...options, isRequired: true });
@@ -238,8 +238,8 @@ export function resolveExistingFilePath(options: {
  * that accepts a file path input. It combines:
  * 1. Format validation (ensureRelativePath) — rejects absolute paths and
  *    obviously malformed input.
- * 2. Containment check (resolvePathWithinAppDir) — normalizes backslash
- *    separators then verifies the resolved path stays inside appDir, so
+ * 2. Containment check (resolvePathWithinTaskDir) — normalizes backslash
+ *    separators then verifies the resolved path stays inside dir, so
  *    Windows-style traversal like "./subdir\\..\\.." is rejected on all
  *    platforms.
  *
@@ -250,15 +250,15 @@ export function resolveExistingFilePath(options: {
  * For retrieval-agent / attached-folder paths use resolveAgentPath.
  * For reads where the file must already exist use resolveExistingFilePath.
  */
-export function resolveToolPath(appDir: AppDir, inputPath: string) {
+export function resolveToolPath(dir: TaskDir, inputPath: string) {
   const fixedPathResult = ensureRelativePath(inputPath);
   if (fixedPathResult.isErr()) {
     return fixedPathResult;
   }
   const displayPath = fixedPathResult.value;
 
-  const absolutePath = resolvePathWithinAppDir({
-    appDir,
+  const absolutePath = resolvePathWithinTaskDir({
+    dir,
     filePath: displayPath,
   });
   if (!absolutePath) {

@@ -31,7 +31,7 @@ import {
   createAppConfig,
   readProjectFile,
   RelativeProjectPathSchema,
-  resolvePathWithinAppDir,
+  resolvePathWithinTaskDir,
   taskDir,
   TaskIdSchema,
   workspaceRouter,
@@ -129,10 +129,10 @@ const getDetectionCommand = (
 };
 
 const OPEN_COMMANDS = {
-  darwin: (appName: string, appDir: string) =>
-    `open -a "${appName}" "${appDir}"`,
-  linux: (command: string, appDir: string) => `${command} "${appDir}"`,
-  win32: (command: string, appDir: string) => `${command} "${appDir}"`,
+  darwin: (appName: string, dir: string) =>
+    `open -a "${appName}" "${dir}"`,
+  linux: (command: string, dir: string) => `${command} "${dir}"`,
+  win32: (command: string, dir: string) => `${command} "${dir}"`,
 } as const;
 
 const APP_COMMAND_MAP: Partial<
@@ -148,37 +148,37 @@ const APP_COMMAND_MAP: Partial<
 };
 
 const SPECIAL_COMMANDS: Partial<
-  Record<SupportedEditorId, (appDir: string, platform: string) => string>
+  Record<SupportedEditorId, (dir: string, platform: string) => string>
 > = {
-  alacritty: (appDir: string, platform: string) => {
+  alacritty: (dir: string, platform: string) => {
     if (platform === "darwin") {
-      return `open -na "Alacritty" --args --working-directory "${appDir}"`;
+      return `open -na "Alacritty" --args --working-directory "${dir}"`;
     }
-    return `alacritty --working-directory "${appDir}"`;
+    return `alacritty --working-directory "${dir}"`;
   },
-  cmd: (appDir: string, platform: string) => {
+  cmd: (dir: string, platform: string) => {
     if (platform !== "win32") {
       throw new Error("Command Prompt is only available on Windows");
     }
-    return `cmd /c "cd /d "${appDir}" && cmd"`;
+    return `cmd /c "cd /d "${dir}" && cmd"`;
   },
-  iterm: (appDir: string, platform: string) => {
+  iterm: (dir: string, platform: string) => {
     if (platform !== "darwin") {
       throw new Error("iTerm is only available on macOS");
     }
-    return `open -a "iTerm" "${appDir}"`;
+    return `open -a "iTerm" "${dir}"`;
   },
-  powershell: (appDir: string, platform: string) => {
+  powershell: (dir: string, platform: string) => {
     if (platform !== "win32") {
       throw new Error("PowerShell is only available on Windows");
     }
-    return `powershell -NoExit -Command "Set-Location '${appDir}'"`;
+    return `powershell -NoExit -Command "Set-Location '${dir}'"`;
   },
 };
 
 const getOpenCommand = (
   type: OpenAppInType,
-  appDir: string,
+  dir: string,
   platform: string,
 ): string => {
   if (type === "show-in-folder") {
@@ -187,7 +187,7 @@ const getOpenCommand = (
 
   const specialCommand = SPECIAL_COMMANDS[type];
   if (specialCommand) {
-    return specialCommand(appDir, platform);
+    return specialCommand(dir, platform);
   }
 
   const appCommands = APP_COMMAND_MAP[type];
@@ -201,7 +201,7 @@ const getOpenCommand = (
   }
 
   const commandFn = OPEN_COMMANDS[platform as keyof typeof OPEN_COMMANDS];
-  return commandFn(command, appDir);
+  return commandFn(command, dir);
 };
 
 const checkEditorAvailability = async (
@@ -334,8 +334,8 @@ const showProjectFileInFolder = base
       subdomain: input.subdomain,
     });
 
-    const fullPath = resolvePathWithinAppDir({
-      appDir: taskDir(appConfig),
+    const fullPath = resolvePathWithinTaskDir({
+      dir: taskDir(appConfig),
       filePath: input.filePath,
     });
     if (!fullPath) {

@@ -21,8 +21,8 @@ import {
 } from "../schemas/app";
 import {
   type AbsolutePath,
-  type AppDir,
-  AppDirSchema,
+  type TaskDir,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   SubdomainPartSchema,
@@ -38,7 +38,7 @@ import {
   TypedError,
 } from "./errors";
 import {
-  getAppDirTimestamps,
+  getTaskDirTimestamps,
 } from "./get-app-dir-timestamps";
 import {
   isProjectSubdomain,
@@ -61,18 +61,18 @@ export async function getApp(
   }
 
   // For tasks the folder name is identical to the subdomain.
-  const appDir = AppDirSchema.parse(
+  const dir = TaskDirSchema.parse(
     path.resolve(workspaceConfig.projectsDir, subdomain),
   );
 
   // Check if the directory exists
   try {
-    await fs.access(appDir);
+    await fs.access(dir);
   } catch (error) {
     return err(new TypedError.NotFound("App not found", { cause: error }));
   }
 
-  return workspaceApp({ appDir });
+  return workspaceApp({ dir });
 }
 
 export async function getProjects(
@@ -97,8 +97,8 @@ export async function getProjects(
       : (project: Task) => project.updatedAt.getTime();
 
   const projectAppDirs = await appDirsInRootDir(workspaceConfig.projectsDir);
-  for (const appDir of projectAppDirs) {
-    const projectApp = await workspaceApp({ appDir });
+  for (const dir of projectAppDirs) {
+    const projectApp = await workspaceApp({ dir });
     if (projectApp.isOk()) {
       projects.push(projectApp.value);
     } else {
@@ -122,7 +122,7 @@ export async function getProjects(
   return { projects: sortedProjects, total };
 }
 
-async function appDirsInRootDir(rootDir: AbsolutePath): Promise<AppDir[]> {
+async function appDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
   // First check if the root dir exists
   const rootDirExists = await fs
     .stat(rootDir)
@@ -137,7 +137,7 @@ async function appDirsInRootDir(rootDir: AbsolutePath): Promise<AppDir[]> {
       absolute: true,
       cwd: rootDir,
     });
-    return entries.map((appDir) => AppDirSchema.parse(appDir));
+    return entries.map((dir) => TaskDirSchema.parse(dir));
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error("Error reading apps folder", error);
@@ -145,19 +145,19 @@ async function appDirsInRootDir(rootDir: AbsolutePath): Promise<AppDir[]> {
   }
 }
 async function getAppTitle(
-  appDir: AppDir,
+  dir: TaskDir,
   folderName: string,
 ): Promise<string> {
   try {
-    const questManifest = await getProjectManifest(appDir);
+    const questManifest = await getProjectManifest(dir);
     return questManifest?.name ?? folderName;
   } catch {
     return folderName;
   }
 }
 
-async function workspaceApp({ appDir }: { appDir: AppDir }) {
-  const rawFolderName = path.basename(appDir);
+async function workspaceApp({ dir }: { dir: TaskDir }) {
+  const rawFolderName = path.basename(dir);
   const folderNameResult = SubdomainPartSchema.safeParse(rawFolderName);
 
   if (!folderNameResult.success) {
@@ -180,8 +180,8 @@ async function workspaceApp({ appDir }: { appDir: AppDir }) {
     );
   }
 
-  const title = await getAppTitle(appDir, rawFolderName);
-  const manifest = await getProjectManifest(appDir);
+  const title = await getAppTitle(dir, rawFolderName);
+  const manifest = await getProjectManifest(dir);
 
   const iconName =
     manifest?.iconName ||
@@ -190,7 +190,7 @@ async function workspaceApp({ appDir }: { appDir: AppDir }) {
       : undefined);
 
   const projectApp: Task = {
-    ...(await getAppDirTimestamps(appDir)),
+    ...(await getTaskDirTimestamps(dir)),
     description: manifest?.description,
     folderName: rawFolderName,
     iconName,

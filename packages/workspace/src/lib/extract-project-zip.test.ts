@@ -17,7 +17,7 @@ import {
 } from "vitest";
 
 import {
-  AppDirSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   TypedError,
@@ -50,7 +50,7 @@ describe("extractProjectZip", () => {
   });
 
   it("extracts valid entries under the output directory", async () => {
-    const outputDir = AppDirSchema.parse(
+    const outputDir = TaskDirSchema.parse(
       await fs.mkdtemp(path.join(os.tmpdir(), "extract-project-zip-")),
     );
     tempDirs.push(outputDir);
@@ -72,7 +72,7 @@ describe("extractProjectZip", () => {
   it.each(["../../escape.txt", "../../../escape.txt"])(
     "rejects zip entries that escape the output directory (%s)",
     async (filename) => {
-      const outputDir = AppDirSchema.parse(
+      const outputDir = TaskDirSchema.parse(
         await fs.mkdtemp(path.join(os.tmpdir(), "extract-project-zip-")),
       );
       tempDirs.push(outputDir);

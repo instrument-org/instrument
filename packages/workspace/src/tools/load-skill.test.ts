@@ -37,16 +37,16 @@ import {
 const model = createMockAIGatewayModel();
 
 let tmpDir: string;
-let appDir: string;
+let dir: string;
 let registryDir: string;
 let skillsDir: string;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "load-skill-test-"));
-  appDir = path.join(tmpDir, "app");
+  dir = path.join(tmpDir, "app");
   registryDir = path.join(tmpDir, "registry");
   skillsDir = path.join(registryDir, REGISTRY_FOLDER_NAMES.skills);
-  await fs.mkdir(appDir, { recursive: true });
+  await fs.mkdir(dir, { recursive: true });
   await fs.mkdir(skillsDir, { recursive: true });
 });
 
@@ -66,9 +66,9 @@ function baseExecuteArgs() {
 }
 
 function createAppConfigWithDirs() {
-  // Point the singleton's projectsDir at appDir's parent so taskDir(id) ===
-  // appDir, then also override registryDir for skill resolution.
-  const id = createMockAppConfigForDir(appDir, { model });
+  // Point the singleton's projectsDir at dir's parent so taskDir(id) ===
+  // dir, then also override registryDir for skill resolution.
+  const id = createMockAppConfigForDir(dir, { model });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     registryDir: AbsolutePathSchema.parse(registryDir),
@@ -136,7 +136,7 @@ describe("LoadSkill", () => {
       input: { explanation: "loading", name: "my-skill" },
     });
 
-    const destBase = path.join(appDir, APP_FOLDER_NAMES.skills, "my-skill");
+    const destBase = path.join(dir, APP_FOLDER_NAMES.skills, "my-skill");
     const md = await fs.readFile(path.join(destBase, "SKILL.md"), "utf8");
     expect(md).toMatchInlineSnapshot(`
       "---
@@ -200,7 +200,7 @@ describe("LoadSkill", () => {
     await runTool(LoadSkill, args);
 
     const destScript = path.join(
-      appDir,
+      dir,
       APP_FOLDER_NAMES.skills,
       "my-skill",
       "scripts",

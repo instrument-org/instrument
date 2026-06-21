@@ -11,7 +11,7 @@ import {
 } from "../constants";
 import {
   type AbsolutePath,
-  type AppDir,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   absolutePathJoin,
@@ -28,17 +28,17 @@ import {
 } from "./normalize-path";
 
 export async function copySkill({
-  appDir,
+  dir,
   signal,
   skillDir,
   skillName,
 }: {
-  appDir: AppDir;
+  dir: TaskDir;
   signal: AbortSignal;
   skillDir: AbsolutePath;
   skillName: string;
 }): Promise<Result<AbsolutePath, TypedError.Conflict>> {
-  const destDir = absolutePathJoin(appDir, APP_FOLDER_NAMES.skills, skillName);
+  const destDir = absolutePathJoin(dir, APP_FOLDER_NAMES.skills, skillName);
 
   try {
     await fs.access(destDir);
@@ -53,7 +53,7 @@ export async function copySkill({
     }
   }
   await fs.mkdir(destDir, { recursive: true });
-  const baseIgnore = await getIgnore(appDir, { signal });
+  const baseIgnore = await getIgnore(dir, { signal });
   // Omit test infrastructure -- it's only used during skill development before
   // the skill is committed to the registry and made available to the agent.
   const ignore = baseIgnore.add([

@@ -32,7 +32,7 @@ describe("fixRelativePath", () => {
   // slash). A backslash traversal like "./subdir\..\..\outside.txt" slips
   // through because the check is !path.includes("../") and the path only
   // contains "..\". The security boundary for this case is enforced by
-  // resolvePathWithinAppDir (which normalizes backslashes before checking
+  // resolvePathWithinTaskDir (which normalizes backslashes before checking
   // containment) — see its own test file and the tool-layer tests.
   it("BYPASS: passes Windows backslash traversal (fixRelativePath gap)", () => {
     const input = "./subdir\\..\\..\\outside.txt";

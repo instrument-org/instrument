@@ -16,7 +16,7 @@ import {
   normalizeProjectFilePath,
 } from "./normalize-project-file-path";
 import {
-  resolvePathWithinAppDir,
+  resolvePathWithinTaskDir,
 } from "./resolve-path-within-app-dir";
 
 interface ReadProjectFileOptions {
@@ -34,13 +34,13 @@ export async function readProjectFile({
 
   const cleanPath = normalizeProjectFilePath(filePath);
 
-  // Fail closed: reject absolute paths and any traversal outside appDir.
+  // Fail closed: reject absolute paths and any traversal outside dir.
   const parsedPath = RelativePathSchema.safeParse(cleanPath);
   if (!parsedPath.success) {
     return null;
   }
-  const fullPath = resolvePathWithinAppDir({
-    appDir: taskDir(projectConfig),
+  const fullPath = resolvePathWithinTaskDir({
+    dir: taskDir(projectConfig),
     filePath: parsedPath.data,
   });
   if (!fullPath) {

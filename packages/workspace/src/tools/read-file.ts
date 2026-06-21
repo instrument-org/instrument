@@ -269,8 +269,8 @@ export const ReadFile = setupTool({
   execute: async ({ agentName, appConfig, input, projectState, signal }) => {
     const pathResult = resolveExistingFilePath({
       agentName,
-      appDir: taskDir(appConfig),
       attachedFolders: projectState.attachedFolders,
+      dir: taskDir(appConfig),
       inputPath: input.filePath,
     });
 

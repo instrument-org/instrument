@@ -18,7 +18,7 @@ import {
   newProjectConfig,
 } from "./app-config/new";
 import {
-  getAppPrivateDir,
+  getTaskPrivateDir,
   sessionStorePath,
   taskDir,
 } from "./app-dir-utils";
@@ -93,7 +93,7 @@ export async function duplicateProject(
       const targetSessionDbPath = sessionStorePath(taskDir(projectConfig));
 
       if (await pathExists(sourceSessionDbPath)) {
-        const targetPrivateDir = getAppPrivateDir(taskDir(projectConfig));
+        const targetPrivateDir = getTaskPrivateDir(taskDir(projectConfig));
         await fs.mkdir(targetPrivateDir, { recursive: true });
         await fs.copyFile(sourceSessionDbPath, targetSessionDbPath);
       }

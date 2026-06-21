@@ -2,6 +2,7 @@ import { execa, type Options } from "execa";
 
 import { type AbsolutePath } from "../schemas/paths";
 import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import { ffmpegSubprocessEnv } from "./ffmpeg";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -16,7 +17,7 @@ export function execaNodeForApp<
 ) {
   return execa(file, arguments_, {
     ...options,
-    cwd: cwd ?? appConfig.appDir,
+    cwd: cwd ?? taskDir(appConfig),
     env: {
       ...options?.env,
       ...ffmpegSubprocessEnv(),

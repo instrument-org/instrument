@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { taskDir } from "../app-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createTsCommand } from "./ts";
 
@@ -66,7 +67,7 @@ describe("tsCommand", () => {
   });
 
   it("executes eval code via -e flag by writing a tmp file", async () => {
-    mockFs({ [appConfig.appDir]: {} });
+    mockFs({ [taskDir(appConfig)]: {} });
 
     const { execaNodeForApp } = await import("../execa-node-for-app");
     vi.mocked(execaNodeForApp).mockResolvedValueOnce({
@@ -94,7 +95,7 @@ describe("tsCommand", () => {
   });
 
   it("executes eval code via --eval flag by writing a tmp file", async () => {
-    mockFs({ [appConfig.appDir]: {} });
+    mockFs({ [taskDir(appConfig)]: {} });
 
     const { execaNodeForApp } = await import("../execa-node-for-app");
     vi.mocked(execaNodeForApp).mockResolvedValueOnce({
@@ -180,7 +181,7 @@ describe("tsCommand", () => {
 
     const calledPath = vi.mocked(execaNodeForApp).mock.calls.at(-1)?.[2]?.[2];
     expect(calledPath).toBeDefined();
-    expect(calledPath).not.toContain(appConfig.appDir);
+    expect(calledPath).not.toContain(taskDir(appConfig));
     expect(calledPath).toBe("scripts/run.ts");
   });
 });

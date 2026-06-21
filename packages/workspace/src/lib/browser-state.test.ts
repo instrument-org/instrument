@@ -3,27 +3,27 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AppDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import {
+  type ProjectSubdomain,
+  ProjectSubdomainSchema,
+} from "../schemas/subdomains";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { taskDir } from "./app-dir-utils";
 import { getBrowserState, recordBrowserUse } from "./browser-state";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 
 const subdomain = ProjectSubdomainSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();
 
-let appConfig: ReturnType<typeof createMockAppConfig>;
+let appConfig: ProjectSubdomain;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
   const projectsDir = path.join(root, "projects");
-  appConfig = {
-    ...createMockAppConfig(subdomain),
-    appDir: AppDirSchema.parse(path.join(projectsDir, subdomain)),
-  };
-  await fs.mkdir(appConfig.appDir, { recursive: true });
+  appConfig = createMockAppConfigForDir(path.join(projectsDir, subdomain));
+  await fs.mkdir(taskDir(appConfig), { recursive: true });
 });
 
 afterEach(async () => {

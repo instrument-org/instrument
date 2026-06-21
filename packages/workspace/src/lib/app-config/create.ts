@@ -1,20 +1,12 @@
-import path from "node:path";
-
-import { AppDirSchema } from "../../schemas/paths";
 import { type ProjectSubdomain } from "../../schemas/subdomains";
-import { getWorkspaceConfig } from "../workspace-config";
-import { type AppConfigProject } from "./types";
 
+// Transitional shim: a task is now just its id. createAppConfig used to build a
+// carrier object; it now returns the id directly so callers keep compiling
+// until the subdomain→id rename removes it entirely.
 export function createAppConfig({
   subdomain,
 }: {
   subdomain: ProjectSubdomain;
-}): AppConfigProject {
-  // For tasks the folder name is identical to the subdomain.
-  return {
-    appDir: AppDirSchema.parse(
-      path.join(getWorkspaceConfig().projectsDir, subdomain),
-    ),
-    subdomain,
-  };
+}): ProjectSubdomain {
+  return subdomain;
 }

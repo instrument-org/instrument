@@ -4,6 +4,7 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import type { AppConfig } from "../app-config/types";
 
 import { type AbsolutePath } from "../../schemas/paths";
+import { taskDir } from "../app-dir-utils";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -27,7 +28,7 @@ function execNode(
   return execa(process.execPath, args, {
     all: true,
     cancelSignal: signal,
-    cwd: cwd ?? appConfig.appDir,
+    cwd: cwd ?? taskDir(appConfig),
     env: {
       ...getWorkspaceConfig().nodeExecEnv,
       ...env,
@@ -84,7 +85,7 @@ export function createNodeCommand(appConfig: AppConfig) {
         appCwd,
         env,
       );
-      const combined = filterShellOutput(execResult.all, appConfig.appDir);
+      const combined = filterShellOutput(execResult.all, taskDir(appConfig));
       return {
         exitCode: execResult.exitCode ?? 1,
         stderr: "",
@@ -121,7 +122,7 @@ export function createNodeCommand(appConfig: AppConfig) {
         env,
         latin1FromBytes(ctx.stdin) || undefined,
       );
-      const combined = filterShellOutput(execResult.all, appConfig.appDir);
+      const combined = filterShellOutput(execResult.all, taskDir(appConfig));
       return {
         exitCode: execResult.exitCode ?? 1,
         stderr: "",
@@ -162,7 +163,7 @@ export function createNodeCommand(appConfig: AppConfig) {
       env,
       latin1FromBytes(ctx.stdin) || undefined,
     );
-    const combined = filterShellOutput(execResult.all, appConfig.appDir);
+    const combined = filterShellOutput(execResult.all, taskDir(appConfig));
 
     return {
       exitCode: execResult.exitCode ?? 1,

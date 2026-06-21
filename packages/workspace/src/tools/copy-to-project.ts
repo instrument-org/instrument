@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { APP_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
 import { glob, resolveGlobPattern } from "../lib/glob";
@@ -154,7 +155,7 @@ export const CopyToProject = setupTool({
 
     const pathResult = resolveAgentPath({
       agentName,
-      appDir: appConfig.appDir,
+      appDir: taskDir(appConfig),
       attachedFolders: projectState.attachedFolders,
       inputPath: input.path,
       isRequired: true,
@@ -180,7 +181,7 @@ export const CopyToProject = setupTool({
     }
 
     const retrievedDir = absolutePathJoin(
-      appConfig.appDir,
+      taskDir(appConfig),
       APP_FOLDER_NAMES.agentRetrieved,
     );
     await fs.mkdir(retrievedDir, { recursive: true });
@@ -241,7 +242,7 @@ export const CopyToProject = setupTool({
 
       const destinationRelative = `./${APP_FOLDER_NAMES.agentRetrieved}/${uniqueFilename}`;
       const destinationAbsolute = absolutePathJoin(
-        appConfig.appDir,
+        taskDir(appConfig),
         destinationRelative,
       );
 

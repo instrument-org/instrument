@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 
 import { absolutePathJoin } from "../../../lib/absolute-path-join";
 import { createAppConfig } from "../../../lib/app-config/create";
+import { taskDir } from "../../../lib/app-dir-utils";
 import { APPS_SERVER_API_PATH } from "../constants";
 import { serveStaticFile } from "../serve-static";
 import { type WorkspaceServerEnv } from "../types";
@@ -31,7 +32,7 @@ app.get("/assets/*", async (c) => {
     return c.notFound();
   }
 
-  const fullPath = absolutePathJoin(appConfig.appDir, assetPath);
+  const fullPath = absolutePathJoin(taskDir(appConfig), assetPath);
 
   c.header("Cache-Control", "no-store");
 

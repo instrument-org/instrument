@@ -20,6 +20,7 @@ import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
 import {
   getAgentBrowserStateDir,
   getBrowserSessionDir,
+  taskDir,
 } from "../app-dir-utils";
 import { recordBrowserUse } from "../browser-state";
 import {
@@ -101,7 +102,7 @@ export function createAgentBrowserCommand({
     const workspaceConfig = getWorkspaceConfig();
     const serverPort = getWorkspaceServerPort();
 
-    if (!isProjectSubdomain(appConfig.subdomain)) {
+    if (!isProjectSubdomain(appConfig)) {
       return {
         exitCode: 1,
         stderr: "agent-browser: browser is only available in task contexts.\n",
@@ -109,7 +110,7 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const subdomain = appConfig.subdomain;
+    const subdomain = appConfig;
 
     // Match both --flag and --flag=value forms.
     const blockedArg = args.find((a) => {
@@ -153,7 +154,7 @@ export function createAgentBrowserCommand({
       // (subdomain, sessionId) pair if one is already live, so sub-agents and
       // repeat invocations within the same session reuse the same browsing
       // surface (cookies, page, debugger).
-      const partitionDir = getBrowserSessionDir(appConfig.appDir);
+      const partitionDir = getBrowserSessionDir(taskDir(appConfig));
       const target = await workspaceConfig.browser.createTarget(
         subdomain,
         sessionId,
@@ -172,10 +173,10 @@ export function createAgentBrowserCommand({
       );
     }
 
-    const tmpDir = absolutePathJoin(appConfig.appDir, APP_FOLDER_NAMES.tmp);
+    const tmpDir = absolutePathJoin(taskDir(appConfig), APP_FOLDER_NAMES.tmp);
     const screenshotDir = absolutePathJoin(tmpDir, "agent-browser-screenshots");
     const downloadPath = absolutePathJoin(tmpDir, "agent-browser-downloads");
-    const agentBrowserStateDir = getAgentBrowserStateDir(appConfig.appDir);
+    const agentBrowserStateDir = getAgentBrowserStateDir(taskDir(appConfig));
     // Relative so agent-browser outputs screenshot paths the agent sees as relative
     // to its cwd (e.g. "tmp/agent-browser-screenshots/shot.png"), not host absolute.
     const screenshotDirRelative = path.relative(appCwd, screenshotDir);
@@ -184,7 +185,7 @@ export function createAgentBrowserCommand({
     // download path); this is a per-project sink for anything that falls back
     // to $HOME (e.g. ~/.agent-browser/config reads, future writes).
     const homeDir = absolutePathJoin(
-      appConfig.appDir,
+      taskDir(appConfig),
       APP_FOLDER_NAMES.private,
       "agent-browser-home",
     );

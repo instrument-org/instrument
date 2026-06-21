@@ -514,7 +514,7 @@ export const workspaceMachine = setup({
       {
         actions: raise(({ context, event }) => {
           const existingRuntimeRef = context.runtimeRefs.get(
-            event.value.appConfig.subdomain,
+            event.value.appConfig,
           );
 
           if (existingRuntimeRef) {
@@ -522,7 +522,7 @@ export const workspaceMachine = setup({
               type: "internal.updateHeartbeat",
               value: {
                 createdAt: event.value.createdAt,
-                subdomain: event.value.appConfig.subdomain,
+                subdomain: event.value.appConfig,
               },
             };
           }
@@ -567,7 +567,7 @@ export const workspaceMachine = setup({
           enqueue({
             params: {
               sessionRef: sessionMachineRef,
-              subdomain: appConfig.subdomain,
+              subdomain: appConfig,
             },
             type: "trackSessionRef",
           });
@@ -576,7 +576,7 @@ export const workspaceMachine = setup({
         });
       }),
       guard: ({ context, event }) => {
-        const { subdomain } = event.value.appConfig;
+        const subdomain = event.value.appConfig;
         return !context.appsBeingTrashed.some(
           (trashingSubdomain) =>
             subdomain === trashingSubdomain ||
@@ -721,14 +721,14 @@ export const workspaceMachine = setup({
         actions: raise(({ event }) => {
           return {
             type: "restartRuntime",
-            value: { subdomain: event.value.appConfig.subdomain },
+            value: { subdomain: event.value.appConfig },
           };
         }),
         guard: ({ context, event }) =>
           // Only restart if non-read-only tools were used
           event.value.usedNonReadOnlyTools &&
           // Don't restart if the runtime if it isn't running
-          context.runtimeRefs.has(event.value.appConfig.subdomain),
+          context.runtimeRefs.has(event.value.appConfig),
       },
       {
         // No restart needed if only read-only tools were used
@@ -760,7 +760,7 @@ export const workspaceMachine = setup({
       actions: assign(({ context, event, spawn }) => {
         return {
           runtimeRefs: new Map(context.runtimeRefs).set(
-            event.value.appConfig.subdomain,
+            event.value.appConfig,
             spawn("runtimeMachine", {
               input: {
                 appConfig: event.value.appConfig,
@@ -770,7 +770,7 @@ export const workspaceMachine = setup({
         };
       }),
       guard: ({ context, event }) => {
-        const subdomain = event.value.appConfig.subdomain;
+        const subdomain = event.value.appConfig;
         return !context.appsBeingTrashed.some(
           (trashingSubdomain) =>
             subdomain === trashingSubdomain ||

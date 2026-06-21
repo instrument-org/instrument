@@ -10,7 +10,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ProjectSubdomain } from "../schemas/subdomains";
 import { encodeBrowserTargetId } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
-import { getAgentBrowserStateDir } from "./app-dir-utils";
+import { getAgentBrowserStateDir, taskDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -162,7 +162,7 @@ async function captureBrowserScreenshot({
     // timestamp + host + title + hash, unique enough to be multi-agent safe.
     // The `.state/agent-browser/` dir is also surfaced to the agent in the
     // agent-browser skill (separate `skills` repo); keep that in sync if renamed.
-    const dir = getAgentBrowserStateDir(appConfig.appDir);
+    const dir = getAgentBrowserStateDir(taskDir(appConfig));
     await fs.mkdir(dir, { recursive: true });
     const fileName = buildScreenshotFileName({
       hash,

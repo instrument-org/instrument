@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImages } from "../lib/generate-images";
@@ -102,7 +103,7 @@ export const GenerateImage = setupTool({
     ${INPUT_PARAMS.prompt} alone.
   `,
   execute: async ({ appConfig, input, model, signal }) => {
-    const filePathResult = resolveToolPath(appConfig.appDir, input.filePath);
+    const filePathResult = resolveToolPath(taskDir(appConfig), input.filePath);
     if (filePathResult.isErr()) {
       return err(filePathResult.error);
     }
@@ -119,7 +120,7 @@ export const GenerateImage = setupTool({
     if (input.sourceImages && input.sourceImages.length > 0) {
       const resolvedSourcePaths = [];
       for (const relativePath of input.sourceImages) {
-        const pathResult = resolveToolPath(appConfig.appDir, relativePath);
+        const pathResult = resolveToolPath(taskDir(appConfig), relativePath);
         if (pathResult.isErr()) {
           return err(pathResult.error);
         }
@@ -194,7 +195,7 @@ export const GenerateImage = setupTool({
             ? `${pathWithoutExt}-${index + 1}.${ext}`
             : `${pathWithoutExt}.${ext}`;
 
-        const absolutePath = absolutePathJoin(appConfig.appDir, filename);
+        const absolutePath = absolutePathJoin(taskDir(appConfig), filename);
         const imageBuffer = Buffer.from(image.base64, "base64");
 
         await writeFileWithDir(absolutePath, imageBuffer, { signal });

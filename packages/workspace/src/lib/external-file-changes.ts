@@ -3,6 +3,7 @@ import { ok, safeTry } from "neverthrow";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type AppConfigProject } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import {
   getFileIndexBaseline,
   setFileIndexBaseline,
@@ -34,8 +35,8 @@ export function detectExternalFileChanges({
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
       const current =
-        getCurrentProjectFileIndex(appConfig.subdomain) ??
-        (yield* await getProjectFileIndex(appConfig.appDir, { signal }));
+        getCurrentProjectFileIndex(appConfig) ??
+        (yield* await getProjectFileIndex(taskDir(appConfig), { signal }));
 
       const baseline = yield* getFileIndexBaseline(appConfig, sessionId, {
         signal,

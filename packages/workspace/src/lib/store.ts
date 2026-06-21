@@ -8,6 +8,7 @@ import { SessionMessagePart } from "../schemas/session/message-part";
 import { SessionMessageRelaxedPart } from "../schemas/session/message-relaxed-part";
 import { type StoreId } from "../schemas/store-id";
 import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { migrateGitCommitPart } from "./migrate-git-commit-part";
@@ -217,7 +218,7 @@ export namespace Store {
           if (part.type !== "data-gitCommit") {
             return part;
           }
-          return migrateGitCommitPart(part, appConfig.appDir);
+          return migrateGitCommitPart(part, taskDir(appConfig));
         }),
       );
 
@@ -345,7 +346,7 @@ export namespace Store {
       publisher.publish("message.removed", {
         messageId,
         sessionId,
-        subdomain: appConfig.subdomain,
+        subdomain: appConfig,
       });
       return ok(undefined);
     });
@@ -394,7 +395,7 @@ export namespace Store {
       publisher.publish("message.updated", {
         messageId: savedMessage.id,
         sessionId: savedMessage.metadata.sessionId,
-        subdomain: appConfig.subdomain,
+        subdomain: appConfig,
       });
 
       return ok(savedMessage);
@@ -473,7 +474,7 @@ export namespace Store {
       for (const part of parts) {
         publisher.publish("part.updated", {
           part,
-          subdomain: appConfig.subdomain,
+          subdomain: appConfig,
         });
       }
       return ok(message);
@@ -506,7 +507,7 @@ export namespace Store {
       if (publish) {
         publisher.publish("part.updated", {
           part: savedPart,
-          subdomain: appConfig.subdomain,
+          subdomain: appConfig,
         });
       }
 
@@ -576,7 +577,7 @@ export namespace Store {
 
       publisher.publish("session.updated", {
         sessionId: savedSession.id,
-        subdomain: appConfig.subdomain,
+        subdomain: appConfig,
       });
 
       return ok(savedSession);
@@ -706,7 +707,7 @@ export namespace Store {
 
       publisher.publish("session.removed", {
         sessionId,
-        subdomain: appConfig.subdomain,
+        subdomain: appConfig,
       });
 
       return ok(undefined);

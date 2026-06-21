@@ -17,11 +17,9 @@ export async function createBrowserStatusPart({
   sessionId: StoreId.Session;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const targets = await getWorkspaceConfig().browser.listTargets(
-      appConfig.subdomain,
-    );
+    const targets = await getWorkspaceConfig().browser.listTargets(appConfig);
     const target = targets.find(
-      ({ id }) => id === encodeBrowserTargetId(appConfig.subdomain, sessionId),
+      ({ id }) => id === encodeBrowserTargetId(appConfig, sessionId),
     );
 
     if (target) {

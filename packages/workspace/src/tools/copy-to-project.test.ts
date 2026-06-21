@@ -5,9 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AppDirSchema, RelativePathSchema } from "../schemas/paths";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 import { CopyToProject } from "./copy-to-project";
@@ -54,13 +53,7 @@ function baseExecuteArgs() {
 }
 
 function createTmpAppConfig() {
-  const mockConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"), {
-    model,
-  });
-  return {
-    ...mockConfig,
-    appDir: AppDirSchema.parse(tmpDir),
-  };
+  return createMockAppConfigForDir(path.join(tmpDir, "test"), { model });
 }
 
 describe("CopyToProject", () => {

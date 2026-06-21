@@ -8,10 +8,9 @@ import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../lib/workspace-config";
-import { AbsolutePathSchema, AppDirSchema } from "../schemas/paths";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
 import { runTool } from "../test/helpers/run-tool";
 import { LoadSkill } from "./load-skill";
 
@@ -47,18 +46,14 @@ function baseExecuteArgs() {
 }
 
 function createAppConfigWithDirs() {
-  const base = createMockAppConfig(ProjectSubdomainSchema.parse("test"), {
-    model,
-  });
-  // createMockAppConfig publishes the singleton; override registryDir on it.
+  // Point the singleton's projectsDir at appDir's parent so taskDir(id) ===
+  // appDir, then also override registryDir for skill resolution.
+  const id = createMockAppConfigForDir(appDir, { model });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     registryDir: AbsolutePathSchema.parse(registryDir),
   });
-  return {
-    ...base,
-    appDir: AppDirSchema.parse(appDir),
-  };
+  return id;
 }
 
 async function createSkill({

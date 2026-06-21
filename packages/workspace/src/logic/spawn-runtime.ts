@@ -11,6 +11,7 @@ import {
 } from "xstate";
 
 import { type AppConfig } from "../lib/app-config/types";
+import { taskDir } from "../lib/app-dir-utils";
 import { cancelableTimeout, TimeoutError } from "../lib/cancelable-timeout";
 import { execaNodeForApp } from "../lib/execa-node-for-app";
 import { shouldFilterDebuggerMessage } from "../lib/filter-shell-output";
@@ -117,7 +118,7 @@ export const spawnRuntimeLogic = fromCallback<
   let port: number | undefined;
 
   async function main() {
-    const buildInfo = await getBuildInfo({ projectDir: appConfig.appDir });
+    const buildInfo = await getBuildInfo({ projectDir: taskDir(appConfig) });
 
     port = await portManager.reservePort();
 
@@ -131,13 +132,15 @@ export const spawnRuntimeLogic = fromCallback<
       return;
     }
 
-    if (!(await pathExists(appConfig.appDir))) {
+    if (!(await pathExists(taskDir(appConfig)))) {
       parentRef.send({
         isRetryable: false,
         shouldLog: true,
         type: "spawnRuntime.error.app-dir-does-not-exist",
         value: {
-          error: new Error(`App directory does not exist: ${appConfig.appDir}`),
+          error: new Error(
+            `App directory does not exist: ${taskDir(appConfig)}`,
+          ),
         },
       });
       return;

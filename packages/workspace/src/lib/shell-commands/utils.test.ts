@@ -3,11 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { taskDir } from "../app-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { extractFileAndScriptArgs, parseScriptRunnerArgs } from "./utils";
 
 const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"));
-const appDir = appConfig.appDir;
+const appDir = taskDir(appConfig);
 const fs = new InMemoryFs();
 
 function resolvePath(cwd: string) {

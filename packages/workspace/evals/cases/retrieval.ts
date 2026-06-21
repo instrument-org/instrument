@@ -3,11 +3,12 @@ import path from "node:path";
 
 import { APP_FOLDER_NAMES } from "../../src/constants";
 import { type AppConfig } from "../../src/lib/app-config/types";
+import { taskDir } from "../../src/lib/app-dir-utils";
 import { type Assertion, defineEval } from "../harness";
 
 const assertHasOutputMarkdown: Assertion = {
   check: async ({ appConfig }) => {
-    const outputDir = path.join(appConfig.appDir, APP_FOLDER_NAMES.output);
+    const outputDir = path.join(taskDir(appConfig), APP_FOLDER_NAMES.output);
     let files: string[] = [];
     try {
       files = await fs.readdir(outputDir);
@@ -34,7 +35,7 @@ const assertHasOutputMarkdown: Assertion = {
 const assertHasAgentRetrievedPdf: Assertion = {
   check: async ({ appConfig }) => {
     const agentRetrievedDir = path.join(
-      appConfig.appDir,
+      taskDir(appConfig),
       APP_FOLDER_NAMES.agentRetrieved,
     );
     let files: string[] = [];
@@ -61,7 +62,7 @@ const assertHasAgentRetrievedPdf: Assertion = {
 };
 
 async function hasMdInOutput(appConfig: AppConfig): Promise<boolean> {
-  const dir = path.join(appConfig.appDir, APP_FOLDER_NAMES.output);
+  const dir = path.join(taskDir(appConfig), APP_FOLDER_NAMES.output);
   try {
     const files = await fs.readdir(dir);
     return files.some((f) => f.endsWith(".md"));
@@ -71,7 +72,7 @@ async function hasMdInOutput(appConfig: AppConfig): Promise<boolean> {
 }
 
 async function hasPdfInAgentRetrieved(appConfig: AppConfig): Promise<boolean> {
-  const dir = path.join(appConfig.appDir, APP_FOLDER_NAMES.agentRetrieved);
+  const dir = path.join(taskDir(appConfig), APP_FOLDER_NAMES.agentRetrieved);
   try {
     const files = await fs.readdir(dir);
     return files.some((f) => f.toLowerCase().endsWith(".pdf"));

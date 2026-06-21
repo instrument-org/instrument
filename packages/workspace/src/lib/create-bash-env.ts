@@ -14,6 +14,7 @@ import {
 import type { AppConfig } from "./app-config/types";
 
 import { type StoreId } from "../schemas/store-id";
+import { taskDir } from "./app-dir-utils";
 import { type UpsertContextItem } from "./capture-browser-screenshot";
 import {
   AGENT_BROWSER_COMMAND,
@@ -292,7 +293,7 @@ export function createBashEnv({
 }) {
   const fs = new ReadWriteFs({
     maxFileReadSize: SANDBOX_MAX_BYTES,
-    root: appConfig.appDir,
+    root: taskDir(appConfig),
   });
 
   const allowedCommands = [

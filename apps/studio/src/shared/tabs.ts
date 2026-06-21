@@ -17,7 +17,7 @@ export interface TabState {
   tabs: Tab[];
 }
 
-export const SingleTabOnlyRoutes = /\/tasks\/[^/]+|\/sign-in/;
+export const SingleTabOnlyRoutes = /\/tasks\/[^/]+/;
 
 export const META_TAGS = {
   iconName: `${APP_NAME_SLUG}-icon-name`,

@@ -1,16 +1,40 @@
-import { APP_CLIENT_NAME_STUDIO } from "@instrument-org/shared";
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import { DedupeRequestsPlugin } from "@orpc/client/plugins";
-import { type ContractRouterClient } from "@orpc/contract";
-import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryClient } from "@tanstack/query-core";
-import { app } from "electron";
-import { isEqual } from "radashi";
+import {
+  APP_CLIENT_NAME_STUDIO,
+} from "@instrument-org/shared";
+import {
+  createORPCClient,
+} from "@orpc/client";
+import {
+  RPCLink,
+} from "@orpc/client/fetch";
+import {
+  DedupeRequestsPlugin,
+} from "@orpc/client/plugins";
+import {
+  type ContractRouterClient,
+} from "@orpc/contract";
+import {
+  createTanstackQueryUtils,
+} from "@orpc/tanstack-query";
+import {
+  QueryClient,
+} from "@tanstack/query-core";
+import {
+  app,
+} from "electron";
+import {
+  isEqual,
+} from "radashi";
 
-import { type contract } from "./contract";
-import { PATHS_TO_DEDUPE } from "./paths-to-dedupe";
-import { getToken } from "./utils";
+import {
+  type contract,
+} from "./contract";
+import {
+  PATHS_TO_DEDUPE,
+} from "./paths-to-dedupe";
+import {
+  getToken,
+} from "./utils";
 
 const RPC_LINK = new RPCLink({
   headers: () => {

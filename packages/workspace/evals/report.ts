@@ -1,16 +1,38 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { createAppConfig } from "../src/lib/app-config/create";
-import { taskDir } from "../src/lib/app-dir-utils";
-import { getProjects } from "../src/lib/get-apps";
-import { getProjectState } from "../src/lib/project-state-store";
-import { getSessionMarkdown } from "../src/lib/session-to-markdown";
-import { Store } from "../src/lib/store";
-import { getProjectUsageSummary } from "../src/lib/usage-summary";
-import { type Session } from "../src/schemas/session";
-import { type AssertionResult, type EvalCase } from "./harness";
-import { buildReportWorkspaceConfig, c } from "./utils";
+import {
+  createAppConfig,
+} from "../src/lib/app-config/create";
+import {
+  taskDir,
+} from "../src/lib/app-dir-utils";
+import {
+  getProjects,
+} from "../src/lib/get-apps";
+import {
+  getProjectState,
+} from "../src/lib/project-state-store";
+import {
+  getSessionMarkdown,
+} from "../src/lib/session-to-markdown";
+import {
+  Store,
+} from "../src/lib/store";
+import {
+  getProjectUsageSummary,
+} from "../src/lib/usage-summary";
+import {
+  type Session,
+} from "../src/schemas/session";
+import {
+  type AssertionResult,
+  type EvalCase,
+} from "./harness";
+import {
+  buildReportWorkspaceConfig,
+  c,
+} from "./utils";
 
 interface RollupSummary {
   assertions: {

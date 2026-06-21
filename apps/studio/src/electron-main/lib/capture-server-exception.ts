@@ -1,13 +1,31 @@
-import { type CaptureExceptionFunction } from "@instrument-org/shared";
-import { app } from "electron";
-import { unique } from "radashi";
+import {
+  type CaptureExceptionFunction,
+} from "@instrument-org/shared";
+import {
+  app,
+} from "electron";
+import {
+  unique,
+} from "radashi";
 
-import { getAppStateStore } from "../stores/app-state";
-import { isDeveloperMode } from "../stores/preferences";
-import { logger } from "./electron-logger";
-import { addServerException } from "./server-exceptions";
-import { getSystemProperties } from "./system-properties";
-import { telemetry } from "./telemetry";
+import {
+  getAppStateStore,
+} from "../stores/app-state";
+import {
+  isDeveloperMode,
+} from "../stores/preferences";
+import {
+  logger,
+} from "./electron-logger";
+import {
+  addServerException,
+} from "./server-exceptions";
+import {
+  getSystemProperties,
+} from "./system-properties";
+import {
+  telemetry,
+} from "./telemetry";
 
 export const captureServerException: CaptureExceptionFunction = function (
   error,

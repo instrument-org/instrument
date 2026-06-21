@@ -4,24 +4,52 @@ import {
   decodeOAuthState,
   store,
 } from "@/electron-main/auth/client";
-import { renderAuthPage, testStates } from "@/electron-main/auth/page";
+import {
+  renderAuthPage,
+  testStates,
+} from "@/electron-main/auth/page";
 import {
   getAuthServer,
   setAuthServer,
   setAuthServerPort,
 } from "@/electron-main/auth/state";
-import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
-import { captureServerException } from "@/electron-main/lib/capture-server-exception";
-import { setDefaultModel } from "@/electron-main/lib/set-default-model";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { getAppStateStore } from "@/electron-main/stores/app-state";
-import { getSessionStore } from "@/electron-main/stores/session";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
-import { serve } from "@hono/node-server";
-import { PORTS } from "@instrument-org/shared";
-import { detect } from "detect-port";
-import { type Context, Hono } from "hono";
+import {
+  captureServerEvent,
+} from "@/electron-main/lib/capture-server-event";
+import {
+  captureServerException,
+} from "@/electron-main/lib/capture-server-exception";
+import {
+  setDefaultModel,
+} from "@/electron-main/lib/set-default-model";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  getAppStateStore,
+} from "@/electron-main/stores/app-state";
+import {
+  getSessionStore,
+} from "@/electron-main/stores/session";
+import {
+  getMainWindow,
+} from "@/electron-main/windows/main/instance";
+import {
+  getOnboardingWindow,
+} from "@/electron-main/windows/onboarding";
+import {
+  serve,
+} from "@hono/node-server";
+import {
+  PORTS,
+} from "@instrument-org/shared";
+import {
+  detect,
+} from "detect-port";
+import {
+  type Context,
+  Hono,
+} from "hono";
 import fs from "node:fs/promises";
 
 function focusAppWindow() {

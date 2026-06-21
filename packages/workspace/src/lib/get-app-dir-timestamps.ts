@@ -1,11 +1,23 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import {
+  PROJECT_MANIFEST_FILE_NAME,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
-import { type AppDir } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
-import { getAppPrivateDir } from "./app-dir-utils";
-import { getCurrentDate } from "./get-current-date";
-import { pathExists } from "./path-exists";
+import {
+  type AppDir,
+} from "../schemas/paths";
+import {
+  absolutePathJoin,
+} from "./absolute-path-join";
+import {
+  getAppPrivateDir,
+} from "./app-dir-utils";
+import {
+  getCurrentDate,
+} from "./get-current-date";
+import {
+  pathExists,
+} from "./path-exists";
 
 export async function getAppDirTimestamps(appDir: AppDir) {
   const privateDir = getAppPrivateDir(appDir);

@@ -1,7 +1,15 @@
 import invariant from "tiny-invariant";
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { ADJECTIVES, buildFolderName, NOUNS } from "./generate-folder-name";
+import {
+  ADJECTIVES,
+  buildFolderName,
+  NOUNS,
+} from "./generate-folder-name";
 
 describe("generate-folder-name", () => {
   it("should never generate folder names exceeding 63 characters", () => {

@@ -1,13 +1,32 @@
-import { dedent, sift } from "radashi";
+import {
+  dedent,
+  sift,
+} from "radashi";
 
-import { fileTree } from "../lib/file-tree";
-import { getCurrentDate } from "../lib/get-current-date";
-import { getSystemInfo } from "../lib/get-system-info";
-import { isToolPart } from "../lib/is-tool-part";
-import { type AbsolutePath } from "../schemas/paths";
-import { type SessionMessage } from "../schemas/session/message";
-import { StoreId } from "../schemas/store-id";
-import { type AgentName } from "./types";
+import {
+  fileTree,
+} from "../lib/file-tree";
+import {
+  getCurrentDate,
+} from "../lib/get-current-date";
+import {
+  getSystemInfo,
+} from "../lib/get-system-info";
+import {
+  isToolPart,
+} from "../lib/is-tool-part";
+import {
+  type AbsolutePath,
+} from "../schemas/paths";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  type AgentName,
+} from "./types";
 
 export function createContextMessage({
   agentName,

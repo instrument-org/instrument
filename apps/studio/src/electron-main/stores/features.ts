@@ -1,8 +1,16 @@
-import { logger } from "@/electron-main/lib/electron-logger";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { FeatureNameSchema } from "@/shared/features";
+import {
+  logger,
+} from "@/electron-main/lib/electron-logger";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  FeatureNameSchema,
+} from "@/shared/features";
 import Store from "electron-store";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
 const PermissiveFeaturesSchema = z.record(
   z.string(),

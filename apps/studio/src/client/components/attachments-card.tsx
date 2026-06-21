@@ -1,8 +1,5 @@
 import { getAssetUrl } from "@/client/lib/get-asset-url";
-import {
-  type ProjectSubdomain,
-  type SessionMessageDataPart,
-} from "@instrument-org/workspace/client";
+import { type SessionMessageDataPart, type TaskId } from "@instrument-org/workspace/client";
 
 import { FilesGrid } from "./files-grid";
 
@@ -10,7 +7,7 @@ interface FileAttachmentsCardProps {
   assetBaseUrl: string;
   files: SessionMessageDataPart.FileAttachmentDataPart[];
   folders?: SessionMessageDataPart.FolderAttachmentDataPart[];
-  projectSubdomain: ProjectSubdomain;
+  projectSubdomain: TaskId;
 }
 
 export function AttachmentsCard({

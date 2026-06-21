@@ -1,14 +1,7 @@
-import {
-  type ProviderSetupPage,
-  ProviderSetupScreen,
-} from "@/client/components/onboarding/provider-setup-screen";
+import { type ProviderSetupPage, ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
 import { OnboardingSuccessScreen } from "@/client/components/onboarding/success-screen";
 import { Button } from "@/client/components/ui/button";
-import {
-  DialogClose,
-  DialogContent,
-  DialogTitle,
-} from "@/client/components/ui/dialog";
+import { DialogClose, DialogContent, DialogTitle } from "@/client/components/ui/dialog";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";

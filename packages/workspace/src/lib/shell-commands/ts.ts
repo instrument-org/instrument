@@ -1,10 +1,21 @@
-import { defineCommand, latin1FromBytes } from "just-bash";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import {
+  defineCommand,
+  latin1FromBytes,
+} from "just-bash";
+import {
+  mkdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 
 import type { AppConfig } from "../app-config/types";
 
-import { absolutePathJoin } from "../absolute-path-join";
-import { runPnpmCommand } from "../run-pnpm";
+import {
+  absolutePathJoin,
+} from "../absolute-path-join";
+import {
+  runPnpmCommand,
+} from "../run-pnpm";
 import {
   extractFileAndScriptArgs,
   firstString,

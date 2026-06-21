@@ -1,5 +1,9 @@
-import { normalizeProjectFilePath } from "@instrument-org/workspace/client";
-import { z } from "zod";
+import {
+  normalizeProjectFilePath,
+} from "@instrument-org/workspace/client";
+import {
+  z,
+} from "zod";
 
 // Self-contained traversal check: defense-in-depth before the request reaches
 // the backend (the real guard). Kept dependency-free so this renderer schema

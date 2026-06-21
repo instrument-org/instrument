@@ -1,11 +1,23 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import {
+  PROJECT_MANIFEST_FILE_NAME,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { APP_FOLDER_NAMES } from "../constants";
-import { AppDirSchema } from "../schemas/paths";
+import {
+  APP_FOLDER_NAMES,
+} from "../constants";
+import {
+  AppDirSchema,
+} from "../schemas/paths";
 import {
   diffProjectFileIndexes,
   getProjectFileIndex,

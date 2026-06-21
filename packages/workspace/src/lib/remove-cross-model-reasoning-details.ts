@@ -1,9 +1,19 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { type ProviderMetadata } from "ai";
+import {
+  type AIGatewayModel,
+} from "@instrument-org/ai-gateway";
+import {
+  type ProviderMetadata,
+} from "ai";
 
-import { type SessionMessage } from "../schemas/session/message";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { isToolPart } from "./is-tool-part";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  isToolPart,
+} from "./is-tool-part";
 
 export function removeCrossModelReasoningDetails({
   messages,

@@ -2,7 +2,9 @@ import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import type { AIProviderType } from "@instrument-org/shared";
 import type { FilePart, ModelMessage } from "ai";
 
-import { getProviderMetadata } from "@instrument-org/ai-gateway";
+import {
+  getProviderMetadata,
+} from "@instrument-org/ai-gateway";
 
 type ContentOutput = Extract<
   LanguageModelV2ToolResultOutput,

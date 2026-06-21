@@ -6,7 +6,9 @@ import {
   type AppDir,
   type RelativePath,
 } from "../schemas/paths";
-import { normalizePath } from "./normalize-path";
+import {
+  normalizePath,
+} from "./normalize-path";
 
 export function resolvePathWithinAppDir({
   appDir,

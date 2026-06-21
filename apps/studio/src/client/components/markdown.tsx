@@ -1,14 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { ImageIcon } from "@phosphor-icons/react";
 import { useSetAtom } from "jotai";
-import {
-  memo,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";

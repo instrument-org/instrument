@@ -1,10 +1,22 @@
-import { Hono } from "hono";
-import { proxy } from "hono/proxy";
+import {
+  Hono,
+} from "hono";
+import {
+  proxy,
+} from "hono/proxy";
 import fs from "node:fs/promises";
 
-import { absolutePathJoin } from "../../../lib/absolute-path-join";
-import { SHIM_DEV_HOST, SHIM_SCRIPT_PATH, SHIM_SCRIPTS } from "../constants";
-import { type WorkspaceServerEnv } from "../types";
+import {
+  absolutePathJoin,
+} from "../../../lib/absolute-path-join";
+import {
+  SHIM_DEV_HOST,
+  SHIM_SCRIPT_PATH,
+  SHIM_SCRIPTS,
+} from "../constants";
+import {
+  type WorkspaceServerEnv,
+} from "../types";
 
 const app = new Hono<WorkspaceServerEnv>();
 

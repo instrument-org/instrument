@@ -1,4 +1,6 @@
-import { err } from "neverthrow";
+import {
+  err,
+} from "neverthrow";
 
 export interface ExecuteError {
   message: string;

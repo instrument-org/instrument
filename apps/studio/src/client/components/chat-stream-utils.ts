@@ -4,7 +4,9 @@ import {
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
-import { isToolCallVisible } from "./message-part/tool-call-utils";
+import {
+  isToolCallVisible,
+} from "./message-part/tool-call-utils";
 
 interface ToolBoundaryInfo {
   isToolCall: boolean;

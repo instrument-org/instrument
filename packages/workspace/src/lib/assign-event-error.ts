@@ -7,7 +7,9 @@ import type {
   ProvidedActor,
 } from "xstate";
 
-import { assign } from "xstate";
+import {
+  assign,
+} from "xstate";
 
 // Huge hack to get these types to line up. DOESN'T verify machine context has
 // an error property.

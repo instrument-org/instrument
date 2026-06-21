@@ -1,16 +1,33 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { AbsolutePathSchema } from "../schemas/paths";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
-import { readProjectFile } from "./read-project-file";
-import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import {
+  AbsolutePathSchema,
+} from "../schemas/paths";
+import {
+  TaskIdSchema,
+} from "../schemas/task-id";
+import {
+  createMockAppConfig,
+} from "../test/helpers/mock-app-config";
+import {
+  readProjectFile,
+} from "./read-project-file";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "./workspace-config";
 
 describe("readProjectFile", () => {
-  const subdomain = ProjectSubdomainSchema.parse("test-project");
+  const subdomain = TaskIdSchema.parse("test-project");
   let projectsDir: string;
   let appDir: string;
 

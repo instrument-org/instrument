@@ -1,26 +1,9 @@
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-} from "@/client/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/client/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/client/components/ui/radio-group";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type StoreId,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
+import { type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";

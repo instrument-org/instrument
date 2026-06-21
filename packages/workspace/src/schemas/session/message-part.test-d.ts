@@ -1,7 +1,15 @@
-import { describe, expectTypeOf, it } from "vitest";
+import {
+  describe,
+  expectTypeOf,
+  it,
+} from "vitest";
 
-import { type SessionMessagePart } from "./message-part";
-import { type SessionMessageRelaxedPart } from "./message-relaxed-part";
+import {
+  type SessionMessagePart,
+} from "./message-part";
+import {
+  type SessionMessageRelaxedPart,
+} from "./message-relaxed-part";
 
 describe("SessionMessagePart", () => {
   it("validates that SessionMessageRelaxedPart.Type is a subset of SessionMessage.WithParts['parts'][number]", () => {

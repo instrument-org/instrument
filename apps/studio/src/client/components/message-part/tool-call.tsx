@@ -1,7 +1,4 @@
-import {
-  type SessionMessagePart,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
+import { type SessionMessagePart, type WorkspaceAppProject } from "@instrument-org/workspace/client";
 
 import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";

@@ -1,10 +1,16 @@
-import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
-  type ProjectSubdomain,
+  rpcClient,
+} from "@/client/rpc/client";
+import {
+  type AIGatewayModelURI,
+} from "@instrument-org/ai-gateway/client";
+import {
   type StoreId,
+  type TaskId,
 } from "@instrument-org/workspace/client";
-import { useMutation } from "@tanstack/react-query";
+import {
+  useMutation,
+} from "@tanstack/react-query";
 
 export function useContinueSession({
   modelURI,
@@ -15,7 +21,7 @@ export function useContinueSession({
   modelURI: AIGatewayModelURI.Type | undefined;
   onSuccess?: () => void;
   sessionId: StoreId.Session | undefined;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),

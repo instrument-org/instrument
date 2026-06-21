@@ -9,18 +9,29 @@ import {
   setup,
 } from "xstate";
 
-import { closeAgentBrowserSessionsForSessions } from "../lib/agent-browser-cleanup";
-import { type AbsolutePath } from "../schemas/paths";
-import { type StoreId } from "../schemas/store-id";
-import { type ProjectSubdomain } from "../schemas/subdomains";
-import { type BrowserConfig, type BrowserTargetId } from "../types";
+import {
+  closeAgentBrowserSessionsForSessions,
+} from "../lib/agent-browser-cleanup";
+import {
+  type AbsolutePath,
+} from "../schemas/paths";
+import {
+  type StoreId,
+} from "../schemas/store-id";
+import {
+  type TaskId,
+} from "../schemas/task-id";
+import {
+  type BrowserConfig,
+  type BrowserTargetId,
+} from "../types";
 
 export const AGENT_IDLE_TIMEOUT_MS = ms("1 hour");
 export const USER_PRESENCE_TIMEOUT_MS = ms("5 minutes");
 
 export interface ProjectBrowserParentEvent {
   type: "projectBrowser.stopped";
-  value: { subdomain: ProjectSubdomain };
+  value: { subdomain: TaskId };
 }
 
 interface DestroyAndCloseInput {
@@ -42,7 +53,7 @@ interface ProjectBrowserContext {
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
   partitionDir: AbsolutePath | null;
   presenceCount: number;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
   // Targets we've already spawned a destruction watcher for. Used to gate
   // duplicate spawns on subsequent updateCdpHeartbeats for the same target.
   watchedTargets: Set<BrowserTargetId>;
@@ -183,7 +194,7 @@ export const projectBrowserMachine = setup({
   types: {
     context: {} as ProjectBrowserContext,
     events: {} as ProjectBrowserEvent,
-    input: {} as { browser: BrowserConfig; subdomain: ProjectSubdomain },
+    input: {} as { browser: BrowserConfig; subdomain: TaskId },
   },
 }).createMachine({
   context: ({ input }) => ({

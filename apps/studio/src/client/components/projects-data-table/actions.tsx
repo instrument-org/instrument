@@ -1,27 +1,11 @@
-import type { ProjectSubdomain } from "@instrument-org/workspace/client";
+import type { TaskId } from "@instrument-org/workspace/client";
 
 import { Button } from "@/client/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/client/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/client/components/ui/tooltip";
 import { useAppState } from "@/client/hooks/use-app-state";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowUpRightIcon,
-  DotsThreeOutlineVerticalIcon,
-  PencilSimpleLineIcon,
-  StarIcon,
-  StopCircleIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowUpRightIcon, DotsThreeOutlineVerticalIcon, PencilSimpleLineIcon, StarIcon, StopCircleIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 export function ProjectActionsCell({
@@ -31,11 +15,11 @@ export function ProjectActionsCell({
   onStop,
   subdomain,
 }: {
-  onDelete: (subdomain: ProjectSubdomain) => void;
-  onOpenInNewTab: (subdomain: ProjectSubdomain) => void;
-  onSettings: (subdomain: ProjectSubdomain) => void;
-  onStop: (subdomain: ProjectSubdomain) => void;
-  subdomain: ProjectSubdomain;
+  onDelete: (subdomain: TaskId) => void;
+  onOpenInNewTab: (subdomain: TaskId) => void;
+  onSettings: (subdomain: TaskId) => void;
+  onStop: (subdomain: TaskId) => void;
+  subdomain: TaskId;
 }) {
   const { data: appState } = useAppState({ subdomain });
   const sessionActors = appState?.sessionActors ?? [];

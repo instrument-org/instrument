@@ -1,5 +1,14 @@
-import { noop } from "radashi";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  noop,
+} from "radashi";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   type ActorRefFrom,
   type AnyActorRef,
@@ -8,9 +17,15 @@ import {
   waitFor,
 } from "xstate";
 
-import { type AbsolutePath } from "../schemas/paths";
-import { StoreId } from "../schemas/store-id";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
+import {
+  type AbsolutePath,
+} from "../schemas/paths";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  TaskIdSchema,
+} from "../schemas/task-id";
 import {
   type BrowserConfig,
   type BrowserTargetId,
@@ -71,7 +86,7 @@ function makeBrowser(): BrowserConfig {
   };
 }
 
-const subdomain = ProjectSubdomainSchema.parse("test-project");
+const subdomain = TaskIdSchema.parse("test-project");
 const partitionDir = "/tmp/partition" as AbsolutePath;
 
 interface Harness {

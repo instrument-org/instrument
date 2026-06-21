@@ -4,37 +4,64 @@ import type {
   SupportedEditorId,
 } from "@/shared/schemas/editors";
 
-import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
-import { captureServerException } from "@/electron-main/lib/capture-server-exception";
-import { openExternal } from "@/electron-main/lib/open-external";
+import {
+  captureServerEvent,
+} from "@/electron-main/lib/capture-server-event";
+import {
+  captureServerException,
+} from "@/electron-main/lib/capture-server-exception";
+import {
+  openExternal,
+} from "@/electron-main/lib/open-external";
 import {
   clearServerExceptions,
   getServerExceptions,
 } from "@/electron-main/lib/server-exceptions";
-import { base } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  base,
+} from "@/electron-main/rpc/base";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
 import {
   OpenAppInTypeSchema,
   SupportedEditorSchema,
 } from "@/shared/schemas/editors";
 import {
   createAppConfig,
-  ProjectSubdomainSchema,
   readProjectFile,
   RelativeProjectPathSchema,
   resolvePathWithinAppDir,
   taskDir,
+  TaskIdSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import { call, eventIterator } from "@orpc/server";
-import { app, clipboard, dialog, nativeImage, shell } from "electron";
-import { isBinaryFile } from "isbinaryfile";
-import { exec } from "node:child_process";
+import {
+  call,
+  eventIterator,
+} from "@orpc/server";
+import {
+  app,
+  clipboard,
+  dialog,
+  nativeImage,
+  shell,
+} from "electron";
+import {
+  isBinaryFile,
+} from "isbinaryfile";
+import {
+  exec,
+} from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
-import { z } from "zod";
+import {
+  promisify,
+} from "node:util";
+import {
+  z,
+} from "zod";
 
 interface EditorConfig {
   appName: string;
@@ -230,7 +257,7 @@ const openAppIn = base
   })
   .input(
     z.object({
-      subdomain: ProjectSubdomainSchema,
+      subdomain: TaskIdSchema,
       type: OpenAppInTypeSchema,
     }),
   )
@@ -299,7 +326,7 @@ const showProjectFileInFolder = base
   .input(
     z.object({
       filePath: RelativeProjectPathSchema,
-      subdomain: ProjectSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
@@ -342,7 +369,7 @@ const exportZip = base
   .input(
     z.object({
       includeChat: z.boolean().default(false),
-      subdomain: ProjectSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(
@@ -431,7 +458,7 @@ const live = {
 const copyProjectPathToClipboard = base
   .input(
     z.object({
-      subdomain: ProjectSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .handler(({ input }) => {
@@ -450,7 +477,7 @@ const copyFileToClipboard = base
     z.object({
       filePath: RelativeProjectPathSchema,
       isImage: z.boolean(),
-      subdomain: ProjectSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .handler(async ({ errors, input, signal }) => {

@@ -1,15 +1,6 @@
 import { BrandIcon } from "@/client/components/brand-icon";
 import { type TabIconName } from "@instrument-org/shared/icons";
-import {
-  BugIcon,
-  CreditCardIcon,
-  FileTextIcon,
-  FlaskIcon,
-  GlobeIcon,
-  type Icon,
-  TableIcon,
-  TerminalIcon,
-} from "@phosphor-icons/react";
+import { BugIcon, CreditCardIcon, FileTextIcon, FlaskIcon, GlobeIcon, type Icon, TableIcon, TerminalIcon } from "@phosphor-icons/react";
 
 export const IconMap: Record<TabIconName, Icon | typeof BrandIcon> = {
   bug: BugIcon,

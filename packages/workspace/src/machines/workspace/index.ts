@@ -18,46 +18,79 @@ import {
   type SnapshotFrom,
 } from "xstate";
 
-import { AGENTS } from "../../agents/all";
-import { type AgentName } from "../../agents/types";
-import { REGISTRY_FOLDER_NAMES } from "../../constants";
-import { absolutePathJoin } from "../../lib/absolute-path-join";
-import { createAppConfig } from "../../lib/app-config/create";
-import { type AppConfig } from "../../lib/app-config/types";
-import { createAssignEventError } from "../../lib/assign-event-error";
-import { isProjectSubdomain } from "../../lib/is-app";
-import { logUnhandledEvent } from "../../lib/log-unhandled-event";
-import { setWorkspaceConfig } from "../../lib/workspace-config";
-import { workspaceServerLogic } from "../../logic/server";
-import { type WorkspaceServerParentEvent } from "../../logic/server/types";
+import {
+  AGENTS,
+} from "../../agents/all";
+import {
+  type AgentName,
+} from "../../agents/types";
+import {
+  REGISTRY_FOLDER_NAMES,
+} from "../../constants";
+import {
+  absolutePathJoin,
+} from "../../lib/absolute-path-join";
+import {
+  createAppConfig,
+} from "../../lib/app-config/create";
+import {
+  type AppConfig,
+} from "../../lib/app-config/types";
+import {
+  createAssignEventError,
+} from "../../lib/assign-event-error";
+import {
+  isProjectSubdomain,
+} from "../../lib/is-app";
+import {
+  logUnhandledEvent,
+} from "../../lib/log-unhandled-event";
+import {
+  setWorkspaceConfig,
+} from "../../lib/workspace-config";
+import {
+  workspaceServerLogic,
+} from "../../logic/server";
+import {
+  type WorkspaceServerParentEvent,
+} from "../../logic/server/types";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
   WorkspaceDirSchema,
 } from "../../schemas/paths";
-import { type SessionMessage } from "../../schemas/session/message";
-import { type StoreId } from "../../schemas/store-id";
 import {
-  type AppSubdomain,
-  type ProjectSubdomain,
-} from "../../schemas/subdomains";
+  type SessionMessage,
+} from "../../schemas/session/message";
+import {
+  type StoreId,
+} from "../../schemas/store-id";
+import {
+  type TaskId,
+} from "../../schemas/task-id";
 import {
   type BrowserConfig,
   type BrowserTargetId,
   type WorkspaceConfig,
 } from "../../types";
-import { type ToolCallUpdate } from "../agent";
+import {
+  type ToolCallUpdate,
+} from "../agent";
 import {
   projectBrowserMachine,
   type ProjectBrowserParentEvent,
 } from "../project-browser";
-import { runtimeMachine } from "../runtime";
+import {
+  runtimeMachine,
+} from "../runtime";
 import {
   type SessionActorRef,
   sessionMachine,
   type SessionMachineParentEvent,
 } from "../session";
-import { type WorkspaceContext } from "./types";
+import {
+  type WorkspaceContext,
+} from "./types";
 
 export type WorkspaceEvent =
   | ProjectBrowserParentEvent
@@ -65,7 +98,7 @@ export type WorkspaceEvent =
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
-      value: { subdomain: ProjectSubdomain };
+      value: { subdomain: TaskId };
     }
   | {
       type: "addMessage";
@@ -74,7 +107,7 @@ export type WorkspaceEvent =
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
-        subdomain: AppSubdomain;
+        subdomain: TaskId;
       };
     }
   | {
@@ -84,7 +117,7 @@ export type WorkspaceEvent =
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
-        subdomain: AppSubdomain;
+        subdomain: TaskId;
       };
     }
   | {
@@ -109,23 +142,23 @@ export type WorkspaceEvent =
     }
   | {
       type: "internal.updateHeartbeat";
-      value: { createdAt: number; subdomain: AppSubdomain };
+      value: { createdAt: number; subdomain: TaskId };
     }
   | {
       type: "prepareToTrashApp";
-      value: { onBrowserReaped?: () => void; subdomain: AppSubdomain };
+      value: { onBrowserReaped?: () => void; subdomain: TaskId };
     }
   | {
       type: "releaseBrowserPresence";
-      value: { subdomain: ProjectSubdomain };
+      value: { subdomain: TaskId };
     }
-  | { type: "removeAppBeingTrashed"; value: { subdomain: AppSubdomain } }
+  | { type: "removeAppBeingTrashed"; value: { subdomain: TaskId } }
   | {
       type: "restartAllRuntimes";
     }
   | {
       type: "restartRuntime";
-      value: { subdomain: AppSubdomain };
+      value: { subdomain: TaskId };
     }
   | {
       type: "spawnRuntime";
@@ -135,17 +168,17 @@ export type WorkspaceEvent =
       type: "stopRuntime";
       value: {
         includeChildren?: boolean;
-        subdomain: AppSubdomain;
+        subdomain: TaskId;
       };
     }
   | {
       type: "stopSessions";
-      value: { subdomain: AppSubdomain };
+      value: { subdomain: TaskId };
     }
   | {
       type: "updateInteractiveToolCall";
       value: {
-        subdomain: AppSubdomain;
+        subdomain: TaskId;
         update: ToolCallUpdate;
       };
     };
@@ -153,7 +186,7 @@ export type WorkspaceEvent =
 export const workspaceMachine = setup({
   actions: {
     acquireBrowserPresence: enqueueActions(
-      ({ enqueue }, { subdomain }: { subdomain: ProjectSubdomain }) => {
+      ({ enqueue }, { subdomain }: { subdomain: TaskId }) => {
         enqueue.assign(({ context, spawn }) => {
           const existing = context.projectBrowserRefs.get(subdomain);
           const ref =
@@ -181,9 +214,9 @@ export const workspaceMachine = setup({
     assignEventError: createAssignEventError(),
 
     clearSessionRefsBySubdomain: assign(
-      ({ context }, { subdomain }: { subdomain: AppSubdomain }) => {
+      ({ context }, { subdomain }: { subdomain: TaskId }) => {
         const newsessionRefsBySubdomain = new Map<
-          AppSubdomain,
+          TaskId,
           SessionActorRef[]
         >();
 
@@ -215,7 +248,7 @@ export const workspaceMachine = setup({
         {
           sessionId,
           subdomain,
-        }: { sessionId: StoreId.Session; subdomain: ProjectSubdomain },
+        }: { sessionId: StoreId.Session; subdomain: TaskId },
       ) => {
         const ref = context.projectBrowserRefs.get(subdomain);
         ref?.send({
@@ -236,7 +269,7 @@ export const workspaceMachine = setup({
         }: {
           partitionDir: AbsolutePath;
           sessionId: StoreId.Session;
-          subdomain: ProjectSubdomain;
+          subdomain: TaskId;
           targetId: BrowserTargetId;
         },
       ) => {
@@ -273,7 +306,7 @@ export const workspaceMachine = setup({
         {
           createdAt,
           subdomain,
-        }: { createdAt: number; subdomain: AppSubdomain },
+        }: { createdAt: number; subdomain: TaskId },
       ) => {
         const runtimeRef = context.runtimeRefs.get(subdomain);
         runtimeRef?.send({
@@ -286,7 +319,7 @@ export const workspaceMachine = setup({
     handleProjectBrowserStopped: enqueueActions(
       (
         { context, enqueue },
-        { subdomain }: { subdomain: ProjectSubdomain },
+        { subdomain }: { subdomain: TaskId },
       ) => {
         const ref = context.projectBrowserRefs.get(subdomain);
         if (ref) {
@@ -309,7 +342,7 @@ export const workspaceMachine = setup({
     ),
 
     releaseBrowserPresence: enqueueActions(
-      ({ context }, { subdomain }: { subdomain: ProjectSubdomain }) => {
+      ({ context }, { subdomain }: { subdomain: TaskId }) => {
         context.projectBrowserRefs
           .get(subdomain)
           ?.send({ type: "releasePresence" });
@@ -317,7 +350,7 @@ export const workspaceMachine = setup({
     ),
 
     stopRuntime: enqueueActions(
-      ({ context, enqueue }, { subdomain }: { subdomain: AppSubdomain }) => {
+      ({ context, enqueue }, { subdomain }: { subdomain: TaskId }) => {
         const runtimeRef = context.runtimeRefs.get(subdomain);
         const remainingRefs = new Map(context.runtimeRefs);
         remainingRefs.delete(subdomain);
@@ -336,7 +369,7 @@ export const workspaceMachine = setup({
           subdomain,
         }: {
           sessionRef: SessionActorRef;
-          subdomain: AppSubdomain;
+          subdomain: TaskId;
         },
       ) => {
         const existingSessionActorRefs =
@@ -605,7 +638,7 @@ export const workspaceMachine = setup({
 
         // Track every projectBrowser whose subdomain matches the trashed
         // project (the project itself, plus any subdomain nested under it).
-        const matchingSubdomains: ProjectSubdomain[] = [];
+        const matchingSubdomains: TaskId[] = [];
         for (const [
           browserSubdomain,
           ref,

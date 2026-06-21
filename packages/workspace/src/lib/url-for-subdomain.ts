@@ -3,18 +3,22 @@ import {
   LOCAL_LOOPBACK_APPS_SERVER_DOMAIN,
   LOCALHOST_APPS_SERVER_DOMAIN,
 } from "../logic/server/constants";
-import { getWorkspaceServerPort } from "../logic/server/url";
-import { type AppSubdomain } from "../schemas/subdomains";
+import {
+  getWorkspaceServerPort,
+} from "../logic/server/url";
+import {
+  type TaskId,
+} from "../schemas/task-id";
 
-export function localhostUrl(subdomain: AppSubdomain) {
+export function localhostUrl(subdomain: TaskId) {
   return `http://${subdomain}.${LOCALHOST_APPS_SERVER_DOMAIN}:${getWorkspaceServerPort()}`;
 }
 
-export function loopbackUrl(subdomain: AppSubdomain) {
+export function loopbackUrl(subdomain: TaskId) {
   return `http://${subdomain}.${LOCAL_LOOPBACK_APPS_SERVER_DOMAIN}:${getWorkspaceServerPort()}`;
 }
 
-export function urlsForSubdomain(subdomain: AppSubdomain) {
+export function urlsForSubdomain(subdomain: TaskId) {
   return {
     assetBase: assetBaseUrl(subdomain),
     localhost: localhostUrl(subdomain),
@@ -23,10 +27,10 @@ export function urlsForSubdomain(subdomain: AppSubdomain) {
   };
 }
 
-function assetBaseUrl(subdomain: AppSubdomain) {
+function assetBaseUrl(subdomain: TaskId) {
   return `${localhostUrl(subdomain)}${APPS_SERVER_API_PATH}/assets`;
 }
 
-function localRedirectUrl(subdomain: AppSubdomain) {
+function localRedirectUrl(subdomain: TaskId) {
   return `http://${LOCAL_LOOPBACK_APPS_SERVER_DOMAIN}:${getWorkspaceServerPort()}/redirect/${subdomain}`;
 }

@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { parseFrontmatter } from "./skills";
+import {
+  parseFrontmatter,
+} from "./skills";
 
 const make = (frontmatter: string, body = "Body content") =>
   `---\n${frontmatter}\n---\n${body}`;

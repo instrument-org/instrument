@@ -1,18 +1,38 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-import { APP_FOLDER_NAMES, REGISTRY_FOLDER_NAMES } from "../constants";
+import {
+  APP_FOLDER_NAMES,
+  REGISTRY_FOLDER_NAMES,
+} from "../constants";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../lib/workspace-config";
-import { AbsolutePathSchema } from "../schemas/paths";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
-import { runTool } from "../test/helpers/run-tool";
-import { LoadSkill } from "./load-skill";
+import {
+  AbsolutePathSchema,
+} from "../schemas/paths";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
+import {
+  createMockAppConfigForDir,
+} from "../test/helpers/mock-app-config";
+import {
+  runTool,
+} from "../test/helpers/run-tool";
+import {
+  LoadSkill,
+} from "./load-skill";
 
 const model = createMockAIGatewayModel();
 

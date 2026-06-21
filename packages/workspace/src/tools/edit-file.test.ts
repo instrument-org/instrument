@@ -1,17 +1,32 @@
 import mockFs from "mock-fs";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import {
+  TaskIdSchema,
+} from "../schemas/task-id";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
 import {
   createMockAppConfig,
   MOCK_WORKSPACE_DIRS,
 } from "../test/helpers/mock-app-config";
-import { runTool } from "../test/helpers/run-tool";
-import { TOOLS } from "./all";
+import {
+  runTool,
+} from "../test/helpers/run-tool";
+import {
+  TOOLS,
+} from "./all";
 
 const model = createMockAIGatewayModel();
-const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"), {
+const appConfig = createMockAppConfig(TaskIdSchema.parse("test"), {
   model,
 });
 

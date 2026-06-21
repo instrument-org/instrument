@@ -1,10 +1,20 @@
-import { logger } from "@/electron-main/lib/electron-logger";
-import { is } from "@electron-toolkit/utils";
-import { safeStorage } from "electron";
+import {
+  logger,
+} from "@/electron-main/lib/electron-logger";
+import {
+  is,
+} from "@electron-toolkit/utils";
+import {
+  safeStorage,
+} from "electron";
 import Store from "electron-store";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
-import { publisher } from "../rpc/publisher";
+import {
+  publisher,
+} from "../rpc/publisher";
 
 const SessionStateSchema = z.object({
   apiBearerToken: z.string().nullish(),

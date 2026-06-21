@@ -2,10 +2,18 @@ import matter from "@11ty/gray-matter";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { REGISTRY_FOLDER_NAMES } from "../constants";
-import { type AbsolutePath } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
-import { pathExists } from "./path-exists";
+import {
+  REGISTRY_FOLDER_NAMES,
+} from "../constants";
+import {
+  type AbsolutePath,
+} from "../schemas/paths";
+import {
+  absolutePathJoin,
+} from "./absolute-path-join";
+import {
+  pathExists,
+} from "./path-exists";
 
 export const FILE_LIST_LIMIT = 50;
 

@@ -1,5 +1,5 @@
 import type {
-  ProjectSubdomain,
+  TaskId,
   WorkspaceAppProject,
 } from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -24,10 +24,10 @@ export function createColumns({
   onStop,
 }: {
   favoriteProjectSubdomains: Set<string>;
-  onDelete: (subdomain: ProjectSubdomain) => void;
-  onOpenInNewTab: (subdomain: ProjectSubdomain) => void;
-  onSettings: (subdomain: ProjectSubdomain) => void;
-  onStop: (subdomain: ProjectSubdomain) => void;
+  onDelete: (subdomain: TaskId) => void;
+  onOpenInNewTab: (subdomain: TaskId) => void;
+  onSettings: (subdomain: TaskId) => void;
+  onStop: (subdomain: TaskId) => void;
 }): ColumnDef<WorkspaceAppProject>[] {
   return [
     {

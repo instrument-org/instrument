@@ -5,22 +5,10 @@ import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import {
-  FileTextIcon,
-  FloppyDiskIcon,
-  GlobeSimpleIcon,
-  type Icon,
-  ListChecksIcon,
-} from "@phosphor-icons/react";
+import { FileTextIcon, FloppyDiskIcon, GlobeSimpleIcon, type Icon, ListChecksIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  motion,
-  useMotionTemplate,
-  useMotionValue,
-  useReducedMotion,
-  useSpring,
-} from "motion/react";
+import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring } from "motion/react";
 import { type PointerEvent, useState } from "react";
 
 export const Route = createFileRoute("/studio-overlay/welcome")({

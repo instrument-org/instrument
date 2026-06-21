@@ -1,4 +1,6 @@
-import { useParams } from "@tanstack/react-router";
+import {
+  useParams,
+} from "@tanstack/react-router";
 
 export function useProjectRouteSubdomain() {
   // Project queries use keepPreviousData, so project.subdomain can briefly be

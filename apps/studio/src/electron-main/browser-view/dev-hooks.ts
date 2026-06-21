@@ -3,10 +3,16 @@
 // Nothing in this file affects production behavior -- it is a no-op when
 // isDeveloperMode() returns false.
 
-import { publisher } from "@/electron-main/rpc/publisher";
-import { isDeveloperMode } from "@/electron-main/stores/preferences";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  isDeveloperMode,
+} from "@/electron-main/stores/preferences";
 
-import { type BrowserEntry } from "./entry";
+import {
+  type BrowserEntry,
+} from "./entry";
 
 /**
  * Attach all developer-mode hooks to a freshly created entry after its view

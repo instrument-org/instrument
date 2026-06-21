@@ -1,7 +1,16 @@
-import { atomWithoutSuspense } from "@/client/lib/atom-without-suspense";
-import { logger } from "@/client/lib/logger";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { atomWithRefresh } from "jotai/utils";
+import {
+  atomWithoutSuspense,
+} from "@/client/lib/atom-without-suspense";
+import {
+  logger,
+} from "@/client/lib/logger";
+import {
+  rpcClient,
+  type RPCOutput,
+} from "@/client/rpc/client";
+import {
+  atomWithRefresh,
+} from "jotai/utils";
 
 type Preferences = RPCOutput["preferences"]["get"];
 

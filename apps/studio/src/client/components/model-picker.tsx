@@ -1,38 +1,16 @@
 import { Button } from "@/client/components/ui/button";
-import {
-  Command,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/client/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/client/components/ui/popover";
+import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "@/client/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
-import {
-  getGroupedModelsEntries,
-  groupAndFilterModels,
-} from "@/client/lib/group-models";
+import { getGroupedModelsEntries, groupAndFilterModels } from "@/client/lib/group-models";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import {
-  type AIGatewayModel,
-  type AIGatewayModelURI,
-} from "@instrument-org/ai-gateway/client";
+import { type AIGatewayModel, type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import uFuzzy from "@leeoniya/ufuzzy";
-import {
-  CaretDownIcon,
-  CheckIcon,
-  PlusIcon,
-  WarningCircleIcon,
-  WarningIcon,
-} from "@phosphor-icons/react";
+import { CaretDownIcon, CheckIcon, PlusIcon, WarningCircleIcon, WarningIcon } from "@phosphor-icons/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";

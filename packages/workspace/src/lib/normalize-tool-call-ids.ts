@@ -1,7 +1,9 @@
 import type { AIGatewayModel } from "@instrument-org/ai-gateway";
 import type { ModelMessage } from "ai";
 
-import { isAnthropic } from "./is-anthropic";
+import {
+  isAnthropic,
+} from "./is-anthropic";
 
 export function normalizeToolCallIds({
   messages,

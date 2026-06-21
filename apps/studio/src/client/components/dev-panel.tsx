@@ -1,56 +1,15 @@
 import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { featuresAtom } from "@/client/atoms/features";
 import { useTheme } from "@/client/components/theme-provider";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
-import {
-  Menubar,
-  MenubarCheckboxItem,
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarRadioGroup,
-  MenubarRadioItem,
-  MenubarSeparator,
-  MenubarSub,
-  MenubarSubContent,
-  MenubarSubTrigger,
-  MenubarTrigger,
-} from "@/client/components/ui/menubar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
-import {
-  componentPages,
-  debugNavigationRoutes,
-  onboardingScreens,
-} from "@/client/routes/_app/debug/-debug-routes";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/client/components/ui/alert-dialog";
+import { Menubar, MenubarCheckboxItem, MenubarContent, MenubarItem, MenubarMenu, MenubarRadioGroup, MenubarRadioItem, MenubarSeparator, MenubarSub, MenubarSubContent, MenubarSubTrigger, MenubarTrigger } from "@/client/components/ui/menubar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/client/components/ui/tooltip";
+import { componentPages, debugNavigationRoutes, onboardingScreens } from "@/client/routes/_app/debug/-debug-routes";
 import { presetSessions } from "@/client/routes/_app/debug/-sessions";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
 import { type StudioPath } from "@/shared/studio-path";
-import {
-  ArrowLineDownIcon,
-  ArrowsClockwiseIcon,
-  BugIcon,
-  ChartBarIcon,
-  DatabaseIcon,
-  MonitorIcon,
-  MoonIcon,
-  NavigationArrowIcon,
-  SunIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon, ArrowsClockwiseIcon, BugIcon, ChartBarIcon, DatabaseIcon, MonitorIcon, MoonIcon, NavigationArrowIcon, SunIcon, XIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";

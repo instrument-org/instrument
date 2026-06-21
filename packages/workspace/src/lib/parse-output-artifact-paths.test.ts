@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { parseOutputArtifactPaths } from "./parse-output-artifact-paths";
+import {
+  parseOutputArtifactPaths,
+} from "./parse-output-artifact-paths";
 
 describe("parseOutputArtifactPaths", () => {
   it("keeps added and modified output files, sorted, ignoring non-output", () => {

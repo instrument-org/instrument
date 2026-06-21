@@ -1,26 +1,56 @@
 import ms from "ms";
-import { ok } from "neverthrow";
+import {
+  ok,
+} from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { alphabetical, dedent } from "radashi";
-import { z } from "zod";
+import {
+  alphabetical,
+  dedent,
+} from "radashi";
+import {
+  z,
+} from "zod";
 
-import { APP_FOLDER_NAMES } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
-import { taskDir } from "../lib/app-dir-utils";
-import { executeError } from "../lib/execute-error";
-import { formatBytes } from "../lib/format-bytes";
-import { glob, resolveGlobPattern } from "../lib/glob";
-import { pathExists } from "../lib/path-exists";
-import { resolveAgentPath } from "../lib/resolve-agent-path";
-import { sanitizeFilename } from "../lib/sanitize-filename";
+import {
+  APP_FOLDER_NAMES,
+} from "../constants";
+import {
+  absolutePathJoin,
+} from "../lib/absolute-path-join";
+import {
+  taskDir,
+} from "../lib/app-dir-utils";
+import {
+  executeError,
+} from "../lib/execute-error";
+import {
+  formatBytes,
+} from "../lib/format-bytes";
+import {
+  glob,
+  resolveGlobPattern,
+} from "../lib/glob";
+import {
+  pathExists,
+} from "../lib/path-exists";
+import {
+  resolveAgentPath,
+} from "../lib/resolve-agent-path";
+import {
+  sanitizeFilename,
+} from "../lib/sanitize-filename";
 import {
   type AbsolutePath,
   type RelativePath,
   RelativePathSchema,
 } from "../schemas/paths";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
+import {
+  BaseInputSchema,
+} from "./base";
+import {
+  setupTool,
+} from "./create-tool";
 
 const FILE_SIZE_LIMITS = {
   default: 1024 * 1024 * 50, // 50MB

@@ -7,12 +7,7 @@ import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { useToolCallSession } from "./tool-call-session";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
-import {
-  ToolCard,
-  ToolCardHeader,
-  ToolCardSection,
-  ToolChip,
-} from "./tool-card";
+import { ToolCard, ToolCardHeader, ToolCardSection, ToolChip } from "./tool-card";
 
 type WebSearchPart = Extract<
   SessionMessagePart.ToolPart,

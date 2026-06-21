@@ -1,16 +1,7 @@
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/client/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/client/components/ui/collapsible";
+import { Card, CardContent, CardHeader, CardTitle } from "@/client/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/client/components/ui/collapsible";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { CaretRightIcon, MonitorIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";

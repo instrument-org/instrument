@@ -1,7 +1,4 @@
-import {
-  type ProjectSubdomain,
-  type SessionMessagePart,
-} from "@instrument-org/workspace/client";
+import { type SessionMessagePart, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon, ChatIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
@@ -24,7 +21,7 @@ export function ToolReadFile({
   subdomain,
 }: {
   part: ReadFilePart;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   if (part.state !== "output-available") {
     return null;
@@ -151,7 +148,7 @@ function ReadFileCard({
   children: React.ReactNode;
   filePath: string;
   modifiedAt?: number;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const filename = filenameFromFilePath(filePath);
   const currentFile = useCurrentProjectFile(filePath);

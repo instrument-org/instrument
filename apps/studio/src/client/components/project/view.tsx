@@ -1,28 +1,13 @@
-import {
-  openFileViewerAtom,
-  type ProjectFileViewerFile,
-} from "@/client/atoms/project-file-viewer";
+import { openFileViewerAtom, type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { FileViewer } from "@/client/components/file-viewer";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/client/components/ui/resizable";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/client/components/ui/resizable";
 import { useReload } from "@/client/hooks/use-reload";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import {
-  type StoreId,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
-import {
-  keepPreviousData,
-  skipToken,
-  useMutation,
-  useQuery,
-} from "@tanstack/react-query";
+import { type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { keepPreviousData, skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useCallback } from "react";

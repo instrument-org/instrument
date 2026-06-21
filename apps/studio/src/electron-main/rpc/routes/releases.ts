@@ -1,9 +1,19 @@
-import { base } from "@/electron-main/rpc/base";
-import { APP_NAME, APP_REPO_NAME, GITHUB_ORG } from "@instrument-org/shared";
+import {
+  base,
+} from "@/electron-main/rpc/base";
+import {
+  APP_NAME,
+  APP_REPO_NAME,
+  GITHUB_ORG,
+} from "@instrument-org/shared";
 import ms from "ms";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
-import { cacheMiddleware } from "../middleware/cache";
+import {
+  cacheMiddleware,
+} from "../middleware/cache";
 
 const ReleaseSchema = z.object({
   body: z.string().nullable(),

@@ -1,15 +1,8 @@
-import {
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarMenu,
-} from "@/client/components/ui/sidebar";
+import { SidebarGroup, SidebarGroupLabel, SidebarMenu } from "@/client/components/ui/sidebar";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type ProjectSubdomain,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
+import { type TaskId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
@@ -41,7 +34,7 @@ export function NavProjects({
 }) {
   const { addTab } = useTabActions();
 
-  const handleOpenInNewTab = (subdomain: ProjectSubdomain) => {
+  const handleOpenInNewTab = (subdomain: TaskId) => {
     void addTab({
       params: { subdomain },
       to: "/projects/$subdomain",
@@ -51,7 +44,7 @@ export function NavProjects({
   const { mutate: removeFavorite } = useMutation(
     rpcClient.favorites.remove.mutationOptions(),
   );
-  const handleRemoveFavorite = (subdomain: ProjectSubdomain) => {
+  const handleRemoveFavorite = (subdomain: TaskId) => {
     removeFavorite({ subdomain });
   };
 
@@ -149,7 +142,7 @@ function ProjectsList({
 }: {
   favoriteSubdomains: Set<string>;
   matches: MakeRouteMatchUnion[];
-  onOpenInNewTab: (subdomain: ProjectSubdomain) => void;
+  onOpenInNewTab: (subdomain: TaskId) => void;
   projects: WorkspaceAppProject[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);

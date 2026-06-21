@@ -3,59 +3,26 @@ import { AttachedFilePreview } from "@/client/components/attached-file-preview";
 import { AttachedFolderPreview } from "@/client/components/attached-folder-preview";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import {
-  TextareaContainer,
-  TextareaInner,
-} from "@/client/components/ui/textarea-container";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/client/components/ui/dropdown-menu";
+import { TextareaContainer, TextareaInner } from "@/client/components/ui/textarea-container";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
-import {
-  type DroppedFolder,
-  useWindowFileDrop,
-} from "@/client/lib/use-window-file-drop";
+import { type DroppedFolder, useWindowFileDrop } from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
-import {
-  type AppSubdomain,
-  type FileUpload,
-  type StoreId,
-} from "@instrument-org/workspace/client";
+import { type FileUpload, type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import {
-  ArrowUpIcon,
-  FileIcon,
-  FolderIcon,
-  PaperclipIcon,
-  StopIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react";
+import { ArrowUpIcon, FileIcon, FolderIcon, PaperclipIcon, StopIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import {
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ulid } from "ulid";
 
 import { featuresAtom } from "../atoms/features";
-import {
-  promptInputRefAtom,
-  promptValueAtomFamily,
-  type PromptValueAtomKey,
-} from "../atoms/prompt-value";
+import { promptInputRefAtom, promptValueAtomFamily, type PromptValueAtomKey } from "../atoms/prompt-value";
 import { rpcClient } from "../rpc/client";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
@@ -111,7 +78,7 @@ interface PromptInputProps {
   placeholder?: string;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  subdomain?: AppSubdomain;
+  subdomain?: TaskId;
 }
 
 interface PromptInputRef {

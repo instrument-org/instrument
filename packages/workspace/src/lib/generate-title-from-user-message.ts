@@ -2,17 +2,37 @@ import {
   type AIGatewayModel,
   fetchAISDKModel,
 } from "@instrument-org/ai-gateway";
-import { generateText } from "ai";
-import { ResultAsync } from "neverthrow";
-import { dedent } from "radashi";
+import {
+  generateText,
+} from "ai";
+import {
+  ResultAsync,
+} from "neverthrow";
+import {
+  dedent,
+} from "radashi";
 
-import { getWorkspaceServerURL } from "../logic/server/url";
-import { type SessionMessage } from "../schemas/session/message";
-import { type WorkspaceConfig } from "../types";
-import { TypedError } from "./errors";
-import { isNonRetryableGatewayError } from "./gateway-response-body";
-import { PROJECT_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
-import { textForMessage } from "./text-for-message";
+import {
+  getWorkspaceServerURL,
+} from "../logic/server/url";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  type WorkspaceConfig,
+} from "../types";
+import {
+  TypedError,
+} from "./errors";
+import {
+  isNonRetryableGatewayError,
+} from "./gateway-response-body";
+import {
+  PROJECT_NAME_MAX_OUTPUT_TOKENS,
+} from "./llm-token-limits";
+import {
+  textForMessage,
+} from "./text-for-message";
 
 const MAX_TITLE_WORDS = 5;
 

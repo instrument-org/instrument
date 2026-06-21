@@ -1,17 +1,43 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import {
+  type AIGatewayModel,
+} from "@instrument-org/ai-gateway";
 
-import { type AgentName } from "../agents/types";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { type StoreId } from "../schemas/store-id";
-import { getToolByType } from "../tools/all";
-import { type AppConfig } from "./app-config/types";
-import { taskDir } from "./app-dir-utils";
-import { getCurrentDate } from "./get-current-date";
-import { getProjectState } from "./project-state-store";
-import { type SpawnAgentFunction } from "./spawn-agent";
-import { Store } from "./store";
-import { streamTool } from "./stream-tool";
-import { getWorkspaceConfig } from "./workspace-config";
+import {
+  type AgentName,
+} from "../agents/types";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  type StoreId,
+} from "../schemas/store-id";
+import {
+  getToolByType,
+} from "../tools/all";
+import {
+  type AppConfig,
+} from "./app-config/types";
+import {
+  taskDir,
+} from "./app-dir-utils";
+import {
+  getCurrentDate,
+} from "./get-current-date";
+import {
+  getProjectState,
+} from "./project-state-store";
+import {
+  type SpawnAgentFunction,
+} from "./spawn-agent";
+import {
+  Store,
+} from "./store";
+import {
+  streamTool,
+} from "./stream-tool";
+import {
+  getWorkspaceConfig,
+} from "./workspace-config";
 
 export async function runToolCall({
   agentName,

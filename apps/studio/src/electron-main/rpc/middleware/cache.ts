@@ -1,4 +1,6 @@
-import { os } from "@orpc/server";
+import {
+  os,
+} from "@orpc/server";
 import ms from "ms";
 
 interface CacheEntry<T> {

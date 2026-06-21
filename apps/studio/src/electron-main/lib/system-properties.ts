@@ -1,4 +1,6 @@
-import { app } from "electron";
+import {
+  app,
+} from "electron";
 import os from "node:os";
 
 export function getSystemProperties() {

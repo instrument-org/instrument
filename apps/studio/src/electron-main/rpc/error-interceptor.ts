@@ -1,4 +1,6 @@
-import { mapEventIterator } from "@orpc/client";
+import {
+  mapEventIterator,
+} from "@orpc/client";
 import {
   type Context,
   type Meta,

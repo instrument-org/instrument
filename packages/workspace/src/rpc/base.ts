@@ -1,9 +1,21 @@
-import { type AIGatewayTypedError } from "@instrument-org/ai-gateway";
-import { type ErrorMap, type ORPCErrorConstructorMap, os } from "@orpc/server";
+import {
+  type AIGatewayTypedError,
+} from "@instrument-org/ai-gateway";
+import {
+  type ErrorMap,
+  type ORPCErrorConstructorMap,
+  os,
+} from "@orpc/server";
 
-import { type TypedError } from "../lib/errors";
-import { type WorkspaceActorRef } from "../machines/workspace";
-import { type WorkspaceConfig } from "../types";
+import {
+  type TypedError,
+} from "../lib/errors";
+import {
+  type WorkspaceActorRef,
+} from "../machines/workspace";
+import {
+  type WorkspaceConfig,
+} from "../types";
 
 export interface WorkspaceRPCContext {
   workspaceConfig: WorkspaceConfig;

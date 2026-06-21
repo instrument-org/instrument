@@ -1,7 +1,4 @@
-import {
-  type ProviderSetupPage,
-  ProviderSetupScreen,
-} from "@/client/components/onboarding/provider-setup-screen";
+import { type ProviderSetupPage, ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";

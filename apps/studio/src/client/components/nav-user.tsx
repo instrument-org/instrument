@@ -1,8 +1,4 @@
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/client/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/client/components/ui/avatar";
 import { SidebarMenu, SidebarMenuItem } from "@/client/components/ui/sidebar";
 import { getInitials } from "@/client/lib/get-initials";
 import { rpcClient } from "@/client/rpc/client";

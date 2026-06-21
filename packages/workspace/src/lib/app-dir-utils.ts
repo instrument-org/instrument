@@ -1,12 +1,27 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { APP_FOLDER_NAMES, SESSIONS_DB_FILE_NAME } from "../constants";
-import { type AbsolutePath, type AppDir, AppDirSchema } from "../schemas/paths";
-import { type ProjectSubdomain } from "../schemas/subdomains";
-import { type WorkspaceConfig } from "../types";
-import { absolutePathJoin } from "./absolute-path-join";
-import { getWorkspaceConfig } from "./workspace-config";
+import {
+  APP_FOLDER_NAMES,
+  SESSIONS_DB_FILE_NAME,
+} from "../constants";
+import {
+  type AbsolutePath,
+  type AppDir,
+  AppDirSchema,
+} from "../schemas/paths";
+import {
+  type TaskId,
+} from "../schemas/task-id";
+import {
+  type WorkspaceConfig,
+} from "../types";
+import {
+  absolutePathJoin,
+} from "./absolute-path-join";
+import {
+  getWorkspaceConfig,
+} from "./workspace-config";
 
 export function getAgentBrowserStateDir(appDir: AppDir): AbsolutePath {
   return absolutePathJoin(
@@ -53,7 +68,7 @@ export function sessionStorePath(appDir: AppDir): AbsolutePath {
 
 // The on-disk directory for a task. The id doubles as the folder name, so this
 // is a pure path derivation off the workspace singleton — no carrier object.
-export function taskDir(id: ProjectSubdomain): AppDir {
+export function taskDir(id: TaskId): AppDir {
   return AppDirSchema.parse(path.join(getWorkspaceConfig().projectsDir, id));
 }
 

@@ -3,10 +3,7 @@ import type { FileRoutesByPath, RouterHistory } from "@tanstack/react-router";
 import { DefaultErrorComponent } from "@/client/components/default-error-component";
 import { NotFoundRouteComponent } from "@/client/components/not-found";
 import { QueryClient } from "@tanstack/react-query";
-import {
-  createHashHistory,
-  createRouter as createTanStackRouter,
-} from "@tanstack/react-router";
+import { createHashHistory, createRouter as createTanStackRouter } from "@tanstack/react-router";
 
 import { capturePageView } from "./lib/telemetry";
 import { routeTree } from "./routeTree.gen";

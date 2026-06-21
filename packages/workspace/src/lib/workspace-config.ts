@@ -1,4 +1,6 @@
-import { type WorkspaceConfig } from "../types";
+import {
+  type WorkspaceConfig,
+} from "../types";
 
 // The workspace runs a single WorkspaceConfig per process (constructed once when
 // the workspace machine boots and living for the whole app lifetime). Rather

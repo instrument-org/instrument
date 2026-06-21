@@ -1,11 +1,26 @@
-import { call, eventIterator } from "@orpc/server";
-import { z } from "zod";
+import {
+  call,
+  eventIterator,
+} from "@orpc/server";
+import {
+  z,
+} from "zod";
 
-import { ActiveReplays } from "../../lib/active-replays";
-import { StoreId } from "../../schemas/store-id";
-import { ProjectSubdomainSchema } from "../../schemas/subdomains";
-import { base } from "../base";
-import { publisher } from "../publisher";
+import {
+  ActiveReplays,
+} from "../../lib/active-replays";
+import {
+  StoreId,
+} from "../../schemas/store-id";
+import {
+  TaskIdSchema,
+} from "../../schemas/task-id";
+import {
+  base,
+} from "../base";
+import {
+  publisher,
+} from "../publisher";
 
 const cancel = base
   .input(
@@ -49,7 +64,7 @@ const live = {
       }
     }),
   statusBySubdomain: base
-    .input(z.object({ subdomain: ProjectSubdomainSchema }))
+    .input(z.object({ subdomain: TaskIdSchema }))
     .output(
       eventIterator(
         z.object({ activeSessionIds: z.array(StoreId.SessionSchema) }),

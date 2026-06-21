@@ -1,12 +1,19 @@
 import {
-  type ProjectSubdomain,
   type SessionTag,
   type StoreId,
+  type TaskId,
 } from "@instrument-org/workspace/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+} from "@tanstack/react-query";
 
-import { rpcClient } from "../rpc/client";
-import { useAppState } from "./use-app-state";
+import {
+  rpcClient,
+} from "../rpc/client";
+import {
+  useAppState,
+} from "./use-app-state";
 
 export function getSessionTags({
   sessionActors,
@@ -31,7 +38,7 @@ export function useAgentSessionStatus({
 }: {
   isReplayActive?: boolean;
   sessionId: StoreId.Session | typeof skipToken | undefined;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const { data: appState } = useAppState({ subdomain });
   const sessionActors = appState?.sessionActors ?? [];

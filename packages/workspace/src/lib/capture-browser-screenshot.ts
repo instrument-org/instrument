@@ -1,18 +1,39 @@
-import { createHash } from "node:crypto";
+import {
+  createHash,
+} from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 import type { AppConfig } from "./app-config/types";
 
-import { APP_FOLDER_NAMES } from "../constants";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { StoreId } from "../schemas/store-id";
-import { type ProjectSubdomain } from "../schemas/subdomains";
-import { encodeBrowserTargetId } from "../types";
-import { absolutePathJoin } from "./absolute-path-join";
-import { getAgentBrowserStateDir, taskDir } from "./app-dir-utils";
-import { getCurrentDate } from "./get-current-date";
-import { getWorkspaceConfig } from "./workspace-config";
+import {
+  APP_FOLDER_NAMES,
+} from "../constants";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  type TaskId,
+} from "../schemas/task-id";
+import {
+  encodeBrowserTargetId,
+} from "../types";
+import {
+  absolutePathJoin,
+} from "./absolute-path-join";
+import {
+  getAgentBrowserStateDir,
+  taskDir,
+} from "./app-dir-utils";
+import {
+  getCurrentDate,
+} from "./get-current-date";
+import {
+  getWorkspaceConfig,
+} from "./workspace-config";
 
 // Tail of stderr/stdout to attach as `error` on a failed observation. Sized
 // to surface the actionable error message without flooding the array entry.
@@ -56,7 +77,7 @@ export async function beginBrowserCommandObservation({
   appConfig: AppConfig;
   sessionId: StoreId.Session;
   subcommand: string;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
   upsertContextItem: UpsertContextItem;
 }): Promise<BrowserCommandObservation | undefined> {
   const targetId = encodeBrowserTargetId(subdomain, sessionId);
@@ -131,7 +152,7 @@ async function captureBrowserScreenshot({
 }: {
   appConfig: AppConfig;
   sessionId: StoreId.Session;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }): Promise<CapturedScreenshot | undefined> {
   try {
     const workspaceConfig = getWorkspaceConfig();

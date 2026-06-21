@@ -1,23 +1,50 @@
-import { AIGatewayModel } from "@instrument-org/ai-gateway";
-import { type SyntheticModelId } from "@instrument-org/shared";
+import {
+  AIGatewayModel,
+} from "@instrument-org/ai-gateway";
+import {
+  type SyntheticModelId,
+} from "@instrument-org/shared";
 import {
   convertToModelMessages,
   type ModelMessage,
   type ToolSet,
   type UIMessage,
 } from "ai";
-import { dedent } from "radashi";
-import { z } from "zod";
+import {
+  dedent,
+} from "radashi";
+import {
+  z,
+} from "zod";
 
-import { type AgentName, RETRIEVAL_AGENT_NAME } from "../../agents/types";
-import { browserStatusModelNote } from "../../lib/browser-status-model-text";
-import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
-import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
-import { formatBytes } from "../../lib/format-bytes";
-import { isToolPart } from "../../lib/is-tool-part";
-import { injectContextItemsIntoOutput } from "../../lib/tool-output-context-items";
-import { StoreId } from "../store-id";
-import { SessionMessagePart } from "./message-part";
+import {
+  type AgentName,
+  RETRIEVAL_AGENT_NAME,
+} from "../../agents/types";
+import {
+  browserStatusModelNote,
+} from "../../lib/browser-status-model-text";
+import {
+  buildAttachedFoldersText,
+} from "../../lib/build-attached-folders-text";
+import {
+  externalFileChangesModelNote,
+} from "../../lib/external-file-changes-model-text";
+import {
+  formatBytes,
+} from "../../lib/format-bytes";
+import {
+  isToolPart,
+} from "../../lib/is-tool-part";
+import {
+  injectContextItemsIntoOutput,
+} from "../../lib/tool-output-context-items";
+import {
+  StoreId,
+} from "../store-id";
+import {
+  SessionMessagePart,
+} from "./message-part";
 
 export namespace SessionMessage {
   // -----

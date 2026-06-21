@@ -1,20 +1,44 @@
-import { type Connector, createDatabase, type Database } from "db0";
+import {
+  type Connector,
+  createDatabase,
+  type Database,
+} from "db0";
 import sqlite from "db0/connectors/node-sqlite";
-import { err, ok, ResultAsync } from "neverthrow";
+import {
+  err,
+  ok,
+  ResultAsync,
+} from "neverthrow";
 import fs from "node:fs/promises";
-import { type DatabaseSync } from "node:sqlite";
-import { createStorage } from "unstorage";
+import {
+  type DatabaseSync,
+} from "node:sqlite";
+import {
+  createStorage,
+} from "unstorage";
 import dbDriver from "unstorage/drivers/db0";
 
-import { type AppSubdomain } from "../schemas/subdomains";
-import { type AppConfig } from "./app-config/types";
-import { sessionStorePath, taskDir } from "./app-dir-utils";
-import { TypedError } from "./errors";
-import { type WrappedStorage, wrapStorage } from "./wrap-storage";
+import {
+  type TaskId,
+} from "../schemas/task-id";
+import {
+  type AppConfig,
+} from "./app-config/types";
+import {
+  sessionStorePath,
+  taskDir,
+} from "./app-dir-utils";
+import {
+  TypedError,
+} from "./errors";
+import {
+  type WrappedStorage,
+  wrapStorage,
+} from "./wrap-storage";
 
 // Avoids possible SQLite database lock errors if we create the same storage
 // multiple times.
-const STORAGE_CACHE = new Map<AppSubdomain, WrappedStorage>();
+const STORAGE_CACHE = new Map<TaskId, WrappedStorage>();
 
 // Maps storage instances to their underlying database instances for proper cleanup
 // We have to do this because Unstorage doesn't call `database.close()` with
@@ -25,9 +49,9 @@ const STORAGE_TO_DATABASE = new WeakMap<
 >();
 
 // Tracks storages that are currently being disposed to prevent recreation
-const DISPOSING_STORAGES = new Set<AppSubdomain>();
+const DISPOSING_STORAGES = new Set<TaskId>();
 
-export function disposeSessionsStoreStorage(subdomain: AppSubdomain) {
+export function disposeSessionsStoreStorage(subdomain: TaskId) {
   return ResultAsync.fromPromise(
     (async () => {
       const storage = STORAGE_CACHE.get(subdomain);
@@ -104,10 +128,10 @@ export function getSessionsStoreStorage(appConfig: AppConfig) {
     });
 }
 
-export function markStorageAsDisposing(subdomain: AppSubdomain) {
+export function markStorageAsDisposing(subdomain: TaskId) {
   DISPOSING_STORAGES.add(subdomain);
 }
 
-export function unmarkStorageAsDisposing(subdomain: AppSubdomain) {
+export function unmarkStorageAsDisposing(subdomain: TaskId) {
   DISPOSING_STORAGES.delete(subdomain);
 }

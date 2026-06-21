@@ -1,5 +1,9 @@
-import { forkExecCommand } from "@/electron-main/lib/exec-command";
-import { createRequire } from "node:module";
+import {
+  forkExecCommand,
+} from "@/electron-main/lib/exec-command";
+import {
+  createRequire,
+} from "node:module";
 import path from "node:path";
 
 export async function pnpmVersion() {

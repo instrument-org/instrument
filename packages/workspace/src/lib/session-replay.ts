@@ -1,20 +1,53 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { ok, safeTry } from "neverthrow";
+import {
+  type AIGatewayModel,
+} from "@instrument-org/ai-gateway";
+import {
+  ok,
+  safeTry,
+} from "neverthrow";
 
-import { type AgentName } from "../agents/types";
-import { type SessionMessage } from "../schemas/session/message";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { StoreId } from "../schemas/store-id";
-import { type WorkspaceConfig } from "../types";
-import { newProjectConfig } from "./app-config/new";
-import { type AppConfig } from "./app-config/types";
-import { createSession } from "./create-session";
-import { getCurrentDate } from "./get-current-date";
-import { initializeProject } from "./initialize-project";
-import { isToolPart } from "./is-tool-part";
-import { runToolCall } from "./run-tool-call";
-import { type SpawnAgentFunction } from "./spawn-agent";
-import { Store } from "./store";
+import {
+  type AgentName,
+} from "../agents/types";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  type WorkspaceConfig,
+} from "../types";
+import {
+  newProjectConfig,
+} from "./app-config/new";
+import {
+  type AppConfig,
+} from "./app-config/types";
+import {
+  createSession,
+} from "./create-session";
+import {
+  getCurrentDate,
+} from "./get-current-date";
+import {
+  initializeProject,
+} from "./initialize-project";
+import {
+  isToolPart,
+} from "./is-tool-part";
+import {
+  runToolCall,
+} from "./run-tool-call";
+import {
+  type SpawnAgentFunction,
+} from "./spawn-agent";
+import {
+  Store,
+} from "./store";
 
 const DEFAULT_TEMPLATE_NAME = "basic";
 

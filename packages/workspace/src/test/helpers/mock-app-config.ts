@@ -1,4 +1,7 @@
-import { type ImageModelV3, type LanguageModelV3 } from "@ai-sdk/provider";
+import {
+  type ImageModelV3,
+  type LanguageModelV3,
+} from "@ai-sdk/provider";
 import {
   type AIGatewayModel,
   AIGatewayProviderConfig,
@@ -8,28 +11,38 @@ import {
   TEST_MODEL_OVERRIDE_KEY,
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway";
-import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
+import {
+  AI_GATEWAY_API_KEY_NOT_NEEDED,
+} from "@instrument-org/shared";
 import path from "node:path";
-import { noop } from "radashi";
+import {
+  noop,
+} from "radashi";
 
-import { createAppConfig } from "../../lib/app-config/create";
+import {
+  createAppConfig,
+} from "../../lib/app-config/create";
 import {
   getWorkspaceConfig,
   resetWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
-import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import {
-  type AppSubdomain,
-  type ProjectSubdomain,
-  ProjectSubdomainSchema,
-} from "../../schemas/subdomains";
+  AbsolutePathSchema,
+  WorkspaceDirSchema,
+} from "../../schemas/paths";
+import {
+  type TaskId,
+  TaskIdSchema,
+} from "../../schemas/task-id";
 import {
   type BrowserConfig,
   encodeBrowserTargetId,
   type WorkspaceConfig,
 } from "../../types";
-import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
+import {
+  createMockAIGatewayModel,
+} from "./mock-ai-gateway-model";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
@@ -50,7 +63,7 @@ const mockProviderConfigs = new Map<
 >();
 
 export function createMockAppConfig(
-  subdomain: AppSubdomain,
+  subdomain: TaskId,
   options: {
     aiSDKModel?: LanguageModelV3;
     imageModel?: ImageModelV3;
@@ -127,8 +140,8 @@ export function createMockAppConfig(
 export function createMockAppConfigForDir(
   appDir: string,
   options: Parameters<typeof createMockAppConfig>[1] = {},
-): ProjectSubdomain {
-  const id = ProjectSubdomainSchema.parse(path.basename(appDir));
+): TaskId {
+  const id = TaskIdSchema.parse(path.basename(appDir));
   createMockAppConfig(id, options);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),

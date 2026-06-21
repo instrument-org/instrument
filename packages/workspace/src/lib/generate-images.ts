@@ -4,17 +4,26 @@ import {
   getImageModel,
   type ImageGenerationProviderType,
 } from "@instrument-org/ai-gateway";
-import { type WorkspaceServerURL } from "@instrument-org/shared";
+import {
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
 import {
   APICallError,
   generateImage,
   generateText,
   NoImageGeneratedError,
 } from "ai";
-import { err, ResultAsync } from "neverthrow";
+import {
+  err,
+  ResultAsync,
+} from "neverthrow";
 
-import { type WorkspaceConfig } from "../types";
-import { TypedError } from "./errors";
+import {
+  type WorkspaceConfig,
+} from "../types";
+import {
+  TypedError,
+} from "./errors";
 
 const SOURCE_IMAGE_LIMITS: Partial<
   Record<ImageGenerationProviderType, number>

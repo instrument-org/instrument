@@ -1,20 +1,35 @@
-import { setDefaultModel } from "@/electron-main/lib/set-default-model";
-import { base } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  setDefaultModel,
+} from "@/electron-main/lib/set-default-model";
+import {
+  base,
+} from "@/electron-main/rpc/base";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
 import {
   getDefaultModelURI,
   getPreferencesStore,
   PreferencesStoreSchema,
   setLastUpdateCheck,
 } from "@/electron-main/stores/preferences";
-import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import {
-  ProjectSubdomainSchema,
+  AIGatewayModelURI,
+} from "@instrument-org/ai-gateway";
+import {
+  TaskIdSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import { call, eventIterator } from "@orpc/server";
-import { app } from "electron";
-import { z } from "zod";
+import {
+  call,
+  eventIterator,
+} from "@orpc/server";
+import {
+  app,
+} from "electron";
+import {
+  z,
+} from "zod";
 
 function getPreferencesData() {
   const preferencesStore = getPreferencesStore();
@@ -88,7 +103,7 @@ const getAppVersion = base.handler(() => {
 });
 
 const ensureProjectDefaultModelURI = base
-  .input(z.object({ subdomain: ProjectSubdomainSchema }))
+  .input(z.object({ subdomain: TaskIdSchema }))
   .output(z.object({ modelURI: AIGatewayModelURI.Schema.optional() }))
   .handler(async ({ context, input }) => {
     const projectState = await call(workspaceRouter.project.state.get, input, {

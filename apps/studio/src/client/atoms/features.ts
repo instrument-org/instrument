@@ -1,9 +1,17 @@
 import type { Features } from "@/shared/features";
 
-import { atomWithoutSuspense } from "@/client/lib/atom-without-suspense";
-import { logger } from "@/client/lib/logger";
-import { rpcClient } from "@/client/rpc/client";
-import { atomWithRefresh } from "jotai/utils";
+import {
+  atomWithoutSuspense,
+} from "@/client/lib/atom-without-suspense";
+import {
+  logger,
+} from "@/client/lib/logger";
+import {
+  rpcClient,
+} from "@/client/rpc/client";
+import {
+  atomWithRefresh,
+} from "jotai/utils";
 
 const defaultFeatures: Features = {
   context_ring: false,

@@ -1,6 +1,10 @@
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
-import { AbsolutePathSchema } from "./paths";
+import {
+  AbsolutePathSchema,
+} from "./paths";
 
 export namespace FileUpload {
   const Base64Schema = z.object({

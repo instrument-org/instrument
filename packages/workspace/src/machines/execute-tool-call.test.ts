@@ -1,17 +1,39 @@
 import mockFs from "mock-fs";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createActor, waitFor } from "xstate";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import {
+  createActor,
+  waitFor,
+} from "xstate";
 
-import { Store } from "../lib/store";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { StoreId } from "../schemas/store-id";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import {
+  Store,
+} from "../lib/store";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  TaskIdSchema,
+} from "../schemas/task-id";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
 import {
   createMockAppConfig,
   MOCK_WORKSPACE_DIRS,
 } from "../test/helpers/mock-app-config";
-import { executeToolCallMachine } from "./execute-tool-call";
+import {
+  executeToolCallMachine,
+} from "./execute-tool-call";
 
 vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
@@ -23,7 +45,7 @@ vi.mock(import("../lib/execa-node-for-app"), () => ({
 describe("executeToolCallMachine", () => {
   const model = createMockAIGatewayModel();
   const projectAppConfig = createMockAppConfig(
-    ProjectSubdomainSchema.parse("test"),
+    TaskIdSchema.parse("test"),
     { model },
   );
   const sessionId = StoreId.newSessionId();

@@ -1,10 +1,10 @@
-import type { ProjectSubdomain } from "@instrument-org/workspace/client";
+import type { TaskId } from "@instrument-org/workspace/client";
 
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
-export function ModelPreview({ subdomain }: { subdomain: ProjectSubdomain }) {
+export function ModelPreview({ subdomain }: { subdomain: TaskId }) {
   const { data: projectState } = useQuery(
     rpcClient.workspace.project.state.get.queryOptions({
       input: { subdomain },

@@ -5,10 +5,7 @@ import { Label } from "@/client/components/ui/label";
 import { fixURL } from "@/client/lib/fix-url";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
-import {
-  AI_GATEWAY_API_KEY_NOT_NEEDED,
-  type AIProviderType,
-} from "@instrument-org/shared";
+import { AI_GATEWAY_API_KEY_NOT_NEEDED, type AIProviderType } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
 import { LockIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -16,12 +13,7 @@ import { useAtomValue } from "jotai";
 import { type ReactNode, useReducer, useRef, useState } from "react";
 
 import { ProviderPicker } from "../provider-picker";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../ui/accordion";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 import { Alert, AlertDescription } from "../ui/alert";
 import { ProviderLinks } from "./provider-links";
 

@@ -3,7 +3,9 @@ export const REGISTRY_FOLDER_NAMES = {
   templates: "templates",
 } as const;
 
-import { APP_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import {
+  APP_PRIVATE_FOLDER_NAME,
+} from "@instrument-org/shared";
 
 export const APP_FOLDER_NAMES = {
   agentBrowserState: "agent-browser",

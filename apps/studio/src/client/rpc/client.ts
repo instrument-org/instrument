@@ -1,12 +1,20 @@
-import { type router } from "@/electron-main/rpc/routes";
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/message-port";
+import {
+  type router,
+} from "@/electron-main/rpc/routes";
+import {
+  createORPCClient,
+} from "@orpc/client";
+import {
+  RPCLink,
+} from "@orpc/client/message-port";
 import {
   type InferRouterInputs,
   type InferRouterOutputs,
   type RouterClient,
 } from "@orpc/server";
-import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import {
+  createTanstackQueryUtils,
+} from "@orpc/tanstack-query";
 
 const { port1: clientPort, port2: serverPort } = new MessageChannel();
 

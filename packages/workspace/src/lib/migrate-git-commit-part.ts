@@ -1,15 +1,32 @@
-import { exec } from "dugite";
+import {
+  exec,
+} from "dugite";
 import nodeIgnore from "ignore";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
-import { type AppDir, RelativePathSchema } from "../schemas/paths";
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { type SessionMessageRelaxedPart } from "../schemas/session/message-relaxed-part";
-import { getMimeType } from "./get-mime-type";
-import { INTERNAL_IGNORE_PATTERNS } from "./get-project-files";
-import { normalizePath } from "./normalize-path";
+import {
+  type AppDir,
+  RelativePathSchema,
+} from "../schemas/paths";
+import {
+  type SessionMessageDataPart,
+} from "../schemas/session/message-data-part";
+import {
+  type SessionMessageRelaxedPart,
+} from "../schemas/session/message-relaxed-part";
+import {
+  getMimeType,
+} from "./get-mime-type";
+import {
+  INTERNAL_IGNORE_PATTERNS,
+} from "./get-project-files";
+import {
+  normalizePath,
+} from "./normalize-path";
 
 // cspell:ignore quotepath NOSYSTEM
 

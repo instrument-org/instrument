@@ -1,8 +1,5 @@
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
-import {
-  type UpgradeSubscriptionAlertState,
-  UpgradeSubscriptionAlertView,
-} from "@/client/components/upgrade-subscription-alert";
+import { type UpgradeSubscriptionAlertState, UpgradeSubscriptionAlertView } from "@/client/components/upgrade-subscription-alert";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 

@@ -3,22 +3,36 @@ import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 
-import { type ServerType } from "@hono/node-server";
-import { Hono } from "hono";
-import { WebSocket, WebSocketServer } from "ws";
+import {
+  type ServerType,
+} from "@hono/node-server";
+import {
+  Hono,
+} from "hono";
+import {
+  WebSocket,
+  WebSocketServer,
+} from "ws";
 
-import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
+import {
+  TaskIdSchema,
+} from "../../../schemas/task-id";
 import {
   type BrowserTargetId,
   BrowserTargetIdSchema,
   type WorkspaceConfig,
 } from "../../../types";
-import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
+import {
+  CDP_BASE_PATH,
+  CDP_PAGE_PATH_PREFIX,
+} from "../constants";
 import {
   type WorkspaceServerEnv,
   type WorkspaceServerParentRef,
 } from "../types";
-import { getWorkspaceServerPort } from "../url";
+import {
+  getWorkspaceServerPort,
+} from "../url";
 
 // CDP wire envelopes. Inbound is from agent-browser (untrusted JSON), outbound
 // either has `result` (typed by command) or `error`, plus async event frames.
@@ -56,7 +70,7 @@ cdpBridgeRoute.get("/json/version", (c) => {
 });
 
 cdpBridgeRoute.get("/json", async (c) => {
-  const subdomainResult = ProjectSubdomainSchema.safeParse(
+  const subdomainResult = TaskIdSchema.safeParse(
     c.req.query("subdomain"),
   );
   if (!subdomainResult.success) {

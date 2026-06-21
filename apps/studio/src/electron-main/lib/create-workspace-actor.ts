@@ -1,23 +1,51 @@
-import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
-import { is } from "@electron-toolkit/utils";
-import { aiGatewayApp } from "@instrument-org/ai-gateway";
-import { APP_NAME } from "@instrument-org/shared";
+import {
+  getAIProviderConfigs,
+} from "@/electron-main/lib/get-ai-provider-configs";
+import {
+  is,
+} from "@electron-toolkit/utils";
+import {
+  aiGatewayApp,
+} from "@instrument-org/ai-gateway";
+import {
+  APP_NAME,
+} from "@instrument-org/shared";
 import {
   closeAllAgentBrowserSessions,
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import { call } from "@orpc/server";
-import { app, dialog, shell } from "electron";
+import {
+  call,
+} from "@orpc/server";
+import {
+  app,
+  dialog,
+  shell,
+} from "electron";
 import path from "node:path";
-import { createActor } from "xstate";
+import {
+  createActor,
+} from "xstate";
 
-import { createBrowserViewManager } from "../browser-view/manager";
-import { captureServerEvent } from "./capture-server-event";
-import { captureServerException } from "./capture-server-exception";
-import { logger } from "./electron-logger";
-import { getWorkspaceFolder } from "./get-workspace-folder";
-import { getPNPMBinPath } from "./setup-bin-directory";
+import {
+  createBrowserViewManager,
+} from "../browser-view/manager";
+import {
+  captureServerEvent,
+} from "./capture-server-event";
+import {
+  captureServerException,
+} from "./capture-server-exception";
+import {
+  logger,
+} from "./electron-logger";
+import {
+  getWorkspaceFolder,
+} from "./get-workspace-folder";
+import {
+  getPNPMBinPath,
+} from "./setup-bin-directory";
 
 const REGISTRY_DIR_NAME = "registry";
 let UNPACKAGED_REGISTRY_DIR = path.resolve(

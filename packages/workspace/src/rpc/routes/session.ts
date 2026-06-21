@@ -1,22 +1,47 @@
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
-import { call } from "@orpc/server";
-import { z } from "zod";
+import {
+  mergeGenerators,
+} from "@instrument-org/shared/merge-generators";
+import {
+  call,
+} from "@orpc/server";
+import {
+  z,
+} from "zod";
 
-import { createAppConfig } from "../../lib/app-config/create";
-import { createSession } from "../../lib/create-session";
-import { getSessionMarkdown } from "../../lib/session-to-markdown";
-import { Store } from "../../lib/store";
-import { Session } from "../../schemas/session";
-import { StoreId } from "../../schemas/store-id";
-import { AppSubdomainSchema } from "../../schemas/subdomains";
-import { base, toORPCError } from "../base";
-import { publisher } from "../publisher";
+import {
+  createAppConfig,
+} from "../../lib/app-config/create";
+import {
+  createSession,
+} from "../../lib/create-session";
+import {
+  getSessionMarkdown,
+} from "../../lib/session-to-markdown";
+import {
+  Store,
+} from "../../lib/store";
+import {
+  Session,
+} from "../../schemas/session";
+import {
+  StoreId,
+} from "../../schemas/store-id";
+import {
+  TaskIdSchema,
+} from "../../schemas/task-id";
+import {
+  base,
+  toORPCError,
+} from "../base";
+import {
+  publisher,
+} from "../publisher";
 
 const byId = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(Session.Schema)
@@ -36,7 +61,7 @@ const byIdWithMessagesAndParts = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(Session.WithMessagesAndPartsSchema)
@@ -59,7 +84,7 @@ const list = base
   .input(
     z.object({
       includeChildSessions: z.boolean().default(false),
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.array(Session.Schema))
@@ -83,7 +108,7 @@ const remove = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.void())
@@ -100,7 +125,7 @@ const remove = base
   });
 
 const create = base
-  .input(z.object({ subdomain: AppSubdomainSchema }))
+  .input(z.object({ subdomain: TaskIdSchema }))
   .output(Session.Schema)
   .handler(async ({ context, errors, input }) => {
     const { subdomain } = input;
@@ -119,7 +144,7 @@ const create = base
   });
 
 const stop = base
-  .input(z.object({ subdomain: AppSubdomainSchema }))
+  .input(z.object({ subdomain: TaskIdSchema }))
   .handler(({ context, input }) => {
     context.workspaceRef.send({
       type: "stopSessions",
@@ -136,7 +161,7 @@ const toMarkdown = base
     z.object({
       frontMatter: z.record(z.string(), z.unknown()).optional(),
       sessionId: StoreId.SessionSchema,
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.object({ markdown: z.string() }))
@@ -156,7 +181,7 @@ const contextTokens = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.object({ inputTokens: z.number() }))
@@ -189,7 +214,7 @@ const live = {
     .input(
       z.object({
         sessionId: StoreId.SessionSchema,
-        subdomain: AppSubdomainSchema,
+        subdomain: TaskIdSchema,
       }),
     )
     .handler(async function* ({ context, input, signal }) {
@@ -224,7 +249,7 @@ const live = {
     .input(
       z.object({
         includeChildSessions: z.boolean().default(false),
-        subdomain: AppSubdomainSchema,
+        subdomain: TaskIdSchema,
       }),
     )
     .handler(async function* ({ context, input, signal }) {

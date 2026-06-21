@@ -1,46 +1,5 @@
-import {
-  FileAudioIcon,
-  FileCIcon,
-  FileCodeIcon,
-  FileCppIcon,
-  FileCSharpIcon,
-  FileCssIcon,
-  FileCsvIcon,
-  FileDocIcon,
-  FileHtmlIcon,
-  FileIniIcon,
-  FileJpgIcon,
-  FileJsIcon,
-  FileJsxIcon,
-  FileMdIcon,
-  FilePdfIcon,
-  FilePngIcon,
-  FilePptIcon,
-  FilePyIcon,
-  FileRsIcon,
-  FileSqlIcon,
-  FileSvgIcon,
-  FileTextIcon,
-  FileTsIcon,
-  FileTsxIcon,
-  FileTxtIcon,
-  FileVideoIcon,
-  FileVueIcon,
-  FileXlsIcon,
-  FileZipIcon,
-  type Icon,
-  FileIcon as PhFileIcon,
-} from "@phosphor-icons/react";
-import {
-  BsFileBinary,
-  BsFileCode,
-  BsFileEarmarkFont,
-  BsFileEarmarkImage,
-  BsFileEarmarkPpt,
-  BsFileEarmarkRichtext,
-  BsFileEarmarkSpreadsheet,
-  BsFileEarmarkWord,
-} from "react-icons/bs";
+import { FileAudioIcon, FileCIcon, FileCodeIcon, FileCppIcon, FileCSharpIcon, FileCssIcon, FileCsvIcon, FileDocIcon, FileHtmlIcon, FileIniIcon, FileJpgIcon, FileJsIcon, FileJsxIcon, FileMdIcon, FilePdfIcon, FilePngIcon, FilePptIcon, FilePyIcon, FileRsIcon, FileSqlIcon, FileSvgIcon, FileTextIcon, FileTsIcon, FileTsxIcon, FileTxtIcon, FileVideoIcon, FileVueIcon, FileXlsIcon, FileZipIcon, type Icon, FileIcon as PhFileIcon } from "@phosphor-icons/react";
+import { BsFileBinary, BsFileCode, BsFileEarmarkFont, BsFileEarmarkImage, BsFileEarmarkPpt, BsFileEarmarkRichtext, BsFileEarmarkSpreadsheet, BsFileEarmarkWord } from "react-icons/bs";
 import { type IconType } from "react-icons/lib";
 
 import { EXTENSION_MAP } from "../lib/file-extension-to-language";

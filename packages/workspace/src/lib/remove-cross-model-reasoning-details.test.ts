@@ -1,12 +1,31 @@
-import { AIGatewayModel, AIGatewayModelURI } from "@instrument-org/ai-gateway";
-import { describe, expect, it } from "vitest";
+import {
+  AIGatewayModel,
+  AIGatewayModelURI,
+} from "@instrument-org/ai-gateway";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { RelativePathSchema } from "../schemas/paths";
-import { SessionMessage } from "../schemas/session/message";
-import { StoreId } from "../schemas/store-id";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
-import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
+import {
+  RelativePathSchema,
+} from "../schemas/paths";
+import {
+  SessionMessage,
+} from "../schemas/session/message";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
+import {
+  TOOLS_FOR_MODEL_OUTPUT,
+} from "../tools/all";
+import {
+  removeCrossModelReasoningDetails,
+} from "./remove-cross-model-reasoning-details";
 
 const mockDate = new Date("2026-05-27T16:45:28.214Z");
 

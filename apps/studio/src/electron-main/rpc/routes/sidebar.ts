@@ -1,11 +1,19 @@
-import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
-import { base } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  captureServerEvent,
+} from "@/electron-main/lib/capture-server-event";
+import {
+  base,
+} from "@/electron-main/rpc/base";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
 import {
   getSidebarVisible,
   setSidebarVisible,
 } from "@/electron-main/stores/app-state";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
 const close = base.input(z.void()).handler(() => {
   setSidebarVisible(false);

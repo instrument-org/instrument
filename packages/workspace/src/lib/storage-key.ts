@@ -1,4 +1,6 @@
-import { StoreId } from "../schemas/store-id";
+import {
+  StoreId,
+} from "../schemas/store-id";
 
 export namespace StorageKey {
   const SEPARATOR = ":";

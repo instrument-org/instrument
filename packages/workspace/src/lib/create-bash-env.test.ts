@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { createBashDescription } from "./create-bash-env";
+import {
+  createBashDescription,
+} from "./create-bash-env";
 
 describe("createBashDescription", () => {
   // cspell:ignore unexpand fgrep zcat

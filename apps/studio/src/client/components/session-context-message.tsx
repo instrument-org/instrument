@@ -1,7 +1,4 @@
-import {
-  type SessionMessage,
-  type SessionMessagePart,
-} from "@instrument-org/workspace/client";
+import { type SessionMessage, type SessionMessagePart } from "@instrument-org/workspace/client";
 import { memo } from "react";
 
 import { SessionMarkdown } from "./session-markdown";

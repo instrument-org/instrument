@@ -1,9 +1,5 @@
-import {
-  APICallError,
-} from "ai";
-import {
-  z,
-} from "zod";
+import { APICallError } from "ai";
+import { z } from "zod";
 
 export const gatewayResponseBodySchema = z
   .string()

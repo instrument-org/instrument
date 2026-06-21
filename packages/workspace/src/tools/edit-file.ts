@@ -1,59 +1,31 @@
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/edit.ts
 // Kept as a single file for now so we can easily merge changes from upstream.
-import {
-  createTwoFilesPatch,
-} from "diff";
+import { createTwoFilesPatch } from "diff";
 /* eslint-disable unicorn/prefer-string-slice */
 import ms from "ms";
-import {
-  err,
-  ok,
-} from "neverthrow";
+import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
-import {
-  dedent,
-} from "radashi";
-import {
-  z,
-} from "zod";
+import { dedent } from "radashi";
+import { z } from "zod";
 
-import {
-  APP_FOLDER_NAMES,
-  TOOL_EXPLANATION_PARAM_NAME,
-} from "../constants";
+import { APP_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
-import {
-  taskDir,
-} from "../lib/app-dir-utils";
-import {
-  executeError,
-} from "../lib/execute-error";
-import {
-  pathExists,
-} from "../lib/path-exists";
+import { taskDir } from "../lib/app-dir-utils";
+import { executeError } from "../lib/execute-error";
+import { pathExists } from "../lib/path-exists";
 import {
   applyUnicodeFallbacks,
   resolveToolPath,
 } from "../lib/resolve-agent-path";
-import {
-  writeFileWithDir,
-} from "../lib/write-file-with-dir";
-import {
-  RelativePathSchema,
-} from "../schemas/paths";
-import {
-  BaseInputSchema,
-} from "./base";
-import {
-  setupTool,
-} from "./create-tool";
-import {
-  ReadFile,
-} from "./read-file";
+import { writeFileWithDir } from "../lib/write-file-with-dir";
+import { RelativePathSchema } from "../schemas/paths";
+import { BaseInputSchema } from "./base";
+import { setupTool } from "./create-tool";
+import { ReadFile } from "./read-file";
 
 const MAX_FILE_SIZE = 250 * 1024; // 250KB
 

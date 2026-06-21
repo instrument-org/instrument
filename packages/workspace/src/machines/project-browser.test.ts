@@ -1,14 +1,5 @@
-import {
-  noop,
-} from "radashi";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { noop } from "radashi";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ActorRefFrom,
   type AnyActorRef,
@@ -17,15 +8,9 @@ import {
   waitFor,
 } from "xstate";
 
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  StoreId,
-} from "../schemas/store-id";
-import {
-  TaskIdSchema,
-} from "../schemas/task-id";
+import { type AbsolutePath } from "../schemas/paths";
+import { StoreId } from "../schemas/store-id";
+import { TaskIdSchema } from "../schemas/task-id";
 import {
   type BrowserConfig,
   type BrowserTargetId,

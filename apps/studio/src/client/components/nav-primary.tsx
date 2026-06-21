@@ -1,5 +1,12 @@
 import { InternalLink } from "@/client/components/internal-link";
-import { SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from "@/client/components/ui/sidebar";
+import {
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/client/components/ui/sidebar";
 import { cn } from "@/client/lib/utils";
 import { type Icon } from "@phosphor-icons/react";
 import { type LinkProps } from "@tanstack/react-router";

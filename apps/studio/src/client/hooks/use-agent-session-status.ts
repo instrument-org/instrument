@@ -3,17 +3,10 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  skipToken,
-  useQuery,
-} from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
-import {
-  rpcClient,
-} from "../rpc/client";
-import {
-  useAppState,
-} from "./use-app-state";
+import { rpcClient } from "../rpc/client";
+import { useAppState } from "./use-app-state";
 
 export function getSessionTags({
   sessionActors,

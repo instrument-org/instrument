@@ -1,7 +1,4 @@
-import {
-  ProxyAgent,
-  setGlobalDispatcher,
-} from "undici";
+import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 // cspell:ignore proxyman
 // Opt-in HTTP/HTTPS proxy bootstrap so tools like Proxyman can capture

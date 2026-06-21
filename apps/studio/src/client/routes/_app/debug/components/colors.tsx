@@ -1,4 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/client/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/client/components/ui/card";
 import { cn } from "@/client/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 

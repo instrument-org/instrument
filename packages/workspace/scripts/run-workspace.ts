@@ -7,45 +7,21 @@ import {
   aiGatewayApp,
   type AIGatewayProviderConfig,
 } from "@instrument-org/ai-gateway";
-import {
-  AIProviderConfigIdSchema,
-} from "@instrument-org/shared";
-import {
-  call,
-} from "@orpc/server";
-import {
-  execa,
-} from "execa";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
+import { call } from "@orpc/server";
+import { execa } from "execa";
 import path from "node:path";
 import readline from "node:readline";
-import {
-  ulid,
-} from "ulid";
-import {
-  createActor,
-} from "xstate";
+import { ulid } from "ulid";
+import { createActor } from "xstate";
 
-import {
-  type TaskId,
-} from "../src/client";
-import {
-  workspaceMachine,
-} from "../src/electron";
-import {
-  message as messageRoute,
-} from "../src/rpc/routes/message";
-import {
-  task as projectRoute,
-} from "../src/rpc/routes/task";
-import {
-  type StoreId,
-} from "../src/schemas/store-id";
-import {
-  createStubBrowserConfig,
-} from "../src/test/helpers/mock-app-config";
-import {
-  env,
-} from "./lib/env";
+import { type TaskId } from "../src/client";
+import { workspaceMachine } from "../src/electron";
+import { message as messageRoute } from "../src/rpc/routes/message";
+import { task as projectRoute } from "../src/rpc/routes/task";
+import { type StoreId } from "../src/schemas/store-id";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-app-config";
+import { env } from "./lib/env";
 
 const PROVIDER_CONFIGS: AIGatewayProviderConfig.Type[] = [
   {

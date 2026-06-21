@@ -1,21 +1,21 @@
-import type {
-  StoreId,
-  TaskId,
-} from "@instrument-org/workspace/client";
+import type { StoreId, TaskId } from "@instrument-org/workspace/client";
 
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
-import { getToolLabel, getToolStreamingLabel, TOOL_ICONS } from "@/client/lib/tool-display";
+import {
+  getToolLabel,
+  getToolStreamingLabel,
+  TOOL_ICONS,
+} from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { getToolNameByType, isToolPart } from "@instrument-org/workspace/client";
+import {
+  getToolNameByType,
+  isToolPart,
+} from "@instrument-org/workspace/client";
 import { BrainIcon, ChatTextIcon, QuestionIcon } from "@phosphor-icons/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 
-export function SessionStatusPreview({
-  subdomain,
-}: {
-  subdomain: TaskId;
-}) {
+export function SessionStatusPreview({ subdomain }: { subdomain: TaskId }) {
   const { data: sessions = [], isPending } = useQuery({
     ...rpcClient.workspace.session.live.list.experimental_liveOptions({
       input: { subdomain },

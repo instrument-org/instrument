@@ -1,9 +1,5 @@
-import {
-  TabsManager,
-} from "@/electron-main/tabs/manager";
-import {
-  type BaseWindow,
-} from "electron";
+import { TabsManager } from "@/electron-main/tabs/manager";
+import { type BaseWindow } from "electron";
 
 let tabsManager: TabsManager | undefined;
 

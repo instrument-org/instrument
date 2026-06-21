@@ -1,28 +1,13 @@
-import {
-  execa,
-} from "execa";
-import {
-  defineCommand,
-} from "just-bash";
+import { execa } from "execa";
+import { defineCommand } from "just-bash";
 
 import type { AppConfig } from "../app-config/types";
 
-import {
-  taskDir,
-} from "../app-dir-utils";
-import {
-  FFPROBE_PATH,
-} from "../ffmpeg";
-import {
-  filterShellOutput,
-} from "../filter-shell-output";
-import {
-  getWorkspaceConfig,
-} from "../workspace-config";
-import {
-  resolveCommandContext,
-  resolvePathArgs,
-} from "./utils";
+import { taskDir } from "../app-dir-utils";
+import { FFPROBE_PATH } from "../ffmpeg";
+import { filterShellOutput } from "../filter-shell-output";
+import { getWorkspaceConfig } from "../workspace-config";
+import { resolveCommandContext, resolvePathArgs } from "./utils";
 
 export const FFPROBE_COMMAND = {
   description: "Probe and inspect audio and video files using FFprobe.",

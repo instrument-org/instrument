@@ -1,4 +1,7 @@
-import { formatBytes, type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  formatBytes,
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
 
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { useToolCallSession } from "./tool-call-session";

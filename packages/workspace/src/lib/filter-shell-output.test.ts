@@ -1,13 +1,6 @@
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-  TaskDirSchema,
-} from "../schemas/paths";
+import { TaskDirSchema } from "../schemas/paths";
 import {
   filterShellOutput,
   shouldFilterDebuggerMessage,

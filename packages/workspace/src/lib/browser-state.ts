@@ -1,29 +1,12 @@
-import {
-  ok,
-  safeTry,
-} from "neverthrow";
-import {
-  z,
-} from "zod";
+import { ok, safeTry } from "neverthrow";
+import { z } from "zod";
 
-import {
-  type StoreId,
-} from "../schemas/store-id";
-import {
-  type AppConfig,
-} from "./app-config/types";
-import {
-  getParsedStorageItem,
-} from "./get-parsed-storage-item";
-import {
-  getSessionsStoreStorage,
-} from "./session-store-storage";
-import {
-  setParsedStorageItem,
-} from "./set-parsed-storage-item";
-import {
-  StorageKey,
-} from "./storage-key";
+import { type StoreId } from "../schemas/store-id";
+import { type AppConfig } from "./app-config/types";
+import { getParsedStorageItem } from "./get-parsed-storage-item";
+import { getSessionsStoreStorage } from "./session-store-storage";
+import { setParsedStorageItem } from "./set-parsed-storage-item";
+import { StorageKey } from "./storage-key";
 
 const BrowserStateSchema = z.object({
   lastTitle: z.string().optional(),

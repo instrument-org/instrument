@@ -1,11 +1,5 @@
-import {
-  PROJECT_MANIFEST_FILE_NAME,
-} from "@instrument-org/shared";
-import {
-  BlobReader,
-  BlobWriter,
-  ZipReader,
-} from "@zip.js/zip.js";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -14,12 +8,8 @@ import {
   AbsolutePathSchema,
   TaskDirSchema,
 } from "../schemas/paths";
-import {
-  TypedError,
-} from "./errors";
-import {
-  normalizePath,
-} from "./normalize-path";
+import { TypedError } from "./errors";
+import { normalizePath } from "./normalize-path";
 
 // Extracts a project zip into outputDir, verifying it contains a manifest.
 // Shared by importProject (RPC) and the dump-session-transcript script.

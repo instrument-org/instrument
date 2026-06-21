@@ -3,7 +3,11 @@ import { NavProjects } from "@/client/components/nav-projects";
 import { NavSupport } from "@/client/components/nav-support";
 import { NavUser } from "@/client/components/nav-user";
 import { ServerExceptionsAlert } from "@/client/components/server-exceptions-alert";
-import { Sidebar, SidebarContent, SidebarFooter } from "@/client/components/ui/sidebar";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+} from "@/client/components/ui/sidebar";
 import { useSelectedTab } from "@/client/hooks/use-selected-tab";
 import { useMatchesForPathname } from "@/client/lib/get-route-matches";
 import { rpcClient } from "@/client/rpc/client";

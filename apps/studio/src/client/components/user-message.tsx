@@ -7,7 +7,11 @@ import { memo, useEffect, useRef, useState } from "react";
 import { CopyButton } from "./copy-button";
 import { RelativeTime } from "./relative-time";
 import { SessionMarkdown } from "./session-markdown";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface UserMessageProps {

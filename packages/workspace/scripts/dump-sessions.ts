@@ -1,21 +1,11 @@
-import {
-  execa,
-} from "execa";
+import { execa } from "execa";
 import path from "node:path";
 import readline from "node:readline/promises";
 
-import {
-  createAppConfig,
-} from "../src/lib/app-config/create";
-import {
-  getProjects,
-} from "../src/lib/get-apps";
-import {
-  Store,
-} from "../src/lib/store";
-import {
-  createStubWorkspaceConfig,
-} from "./lib/stub-workspace-config";
+import { createAppConfig } from "../src/lib/app-config/create";
+import { getProjects } from "../src/lib/get-apps";
+import { Store } from "../src/lib/store";
+import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
 const workspaceDir = process.argv[2];
 

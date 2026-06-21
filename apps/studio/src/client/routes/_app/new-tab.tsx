@@ -6,7 +6,12 @@ import { rpcClient } from "@/client/rpc/client";
 import { PRIVATE_BETA_SEARCH_PARAM } from "@/shared/constants";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  redirect,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";

@@ -4,7 +4,12 @@ import { DefaultErrorComponent } from "@/client/components/default-error-compone
 import { NotFoundRouteComponent } from "@/client/components/not-found";
 import { ThemeProvider } from "@/client/components/theme-provider";
 import { type QueryClient } from "@tanstack/react-query";
-import { createRootRouteWithContext, HeadContent, Outlet, useRouterState } from "@tanstack/react-router";
+import {
+  createRootRouteWithContext,
+  HeadContent,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import { Spinner } from "../components/ui/spinner";

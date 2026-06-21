@@ -1,30 +1,13 @@
-import {
-  PROJECT_MANIFEST_FILE_NAME,
-} from "@instrument-org/shared";
-import {
-  BlobWriter,
-  TextReader,
-  ZipWriter,
-} from "@zip.js/zip.js";
+import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { BlobWriter, TextReader, ZipWriter } from "@zip.js/zip.js";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  afterEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  TaskDirSchema,
-} from "../schemas/paths";
-import {
-  TypedError,
-} from "./errors";
-import {
-  extractProjectZip,
-} from "./extract-project-zip";
+import { TaskDirSchema } from "../schemas/paths";
+import { TypedError } from "./errors";
+import { extractProjectZip } from "./extract-project-zip";
 
 async function createZipBlob(
   entries: { data: string; filename: string }[],

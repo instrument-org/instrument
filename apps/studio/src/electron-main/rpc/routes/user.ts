@@ -2,21 +2,11 @@ import {
   platformApiQueryClient,
   platformApiRpcClient,
 } from "@/electron-main/platform-api/client";
-import {
-  hasToken,
-} from "@/electron-main/platform-api/utils";
-import {
-  base,
-} from "@/electron-main/rpc/base";
-import {
-  createAuthenticatedLiveQuery,
-} from "@/electron-main/rpc/lib/create-authenticated-live-query";
-import {
-  getProviderConfigsStore,
-} from "@/electron-main/stores/provider-configs";
-import {
-  z,
-} from "zod";
+import { hasToken } from "@/electron-main/platform-api/utils";
+import { base } from "@/electron-main/rpc/base";
+import { createAuthenticatedLiveQuery } from "@/electron-main/rpc/lib/create-authenticated-live-query";
+import { getProviderConfigsStore } from "@/electron-main/stores/provider-configs";
+import { z } from "zod";
 
 const hasAIProviderConfig = base.handler(() => {
   const providersStore = getProviderConfigsStore();

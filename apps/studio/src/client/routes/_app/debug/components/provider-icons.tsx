@@ -1,5 +1,9 @@
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
-import { type AIProviderType, AIProviderTypeSchema, OUR_MODELS } from "@instrument-org/shared";
+import {
+  type AIProviderType,
+  AIProviderTypeSchema,
+  OUR_MODELS,
+} from "@instrument-org/shared";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { getComponentPage } from "../-debug-routes";

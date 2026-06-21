@@ -1,38 +1,18 @@
 import type { Tool } from "ai";
 
-import {
-  type LanguageModelV2ToolResultOutput,
-} from "@ai-sdk/provider";
-import {
-  type AIGatewayModel,
-} from "@instrument-org/ai-gateway";
-import {
-  type Result,
-} from "neverthrow";
-import {
-  type z,
-} from "zod";
+import { type LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { type Result } from "neverthrow";
+import { type z } from "zod";
 
 import type { ToolNameSchema } from "./name";
 
-import {
-  type AgentName,
-} from "../agents/types";
-import {
-  type AppConfig,
-} from "../lib/app-config/types";
-import {
-  type ExecuteError,
-} from "../lib/execute-error";
-import {
-  type ProjectState,
-} from "../lib/project-state-store";
-import {
-  type SpawnAgentFunction,
-} from "../lib/spawn-agent";
-import {
-  type StoreId,
-} from "../schemas/store-id";
+import { type AgentName } from "../agents/types";
+import { type AppConfig } from "../lib/app-config/types";
+import { type ExecuteError } from "../lib/execute-error";
+import { type ProjectState } from "../lib/project-state-store";
+import { type SpawnAgentFunction } from "../lib/spawn-agent";
+import { type StoreId } from "../schemas/store-id";
 
 export interface AgentTool<
   TName extends ToolName,

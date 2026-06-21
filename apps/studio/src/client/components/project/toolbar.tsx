@@ -9,7 +9,12 @@ import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import { ProjectActionsMenu } from "./actions-menu";
 import { ProjectChatMenu } from "./chat-menu";
 import { ProjectDebugDialog } from "./debug-dialog";

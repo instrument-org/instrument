@@ -1,39 +1,15 @@
-import {
-  errAsync,
-  ok,
-  ResultAsync,
-  safeTry,
-} from "neverthrow";
+import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
-import {
-  APP_FOLDER_NAMES,
-} from "../constants";
-import {
-  type ProjectManifestUpdate,
-} from "../schemas/project-manifest";
-import {
-  type WorkspaceConfig,
-} from "../types";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  type AppConfigProject,
-} from "./app-config/types";
-import {
-  taskDir,
-  templateExists,
-} from "./app-dir-utils";
-import {
-  copyProject,
-} from "./copy-project";
-import {
-  TypedError,
-} from "./errors";
-import {
-  updateProjectManifest,
-} from "./project-manifest";
+import { APP_FOLDER_NAMES } from "../constants";
+import { type ProjectManifestUpdate } from "../schemas/project-manifest";
+import { type WorkspaceConfig } from "../types";
+import { absolutePathJoin } from "./absolute-path-join";
+import { type AppConfigProject } from "./app-config/types";
+import { taskDir, templateExists } from "./app-dir-utils";
+import { copyProject } from "./copy-project";
+import { TypedError } from "./errors";
+import { updateProjectManifest } from "./project-manifest";
 
 export async function initializeProject(
   {

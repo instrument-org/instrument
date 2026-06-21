@@ -1,19 +1,8 @@
-import {
-  AIGatewayProviderConfig,
-} from "@instrument-org/ai-gateway";
-import {
-  jsonSchema,
-  type JSONSchema7,
-  type Schema,
-  zodSchema,
-} from "ai";
-import {
-  z,
-} from "zod";
+import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
+import { jsonSchema, type JSONSchema7, type Schema, zodSchema } from "ai";
+import { z } from "zod";
 
-import {
-  TOOL_EXPLANATION_PARAM_NAME,
-} from "../constants";
+import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 
 export const BaseInputSchema = z.object({
   // Surfaced in the UI so users can see what the agent is doing. Many LLMs

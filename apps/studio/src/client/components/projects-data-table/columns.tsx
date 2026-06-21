@@ -1,7 +1,4 @@
-import type {
-  Task,
-  TaskId,
-} from "@instrument-org/workspace/client";
+import type { Task, TaskId } from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { InternalLink } from "@/client/components/internal-link";

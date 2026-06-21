@@ -1,29 +1,18 @@
-import {
-  logger,
-} from "@/electron-main/lib/electron-logger";
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
+import { logger } from "@/electron-main/lib/electron-logger";
+import { publisher } from "@/electron-main/rpc/publisher";
 import {
   APP_UPDATER_CACHE_DIR_NAME,
   RELEASES_BUCKET_URL,
 } from "@instrument-org/shared";
-import {
-  app,
-} from "electron";
+import { app } from "electron";
 import pkg, { type ProgressInfo, type UpdateInfo } from "electron-updater";
 import ms from "ms";
-import {
-  spawn,
-} from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import semver from "semver";
 
-import {
-  getPreferencesStore,
-  setLastUpdateCheck,
-} from "../stores/preferences";
+import { getPreferencesStore, setLastUpdateCheck } from "../stores/preferences";
 
 // Returns false to abort the install when the user cancels the running-agents
 // warning.

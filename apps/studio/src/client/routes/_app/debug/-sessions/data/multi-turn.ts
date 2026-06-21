@@ -1,10 +1,6 @@
-import {
-  StoreId,
-} from "@instrument-org/workspace/client";
+import { StoreId } from "@instrument-org/workspace/client";
 
-import {
-  registerSession,
-} from "../helpers";
+import { registerSession } from "../helpers";
 
 const sessionId = StoreId.newSessionId();
 const now = new Date();

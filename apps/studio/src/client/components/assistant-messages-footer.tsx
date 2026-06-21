@@ -1,4 +1,8 @@
-import { type SessionMessage, type SessionMessagePart, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type SessionMessage,
+  type SessionMessagePart,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { FileTextIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { sift } from "radashi";
@@ -14,7 +18,11 @@ import { ModelChip } from "./model-chip";
 import { RelativeTime } from "./relative-time";
 import { SourceLink } from "./source-link";
 import { Button } from "./ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { UsageStatsTooltip, UsageSummaryText } from "./usage-stats-tooltip";
 

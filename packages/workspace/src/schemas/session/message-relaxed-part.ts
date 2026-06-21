@@ -1,13 +1,7 @@
-import {
-  type ProviderMetadata,
-} from "ai";
-import {
-  z,
-} from "zod";
+import { type ProviderMetadata } from "ai";
+import { z } from "zod";
 
-import {
-  type ToolName,
-} from "../../tools/types";
+import { type ToolName } from "../../tools/types";
 
 type JSONObject = ProviderMetadata[string];
 

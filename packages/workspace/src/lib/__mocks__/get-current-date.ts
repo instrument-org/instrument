@@ -1,6 +1,4 @@
-import {
-  beforeEach,
-} from "vitest";
+import { beforeEach } from "vitest";
 
 // Track the current time with predictable increments
 let currentTime: Date;

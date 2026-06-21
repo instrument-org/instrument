@@ -1,13 +1,9 @@
 import type { AIGatewayModel } from "@instrument-org/ai-gateway";
 import type { ModelMessage } from "ai";
 
-import {
-  unique,
-} from "radashi";
+import { unique } from "radashi";
 
-import {
-  isAnthropic,
-} from "./is-anthropic";
+import { isAnthropic } from "./is-anthropic";
 
 // Apply cache control for Anthropic models
 // Read https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching

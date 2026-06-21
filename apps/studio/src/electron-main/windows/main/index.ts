@@ -1,53 +1,29 @@
-import {
-  captureServerException,
-} from "@/electron-main/lib/capture-server-exception";
-import {
-  createContextMenu,
-} from "@/electron-main/lib/context-menu";
-import {
-  openExternal,
-} from "@/electron-main/lib/open-external";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { createContextMenu } from "@/electron-main/lib/context-menu";
+import { openExternal } from "@/electron-main/lib/open-external";
 import {
   getMainWindowBackgroundColor,
   getTitleBarOverlay,
 } from "@/electron-main/lib/theme-utils";
-import {
-  studioURL,
-} from "@/electron-main/lib/urls";
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
-import {
-  getSidebarWidth,
-} from "@/electron-main/stores/app-state";
+import { studioURL } from "@/electron-main/lib/urls";
+import { publisher } from "@/electron-main/rpc/publisher";
+import { getSidebarWidth } from "@/electron-main/stores/app-state";
 import {
   getWindowState,
   isWindowBoundsVisible,
   setWindowState,
   type WindowBounds,
 } from "@/electron-main/stores/window-state";
-import {
-  createTabsManager,
-  getTabsManager,
-} from "@/electron-main/tabs";
+import { createTabsManager, getTabsManager } from "@/electron-main/tabs";
 import {
   getMainWindow,
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
-import {
-  type StudioPath,
-} from "@/shared/studio-path";
-import {
-  is,
-} from "@electron-toolkit/utils";
-import {
-  type BaseWindow,
-  BrowserWindow,
-} from "electron";
+import { type StudioPath } from "@/shared/studio-path";
+import { is } from "@electron-toolkit/utils";
+import { type BaseWindow, BrowserWindow } from "electron";
 import path from "node:path";
-import {
-  debounce,
-} from "radashi";
+import { debounce } from "radashi";
 
 let wasWindowBlurred = false;
 const LINUX_RESIZE_FOLLOW_UP_DELAY_MS = 100;

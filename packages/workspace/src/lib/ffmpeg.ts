@@ -1,11 +1,7 @@
-import {
-  createRequire,
-} from "node:module";
+import { createRequire } from "node:module";
 import path from "node:path";
 
-import {
-  unpackAsarPath,
-} from "./asar";
+import { unpackAsarPath } from "./asar";
 
 declare const __FFMPEG_STATIC_PATH__: string;
 declare const __FFPROBE_STATIC_PATH__: string;

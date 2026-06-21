@@ -3,41 +3,18 @@ import "./lib/define-globals-apply";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  parseArgs,
-} from "node:util";
-import {
-  ulid,
-} from "ulid";
+import { parseArgs } from "node:util";
+import { ulid } from "ulid";
 
-import {
-  createAppConfig,
-} from "../src/lib/app-config/create";
-import {
-  extractProjectZip,
-} from "../src/lib/extract-project-zip";
-import {
-  getProjectManifest,
-} from "../src/lib/project-manifest";
-import {
-  getSessionMarkdown,
-} from "../src/lib/session-to-markdown";
-import {
-  Store,
-} from "../src/lib/store";
-import {
-  setWorkspaceConfig,
-} from "../src/lib/workspace-config";
-import {
-  AbsolutePathSchema,
-  TaskDirSchema,
-} from "../src/schemas/paths";
-import {
-  TaskIdSchema,
-} from "../src/schemas/task-id";
-import {
-  createStubWorkspaceConfig,
-} from "./lib/stub-workspace-config";
+import { createAppConfig } from "../src/lib/app-config/create";
+import { extractProjectZip } from "../src/lib/extract-project-zip";
+import { getProjectManifest } from "../src/lib/project-manifest";
+import { getSessionMarkdown } from "../src/lib/session-to-markdown";
+import { Store } from "../src/lib/store";
+import { setWorkspaceConfig } from "../src/lib/workspace-config";
+import { AbsolutePathSchema, TaskDirSchema } from "../src/schemas/paths";
+import { TaskIdSchema } from "../src/schemas/task-id";
+import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -75,9 +52,7 @@ if (isZip) {
   cleanupDir = tempRoot;
   tasksDir = path.join(tempRoot, "projects");
   const folderName = `transcript-${ulid().toLowerCase()}`;
-  const extractDir = AbsolutePathSchema.parse(
-    path.join(tasksDir, folderName),
-  );
+  const extractDir = AbsolutePathSchema.parse(path.join(tasksDir, folderName));
   const zipBlob = new Blob([await fs.readFile(absoluteInputPath)]);
   ({ dir } = await extractProjectZip({ outputDir: extractDir, zipBlob }));
 }

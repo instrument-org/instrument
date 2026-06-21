@@ -1,30 +1,15 @@
-import {
-  base,
-} from "@/electron-main/rpc/base";
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
-import {
-  getFavoritesStore,
-} from "@/electron-main/stores/favorites";
-import {
-  mergeGenerators,
-} from "@instrument-org/shared/merge-generators";
-import {
-  TaskIdSchema,
-} from "@instrument-org/workspace/electron";
+import { base } from "@/electron-main/rpc/base";
+import { publisher } from "@/electron-main/rpc/publisher";
+import { getFavoritesStore } from "@/electron-main/stores/favorites";
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { TaskIdSchema } from "@instrument-org/workspace/electron";
 import {
   type TaskId,
   workspacePublisher,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import {
-  call,
-  eventIterator,
-} from "@orpc/server";
-import {
-  z,
-} from "zod";
+import { call, eventIterator } from "@orpc/server";
+import { z } from "zod";
 
 const add = base
   .input(

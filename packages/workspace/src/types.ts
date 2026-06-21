@@ -1,30 +1,16 @@
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
-import {
-  type GetProviderConfigs,
-} from "@instrument-org/ai-gateway";
+import { type GetProviderConfigs } from "@instrument-org/ai-gateway";
 import {
   type CaptureEventFunction,
   type CaptureExceptionFunction,
 } from "@instrument-org/shared";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  type APP_STATUSES,
-} from "./constants";
-import {
-  type AbsolutePath,
-  type WorkspaceDir,
-} from "./schemas/paths";
-import {
-  StoreId,
-} from "./schemas/store-id";
-import {
-  type TaskId,
-  TaskIdSchema,
-} from "./schemas/task-id";
+import { type APP_STATUSES } from "./constants";
+import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
+import { StoreId } from "./schemas/store-id";
+import { type TaskId, TaskIdSchema } from "./schemas/task-id";
 
 export type AppStatus = (typeof APP_STATUSES)[number];
 
@@ -99,9 +85,7 @@ export const BrowserTargetIdSchema = z
       });
       return;
     }
-    const subdomainResult = TaskIdSchema.safeParse(
-      val.slice(0, slash),
-    );
+    const subdomainResult = TaskIdSchema.safeParse(val.slice(0, slash));
     if (!subdomainResult.success) {
       for (const issue of subdomainResult.error.issues) {
         ctx.addIssue({ ...issue, path: ["subdomain", ...issue.path] });

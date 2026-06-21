@@ -9,12 +9,7 @@ import {
   StoreId,
   TaskIdSchema,
 } from "@instrument-org/workspace/electron";
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   type BrowserEntry,

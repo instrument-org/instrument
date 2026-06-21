@@ -1,22 +1,11 @@
 import path from "node:path";
 import readline from "node:readline/promises";
-import {
-  parseArgs,
-} from "node:util";
+import { parseArgs } from "node:util";
 
-import {
-  EVALS,
-} from "./cases";
-import {
-  MODELS,
-  runEvals,
-} from "./harness";
-import {
-  generateReport,
-} from "./report";
-import {
-  c,
-} from "./utils";
+import { EVALS } from "./cases";
+import { MODELS, runEvals } from "./harness";
+import { generateReport } from "./report";
+import { c } from "./utils";
 
 // Suppress unstorage db0 experimental warning
 // https://github.com/unjs/unstorage/blob/main/src/drivers/db0.ts

@@ -1,4 +1,9 @@
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/client/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
 
 import { AddProviderForm } from "./form";

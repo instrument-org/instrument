@@ -1,12 +1,6 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  fixRelativePath,
-} from "./fix-relative-path";
+import { fixRelativePath } from "./fix-relative-path";
 
 describe("fixRelativePath", () => {
   it.each([

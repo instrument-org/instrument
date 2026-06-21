@@ -1,6 +1,4 @@
-import {
-  type WorkspaceConfig,
-} from "../types";
+import { type WorkspaceConfig } from "../types";
 
 // The workspace runs a single WorkspaceConfig per process (constructed once when
 // the workspace machine boots and living for the whole app lifetime). Rather
@@ -16,11 +14,6 @@ export function getWorkspaceConfig(): WorkspaceConfig {
     throw new Error("WorkspaceConfig has not been initialized");
   }
   return current;
-}
-
-// Test-only: clears the singleton between tests.
-export function resetWorkspaceConfig(): void {
-  current = undefined;
 }
 
 export function setWorkspaceConfig(config: WorkspaceConfig): void {

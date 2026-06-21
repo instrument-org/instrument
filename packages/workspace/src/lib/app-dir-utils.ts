@@ -1,33 +1,19 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  APP_FOLDER_NAMES,
-  SESSIONS_DB_FILE_NAME,
-} from "../constants";
+import { APP_FOLDER_NAMES, SESSIONS_DB_FILE_NAME } from "../constants";
 import {
   type AbsolutePath,
   type TaskDir,
   TaskDirSchema,
 } from "../schemas/paths";
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  type WorkspaceConfig,
-} from "../types";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  getWorkspaceConfig,
-} from "./workspace-config";
+import { type TaskId } from "../schemas/task-id";
+import { type WorkspaceConfig } from "../types";
+import { absolutePathJoin } from "./absolute-path-join";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export function getAgentBrowserStateDir(dir: TaskDir): AbsolutePath {
-  return absolutePathJoin(
-    getStateDir(dir),
-    APP_FOLDER_NAMES.agentBrowserState,
-  );
+  return absolutePathJoin(getStateDir(dir), APP_FOLDER_NAMES.agentBrowserState);
 }
 
 export function getBrowserSessionDir(dir: TaskDir): AbsolutePath {
@@ -44,20 +30,6 @@ export function getTaskPrivateDir(dir: TaskDir): AbsolutePath {
 export function isRunnable(dir: TaskDir): Promise<boolean> {
   return fs
     .access(path.join(dir, "package.json"))
-    .then(() => true)
-    .catch(() => false);
-}
-
-export function registryAppExists({
-  folderName,
-  workspaceConfig,
-}: {
-  folderName: string;
-  workspaceConfig: WorkspaceConfig;
-}): Promise<boolean> {
-  const dir = absolutePathJoin(workspaceConfig.templatesDir, folderName);
-  return fs
-    .access(dir)
     .then(() => true)
     .catch(() => false);
 }

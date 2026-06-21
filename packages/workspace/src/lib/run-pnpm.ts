@@ -1,21 +1,9 @@
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  type AppConfig,
-} from "./app-config/types";
-import {
-  taskDir,
-} from "./app-dir-utils";
-import {
-  execaNodeForApp,
-} from "./execa-node-for-app";
-import {
-  filterShellOutput,
-} from "./filter-shell-output";
-import {
-  getWorkspaceConfig,
-} from "./workspace-config";
+import { type AbsolutePath } from "../schemas/paths";
+import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
+import { execaNodeForApp } from "./execa-node-for-app";
+import { filterShellOutput } from "./filter-shell-output";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export const PNPM_NAME = "pnpm";
 

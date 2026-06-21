@@ -1,42 +1,17 @@
-import {
-  APP_NAME_SLUG,
-} from "@instrument-org/shared";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  FolderAttachment,
-} from "../schemas/folder-attachment";
-import {
-  TaskDirSchema,
-} from "../schemas/paths";
-import {
-  type TaskId,
-} from "../schemas/task-id";
-import {
-  createMockAIGatewayModel,
-} from "../test/helpers/mock-ai-gateway-model";
-import {
-  createMockAppConfigForDir,
-} from "../test/helpers/mock-app-config";
-import {
-  runTool,
-} from "../test/helpers/run-tool";
-import {
-  TOOLS,
-} from "./all";
-import {
-  ReadFile,
-} from "./read-file";
+import { FolderAttachment } from "../schemas/folder-attachment";
+import { TaskDirSchema } from "../schemas/paths";
+import { type TaskId } from "../schemas/task-id";
+import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { runTool } from "../test/helpers/run-tool";
+import { TOOLS } from "./all";
+import { ReadFile } from "./read-file";
 
 const model = createMockAIGatewayModel();
 

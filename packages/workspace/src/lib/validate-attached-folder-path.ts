@@ -1,17 +1,9 @@
-import {
-  ok,
-} from "neverthrow";
+import { ok } from "neverthrow";
 import path from "node:path";
 
-import {
-  type FolderAttachment,
-} from "../schemas/folder-attachment";
-import {
-  AbsolutePathSchema,
-} from "../schemas/paths";
-import {
-  executeError,
-} from "./execute-error";
+import { type FolderAttachment } from "../schemas/folder-attachment";
+import { AbsolutePathSchema } from "../schemas/paths";
+import { executeError } from "./execute-error";
 
 export function validateAttachedFolderPath(
   inputPath: string,

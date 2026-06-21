@@ -1,6 +1,4 @@
-import {
-  type ProjectFileViewerFile,
-} from "../atoms/project-file-viewer";
+import { type ProjectFileViewerFile } from "../atoms/project-file-viewer";
 
 export function downloadProjectFile({
   blob,

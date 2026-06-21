@@ -1,11 +1,5 @@
-import {
-  electronAPI,
-} from "@electron-toolkit/preload";
-import {
-  contextBridge,
-  ipcRenderer,
-  webUtils,
-} from "electron";
+import { electronAPI } from "@electron-toolkit/preload";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 const api: Window["api"] = {
   getFilePath: (file: File) => webUtils.getPathForFile(file),

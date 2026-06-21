@@ -1,21 +1,9 @@
-import {
-  type WorkspaceServerActorRef,
-} from "../../logic/server";
-import {
-  type TaskId,
-} from "../../schemas/task-id";
-import {
-  type WorkspaceConfig,
-} from "../../types";
-import {
-  type ProjectBrowserActorRef,
-} from "../project-browser";
-import {
-  type RuntimeActorRef,
-} from "../runtime";
-import {
-  type SessionActorRef,
-} from "../session";
+import { type WorkspaceServerActorRef } from "../../logic/server";
+import { type TaskId } from "../../schemas/task-id";
+import { type WorkspaceConfig } from "../../types";
+import { type ProjectBrowserActorRef } from "../project-browser";
+import { type RuntimeActorRef } from "../runtime";
+import { type SessionActorRef } from "../session";
 
 // Declared here to avoid circular dependency
 export interface WorkspaceContext {

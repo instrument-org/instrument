@@ -1,25 +1,11 @@
-import {
-  type TaskId,
-} from "@instrument-org/workspace/client";
-import {
-  safe,
-} from "@orpc/client";
-import {
-  toast,
-} from "sonner";
+import { type TaskId } from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
+import { toast } from "sonner";
 
-import {
-  type ProjectFileViewerFile,
-} from "../atoms/project-file-viewer";
-import {
-  rpcClient,
-} from "../rpc/client";
-import {
-  downloadProjectFile,
-} from "./download-project-file";
-import {
-  isTextMimeType,
-} from "./is-text-mime-type";
+import { type ProjectFileViewerFile } from "../atoms/project-file-viewer";
+import { rpcClient } from "../rpc/client";
+import { downloadProjectFile } from "./download-project-file";
+import { isTextMimeType } from "./is-text-mime-type";
 
 export async function copyFileToClipboard({
   filePath,

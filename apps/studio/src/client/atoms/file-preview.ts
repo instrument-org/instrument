@@ -1,6 +1,4 @@
-import {
-  atom,
-} from "jotai";
+import { atom } from "jotai";
 
 interface FilePreviewState {
   file: null | {

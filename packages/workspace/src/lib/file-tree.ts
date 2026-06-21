@@ -1,24 +1,10 @@
-import {
-  ok,
-  ResultAsync,
-  safeTry,
-} from "neverthrow";
+import { ok, ResultAsync, safeTry } from "neverthrow";
 
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  TypedError,
-} from "./errors";
-import {
-  filterIgnoredFiles,
-} from "./filter-ignored-files";
-import {
-  generateTreeString,
-} from "./generate-tree-string";
-import {
-  getIgnore,
-} from "./get-ignore";
+import { type AbsolutePath } from "../schemas/paths";
+import { TypedError } from "./errors";
+import { filterIgnoredFiles } from "./filter-ignored-files";
+import { generateTreeString } from "./generate-tree-string";
+import { getIgnore } from "./get-ignore";
 
 export function fileTree(
   rootDir: AbsolutePath,

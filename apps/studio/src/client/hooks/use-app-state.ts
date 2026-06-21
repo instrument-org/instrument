@@ -1,13 +1,6 @@
-import {
-  rpcClient,
-} from "@/client/rpc/client";
-import {
-  type TaskId,
-} from "@instrument-org/workspace/client";
-import {
-  skipToken,
-  useQuery,
-} from "@tanstack/react-query";
+import { rpcClient } from "@/client/rpc/client";
+import { type TaskId } from "@instrument-org/workspace/client";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
 export function useAppState({
   subdomain,

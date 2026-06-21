@@ -1,26 +1,11 @@
-import {
-  dedent,
-  pick,
-} from "radashi";
+import { dedent, pick } from "radashi";
 
-import {
-  taskDir,
-} from "../lib/app-dir-utils";
-import {
-  getCurrentDate,
-} from "../lib/get-current-date";
-import {
-  pathExists,
-} from "../lib/path-exists";
-import {
-  getProjectState,
-} from "../lib/project-state-store";
-import {
-  TOOLS,
-} from "../tools/all";
-import {
-  setupAgent,
-} from "./create-agent";
+import { taskDir } from "../lib/app-dir-utils";
+import { getCurrentDate } from "../lib/get-current-date";
+import { pathExists } from "../lib/path-exists";
+import { getProjectState } from "../lib/project-state-store";
+import { TOOLS } from "../tools/all";
+import { setupAgent } from "./create-agent";
 import {
   createContextMessage,
   createSystemMessage,

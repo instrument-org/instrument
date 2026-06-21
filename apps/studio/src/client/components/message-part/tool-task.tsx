@@ -1,4 +1,8 @@
-import { type SessionMessage, type SessionMessagePart, type Task } from "@instrument-org/workspace/client";
+import {
+  type SessionMessage,
+  type SessionMessagePart,
+  type Task,
+} from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";

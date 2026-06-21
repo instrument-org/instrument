@@ -1,13 +1,7 @@
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  FolderAttachment,
-} from "../folder-attachment";
-import {
-  RelativePathSchema,
-} from "../paths";
+import { FolderAttachment } from "../folder-attachment";
+import { RelativePathSchema } from "../paths";
 
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([

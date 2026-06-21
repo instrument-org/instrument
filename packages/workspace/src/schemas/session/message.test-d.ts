@@ -1,19 +1,8 @@
-import {
-  assertType,
-  describe,
-  expectTypeOf,
-  it,
-} from "vitest";
+import { assertType, describe, expectTypeOf, it } from "vitest";
 
-import {
-  RelativePathSchema,
-} from "../paths";
-import {
-  StoreId,
-} from "../store-id";
-import {
-  type SessionMessage,
-} from "./message";
+import { RelativePathSchema } from "../paths";
+import { StoreId } from "../store-id";
+import { type SessionMessage } from "./message";
 
 const METADATA = {
   createdAt: new Date(),

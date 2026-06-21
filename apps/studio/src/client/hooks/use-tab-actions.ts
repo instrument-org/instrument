@@ -1,19 +1,12 @@
-import {
-  rpcClient,
-  type RPCInput,
-} from "@/client/rpc/client";
-import {
-  type StudioPath,
-} from "@/shared/studio-path";
+import { rpcClient, type RPCInput } from "@/client/rpc/client";
+import { type StudioPath } from "@/shared/studio-path";
 import {
   type ParsedLocation,
   type RegisteredRouter,
   type ToOptions,
   useRouter,
 } from "@tanstack/react-router";
-import {
-  useMemo,
-} from "react";
+import { useMemo } from "react";
 
 export function useTabActions() {
   const router = useRouter();

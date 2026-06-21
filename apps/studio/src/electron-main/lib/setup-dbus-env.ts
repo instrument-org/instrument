@@ -1,17 +1,8 @@
-import {
-  execSync,
-} from "node:child_process";
-import {
-  existsSync,
-  readFileSync,
-} from "node:fs";
-import {
-  platform,
-} from "node:os";
+import { execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { platform } from "node:os";
 
-import {
-  logger,
-} from "./electron-logger";
+import { logger } from "./electron-logger";
 
 type Env = typeof process.env & {
   DBUS_SESSION_BUS_ADDRESS?: string;

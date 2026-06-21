@@ -1,13 +1,6 @@
-import {
-  rpcClient,
-  type RPCInput,
-} from "@/client/rpc/client";
-import {
-  useQuery,
-} from "@tanstack/react-query";
-import {
-  useEffect,
-} from "react";
+import { rpcClient, type RPCInput } from "@/client/rpc/client";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 export function useLiveUser({
   input,

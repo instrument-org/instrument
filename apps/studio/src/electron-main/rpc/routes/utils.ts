@@ -4,25 +4,15 @@ import type {
   SupportedEditorId,
 } from "@/shared/schemas/editors";
 
-import {
-  captureServerEvent,
-} from "@/electron-main/lib/capture-server-event";
-import {
-  captureServerException,
-} from "@/electron-main/lib/capture-server-exception";
-import {
-  openExternal,
-} from "@/electron-main/lib/open-external";
+import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { openExternal } from "@/electron-main/lib/open-external";
 import {
   clearServerExceptions,
   getServerExceptions,
 } from "@/electron-main/lib/server-exceptions";
-import {
-  base,
-} from "@/electron-main/rpc/base";
-import {
-  publisher,
-} from "@/electron-main/rpc/publisher";
+import { base } from "@/electron-main/rpc/base";
+import { publisher } from "@/electron-main/rpc/publisher";
 import {
   OpenAppInTypeSchema,
   SupportedEditorSchema,
@@ -36,32 +26,15 @@ import {
   TaskIdSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import {
-  call,
-  eventIterator,
-} from "@orpc/server";
-import {
-  app,
-  clipboard,
-  dialog,
-  nativeImage,
-  shell,
-} from "electron";
-import {
-  isBinaryFile,
-} from "isbinaryfile";
-import {
-  exec,
-} from "node:child_process";
+import { call, eventIterator } from "@orpc/server";
+import { app, clipboard, dialog, nativeImage, shell } from "electron";
+import { isBinaryFile } from "isbinaryfile";
+import { exec } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  promisify,
-} from "node:util";
-import {
-  z,
-} from "zod";
+import { promisify } from "node:util";
+import { z } from "zod";
 
 interface EditorConfig {
   appName: string;
@@ -129,8 +102,7 @@ const getDetectionCommand = (
 };
 
 const OPEN_COMMANDS = {
-  darwin: (appName: string, dir: string) =>
-    `open -a "${appName}" "${dir}"`,
+  darwin: (appName: string, dir: string) => `open -a "${appName}" "${dir}"`,
   linux: (command: string, dir: string) => `${command} "${dir}"`,
   win32: (command: string, dir: string) => `${command} "${dir}"`,
 } as const;

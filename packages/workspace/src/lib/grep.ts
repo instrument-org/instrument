@@ -1,19 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  pathExists,
-} from "./path-exists";
-import {
-  parseRipgrepLines,
-  spawnRipgrep,
-} from "./ripgrep";
+import { type AbsolutePath } from "../schemas/paths";
+import { absolutePathJoin } from "./absolute-path-join";
+import { pathExists } from "./path-exists";
+import { parseRipgrepLines, spawnRipgrep } from "./ripgrep";
 interface GrepMatch {
   lineNum: number;
   lineText: string;

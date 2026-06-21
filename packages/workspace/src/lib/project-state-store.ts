@@ -1,24 +1,11 @@
-import {
-  AIGatewayModelURI,
-} from "@instrument-org/ai-gateway";
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import fs from "node:fs/promises";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  FolderAttachment,
-} from "../schemas/folder-attachment";
-import {
-  type AbsolutePath,
-  type TaskDir,
-} from "../schemas/paths";
-import {
-  absolutePathJoin,
-} from "./absolute-path-join";
-import {
-  getTaskPrivateDir,
-} from "./app-dir-utils";
+import { FolderAttachment } from "../schemas/folder-attachment";
+import { type AbsolutePath, type TaskDir } from "../schemas/paths";
+import { absolutePathJoin } from "./absolute-path-join";
+import { getTaskPrivateDir } from "./app-dir-utils";
 
 const PROJECT_STATE_FILE_NAME = "project-state.json";
 

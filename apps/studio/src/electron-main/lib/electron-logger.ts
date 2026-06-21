@@ -1,6 +1,4 @@
-import {
-  app,
-} from "electron";
+import { app } from "electron";
 import log, { type Transport } from "electron-log";
 import path from "node:path";
 
@@ -24,9 +22,7 @@ log.transports.file.level = IS_DEV ? false : "info";
 // Enable console logging in development or when explicitly requested
 log.transports.console.level = ENABLE_CONSOLE_LOGGING ? "silly" : false;
 
-export {
-  default as logger,
-} from "electron-log";
+export { default as logger } from "electron-log";
 
 export function createScopedLogger(scope: string) {
   return log.scope(scope);

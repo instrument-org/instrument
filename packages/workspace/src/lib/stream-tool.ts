@@ -1,16 +1,8 @@
-import {
-  type Result,
-} from "neverthrow";
+import { type Result } from "neverthrow";
 
-import {
-  type ExecuteError,
-} from "../lib/execute-error";
-import {
-  isAsyncIterable,
-} from "../lib/is-async-iterable";
-import {
-  type AnyAgentTool,
-} from "../tools/types";
+import { type ExecuteError } from "../lib/execute-error";
+import { isAsyncIterable } from "../lib/is-async-iterable";
+import { type AnyAgentTool } from "../tools/types";
 
 type ExecuteOptions = Parameters<AnyAgentTool["execute"]>[0];
 type ExecuteResult = Result<unknown, ExecuteError>;

@@ -1,16 +1,7 @@
-import {
-  rpcClient,
-} from "@/client/rpc/client";
-import {
-  type AIGatewayModelURI,
-} from "@instrument-org/ai-gateway/client";
-import {
-  useMutation,
-  useQuery,
-} from "@tanstack/react-query";
-import {
-  useState,
-} from "react";
+import { rpcClient } from "@/client/rpc/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 export function useDefaultModelURI() {
   const { data: serverModelURI } = useQuery(

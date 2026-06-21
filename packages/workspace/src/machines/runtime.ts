@@ -1,7 +1,5 @@
 import ms from "ms";
-import {
-  ulid,
-} from "ulid";
+import { ulid } from "ulid";
 import {
   type ActorRefFrom,
   assign,
@@ -11,30 +9,18 @@ import {
   type SnapshotFrom,
   stopChild,
 } from "xstate";
-import {
-  z,
-} from "zod";
+import { z } from "zod";
 
-import {
-  type AppConfig,
-} from "../lib/app-config/types";
-import {
-  logUnhandledEvent,
-} from "../lib/log-unhandled-event";
-import {
-  getWorkspaceConfig,
-} from "../lib/workspace-config";
+import { type AppConfig } from "../lib/app-config/types";
+import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
   type SpawnRuntimeEvent,
   spawnRuntimeLogic,
   type SpawnRuntimeRef,
 } from "../logic/spawn-runtime";
-import {
-  publisher,
-} from "../rpc/publisher";
-import {
-  type AppStatus,
-} from "../types";
+import { publisher } from "../rpc/publisher";
+import { type AppStatus } from "../types";
 
 const MAX_RETRIES = 3;
 

@@ -1,5 +1,8 @@
 import { getAssetUrl } from "@/client/lib/get-asset-url";
-import { type SessionMessageDataPart, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type SessionMessageDataPart,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 
 import { FilesGrid } from "./files-grid";
 

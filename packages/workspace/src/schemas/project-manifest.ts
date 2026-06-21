@@ -1,9 +1,5 @@
-import {
-  TabIconsSchema,
-} from "@instrument-org/shared/icons";
-import {
-  z,
-} from "zod";
+import { TabIconsSchema } from "@instrument-org/shared/icons";
+import { z } from "zod";
 
 export const ProjectManifestSchema = z.object({
   createdWithAppVersion: z.string().optional(),

@@ -1,23 +1,10 @@
-import {
-  Hono,
-} from "hono";
+import { Hono } from "hono";
 
-import {
-  localhostUrl,
-  loopbackUrl,
-} from "../../../lib/url-for-subdomain";
-import {
-  TaskIdSchema,
-} from "../../../schemas/task-id";
-import {
-  LOCAL_LOOPBACK_APPS_SERVER_DOMAIN,
-} from "../constants";
-import {
-  type WorkspaceServerEnv,
-} from "../types";
-import {
-  getWorkspaceServerPort,
-} from "../url";
+import { localhostUrl, loopbackUrl } from "../../../lib/url-for-subdomain";
+import { TaskIdSchema } from "../../../schemas/task-id";
+import { LOCAL_LOOPBACK_APPS_SERVER_DOMAIN } from "../constants";
+import { type WorkspaceServerEnv } from "../types";
+import { getWorkspaceServerPort } from "../url";
 
 const app = new Hono<WorkspaceServerEnv>();
 

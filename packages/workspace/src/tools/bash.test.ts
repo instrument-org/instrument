@@ -1,15 +1,7 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  RelativePathSchema,
-} from "../schemas/paths";
-import {
-  BashTool,
-} from "./bash";
+import { RelativePathSchema } from "../schemas/paths";
+import { BashTool } from "./bash";
 
 const BASE_OUTPUT = {
   command: "",

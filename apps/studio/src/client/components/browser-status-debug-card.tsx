@@ -1,4 +1,7 @@
-import { browserStatusModelNote, type SessionMessageDataPart } from "@instrument-org/workspace/client";
+import {
+  browserStatusModelNote,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
 
 import { ModelContextDebugCard } from "./model-context-debug-card";
 

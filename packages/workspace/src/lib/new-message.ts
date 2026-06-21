@@ -2,43 +2,19 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway";
-import {
-  ok,
-} from "neverthrow";
+import { ok } from "neverthrow";
 
-import {
-  type FileUpload,
-} from "../schemas/file-upload";
-import {
-  type SessionMessage,
-} from "../schemas/session/message";
-import {
-  type SessionMessagePart,
-} from "../schemas/session/message-part";
-import {
-  StoreId,
-} from "../schemas/store-id";
-import {
-  type AppConfig,
-} from "./app-config/types";
-import {
-  taskDir,
-} from "./app-dir-utils";
-import {
-  createBrowserStatusPart,
-} from "./create-browser-status-part";
-import {
-  detectExternalFileChanges,
-} from "./external-file-changes";
-import {
-  setProjectState,
-} from "./project-state-store";
-import {
-  getWorkspaceConfig,
-} from "./workspace-config";
-import {
-  writeUploadedAttachments,
-} from "./write-uploaded-attachments";
+import { type FileUpload } from "../schemas/file-upload";
+import { type SessionMessage } from "../schemas/session/message";
+import { type SessionMessagePart } from "../schemas/session/message-part";
+import { StoreId } from "../schemas/store-id";
+import { type AppConfig } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
+import { createBrowserStatusPart } from "./create-browser-status-part";
+import { detectExternalFileChanges } from "./external-file-changes";
+import { setProjectState } from "./project-state-store";
+import { getWorkspaceConfig } from "./workspace-config";
+import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 export async function newMessage({
   appConfig,

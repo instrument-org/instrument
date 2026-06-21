@@ -7,16 +7,10 @@ import {
   AIGatewayModelURI,
   fetchModelResultsForProviders,
 } from "@instrument-org/ai-gateway";
-import {
-  OUR_MODELS,
-} from "@instrument-org/shared";
+import { OUR_MODELS } from "@instrument-org/shared";
 
-import {
-  captureServerException,
-} from "./capture-server-exception";
-import {
-  getAIProviderConfigs,
-} from "./get-ai-provider-configs";
+import { captureServerException } from "./capture-server-exception";
+import { getAIProviderConfigs } from "./get-ai-provider-configs";
 
 export async function setDefaultModel(options?: {
   onlyIfOurModel?: boolean;

@@ -1,8 +1,6 @@
 import fs from "node:fs/promises";
 
-import {
-  type AbsolutePath,
-} from "../schemas/paths";
+import { type AbsolutePath } from "../schemas/paths";
 
 export async function pathExists(filePath: AbsolutePath): Promise<boolean> {
   try {

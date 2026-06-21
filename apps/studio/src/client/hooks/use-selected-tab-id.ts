@@ -1,9 +1,5 @@
-import {
-  rpcClient,
-} from "@/client/rpc/client";
-import {
-  useQuery,
-} from "@tanstack/react-query";
+import { rpcClient } from "@/client/rpc/client";
+import { useQuery } from "@tanstack/react-query";
 
 export function useSelectedTabId() {
   const { data } = useQuery({

@@ -1,21 +1,9 @@
-import {
-  err,
-  ok,
-  type Result,
-} from "neverthrow";
+import { err, ok, type Result } from "neverthrow";
 
-import {
-  TaskIdSchema,
-} from "../../schemas/task-id";
-import {
-  type TaskId,
-} from "../../schemas/task-id";
-import {
-  APPS_SERVER_DOMAINS,
-} from "./constants";
-import {
-  getWorkspaceServerPort,
-} from "./url";
+import { TaskIdSchema } from "../../schemas/task-id";
+import { type TaskId } from "../../schemas/task-id";
+import { APPS_SERVER_DOMAINS } from "./constants";
+import { getWorkspaceServerPort } from "./url";
 
 export function uriDetailsForHost(
   host: string,

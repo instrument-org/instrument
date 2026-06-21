@@ -1,9 +1,5 @@
-import {
-  type TaskId,
-} from "@instrument-org/workspace/client";
-import {
-  atom,
-} from "jotai";
+import { type TaskId } from "@instrument-org/workspace/client";
+import { atom } from "jotai";
 
 export interface ProjectFileViewerFile {
   filename: string;

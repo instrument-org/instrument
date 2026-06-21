@@ -1,17 +1,8 @@
-import {
-  captureServerException,
-} from "@/electron-main/lib/capture-server-exception";
-import {
-  shell,
-} from "electron";
-import {
-  exec,
-  spawn,
-} from "node:child_process";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { shell } from "electron";
+import { exec, spawn } from "node:child_process";
 import os from "node:os";
-import {
-  promisify,
-} from "node:util";
+import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
 

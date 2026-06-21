@@ -1,14 +1,8 @@
 import type { ModelMessage } from "ai";
 
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  splitMultipartToolResults,
-} from "./split-multipart-tool-results";
+import { splitMultipartToolResults } from "./split-multipart-tool-results";
 
 describe("splitMultipartToolResults", () => {
   it("should pass through messages without tool results", () => {

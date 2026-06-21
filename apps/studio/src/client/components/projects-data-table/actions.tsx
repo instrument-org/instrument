@@ -1,11 +1,27 @@
 import type { TaskId } from "@instrument-org/workspace/client";
 
 import { Button } from "@/client/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/client/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/client/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { useAppState } from "@/client/hooks/use-app-state";
 import { rpcClient } from "@/client/rpc/client";
-import { ArrowUpRightIcon, DotsThreeOutlineVerticalIcon, PencilSimpleLineIcon, StarIcon, StopCircleIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  ArrowUpRightIcon,
+  DotsThreeOutlineVerticalIcon,
+  PencilSimpleLineIcon,
+  StarIcon,
+  StopCircleIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 export function ProjectActionsCell({

@@ -1,20 +1,9 @@
-import {
-  ok,
-  safeTry,
-} from "neverthrow";
+import { ok, safeTry } from "neverthrow";
 
-import {
-  type SessionMessagePart,
-} from "../schemas/session/message-part";
-import {
-  StoreId,
-} from "../schemas/store-id";
-import {
-  type AppConfigProject,
-} from "./app-config/types";
-import {
-  taskDir,
-} from "./app-dir-utils";
+import { type SessionMessagePart } from "../schemas/session/message-part";
+import { StoreId } from "../schemas/store-id";
+import { type AppConfigProject } from "./app-config/types";
+import { taskDir } from "./app-dir-utils";
 import {
   getFileIndexBaseline,
   setFileIndexBaseline,
@@ -23,9 +12,7 @@ import {
   diffProjectFileIndexes,
   getProjectFileIndex,
 } from "./get-project-files";
-import {
-  getCurrentProjectFileIndex,
-} from "./project-file-watcher";
+import { getCurrentProjectFileIndex } from "./project-file-watcher";
 
 /**
  * Diffs the current on-disk file index against the persisted baseline to find

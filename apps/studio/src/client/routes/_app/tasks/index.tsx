@@ -5,21 +5,36 @@ import { DeleteWithProgressDialog } from "@/client/components/delete-with-progre
 import { InternalLink } from "@/client/components/internal-link";
 import { ProjectDeleteDialog } from "@/client/components/project/delete-dialog";
 import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
-import { PROJECTS_PAGE_SIZE, ProjectsDataTable } from "@/client/components/projects-data-table";
+import {
+  PROJECTS_PAGE_SIZE,
+  ProjectsDataTable,
+} from "@/client/components/projects-data-table";
 import { createColumns } from "@/client/components/projects-data-table/columns";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/client/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useTrashApp } from "@/client/hooks/use-trash-app";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import { APP_NAME, EVAL_SUBDOMAIN_PREFIX, PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
-import { isProjectSubdomain, type Task, type TaskId } from "@instrument-org/workspace/client";
+import {
+  APP_NAME,
+  EVAL_SUBDOMAIN_PREFIX,
+  PROJECT_MANIFEST_FILE_NAME,
+} from "@instrument-org/shared";
+import {
+  isProjectSubdomain,
+  type Task,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { StopCircleIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
@@ -59,10 +74,8 @@ function RouteComponent() {
     useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] =
-    useState<null | Task>(null);
-  const [projectToEdit, setProjectToEdit] =
-    useState<null | Task>(null);
+  const [projectToDelete, setProjectToDelete] = useState<null | Task>(null);
+  const [projectToEdit, setProjectToEdit] = useState<null | Task>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isSingleDeleting, setIsSingleDeleting] = useState(false);
@@ -272,9 +285,7 @@ function RouteComponent() {
     setDeleteSelectedDialogOpen(true);
   };
 
-  const confirmDeleteSelected = async (
-    projectsToDelete: Task[],
-  ) => {
+  const confirmDeleteSelected = async (projectsToDelete: Task[]) => {
     setIsBulkDeleting(true);
     let successCount = 0;
     let hasError = false;

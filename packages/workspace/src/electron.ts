@@ -1,31 +1,51 @@
-export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
-export { createAppConfig } from "./lib/app-config/create";
-export { taskDir } from "./lib/app-dir-utils";
-export { readProjectFile } from "./lib/read-project-file";
-export { resolvePathWithinAppDir } from "./lib/resolve-path-within-app-dir";
+export {
+  closeAllAgentBrowserSessions,
+} from "./lib/agent-browser-cleanup";
+export {
+  createAppConfig,
+} from "./lib/app-config/create";
+export {
+  taskDir,
+} from "./lib/app-dir-utils";
+export {
+  readProjectFile,
+} from "./lib/read-project-file";
+export {
+  resolvePathWithinAppDir,
+} from "./lib/resolve-path-within-app-dir";
 export {
   type WorkspaceActorRef,
   type WorkspaceEvent,
   workspaceMachine,
 } from "./machines/workspace";
-export { router as workspaceRouter } from "./rpc";
+export {
+  router as workspaceRouter,
+} from "./rpc";
 export type { WorkspaceRPCContext } from "./rpc/base";
-export { publisher as workspacePublisher } from "./rpc/publisher";
+export {
+  publisher as workspacePublisher,
+} from "./rpc/publisher";
 export {
   type AbsolutePath,
   RelativePathSchema,
   RelativeProjectPathSchema,
 } from "./schemas/paths";
-export { SessionMessage } from "./schemas/session/message";
-export { StoreId } from "./schemas/store-id";
-export { type SubdomainPart } from "./schemas/subdomain-part";
-export { SubdomainPartSchema } from "./schemas/subdomain-part";
 export {
-  type AppSubdomain,
-  AppSubdomainSchema,
-  type ProjectSubdomain,
-  ProjectSubdomainSchema,
-} from "./schemas/subdomains";
+  SessionMessage,
+} from "./schemas/session/message";
+export {
+  StoreId,
+} from "./schemas/store-id";
+export {
+  type SubdomainPart,
+} from "./schemas/subdomain-part";
+export {
+  SubdomainPartSchema,
+} from "./schemas/subdomain-part";
+export {
+  type TaskId,
+  TaskIdSchema,
+} from "./schemas/task-id";
 export {
   type BrowserConfig,
   type BrowserTarget,

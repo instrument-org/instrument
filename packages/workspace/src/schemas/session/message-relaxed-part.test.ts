@@ -1,8 +1,18 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { RelativePathSchema } from "../paths";
-import { StoreId } from "../store-id";
-import { SessionMessageRelaxedPart } from "./message-relaxed-part";
+import {
+  RelativePathSchema,
+} from "../paths";
+import {
+  StoreId,
+} from "../store-id";
+import {
+  SessionMessageRelaxedPart,
+} from "./message-relaxed-part";
 
 describe("SessionMessageRelaxedPart", () => {
   // Shared metadata for all parts

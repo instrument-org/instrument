@@ -9,11 +9,7 @@ import { Switch } from "@/client/components/ui/switch";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  APP_NAME,
-  APP_REPO_URL,
-  MANUAL_DOWNLOAD_URL,
-} from "@instrument-org/shared";
+import { APP_NAME, APP_REPO_URL, MANUAL_DOWNLOAD_URL } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";

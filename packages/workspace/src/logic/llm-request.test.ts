@@ -7,9 +7,19 @@ import {
   type AIProviderType,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
-import { simulateReadableStream } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  simulateReadableStream,
+} from "ai";
+import {
+  MockLanguageModelV3,
+} from "ai/test";
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   type ActorRefFrom,
   type AnyActorRef,
@@ -18,17 +28,39 @@ import {
   waitFor,
 } from "xstate";
 
-import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
-import { Store } from "../lib/store";
-import { RelativePathSchema } from "../schemas/paths";
-import { type SessionMessage } from "../schemas/session/message";
-import { SessionMessagePart } from "../schemas/session/message-part";
-import { StoreId } from "../schemas/store-id";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
-import { TOOLS } from "../tools/all";
-import { llmRequestLogic } from "./llm-request";
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+} from "../lib/llm-token-limits";
+import {
+  Store,
+} from "../lib/store";
+import {
+  RelativePathSchema,
+} from "../schemas/paths";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  TaskIdSchema,
+} from "../schemas/task-id";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
+import {
+  createMockAppConfig,
+} from "../test/helpers/mock-app-config";
+import {
+  TOOLS,
+} from "../tools/all";
+import {
+  llmRequestLogic,
+} from "./llm-request";
 
 vi.mock(import("ulid"));
 
@@ -149,7 +181,7 @@ describe("llmRequestLogic", () => {
     });
 
     const projectAppConfig = createMockAppConfig(
-      ProjectSubdomainSchema.parse(`mock`),
+      TaskIdSchema.parse(`mock`),
       {
         aiSDKModel: mockLanguageModel,
         model,

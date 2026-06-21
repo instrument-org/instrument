@@ -1,7 +1,13 @@
-import { rgPath } from "@vscode/ripgrep";
-import { spawn } from "node:child_process";
+import {
+  rgPath,
+} from "@vscode/ripgrep";
+import {
+  spawn,
+} from "node:child_process";
 
-import { unpackAsarPath } from "./asar";
+import {
+  unpackAsarPath,
+} from "./asar";
 
 const RG_DISK_PATH = unpackAsarPath(rgPath);
 

@@ -2,12 +2,24 @@ import {
   type AIProviderType,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { type SessionMessage } from "../schemas/session/message";
-import { StoreId } from "../schemas/store-id";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { getErrorAction } from "./get-error-action";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
+import {
+  getErrorAction,
+} from "./get-error-action";
 
 const createMessage = (
   error?: SessionMessage.Assistant["metadata"]["error"],

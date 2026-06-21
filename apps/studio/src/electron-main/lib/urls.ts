@@ -1,5 +1,9 @@
-import { type StudioPath } from "@/shared/studio-path";
-import { is } from "@electron-toolkit/utils";
+import {
+  type StudioPath,
+} from "@/shared/studio-path";
+import {
+  is,
+} from "@electron-toolkit/utils";
 import path from "node:path";
 import url from "node:url";
 

@@ -1,6 +1,8 @@
 import type { ForkOptions } from "node:child_process";
 
-import { fork } from "node:child_process";
+import {
+  fork,
+} from "node:child_process";
 
 // Consider replacing with execa if it works the same
 export async function forkExecCommand(

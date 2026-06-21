@@ -1,7 +1,13 @@
-import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
+import {
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 
-import { type SessionMessage } from "../schemas/session/message";
-import { gatewayResponseBodySchema } from "./gateway-response-body";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  gatewayResponseBodySchema,
+} from "./gateway-response-body";
 
 type ErrorAction =
   | { error: Error; type: "error" }

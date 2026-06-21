@@ -4,11 +4,7 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
 import { FileActionsMenuItems } from "./file-actions-menu";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuTrigger,
-} from "./ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "./ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 const INTERACTIVE_DELAY_MS = 300;

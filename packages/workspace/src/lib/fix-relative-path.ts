@@ -1,4 +1,6 @@
-import { type RelativePath } from "../schemas/paths";
+import {
+  type RelativePath,
+} from "../schemas/paths";
 
 export function fixRelativePath(path: string): null | RelativePath {
   if (isRepoRelativePath(path)) {

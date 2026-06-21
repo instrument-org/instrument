@@ -1,9 +1,4 @@
-import {
-  isToolPart,
-  type SessionMessage,
-  type SessionMessagePart,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
+import { isToolPart, type SessionMessage, type SessionMessagePart, type WorkspaceAppProject } from "@instrument-org/workspace/client";
 
 import { AssistantMessage } from "./assistant-message";
 import { BrowserStatusDebugCard } from "./browser-status-debug-card";

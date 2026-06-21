@@ -1,5 +1,10 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { alphabetical, isEqual } from "radashi";
+import {
+  type AIGatewayModel,
+} from "@instrument-org/ai-gateway";
+import {
+  alphabetical,
+  isEqual,
+} from "radashi";
 import invariant from "tiny-invariant";
 import {
   type ActorRef,
@@ -12,22 +17,47 @@ import {
   stopChild,
 } from "xstate";
 
-import { type AgentName, type AnyAgent } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
-import { createAssignEventError } from "../lib/assign-event-error";
-import { createSession } from "../lib/create-session";
-import { getCurrentDate } from "../lib/get-current-date";
-import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import {
+  type AgentName,
+  type AnyAgent,
+} from "../agents/types";
+import {
+  type AppConfig,
+} from "../lib/app-config/types";
+import {
+  createAssignEventError,
+} from "../lib/assign-event-error";
+import {
+  createSession,
+} from "../lib/create-session";
+import {
+  getCurrentDate,
+} from "../lib/get-current-date";
+import {
+  logUnhandledEvent,
+} from "../lib/log-unhandled-event";
 import {
   type SpawnAgentFunction,
   type SpawnAgentResult,
 } from "../lib/spawn-agent";
-import { Store } from "../lib/store";
-import { getWorkspaceConfig } from "../lib/workspace-config";
-import { publisher } from "../rpc/publisher";
-import { type SessionTag } from "../schemas/app-state";
-import { type SessionMessage } from "../schemas/session/message";
-import { StoreId } from "../schemas/store-id";
+import {
+  Store,
+} from "../lib/store";
+import {
+  getWorkspaceConfig,
+} from "../lib/workspace-config";
+import {
+  publisher,
+} from "../rpc/publisher";
+import {
+  type SessionTag,
+} from "../schemas/app-state";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  StoreId,
+} from "../schemas/store-id";
 import {
   agentMachine,
   type AgentMachineActorRef,

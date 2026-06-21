@@ -1,5 +1,7 @@
 import path from "node:path";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
 const UnbrandedAbsolutePathSchema = z.string().refine((val) => {
   return path.isAbsolute(val);

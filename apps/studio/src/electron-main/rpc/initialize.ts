@@ -1,18 +1,38 @@
-import { logger } from "@/electron-main/lib/electron-logger";
+import {
+  logger,
+} from "@/electron-main/lib/electron-logger";
 import {
   type WorkspaceActorRef,
   type WorkspaceConfig,
 } from "@instrument-org/workspace/electron";
-import { RPCHandler } from "@orpc/server/message-port";
-import { ipcMain } from "electron";
-import { EventEmitter } from "node:events";
+import {
+  RPCHandler,
+} from "@orpc/server/message-port";
+import {
+  ipcMain,
+} from "electron";
+import {
+  EventEmitter,
+} from "node:events";
 
-import { type BrowserViewManager } from "../browser-view/manager";
-import { captureServerException } from "../lib/capture-server-exception";
-import { type StudioAppUpdater } from "../lib/update";
-import { type InitialRPCContext } from "./context";
-import { createErrorClientInterceptor } from "./error-interceptor";
-import { router } from "./routes";
+import {
+  type BrowserViewManager,
+} from "../browser-view/manager";
+import {
+  captureServerException,
+} from "../lib/capture-server-exception";
+import {
+  type StudioAppUpdater,
+} from "../lib/update";
+import {
+  type InitialRPCContext,
+} from "./context";
+import {
+  createErrorClientInterceptor,
+} from "./error-interceptor";
+import {
+  router,
+} from "./routes";
 
 // We expect more than the default of 10 active listeners
 // due to long-lived message port subscriptions.

@@ -1,12 +1,29 @@
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { AppDirSchema } from "../schemas/paths";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
-import { runTool } from "../test/helpers/run-tool";
-import { TOOLS } from "./all";
+import {
+  FolderAttachment,
+} from "../schemas/folder-attachment";
+import {
+  AppDirSchema,
+} from "../schemas/paths";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
+import {
+  createMockAppConfigForDir,
+} from "../test/helpers/mock-app-config";
+import {
+  runTool,
+} from "../test/helpers/run-tool";
+import {
+  TOOLS,
+} from "./all";
 
 vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));

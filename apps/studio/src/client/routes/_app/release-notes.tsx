@@ -2,12 +2,7 @@ import { ExternalLink } from "@/client/components/external-link";
 import { Markdown } from "@/client/components/markdown";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/client/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";

@@ -1,21 +1,45 @@
-import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
-import { pnpmVersion } from "@/electron-main/lib/pnpm";
-import { devOnly } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
-import { APP_NAME, PORTS } from "@instrument-org/shared";
 import {
-  AppSubdomainSchema,
+  getWorkspaceFolder,
+} from "@/electron-main/lib/get-workspace-folder";
+import {
+  pnpmVersion,
+} from "@/electron-main/lib/pnpm";
+import {
+  devOnly,
+} from "@/electron-main/rpc/base";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  openOnboardingWindow,
+} from "@/electron-main/windows/onboarding";
+import {
+  APP_NAME,
+  PORTS,
+} from "@instrument-org/shared";
+import {
   StoreId,
+  TaskIdSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import { call } from "@orpc/server";
-import { app, shell } from "electron";
-import { spawn } from "node:child_process";
+import {
+  call,
+} from "@orpc/server";
+import {
+  app,
+  shell,
+} from "electron";
+import {
+  spawn,
+} from "node:child_process";
 import os from "node:os";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
-import { browserViewManagerDebugRoutes } from "../../browser-view/debug-snapshot";
+import {
+  browserViewManagerDebugRoutes,
+} from "../../browser-view/debug-snapshot";
 
 function buildSystemFrontMatter() {
   const platform = os.platform();
@@ -60,7 +84,7 @@ const sessionMarkdown = devOnly
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.object({ markdown: z.string() }))

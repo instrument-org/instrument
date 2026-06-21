@@ -1,4 +1,6 @@
-import { type GitError } from "dugite";
+import {
+  type GitError,
+} from "dugite";
 
 export namespace TypedError {
   const PREFIX = "workspace";

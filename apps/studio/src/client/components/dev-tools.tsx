@@ -1,13 +1,6 @@
 import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { Button } from "@/client/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/client/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/client/components/ui/dialog";
 import { Label } from "@/client/components/ui/label";
 import { Sheet, SheetContent, SheetTitle } from "@/client/components/ui/sheet";
 import { Textarea } from "@/client/components/ui/textarea";

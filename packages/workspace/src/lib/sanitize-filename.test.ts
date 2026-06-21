@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { sanitizeFilename } from "./sanitize-filename";
+import {
+  sanitizeFilename,
+} from "./sanitize-filename";
 
 describe("sanitizeFilename", () => {
   it.each([

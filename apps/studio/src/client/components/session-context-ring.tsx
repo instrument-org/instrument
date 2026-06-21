@@ -1,10 +1,7 @@
 import { formatNumber } from "@/client/lib/format-number";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
-import {
-  type AppSubdomain,
-  type StoreId,
-} from "@instrument-org/workspace/client";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -69,7 +66,7 @@ export function SessionContextRing({
 }: {
   model?: AIGatewayModel.Type;
   selectedSessionId: StoreId.Session;
-  subdomain: AppSubdomain;
+  subdomain: TaskId;
 }) {
   const { data } = useQuery(
     rpcClient.workspace.session.live.contextTokens.experimental_liveOptions({

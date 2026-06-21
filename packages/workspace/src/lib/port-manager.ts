@@ -1,4 +1,6 @@
-import { detect } from "detect-port";
+import {
+  detect,
+} from "detect-port";
 
 interface PortManagerOptions {
   basePort: number;

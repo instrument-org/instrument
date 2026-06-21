@@ -1,14 +1,31 @@
-import { execa } from "execa";
-import { defineCommand, latin1FromBytes } from "just-bash";
+import {
+  execa,
+} from "execa";
+import {
+  defineCommand,
+  latin1FromBytes,
+} from "just-bash";
 
 import type { AppConfig } from "../app-config/types";
 
-import { type AbsolutePath } from "../../schemas/paths";
-import { taskDir } from "../app-dir-utils";
-import { ffmpegSubprocessEnv } from "../ffmpeg";
-import { filterShellOutput } from "../filter-shell-output";
-import { getWorkspaceConfig } from "../workspace-config";
-import { TS_COMMAND } from "./ts";
+import {
+  type AbsolutePath,
+} from "../../schemas/paths";
+import {
+  taskDir,
+} from "../app-dir-utils";
+import {
+  ffmpegSubprocessEnv,
+} from "../ffmpeg";
+import {
+  filterShellOutput,
+} from "../filter-shell-output";
+import {
+  getWorkspaceConfig,
+} from "../workspace-config";
+import {
+  TS_COMMAND,
+} from "./ts";
 import {
   extractFileAndScriptArgs,
   firstString,

@@ -1,28 +1,65 @@
 import "dotenv/config";
-import { aiGatewayApp, AIGatewayModelURI } from "@instrument-org/ai-gateway";
-import { APP_NAME_SLUG } from "@instrument-org/shared";
-import { call } from "@orpc/server";
-import { execa } from "execa";
+import {
+  aiGatewayApp,
+  AIGatewayModelURI,
+} from "@instrument-org/ai-gateway";
+import {
+  APP_NAME_SLUG,
+} from "@instrument-org/shared";
+import {
+  call,
+} from "@orpc/server";
+import {
+  execa,
+} from "execa";
 import os from "node:os";
 import path from "node:path";
 import * as _ from "radashi";
-import { ulid } from "ulid";
-import { createActor } from "xstate";
+import {
+  ulid,
+} from "ulid";
+import {
+  createActor,
+} from "xstate";
 
 import type { Session } from "../src/schemas/session";
 
-import { workspaceMachine } from "../src/electron";
-import { createAppConfig } from "../src/lib/app-config/create";
-import { type AppConfig } from "../src/lib/app-config/types";
-import { isToolPart } from "../src/lib/is-tool-part";
-import { getProjectUsageSummary } from "../src/lib/usage-summary";
-import { publisher } from "../src/rpc/publisher";
-import { project as projectRoute } from "../src/rpc/routes/project";
-import { session as sessionRoute } from "../src/rpc/routes/session";
-import { type FileUpload } from "../src/schemas/file-upload";
-import { type SessionMessagePart } from "../src/schemas/session/message-part";
-import { type StoreId } from "../src/schemas/store-id";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-app-config";
+import {
+  workspaceMachine,
+} from "../src/electron";
+import {
+  createAppConfig,
+} from "../src/lib/app-config/create";
+import {
+  type AppConfig,
+} from "../src/lib/app-config/types";
+import {
+  isToolPart,
+} from "../src/lib/is-tool-part";
+import {
+  getProjectUsageSummary,
+} from "../src/lib/usage-summary";
+import {
+  publisher,
+} from "../src/rpc/publisher";
+import {
+  project as projectRoute,
+} from "../src/rpc/routes/project";
+import {
+  session as sessionRoute,
+} from "../src/rpc/routes/session";
+import {
+  type FileUpload,
+} from "../src/schemas/file-upload";
+import {
+  type SessionMessagePart,
+} from "../src/schemas/session/message-part";
+import {
+  type StoreId,
+} from "../src/schemas/store-id";
+import {
+  createStubBrowserConfig,
+} from "../src/test/helpers/mock-app-config";
 import {
   buildProviderConfigs,
   c,

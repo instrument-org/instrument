@@ -1,6 +1,13 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { AppDirSchema } from "../schemas/paths";
+import {
+  AppDirSchema,
+} from "../schemas/paths";
 import {
   filterShellOutput,
   shouldFilterDebuggerMessage,

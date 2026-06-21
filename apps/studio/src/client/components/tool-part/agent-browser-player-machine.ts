@@ -1,4 +1,9 @@
-import { assertEvent, assign, fromCallback, setup } from "xstate";
+import {
+  assertEvent,
+  assign,
+  fromCallback,
+  setup,
+} from "xstate";
 
 // Time spent traversing the gap between two frames during user-driven
 // auto-playback. Higher values feel slower / more cinematic.

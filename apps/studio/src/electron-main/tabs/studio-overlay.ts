@@ -1,7 +1,15 @@
-import { createContextMenu } from "@/electron-main/lib/context-menu";
-import { openExternal } from "@/electron-main/lib/open-external";
-import { tryCaptureError } from "@/electron-main/lib/try-capture-error";
-import { unsafe_studioURL } from "@/electron-main/lib/urls";
+import {
+  createContextMenu,
+} from "@/electron-main/lib/context-menu";
+import {
+  openExternal,
+} from "@/electron-main/lib/open-external";
+import {
+  tryCaptureError,
+} from "@/electron-main/lib/try-capture-error";
+import {
+  unsafe_studioURL,
+} from "@/electron-main/lib/urls";
 import {
   STUDIO_OVERLAY_DISMISSIBLE,
   type StudioOverlayKind,
@@ -9,7 +17,9 @@ import {
   studioOverlayRequestToLocation,
   type StudioOverlayResult,
 } from "@/shared/studio-overlay";
-import { type StudioPath } from "@/shared/studio-path";
+import {
+  type StudioPath,
+} from "@/shared/studio-path";
 import {
   type BaseWindow,
   ipcMain,
@@ -18,7 +28,9 @@ import {
   WebContentsView,
 } from "electron";
 import path from "node:path";
-import { noop } from "radashi";
+import {
+  noop,
+} from "radashi";
 
 /**
  * Owns the single app-wide modal overlay: a topmost WebContentsView covering

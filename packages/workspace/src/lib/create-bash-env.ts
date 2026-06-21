@@ -13,19 +13,31 @@ import {
 
 import type { AppConfig } from "./app-config/types";
 
-import { type StoreId } from "../schemas/store-id";
-import { taskDir } from "./app-dir-utils";
-import { type UpsertContextItem } from "./capture-browser-screenshot";
+import {
+  type StoreId,
+} from "../schemas/store-id";
+import {
+  taskDir,
+} from "./app-dir-utils";
+import {
+  type UpsertContextItem,
+} from "./capture-browser-screenshot";
 import {
   AGENT_BROWSER_COMMAND,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
-import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
+import {
+  createFfmpegCommand,
+  FFMPEG_COMMAND,
+} from "./shell-commands/ffmpeg";
 import {
   createFfprobeCommand,
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
-import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
+import {
+  createNodeCommand,
+  NODE_COMMAND,
+} from "./shell-commands/node";
 import {
   createNpxCommand,
   createPnpmCommand,
@@ -36,9 +48,17 @@ import {
   PNPX_COMMAND,
   PNX_COMMAND,
 } from "./shell-commands/pnpm";
-import { createTsCommand, TS_COMMAND } from "./shell-commands/ts";
-import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
-import { createWhichCommand } from "./shell-commands/which";
+import {
+  createTsCommand,
+  TS_COMMAND,
+} from "./shell-commands/ts";
+import {
+  createTscCommand,
+  TSC_COMMAND,
+} from "./shell-commands/tsc";
+import {
+  createWhichCommand,
+} from "./shell-commands/which";
 
 // cspell:ignore mixmark
 

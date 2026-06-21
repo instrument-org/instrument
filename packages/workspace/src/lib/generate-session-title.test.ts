@@ -1,11 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import {
+  createMockAppConfigForDir,
+} from "../test/helpers/mock-app-config";
 import {
   isSessionTitleAutoReplaceable,
   isUntitledChatSessionTitle,
 } from "./generate-session-title";
-import { getProjectManifest } from "./project-manifest";
+import {
+  getProjectManifest,
+} from "./project-manifest";
 
 vi.mock("./project-manifest", () => ({
   getProjectManifest: vi.fn(),

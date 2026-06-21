@@ -1,27 +1,58 @@
-import { imageSize } from "image-size";
+import {
+  imageSize,
+} from "image-size";
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/read.ts
-import { isBinaryFile } from "isbinaryfile";
+import {
+  isBinaryFile,
+} from "isbinaryfile";
 import ms from "ms";
-import { err, ok } from "neverthrow";
+import {
+  err,
+  ok,
+} from "neverthrow";
 import fs from "node:fs/promises";
-import { dedent } from "radashi";
-import { z } from "zod";
+import {
+  dedent,
+} from "radashi";
+import {
+  z,
+} from "zod";
 
-import { APP_FOLDER_NAMES } from "../constants";
-import { addLineNumbers } from "../lib/add-line-numbers";
-import { taskDir } from "../lib/app-dir-utils";
-import { executeError } from "../lib/execute-error";
-import { formatBytes } from "../lib/format-bytes";
-import { getMimeType } from "../lib/get-mime-type";
-import { listFiles } from "../lib/list-files";
-import { pathExists } from "../lib/path-exists";
+import {
+  APP_FOLDER_NAMES,
+} from "../constants";
+import {
+  addLineNumbers,
+} from "../lib/add-line-numbers";
+import {
+  taskDir,
+} from "../lib/app-dir-utils";
+import {
+  executeError,
+} from "../lib/execute-error";
+import {
+  formatBytes,
+} from "../lib/format-bytes";
+import {
+  getMimeType,
+} from "../lib/get-mime-type";
+import {
+  listFiles,
+} from "../lib/list-files";
+import {
+  pathExists,
+} from "../lib/path-exists";
 import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
 } from "../lib/resolve-agent-path";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
+import {
+  BaseInputSchema,
+} from "./base";
+import {
+  setupTool,
+} from "./create-tool";
 
 const DEFAULT_READ_LIMIT = 2000;
 const DIRECTORY_LISTING_LIMIT = 200;

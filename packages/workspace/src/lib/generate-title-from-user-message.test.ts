@@ -1,14 +1,37 @@
-import { APICallError } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
-import { describe, expect, it, vi } from "vitest";
+import {
+  APICallError,
+} from "ai";
+import {
+  MockLanguageModelV3,
+} from "ai/test";
+import {
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-import { StoreId } from "../schemas/store-id";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
-import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
-import { PROJECT_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
-import { getWorkspaceConfig } from "./workspace-config";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  TaskIdSchema,
+} from "../schemas/task-id";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
+import {
+  createMockAppConfig,
+} from "../test/helpers/mock-app-config";
+import {
+  generateTitleFromUserMessage,
+} from "./generate-title-from-user-message";
+import {
+  PROJECT_NAME_MAX_OUTPUT_TOKENS,
+} from "./llm-token-limits";
+import {
+  getWorkspaceConfig,
+} from "./workspace-config";
 
 function createMockLanguageModel(text: string) {
   return new MockLanguageModelV3({
@@ -71,7 +94,7 @@ function setupTest(
 ) {
   const mockLanguageModel = createMockLanguageModel(generatedText);
   const model = createMockAIGatewayModel();
-  createMockAppConfig(ProjectSubdomainSchema.parse("mock"), {
+  createMockAppConfig(TaskIdSchema.parse("mock"), {
     aiSDKModel: mockLanguageModel,
     model,
   });
@@ -99,7 +122,7 @@ function setupTestWithModel(
   options: { captureException?: (...args: unknown[]) => void } = {},
 ) {
   const model = createMockAIGatewayModel();
-  createMockAppConfig(ProjectSubdomainSchema.parse("mock"), {
+  createMockAppConfig(TaskIdSchema.parse("mock"), {
     aiSDKModel: languageModel,
     model,
   });

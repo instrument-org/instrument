@@ -1,9 +1,24 @@
-import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { describe, expect, it, vi } from "vitest";
+import {
+  type CommandContext,
+  EMPTY_BYTES,
+  InMemoryFs,
+} from "just-bash";
+import {
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-import { ProjectSubdomainSchema } from "../../schemas/subdomains";
-import { createMockAppConfig } from "../../test/helpers/mock-app-config";
-import { getWorkspaceConfig } from "../workspace-config";
+import {
+  TaskIdSchema,
+} from "../../schemas/task-id";
+import {
+  createMockAppConfig,
+} from "../../test/helpers/mock-app-config";
+import {
+  getWorkspaceConfig,
+} from "../workspace-config";
 import {
   createNpxCommand,
   createPnpmCommand,
@@ -22,7 +37,7 @@ const mockCtx: CommandContext = {
 };
 
 describe("createPnpmCommand", () => {
-  const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"));
+  const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
   const command = createPnpmCommand(appConfig);
 
   it.each([{ subcommand: "dev" }, { subcommand: "start" }])(

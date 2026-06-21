@@ -1,22 +1,12 @@
-import {
-  CommandDialog,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/client/components/ui/command";
+import { CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList } from "@/client/components/ui/command";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useToggleCommandMenu } from "@/client/hooks/use-toggle-command-menu";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
+import { type TaskId } from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
-import {
-  ArrowsClockwiseIcon,
-  ChatCircleIcon,
-  PlusIcon,
-} from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, ChatCircleIcon, PlusIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -128,7 +118,7 @@ export function StudioCommandMenu() {
     }, 200);
   };
 
-  const handleSelectProject = (subdomain: ProjectSubdomain) => {
+  const handleSelectProject = (subdomain: TaskId) => {
     handleClose();
     void navigateTab({
       params: { subdomain },
@@ -261,7 +251,7 @@ function VirtualProjectList({
   onSelectProject,
 }: {
   matchedProjects: MatchedProject[];
-  onSelectProject: (subdomain: ProjectSubdomain) => void;
+  onSelectProject: (subdomain: TaskId) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 

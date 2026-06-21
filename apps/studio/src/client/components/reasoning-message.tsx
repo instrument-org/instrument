@@ -6,11 +6,7 @@ import { useStickToBottom } from "use-stick-to-bottom";
 
 import { PlanningDotIcon } from "./icons/planning-dot";
 import { SessionMarkdown } from "./session-markdown";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "./ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 
 interface ReasoningMessageProps {
   createdAt?: Date;

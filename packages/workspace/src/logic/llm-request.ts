@@ -14,21 +14,49 @@ import {
   parsePartialJson,
   streamText,
 } from "ai";
-import { fromPromise } from "xstate";
+import {
+  fromPromise,
+} from "xstate";
 
-import { type AnyAgent } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
-import { getCurrentDate } from "../lib/get-current-date";
-import { isToolPart } from "../lib/is-tool-part";
-import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
-import { prepareModelMessages } from "../lib/prepare-model-messages";
-import { Store } from "../lib/store";
-import { getWorkspaceConfig } from "../lib/workspace-config";
-import { getWorkspaceServerURL } from "../logic/server/url";
-import { type SessionMessage } from "../schemas/session/message";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { StoreId } from "../schemas/store-id";
-import { ToolNameSchema } from "../tools/name";
+import {
+  type AnyAgent,
+} from "../agents/types";
+import {
+  type AppConfig,
+} from "../lib/app-config/types";
+import {
+  getCurrentDate,
+} from "../lib/get-current-date";
+import {
+  isToolPart,
+} from "../lib/is-tool-part";
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+} from "../lib/llm-token-limits";
+import {
+  prepareModelMessages,
+} from "../lib/prepare-model-messages";
+import {
+  Store,
+} from "../lib/store";
+import {
+  getWorkspaceConfig,
+} from "../lib/workspace-config";
+import {
+  getWorkspaceServerURL,
+} from "../logic/server/url";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  ToolNameSchema,
+} from "../tools/name";
 
 interface LLMRequestInput {
   agent: AnyAgent;

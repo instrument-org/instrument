@@ -1,11 +1,26 @@
-import { Hono } from "hono";
-import { html } from "hono/html";
-import { proxy } from "hono/proxy";
+import {
+  Hono,
+} from "hono";
+import {
+  html,
+} from "hono/html";
+import {
+  proxy,
+} from "hono/proxy";
 
-import { FALLBACK_PAGE_META_NAME, SHIM_SCRIPT_PATH } from "../constants";
-import { RuntimeList } from "../runtime-list";
-import { type WorkspaceServerEnv } from "../types";
-import { uriDetailsForHost } from "../uri-details-for-host";
+import {
+  FALLBACK_PAGE_META_NAME,
+  SHIM_SCRIPT_PATH,
+} from "../constants";
+import {
+  RuntimeList,
+} from "../runtime-list";
+import {
+  type WorkspaceServerEnv,
+} from "../types";
+import {
+  uriDetailsForHost,
+} from "../uri-details-for-host";
 
 const SHIM_SCRIPT = html`<script
   src="${SHIM_SCRIPT_PATH}"

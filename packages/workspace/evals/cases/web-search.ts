@@ -1,5 +1,10 @@
-import { type SessionMessagePart } from "../../src/schemas/session/message-part";
-import { type Assertion, defineEval } from "../harness";
+import {
+  type SessionMessagePart,
+} from "../../src/schemas/session/message-part";
+import {
+  type Assertion,
+  defineEval,
+} from "../harness";
 
 const stopOnWebSearch = (part: SessionMessagePart.Type) =>
   part.type === "tool-web_search" &&

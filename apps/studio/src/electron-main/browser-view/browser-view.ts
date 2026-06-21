@@ -1,11 +1,16 @@
-import { type ProjectSubdomain } from "@instrument-org/workspace/electron";
-import { type Session, WebContentsView } from "electron";
+import {
+  type TaskId,
+} from "@instrument-org/workspace/electron";
+import {
+  type Session,
+  WebContentsView,
+} from "electron";
 
 export function createBrowserView({
   session,
 }: {
   session: Session;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }): {
   destroyView: () => void;
   view: WebContentsView;

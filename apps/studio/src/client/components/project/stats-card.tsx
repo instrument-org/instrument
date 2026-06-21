@@ -1,12 +1,7 @@
 import { TaskIcon } from "@/client/components/task-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
-import {
-  CalendarIcon,
-  ChatTextIcon,
-  ClockIcon,
-  FileTextIcon,
-} from "@phosphor-icons/react";
+import { CalendarIcon, ChatTextIcon, ClockIcon, FileTextIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 

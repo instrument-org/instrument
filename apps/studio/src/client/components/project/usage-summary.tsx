@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { Skeleton } from "../ui/skeleton";
@@ -10,7 +10,7 @@ export function ProjectUsageSummary({
   subdomain,
 }: {
   onClick?: () => void;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const { data } = useQuery(
     rpcClient.workspace.project.live.usageSummary.experimental_liveOptions({

@@ -1,4 +1,6 @@
-import { useRouter } from "@tanstack/react-router";
+import {
+  useRouter,
+} from "@tanstack/react-router";
 
 export function useMatchesForPathname(pathname: string) {
   const router = useRouter();

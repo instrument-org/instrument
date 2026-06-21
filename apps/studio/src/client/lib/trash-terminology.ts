@@ -1,4 +1,6 @@
-import { isWindows } from "./utils";
+import {
+  isWindows,
+} from "./utils";
 
 export function getTrashTerminology(): string {
   return isWindows() ? "Recycle Bin" : "Trash";

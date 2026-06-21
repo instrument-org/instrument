@@ -1,22 +1,39 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-import { StoreId } from "../schemas/store-id";
 import {
-  type ProjectSubdomain,
-  ProjectSubdomainSchema,
-} from "../schemas/subdomains";
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
-import { taskDir } from "./app-dir-utils";
-import { getBrowserState, recordBrowserUse } from "./browser-state";
-import { disposeSessionsStoreStorage } from "./session-store-storage";
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-const subdomain = ProjectSubdomainSchema.parse("browser-state-test");
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  type TaskId,
+  TaskIdSchema,
+} from "../schemas/task-id";
+import {
+  createMockAppConfigForDir,
+} from "../test/helpers/mock-app-config";
+import {
+  taskDir,
+} from "./app-dir-utils";
+import {
+  getBrowserState,
+  recordBrowserUse,
+} from "./browser-state";
+import {
+  disposeSessionsStoreStorage,
+} from "./session-store-storage";
+
+const subdomain = TaskIdSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();
 
-let appConfig: ProjectSubdomain;
+let appConfig: TaskId;
 let root: string;
 
 beforeEach(async () => {

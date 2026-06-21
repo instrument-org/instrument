@@ -2,7 +2,7 @@ import type {
   SupportedEditor,
   SupportedEditorId,
 } from "@/shared/schemas/editors";
-import type { ProjectSubdomain } from "@instrument-org/workspace/client";
+import type { TaskId } from "@instrument-org/workspace/client";
 
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
@@ -12,21 +12,8 @@ import { FolderOpenIcon, TerminalWindowIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import {
-  Alacritty,
-  CMD,
-  Cursor,
-  ITerm,
-  MacOSTerminal,
-  VSCode,
-} from "../service-icons";
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "../ui/dropdown-menu";
+import { Alacritty, CMD, Cursor, ITerm, MacOSTerminal, VSCode } from "../service-icons";
+import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "../ui/dropdown-menu";
 
 const EDITOR_ICON_MAP: Record<
   SupportedEditorId,
@@ -50,7 +37,7 @@ const devSubItemClass =
 export function ProjectOpenInSubmenu({
   subdomain,
 }: {
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const { data: supportedEditors = [] } = useQuery<SupportedEditor[]>(
     rpcClient.utils.getSupportedEditors.queryOptions(),

@@ -1,13 +1,19 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
-import { type TabIconName } from "@instrument-org/shared/icons";
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
+import {
+  APP_NAME_SLUG,
+} from "@instrument-org/shared";
+import {
+  type TabIconName,
+} from "@instrument-org/shared/icons";
+import {
+  type TaskId,
+} from "@instrument-org/workspace/client";
 
 export interface Tab {
   iconName?: TabIconName;
   id: string;
   pathname: string;
   pinned?: boolean;
-  projectSubdomain?: ProjectSubdomain;
+  projectSubdomain?: TaskId;
   tabBarHidden?: boolean;
   title?: string;
 }
@@ -31,7 +37,7 @@ export function createIconMeta(icon: TabIconName) {
   };
 }
 
-export function createProjectSubdomainMeta(subdomain: ProjectSubdomain) {
+export function createProjectSubdomainMeta(subdomain: TaskId) {
   return {
     content: subdomain,
     name: META_TAGS.projectSubdomain,

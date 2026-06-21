@@ -1,8 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
-import { parseRipgrepLines, spawnRipgrep } from "./ripgrep";
+import {
+  type AbsolutePath,
+  AbsolutePathSchema,
+} from "../schemas/paths";
+import {
+  parseRipgrepLines,
+  spawnRipgrep,
+} from "./ripgrep";
 
 export async function glob(options: {
   absolute: true;

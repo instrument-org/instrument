@@ -1,5 +1,9 @@
-import { publisher } from "@/electron-main/rpc/publisher";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  getMainWindow,
+} from "@/electron-main/windows/main/instance";
 import {
   app,
   BrowserWindow,
@@ -7,8 +11,12 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 
-import { createMainWindowMenu } from "./main-window";
-import { createOtherWindowMenu } from "./other-window";
+import {
+  createMainWindowMenu,
+} from "./main-window";
+import {
+  createOtherWindowMenu,
+} from "./other-window";
 
 export function createApplicationMenu(): void {
   updateApplicationMenu();

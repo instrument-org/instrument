@@ -1,19 +1,40 @@
-import { call, eventIterator } from "@orpc/server";
-import { isEqual } from "radashi";
-import { ulid } from "ulid";
-import { z } from "zod";
+import {
+  call,
+  eventIterator,
+} from "@orpc/server";
+import {
+  isEqual,
+} from "radashi";
+import {
+  ulid,
+} from "ulid";
+import {
+  z,
+} from "zod";
 
-import { createAppConfig } from "../../lib/app-config/create";
-import { redactWorkspacePaths } from "../../lib/redact-workspace-paths";
-import { RuntimeLogEntrySchema } from "../../machines/runtime";
-import { AppSubdomainSchema } from "../../schemas/subdomains";
-import { base } from "../base";
-import { publisher } from "../publisher";
+import {
+  createAppConfig,
+} from "../../lib/app-config/create";
+import {
+  redactWorkspacePaths,
+} from "../../lib/redact-workspace-paths";
+import {
+  RuntimeLogEntrySchema,
+} from "../../machines/runtime";
+import {
+  TaskIdSchema,
+} from "../../schemas/task-id";
+import {
+  base,
+} from "../base";
+import {
+  publisher,
+} from "../publisher";
 
 const restart = base
   .input(
     z.object({
-      appSubdomain: AppSubdomainSchema,
+      appSubdomain: TaskIdSchema,
     }),
   )
   .handler(({ context, input }) => {
@@ -28,7 +49,7 @@ const restart = base
 const clearLogs = base
   .input(
     z.object({
-      appSubdomain: AppSubdomainSchema,
+      appSubdomain: TaskIdSchema,
     }),
   )
   .handler(({ context, input }) => {
@@ -48,7 +69,7 @@ const logList = base
   .input(
     z.object({
       limit: z.number().optional().default(1000),
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(RuntimeLogEntrySchemaWithTruncation.array())
@@ -92,7 +113,7 @@ const logLiveList = base
   .input(
     z.object({
       limit: z.number().optional().default(1000),
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(eventIterator(RuntimeLogEntrySchemaWithTruncation.array()))

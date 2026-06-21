@@ -1,10 +1,19 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { APP_FOLDER_NAMES } from "../../src/constants";
-import { type AppConfig } from "../../src/lib/app-config/types";
-import { taskDir } from "../../src/lib/app-dir-utils";
-import { type Assertion, defineEval } from "../harness";
+import {
+  APP_FOLDER_NAMES,
+} from "../../src/constants";
+import {
+  type AppConfig,
+} from "../../src/lib/app-config/types";
+import {
+  taskDir,
+} from "../../src/lib/app-dir-utils";
+import {
+  type Assertion,
+  defineEval,
+} from "../harness";
 
 const assertHasOutputMarkdown: Assertion = {
   check: async ({ appConfig }) => {

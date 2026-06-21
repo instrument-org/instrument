@@ -1,8 +1,16 @@
-import { logger } from "@/electron-main/lib/electron-logger";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  logger,
+} from "@/electron-main/lib/electron-logger";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  AIGatewayModelURI,
+} from "@instrument-org/ai-gateway";
 import Store from "electron-store";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
 function getDefaultEnableUsageMetrics() {
   return process.env.ELECTRON_USE_NEW_USER_FOLDER !== "true";

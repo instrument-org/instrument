@@ -1,12 +1,25 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
-import { getPreferencesStore, isDeveloperMode } from "../stores/preferences";
-import { captureServerEvent } from "./capture-server-event";
-import { logger } from "./electron-logger";
-import { addServerException } from "./server-exceptions";
-import { telemetry } from "./telemetry";
+import {
+  getPreferencesStore,
+  isDeveloperMode,
+} from "../stores/preferences";
+import {
+  captureServerEvent,
+} from "./capture-server-event";
+import {
+  logger,
+} from "./electron-logger";
+import {
+  addServerException,
+} from "./server-exceptions";
+import {
+  telemetry,
+} from "./telemetry";
 
 let DID_ATTEMPT_QUIT_CAPTURE = false;
 

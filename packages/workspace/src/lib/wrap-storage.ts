@@ -1,7 +1,13 @@
-import { ResultAsync } from "neverthrow";
-import { type Storage } from "unstorage";
+import {
+  ResultAsync,
+} from "neverthrow";
+import {
+  type Storage,
+} from "unstorage";
 
-import { TypedError } from "./errors";
+import {
+  TypedError,
+} from "./errors";
 
 export interface WrappedStorage {
   dispose: Storage["dispose"];

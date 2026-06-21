@@ -1,4 +1,7 @@
-import { APP_NAME_SLUG, PORTS } from "@instrument-org/shared";
+import {
+  APP_NAME_SLUG,
+  PORTS,
+} from "@instrument-org/shared";
 
 const IS_TEST = process.env.NODE_ENV === "test";
 const IS_DEVELOPMENT = process.env.NODE_ENV === "development";

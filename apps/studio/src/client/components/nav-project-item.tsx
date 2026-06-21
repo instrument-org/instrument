@@ -1,31 +1,11 @@
 import { InternalLink } from "@/client/components/internal-link";
 import { TaskIcon } from "@/client/components/task-icon";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/client/components/ui/dropdown-menu";
 import { Input } from "@/client/components/ui/input";
-import {
-  SidebarMenuAction,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/client/components/ui/sidebar";
+import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "@/client/components/ui/sidebar";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type ProjectSubdomain,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
-import {
-  ArrowUpRightIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-  PencilSimpleLineIcon,
-  StarIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { type TaskId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { ArrowUpRightIcon, CopyIcon, DotsThreeOutlineVerticalIcon, PencilSimpleLineIcon, StarIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { memo, useEffect, useRef, useState } from "react";
 
@@ -35,8 +15,8 @@ interface NavProjectItemProps {
   isActive: boolean;
   isFavorited: boolean;
   isFavorites: boolean;
-  onOpenInNewTab: (subdomain: ProjectSubdomain) => void;
-  onRemoveFavorite?: (subdomain: ProjectSubdomain) => void;
+  onOpenInNewTab: (subdomain: TaskId) => void;
+  onRemoveFavorite?: (subdomain: TaskId) => void;
   project: WorkspaceAppProject;
 }
 

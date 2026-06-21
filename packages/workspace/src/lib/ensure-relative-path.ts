@@ -1,7 +1,13 @@
-import { ok } from "neverthrow";
+import {
+  ok,
+} from "neverthrow";
 
-import { executeError } from "./execute-error";
-import { fixRelativePath } from "./fix-relative-path";
+import {
+  executeError,
+} from "./execute-error";
+import {
+  fixRelativePath,
+} from "./fix-relative-path";
 
 export function ensureRelativePath(inputPath: string) {
   const fixedPath = fixRelativePath(inputPath);

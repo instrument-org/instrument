@@ -1,6 +1,13 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
-import { OUR_MODELS } from "@instrument-org/shared";
-import { fork, listify } from "radashi";
+import {
+  type AIGatewayModel,
+} from "@instrument-org/ai-gateway/client";
+import {
+  OUR_MODELS,
+} from "@instrument-org/shared";
+import {
+  fork,
+  listify,
+} from "radashi";
 
 export interface GroupedModels {
   Legacy: AIGatewayModel.Type[];

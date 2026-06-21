@@ -4,16 +4,32 @@ import {
   type ExecResult,
   latin1FromBytes,
 } from "just-bash";
-import { dedent } from "radashi";
+import {
+  dedent,
+} from "radashi";
 
 import type { AppConfig } from "../app-config/types";
 
-import { absolutePathJoin } from "../absolute-path-join";
-import { taskDir } from "../app-dir-utils";
-import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
-import { systemNote } from "../system-note";
-import { createTsCommand, TS_COMMAND } from "./ts";
-import { resolveCommandContext } from "./utils";
+import {
+  absolutePathJoin,
+} from "../absolute-path-join";
+import {
+  taskDir,
+} from "../app-dir-utils";
+import {
+  PNPM_NAME,
+  runPnpmCommand,
+} from "../run-pnpm";
+import {
+  systemNote,
+} from "../system-note";
+import {
+  createTsCommand,
+  TS_COMMAND,
+} from "./ts";
+import {
+  resolveCommandContext,
+} from "./utils";
 
 export const PNPM_COMMAND = {
   description:

@@ -2,37 +2,17 @@ import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { ModelBadges } from "@/client/components/model-badges";
 import { NewTabHelpMessage } from "@/client/components/new-tab-help-message";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/client/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/client/components/ui/command";
 import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { Textarea } from "@/client/components/ui/textarea";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
-import {
-  getGroupedModelsEntries,
-  groupAndFilterModels,
-  type GroupedModels,
-} from "@/client/lib/group-models";
+import { getGroupedModelsEntries, groupAndFilterModels, type GroupedModels } from "@/client/lib/group-models";
 import { rpcClient } from "@/client/rpc/client";
 import { CUSTOM_EVAL_TEMPLATE_NAME } from "@/shared/evals";
 import { createIconMeta } from "@/shared/tabs";

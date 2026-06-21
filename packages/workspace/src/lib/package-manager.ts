@@ -1,4 +1,6 @@
-import { type Info } from "@netlify/build-info/node";
+import {
+  type Info,
+} from "@netlify/build-info/node";
 
 type PackageManagerName = NonNullable<Info["packageManager"]>["name"];
 

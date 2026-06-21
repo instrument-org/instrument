@@ -4,17 +4,30 @@ import {
   type BrowserTarget,
   type BrowserTargetId,
   encodeBrowserTargetId,
-  type ProjectSubdomain,
   type StoreId,
+  type TaskId,
 } from "@instrument-org/workspace/electron";
-import { session } from "electron";
+import {
+  session,
+} from "electron";
 import fs from "node:fs";
-import { noop } from "radashi";
+import {
+  noop,
+} from "radashi";
 
-import { getTabsManager } from "../tabs";
-import { createBrowserView } from "./browser-view";
-import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
-import { sendCommand } from "./dispatch-command";
+import {
+  getTabsManager,
+} from "../tabs";
+import {
+  createBrowserView,
+} from "./browser-view";
+import {
+  attachDevHooks,
+  notifyDebugChange,
+} from "./dev-hooks";
+import {
+  sendCommand,
+} from "./dispatch-command";
 import {
   attachDownloadHandler,
   captureDownloadWillBeginGuid,
@@ -26,8 +39,12 @@ import {
   handleDetach,
   subscribeEvents,
 } from "./entry";
-import { log } from "./log";
-import { stopScreencast } from "./screencast";
+import {
+  log,
+} from "./log";
+import {
+  stopScreencast,
+} from "./screencast";
 
 export interface BrowserViewManager {
   browser: BrowserConfig;
@@ -70,7 +87,7 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   function createTarget(
-    subdomain: ProjectSubdomain,
+    subdomain: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ): Promise<{ targetId: BrowserTargetId }> {
@@ -217,7 +234,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
   }
 
-  function listTargets(subdomain: ProjectSubdomain): Promise<BrowserTarget[]> {
+  function listTargets(subdomain: TaskId): Promise<BrowserTarget[]> {
     const targets: BrowserTarget[] = [];
 
     for (const [targetId, entry] of entries) {

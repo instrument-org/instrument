@@ -1,11 +1,26 @@
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
+import {
+  type TaskId,
+} from "@instrument-org/workspace/client";
+import {
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  useNavigate,
+} from "@tanstack/react-router";
+import {
+  useCallback,
+} from "react";
 
-import { rpcClient } from "../rpc/client";
-import { useTabActions } from "./use-tab-actions";
-import { useTabs } from "./use-tabs";
+import {
+  rpcClient,
+} from "../rpc/client";
+import {
+  useTabActions,
+} from "./use-tab-actions";
+import {
+  useTabs,
+} from "./use-tabs";
 
 export function useTrashApp({
   navigateOnDelete,
@@ -21,7 +36,7 @@ export function useTrashApp({
   const navigate = useNavigate();
 
   const trashApp = useCallback(
-    async (projectSubdomain: ProjectSubdomain) => {
+    async (projectSubdomain: TaskId) => {
       await trashProjectMutation.mutateAsync({
         subdomain: projectSubdomain,
       });

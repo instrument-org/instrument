@@ -1,6 +1,12 @@
-import { OUR_MODELS } from "@instrument-org/shared";
-import { type SessionMessage } from "@instrument-org/workspace/client";
-import { z } from "zod";
+import {
+  OUR_MODELS,
+} from "@instrument-org/shared";
+import {
+  type SessionMessage,
+} from "@instrument-org/workspace/client";
+import {
+  z,
+} from "zod";
 
 const platformApiErrorResponseSchema = z
   .string()

@@ -1,19 +1,30 @@
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
-import { type GetProviderConfigs } from "@instrument-org/ai-gateway";
+import {
+  type GetProviderConfigs,
+} from "@instrument-org/ai-gateway";
 import {
   type CaptureEventFunction,
   type CaptureExceptionFunction,
 } from "@instrument-org/shared";
-import { z } from "zod";
-
-import { type APP_STATUSES } from "./constants";
-import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
-import { StoreId } from "./schemas/store-id";
 import {
-  type ProjectSubdomain,
-  ProjectSubdomainSchema,
-} from "./schemas/subdomains";
+  z,
+} from "zod";
+
+import {
+  type APP_STATUSES,
+} from "./constants";
+import {
+  type AbsolutePath,
+  type WorkspaceDir,
+} from "./schemas/paths";
+import {
+  StoreId,
+} from "./schemas/store-id";
+import {
+  type TaskId,
+  TaskIdSchema,
+} from "./schemas/task-id";
 
 export type AppStatus = (typeof APP_STATUSES)[number];
 
@@ -21,16 +32,16 @@ export interface BrowserConfig {
   captureScreenshot: (targetId: BrowserTargetId) => Promise<Buffer | undefined>;
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
   createTarget: (
-    subdomain: ProjectSubdomain,
+    subdomain: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ) => Promise<{ targetId: BrowserTargetId }>;
   getTargetMeta: (targetId: BrowserTargetId) => null | {
     partitionDir: AbsolutePath;
     sessionId: StoreId.Session;
-    subdomain: ProjectSubdomain;
+    subdomain: TaskId;
   };
-  listTargets: (subdomain: ProjectSubdomain) => Promise<BrowserTarget[]>;
+  listTargets: (subdomain: TaskId) => Promise<BrowserTarget[]>;
   onTargetDestroyed: (
     targetId: BrowserTargetId,
     listener: () => void,
@@ -62,11 +73,11 @@ export interface BrowserTarget {
 
 // The bridge routing key for a single browser view: a (subdomain, sessionId)
 // tuple encoded as `${subdomain}/${sessionId}`. The schema delegates to the
-// existing ProjectSubdomain and StoreId.Session validators so a parse failure
+// existing TaskId and StoreId.Session validators so a parse failure
 // pinpoints the offending half. Use `encodeBrowserTargetId` /
 // `decodeBrowserTargetId` to construct or parse one; never build by hand.
 export const BrowserTargetIdSchema = z
-  .custom<`${ProjectSubdomain}/${StoreId.Session}`>()
+  .custom<`${TaskId}/${StoreId.Session}`>()
   .superRefine((val, ctx) => {
     if (typeof val !== "string") {
       ctx.addIssue({
@@ -88,7 +99,7 @@ export const BrowserTargetIdSchema = z
       });
       return;
     }
-    const subdomainResult = ProjectSubdomainSchema.safeParse(
+    const subdomainResult = TaskIdSchema.safeParse(
       val.slice(0, slash),
     );
     if (!subdomainResult.success) {
@@ -140,7 +151,7 @@ type CdpSendArgs<M extends CdpMethod> =
 
 export function decodeBrowserTargetId(
   targetId: string,
-): null | { sessionId: StoreId.Session; subdomain: ProjectSubdomain } {
+): null | { sessionId: StoreId.Session; subdomain: TaskId } {
   const result = BrowserTargetIdSchema.safeParse(targetId);
   if (!result.success) {
     return null;
@@ -148,12 +159,12 @@ export function decodeBrowserTargetId(
   const slash = result.data.indexOf("/");
   return {
     sessionId: result.data.slice(slash + 1) as StoreId.Session,
-    subdomain: result.data.slice(0, slash) as ProjectSubdomain,
+    subdomain: result.data.slice(0, slash) as TaskId,
   };
 }
 
 export function encodeBrowserTargetId(
-  subdomain: ProjectSubdomain,
+  subdomain: TaskId,
   sessionId: StoreId.Session,
 ): BrowserTargetId {
   return BrowserTargetIdSchema.parse(`${subdomain}/${sessionId}`);

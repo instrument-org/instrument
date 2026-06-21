@@ -3,18 +3,41 @@ import "./lib/define-globals-apply";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { parseArgs } from "node:util";
-import { ulid } from "ulid";
+import {
+  parseArgs,
+} from "node:util";
+import {
+  ulid,
+} from "ulid";
 
-import { createAppConfig } from "../src/lib/app-config/create";
-import { extractProjectZip } from "../src/lib/extract-project-zip";
-import { getProjectManifest } from "../src/lib/project-manifest";
-import { getSessionMarkdown } from "../src/lib/session-to-markdown";
-import { Store } from "../src/lib/store";
-import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { AbsolutePathSchema, AppDirSchema } from "../src/schemas/paths";
-import { ProjectSubdomainSchema } from "../src/schemas/subdomains";
-import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
+import {
+  createAppConfig,
+} from "../src/lib/app-config/create";
+import {
+  extractProjectZip,
+} from "../src/lib/extract-project-zip";
+import {
+  getProjectManifest,
+} from "../src/lib/project-manifest";
+import {
+  getSessionMarkdown,
+} from "../src/lib/session-to-markdown";
+import {
+  Store,
+} from "../src/lib/store";
+import {
+  setWorkspaceConfig,
+} from "../src/lib/workspace-config";
+import {
+  AbsolutePathSchema,
+  AppDirSchema,
+} from "../src/schemas/paths";
+import {
+  TaskIdSchema,
+} from "../src/schemas/task-id";
+import {
+  createStubWorkspaceConfig,
+} from "./lib/stub-workspace-config";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -61,7 +84,7 @@ if (isZip) {
 
 const manifest = await getProjectManifest(appDir);
 const folderName = path.basename(appDir);
-const subdomain = ProjectSubdomainSchema.parse(folderName);
+const subdomain = TaskIdSchema.parse(folderName);
 setWorkspaceConfig(createStubWorkspaceConfig({ projectsDir }));
 const appConfig = createAppConfig({ subdomain });
 

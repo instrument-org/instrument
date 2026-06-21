@@ -1,7 +1,4 @@
-import {
-  type ProjectSubdomain,
-  type SessionTag,
-} from "@instrument-org/workspace/client";
+import { type SessionTag, type TaskId } from "@instrument-org/workspace/client";
 import { PauseIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -41,7 +38,7 @@ export function TaskStatusIcon({
   subdomain,
 }: {
   className?: string;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const { data: appState } = useAppState({ subdomain });
   const { data: replayStatus } = useQuery(

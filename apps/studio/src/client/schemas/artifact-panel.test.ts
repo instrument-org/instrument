@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { artifactPanelSchema } from "./artifact-panel";
+import {
+  artifactPanelSchema,
+} from "./artifact-panel";
 
 describe("artifactPanelSchema", () => {
   it("accepts a plain relative file path", () => {

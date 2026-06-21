@@ -1,10 +1,10 @@
 import {
-  type ProjectSubdomain,
-  ProjectSubdomainSchema,
-} from "../schemas/subdomains";
+  type TaskId,
+  TaskIdSchema,
+} from "../schemas/task-id";
 
 export function isProjectSubdomain(
   subdomain: string,
-): subdomain is ProjectSubdomain {
-  return ProjectSubdomainSchema.safeParse(subdomain).success;
+): subdomain is TaskId {
+  return TaskIdSchema.safeParse(subdomain).success;
 }

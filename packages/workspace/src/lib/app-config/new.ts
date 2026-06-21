@@ -1,11 +1,27 @@
-import { type SubdomainPart } from "../../schemas/subdomain-part";
-import { ProjectSubdomainSchema } from "../../schemas/subdomains";
-import { type WorkspaceConfig } from "../../types";
-import { absolutePathJoin } from "../absolute-path-join";
-import { generateNewFolderName } from "../generate-folder-name";
-import { pathExists } from "../path-exists";
-import { createAppConfig } from "./create";
-import { type AppConfigProject } from "./types";
+import {
+  type SubdomainPart,
+} from "../../schemas/subdomain-part";
+import {
+  TaskIdSchema,
+} from "../../schemas/task-id";
+import {
+  type WorkspaceConfig,
+} from "../../types";
+import {
+  absolutePathJoin,
+} from "../absolute-path-join";
+import {
+  generateNewFolderName,
+} from "../generate-folder-name";
+import {
+  pathExists,
+} from "../path-exists";
+import {
+  createAppConfig,
+} from "./create";
+import {
+  type AppConfigProject,
+} from "./types";
 
 export async function newProjectConfig({
   preferredFolderName,
@@ -23,6 +39,6 @@ export async function newProjectConfig({
       : await generateNewFolderName(workspaceConfig.projectsDir);
 
   return createAppConfig({
-    subdomain: ProjectSubdomainSchema.parse(rawSubdomain),
+    subdomain: TaskIdSchema.parse(rawSubdomain),
   });
 }

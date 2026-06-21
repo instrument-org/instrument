@@ -1,69 +1,76 @@
-import { EventPublisher } from "@orpc/server";
-
-import { type WorkspaceSnapshot } from "../machines/workspace";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { type StoreId } from "../schemas/store-id";
 import {
-  type AppSubdomain,
-  type ProjectSubdomain,
-} from "../schemas/subdomains";
+  EventPublisher,
+} from "@orpc/server";
+
+import {
+  type WorkspaceSnapshot,
+} from "../machines/workspace";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  type StoreId,
+} from "../schemas/store-id";
+import {
+  type TaskId,
+} from "../schemas/task-id";
 
 export const publisher = new EventPublisher<{
   "appState.session.added": {
     sessionId: StoreId.Session;
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "appState.session.done": {
     sessionId: StoreId.Session;
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "appState.session.tagsChanged": {
     sessionId: StoreId.Session;
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "message.removed": {
     messageId: StoreId.Message;
     sessionId: StoreId.Session;
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "message.updated": {
     messageId: StoreId.Message;
     sessionId: StoreId.Session;
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "part.updated": {
     part: SessionMessagePart.Type;
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "project.files.changed": {
-    subdomain: ProjectSubdomain;
+    subdomain: TaskId;
   };
   "project.outputArtifactsCreated": {
     files: { filePath: string; modifiedAt: number }[];
     sessionId: StoreId.Session;
-    subdomain: ProjectSubdomain;
+    subdomain: TaskId;
   };
   "project.removed": {
-    subdomain: ProjectSubdomain;
+    subdomain: TaskId;
   };
   "project.updated": {
-    subdomain: ProjectSubdomain;
+    subdomain: TaskId;
   };
   "replay.changed": {
     isActive: boolean;
     sessionId: StoreId.Session;
-    subdomain: ProjectSubdomain;
+    subdomain: TaskId;
   };
   "runtime.log.updated": {
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "session.removed": {
     sessionId: StoreId.Session;
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "session.updated": {
     sessionId: StoreId.Session;
-    subdomain: AppSubdomain;
+    subdomain: TaskId;
   };
   "workspaceActor.snapshot": WorkspaceSnapshot;
 }>({

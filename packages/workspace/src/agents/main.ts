@@ -1,36 +1,88 @@
-import { APP_NAME } from "@instrument-org/shared";
-import { err, ok, safeTry } from "neverthrow";
-import { dedent, pick } from "radashi";
+import {
+  APP_NAME,
+} from "@instrument-org/shared";
+import {
+  err,
+  ok,
+  safeTry,
+} from "neverthrow";
+import {
+  dedent,
+  pick,
+} from "radashi";
 
 import {
   APP_FOLDER_NAMES as F,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
-import { taskDir } from "../lib/app-dir-utils";
-import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
-import { TypedError } from "../lib/errors";
-import { setFileIndexBaseline } from "../lib/file-index-baseline";
-import { getCurrentDate } from "../lib/get-current-date";
-import { outputArtifactsFromChanges } from "../lib/get-project-files";
-import { isToolPart } from "../lib/is-tool-part";
-import { pathExists } from "../lib/path-exists";
+import {
+  absolutePathJoin,
+} from "../lib/absolute-path-join";
+import {
+  taskDir,
+} from "../lib/app-dir-utils";
+import {
+  buildAttachedFoldersText,
+} from "../lib/build-attached-folders-text";
+import {
+  TypedError,
+} from "../lib/errors";
+import {
+  setFileIndexBaseline,
+} from "../lib/file-index-baseline";
+import {
+  getCurrentDate,
+} from "../lib/get-current-date";
+import {
+  outputArtifactsFromChanges,
+} from "../lib/get-project-files";
+import {
+  isToolPart,
+} from "../lib/is-tool-part";
+import {
+  pathExists,
+} from "../lib/path-exists";
 import {
   beginTurnChangeTracking,
   consumeTurnChanges,
 } from "../lib/project-file-watcher";
-import { getProjectState } from "../lib/project-state-store";
-import { readFileWithAnyCase } from "../lib/read-file-with-any-case";
-import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
-import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
-import { TS_COMMAND } from "../lib/shell-commands/ts";
-import { TSC_COMMAND } from "../lib/shell-commands/tsc";
-import { Store } from "../lib/store";
-import { getWorkspaceConfig } from "../lib/workspace-config";
-import { publisher } from "../rpc/publisher";
-import { StoreId } from "../schemas/store-id";
-import { getToolByType, TOOLS } from "../tools/all";
-import { setupAgent } from "./create-agent";
+import {
+  getProjectState,
+} from "../lib/project-state-store";
+import {
+  readFileWithAnyCase,
+} from "../lib/read-file-with-any-case";
+import {
+  AGENT_BROWSER_COMMAND,
+} from "../lib/shell-commands/agent-browser";
+import {
+  PNPM_COMMAND,
+} from "../lib/shell-commands/pnpm";
+import {
+  TS_COMMAND,
+} from "../lib/shell-commands/ts";
+import {
+  TSC_COMMAND,
+} from "../lib/shell-commands/tsc";
+import {
+  Store,
+} from "../lib/store";
+import {
+  getWorkspaceConfig,
+} from "../lib/workspace-config";
+import {
+  publisher,
+} from "../rpc/publisher";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  getToolByType,
+  TOOLS,
+} from "../tools/all";
+import {
+  setupAgent,
+} from "./create-agent";
 import {
   createContextMessage,
   createSystemMessage,
@@ -38,7 +90,9 @@ import {
   getSystemInfoText,
   shouldContinueWithToolCalls,
 } from "./shared";
-import { RETRIEVAL_AGENT_NAME } from "./types";
+import {
+  RETRIEVAL_AGENT_NAME,
+} from "./types";
 
 export const mainAgent = setupAgent({
   agentTools: pick(TOOLS, [

@@ -1,5 +1,10 @@
-import { atom, type Atom } from "jotai";
-import { loadable } from "jotai/utils";
+import {
+  atom,
+  type Atom,
+} from "jotai";
+import {
+  loadable,
+} from "jotai/utils";
 
 export function atomWithoutSuspense<T>(
   asyncAtom: Atom<Promise<T>>,

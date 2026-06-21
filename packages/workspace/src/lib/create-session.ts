@@ -1,8 +1,18 @@
-import { type StoreId } from "../schemas/store-id";
-import { type AppConfig } from "./app-config/types";
-import { generateSessionTitle } from "./generate-session-title";
-import { Store } from "./store";
-import { getWorkspaceConfig } from "./workspace-config";
+import {
+  type StoreId,
+} from "../schemas/store-id";
+import {
+  type AppConfig,
+} from "./app-config/types";
+import {
+  generateSessionTitle,
+} from "./generate-session-title";
+import {
+  Store,
+} from "./store";
+import {
+  getWorkspaceConfig,
+} from "./workspace-config";
 
 export async function createSession({
   appConfig,

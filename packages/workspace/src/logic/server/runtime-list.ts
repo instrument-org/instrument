@@ -1,16 +1,38 @@
-import { html } from "hono/html";
+import {
+  html,
+} from "hono/html";
 import path from "node:path";
 
-import { createAppConfig } from "../../lib/app-config/create";
-import { type AppConfig } from "../../lib/app-config/types";
-import { taskDir } from "../../lib/app-dir-utils";
-import { getProjects } from "../../lib/get-apps";
-import { getWorkspaceConfig } from "../../lib/workspace-config";
-import { type RuntimeActorRef } from "../../machines/runtime";
-import { type WorkspaceApp } from "../../schemas/app";
-import { type AppSubdomain } from "../../schemas/subdomains";
-import { type WorkspaceConfig } from "../../types";
-import { getWorkspaceServerPort } from "./url";
+import {
+  createAppConfig,
+} from "../../lib/app-config/create";
+import {
+  type AppConfig,
+} from "../../lib/app-config/types";
+import {
+  taskDir,
+} from "../../lib/app-dir-utils";
+import {
+  getProjects,
+} from "../../lib/get-apps";
+import {
+  getWorkspaceConfig,
+} from "../../lib/workspace-config";
+import {
+  type RuntimeActorRef,
+} from "../../machines/runtime";
+import {
+  type WorkspaceApp,
+} from "../../schemas/app";
+import {
+  type TaskId,
+} from "../../schemas/task-id";
+import {
+  type WorkspaceConfig,
+} from "../../types";
+import {
+  getWorkspaceServerPort,
+} from "./url";
 
 interface AppAndStatus {
   app: WorkspaceApp;
@@ -23,7 +45,7 @@ export async function RuntimeList({
   runtimeRefs,
   workspaceConfig,
 }: {
-  runtimeRefs: Map<AppSubdomain, RuntimeActorRef>;
+  runtimeRefs: Map<TaskId, RuntimeActorRef>;
   workspaceConfig: WorkspaceConfig;
 }) {
   const projects = await getProjects(workspaceConfig);
@@ -212,7 +234,7 @@ function getAppWithExtra({
   runtimeRefs,
 }: {
   project: WorkspaceApp;
-  runtimeRefs: Map<AppSubdomain, RuntimeActorRef>;
+  runtimeRefs: Map<TaskId, RuntimeActorRef>;
 }): AppAndStatus {
   const runtimeRef = runtimeRefs.get(app.subdomain);
   const runtimeSnapshot = runtimeRef?.getSnapshot();

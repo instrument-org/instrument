@@ -1,3 +1,5 @@
-import { applyGlobalDefines } from "./define-globals";
+import {
+  applyGlobalDefines,
+} from "./define-globals";
 
 applyGlobalDefines();

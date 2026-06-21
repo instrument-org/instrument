@@ -1,7 +1,15 @@
-import { base } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { type StudioPath } from "@/shared/studio-path";
-import { z } from "zod";
+import {
+  base,
+} from "@/electron-main/rpc/base";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  type StudioPath,
+} from "@/shared/studio-path";
+import {
+  z,
+} from "zod";
 
 const StudioPathSchema = z.custom<StudioPath>(
   (value) => typeof value === "string" && value.startsWith("/"),

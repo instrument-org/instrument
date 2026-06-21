@@ -1,21 +1,51 @@
-import { type InferUITools } from "ai";
-import { type z } from "zod";
+import {
+  type InferUITools,
+} from "ai";
+import {
+  type z,
+} from "zod";
 
 import type { AnyAgentTool, ToolName } from "./types";
 
-import { BashTool } from "./bash";
-import { Choose } from "./choose";
-import { CopyToProject } from "./copy-to-project";
-import { EditFile } from "./edit-file";
-import { GenerateImage } from "./generate-image";
-import { Glob } from "./glob";
-import { Grep } from "./grep";
-import { LoadSkill } from "./load-skill";
-import { ReadFile } from "./read-file";
-import { Task } from "./task";
-import { Unavailable } from "./unavailable";
-import { WebSearch } from "./web-search";
-import { WriteFile } from "./write-file";
+import {
+  BashTool,
+} from "./bash";
+import {
+  Choose,
+} from "./choose";
+import {
+  CopyToProject,
+} from "./copy-to-project";
+import {
+  EditFile,
+} from "./edit-file";
+import {
+  GenerateImage,
+} from "./generate-image";
+import {
+  Glob,
+} from "./glob";
+import {
+  Grep,
+} from "./grep";
+import {
+  LoadSkill,
+} from "./load-skill";
+import {
+  ReadFile,
+} from "./read-file";
+import {
+  Task,
+} from "./task";
+import {
+  Unavailable,
+} from "./unavailable";
+import {
+  WebSearch,
+} from "./web-search";
+import {
+  WriteFile,
+} from "./write-file";
 
 export const TOOLS = {
   BashTool,

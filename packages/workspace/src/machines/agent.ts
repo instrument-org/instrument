@@ -1,6 +1,12 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { SYNTHETIC_MODEL_ID } from "@instrument-org/shared";
-import { type Result } from "neverthrow";
+import {
+  type AIGatewayModel,
+} from "@instrument-org/ai-gateway";
+import {
+  SYNTHETIC_MODEL_ID,
+} from "@instrument-org/shared";
+import {
+  type Result,
+} from "neverthrow";
 import invariant from "tiny-invariant";
 import {
   type ActorRef,
@@ -12,22 +18,55 @@ import {
   setup,
 } from "xstate";
 
-import { type AnyAgent } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
-import { createAssignEventError } from "../lib/assign-event-error";
-import { getCurrentDate } from "../lib/get-current-date";
-import { getErrorAction } from "../lib/get-error-action";
-import { isInteractiveTool } from "../lib/is-interactive-tool";
-import { isToolPart } from "../lib/is-tool-part";
-import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { type SpawnAgentFunction } from "../lib/spawn-agent";
-import { Store } from "../lib/store";
-import { getWorkspaceConfig } from "../lib/workspace-config";
-import { llmRequestLogic } from "../logic/llm-request";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { StoreId } from "../schemas/store-id";
-import { getToolByType, type ToolOutputByName } from "../tools/all";
-import { type AnyAgentTool } from "../tools/types";
+import {
+  type AnyAgent,
+} from "../agents/types";
+import {
+  type AppConfig,
+} from "../lib/app-config/types";
+import {
+  createAssignEventError,
+} from "../lib/assign-event-error";
+import {
+  getCurrentDate,
+} from "../lib/get-current-date";
+import {
+  getErrorAction,
+} from "../lib/get-error-action";
+import {
+  isInteractiveTool,
+} from "../lib/is-interactive-tool";
+import {
+  isToolPart,
+} from "../lib/is-tool-part";
+import {
+  logUnhandledEvent,
+} from "../lib/log-unhandled-event";
+import {
+  type SpawnAgentFunction,
+} from "../lib/spawn-agent";
+import {
+  Store,
+} from "../lib/store";
+import {
+  getWorkspaceConfig,
+} from "../lib/workspace-config";
+import {
+  llmRequestLogic,
+} from "../logic/llm-request";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  getToolByType,
+  type ToolOutputByName,
+} from "../tools/all";
+import {
+  type AnyAgentTool,
+} from "../tools/types";
 import {
   type ExecuteToolCallActorRef,
   executeToolCallMachine,

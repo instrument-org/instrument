@@ -1,4 +1,6 @@
-import { base } from "@/electron-main/rpc/base";
+import {
+  base,
+} from "@/electron-main/rpc/base";
 import {
   StudioOverlayRequestSchema,
   StudioOverlayResultSchema,

@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { isProjectSubdomain } from "./is-app";
+import {
+  isProjectSubdomain,
+} from "./is-app";
 
 describe("isProjectSubdomain", () => {
   it.each([

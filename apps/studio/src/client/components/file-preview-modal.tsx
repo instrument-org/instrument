@@ -1,7 +1,4 @@
-import {
-  closeFilePreviewAtom,
-  filePreviewAtom,
-} from "@/client/atoms/file-preview";
+import { closeFilePreviewAtom, filePreviewAtom } from "@/client/atoms/file-preview";
 import { getFileType } from "@/client/lib/get-file-type";
 import { formatBytes } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react";

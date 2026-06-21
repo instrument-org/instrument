@@ -1,4 +1,4 @@
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon, ChatIcon, CopyIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
@@ -25,7 +25,7 @@ export function FileToolCard({
   filePath: string;
   language?: string;
   modifiedAt?: number;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const { isStreaming } = useToolCallSession();
 

@@ -6,10 +6,15 @@ import type { WebContentsView } from "electron";
 
 import {
   encodeBrowserTargetId,
-  ProjectSubdomainSchema,
   StoreId,
+  TaskIdSchema,
 } from "@instrument-org/workspace/electron";
-import { describe, expect, it, vi } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import {
   type BrowserEntry,
@@ -19,7 +24,7 @@ import {
   subscribeEvents,
 } from "./entry";
 
-const SUBDOMAIN = ProjectSubdomainSchema.parse("agent-browser-test");
+const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
 

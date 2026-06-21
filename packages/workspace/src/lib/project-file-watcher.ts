@@ -17,8 +17,8 @@ import {
   publisher,
 } from "../rpc/publisher";
 import {
-  type AppDir,
   RelativePathSchema,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   type StoreId,
@@ -89,12 +89,12 @@ interface TurnTracker {
 }
 
 interface WatcherEntry {
-  appDir: AppDir;
-  // Realpath of appDir. macOS fs-events reports canonical paths (e.g.
+  // Realpath of dir. macOS fs-events reports canonical paths (e.g.
   // /private/var/...) so we resolve relative paths against this base.
   baseDir: string;
   captureException: CaptureExceptionFunction;
   debounceTimer: null | ReturnType<typeof setTimeout>;
+  dir: TaskDir;
   disposed: boolean;
   fallbackTimer: null | ReturnType<typeof setInterval>;
   // Null until the first seed completes; seeding always precedes event handling.
@@ -237,7 +237,7 @@ export function startWatchingProjectFiles({
     };
   }
 
-  const appDir = taskDir(subdomain);
+  const dir = taskDir(subdomain);
   let resolveReady: () => void = noop;
   const ready = new Promise<void>((resolve) => {
     resolveReady = () => {
@@ -245,10 +245,10 @@ export function startWatchingProjectFiles({
     };
   });
   const entry: WatcherEntry = {
-    appDir,
-    baseDir: appDir,
+    baseDir: dir,
     captureException: workspaceConfig.captureException,
     debounceTimer: null,
+    dir,
     disposed: false,
     fallbackTimer: null,
     ignore: null,
@@ -362,7 +362,7 @@ async function flush(entry: WatcherEntry) {
 /** One-time setup for a new entry: seeds the index, then attaches a parcel subscription or the fallback poll. */
 async function initWatcher(entry: WatcherEntry) {
   try {
-    entry.baseDir = await fs.realpath(entry.appDir).catch(() => entry.appDir);
+    entry.baseDir = await fs.realpath(entry.dir).catch(() => entry.dir);
     await reseed(entry);
   } catch (error) {
     entry.captureException(error);
@@ -478,9 +478,9 @@ function releaseWatcher(subdomain: TaskId) {
 
 /** Rebuilds the ignore matcher and walks disk to produce a fresh, authoritative index; marks the entry seeded. */
 async function reseed(entry: WatcherEntry) {
-  entry.ignore = await getIgnore(entry.appDir);
+  entry.ignore = await getIgnore(entry.dir);
   entry.ignore.add(INTERNAL_IGNORE_PATTERNS);
-  const result = await getProjectFileIndex(entry.appDir);
+  const result = await getProjectFileIndex(entry.dir);
   if (isDisposed(entry)) {
     return;
   }
@@ -505,7 +505,7 @@ function scheduleFlush(entry: WatcherEntry) {
 
 /** Resolves an absolute event path to a POSIX path relative to the task dir, tolerating both the canonical and the original spelling of the base dir. */
 function toRelative(entry: WatcherEntry, absPath: string): string | undefined {
-  for (const base of new Set([entry.appDir, entry.baseDir])) {
+  for (const base of new Set([entry.baseDir, entry.dir])) {
     const relative = normalizePath(path.relative(base, absPath));
     if (relative && relative !== "." && !relative.startsWith("..")) {
       return relative;

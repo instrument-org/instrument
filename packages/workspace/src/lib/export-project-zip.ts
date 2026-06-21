@@ -18,7 +18,7 @@ import {
   SESSIONS_DB_FILE_NAME,
 } from "../constants";
 import {
-  type AppDir,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   absolutePathJoin,
@@ -37,17 +37,17 @@ import {
 } from "./path-exists";
 
 interface ExportProjectZipOptions {
-  appDir: AppDir;
+  dir: TaskDir;
   outputPath: string;
 }
 
 export function exportProjectZip({
-  appDir,
+  dir,
   outputPath,
 }: ExportProjectZipOptions) {
   return safeTry(async function* () {
     const ignore = yield* ResultAsync.fromPromise(
-      getIgnore(appDir, { includeGit: true }),
+      getIgnore(dir, { includeGit: true }),
       (error) =>
         new TypedError.FileSystem(
           `Failed to get ignore patterns: ${error instanceof Error ? error.message : String(error)}`,
@@ -56,7 +56,7 @@ export function exportProjectZip({
     );
 
     const { files } = yield* ResultAsync.fromPromise(
-      filterIgnoredFiles({ ignore, includeGit: true, rootDir: appDir }),
+      filterIgnoredFiles({ ignore, includeGit: true, rootDir: dir }),
       (error) =>
         new TypedError.FileSystem(
           `Failed to filter files: ${error instanceof Error ? error.message : String(error)}`,
@@ -67,7 +67,7 @@ export function exportProjectZip({
     const filesToInclude = new Set(files);
 
     const sessionsDbPath = absolutePathJoin(
-      appDir,
+      dir,
       APP_FOLDER_NAMES.private,
       SESSIONS_DB_FILE_NAME,
     );
@@ -88,7 +88,7 @@ export function exportProjectZip({
         const zipWriter = new ZipWriter(writableStream);
 
         for (const file of filesToInclude) {
-          const fullPath = absolutePathJoin(appDir, file);
+          const fullPath = absolutePathJoin(dir, file);
           const fileStats = await fs.stat(fullPath);
 
           if (fileStats.isFile()) {

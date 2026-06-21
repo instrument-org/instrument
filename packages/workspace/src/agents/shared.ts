@@ -112,8 +112,8 @@ export function createSystemMessage({
   };
 }
 
-export async function getProjectLayoutContext(appDir: AbsolutePath) {
-  const fileTreeResult = await fileTree(appDir);
+export async function getProjectLayoutContext(dir: AbsolutePath) {
+  const fileTreeResult = await fileTree(dir);
 
   return fileTreeResult.match(
     (tree) => dedent`

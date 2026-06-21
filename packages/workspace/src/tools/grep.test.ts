@@ -10,7 +10,7 @@ import {
   FolderAttachment,
 } from "../schemas/folder-attachment";
 import {
-  AppDirSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   createMockAIGatewayModel,
@@ -32,7 +32,7 @@ const model = createMockAIGatewayModel();
 
 function createFixturesAppConfig() {
   return createMockAppConfigForDir(
-    AppDirSchema.parse(
+    TaskDirSchema.parse(
       path.join(import.meta.dirname, "../../fixtures/file-system"),
     ),
     { model },
@@ -467,7 +467,7 @@ describe("Grep", () => {
         createdAt: Date.now(),
         id: FolderAttachment.IdSchema.parse("test-folder-id"),
         name: "Test Folder",
-        path: AppDirSchema.parse(fixturesPath),
+        path: TaskDirSchema.parse(fixturesPath),
       },
     };
 

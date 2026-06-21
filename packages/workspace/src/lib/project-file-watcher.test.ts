@@ -36,16 +36,16 @@ import {
 const subdomain = TaskIdSchema.parse("watcher-test");
 
 let root: string;
-let appDir: string;
+let dir: string;
 let workspaceConfig: WorkspaceConfig;
 
 async function setupTask() {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "watcher-test-"));
   const projectsDir = path.join(root, "projects");
-  appDir = path.join(projectsDir, subdomain);
-  await fs.mkdir(path.join(appDir, "sub"), { recursive: true });
+  dir = path.join(projectsDir, subdomain);
+  await fs.mkdir(path.join(dir, "sub"), { recursive: true });
   // createMockAppConfig publishes the singleton; point it at the temp dir so
-  // the watcher's createAppConfig resolves appDir under it.
+  // the watcher's createAppConfig resolves dir under it.
   createMockAppConfig(subdomain);
   workspaceConfig = {
     ...getWorkspaceConfig(),
@@ -69,17 +69,17 @@ afterEach(async () => {
 describe("project file watcher turn tracking", () => {
   it("classifies added, modified, and deleted files across a turn", async () => {
     await setupTask();
-    await fs.writeFile(path.join(appDir, "a.txt"), "a");
-    await fs.writeFile(path.join(appDir, "sub", "b.txt"), "b");
+    await fs.writeFile(path.join(dir, "a.txt"), "a");
+    await fs.writeFile(path.join(dir, "sub", "b.txt"), "b");
 
     const sessionId = StoreId.newSessionId();
     await beginTurnChangeTracking({ sessionId, subdomain, workspaceConfig });
 
     expect(trackedPaths()).toEqual(["a.txt", "sub/b.txt"]);
 
-    await fs.writeFile(path.join(appDir, "a.txt"), "aaaa");
-    await fs.writeFile(path.join(appDir, "c.txt"), "c");
-    await fs.rm(path.join(appDir, "sub", "b.txt"));
+    await fs.writeFile(path.join(dir, "a.txt"), "aaaa");
+    await fs.writeFile(path.join(dir, "c.txt"), "c");
+    await fs.rm(path.join(dir, "sub", "b.txt"));
 
     const { changes } = await consumeTurnChanges({ sessionId, subdomain });
     expect(
@@ -99,7 +99,7 @@ describe("project file watcher turn tracking", () => {
 
   it("reports no changes for a turn that touches nothing", async () => {
     await setupTask();
-    await fs.writeFile(path.join(appDir, "a.txt"), "a");
+    await fs.writeFile(path.join(dir, "a.txt"), "a");
 
     const sessionId = StoreId.newSessionId();
     await beginTurnChangeTracking({ sessionId, subdomain, workspaceConfig });
@@ -111,12 +111,12 @@ describe("project file watcher turn tracking", () => {
 
   it("ignores files created and deleted within the same turn", async () => {
     await setupTask();
-    await fs.writeFile(path.join(appDir, "a.txt"), "a");
+    await fs.writeFile(path.join(dir, "a.txt"), "a");
 
     const sessionId = StoreId.newSessionId();
     await beginTurnChangeTracking({ sessionId, subdomain, workspaceConfig });
 
-    const ephemeral = path.join(appDir, "ephemeral.txt");
+    const ephemeral = path.join(dir, "ephemeral.txt");
     await fs.writeFile(ephemeral, "x");
     await fs.rm(ephemeral);
 

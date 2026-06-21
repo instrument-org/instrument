@@ -14,7 +14,7 @@ import {
 } from "read-pkg";
 
 import {
-  type AppDir,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   absolutePathJoin,
@@ -175,6 +175,6 @@ export async function getFramework({
   });
 }
 
-function getBinShimPath(appDir: AppDir, command: string) {
-  return absolutePathJoin(appDir, "node_modules", ".bin", command);
+function getBinShimPath(dir: TaskDir, command: string) {
+  return absolutePathJoin(dir, "node_modules", ".bin", command);
 }

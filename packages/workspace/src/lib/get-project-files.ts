@@ -15,8 +15,8 @@ import {
   APP_FOLDER_NAMES,
 } from "../constants";
 import {
-  type AppDir,
   RelativePathSchema,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   type TaskId,
@@ -127,14 +127,14 @@ export function diffProjectFileIndexes({
 }
 
 export async function getProjectFileIndex(
-  appDir: AppDir,
+  dir: TaskDir,
   {
     maxFiles = MAX_PROJECT_FILE_INDEX_FILES,
     signal,
   }: { maxFiles?: number; signal?: AbortSignal } = {},
 ) {
   try {
-    const ignore = await getIgnore(appDir, { signal });
+    const ignore = await getIgnore(dir, { signal });
     ignore.add(INTERNAL_IGNORE_PATTERNS);
 
     const files: ProjectFileEntry[] = [];
@@ -147,8 +147,8 @@ export async function getProjectFileIndex(
       }
 
       const absoluteDir = relativeDir
-        ? absolutePathJoin(appDir, relativeDir)
-        : appDir;
+        ? absolutePathJoin(dir, relativeDir)
+        : dir;
       const entries = await fs.readdir(absoluteDir, {
         withFileTypes: true,
       });
@@ -164,7 +164,7 @@ export async function getProjectFileIndex(
 
         // A filename containing backslashes (treated as separators by
         // normalizePath) can collapse into a traversal path that escapes
-        // appDir. Skip rather than letting lstat throw and abort the walk.
+        // dir. Skip rather than letting lstat throw and abort the walk.
         if (relativePath === ".." || relativePath.startsWith("../")) {
           continue;
         }
@@ -176,7 +176,7 @@ export async function getProjectFileIndex(
           continue;
         }
 
-        const absolutePath = absolutePathJoin(appDir, relativePath);
+        const absolutePath = absolutePathJoin(dir, relativePath);
 
         if (entry.isSymbolicLink()) {
           continue;

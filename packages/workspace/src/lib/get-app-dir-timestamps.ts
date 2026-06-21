@@ -4,13 +4,13 @@ import {
 import fs from "node:fs/promises";
 
 import {
-  type AppDir,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   absolutePathJoin,
 } from "./absolute-path-join";
 import {
-  getAppPrivateDir,
+  getTaskPrivateDir,
 } from "./app-dir-utils";
 import {
   getCurrentDate,
@@ -19,10 +19,10 @@ import {
   pathExists,
 } from "./path-exists";
 
-export async function getAppDirTimestamps(appDir: AppDir) {
-  const privateDir = getAppPrivateDir(appDir);
+export async function getTaskDirTimestamps(dir: TaskDir) {
+  const privateDir = getTaskPrivateDir(dir);
   const projectConfigPath = absolutePathJoin(
-    appDir,
+    dir,
     PROJECT_MANIFEST_FILE_NAME,
   );
   const paths = [

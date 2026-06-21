@@ -3,23 +3,23 @@ import path from "node:path";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
-  type AppDir,
   type RelativePath,
+  type TaskDir,
 } from "../schemas/paths";
 import {
   normalizePath,
 } from "./normalize-path";
 
-export function resolvePathWithinAppDir({
-  appDir,
+export function resolvePathWithinTaskDir({
+  dir,
   filePath,
 }: {
-  appDir: AppDir;
+  dir: TaskDir;
   filePath: RelativePath;
 }): AbsolutePath | null {
   const normalizedFilePath = normalizePath(filePath);
-  const resolvedPath = path.resolve(appDir, normalizedFilePath);
-  const relativePath = path.relative(appDir, resolvedPath);
+  const resolvedPath = path.resolve(dir, normalizedFilePath);
+  const relativePath = path.relative(dir, resolvedPath);
 
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     return null;

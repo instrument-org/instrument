@@ -168,7 +168,7 @@ export const LoadSkill = setupTool({
     }
 
     const copyResult = await copySkill({
-      appDir: taskDir(appConfig),
+      dir: taskDir(appConfig),
       signal,
       skillDir: skill.skillDir,
       skillName: skill.name,

@@ -184,7 +184,7 @@ describe("nodeCommand", () => {
     expect(flagIndex).toBeLessThan(fileIndex);
   });
 
-  it("resolves the script file path without exposing the host appDir", async () => {
+  it("resolves the script file path without exposing the host dir", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",

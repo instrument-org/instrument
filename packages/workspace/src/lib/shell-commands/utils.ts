@@ -21,7 +21,7 @@ import {
 
 /**
  * Extract the resolved file path and trailing script args from positionals + original args.
- * Paths are returned relative to appCwd so the real host appDir is not exposed.
+ * Paths are returned relative to appCwd so the real host dir is not exposed.
  * All path-like script args (absolute or relative traversals) are resolved through
  * the virtual FS so they land correctly regardless of the agent's cwd.
  */
@@ -113,7 +113,7 @@ export function resolveCommandContext(
 
 /**
  * Resolves any argument that looks like a virtual absolute path (starts with `/`)
- * into a real filesystem path under appDir. Non-path arguments are returned as-is.
+ * into a real filesystem path under dir. Non-path arguments are returned as-is.
  * This prevents sandbox-virtual absolute paths from leaking to the host system.
  */
 export function resolvePathArgs(
@@ -159,7 +159,7 @@ function looksLikePath(arg: string): boolean {
 
 /**
  * Resolve a virtual path to a real path, then relativize from appCwd so the
- * host appDir is never exposed to the subprocess.
+ * host dir is never exposed to the subprocess.
  */
 function virtualToRealRelative(
   virtualPath: string,

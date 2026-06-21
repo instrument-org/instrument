@@ -6,29 +6,29 @@ import {
 } from "vitest";
 
 import {
-  AppDirSchema,
   RelativePathSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
-  resolvePathWithinAppDir,
+  resolvePathWithinTaskDir,
 } from "./resolve-path-within-app-dir";
 
-describe("resolvePathWithinAppDir", () => {
-  const appDir = AppDirSchema.parse(path.join("/tmp", "project"));
+describe("resolvePathWithinTaskDir", () => {
+  const dir = TaskDirSchema.parse(path.join("/tmp", "project"));
 
   it.each([
     {
-      expected: path.join(appDir, "src", "index.ts"),
+      expected: path.join(dir, "src", "index.ts"),
       filePath: RelativePathSchema.parse("src/index.ts"),
       label: "plain relative",
     },
     {
-      expected: path.join(appDir, "src", "index.ts"),
+      expected: path.join(dir, "src", "index.ts"),
       filePath: RelativePathSchema.parse("./src/index.ts"),
       label: "dot-slash relative",
     },
-  ])("resolves $label paths inside appDir", ({ expected, filePath }) => {
-    expect(resolvePathWithinAppDir({ appDir, filePath })).toBe(expected);
+  ])("resolves $label paths inside dir", ({ expected, filePath }) => {
+    expect(resolvePathWithinTaskDir({ dir, filePath })).toBe(expected);
   });
 
   it.each([
@@ -45,6 +45,6 @@ describe("resolvePathWithinAppDir", () => {
       label: "backslash traversal",
     },
   ])("rejects $label", ({ filePath }) => {
-    expect(resolvePathWithinAppDir({ appDir, filePath })).toBeNull();
+    expect(resolvePathWithinTaskDir({ dir, filePath })).toBeNull();
   });
 });

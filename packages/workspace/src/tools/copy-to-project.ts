@@ -185,8 +185,8 @@ export const CopyToProject = setupTool({
 
     const pathResult = resolveAgentPath({
       agentName,
-      appDir: taskDir(appConfig),
       attachedFolders: projectState.attachedFolders,
+      dir: taskDir(appConfig),
       inputPath: input.path,
       isRequired: true,
     });

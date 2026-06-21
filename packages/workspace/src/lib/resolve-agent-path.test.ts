@@ -14,7 +14,7 @@ import {
 
 import {
   AbsolutePathSchema,
-  AppDirSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   applyUnicodeFallbacks,
@@ -110,7 +110,7 @@ describe("applyUnicodeFallbacks", () => {
 });
 
 describe("resolveToolPath", () => {
-  const appDir = AppDirSchema.parse(path.join("/tmp", "project"));
+  const dir = TaskDirSchema.parse(path.join("/tmp", "project"));
 
   it.each([
     {
@@ -127,7 +127,7 @@ describe("resolveToolPath", () => {
   ])(
     "resolves $label to absolutePath + displayPath",
     ({ displayPath, input }) => {
-      const result = resolveToolPath(appDir, input);
+      const result = resolveToolPath(dir, input);
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
         expect(result.value.displayPath).toBe(displayPath);
@@ -150,7 +150,7 @@ describe("resolveToolPath", () => {
       label: "multi-segment backslash traversal",
     },
   ])("rejects $label with execute-error", ({ input }) => {
-    const result = resolveToolPath(appDir, input);
+    const result = resolveToolPath(dir, input);
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
       expect(result.error.type).toBe("execute-error");

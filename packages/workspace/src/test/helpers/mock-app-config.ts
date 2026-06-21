@@ -134,18 +134,18 @@ export function createMockAppConfig(
   return createAppConfig({ subdomain });
 }
 
-// Returns a task id whose taskDir(id) resolves to `appDir`, by pointing the
+// Returns a task id whose taskDir(id) resolves to `dir`, by pointing the
 // singleton's projectsDir at its parent. Replaces the old pattern of spreading
-// a mock AppConfig and overriding appDir. The dir's basename must be a valid id.
+// a mock AppConfig and overriding dir. The dir's basename must be a valid id.
 export function createMockAppConfigForDir(
-  appDir: string,
+  dir: string,
   options: Parameters<typeof createMockAppConfig>[1] = {},
 ): TaskId {
-  const id = TaskIdSchema.parse(path.basename(appDir));
+  const id = TaskIdSchema.parse(path.basename(dir));
   createMockAppConfig(id, options);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    projectsDir: AbsolutePathSchema.parse(path.dirname(appDir)),
+    projectsDir: AbsolutePathSchema.parse(path.dirname(dir)),
   });
   return id;
 }

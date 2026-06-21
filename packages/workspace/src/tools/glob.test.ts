@@ -10,7 +10,7 @@ import {
   FolderAttachment,
 } from "../schemas/folder-attachment";
 import {
-  AppDirSchema,
+  TaskDirSchema,
 } from "../schemas/paths";
 import {
   createMockAIGatewayModel,
@@ -123,7 +123,7 @@ describe("Glob", () => {
         createdAt: Date.now(),
         id: FolderAttachment.IdSchema.parse("test-folder-id"),
         name: "Test Folder",
-        path: AppDirSchema.parse(FIXTURES_PATH),
+        path: TaskDirSchema.parse(FIXTURES_PATH),
       },
     };
 

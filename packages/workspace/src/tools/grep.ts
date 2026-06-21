@@ -94,8 +94,8 @@ export const Grep = setupTool({
     if (agentName === "retrieval") {
       const pathResult = resolveAgentPath({
         agentName,
-        appDir: taskDir(appConfig),
         attachedFolders: projectState.attachedFolders,
+        dir: taskDir(appConfig),
         inputPath: input.path,
         isRequired: true,
       });
@@ -106,7 +106,7 @@ export const Grep = setupTool({
 
       const { absolutePath: searchPath } = pathResult.value;
 
-      // Use appDir as cwd, pass absolute path as searchPath
+      // Use dir as cwd, pass absolute path as searchPath
       // This makes ripgrep return absolute paths in results
       const result = await grep({
         cwd: taskDir(appConfig),
@@ -120,7 +120,7 @@ export const Grep = setupTool({
       return ok(result);
     }
 
-    // Non-retrieval agent: search from appDir with optional relative searchPath
+    // Non-retrieval agent: search from dir with optional relative searchPath
     if (input.path) {
       const pathResult = resolveToolPath(taskDir(appConfig), input.path);
       if (pathResult.isErr()) {

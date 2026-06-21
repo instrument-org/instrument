@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { normalizePath } from "./normalize-path";
+import {
+  normalizePath,
+} from "./normalize-path";
 
 describe("normalizePath", () => {
   it.each([

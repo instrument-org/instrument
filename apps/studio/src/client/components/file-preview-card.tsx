@@ -7,12 +7,7 @@ import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowLineDownIcon,
-  CheckIcon,
-  CopyIcon,
-  PlayIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon, CheckIcon, CopyIcon, PlayIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -24,11 +19,7 @@ import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
 import { MediaCardShell } from "./media-card-shell";
 import { MediaOverlayButton } from "./media-overlay-button";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuTrigger,
-} from "./ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "./ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function FilePreviewCard({

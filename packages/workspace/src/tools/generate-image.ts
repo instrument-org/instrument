@@ -1,30 +1,65 @@
-import { imageSize } from "image-size";
+import {
+  imageSize,
+} from "image-size";
 import mime from "mime-types";
 import ms from "ms";
-import { err, ok } from "neverthrow";
+import {
+  err,
+  ok,
+} from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { dedent } from "radashi";
-import { z } from "zod";
+import {
+  dedent,
+} from "radashi";
+import {
+  z,
+} from "zod";
 
-import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
-import { taskDir } from "../lib/app-dir-utils";
-import { executeError } from "../lib/execute-error";
-import { formatBytes } from "../lib/format-bytes";
-import { generateImages } from "../lib/generate-images";
-import { normalizePath } from "../lib/normalize-path";
-import { resolveToolPath } from "../lib/resolve-agent-path";
-import { getWorkspaceConfig } from "../lib/workspace-config";
-import { writeFileWithDir } from "../lib/write-file-with-dir";
-import { getWorkspaceServerURL } from "../logic/server/url";
-import { RelativePathSchema } from "../schemas/paths";
+import {
+  TOOL_EXPLANATION_PARAM_NAME,
+} from "../constants";
+import {
+  absolutePathJoin,
+} from "../lib/absolute-path-join";
+import {
+  taskDir,
+} from "../lib/app-dir-utils";
+import {
+  executeError,
+} from "../lib/execute-error";
+import {
+  formatBytes,
+} from "../lib/format-bytes";
+import {
+  generateImages,
+} from "../lib/generate-images";
+import {
+  normalizePath,
+} from "../lib/normalize-path";
+import {
+  resolveToolPath,
+} from "../lib/resolve-agent-path";
+import {
+  getWorkspaceConfig,
+} from "../lib/workspace-config";
+import {
+  writeFileWithDir,
+} from "../lib/write-file-with-dir";
+import {
+  getWorkspaceServerURL,
+} from "../logic/server/url";
+import {
+  RelativePathSchema,
+} from "../schemas/paths";
 import {
   BaseInputSchema,
   ProviderOutputSchema,
   UsageOutputSchema,
 } from "./base";
-import { setupTool } from "./create-tool";
+import {
+  setupTool,
+} from "./create-tool";
 
 const INPUT_PARAMS = {
   filePath: "filePath",

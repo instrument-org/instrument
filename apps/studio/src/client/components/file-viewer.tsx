@@ -4,28 +4,11 @@ import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language
 import { getFileType } from "@/client/lib/get-file-type";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowLineDownIcon,
-  ArrowsInIcon,
-  ArrowsOutSimpleIcon,
-  CheckIcon,
-  CodeIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-  EyeIcon,
-  MagnifyingGlassMinusIcon,
-  MagnifyingGlassPlusIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon, ArrowsInIcon, ArrowsOutSimpleIcon, CheckIcon, CodeIcon, CopyIcon, DotsThreeOutlineVerticalIcon, EyeIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, XIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import {
-  TransformComponent,
-  TransformWrapper,
-  useControls,
-  useTransformComponent,
-} from "react-zoom-pan-pinch";
+import { TransformComponent, TransformWrapper, useControls, useTransformComponent } from "react-zoom-pan-pinch";
 import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 
@@ -40,23 +23,8 @@ import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuTrigger,
-} from "./ui/context-menu";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "./ui/context-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";

@@ -1,4 +1,6 @@
-import { defineCommand } from "just-bash";
+import {
+  defineCommand,
+} from "just-bash";
 
 // just-bash's built-in `which` errors unconditionally against a ReadWriteFs
 // (no real filesystem paths). This shim returns exit 0 for known commands so

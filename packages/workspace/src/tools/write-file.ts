@@ -1,21 +1,48 @@
 import ms from "ms";
-import { err, ok } from "neverthrow";
+import {
+  err,
+  ok,
+} from "neverthrow";
 import fs from "node:fs/promises";
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/write.ts
-import { dedent } from "radashi";
-import { z } from "zod";
+import {
+  dedent,
+} from "radashi";
+import {
+  z,
+} from "zod";
 
-import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { taskDir } from "../lib/app-dir-utils";
-import { executeError } from "../lib/execute-error";
-import { pathExists } from "../lib/path-exists";
-import { resolveToolPath } from "../lib/resolve-agent-path";
-import { writeFileWithDir } from "../lib/write-file-with-dir";
-import { RelativePathSchema } from "../schemas/paths";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
-import { ReadFile } from "./read-file";
+import {
+  TOOL_EXPLANATION_PARAM_NAME,
+} from "../constants";
+import {
+  taskDir,
+} from "../lib/app-dir-utils";
+import {
+  executeError,
+} from "../lib/execute-error";
+import {
+  pathExists,
+} from "../lib/path-exists";
+import {
+  resolveToolPath,
+} from "../lib/resolve-agent-path";
+import {
+  writeFileWithDir,
+} from "../lib/write-file-with-dir";
+import {
+  RelativePathSchema,
+} from "../schemas/paths";
+import {
+  BaseInputSchema,
+} from "./base";
+import {
+  setupTool,
+} from "./create-tool";
+import {
+  ReadFile,
+} from "./read-file";
 
 const INPUT_PARAMS = {
   content: "content",

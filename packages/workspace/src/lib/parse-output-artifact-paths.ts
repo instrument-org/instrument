@@ -1,4 +1,6 @@
-import { APP_FOLDER_NAMES } from "../constants";
+import {
+  APP_FOLDER_NAMES,
+} from "../constants";
 
 const OUTPUT_PREFIX = `${APP_FOLDER_NAMES.output}/`;
 

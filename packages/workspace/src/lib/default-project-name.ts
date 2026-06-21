@@ -1,5 +1,9 @@
-import { type SessionMessage } from "../schemas/session/message";
-import { textForMessage } from "./text-for-message";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  textForMessage,
+} from "./text-for-message";
 
 const MAX_CHARS = 50;
 

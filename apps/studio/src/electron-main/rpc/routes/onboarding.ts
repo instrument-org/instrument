@@ -1,9 +1,21 @@
-import { base } from "@/electron-main/rpc/base";
-import { getTabsManager } from "@/electron-main/tabs";
-import { createMainWindow } from "@/electron-main/windows/main";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { closeOnboardingWindow } from "@/electron-main/windows/onboarding";
-import { PRIVATE_BETA_LAUNCH } from "@/shared/constants";
+import {
+  base,
+} from "@/electron-main/rpc/base";
+import {
+  getTabsManager,
+} from "@/electron-main/tabs";
+import {
+  createMainWindow,
+} from "@/electron-main/windows/main";
+import {
+  getMainWindow,
+} from "@/electron-main/windows/main/instance";
+import {
+  closeOnboardingWindow,
+} from "@/electron-main/windows/onboarding";
+import {
+  PRIVATE_BETA_LAUNCH,
+} from "@/shared/constants";
 
 const complete = base.handler(async () => {
   const existingMainWindow = getMainWindow();

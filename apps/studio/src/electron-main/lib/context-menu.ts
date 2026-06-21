@@ -1,7 +1,12 @@
-import { type BrowserWindow, type WebContentsView } from "electron";
+import {
+  type BrowserWindow,
+  type WebContentsView,
+} from "electron";
 import contextMenu from "electron-context-menu";
 
-import { isDeveloperMode } from "../stores/preferences";
+import {
+  isDeveloperMode,
+} from "../stores/preferences";
 
 /**
  * How "Inspect" opens DevTools:

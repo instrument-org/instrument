@@ -4,8 +4,12 @@ import {
   AbsolutePathSchema,
   WorkspaceDirSchema,
 } from "../../src/schemas/paths";
-import { createStubBrowserConfig } from "../../src/test/helpers/mock-app-config";
-import { type WorkspaceConfig } from "../../src/types";
+import {
+  createStubBrowserConfig,
+} from "../../src/test/helpers/mock-app-config";
+import {
+  type WorkspaceConfig,
+} from "../../src/types";
 
 export function createStubWorkspaceConfig({
   projectsDir,

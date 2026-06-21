@@ -1,7 +1,4 @@
-import {
-  type ProjectSubdomain,
-  type SessionMessagePart,
-} from "@instrument-org/workspace/client";
+import { type SessionMessagePart, type TaskId } from "@instrument-org/workspace/client";
 
 import { FileToolCard } from "./file-tool-card";
 
@@ -15,7 +12,7 @@ export function ToolWriteFile({
   subdomain,
 }: {
   part: WriteFilePart;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const filePath =
     part.state === "output-available"

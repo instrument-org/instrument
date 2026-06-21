@@ -1,13 +1,25 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 
-import { type ServerType } from "@hono/node-server";
+import {
+  type ServerType,
+} from "@hono/node-server";
 import invariant from "tiny-invariant";
-import { WebSocket, WebSocketServer } from "ws";
+import {
+  WebSocket,
+  WebSocketServer,
+} from "ws";
 
-import { CDP_PAGE_PATH_PREFIX, SHIM_IFRAME_BASE_PATH } from "./constants";
-import { type WorkspaceServerParentRef } from "./types";
-import { uriDetailsForHost } from "./uri-details-for-host";
+import {
+  CDP_PAGE_PATH_PREFIX,
+  SHIM_IFRAME_BASE_PATH,
+} from "./constants";
+import {
+  type WorkspaceServerParentRef,
+} from "./types";
+import {
+  uriDetailsForHost,
+} from "./uri-details-for-host";
 
 export function setupWebSocketProxy(
   server: ServerType,

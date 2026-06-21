@@ -1,14 +1,26 @@
-import { err, ok, type Result } from "neverthrow";
+import {
+  err,
+  ok,
+  type Result,
+} from "neverthrow";
 
-import { AppSubdomainSchema } from "../../schemas/subdomains";
-import { type AppSubdomain } from "../../schemas/subdomains";
-import { APPS_SERVER_DOMAINS } from "./constants";
-import { getWorkspaceServerPort } from "./url";
+import {
+  TaskIdSchema,
+} from "../../schemas/task-id";
+import {
+  type TaskId,
+} from "../../schemas/task-id";
+import {
+  APPS_SERVER_DOMAINS,
+} from "./constants";
+import {
+  getWorkspaceServerPort,
+} from "./url";
 
 export function uriDetailsForHost(
   host: string,
 ): Result<
-  { domain: string; subdomain: AppSubdomain },
+  { domain: string; subdomain: TaskId },
   "invalid-domain" | "invalid-subdomain" | "missing-subdomain"
 > {
   const port = getWorkspaceServerPort();
@@ -40,7 +52,7 @@ export function uriDetailsForHost(
           return err("missing-subdomain");
         }
 
-        const result = AppSubdomainSchema.safeParse(subdomainString);
+        const result = TaskIdSchema.safeParse(subdomainString);
         if (!result.success) {
           return err("invalid-subdomain");
         }

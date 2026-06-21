@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 
-import { type AbsolutePath } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
+import {
+  type AbsolutePath,
+} from "../schemas/paths";
+import {
+  absolutePathJoin,
+} from "./absolute-path-join";
 
 export async function readFileWithAnyCase(
   directoryPath: AbsolutePath,

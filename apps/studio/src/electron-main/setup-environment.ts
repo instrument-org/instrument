@@ -1,11 +1,23 @@
-import { is, platform } from "@electron-toolkit/utils";
-import { APP_NAME } from "@instrument-org/shared";
-import { app } from "electron";
+import {
+  is,
+  platform,
+} from "@electron-toolkit/utils";
+import {
+  APP_NAME,
+} from "@instrument-org/shared";
+import {
+  app,
+} from "electron";
 import fixPath from "fix-path";
 import path from "node:path";
 
-import { initializeElectronLogging, logger } from "./lib/electron-logger";
-import { setupDBusEnvironment } from "./lib/setup-dbus-env";
+import {
+  initializeElectronLogging,
+  logger,
+} from "./lib/electron-logger";
+import {
+  setupDBusEnvironment,
+} from "./lib/setup-dbus-env";
 
 /**
  * Configures the Electron app's userData directory.

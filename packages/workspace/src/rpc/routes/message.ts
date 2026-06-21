@@ -1,32 +1,69 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
-import { call, eventIterator } from "@orpc/server";
-import { parallel } from "radashi";
-import { z } from "zod";
+import {
+  AIGatewayModelURI,
+  fetchModel,
+} from "@instrument-org/ai-gateway";
+import {
+  mergeGenerators,
+} from "@instrument-org/shared/merge-generators";
+import {
+  call,
+  eventIterator,
+} from "@orpc/server";
+import {
+  parallel,
+} from "radashi";
+import {
+  z,
+} from "zod";
 
-import { createAppConfig } from "../../lib/app-config/create";
-import { createSession } from "../../lib/create-session";
-import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
-import { newMessage } from "../../lib/new-message";
-import { Store } from "../../lib/store";
-import { updateSessionTitle } from "../../lib/update-session-title";
+import {
+  createAppConfig,
+} from "../../lib/app-config/create";
+import {
+  createSession,
+} from "../../lib/create-session";
+import {
+  generateTitleFromUserMessage,
+} from "../../lib/generate-title-from-user-message";
+import {
+  newMessage,
+} from "../../lib/new-message";
+import {
+  Store,
+} from "../../lib/store";
+import {
+  updateSessionTitle,
+} from "../../lib/update-session-title";
 import {
   emptyUsageSummary,
   getUsageSummaryFromMessages,
   UsageSummarySchema,
 } from "../../lib/usage-summary";
-import { FileUpload } from "../../schemas/file-upload";
-import { SessionMessage } from "../../schemas/session/message";
-import { StoreId } from "../../schemas/store-id";
-import { AppSubdomainSchema } from "../../schemas/subdomains";
-import { base, toORPCError } from "../base";
-import { publisher } from "../publisher";
+import {
+  FileUpload,
+} from "../../schemas/file-upload";
+import {
+  SessionMessage,
+} from "../../schemas/session/message";
+import {
+  StoreId,
+} from "../../schemas/store-id";
+import {
+  TaskIdSchema,
+} from "../../schemas/task-id";
+import {
+  base,
+  toORPCError,
+} from "../base";
+import {
+  publisher,
+} from "../publisher";
 
 const listWithParts = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.array(SessionMessage.WithPartsSchema))
@@ -53,7 +90,7 @@ const create = base
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
       sessionId: StoreId.SessionSchema.optional(),
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.object({ sessionId: StoreId.SessionSchema }))
@@ -160,7 +197,7 @@ const count = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema.optional(),
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.number())
@@ -185,7 +222,7 @@ const live = {
     .input(
       z.object({
         sessionId: StoreId.SessionSchema,
-        subdomain: AppSubdomainSchema,
+        subdomain: TaskIdSchema,
       }),
     )
     .output(eventIterator(SessionMessage.WithPartsSchema.array()))
@@ -238,7 +275,7 @@ const usageSummary = base
   .input(
     z.object({
       messages: z.array(MessageRefSchema),
-      subdomain: AppSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(UsageSummarySchema)

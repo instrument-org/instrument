@@ -1,13 +1,34 @@
-import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
-import { ulid } from "ulid";
+import {
+  errAsync,
+  ok,
+  ResultAsync,
+  safeTry,
+} from "neverthrow";
+import {
+  ulid,
+} from "ulid";
 
-import { AppDirSchema } from "../schemas/paths";
-import { ProjectSubdomainSchema } from "../schemas/subdomains";
-import { type WorkspaceConfig } from "../types";
-import { absolutePathJoin } from "./absolute-path-join";
-import { TypedError } from "./errors";
-import { extractProjectZip } from "./extract-project-zip";
-import { pathExists } from "./path-exists";
+import {
+  AppDirSchema,
+} from "../schemas/paths";
+import {
+  TaskIdSchema,
+} from "../schemas/task-id";
+import {
+  type WorkspaceConfig,
+} from "../types";
+import {
+  absolutePathJoin,
+} from "./absolute-path-join";
+import {
+  TypedError,
+} from "./errors";
+import {
+  extractProjectZip,
+} from "./extract-project-zip";
+import {
+  pathExists,
+} from "./path-exists";
 
 interface ImportProjectOptions {
   workspaceConfig: WorkspaceConfig;
@@ -19,7 +40,7 @@ export async function importProject(
   _options: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const subdomain = ProjectSubdomainSchema.parse(
+    const subdomain = TaskIdSchema.parse(
       `import-${ulid().toLowerCase()}`,
     );
 

@@ -1,14 +1,20 @@
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
-import { ProjectManifestSchema } from "./project-manifest";
-import { ProjectSubdomainSchema } from "./subdomains";
+import {
+  ProjectManifestSchema,
+} from "./project-manifest";
+import {
+  TaskIdSchema,
+} from "./task-id";
 
 export const WorkspaceAppProjectSchema = z.object({
   createdAt: z.date(),
   description: ProjectManifestSchema.shape.description.optional(),
   folderName: z.string(),
   iconName: ProjectManifestSchema.shape.iconName.optional(),
-  subdomain: ProjectSubdomainSchema,
+  subdomain: TaskIdSchema,
   title: z.string(),
   type: z.literal("project"),
   updatedAt: z.date(),

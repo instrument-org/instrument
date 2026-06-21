@@ -1,6 +1,12 @@
-import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import {
+  rpcClient,
+} from "@/client/rpc/client";
+import {
+  useQuery,
+} from "@tanstack/react-query";
+import {
+  useMemo,
+} from "react";
 
 export function useSelectedTab() {
   const { data: tabState } = useQuery(

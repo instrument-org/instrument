@@ -3,31 +3,15 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { SUPPORT_URL } from "@instrument-org/shared";
 import { CaretDownIcon } from "@phosphor-icons/react";
-import {
-  rootRouteId,
-  useCanGoBack,
-  useMatch,
-  useRouter,
-} from "@tanstack/react-router";
+import { rootRouteId, useCanGoBack, useMatch, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
 import { InternalLink } from "./internal-link";
 import { Button } from "./ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "./ui/collapsible";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ErrorCard({

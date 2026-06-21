@@ -1,7 +1,16 @@
-import { type AppConfig, type AppConfigProject } from "./app-config/types";
-import { taskDir } from "./app-dir-utils";
-import { getProjectManifest } from "./project-manifest";
-import { Store } from "./store";
+import {
+  type AppConfig,
+  type AppConfigProject,
+} from "./app-config/types";
+import {
+  taskDir,
+} from "./app-dir-utils";
+import {
+  getProjectManifest,
+} from "./project-manifest";
+import {
+  Store,
+} from "./store";
 
 const DEFAULT_UNTITLED_BASE = "Untitled chat";
 

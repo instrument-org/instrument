@@ -1,7 +1,14 @@
-import { execa } from "execa";
+import {
+  execa,
+} from "execa";
 
-import { type StoreId } from "../schemas/store-id";
-import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "./agent-browser";
+import {
+  type StoreId,
+} from "../schemas/store-id";
+import {
+  AGENT_BROWSER_PATH,
+  AGENT_BROWSER_SOCKET_DIR,
+} from "./agent-browser";
 
 export async function closeAgentBrowserSessionsForSessions(
   sessionIds: StoreId.Session[],

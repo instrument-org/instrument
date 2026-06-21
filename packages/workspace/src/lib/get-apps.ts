@@ -1,26 +1,57 @@
-import { EVAL_SUBDOMAIN_PREFIX } from "@instrument-org/shared";
-import { glob } from "glob";
-import { err, ok, type Result } from "neverthrow";
+import {
+  EVAL_SUBDOMAIN_PREFIX,
+} from "@instrument-org/shared";
+import {
+  glob,
+} from "glob";
+import {
+  err,
+  ok,
+  type Result,
+} from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { assign, sort } from "radashi";
-
-import { type WorkspaceAppProject } from "../schemas/app";
-import { type AbsolutePath, type AppDir, AppDirSchema } from "../schemas/paths";
-import { SubdomainPartSchema } from "../schemas/subdomain-part";
 import {
-  type AppSubdomain,
-  ProjectSubdomainSchema,
-} from "../schemas/subdomains";
-import { type WorkspaceConfig } from "../types";
-import { TypedError } from "./errors";
-import { getAppDirTimestamps } from "./get-app-dir-timestamps";
-import { isProjectSubdomain } from "./is-app";
-import { getProjectManifest } from "./project-manifest";
-import { urlsForSubdomain } from "./url-for-subdomain";
+  assign,
+  sort,
+} from "radashi";
+
+import {
+  type WorkspaceAppProject,
+} from "../schemas/app";
+import {
+  type AbsolutePath,
+  type AppDir,
+  AppDirSchema,
+} from "../schemas/paths";
+import {
+  SubdomainPartSchema,
+} from "../schemas/subdomain-part";
+import {
+  type TaskId,
+  TaskIdSchema,
+} from "../schemas/task-id";
+import {
+  type WorkspaceConfig,
+} from "../types";
+import {
+  TypedError,
+} from "./errors";
+import {
+  getAppDirTimestamps,
+} from "./get-app-dir-timestamps";
+import {
+  isProjectSubdomain,
+} from "./is-app";
+import {
+  getProjectManifest,
+} from "./project-manifest";
+import {
+  urlsForSubdomain,
+} from "./url-for-subdomain";
 
 export async function getApp(
-  subdomain: AppSubdomain,
+  subdomain: TaskId,
   workspaceConfig: WorkspaceConfig,
 ): Promise<
   Result<WorkspaceAppProject, TypedError.NotFound | TypedError.Parse>
@@ -137,7 +168,7 @@ async function workspaceApp({ appDir }: { appDir: AppDir }) {
     );
   }
 
-  const subdomainResult = ProjectSubdomainSchema.safeParse(
+  const subdomainResult = TaskIdSchema.safeParse(
     folderNameResult.data,
   );
 

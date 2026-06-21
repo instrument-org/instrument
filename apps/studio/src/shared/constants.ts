@@ -1,4 +1,6 @@
-import { type StudioPath } from "@/shared/studio-path";
+import {
+  type StudioPath,
+} from "@/shared/studio-path";
 
 export const TOOLBAR_HEIGHT = 40;
 export const SIDEBAR_WIDTH = 250;

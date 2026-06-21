@@ -1,20 +1,35 @@
-import { base } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { getFavoritesStore } from "@/electron-main/stores/favorites";
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
-import { ProjectSubdomainSchema } from "@instrument-org/workspace/electron";
 import {
-  type ProjectSubdomain,
+  base,
+} from "@/electron-main/rpc/base";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  getFavoritesStore,
+} from "@/electron-main/stores/favorites";
+import {
+  mergeGenerators,
+} from "@instrument-org/shared/merge-generators";
+import {
+  TaskIdSchema,
+} from "@instrument-org/workspace/electron";
+import {
+  type TaskId,
   workspacePublisher,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
-import { call, eventIterator } from "@orpc/server";
-import { z } from "zod";
+import {
+  call,
+  eventIterator,
+} from "@orpc/server";
+import {
+  z,
+} from "zod";
 
 const add = base
   .input(
     z.object({
-      subdomain: ProjectSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.void())
@@ -31,7 +46,7 @@ const add = base
 const remove = base
   .input(
     z.object({
-      subdomain: ProjectSubdomainSchema,
+      subdomain: TaskIdSchema,
     }),
   )
   .output(z.void())
@@ -47,7 +62,7 @@ const live = {
   listProjects: base.handler(async function* ({ context, signal }) {
     const favoritesStore = getFavoritesStore();
 
-    const fetchAndCleanFavorites = async (subdomains: ProjectSubdomain[]) => {
+    const fetchAndCleanFavorites = async (subdomains: TaskId[]) => {
       const results = await call(
         workspaceRouter.project.bySubdomains,
         { subdomains },
@@ -93,7 +108,7 @@ const live = {
     }
   }),
   listSubdomains: base
-    .output(eventIterator(ProjectSubdomainSchema.array()))
+    .output(eventIterator(TaskIdSchema.array()))
     .handler(async function* ({ signal }) {
       const favoritesStore = getFavoritesStore();
 

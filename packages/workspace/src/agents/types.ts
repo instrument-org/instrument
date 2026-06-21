@@ -1,11 +1,19 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import {
+  type AIGatewayModel,
+} from "@instrument-org/ai-gateway";
 
 import type { InternalToolName } from "../tools/all";
 import type { AnyAgentTool } from "../tools/types";
 
-import { type AppConfig } from "../lib/app-config/types";
-import { type SessionMessage } from "../schemas/session/message";
-import { type StoreId } from "../schemas/store-id";
+import {
+  type AppConfig,
+} from "../lib/app-config/types";
+import {
+  type SessionMessage,
+} from "../schemas/session/message";
+import {
+  type StoreId,
+} from "../schemas/store-id";
 
 export interface Agent<T extends AgentTools> {
   agentTools: T;

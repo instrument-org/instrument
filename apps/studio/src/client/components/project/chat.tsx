@@ -6,17 +6,9 @@ import { useProjectRouteSubdomain } from "@/client/hooks/use-project-route-subdo
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
-import {
-  type StoreId,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
+import { type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react";
-import {
-  skipToken,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";

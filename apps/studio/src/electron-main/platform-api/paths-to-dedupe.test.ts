@@ -1,8 +1,18 @@
-import { get } from "radashi";
-import { describe, expect, it } from "vitest";
+import {
+  get,
+} from "radashi";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { contract } from "./contract";
-import { PATHS_TO_DEDUPE } from "./paths-to-dedupe";
+import {
+  contract,
+} from "./contract";
+import {
+  PATHS_TO_DEDUPE,
+} from "./paths-to-dedupe";
 
 describe("PATHS_TO_DEDUPE", () => {
   it.each(PATHS_TO_DEDUPE.map((path) => path.join(".")))(

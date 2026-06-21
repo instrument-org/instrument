@@ -1,5 +1,10 @@
-import { call, eventIterator } from "@orpc/server";
-import { z } from "zod";
+import {
+  call,
+  eventIterator,
+} from "@orpc/server";
+import {
+  z,
+} from "zod";
 
 import {
   CurrentFileInfoSchema,
@@ -13,15 +18,24 @@ import {
   getCurrentProjectFiles,
   startWatchingProjectFiles,
 } from "../../../lib/project-file-watcher";
-import { RelativeProjectPathSchema } from "../../../schemas/paths";
-import { ProjectSubdomainSchema } from "../../../schemas/subdomains";
-import { base, toORPCError } from "../../base";
-import { publisher } from "../../publisher";
+import {
+  RelativeProjectPathSchema,
+} from "../../../schemas/paths";
+import {
+  TaskIdSchema,
+} from "../../../schemas/task-id";
+import {
+  base,
+  toORPCError,
+} from "../../base";
+import {
+  publisher,
+} from "../../publisher";
 
 const list = base
   .input(
     z.object({
-      projectSubdomain: ProjectSubdomainSchema,
+      projectSubdomain: TaskIdSchema,
     }),
   )
   .output(ProjectFilesSchema)
@@ -46,7 +60,7 @@ const fileInfo = base
   .input(
     z.object({
       filePath: RelativeProjectPathSchema,
-      projectSubdomain: ProjectSubdomainSchema,
+      projectSubdomain: TaskIdSchema,
     }),
   )
   .output(CurrentFileInfoSchema)
@@ -70,7 +84,7 @@ export const projectFiles = {
     list: base
       .input(
         z.object({
-          projectSubdomain: ProjectSubdomainSchema,
+          projectSubdomain: TaskIdSchema,
         }),
       )
       .output(eventIterator(ProjectFilesSchema))

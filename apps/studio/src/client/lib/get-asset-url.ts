@@ -1,4 +1,6 @@
-import { normalizeProjectFilePath } from "@instrument-org/workspace/client";
+import {
+  normalizeProjectFilePath,
+} from "@instrument-org/workspace/client";
 
 export function getAssetUrl({
   assetBase,

@@ -3,21 +3,13 @@ import { ProjectSettingsDialog } from "@/client/components/project/settings-dial
 import { Button } from "@/client/components/ui/button";
 import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import {
-  type StoreId,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
+import { type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { FileArchiveIcon, FolderIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { ProjectActionsMenu } from "./actions-menu";
 import { ProjectChatMenu } from "./chat-menu";
 import { ProjectDebugDialog } from "./debug-dialog";

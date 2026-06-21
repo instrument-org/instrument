@@ -1,4 +1,6 @@
-import { dedent } from "radashi";
+import {
+  dedent,
+} from "radashi";
 
 export const TUTORIAL_TASK_REPLAY = {
   project: {

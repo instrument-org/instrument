@@ -1,6 +1,11 @@
-import { StoreId } from "@instrument-org/workspace/client";
+import {
+  StoreId,
+} from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import {
+  registerSession,
+  SessionBuilder,
+} from "../helpers";
 
 // Fixture that reproduces the cross-message tool-call boundary spacing bug:
 // sequential tool calls split across multiple assistant messages (multi-step)

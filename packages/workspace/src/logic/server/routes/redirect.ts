@@ -1,10 +1,23 @@
-import { Hono } from "hono";
+import {
+  Hono,
+} from "hono";
 
-import { localhostUrl, loopbackUrl } from "../../../lib/url-for-subdomain";
-import { AppSubdomainSchema } from "../../../schemas/subdomains";
-import { LOCAL_LOOPBACK_APPS_SERVER_DOMAIN } from "../constants";
-import { type WorkspaceServerEnv } from "../types";
-import { getWorkspaceServerPort } from "../url";
+import {
+  localhostUrl,
+  loopbackUrl,
+} from "../../../lib/url-for-subdomain";
+import {
+  TaskIdSchema,
+} from "../../../schemas/task-id";
+import {
+  LOCAL_LOOPBACK_APPS_SERVER_DOMAIN,
+} from "../constants";
+import {
+  type WorkspaceServerEnv,
+} from "../types";
+import {
+  getWorkspaceServerPort,
+} from "../url";
 
 const app = new Hono<WorkspaceServerEnv>();
 
@@ -35,7 +48,7 @@ app.get("/redirect/:subdomain", async (c, next) => {
   const subdomainParam = c.req.param("subdomain");
   const userAgent = c.req.header("user-agent") || "";
 
-  const subdomainResult = AppSubdomainSchema.safeParse(subdomainParam);
+  const subdomainResult = TaskIdSchema.safeParse(subdomainParam);
   if (!subdomainResult.success) {
     return c.notFound();
   }

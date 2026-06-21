@@ -21,21 +21,11 @@ import { Together } from "@/client/components/icons/together";
 import { XAI } from "@/client/components/icons/x-ai";
 import { ZAI } from "@/client/components/icons/z-ai";
 import { OpenRouter } from "@/client/components/service-icons";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/client/components/ui/tooltip";
 import { type AIProviderType, OUR_MODELS } from "@instrument-org/shared";
 import { useAtomValue } from "jotai";
 import { GrNodes } from "react-icons/gr";
-import {
-  SiAnthropic,
-  SiGooglegemini,
-  SiOllama,
-  SiOpenai,
-  SiVercel,
-} from "react-icons/si";
+import { SiAnthropic, SiGooglegemini, SiOllama, SiOpenai, SiVercel } from "react-icons/si";
 
 const PROVIDER_ICON_MAP: Record<
   AIProviderType,

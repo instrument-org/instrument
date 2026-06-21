@@ -1,4 +1,6 @@
-import { isTextMimeType } from "./is-text-mime-type";
+import {
+  isTextMimeType,
+} from "./is-text-mime-type";
 
 type FileType =
   | "audio"

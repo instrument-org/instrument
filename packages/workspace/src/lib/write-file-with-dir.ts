@@ -1,7 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { type AbsolutePath } from "../schemas/paths";
+import {
+  type AbsolutePath,
+} from "../schemas/paths";
 
 export async function writeFileWithDir(
   filePath: AbsolutePath,

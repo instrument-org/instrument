@@ -1,4 +1,6 @@
-import { screen } from "electron";
+import {
+  screen,
+} from "electron";
 import Store from "electron-store";
 
 export interface WindowBounds {

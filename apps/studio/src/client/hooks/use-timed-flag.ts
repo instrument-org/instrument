@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 export function useTimedFlag(duration = 2000) {
   const [active, setActive] = useState(false);

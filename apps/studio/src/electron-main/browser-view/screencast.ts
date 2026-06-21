@@ -2,7 +2,9 @@ import type { Protocol } from "devtools-protocol";
 
 import type { BrowserEntry } from "./entry";
 
-import { log } from "./log";
+import {
+  log,
+} from "./log";
 
 const SCREENCAST_INTERVAL_MS = 100;
 

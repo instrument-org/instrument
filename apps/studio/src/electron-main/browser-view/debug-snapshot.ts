@@ -1,18 +1,32 @@
 // Debug-only snapshot of the browser view manager and the projectBrowser
 // XState machines that reap it.
 
-import { devOnly } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import { type StudioPath } from "@/shared/studio-path";
+import {
+  devOnly,
+} from "@/electron-main/rpc/base";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  isDeveloperMode,
+} from "@/electron-main/stores/preferences";
+import {
+  type StudioPath,
+} from "@/shared/studio-path";
 import {
   BrowserTargetIdSchema,
   type WorkspaceActorRef,
 } from "@instrument-org/workspace/electron";
-import { eventIterator } from "@orpc/server";
-import { z } from "zod";
+import {
+  eventIterator,
+} from "@orpc/server";
+import {
+  z,
+} from "zod";
 
-import { type BrowserViewManager } from "./manager";
+import {
+  type BrowserViewManager,
+} from "./manager";
 
 const ProjectBrowserDebugEntrySchema = z.object({
   destroyedExternallyTargetIds: z.array(z.string()),

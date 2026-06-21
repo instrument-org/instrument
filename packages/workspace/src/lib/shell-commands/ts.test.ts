@@ -1,12 +1,32 @@
-import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import {
+  type CommandContext,
+  EMPTY_BYTES,
+  InMemoryFs,
+} from "just-bash";
 import mockFs from "mock-fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-import { ProjectSubdomainSchema } from "../../schemas/subdomains";
-import { createMockAppConfig } from "../../test/helpers/mock-app-config";
-import { taskDir } from "../app-dir-utils";
-import { getWorkspaceConfig } from "../workspace-config";
-import { createTsCommand } from "./ts";
+import {
+  TaskIdSchema,
+} from "../../schemas/task-id";
+import {
+  createMockAppConfig,
+} from "../../test/helpers/mock-app-config";
+import {
+  taskDir,
+} from "../app-dir-utils";
+import {
+  getWorkspaceConfig,
+} from "../workspace-config";
+import {
+  createTsCommand,
+} from "./ts";
 
 vi.mock(import("../execa-node-for-app"));
 
@@ -20,7 +40,7 @@ const mockCtx: CommandContext = {
 };
 
 describe("tsCommand", () => {
-  const appConfig = createMockAppConfig(ProjectSubdomainSchema.parse("test"));
+  const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
   const command = createTsCommand(appConfig);
 
   afterEach(() => {

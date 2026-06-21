@@ -1,6 +1,11 @@
-import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import {
+  APP_FOLDER_NAMES,
+} from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import {
+  registerSession,
+  SessionBuilder,
+} from "../helpers";
 
 const builder = new SessionBuilder();
 

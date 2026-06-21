@@ -2,7 +2,9 @@ import type { Protocol } from "devtools-protocol";
 
 import type { BrowserEntry } from "./entry";
 
-import { log } from "./log";
+import {
+  log,
+} from "./log";
 
 // Electron's debugger protocol does not expose Page.printToPDF. Use the
 // native webContents.printToPDF() API and return a CDP-compatible response.

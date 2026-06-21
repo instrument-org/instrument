@@ -4,19 +4,40 @@ import type {
   SubscribeCallback,
 } from "@parcel/watcher";
 
-import { type CaptureExceptionFunction } from "@instrument-org/shared";
+import {
+  type CaptureExceptionFunction,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { noop } from "radashi";
+import {
+  noop,
+} from "radashi";
 
-import { publisher } from "../rpc/publisher";
-import { type AppDir, RelativePathSchema } from "../schemas/paths";
-import { type StoreId } from "../schemas/store-id";
-import { type ProjectSubdomain } from "../schemas/subdomains";
-import { type WorkspaceConfig } from "../types";
-import { taskDir } from "./app-dir-utils";
-import { getIgnore } from "./get-ignore";
-import { getMimeType } from "./get-mime-type";
+import {
+  publisher,
+} from "../rpc/publisher";
+import {
+  type AppDir,
+  RelativePathSchema,
+} from "../schemas/paths";
+import {
+  type StoreId,
+} from "../schemas/store-id";
+import {
+  type TaskId,
+} from "../schemas/task-id";
+import {
+  type WorkspaceConfig,
+} from "../types";
+import {
+  taskDir,
+} from "./app-dir-utils";
+import {
+  getIgnore,
+} from "./get-ignore";
+import {
+  getMimeType,
+} from "./get-mime-type";
 import {
   diffProjectFileIndexes,
   getProjectFileIndex,
@@ -27,7 +48,9 @@ import {
   type ProjectFileIndex,
   projectFilesFromIndex,
 } from "./get-project-files";
-import { normalizePath } from "./normalize-path";
+import {
+  normalizePath,
+} from "./normalize-path";
 
 // Trailing window used to coalesce bursts of filesystem events (agents and
 // editors write many files in quick succession) into a single publish.
@@ -84,13 +107,13 @@ interface WatcherEntry {
   refCount: number;
   resolveReady: () => void;
   seeded: boolean;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
   subscription: null | { unsubscribe: () => Promise<void> };
   // Per-session turn trackers; populated only while a turn is in flight.
   turns: Map<StoreId.Session, TurnTracker>;
 }
 
-const REGISTRY = new Map<ProjectSubdomain, WatcherEntry>();
+const REGISTRY = new Map<TaskId, WatcherEntry>();
 
 let PARCEL_PROMISE: Promise<ParcelWatcherApi | undefined> | undefined;
 
@@ -106,7 +129,7 @@ export async function beginTurnChangeTracking({
   workspaceConfig,
 }: {
   sessionId: StoreId.Session;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<void> {
   const release = startWatchingProjectFiles({ subdomain, workspaceConfig });
@@ -141,7 +164,7 @@ export async function consumeTurnChanges({
   subdomain,
 }: {
   sessionId: StoreId.Session;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }): Promise<{ after?: ProjectFileIndex; changes: ProjectFileChange[] }> {
   const entry = REGISTRY.get(subdomain);
   const turn = entry?.turns.get(sessionId);
@@ -170,7 +193,7 @@ export async function consumeTurnChanges({
  * watcher already maintains instead of walking disk again.
  */
 export function getCurrentProjectFileIndex(
-  subdomain: ProjectSubdomain,
+  subdomain: TaskId,
 ): ProjectFileIndex | undefined {
   const entry = REGISTRY.get(subdomain);
   if (!entry?.seeded) {
@@ -184,7 +207,7 @@ export function getCurrentProjectFileIndex(
  * watcher is active (callers fall back to a fresh walk in that case).
  */
 export function getCurrentProjectFiles(
-  subdomain: ProjectSubdomain,
+  subdomain: TaskId,
 ): ProjectFile[] | undefined {
   const entry = REGISTRY.get(subdomain);
   if (!entry?.seeded) {
@@ -203,7 +226,7 @@ export function startWatchingProjectFiles({
   subdomain,
   workspaceConfig,
 }: {
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
   workspaceConfig: WorkspaceConfig;
 }): () => void {
   const existing = REGISTRY.get(subdomain);
@@ -433,7 +456,7 @@ async function refreshIndex(entry: WatcherEntry): Promise<ProjectFileIndex> {
 }
 
 /** Drops a ref; tears down timers, the subscription, and the registry entry once the last holder releases. */
-function releaseWatcher(subdomain: ProjectSubdomain) {
+function releaseWatcher(subdomain: TaskId) {
   const entry = REGISTRY.get(subdomain);
   if (!entry) {
     return;

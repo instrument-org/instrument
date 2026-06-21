@@ -1,35 +1,72 @@
-import { execa } from "execa";
-import { defineCommand, latin1FromBytes } from "just-bash";
-import { spawn } from "node:child_process";
+import {
+  execa,
+} from "execa";
+import {
+  defineCommand,
+  latin1FromBytes,
+} from "just-bash";
+import {
+  spawn,
+} from "node:child_process";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { dedent } from "radashi";
+import {
+  dedent,
+} from "radashi";
 
 import type { AppConfig } from "../app-config/types";
 
-import { APP_FOLDER_NAMES } from "../../constants";
-import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
-import { getWorkspaceServerPort } from "../../logic/server/url";
-import { type StoreId } from "../../schemas/store-id";
-import { type ProjectSubdomain } from "../../schemas/subdomains";
-import { WebSearch } from "../../tools/web-search";
-import { type BrowserTargetId } from "../../types";
-import { absolutePathJoin } from "../absolute-path-join";
-import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
+import {
+  APP_FOLDER_NAMES,
+} from "../../constants";
+import {
+  CDP_PAGE_PATH_PREFIX,
+} from "../../logic/server/constants";
+import {
+  getWorkspaceServerPort,
+} from "../../logic/server/url";
+import {
+  type StoreId,
+} from "../../schemas/store-id";
+import {
+  type TaskId,
+} from "../../schemas/task-id";
+import {
+  WebSearch,
+} from "../../tools/web-search";
+import {
+  type BrowserTargetId,
+} from "../../types";
+import {
+  absolutePathJoin,
+} from "../absolute-path-join";
+import {
+  AGENT_BROWSER_PATH,
+  AGENT_BROWSER_SOCKET_DIR,
+} from "../agent-browser";
 import {
   getAgentBrowserStateDir,
   getBrowserSessionDir,
   taskDir,
 } from "../app-dir-utils";
-import { recordBrowserUse } from "../browser-state";
+import {
+  recordBrowserUse,
+} from "../browser-state";
 import {
   beginBrowserCommandObservation,
   type UpsertContextItem,
 } from "../capture-browser-screenshot";
-import { isProjectSubdomain } from "../is-app";
-import { getWorkspaceConfig } from "../workspace-config";
-import { resolveCommandContext, resolvePathArgs } from "./utils";
+import {
+  isProjectSubdomain,
+} from "../is-app";
+import {
+  getWorkspaceConfig,
+} from "../workspace-config";
+import {
+  resolveCommandContext,
+  resolvePathArgs,
+} from "./utils";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
 
@@ -279,7 +316,7 @@ async function enrichBrowserState({
 }: {
   appConfig: AppConfig;
   sessionId: StoreId.Session;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
   targetId: BrowserTargetId;
 }) {
   try {

@@ -3,12 +3,16 @@ import type { WebContentsView } from "electron";
 import {
   type AbsolutePath,
   type BrowserTargetId,
-  type ProjectSubdomain,
   type StoreId,
+  type TaskId,
 } from "@instrument-org/workspace/electron";
-import { noop } from "radashi";
+import {
+  noop,
+} from "radashi";
 
-import { log } from "./log";
+import {
+  log,
+} from "./log";
 
 export interface BrowserEntry {
   authorizedDownloadPath: null | string;
@@ -32,7 +36,7 @@ export interface BrowserEntry {
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
   sessionId: StoreId.Session;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
   // Stable, externally-meaningful target id: `${subdomain}/${sessionId}`.
   // Used as the manager Map key, the CDP URL path component, and the wire
   // identifier in BrowserConfig. Independent of webContents.id (which becomes
@@ -50,7 +54,7 @@ export function createEntry({
 }: {
   partitionDir: AbsolutePath;
   sessionId: StoreId.Session;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
   targetId: BrowserTargetId;
   view: WebContentsView;
 }): BrowserEntry {

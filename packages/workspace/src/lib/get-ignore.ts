@@ -2,9 +2,15 @@ import nodeIgnore from "ignore";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { type AbsolutePath } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
-import { pathExists } from "./path-exists";
+import {
+  type AbsolutePath,
+} from "../schemas/paths";
+import {
+  absolutePathJoin,
+} from "./absolute-path-join";
+import {
+  pathExists,
+} from "./path-exists";
 
 export async function getIgnore(
   rootDir: AbsolutePath,

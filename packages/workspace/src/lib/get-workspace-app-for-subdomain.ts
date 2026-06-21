@@ -1,12 +1,24 @@
-import { type WorkspaceAppProject } from "../schemas/app";
-import { type AppSubdomain } from "../schemas/subdomains";
-import { createAppConfig } from "./app-config/create";
-import { taskDir } from "./app-dir-utils";
-import { getAppDirTimestamps } from "./get-app-dir-timestamps";
-import { urlsForSubdomain } from "./url-for-subdomain";
+import {
+  type WorkspaceAppProject,
+} from "../schemas/app";
+import {
+  type TaskId,
+} from "../schemas/task-id";
+import {
+  createAppConfig,
+} from "./app-config/create";
+import {
+  taskDir,
+} from "./app-dir-utils";
+import {
+  getAppDirTimestamps,
+} from "./get-app-dir-timestamps";
+import {
+  urlsForSubdomain,
+} from "./url-for-subdomain";
 
 export async function getWorkspaceAppForSubdomain(
-  subdomain: AppSubdomain,
+  subdomain: TaskId,
 ): Promise<WorkspaceAppProject> {
   const appConfig = createAppConfig({ subdomain });
 

@@ -1,10 +1,26 @@
-import { createContextMenu } from "@/electron-main/lib/context-menu";
-import { openExternal } from "@/electron-main/lib/open-external";
-import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
-import { studioURL } from "@/electron-main/lib/urls";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { app, BrowserWindow, screen } from "electron";
+import {
+  createContextMenu,
+} from "@/electron-main/lib/context-menu";
+import {
+  openExternal,
+} from "@/electron-main/lib/open-external";
+import {
+  getBackgroundColor,
+} from "@/electron-main/lib/theme-utils";
+import {
+  studioURL,
+} from "@/electron-main/lib/urls";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  getMainWindow,
+} from "@/electron-main/windows/main/instance";
+import {
+  app,
+  BrowserWindow,
+  screen,
+} from "electron";
 import path from "node:path";
 
 const ONBOARDING_WIDTH = 480;

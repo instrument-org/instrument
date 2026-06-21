@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { sort } from "radashi";
 
@@ -8,7 +8,7 @@ import { InternalLink } from "../internal-link";
 interface ChatZeroStateProps {
   message?: string;
   selectedSessionId?: string;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }
 
 export function ChatZeroState({

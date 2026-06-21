@@ -1,8 +1,4 @@
-import {
-  closeFileViewerAtom,
-  projectFileViewerAtom,
-  setProjectFileViewerIndexAtom,
-} from "@/client/atoms/project-file-viewer";
+import { closeFileViewerAtom, projectFileViewerAtom, setProjectFileViewerIndexAtom } from "@/client/atoms/project-file-viewer";
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";

@@ -1,15 +1,27 @@
 import fs from "node:fs/promises";
 
-import { RelativePathSchema } from "../schemas/paths";
-import { type ProjectSubdomain } from "../schemas/subdomains";
-import { createAppConfig } from "./app-config/create";
-import { taskDir } from "./app-dir-utils";
-import { normalizeProjectFilePath } from "./normalize-project-file-path";
-import { resolvePathWithinAppDir } from "./resolve-path-within-app-dir";
+import {
+  RelativePathSchema,
+} from "../schemas/paths";
+import {
+  type TaskId,
+} from "../schemas/task-id";
+import {
+  createAppConfig,
+} from "./app-config/create";
+import {
+  taskDir,
+} from "./app-dir-utils";
+import {
+  normalizeProjectFilePath,
+} from "./normalize-project-file-path";
+import {
+  resolvePathWithinAppDir,
+} from "./resolve-path-within-app-dir";
 
 interface ReadProjectFileOptions {
   filePath: string;
-  projectSubdomain: ProjectSubdomain;
+  projectSubdomain: TaskId;
   signal?: AbortSignal;
 }
 

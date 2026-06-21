@@ -1,7 +1,13 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
-import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import {
+  PROJECT_MANIFEST_FILE_NAME,
+} from "@instrument-org/shared";
+import {
+  APP_FOLDER_NAMES,
+} from "@instrument-org/workspace/client";
 
-import { filenameFromFilePath } from "./path-utils";
+import {
+  filenameFromFilePath,
+} from "./path-utils";
 
 /**
  * Dirs that should surface prominently in the explorer and files grid.

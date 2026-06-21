@@ -1,12 +1,16 @@
-import { type ProjectSubdomain } from "@instrument-org/workspace/client";
-import { atom } from "jotai";
+import {
+  type TaskId,
+} from "@instrument-org/workspace/client";
+import {
+  atom,
+} from "jotai";
 
 export interface ProjectFileViewerFile {
   filename: string;
   filePath: string;
   mimeType: string;
   modifiedAt: number;
-  projectSubdomain: ProjectSubdomain;
+  projectSubdomain: TaskId;
   url: string;
 }
 

@@ -9,24 +9,10 @@ import { useProjectRouteSync } from "@/client/hooks/use-project-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
 import { createIconMeta, createProjectSubdomainMeta } from "@/shared/tabs";
-import {
-  ProjectSubdomainSchema,
-  StoreId,
-  type WorkspaceAppProject,
-} from "@instrument-org/workspace/client";
+import { StoreId, TaskIdSchema, type WorkspaceAppProject } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import {
-  CancelledError,
-  keepPreviousData,
-  useQuery,
-} from "@tanstack/react-query";
-import {
-  createFileRoute,
-  notFound,
-  redirect,
-  useMatchRoute,
-  useNavigate,
-} from "@tanstack/react-router";
+import { CancelledError, keepPreviousData, useQuery } from "@tanstack/react-query";
+import { createFileRoute, notFound, redirect, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 
 const projectSearchSchema = z.object({
@@ -53,7 +39,7 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
   params: {
     parse: (rawParams) => {
       return {
-        subdomain: ProjectSubdomainSchema.parse(rawParams.subdomain),
+        subdomain: TaskIdSchema.parse(rawParams.subdomain),
       };
     },
   },

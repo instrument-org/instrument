@@ -1,5 +1,9 @@
-import { type WorkspaceServerURL } from "@instrument-org/shared";
-import { detect } from "detect-port";
+import {
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
+import {
+  detect,
+} from "detect-port";
 
 import {
   DEFAULT_APPS_SERVER_PORT,

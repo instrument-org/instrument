@@ -1,9 +1,6 @@
 import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
-import {
-  type ProjectSubdomain,
-  type SessionMessageDataPart,
-} from "@instrument-org/workspace/client";
+import { type SessionMessageDataPart, type TaskId } from "@instrument-org/workspace/client";
 
 import { FilesGrid } from "./files-grid";
 
@@ -16,7 +13,7 @@ export function FileChangesCard({
   assetBaseUrl: string;
   className?: string;
   files: SessionMessageDataPart.FileChangeDataPartItem[];
-  projectSubdomain: ProjectSubdomain;
+  projectSubdomain: TaskId;
 }) {
   // Deleted files have nothing to preview; show the ones that still exist.
   const currentFiles: ProjectFileViewerFile[] = files

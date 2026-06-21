@@ -1,19 +1,32 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
-import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+import {
+  type BrowserTargetId,
+} from "@instrument-org/workspace/electron";
 
 import type { BrowserEntry } from "./entry";
 
-import { sendCdpCommand } from "../lib/cdp";
+import {
+  sendCdpCommand,
+} from "../lib/cdp";
 import {
   DEFAULT_VIEWPORT_HEIGHT,
   DEFAULT_VIEWPORT_WIDTH,
 } from "./device-metrics";
-import { applyDownloadBehavior } from "./downloads";
-import { log } from "./log";
-import { handlePrintToPDF } from "./print-to-pdf";
-import { startScreencast, stopScreencast } from "./screencast";
+import {
+  applyDownloadBehavior,
+} from "./downloads";
+import {
+  log,
+} from "./log";
+import {
+  handlePrintToPDF,
+} from "./print-to-pdf";
+import {
+  startScreencast,
+  stopScreencast,
+} from "./screencast";
 
 export async function sendCommand({
   ensureDebuggerAttached,

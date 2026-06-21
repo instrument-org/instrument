@@ -1,6 +1,10 @@
-import { rpcClient } from "@/client/rpc/client";
+import {
+  rpcClient,
+} from "@/client/rpc/client";
 
-import { captureClientEvent } from "./capture-client-event";
+import {
+  captureClientEvent,
+} from "./capture-client-event";
 
 export async function logOut() {
   await rpcClient.auth.signOut.call();

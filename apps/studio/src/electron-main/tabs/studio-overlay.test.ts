@@ -1,6 +1,12 @@
 import type { BaseWindow } from "electron";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 vi.mock("@/electron-main/lib/context-menu", () => ({
   createContextMenu: vi.fn(),

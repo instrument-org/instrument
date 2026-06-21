@@ -1,5 +1,9 @@
-import { base } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  base,
+} from "@/electron-main/rpc/base";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
 
 const live = {
   status: base.handler(async function* ({ context, signal }) {

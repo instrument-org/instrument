@@ -1,4 +1,6 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
 
 export function hasTerminalToolState(part: SessionMessagePart.ToolPart) {
   return part.state === "output-available" || part.state === "output-error";

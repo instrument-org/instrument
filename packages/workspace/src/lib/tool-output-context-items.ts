@@ -1,4 +1,6 @@
-import { type SessionMessagePart } from "../schemas/session/message-part";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
 
 // Transient field smuggled onto a tool's output when converting to model
 // messages, so a tool's `toModelOutput` can read context items collected as a

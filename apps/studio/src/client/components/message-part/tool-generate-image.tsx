@@ -1,14 +1,6 @@
 import { APP_NAME } from "@instrument-org/shared";
-import {
-  type ProjectSubdomain,
-  type SessionMessagePart,
-} from "@instrument-org/workspace/client";
-import {
-  ArrowsOutSimpleIcon,
-  ChatIcon,
-  CopyIcon,
-  ImagesIcon,
-} from "@phosphor-icons/react";
+import { type SessionMessagePart, type TaskId } from "@instrument-org/workspace/client";
+import { ArrowsOutSimpleIcon, ChatIcon, CopyIcon, ImagesIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 
@@ -23,12 +15,7 @@ import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { useCurrentProjectFile } from "../project/current-project-files";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
-import {
-  ToolCard,
-  ToolCardHeader,
-  ToolCardSection,
-  ToolChip,
-} from "./tool-card";
+import { ToolCard, ToolCardHeader, ToolCardSection, ToolChip } from "./tool-card";
 
 type GenerateImagePart = Extract<
   SessionMessagePart.ToolPart,
@@ -94,7 +81,7 @@ export function ToolGenerateImage({
   assetBaseUrl: string;
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const navigate = useNavigate({ from: "/projects/$subdomain" });
 
@@ -305,7 +292,7 @@ function ImageActions({
 }: {
   filePath: string;
   modifiedAt: number;
-  subdomain: ProjectSubdomain;
+  subdomain: TaskId;
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
   const navigate = useNavigate({ from: "/projects/$subdomain" });

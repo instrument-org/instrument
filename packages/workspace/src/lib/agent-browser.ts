@@ -1,11 +1,24 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
-import { arch, platform } from "node:os";
+import {
+  APP_NAME_SLUG,
+} from "@instrument-org/shared";
+import {
+  execSync,
+} from "node:child_process";
+import {
+  existsSync,
+} from "node:fs";
+import {
+  createRequire,
+} from "node:module";
+import {
+  arch,
+  platform,
+} from "node:os";
 import path from "node:path";
 
-import { unpackAsarPath } from "./asar";
+import {
+  unpackAsarPath,
+} from "./asar";
 
 // In dev, electron-vite bakes in the absolute resolved bin/ directory since
 // node_modules isn't alongside the output. In prod, it is null and we resolve

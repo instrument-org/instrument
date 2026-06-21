@@ -1,8 +1,17 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { AppDirSchema, RelativePathSchema } from "../schemas/paths";
-import { resolvePathWithinAppDir } from "./resolve-path-within-app-dir";
+import {
+  AppDirSchema,
+  RelativePathSchema,
+} from "../schemas/paths";
+import {
+  resolvePathWithinAppDir,
+} from "./resolve-path-within-app-dir";
 
 describe("resolvePathWithinAppDir", () => {
   const appDir = AppDirSchema.parse(path.join("/tmp", "project"));

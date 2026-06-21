@@ -1,26 +1,48 @@
 /// <reference types="electron-vite/node" />
 
 import "@/electron-main/setup-environment"; // This must be imported first
-import { startAuthCallbackServer } from "@/electron-main/auth/server";
-import { runMigrations } from "@/electron-main/lib/run-migrations";
-import { StudioAppUpdater } from "@/electron-main/lib/update";
-import { createApplicationMenu } from "@/electron-main/menus";
-import { getAppStateStore } from "@/electron-main/stores/app-state";
-import { getTabsManager } from "@/electron-main/tabs";
+import {
+  startAuthCallbackServer,
+} from "@/electron-main/auth/server";
+import {
+  runMigrations,
+} from "@/electron-main/lib/run-migrations";
+import {
+  StudioAppUpdater,
+} from "@/electron-main/lib/update";
+import {
+  createApplicationMenu,
+} from "@/electron-main/menus";
+import {
+  getAppStateStore,
+} from "@/electron-main/stores/app-state";
+import {
+  getTabsManager,
+} from "@/electron-main/tabs";
 import {
   createMainWindow,
   updateMainWindowBackgroundColor,
   updateTitleBarOverlay,
 } from "@/electron-main/windows/main";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import {
+  getMainWindow,
+} from "@/electron-main/windows/main/instance";
 import {
   getOnboardingWindow,
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
-import { PRIVATE_BETA_LAUNCH } from "@/shared/constants";
-import { is, optimizer } from "@electron-toolkit/utils";
-import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
+import {
+  PRIVATE_BETA_LAUNCH,
+} from "@/shared/constants";
+import {
+  is,
+  optimizer,
+} from "@electron-toolkit/utils";
+import {
+  APP_NAME,
+  APP_PROTOCOL,
+} from "@instrument-org/shared";
 import {
   app,
   BrowserWindow,
@@ -30,14 +52,30 @@ import {
   session,
 } from "electron";
 
-import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
-import { createWorkspaceActor } from "./lib/create-workspace-actor";
-import { logger } from "./lib/electron-logger";
-import { generateUserAgent } from "./lib/generate-user-agent";
-import { registerTelemetry } from "./lib/register-telemetry";
-import { setupBinDirectory } from "./lib/setup-bin-directory";
-import { watchThemePreferenceAndApply } from "./lib/theme-utils";
-import { initializeRPC } from "./rpc/initialize";
+import {
+  warnIfRunningX64BuildUnderARM64Translation,
+} from "./lib/arm64-translation-warning";
+import {
+  createWorkspaceActor,
+} from "./lib/create-workspace-actor";
+import {
+  logger,
+} from "./lib/electron-logger";
+import {
+  generateUserAgent,
+} from "./lib/generate-user-agent";
+import {
+  registerTelemetry,
+} from "./lib/register-telemetry";
+import {
+  setupBinDirectory,
+} from "./lib/setup-bin-directory";
+import {
+  watchThemePreferenceAndApply,
+} from "./lib/theme-utils";
+import {
+  initializeRPC,
+} from "./rpc/initialize";
 let appUpdater: StudioAppUpdater | undefined;
 
 protocol.registerSchemesAsPrivileged([

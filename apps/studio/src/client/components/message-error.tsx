@@ -6,24 +6,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  parsePlatformApiError,
-  requiresAutoModelRecovery,
-} from "../lib/parse-platform-api-error";
+import { parsePlatformApiError, requiresAutoModelRecovery } from "../lib/parse-platform-api-error";
 import { rpcClient } from "../rpc/client";
-import {
-  CollapsiblePartMainContent,
-  CollapsiblePartTrigger,
-} from "./collapsible-part";
+import { CollapsiblePartMainContent, CollapsiblePartTrigger } from "./collapsible-part";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { ToolPartListItemCompact } from "./tool-part/list-item-compact";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "./ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { UpgradeSubscriptionAlert } from "./upgrade-subscription-alert";
 

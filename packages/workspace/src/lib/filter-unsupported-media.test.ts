@@ -1,10 +1,18 @@
 import type { AIGatewayModel } from "@instrument-org/ai-gateway";
 import type { ModelMessage } from "ai";
 
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { filterUnsupportedMedia } from "./filter-unsupported-media";
+import {
+  createMockAIGatewayModel,
+} from "../test/helpers/mock-ai-gateway-model";
+import {
+  filterUnsupportedMedia,
+} from "./filter-unsupported-media";
 
 const createModel = (
   features: AIGatewayModel.ModelFeatures[],

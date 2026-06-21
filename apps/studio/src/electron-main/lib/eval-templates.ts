@@ -1,8 +1,16 @@
-import { CUSTOM_EVAL_TEMPLATE_NAME } from "@/shared/evals";
-import { dedent } from "radashi";
-import { z } from "zod";
+import {
+  CUSTOM_EVAL_TEMPLATE_NAME,
+} from "@/shared/evals";
+import {
+  dedent,
+} from "radashi";
+import {
+  z,
+} from "zod";
 
-import { isDeveloperMode } from "../stores/preferences";
+import {
+  isDeveloperMode,
+} from "../stores/preferences";
 
 const EvalTemplateSchema = z.object({
   name: z.string(),

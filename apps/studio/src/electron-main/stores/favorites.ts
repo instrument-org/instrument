@@ -1,15 +1,21 @@
-import { logger } from "@/electron-main/lib/electron-logger";
-import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  ProjectSubdomainSchema,
+  logger,
+} from "@/electron-main/lib/electron-logger";
+import {
+  publisher,
+} from "@/electron-main/rpc/publisher";
+import {
+  TaskIdSchema,
   workspacePublisher,
 } from "@instrument-org/workspace/electron";
 import Store from "electron-store";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
 const FavoritesSchema = z.object({
   // eslint-disable-next-line unicorn/prefer-top-level-await
-  favorites: z.array(ProjectSubdomainSchema).catch([]),
+  favorites: z.array(TaskIdSchema).catch([]),
 });
 
 type FavoritesState = z.output<typeof FavoritesSchema>;

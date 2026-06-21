@@ -1,6 +1,10 @@
-import { type SessionMessage } from "@instrument-org/workspace/client";
+import {
+  type SessionMessage,
+} from "@instrument-org/workspace/client";
 
-import { getRegisteredSessions } from "./helpers";
+import {
+  getRegisteredSessions,
+} from "./helpers";
 
 import.meta.glob("./data/*.ts", { eager: true });
 

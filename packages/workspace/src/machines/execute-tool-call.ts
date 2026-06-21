@@ -1,17 +1,42 @@
 import type { ActorRefFrom } from "xstate";
 
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { assign, fromPromise, log, setup } from "xstate";
+import {
+  type AIGatewayModel,
+} from "@instrument-org/ai-gateway";
+import {
+  assign,
+  fromPromise,
+  log,
+  setup,
+} from "xstate";
 
-import { type AgentName } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
-import { getCurrentDate } from "../lib/get-current-date";
-import { runToolCall } from "../lib/run-tool-call";
-import { type SpawnAgentFunction } from "../lib/spawn-agent";
-import { Store } from "../lib/store";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { type StoreId } from "../schemas/store-id";
-import { getToolByType } from "../tools/all";
+import {
+  type AgentName,
+} from "../agents/types";
+import {
+  type AppConfig,
+} from "../lib/app-config/types";
+import {
+  getCurrentDate,
+} from "../lib/get-current-date";
+import {
+  runToolCall,
+} from "../lib/run-tool-call";
+import {
+  type SpawnAgentFunction,
+} from "../lib/spawn-agent";
+import {
+  Store,
+} from "../lib/store";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  type StoreId,
+} from "../schemas/store-id";
+import {
+  getToolByType,
+} from "../tools/all";
 
 type CancellationReason = "manual" | "timeout" | "unknown";
 

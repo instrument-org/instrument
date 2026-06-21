@@ -1,10 +1,23 @@
-import { type Result } from "neverthrow";
-import { type output } from "zod";
+import {
+  type Result,
+} from "neverthrow";
+import {
+  type output,
+} from "zod";
 
-import { type ExecuteError } from "../../lib/execute-error";
-import { isAsyncIterable } from "../../lib/is-async-iterable";
-import { StoreId } from "../../schemas/store-id";
-import { type AgentTool, type AnyAgentTool } from "../../tools/types";
+import {
+  type ExecuteError,
+} from "../../lib/execute-error";
+import {
+  isAsyncIterable,
+} from "../../lib/is-async-iterable";
+import {
+  StoreId,
+} from "../../schemas/store-id";
+import {
+  type AgentTool,
+  type AnyAgentTool,
+} from "../../tools/types";
 
 type ExecuteOptions<T extends AnyAgentTool> = Parameters<T["execute"]>[0];
 type ExecuteOutput<T extends AnyAgentTool> =

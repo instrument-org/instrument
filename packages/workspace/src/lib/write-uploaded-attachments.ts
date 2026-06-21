@@ -1,11 +1,24 @@
-import { err, ok, ResultAsync, safeTry } from "neverthrow";
+import {
+  err,
+  ok,
+  ResultAsync,
+  safeTry,
+} from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ulid } from "ulid";
+import {
+  ulid,
+} from "ulid";
 
-import { APP_FOLDER_NAMES } from "../constants";
-import { type FileUpload } from "../schemas/file-upload";
-import { FolderAttachment } from "../schemas/folder-attachment";
+import {
+  APP_FOLDER_NAMES,
+} from "../constants";
+import {
+  type FileUpload,
+} from "../schemas/file-upload";
+import {
+  FolderAttachment,
+} from "../schemas/folder-attachment";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
@@ -13,15 +26,34 @@ import {
   type RelativePath,
   RelativePathSchema,
 } from "../schemas/paths";
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { StoreId } from "../schemas/store-id";
-import { absolutePathJoin } from "./absolute-path-join";
-import { TypedError } from "./errors";
-import { getCurrentDate } from "./get-current-date";
-import { getMimeType } from "./get-mime-type";
-import { getProjectState, setProjectState } from "./project-state-store";
-import { sanitizeFilename } from "./sanitize-filename";
+import {
+  type SessionMessageDataPart,
+} from "../schemas/session/message-data-part";
+import {
+  type SessionMessagePart,
+} from "../schemas/session/message-part";
+import {
+  StoreId,
+} from "../schemas/store-id";
+import {
+  absolutePathJoin,
+} from "./absolute-path-join";
+import {
+  TypedError,
+} from "./errors";
+import {
+  getCurrentDate,
+} from "./get-current-date";
+import {
+  getMimeType,
+} from "./get-mime-type";
+import {
+  getProjectState,
+  setProjectState,
+} from "./project-state-store";
+import {
+  sanitizeFilename,
+} from "./sanitize-filename";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {

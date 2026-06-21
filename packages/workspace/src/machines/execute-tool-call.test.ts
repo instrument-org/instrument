@@ -70,7 +70,7 @@ describe("executeToolCallMachine", () => {
 
     mockFs({
       [MOCK_WORKSPACE_DIRS.projects]: {
-        [projectAppConfig.folderName]: {
+        [projectAppConfig.subdomain]: {
           "nonexistent.js": "",
           "package.json": "{}",
           "test.txt": "Hello, world!",

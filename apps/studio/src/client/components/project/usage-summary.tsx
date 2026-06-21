@@ -13,7 +13,7 @@ export function ProjectUsageSummary({
   subdomain: TaskId;
 }) {
   const { data } = useQuery(
-    rpcClient.workspace.project.live.usageSummary.experimental_liveOptions({
+    rpcClient.workspace.task.live.usageSummary.experimental_liveOptions({
       input: { subdomain },
     }),
   );

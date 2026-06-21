@@ -34,7 +34,7 @@ export const NavProjectItem = memo(function NavProjectItem({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { isPending: isRenameLoading, mutateAsync: renameProject } =
-    useMutation(rpcClient.workspace.project.update.mutationOptions());
+    useMutation(rpcClient.workspace.task.update.mutationOptions());
 
   const { mutateAsync: addFavorite } = useMutation(
     rpcClient.favorites.add.mutationOptions(),

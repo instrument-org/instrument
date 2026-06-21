@@ -46,11 +46,11 @@ export function buildReportWorkspaceConfig(
     getAIProviderConfigs: () => [],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-    projectsDir: WorkspaceDirSchema.parse(
-      path.join(absoluteWorkspaceDir, "projects"),
-    ),
     registryDir: WorkspaceDirSchema.parse(resolveRegistryDir()),
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
+    tasksDir: WorkspaceDirSchema.parse(
+      path.join(absoluteWorkspaceDir, "projects"),
+    ),
     templatesDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, "registry", "templates"),
     ),

@@ -43,11 +43,11 @@ import {
   publisher,
 } from "../src/rpc/publisher";
 import {
-  project as projectRoute,
-} from "../src/rpc/routes/project";
-import {
   session as sessionRoute,
 } from "../src/rpc/routes/session";
+import {
+  task as projectRoute,
+} from "../src/rpc/routes/task";
 import {
   type FileUpload,
 } from "../src/schemas/file-upload";

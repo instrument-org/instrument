@@ -35,8 +35,8 @@ import {
   message as messageRoute,
 } from "../src/rpc/routes/message";
 import {
-  project as projectRoute,
-} from "../src/rpc/routes/project";
+  task as projectRoute,
+} from "../src/rpc/routes/task";
 import {
   type StoreId,
 } from "../src/schemas/store-id";

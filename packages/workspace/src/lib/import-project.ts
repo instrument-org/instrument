@@ -46,7 +46,7 @@ export async function importProject(
 
     // For tasks the folder name is identical to the subdomain.
     const projectDir = TaskDirSchema.parse(
-      absolutePathJoin(workspaceConfig.projectsDir, subdomain),
+      absolutePathJoin(workspaceConfig.tasksDir, subdomain),
     );
 
     const projectExists = await pathExists(projectDir);

@@ -25,7 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "../ui/sidebar";
 
 type AttachedFolder = NonNullable<
-  RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"]
+  RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"]
 >[string];
 
 type FileTreeNode =
@@ -40,8 +40,8 @@ export function ProjectFiles({
   project,
 }: {
   activeFilePath: null | string;
-  attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
+  attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
+  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   onFileSelect: (file: ProjectFileViewerFile) => void;
   project: Task;
 }) {

@@ -36,7 +36,7 @@ export function StudioSidebar({
   );
 
   const { data: projectsData } = useQuery(
-    rpcClient.workspace.project.live.list.experimental_liveOptions(),
+    rpcClient.workspace.task.live.list.experimental_liveOptions(),
   );
 
   const favoriteSubdomains = useMemo(

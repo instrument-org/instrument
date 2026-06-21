@@ -62,7 +62,7 @@ export async function getApp(
 
   // For tasks the folder name is identical to the subdomain.
   const dir = TaskDirSchema.parse(
-    path.resolve(workspaceConfig.projectsDir, subdomain),
+    path.resolve(workspaceConfig.tasksDir, subdomain),
   );
 
   // Check if the directory exists
@@ -96,7 +96,7 @@ export async function getProjects(
       ? (project: Task) => project.createdAt.getTime()
       : (project: Task) => project.updatedAt.getTime();
 
-  const projectAppDirs = await appDirsInRootDir(workspaceConfig.projectsDir);
+  const projectAppDirs = await appDirsInRootDir(workspaceConfig.tasksDir);
   for (const dir of projectAppDirs) {
     const projectApp = await workspaceApp({ dir });
     if (projectApp.isOk()) {

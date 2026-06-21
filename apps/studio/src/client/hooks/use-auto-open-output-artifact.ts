@@ -34,7 +34,7 @@ export function useAutoOpenOutputArtifact({
   const navigate = useNavigate();
 
   const { data: artifacts } = useQuery(
-    rpcClient.workspace.project.live.outputArtifacts.experimental_liveOptions({
+    rpcClient.workspace.task.live.outputArtifacts.experimental_liveOptions({
       input: { subdomain },
     }),
   );

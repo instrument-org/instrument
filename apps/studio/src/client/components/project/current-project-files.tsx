@@ -1,7 +1,7 @@
 import { type RPCOutput } from "@/client/rpc/client";
 import { createContext, type ReactNode, useContext } from "react";
 
-type ProjectFile = RPCOutput["workspace"]["project"]["files"]["list"][number];
+type ProjectFile = RPCOutput["workspace"]["task"]["files"]["list"][number];
 
 const CurrentProjectFilesContext = createContext<
   ReadonlyMap<string, ProjectFile> | undefined

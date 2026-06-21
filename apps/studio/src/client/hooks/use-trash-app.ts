@@ -29,7 +29,7 @@ export function useTrashApp({
 }) {
   const queryClient = useQueryClient();
   const trashProjectMutation = useMutation(
-    rpcClient.workspace.project.trash.mutationOptions(),
+    rpcClient.workspace.task.trash.mutationOptions(),
   );
   const { closeTab } = useTabActions();
   const tabs = useTabs();
@@ -45,7 +45,7 @@ export function useTrashApp({
       // and the goal is to make callers go back into loading state
       queryClient.removeQueries({
         // .key() generates a wildcard key for any params
-        queryKey: rpcClient.workspace.project.live.list.key(),
+        queryKey: rpcClient.workspace.task.live.list.key(),
       });
       queryClient.removeQueries({
         // .key() generates a wildcard key for any params

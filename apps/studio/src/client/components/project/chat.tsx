@@ -63,7 +63,7 @@ export function ProjectChat({
     rpcClient.workspace.session.stop.mutationOptions(),
   );
   const dismissTutorial = useMutation(
-    rpcClient.workspace.project.state.set.mutationOptions({
+    rpcClient.workspace.task.state.set.mutationOptions({
       onError: (error) => {
         toast.error("Failed to dismiss tutorial prompt", {
           description: error.message,
@@ -71,7 +71,7 @@ export function ProjectChat({
       },
       onSuccess: () => {
         void queryClient.invalidateQueries({
-          queryKey: rpcClient.workspace.project.state.get.queryOptions({
+          queryKey: rpcClient.workspace.task.state.get.queryOptions({
             input: { subdomain },
           }).queryKey,
         });

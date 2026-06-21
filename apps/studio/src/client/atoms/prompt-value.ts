@@ -29,7 +29,7 @@ const createProjectPromptStorage = (subdomain: TaskId) => {
   let lastValue: string | undefined;
 
   const save = debounce({ delay: 1000 }, async (newValue: string) => {
-    await rpcClient.workspace.project.state.set.call({
+    await rpcClient.workspace.task.state.set.call({
       state: { promptDraft: newValue },
       subdomain,
     });
@@ -58,7 +58,7 @@ const createProjectPromptStorage = (subdomain: TaskId) => {
       initialValue: string,
     ) => {
       let isCancelled = false;
-      rpcClient.workspace.project.state.get
+      rpcClient.workspace.task.state.get
         .call({ subdomain })
         .then((state) => {
           if (isCancelled) {

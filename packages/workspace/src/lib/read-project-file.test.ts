@@ -28,30 +28,30 @@ import {
 
 describe("readProjectFile", () => {
   const subdomain = TaskIdSchema.parse("test-project");
-  let projectsDir: string;
+  let tasksDir: string;
   let dir: string;
 
   beforeEach(async () => {
-    projectsDir = await fs.mkdtemp(
+    tasksDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "read-project-file-"),
     );
-    dir = path.join(projectsDir, subdomain);
+    dir = path.join(tasksDir, subdomain);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, "inside.txt"), "inside contents");
-    // Sensitive file outside the task dir (sibling of dir under projectsDir).
-    await fs.writeFile(path.join(projectsDir, "secret.txt"), "ssh private key");
+    // Sensitive file outside the task dir (sibling of dir under tasksDir).
+    await fs.writeFile(path.join(tasksDir, "secret.txt"), "ssh private key");
 
     // createMockAppConfig publishes the singleton; point it at the temp dir so
     // readProjectFile (which reads the singleton) resolves under it.
     createMockAppConfig(subdomain);
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
-      projectsDir: AbsolutePathSchema.parse(projectsDir),
+      tasksDir: AbsolutePathSchema.parse(tasksDir),
     });
   });
 
   afterEach(async () => {
-    await fs.rm(projectsDir, { force: true, recursive: true });
+    await fs.rm(tasksDir, { force: true, recursive: true });
   });
 
   it("reads a file inside the task dir", async () => {

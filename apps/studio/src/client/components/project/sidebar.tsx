@@ -24,9 +24,9 @@ export function ProjectSidebar({
   sidebar,
 }: {
   activeFilePath: null | string;
-  attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
+  attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
   chatProps: ComponentProps<typeof ProjectChat>;
-  files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
+  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   onFileSelect: (file: ProjectFileViewerFile) => void;
   onSidebarChange: (sidebar: ProjectSidebarMode) => void;
   project: Task;

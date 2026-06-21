@@ -40,7 +40,7 @@ export function ChatZeroState({
                   allowOpenNewTab={false}
                   className="block text-xs underline hover:text-foreground"
                   key={session.id}
-                  params={{ subdomain }}
+                  params={{ id: subdomain }}
                   replace
                   search={(prev) => ({
                     ...prev,

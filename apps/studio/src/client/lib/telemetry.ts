@@ -70,8 +70,7 @@ async function initTelemetry() {
 
       if (
         typeof properties.$pathname === "string" &&
-        (properties.$pathname.startsWith("/tasks/") ||
-          properties.$pathname.startsWith("/projects/"))
+        properties.$pathname.startsWith("/tasks/")
       ) {
         delete properties.$title;
         delete properties.title;

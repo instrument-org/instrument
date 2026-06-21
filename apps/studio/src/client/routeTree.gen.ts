@@ -29,7 +29,6 @@ import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
 import { Route as StudioOverlaySettingsIndexRouteImport } from './routes/studio-overlay/settings/index'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
-import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppEvalsIndexRouteImport } from './routes/_app/evals/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
 import { Route as StudioOverlaySettingsProvidersRouteImport } from './routes/studio-overlay/settings/providers'
@@ -41,7 +40,6 @@ import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/comp
 import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppTasksIdIndexRouteImport } from './routes/_app/tasks/$id/index'
-import { Route as AppProjectsSubdomainIndexRouteImport } from './routes/_app/projects/$subdomain/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
 import { Route as AppDebugComponentsUpdateStatusRouteImport } from './routes/_app/debug/components/update-status'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
@@ -157,11 +155,6 @@ const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
   path: '/tasks/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
-  id: '/projects/',
-  path: '/projects/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
 const AppEvalsIndexRoute = AppEvalsIndexRouteImport.update({
   id: '/evals/',
   path: '/evals/',
@@ -221,12 +214,6 @@ const AppTasksIdIndexRoute = AppTasksIdIndexRouteImport.update({
   path: '/tasks/$id/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppProjectsSubdomainIndexRoute =
-  AppProjectsSubdomainIndexRouteImport.update({
-    id: '/projects/$subdomain/',
-    path: '/projects/$subdomain/',
-    getParentRoute: () => AppRouteRoute,
-  } as any)
 const AppDebugComponentsIndexRoute = AppDebugComponentsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -344,7 +331,6 @@ export interface FileRoutesByFullPath {
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/debug/': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
-  '/projects': typeof AppProjectsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
@@ -357,7 +343,6 @@ export interface FileRoutesByFullPath {
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
-  '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
   '/tasks/$id': typeof AppTasksIdIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
@@ -388,7 +373,6 @@ export interface FileRoutesByTo {
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/debug': typeof AppDebugIndexRoute
   '/evals': typeof AppEvalsIndexRoute
-  '/projects': typeof AppProjectsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
@@ -400,7 +384,6 @@ export interface FileRoutesByTo {
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
-  '/projects/$subdomain': typeof AppProjectsSubdomainIndexRoute
   '/tasks/$id': typeof AppTasksIdIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
@@ -438,7 +421,6 @@ export interface FileRoutesById {
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/evals/': typeof AppEvalsIndexRoute
-  '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
@@ -451,7 +433,6 @@ export interface FileRoutesById {
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
-  '/_app/projects/$subdomain/': typeof AppProjectsSubdomainIndexRoute
   '/_app/tasks/$id/': typeof AppTasksIdIndexRoute
   '/_app/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/_app/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
@@ -488,7 +469,6 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/providers'
     | '/debug/'
     | '/evals'
-    | '/projects'
     | '/tasks'
     | '/studio-overlay/settings/'
     | '/debug/browser-view/$targetId'
@@ -501,7 +481,6 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/update-status'
     | '/debug/components/'
-    | '/projects/$subdomain'
     | '/tasks/$id'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
@@ -532,7 +511,6 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/providers'
     | '/debug'
     | '/evals'
-    | '/projects'
     | '/tasks'
     | '/studio-overlay/settings'
     | '/debug/browser-view/$targetId'
@@ -544,7 +522,6 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/update-status'
     | '/debug/components'
-    | '/projects/$subdomain'
     | '/tasks/$id'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
@@ -581,7 +558,6 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/providers'
     | '/_app/debug/'
     | '/_app/evals/'
-    | '/_app/projects/'
     | '/_app/tasks/'
     | '/studio-overlay/settings/'
     | '/_app/debug/browser-view/$targetId'
@@ -594,7 +570,6 @@ export interface FileRouteTypes {
     | '/_app/debug/components/spinner'
     | '/_app/debug/components/update-status'
     | '/_app/debug/components/'
-    | '/_app/projects/$subdomain/'
     | '/_app/tasks/$id/'
     | '/_app/debug/components/onboarding/complete'
     | '/_app/debug/components/onboarding/login'
@@ -754,13 +729,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/projects/': {
-      id: '/_app/projects/'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof AppProjectsIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
     '/_app/evals/': {
       id: '/_app/evals/'
       path: '/evals'
@@ -836,13 +804,6 @@ declare module '@tanstack/react-router' {
       path: '/tasks/$id'
       fullPath: '/tasks/$id'
       preLoaderRoute: typeof AppTasksIdIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/projects/$subdomain/': {
-      id: '/_app/projects/$subdomain/'
-      path: '/projects/$subdomain'
-      fullPath: '/projects/$subdomain'
-      preLoaderRoute: typeof AppProjectsSubdomainIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/debug/components/': {
@@ -1050,9 +1011,7 @@ interface AppRouteRouteChildren {
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppTutorialTaskRoute: typeof AppTutorialTaskRoute
   AppEvalsIndexRoute: typeof AppEvalsIndexRoute
-  AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
-  AppProjectsSubdomainIndexRoute: typeof AppProjectsSubdomainIndexRoute
   AppTasksIdIndexRoute: typeof AppTasksIdIndexRoute
 }
 
@@ -1063,9 +1022,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTutorialTaskRoute: AppTutorialTaskRoute,
   AppEvalsIndexRoute: AppEvalsIndexRoute,
-  AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
-  AppProjectsSubdomainIndexRoute: AppProjectsSubdomainIndexRoute,
   AppTasksIdIndexRoute: AppTasksIdIndexRoute,
 }
 

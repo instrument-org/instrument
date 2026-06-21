@@ -1,14 +1,16 @@
 import { z } from "zod";
 
 import { ProjectManifestSchema } from "./project-manifest";
-import { PreviewSubdomainSchema, ProjectSubdomainSchema } from "./subdomains";
+import { ProjectSubdomainSchema } from "./subdomains";
 
-const WorkspaceAppBaseSchema = z.object({
+export const WorkspaceAppProjectSchema = z.object({
   createdAt: z.date(),
   description: ProjectManifestSchema.shape.description.optional(),
   folderName: z.string(),
   iconName: ProjectManifestSchema.shape.iconName.optional(),
+  subdomain: ProjectSubdomainSchema,
   title: z.string(),
+  type: z.literal("project"),
   updatedAt: z.date(),
   urls: z.object({
     assetBase: z.string(),
@@ -18,22 +20,8 @@ const WorkspaceAppBaseSchema = z.object({
   }),
 });
 
-export const WorkspaceAppPreviewSchema = WorkspaceAppBaseSchema.extend({
-  subdomain: PreviewSubdomainSchema,
-  type: z.literal("preview"),
-});
-
-export const WorkspaceAppProjectSchema = WorkspaceAppBaseSchema.extend({
-  subdomain: ProjectSubdomainSchema,
-  type: z.literal("project"),
-});
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const WorkspaceAppSchema = z.discriminatedUnion("type", [
-  WorkspaceAppPreviewSchema,
-  WorkspaceAppProjectSchema,
-]);
+// Previews were removed; a workspace app is always a project (task).
+export const WorkspaceAppSchema = WorkspaceAppProjectSchema;
 
 export type WorkspaceApp = z.output<typeof WorkspaceAppSchema>;
-export type WorkspaceAppPreview = z.output<typeof WorkspaceAppPreviewSchema>;
 export type WorkspaceAppProject = z.output<typeof WorkspaceAppProjectSchema>;

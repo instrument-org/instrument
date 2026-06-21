@@ -127,7 +127,6 @@ const create = base
       name: z.string().trim().min(1).optional(),
       preferredFolderName: SubdomainPartSchema.optional(),
       prompt: z.string(),
-      templateName: z.string().optional().default(DEFAULT_TEMPLATE_NAME),
     }),
   )
   .output(
@@ -148,7 +147,6 @@ const create = base
         name,
         preferredFolderName,
         prompt,
-        templateName,
       },
       signal,
     }) => {
@@ -177,7 +175,7 @@ const create = base
         {
           initialManifest: { iconName, name: initialProjectName },
           projectConfig,
-          templateName,
+          templateName: DEFAULT_TEMPLATE_NAME,
           workspaceConfig: context.workspaceConfig,
         },
         { signal },
@@ -242,9 +240,6 @@ const create = base
           message,
           model,
           workspaceConfig: context.workspaceConfig,
-          // Only relevant for non default templates
-          templateTitle:
-            templateName === DEFAULT_TEMPLATE_NAME ? undefined : templateName,
         }).then(async (title) => {
           if (title.isOk()) {
             // Must come before updateProjectManifest so updateSessionTitle can
@@ -286,7 +281,7 @@ const create = base
         files_count: files?.length ?? 0,
         modelId: model.canonicalId,
         providerId: model.params.provider,
-        template_name: templateName,
+        template_name: DEFAULT_TEMPLATE_NAME,
       });
 
       return {

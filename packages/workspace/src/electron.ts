@@ -22,7 +22,6 @@ export { SubdomainPartSchema } from "./schemas/subdomain-part";
 export {
   type AppSubdomain,
   AppSubdomainSchema,
-  type PreviewSubdomain,
   type ProjectSubdomain,
   ProjectSubdomainSchema,
 } from "./schemas/subdomains";

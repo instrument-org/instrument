@@ -115,8 +115,6 @@ export interface WorkspaceConfig {
   getAIProviderConfigs: GetProviderConfigs;
   nodeExecEnv: Record<string, string>;
   pnpmBinPath: AbsolutePath;
-  previewCacheTimeMs?: number;
-  previewsDir: AbsolutePath;
   projectsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;

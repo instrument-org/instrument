@@ -157,9 +157,7 @@ export async function RuntimeList({
                               ${app.app.subdomain}
                             </a>
                             <span
-                              class="px-1.5 py-0.5 text-xs rounded ${getAppTypeColor(
-                                app.config.type,
-                              )}"
+                              class="px-1.5 py-0.5 text-xs rounded bg-green-500"
                             >
                               ${app.config.type}
                             </span>
@@ -206,10 +204,6 @@ export async function RuntimeList({
       </body>
     </html>
   `;
-}
-
-function getAppTypeColor(type: AppConfig["type"]): string {
-  return type === "preview" ? "bg-blue-500" : "bg-green-500";
 }
 
 function getAppWithExtra({

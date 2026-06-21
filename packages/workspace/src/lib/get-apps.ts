@@ -5,67 +5,34 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { assign, sort } from "radashi";
 
-import {
-  type WorkspaceApp,
-  type WorkspaceAppPreview,
-  type WorkspaceAppProject,
-} from "../schemas/app";
+import { type WorkspaceAppProject } from "../schemas/app";
 import { type AbsolutePath, type AppDir, AppDirSchema } from "../schemas/paths";
 import { SubdomainPartSchema } from "../schemas/subdomain-part";
 import {
   type AppSubdomain,
-  PREVIEW_SUBDOMAIN_PART,
-  type PreviewSubdomain,
-  PreviewSubdomainSchema,
-  type ProjectSubdomain,
   ProjectSubdomainSchema,
 } from "../schemas/subdomains";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
-import { folderNameForSubdomain } from "./folder-name-for-subdomain";
 import { getAppDirTimestamps } from "./get-app-dir-timestamps";
-import { isPreviewSubdomain, isProjectSubdomain } from "./is-app";
+import { isProjectSubdomain } from "./is-app";
 import { getProjectManifest } from "./project-manifest";
 import { urlsForSubdomain } from "./url-for-subdomain";
 
-// Type mapping for generic subdomain to workspace app type conversion
-type GetAppResult<T extends AppSubdomain> = T extends PreviewSubdomain
-  ? WorkspaceAppPreview
-  : T extends ProjectSubdomain
-    ? WorkspaceAppProject
-    : WorkspaceApp;
-
-export async function getApp<T extends AppSubdomain>(
-  subdomain: T,
+export async function getApp(
+  subdomain: AppSubdomain,
   workspaceConfig: WorkspaceConfig,
-): Promise<Result<GetAppResult<T>, TypedError.NotFound | TypedError.Parse>> {
-  const rawFolderName = folderNameForSubdomain(subdomain);
-  if (rawFolderName.isErr()) {
-    return err(
-      new TypedError.Parse("Invalid folder name", {
-        cause: rawFolderName.error,
-      }),
-    );
-  }
-
-  // Handle preview and project subdomains
-
-  let appDir: AppDir;
-  let parent: "previews" | "projects";
-
-  if (isPreviewSubdomain(subdomain)) {
-    appDir = AppDirSchema.parse(
-      path.resolve(workspaceConfig.previewsDir, rawFolderName.value),
-    );
-    parent = "previews";
-  } else if (isProjectSubdomain(subdomain)) {
-    appDir = AppDirSchema.parse(
-      path.resolve(workspaceConfig.projectsDir, rawFolderName.value),
-    );
-    parent = "projects";
-  } else {
+): Promise<
+  Result<WorkspaceAppProject, TypedError.NotFound | TypedError.Parse>
+> {
+  if (!isProjectSubdomain(subdomain)) {
     return err(new TypedError.Parse("Invalid folder name"));
   }
+
+  // For tasks the folder name is identical to the subdomain.
+  const appDir = AppDirSchema.parse(
+    path.resolve(workspaceConfig.projectsDir, subdomain),
+  );
 
   // Check if the directory exists
   try {
@@ -74,17 +41,7 @@ export async function getApp<T extends AppSubdomain>(
     return err(new TypedError.NotFound("App not found", { cause: error }));
   }
 
-  // Create the workspace app
-  const appResult = await workspaceApp({
-    appDir,
-    parent,
-  });
-
-  if (appResult.isErr()) {
-    return appResult;
-  }
-
-  return ok(appResult.value as GetAppResult<T>);
+  return workspaceApp({ appDir });
 }
 
 export async function getProjects(
@@ -110,25 +67,13 @@ export async function getProjects(
 
   const projectAppDirs = await appDirsInRootDir(workspaceConfig.projectsDir);
   for (const appDir of projectAppDirs) {
-    const projectApp = await workspaceApp({
-      appDir,
-      parent: "projects",
-    });
-    if (projectApp.isOk() && projectApp.value.type === "project") {
+    const projectApp = await workspaceApp({ appDir });
+    if (projectApp.isOk()) {
       projects.push(projectApp.value);
     } else {
-      if (projectApp.isErr()) {
-        workspaceConfig.captureException(projectApp.error, {
-          scopes: ["workspace"],
-        });
-      } else {
-        workspaceConfig.captureException(
-          new TypedError.Parse(
-            `Invalid project app type ${projectApp.value.type}`,
-          ),
-          { scopes: ["workspace"] },
-        );
-      }
+      workspaceConfig.captureException(projectApp.error, {
+        scopes: ["workspace"],
+      });
     }
   }
 
@@ -180,13 +125,7 @@ async function getAppTitle(
   }
 }
 
-async function workspaceApp({
-  appDir,
-  parent,
-}: {
-  appDir: AppDir;
-  parent: "previews" | "projects";
-}) {
+async function workspaceApp({ appDir }: { appDir: AppDir }) {
   const rawFolderName = path.basename(appDir);
   const folderNameResult = SubdomainPartSchema.safeParse(rawFolderName);
 
@@ -198,60 +137,36 @@ async function workspaceApp({
     );
   }
 
-  if (parent === "projects") {
-    const possibleSubdomain = folderNameResult.data;
-    const subdomainResult = ProjectSubdomainSchema.safeParse(possibleSubdomain);
+  const subdomainResult = ProjectSubdomainSchema.safeParse(
+    folderNameResult.data,
+  );
 
-    if (!subdomainResult.success) {
-      return err(
-        new TypedError.Parse("Invalid folder name", {
-          cause: subdomainResult.error,
-        }),
-      );
-    }
-
-    const title = await getAppTitle(appDir, rawFolderName);
-    const manifest = await getProjectManifest(appDir);
-
-    const iconName =
-      manifest?.iconName ||
-      (subdomainResult.data.startsWith(EVAL_SUBDOMAIN_PREFIX)
-        ? "flask-conical"
-        : undefined);
-
-    const projectApp: WorkspaceAppProject = {
-      ...(await getAppDirTimestamps(appDir)),
-      description: manifest?.description,
-      folderName: rawFolderName,
-      iconName,
-      subdomain: subdomainResult.data,
-      title,
-      type: "project",
-      urls: urlsForSubdomain(subdomainResult.data),
-    };
-    return ok(projectApp);
-  }
-
-  const possibleSubdomain = `${folderNameResult.data}.${PREVIEW_SUBDOMAIN_PART}`;
-  const rawSubdomain = PreviewSubdomainSchema.safeParse(possibleSubdomain);
-
-  if (!rawSubdomain.success) {
+  if (!subdomainResult.success) {
     return err(
       new TypedError.Parse("Invalid folder name", {
-        cause: rawSubdomain.error,
+        cause: subdomainResult.error,
       }),
     );
   }
 
   const title = await getAppTitle(appDir, rawFolderName);
+  const manifest = await getProjectManifest(appDir);
 
-  const previewApp: WorkspaceAppPreview = {
+  const iconName =
+    manifest?.iconName ||
+    (subdomainResult.data.startsWith(EVAL_SUBDOMAIN_PREFIX)
+      ? "flask-conical"
+      : undefined);
+
+  const projectApp: WorkspaceAppProject = {
     ...(await getAppDirTimestamps(appDir)),
+    description: manifest?.description,
     folderName: rawFolderName,
-    subdomain: rawSubdomain.data,
+    iconName,
+    subdomain: subdomainResult.data,
     title,
-    type: "preview",
-    urls: urlsForSubdomain(rawSubdomain.data),
+    type: "project",
+    urls: urlsForSubdomain(subdomainResult.data),
   };
-  return ok(previewApp);
+  return ok(projectApp);
 }

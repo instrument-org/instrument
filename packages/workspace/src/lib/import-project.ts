@@ -7,7 +7,6 @@ import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { extractProjectZip } from "./extract-project-zip";
-import { folderNameForSubdomain } from "./folder-name-for-subdomain";
 import { pathExists } from "./path-exists";
 
 interface ImportProjectOptions {
@@ -24,16 +23,9 @@ export async function importProject(
       `import-${ulid().toLowerCase()}`,
     );
 
-    const folderNameResult = folderNameForSubdomain(subdomain);
-    if (folderNameResult.isErr()) {
-      return errAsync(
-        new TypedError.Parse(`Invalid subdomain format: ${subdomain}`),
-      );
-    }
-    const folderName = folderNameResult.value;
-
+    // For tasks the folder name is identical to the subdomain.
     const projectDir = AppDirSchema.parse(
-      absolutePathJoin(workspaceConfig.projectsDir, folderName),
+      absolutePathJoin(workspaceConfig.projectsDir, subdomain),
     );
 
     const projectExists = await pathExists(projectDir);

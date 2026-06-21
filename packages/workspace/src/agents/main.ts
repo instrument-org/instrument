@@ -281,10 +281,6 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ appConfig, parentMessageId, sessionId, signal }) => {
-    if (appConfig.type !== "project") {
-      return;
-    }
-
     // Resolve the changes recorded by the file watcher during this turn. Always
     // called so the watcher ref acquired in onStart is released, even when we
     // skip saving the change summary below.
@@ -379,10 +375,6 @@ export const mainAgent = setupAgent({
     }
   },
   onStart: async ({ appConfig, sessionId }) => {
-    if (appConfig.type !== "project") {
-      return;
-    }
-
     await beginTurnChangeTracking({
       sessionId,
       subdomain: appConfig.subdomain,

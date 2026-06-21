@@ -63,28 +63,26 @@ export async function newMessage({
     parts.push(uploadResult.value.part);
   }
 
-  if (appConfig.type === "project") {
-    const browserStatusPart = await createBrowserStatusPart({
-      appConfig,
-      createdAt,
-      messageId,
-      sessionId,
-    });
-    if (browserStatusPart) {
-      parts.push(browserStatusPart);
-    }
+  const browserStatusPart = await createBrowserStatusPart({
+    appConfig,
+    createdAt,
+    messageId,
+    sessionId,
+  });
+  if (browserStatusPart) {
+    parts.push(browserStatusPart);
+  }
 
-    const externalChanges = await detectExternalFileChanges({
-      appConfig,
-      messageId,
-      sessionId,
-    });
-    if (externalChanges.isErr()) {
-      // Awareness of disk changes is best-effort; never block sending.
-      appConfig.workspaceConfig.captureException(externalChanges.error);
-    } else if (externalChanges.value) {
-      parts.push(externalChanges.value);
-    }
+  const externalChanges = await detectExternalFileChanges({
+    appConfig,
+    messageId,
+    sessionId,
+  });
+  if (externalChanges.isErr()) {
+    // Awareness of disk changes is best-effort; never block sending.
+    appConfig.workspaceConfig.captureException(externalChanges.error);
+  } else if (externalChanges.value) {
+    parts.push(externalChanges.value);
   }
 
   const message: SessionMessage.UserWithParts = {

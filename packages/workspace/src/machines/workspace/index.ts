@@ -8,7 +8,6 @@ import {
   type CaptureExceptionFunction,
 } from "@instrument-org/shared";
 import ms from "ms";
-import invariant from "tiny-invariant";
 import {
   type ActorRefFrom,
   assign,
@@ -28,10 +27,6 @@ import { type AppConfig } from "../../lib/app-config/types";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { isProjectSubdomain } from "../../lib/is-app";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
-import {
-  createPreviewLogic,
-  type CreatePreviewParentEvent,
-} from "../../logic/create-preview";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
 import {
@@ -64,7 +59,6 @@ import {
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
-  | CreatePreviewParentEvent
   | ProjectBrowserParentEvent
   | SessionMachineParentEvent
   | WorkspaceServerParentEvent
@@ -367,8 +361,6 @@ export const workspaceMachine = setup({
   },
 
   actors: {
-    createPreviewLogic,
-
     projectBrowserMachine,
 
     runtimeMachine,
@@ -390,7 +382,6 @@ export const workspaceMachine = setup({
       getAIProviderConfigs: GetProviderConfigs;
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
-      previewCacheTimeMs?: number;
       registryDir: string;
       rootDir: string;
       shimClientDir: string;
@@ -410,8 +401,6 @@ export const workspaceMachine = setup({
       getAIProviderConfigs: input.getAIProviderConfigs,
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
-      previewCacheTimeMs: input.previewCacheTimeMs,
-      previewsDir: absolutePathJoin(rootDir, "previews"),
       projectsDir: absolutePathJoin(rootDir, "projects"),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
@@ -424,7 +413,6 @@ export const workspaceMachine = setup({
     return {
       appsBeingTrashed: [],
       config: workspaceConfig,
-      createPreviewRefs: new Map(),
       pendingBrowserReapResolvers: new Map(),
       projectBrowserRefs: new Map(),
       runtimeRefs: new Map(),
@@ -506,14 +494,6 @@ export const workspaceMachine = setup({
         }),
       },
     ],
-    "createPreview.done": {
-      actions: assign(({ context, event }) => {
-        const subdomain = event.value.appConfig.subdomain;
-        const createPreviewRefs = new Map(context.createPreviewRefs);
-        createPreviewRefs.delete(subdomain);
-        return { createPreviewRefs };
-      }),
-    },
     createSession: {
       actions: raise(({ context, event }) => {
         const appConfig = createAppConfig({
@@ -533,36 +513,6 @@ export const workspaceMachine = setup({
       }),
     },
     heartbeat: [
-      {
-        actions: assign({
-          createPreviewRefs: ({ context, event, self, spawn }) => {
-            invariant(
-              event.value.appConfig.type === "preview",
-              "Expected preview app config",
-            );
-            const appConfig = event.value.appConfig;
-
-            if (context.createPreviewRefs.has(appConfig.subdomain)) {
-              // Already creating a preview for this app
-              return context.createPreviewRefs;
-            }
-
-            const createPreviewRef = spawn("createPreviewLogic", {
-              input: {
-                appConfig,
-                parentRef: self,
-              },
-            });
-
-            return new Map(context.createPreviewRefs).set(
-              appConfig.subdomain,
-              createPreviewRef,
-            );
-          },
-        }),
-        guard: ({ event }) =>
-          event.value.shouldCreate && event.value.appConfig.type === "preview",
-      },
       {
         actions: raise(({ context, event }) => {
           const existingRuntimeRef = context.runtimeRefs.get(

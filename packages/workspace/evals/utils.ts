@@ -37,9 +37,6 @@ export function buildReportWorkspaceConfig(
     getAIProviderConfigs: () => [],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-    previewsDir: WorkspaceDirSchema.parse(
-      path.join(absoluteWorkspaceDir, "previews"),
-    ),
     projectsDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, "projects"),
     ),

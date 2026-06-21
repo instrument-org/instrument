@@ -9,7 +9,6 @@ import {
 } from "@instrument-org/workspace/electron";
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
-import ms from "ms";
 import path from "node:path";
 import { createActor } from "xstate";
 
@@ -58,7 +57,6 @@ export function createWorkspaceActor({
         ELECTRON_RUN_AS_NODE: "1",
       },
       pnpmBinPath: getPNPMBinPath(),
-      previewCacheTimeMs: ms("24 hours"),
       registryDir: app.isPackaged
         ? path.join(process.resourcesPath, REGISTRY_DIR_NAME)
         : UNPACKAGED_REGISTRY_DIR,

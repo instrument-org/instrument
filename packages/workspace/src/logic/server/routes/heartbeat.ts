@@ -5,11 +5,7 @@ import { isEqual } from "radashi";
 import { type Subscription } from "xstate";
 
 import { createAppConfig } from "../../../lib/app-config/create";
-import { isRunnable, registryAppExists } from "../../../lib/app-dir-utils";
-import {
-  isPreviewExpired,
-  removeExpiredPreview,
-} from "../../../lib/preview-cache";
+import { isRunnable } from "../../../lib/app-dir-utils";
 import { type RuntimeSnapshot } from "../../../machines/runtime";
 import { type AppStatus } from "../../../types";
 import { APPS_SERVER_API_PATH, HEARTBEAT_STREAM_ROUTE } from "../constants";
@@ -81,68 +77,12 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
       if (!runtimeRef) {
         const canRun = await isRunnable(appConfig.appDir);
         if (canRun) {
-          if (appConfig.type === "preview") {
-            const cacheTimeMs = appConfig.workspaceConfig.previewCacheTimeMs;
-            if (cacheTimeMs !== undefined) {
-              const expired = await isPreviewExpired(
-                appConfig.appDir,
-                cacheTimeMs,
-              );
-              if (expired) {
-                try {
-                  await removeExpiredPreview(
-                    appConfig.appDir,
-                    appConfig.workspaceConfig,
-                  );
-
-                  c.var.parentRef.send({
-                    type: "workspaceServer.heartbeat",
-                    value: {
-                      appConfig,
-                      createdAt: Date.now(),
-                      shouldCreate: true,
-                    },
-                  });
-
-                  await pushResponse({ status: "loading" });
-                  return;
-                } catch (error) {
-                  c.var.workspaceConfig.captureException(
-                    error instanceof Error ? error : new Error(String(error)),
-                    {
-                      scopes: ["workspace"],
-                    },
-                  );
-                }
-              }
-            }
-          }
-
           c.var.parentRef.send({
             type: "workspaceServer.heartbeat",
             value: {
               appConfig,
               createdAt: Date.now(),
               shouldCreate: false,
-            },
-          });
-          return pushResponse({ status: "loading" });
-        }
-
-        if (appConfig.type === "preview") {
-          const doesAppExist = await registryAppExists({
-            folderName: appConfig.folderName,
-            workspaceConfig: c.var.workspaceConfig,
-          });
-          if (!doesAppExist) {
-            return pushResponse({ status: "not-found" });
-          }
-          c.var.parentRef.send({
-            type: "workspaceServer.heartbeat",
-            value: {
-              appConfig,
-              createdAt: Date.now(),
-              shouldCreate: true,
             },
           });
           return pushResponse({ status: "loading" });

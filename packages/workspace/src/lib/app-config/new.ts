@@ -1,13 +1,11 @@
 import { type SubdomainPart } from "../../schemas/subdomain-part";
-import {
-  type ProjectSubdomain,
-  ProjectSubdomainSchema,
-} from "../../schemas/subdomains";
+import { ProjectSubdomainSchema } from "../../schemas/subdomains";
 import { type WorkspaceConfig } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
 import { generateNewFolderName } from "../generate-folder-name";
 import { pathExists } from "../path-exists";
-import { createAppConfig, type CreateAppConfigReturn } from "./create";
+import { createAppConfig } from "./create";
+import { type AppConfigProject } from "./types";
 
 export async function newProjectConfig({
   preferredFolderName,
@@ -15,7 +13,7 @@ export async function newProjectConfig({
 }: {
   preferredFolderName?: SubdomainPart;
   workspaceConfig: WorkspaceConfig;
-}): Promise<CreateAppConfigReturn<ProjectSubdomain>> {
+}): Promise<AppConfigProject> {
   const rawSubdomain =
     preferredFolderName &&
     !(await pathExists(

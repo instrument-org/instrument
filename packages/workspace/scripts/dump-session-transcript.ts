@@ -66,17 +66,17 @@ const isZip = inputStats.isFile() && absoluteInputPath.endsWith(".zip");
 
 let cleanupDir: string | undefined;
 let dir = TaskDirSchema.parse(absoluteInputPath);
-let projectsDir = path.dirname(dir);
+let tasksDir = path.dirname(dir);
 
 if (isZip) {
   const tempRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), "instrument-transcript-"),
   );
   cleanupDir = tempRoot;
-  projectsDir = path.join(tempRoot, "projects");
+  tasksDir = path.join(tempRoot, "projects");
   const folderName = `transcript-${ulid().toLowerCase()}`;
   const extractDir = AbsolutePathSchema.parse(
-    path.join(projectsDir, folderName),
+    path.join(tasksDir, folderName),
   );
   const zipBlob = new Blob([await fs.readFile(absoluteInputPath)]);
   ({ dir } = await extractProjectZip({ outputDir: extractDir, zipBlob }));
@@ -85,7 +85,7 @@ if (isZip) {
 const manifest = await getProjectManifest(dir);
 const folderName = path.basename(dir);
 const subdomain = TaskIdSchema.parse(folderName);
-setWorkspaceConfig(createStubWorkspaceConfig({ projectsDir }));
+setWorkspaceConfig(createStubWorkspaceConfig({ tasksDir }));
 const appConfig = createAppConfig({ subdomain });
 
 const sessionsResult = await Store.getSessions(appConfig, {

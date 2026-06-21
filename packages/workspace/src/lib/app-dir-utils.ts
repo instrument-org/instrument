@@ -69,7 +69,7 @@ export function sessionStorePath(dir: TaskDir): AbsolutePath {
 // The on-disk directory for a task. The id doubles as the folder name, so this
 // is a pure path derivation off the workspace singleton — no carrier object.
 export function taskDir(id: TaskId): TaskDir {
-  return TaskDirSchema.parse(path.join(getWorkspaceConfig().projectsDir, id));
+  return TaskDirSchema.parse(path.join(getWorkspaceConfig().tasksDir, id));
 }
 
 export function templateExists({

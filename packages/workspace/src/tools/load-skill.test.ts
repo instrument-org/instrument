@@ -66,7 +66,7 @@ function baseExecuteArgs() {
 }
 
 function createAppConfigWithDirs() {
-  // Point the singleton's projectsDir at dir's parent so taskDir(id) ===
+  // Point the singleton's tasksDir at dir's parent so taskDir(id) ===
   // dir, then also override registryDir for skill resolution.
   const id = createMockAppConfigForDir(dir, { model });
   setWorkspaceConfig({

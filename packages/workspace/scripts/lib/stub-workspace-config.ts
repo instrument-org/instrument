@@ -12,14 +12,14 @@ import {
 } from "../../src/types";
 
 export function createStubWorkspaceConfig({
-  projectsDir,
-  rootDir = path.dirname(projectsDir),
+  tasksDir,
+  rootDir = path.dirname(tasksDir),
 }: {
-  projectsDir: string;
   rootDir?: string;
+  tasksDir: string;
 }): WorkspaceConfig {
   const absoluteRootDir = path.resolve(rootDir);
-  const absoluteProjectsDir = path.resolve(projectsDir);
+  const absoluteProjectsDir = path.resolve(tasksDir);
 
   return {
     appVersion: "0.0.0-test",
@@ -33,11 +33,11 @@ export function createStubWorkspaceConfig({
     getAIProviderConfigs: () => [],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-    projectsDir: WorkspaceDirSchema.parse(absoluteProjectsDir),
     registryDir: WorkspaceDirSchema.parse(
       path.join(absoluteRootDir, "registry"),
     ),
     rootDir: WorkspaceDirSchema.parse(absoluteRootDir),
+    tasksDir: WorkspaceDirSchema.parse(absoluteProjectsDir),
     templatesDir: WorkspaceDirSchema.parse(
       path.join(absoluteRootDir, "registry", "templates"),
     ),

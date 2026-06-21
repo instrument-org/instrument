@@ -46,7 +46,7 @@ function RouteComponent() {
   const { addTab } = useTabActions();
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
   const createProjectMutation = useMutation(
-    rpcClient.workspace.project.create.mutationOptions(),
+    rpcClient.workspace.task.create.mutationOptions(),
   );
 
   useEffect(() => {

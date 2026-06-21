@@ -5,7 +5,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 export const Route = createFileRoute("/_app/tutorial-task")({
   loader: async () => {
     const [error, result] = await safe(
-      rpcClient.workspace.project.createTutorial.call(),
+      rpcClient.workspace.task.createTutorial.call(),
     );
 
     if (error) {

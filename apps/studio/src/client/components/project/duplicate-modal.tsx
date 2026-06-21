@@ -28,7 +28,7 @@ export function DuplicateProjectModal({
   const { addTab } = useTabActions();
 
   const duplicateMutation = useMutation(
-    rpcClient.workspace.project.duplicate.mutationOptions({
+    rpcClient.workspace.task.duplicate.mutationOptions({
       onError: (error: Error) => {
         toast.error("Failed to duplicate task", {
           description: error.message,

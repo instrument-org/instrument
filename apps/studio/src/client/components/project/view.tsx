@@ -38,8 +38,8 @@ export function ProjectView({
   sidebar,
 }: {
   artifactPanel: ArtifactPanel | undefined;
-  attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
+  attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
+  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   project: Task;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
@@ -70,7 +70,7 @@ export function ProjectView({
   const showArtifactPanel = artifactPanel !== undefined;
 
   const { data: fileInfo } = useQuery(
-    rpcClient.workspace.project.files.fileInfo.queryOptions({
+    rpcClient.workspace.task.files.fileInfo.queryOptions({
       input: artifactPanel
         ? {
             filePath: artifactPanel.filePath,

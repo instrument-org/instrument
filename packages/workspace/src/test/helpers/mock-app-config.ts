@@ -118,9 +118,9 @@ export function createMockAppConfig(
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
-    projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
+    tasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
     templatesDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.templates),
     trashItem: () => Promise.resolve(),
   };
@@ -135,7 +135,7 @@ export function createMockAppConfig(
 }
 
 // Returns a task id whose taskDir(id) resolves to `dir`, by pointing the
-// singleton's projectsDir at its parent. Replaces the old pattern of spreading
+// singleton's tasksDir at its parent. Replaces the old pattern of spreading
 // a mock AppConfig and overriding dir. The dir's basename must be a valid id.
 export function createMockAppConfigForDir(
   dir: string,
@@ -145,7 +145,7 @@ export function createMockAppConfigForDir(
   createMockAppConfig(id, options);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    projectsDir: AbsolutePathSchema.parse(path.dirname(dir)),
+    tasksDir: AbsolutePathSchema.parse(path.dirname(dir)),
   });
   return id;
 }

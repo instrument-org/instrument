@@ -70,7 +70,7 @@ function RouteComponent() {
   const trashTerminology = getTrashTerminology();
 
   const { data: projectsData, isLoading } = useQuery(
-    rpcClient.workspace.project.live.list.experimental_liveOptions({
+    rpcClient.workspace.task.live.list.experimental_liveOptions({
       input: { direction: "desc", sortBy: "updatedAt" },
     }),
   );
@@ -170,7 +170,7 @@ function RouteComponent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const importProjectMutation = useMutation(
-    rpcClient.workspace.project.import.mutationOptions(),
+    rpcClient.workspace.task.import.mutationOptions(),
   );
 
   const handleImport = useCallback(() => {

@@ -12,9 +12,14 @@ import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import { noop } from "radashi";
 
 import { createAppConfig } from "../../lib/app-config/create";
+import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type AppSubdomain } from "../../schemas/subdomains";
-import { type BrowserConfig, encodeBrowserTargetId } from "../../types";
+import {
+  type BrowserConfig,
+  encodeBrowserTargetId,
+  type WorkspaceConfig,
+} from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
@@ -68,28 +73,31 @@ export function createMockAppConfig(
     )[TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY] = options.webSearchModel;
   }
 
-  return createAppConfig({
-    subdomain,
-    workspaceConfig: {
-      appVersion: "0.0.0-test",
-      browser: createStubBrowserConfig(),
-      captureEvent: () => {
-        // No-op
-      },
-      captureException: (...args: unknown[]) => {
-        // eslint-disable-next-line no-console
-        console.error("captureException", args);
-      },
-      getAIProviderConfigs: () => [config],
-      nodeExecEnv: {},
-      pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
-      projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
-      registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
-      rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
-      templatesDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.templates),
-      trashItem: () => Promise.resolve(),
+  const workspaceConfig: WorkspaceConfig = {
+    appVersion: "0.0.0-test",
+    browser: createStubBrowserConfig(),
+    captureEvent: () => {
+      // No-op
     },
-  });
+    captureException: (...args: unknown[]) => {
+      // eslint-disable-next-line no-console
+      console.error("captureException", args);
+    },
+    getAIProviderConfigs: () => [config],
+    nodeExecEnv: {},
+    pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
+    projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
+    registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
+    rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
+    templatesDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.templates),
+    trashItem: () => Promise.resolve(),
+  };
+
+  // Mirror production, where the running workspace machine publishes its config
+  // as the process singleton read by getWorkspaceConfig().
+  setWorkspaceConfig(workspaceConfig);
+
+  return createAppConfig({ subdomain, workspaceConfig });
 }
 
 export function createStubBrowserConfig(): BrowserConfig {

@@ -27,6 +27,7 @@ import { type AppConfig } from "../../lib/app-config/types";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { isProjectSubdomain } from "../../lib/is-app";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
+import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
 import {
@@ -410,6 +411,9 @@ export const workspaceMachine = setup({
       ),
       trashItem: input.trashItem,
     };
+    // Publish the single per-process config so code can read it via
+    // getWorkspaceConfig() instead of threading it through every AppConfig.
+    setWorkspaceConfig(workspaceConfig);
     return {
       appsBeingTrashed: [],
       config: workspaceConfig,

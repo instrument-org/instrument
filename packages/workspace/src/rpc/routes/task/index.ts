@@ -717,7 +717,7 @@ const liveUsageSummary = base
     }
   });
 
-export const project = {
+export const task = {
   bySubdomain,
   bySubdomains,
   create,

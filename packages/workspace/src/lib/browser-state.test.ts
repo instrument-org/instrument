@@ -38,8 +38,8 @@ let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
-  const projectsDir = path.join(root, "projects");
-  appConfig = createMockAppConfigForDir(path.join(projectsDir, subdomain));
+  const tasksDir = path.join(root, "projects");
+  appConfig = createMockAppConfigForDir(path.join(tasksDir, subdomain));
   await fs.mkdir(taskDir(appConfig), { recursive: true });
 });
 

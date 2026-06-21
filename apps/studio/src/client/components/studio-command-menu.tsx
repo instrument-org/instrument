@@ -21,7 +21,7 @@ interface MatchedProject {
   titleRanges: null | number[];
 }
 
-type Project = RPCOutput["workspace"]["project"]["list"]["projects"][number];
+type Project = RPCOutput["workspace"]["task"]["list"]["projects"][number];
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
@@ -55,7 +55,7 @@ export function StudioCommandMenu() {
     shouldThrow: false,
   });
   const { data: projectsData, isLoading } = useQuery(
-    rpcClient.workspace.project.list.queryOptions({
+    rpcClient.workspace.task.list.queryOptions({
       enabled: open,
       input: { direction: "desc", sortBy: "updatedAt" },
       placeholderData: (prev) => prev,

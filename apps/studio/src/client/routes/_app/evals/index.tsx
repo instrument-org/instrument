@@ -86,7 +86,7 @@ function RouteComponent() {
     [selectedModelsArray],
   );
   const createMutation = useMutation(
-    rpcClient.workspace.project.create.mutationOptions(),
+    rpcClient.workspace.task.create.mutationOptions(),
   );
 
   const {

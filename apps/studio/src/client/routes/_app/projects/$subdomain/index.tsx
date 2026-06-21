@@ -83,7 +83,7 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
         }
 
         void context.queryClient.invalidateQueries({
-          queryKey: rpcClient.workspace.project.state.get.queryOptions({
+          queryKey: rpcClient.workspace.task.state.get.queryOptions({
             input: { subdomain: params.subdomain },
           }).queryKey,
         });
@@ -109,7 +109,7 @@ export const Route = createFileRoute("/_app/projects/$subdomain/")({
   component: RouteComponent,
   head: async ({ params }) => {
     const project = await safe(
-      rpcClient.workspace.project.bySubdomain.call({
+      rpcClient.workspace.task.bySubdomain.call({
         subdomain: params.subdomain,
       }),
     );
@@ -181,7 +181,7 @@ function RouteComponent() {
     error: projectError,
     isLoading: isProjectLoading,
   } = useQuery(
-    rpcClient.workspace.project.live.bySubdomain.experimental_liveOptions({
+    rpcClient.workspace.task.live.bySubdomain.experimental_liveOptions({
       input: { subdomain },
       placeholderData: keepPreviousData,
     }),
@@ -194,14 +194,14 @@ function RouteComponent() {
     error: projectStateError,
     isLoading: isProjectStateLoading,
   } = useQuery(
-    rpcClient.workspace.project.state.get.queryOptions({
+    rpcClient.workspace.task.state.get.queryOptions({
       input: { subdomain },
       placeholderData: keepPreviousData,
     }),
   );
 
   const { data: files } = useQuery(
-    rpcClient.workspace.project.files.live.list.experimental_liveOptions({
+    rpcClient.workspace.task.files.live.list.experimental_liveOptions({
       input: { projectSubdomain: subdomain },
       placeholderData: keepPreviousData,
     }),

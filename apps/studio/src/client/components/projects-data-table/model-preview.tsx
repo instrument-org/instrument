@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 export function ModelPreview({ subdomain }: { subdomain: TaskId }) {
   const { data: projectState } = useQuery(
-    rpcClient.workspace.project.state.get.queryOptions({
+    rpcClient.workspace.task.state.get.queryOptions({
       input: { subdomain },
     }),
   );

@@ -64,7 +64,7 @@ const live = {
 
     const fetchAndCleanFavorites = async (subdomains: TaskId[]) => {
       const results = await call(
-        workspaceRouter.project.bySubdomains,
+        workspaceRouter.task.bySubdomains,
         { subdomains },
         { context, signal },
       );

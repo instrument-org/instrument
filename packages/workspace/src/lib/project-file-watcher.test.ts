@@ -41,15 +41,15 @@ let workspaceConfig: WorkspaceConfig;
 
 async function setupTask() {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "watcher-test-"));
-  const projectsDir = path.join(root, "projects");
-  dir = path.join(projectsDir, subdomain);
+  const tasksDir = path.join(root, "projects");
+  dir = path.join(tasksDir, subdomain);
   await fs.mkdir(path.join(dir, "sub"), { recursive: true });
   // createMockAppConfig publishes the singleton; point it at the temp dir so
   // the watcher's createAppConfig resolves dir under it.
   createMockAppConfig(subdomain);
   workspaceConfig = {
     ...getWorkspaceConfig(),
-    projectsDir: AbsolutePathSchema.parse(projectsDir),
+    tasksDir: AbsolutePathSchema.parse(tasksDir),
   };
   setWorkspaceConfig(workspaceConfig);
 }

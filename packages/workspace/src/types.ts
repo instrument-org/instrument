@@ -126,9 +126,9 @@ export interface WorkspaceConfig {
   getAIProviderConfigs: GetProviderConfigs;
   nodeExecEnv: Record<string, string>;
   pnpmBinPath: AbsolutePath;
-  projectsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
+  tasksDir: AbsolutePath;
   templatesDir: AbsolutePath;
   trashItem: (path: AbsolutePath) => Promise<void>;
 }

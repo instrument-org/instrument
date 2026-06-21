@@ -381,7 +381,7 @@ const exportZip = base
   .handler(async ({ context, input, signal }) => {
     const outputPath = app.getPath("downloads");
     return call(
-      workspaceRouter.project.exportZip,
+      workspaceRouter.task.exportZip,
       { ...input, outputPath },
       { context, signal },
     );

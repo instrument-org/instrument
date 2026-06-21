@@ -17,7 +17,7 @@ export function ProjectStatsCard({
   );
 
   const { data: files } = useQuery({
-    ...rpcClient.workspace.project.files.list.queryOptions({
+    ...rpcClient.workspace.task.files.list.queryOptions({
       input: { projectSubdomain: project.subdomain },
     }),
   });

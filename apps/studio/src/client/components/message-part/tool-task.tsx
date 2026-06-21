@@ -1,4 +1,4 @@
-import { type SessionMessage, type SessionMessagePart, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type SessionMessage, type SessionMessagePart, type Task } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
@@ -20,7 +20,7 @@ export function ToolTask({
   renderStream,
 }: {
   part: TaskPart;
-  project: WorkspaceAppProject;
+  project: Task;
   renderStream: RenderStream;
 }) {
   const { isStreaming } = useToolCallSession();
@@ -53,7 +53,7 @@ function TaskStream({
   sessionId,
 }: {
   isRunning: boolean;
-  project: WorkspaceAppProject;
+  project: Task;
   renderStream: RenderStream;
   sessionId: string;
 }) {

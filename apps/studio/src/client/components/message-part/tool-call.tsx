@@ -1,4 +1,4 @@
-import { type SessionMessagePart, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type SessionMessagePart, type Task } from "@instrument-org/workspace/client";
 
 import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
@@ -32,7 +32,7 @@ export function ToolCall({
   isStreaming: boolean;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  project: WorkspaceAppProject;
+  project: Task;
   renderStream: RenderStream;
 }) {
   if (!isToolCallVisible({ isDeveloperMode, isStreaming, part })) {
@@ -92,7 +92,7 @@ function ToolCallBody({
 }: {
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  project: WorkspaceAppProject;
+  project: Task;
   renderStream: RenderStream;
 }) {
   if (part.state === "output-error") {

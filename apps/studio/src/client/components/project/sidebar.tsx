@@ -2,7 +2,7 @@ import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { ProjectChat } from "@/client/components/project/chat";
 import { ProjectFiles } from "@/client/components/project/project-files";
 import { type RPCOutput } from "@/client/rpc/client";
-import { type StoreId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { Activity, type ComponentProps } from "react";
 import { z } from "zod";
 
@@ -29,7 +29,7 @@ export function ProjectSidebar({
   files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
   onFileSelect: (file: ProjectFileViewerFile) => void;
   onSidebarChange: (sidebar: ProjectSidebarMode) => void;
-  project: WorkspaceAppProject;
+  project: Task;
   selectedSessionId?: StoreId.Session;
   sidebar: ProjectSidebarMode;
 }) {

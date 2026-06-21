@@ -3,7 +3,7 @@ import {
 } from "zod";
 
 import {
-  type WorkspaceApp,
+  type Task,
 } from "./app";
 import {
   StoreId,
@@ -20,7 +20,7 @@ const SessionTagSchema = z.enum([
 export type SessionTag = z.output<typeof SessionTagSchema>;
 
 export const WorkspaceAppStateSchema = z.object({
-  app: z.custom<WorkspaceApp>(),
+  app: z.custom<Task>(),
   sessionActors: z.array(
     z.object({
       sessionId: StoreId.SessionSchema,

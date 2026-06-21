@@ -9,7 +9,7 @@ import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { APP_FOLDER_NAMES, type TaskId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { APP_FOLDER_NAMES, type Task, type TaskId } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { CaretRightIcon, ChatTextIcon, DotsThreeOutlineVerticalIcon, FolderSimpleIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -43,7 +43,7 @@ export function ProjectFiles({
   attachedFolders: RPCOutput["workspace"]["project"]["state"]["get"]["attachedFolders"];
   files: RPCOutput["workspace"]["project"]["files"]["list"] | undefined;
   onFileSelect: (file: ProjectFileViewerFile) => void;
-  project: WorkspaceAppProject;
+  project: Task;
 }) {
   const computed = useMemo(() => {
     if (!files) {

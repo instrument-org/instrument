@@ -1,4 +1,4 @@
-import type { WorkspaceAppProject } from "@instrument-org/workspace/client";
+import type { Task } from "@instrument-org/workspace/client";
 import type {
   ColumnDef,
   ColumnFiltersState,
@@ -27,8 +27,8 @@ export function ProjectsDataTable({
   rowSelection,
 }: {
   bulkActions?: React.ReactNode;
-  columns: ColumnDef<WorkspaceAppProject>[];
-  data: WorkspaceAppProject[];
+  columns: ColumnDef<Task>[];
+  data: Task[];
   onPageChange: (page: number) => void;
   onRowSelectionChange: OnChangeFn<RowSelectionState>;
   page: number;
@@ -40,7 +40,7 @@ export function ProjectsDataTable({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable<WorkspaceAppProject>({
+  const table = useReactTable<Task>({
     columns,
     data,
     enableRowSelection: true,

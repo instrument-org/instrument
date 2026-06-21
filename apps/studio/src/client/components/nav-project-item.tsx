@@ -4,7 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/client/components/ui/input";
 import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from "@/client/components/ui/sidebar";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId, type WorkspaceAppProject } from "@instrument-org/workspace/client";
+import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon, CopyIcon, DotsThreeOutlineVerticalIcon, PencilSimpleLineIcon, StarIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { memo, useEffect, useRef, useState } from "react";
@@ -17,7 +17,7 @@ interface NavProjectItemProps {
   isFavorites: boolean;
   onOpenInNewTab: (subdomain: TaskId) => void;
   onRemoveFavorite?: (subdomain: TaskId) => void;
-  project: WorkspaceAppProject;
+  project: Task;
 }
 
 export const NavProjectItem = memo(function NavProjectItem({

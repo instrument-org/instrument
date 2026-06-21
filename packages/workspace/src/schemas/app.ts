@@ -17,7 +17,6 @@ export const TaskSchema = z.object({
   urls: z.object({
     assetBase: z.string(),
     localhost: z.string(),
-    localRedirect: z.string(),
     loopback: z.string(),
   }),
 });

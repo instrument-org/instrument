@@ -159,7 +159,7 @@ export async function RuntimeList({
                             <span
                               class="px-1.5 py-0.5 text-xs rounded bg-green-500"
                             >
-                              ${app.config.type}
+                              task
                             </span>
                           </div>
                           <span class="text-xs text-neutral-400">

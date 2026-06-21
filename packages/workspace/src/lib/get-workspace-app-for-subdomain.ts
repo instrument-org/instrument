@@ -13,9 +13,9 @@ export async function getWorkspaceAppForSubdomain(
 
   return {
     createdAt: timestamps.createdAt,
-    folderName: appConfig.folderName,
+    folderName: appConfig.subdomain,
     subdomain: appConfig.subdomain,
-    title: appConfig.folderName,
+    title: appConfig.subdomain,
     type: "project",
     updatedAt: timestamps.updatedAt,
     urls: urlsForSubdomain(appConfig.subdomain),

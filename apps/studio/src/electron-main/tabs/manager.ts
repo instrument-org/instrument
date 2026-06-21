@@ -365,6 +365,14 @@ export class TabsManager {
       tabs: [],
     };
 
+    // Migrate persisted legacy /projects(/<id>) pathnames to the renamed /tasks
+    // route. The persisted tab store is the only source of a /projects path, so
+    // normalizing here (before any filtering) means the renderer never needs to
+    // know about /projects -- no client-side redirect route required.
+    for (const tab of data.tabs) {
+      tab.pathname = tab.pathname.replace(/^\/projects\b/, "/tasks");
+    }
+
     this.selectedTabId = data.selectedTabId;
 
     const tabs = await Promise.all(

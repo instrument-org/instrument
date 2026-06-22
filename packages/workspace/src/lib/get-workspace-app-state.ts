@@ -17,7 +17,7 @@ export async function getWorkspaceAppState({
 
   const app = await getTask(id);
 
-  const sessionRefs = context.sessionRefsBySubdomain.get(id) ?? [];
+  const sessionRefs = context.sessionRefsByTaskId.get(id) ?? [];
   const sessionActors = sessionRefs.map((sessionRef) => {
     const sessionSnapshot = sessionRef.getSnapshot();
     return {

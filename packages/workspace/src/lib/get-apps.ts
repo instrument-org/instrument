@@ -131,12 +131,12 @@ async function workspaceApp({ dir }: { dir: TaskDir }) {
     );
   }
 
-  const subdomainResult = TaskIdSchema.safeParse(folderNameResult.data);
+  const taskIdResult = TaskIdSchema.safeParse(folderNameResult.data);
 
-  if (!subdomainResult.success) {
+  if (!taskIdResult.success) {
     return err(
       new TypedError.Parse("Invalid folder name", {
-        cause: subdomainResult.error,
+        cause: taskIdResult.error,
       }),
     );
   }
@@ -146,7 +146,7 @@ async function workspaceApp({ dir }: { dir: TaskDir }) {
 
   const iconName =
     manifest?.iconName ||
-    (subdomainResult.data.startsWith(EVAL_SUBDOMAIN_PREFIX)
+    (taskIdResult.data.startsWith(EVAL_SUBDOMAIN_PREFIX)
       ? "flask-conical"
       : undefined);
 
@@ -155,10 +155,10 @@ async function workspaceApp({ dir }: { dir: TaskDir }) {
     description: manifest?.description,
     folderName: rawFolderName,
     iconName,
-    id: subdomainResult.data,
+    id: taskIdResult.data,
     title,
     type: "project",
-    urls: urlsForSubdomain(subdomainResult.data),
+    urls: urlsForSubdomain(taskIdResult.data),
   };
   return ok(projectApp);
 }

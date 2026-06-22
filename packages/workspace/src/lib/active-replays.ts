@@ -25,7 +25,7 @@ export const ActiveReplays = {
     }
     return result;
   },
-  getSubdomain(sessionId: StoreId.Session): TaskId | undefined {
+  getTaskId(sessionId: StoreId.Session): TaskId | undefined {
     return activeReplays.get(sessionId)?.id;
   },
   isActive(sessionId: StoreId.Session) {

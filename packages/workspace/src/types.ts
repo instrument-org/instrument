@@ -85,9 +85,9 @@ export const BrowserTargetIdSchema = z
       });
       return;
     }
-    const subdomainResult = TaskIdSchema.safeParse(val.slice(0, slash));
-    if (!subdomainResult.success) {
-      for (const issue of subdomainResult.error.issues) {
+    const taskIdResult = TaskIdSchema.safeParse(val.slice(0, slash));
+    if (!taskIdResult.success) {
+      for (const issue of taskIdResult.error.issues) {
         ctx.addIssue({ ...issue, path: ["id", ...issue.path] });
       }
     }

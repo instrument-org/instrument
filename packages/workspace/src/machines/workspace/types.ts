@@ -20,6 +20,6 @@ export interface WorkspaceContext {
   // projectBrowser.stopped.
   projectBrowserRefs: Map<TaskId, ProjectBrowserActorRef>;
   runtimeRefs: Map<TaskId, RuntimeActorRef>;
-  sessionRefsBySubdomain: Map<TaskId, SessionActorRef[]>;
+  sessionRefsByTaskId: Map<TaskId, SessionActorRef[]>;
   workspaceServerRef: WorkspaceServerActorRef;
 }

@@ -22,10 +22,10 @@ import {
 } from "./data/tutorial-task-replay";
 import { initializeTask } from "./initialize-task";
 import { newTaskId } from "./new-task-id";
-import { setTaskState } from "./task-state-store";
 import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
+import { setTaskState } from "./task-state-store";
 
 const DEFAULT_REPLAY_TIMING = {
   assistantStartDelayMs: 1500,

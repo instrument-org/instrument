@@ -2,8 +2,8 @@ import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
 import { APP_FOLDER_NAMES } from "../constants";
-import { type TaskManifestUpdate } from "../schemas/task-manifest";
 import { type TaskId } from "../schemas/task-id";
+import { type TaskManifestUpdate } from "../schemas/task-manifest";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { taskDir, templateExists } from "./app-dir-utils";

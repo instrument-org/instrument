@@ -7,9 +7,9 @@ import { parseArgs } from "node:util";
 import { ulid } from "ulid";
 
 import { extractTaskZip } from "../src/lib/extract-task-zip";
-import { getTaskManifest } from "../src/lib/task-manifest";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
+import { getTaskManifest } from "../src/lib/task-manifest";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { AbsolutePathSchema, TaskDirSchema } from "../src/schemas/paths";
 import { TaskIdSchema } from "../src/schemas/task-id";

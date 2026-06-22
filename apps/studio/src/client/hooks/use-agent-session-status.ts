@@ -6,7 +6,7 @@ import {
 import { skipToken, useQuery } from "@tanstack/react-query";
 
 import { rpcClient } from "../rpc/client";
-import { useTaskLiveState } from "./use-task-live-state";
+import { useTaskAgentStatus } from "./use-task-agent-status";
 
 export function getSessionTags({
   sessionActors,
@@ -33,8 +33,8 @@ export function useAgentSessionStatus({
   isReplayActive?: boolean;
   sessionId: StoreId.Session | typeof skipToken | undefined;
 }) {
-  const { data: taskLiveState } = useTaskLiveState({ id });
-  const sessionActors = taskLiveState?.sessionActors ?? [];
+  const { data: taskAgentStatus } = useTaskAgentStatus({ id });
+  const sessionActors = taskAgentStatus?.sessionActors ?? [];
 
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.statusByTaskId.experimental_liveOptions({

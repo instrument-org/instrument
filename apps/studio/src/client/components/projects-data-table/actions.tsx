@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { useTaskLiveState } from "@/client/hooks/use-task-live-state";
+import { useTaskAgentStatus } from "@/client/hooks/use-task-agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowUpRightIcon,
@@ -37,8 +37,8 @@ export function ProjectActionsCell({
   onSettings: (id: TaskId) => void;
   onStop: (id: TaskId) => void;
 }) {
-  const { data: taskLiveState } = useTaskLiveState({ id });
-  const sessionActors = taskLiveState?.sessionActors ?? [];
+  const { data: taskAgentStatus } = useTaskAgentStatus({ id });
+  const sessionActors = taskAgentStatus?.sessionActors ?? [];
   const isRunning = sessionActors.some((actor) =>
     actor.tags.includes("agent.alive"),
   );

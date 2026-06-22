@@ -231,7 +231,7 @@ async function waitForSessionDone(
 ): Promise<void> {
   return new Promise((resolve) => {
     const abortController = new AbortController();
-    const unsubscribe = publisher.subscribe("taskLiveState.session.done", {
+    const unsubscribe = publisher.subscribe("session.done", {
       signal: abortController.signal,
     });
 

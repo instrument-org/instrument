@@ -37,8 +37,8 @@ import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskManifestUpdateSchema } from "../../../schemas/task-manifest";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
+import { taskAgentStatus } from "./agent-status";
 import { taskFiles } from "./files";
-import { taskLiveState } from "./live-state";
 import { taskState } from "./state";
 
 const DEFAULT_TEMPLATE_NAME = "basic";
@@ -642,6 +642,7 @@ const liveUsageSummary = base
   });
 
 export const task = {
+  agentStatus: taskAgentStatus,
   byId,
   byIds,
   create,
@@ -655,7 +656,6 @@ export const task = {
     ...live,
     usageSummary: liveUsageSummary,
   },
-  liveState: taskLiveState,
   state: taskState,
   trash,
   update,

@@ -146,7 +146,7 @@ export function createWorkspaceActor({
     let count = 0;
     try {
       ({ count } = await call(
-        workspaceRouter.task.liveState.aliveAgentCount,
+        workspaceRouter.task.agentStatus.aliveAgentCount,
         undefined,
         { context: { workspaceConfig, workspaceRef: actor } },
       ));

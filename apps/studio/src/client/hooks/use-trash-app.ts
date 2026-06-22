@@ -34,7 +34,7 @@ export function useTrashApp({
       });
       queryClient.removeQueries({
         // .key() generates a wildcard key for any params
-        queryKey: rpcClient.workspace.task.liveState.byIds.key(),
+        queryKey: rpcClient.workspace.task.agentStatus.byIds.key(),
       });
 
       if (navigateOnDelete) {

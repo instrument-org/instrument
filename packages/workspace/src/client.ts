@@ -19,6 +19,6 @@ export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export { type SessionMessagePart } from "./schemas/session/message-part";
 export { StoreId } from "./schemas/store-id";
+export type { SessionTag } from "./schemas/task-agent-status";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
-export type { SessionTag } from "./schemas/task-live-state";
 export type { ToolName } from "./tools/types";

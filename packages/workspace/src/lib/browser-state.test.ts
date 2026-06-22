@@ -18,7 +18,7 @@ let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
-  const tasksDir = path.join(root, "projects");
+  const tasksDir = path.join(root, "tasks");
   taskId = createMockTaskConfigForDir(path.join(tasksDir, id));
   await fs.mkdir(taskDir(taskId), { recursive: true });
 });

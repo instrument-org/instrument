@@ -1,4 +1,8 @@
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
+export {
+  migrateWorkspaceLayout,
+  type WorkspaceLayoutMigration,
+} from "./lib/migrate-workspace-layout";
 export { readTaskFile } from "./lib/read-task-file";
 export { resolvePathWithinTaskDir } from "./lib/resolve-path-within-task-dir";
 export { taskDir } from "./lib/task-dir-utils";

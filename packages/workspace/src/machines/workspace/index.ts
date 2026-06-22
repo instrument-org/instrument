@@ -367,7 +367,7 @@ export const workspaceMachine = setup({
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
-      tasksDir: absolutePathJoin(rootDir, "projects"),
+      tasksDir: absolutePathJoin(rootDir, "tasks"),
       templatesDir: absolutePathJoin(
         registryDir,
         REGISTRY_FOLDER_NAMES.templates,

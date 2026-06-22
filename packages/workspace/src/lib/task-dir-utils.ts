@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { SESSIONS_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
+import { STORE_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
 import {
   type AbsolutePath,
   type TaskDir,
@@ -38,7 +38,7 @@ export function isRunnable(dir: TaskDir): Promise<boolean> {
 }
 
 export function sessionStorePath(dir: TaskDir): AbsolutePath {
-  return absolutePathJoin(getTaskPrivateDir(dir), SESSIONS_DB_FILE_NAME);
+  return absolutePathJoin(getTaskPrivateDir(dir), STORE_DB_FILE_NAME);
 }
 
 // The on-disk directory for a task. The id doubles as the folder name, so this

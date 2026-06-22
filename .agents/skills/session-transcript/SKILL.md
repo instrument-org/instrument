@@ -5,7 +5,7 @@ description: Export a task's session as a markdown transcript from a task direct
 
 # Session Transcript
 
-`script:dump-session-transcript` renders a task's `sessions.db` into a markdown
+`script:dump-session-transcript` renders a task's `store.db` into a markdown
 transcript. It accepts either a task directory or an exported task `.zip`
 (the same artifact Studio's export/import flow produces), so you can read a
 session a teammate shared without importing it first.
@@ -13,8 +13,8 @@ session a teammate shared without importing it first.
 Run from `packages/workspace`:
 
 ```bash
-# From a task directory (the folder containing .instrument/sessions.db)
-pnpm run script:dump-session-transcript /path/to/projects/my-task
+# From a task directory (the folder containing .instrument/store.db)
+pnpm run script:dump-session-transcript /path/to/tasks/my-task
 
 # From an exported task zip (extracted to a temp dir, then cleaned up)
 pnpm run script:dump-session-transcript ~/Downloads/my-task.zip

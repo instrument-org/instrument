@@ -29,7 +29,7 @@ const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
 export const MOCK_WORKSPACE_DIRS = {
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
-  tasks: `${MOCK_WORKSPACE_DIR}/projects`,
+  tasks: `${MOCK_WORKSPACE_DIR}/tasks`,
   templates: `${MOCK_WORKSPACE_DIR}/registry/templates`,
 } as const;
 

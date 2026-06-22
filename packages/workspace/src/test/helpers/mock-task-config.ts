@@ -12,6 +12,7 @@ import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import path from "node:path";
 import { noop } from "radashi";
 
+import { TASKS_DIR_NAME } from "../../constants";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -29,7 +30,7 @@ const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
 export const MOCK_WORKSPACE_DIRS = {
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
-  tasks: `${MOCK_WORKSPACE_DIR}/tasks`,
+  tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
   templates: `${MOCK_WORKSPACE_DIR}/registry/templates`,
 } as const;
 

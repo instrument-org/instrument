@@ -15,9 +15,6 @@ pnpm monorepo for the Instrument desktop app platform.
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC,
   telemetry, types, tool names, and on-disk layout.
 - On disk, tasks live under `tasks/<id>/` with `.instrument/{store.db,state.json}`.
-  A boot migration (`migrate-workspace-layout.ts`) renames the legacy
-  `projects/` + `sessions.db` + `project-state.json` layout in place; it is
-  idempotent and keyed on the presence of a `projects/` dir.
 
 ## Registry Submodule
 

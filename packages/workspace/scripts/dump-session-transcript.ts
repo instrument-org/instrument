@@ -6,6 +6,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { ulid } from "ulid";
 
+import { TASKS_DIR_NAME } from "../src/constants";
 import { extractTaskZip } from "../src/lib/extract-task-zip";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
@@ -49,7 +50,7 @@ if (isZip) {
     path.join(os.tmpdir(), "instrument-transcript-"),
   );
   cleanupDir = tempRoot;
-  tasksDir = path.join(tempRoot, "tasks");
+  tasksDir = path.join(tempRoot, TASKS_DIR_NAME);
   const folderName = `transcript-${ulid().toLowerCase()}`;
   const extractDir = AbsolutePathSchema.parse(path.join(tasksDir, folderName));
   const zipBlob = new Blob([await fs.readFile(absoluteInputPath)]);

@@ -1,4 +1,4 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { tv } from "tailwind-variants";
@@ -36,7 +36,7 @@ export function FileThumbnail({
   isActive,
   variant = "sidebar",
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   isActive: boolean;
   variant?: "primary" | "sidebar";
 }) {

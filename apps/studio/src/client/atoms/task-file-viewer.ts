@@ -1,7 +1,7 @@
 import { type TaskId } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 
-export interface ProjectFileViewerFile {
+export interface TaskFileViewerFile {
   filename: string;
   filePath: string;
   mimeType: string;
@@ -12,7 +12,7 @@ export interface ProjectFileViewerFile {
 
 interface ProjectFileViewerState {
   currentIndex: number;
-  files: ProjectFileViewerFile[];
+  files: TaskFileViewerFile[];
   isModalOpen: boolean;
 }
 
@@ -22,7 +22,7 @@ const initialState: ProjectFileViewerState = {
   isModalOpen: false,
 };
 
-export const projectFileViewerAtom = atom<ProjectFileViewerState>(initialState);
+export const taskFileViewerAtom = atom<ProjectFileViewerState>(initialState);
 
 export const openFileViewerAtom = atom(
   null,
@@ -34,10 +34,10 @@ export const openFileViewerAtom = atom(
       files,
     }: {
       currentIndex?: number;
-      files: ProjectFileViewerFile[];
+      files: TaskFileViewerFile[];
     },
   ) => {
-    set(projectFileViewerAtom, (prev) => ({
+    set(taskFileViewerAtom, (prev) => ({
       ...prev,
       currentIndex,
       files,
@@ -47,16 +47,16 @@ export const openFileViewerAtom = atom(
 );
 
 export const closeFileViewerAtom = atom(null, (_get, set) => {
-  set(projectFileViewerAtom, (prev) => ({
+  set(taskFileViewerAtom, (prev) => ({
     ...prev,
     files: [],
     isModalOpen: false,
   }));
 });
 
-export const setProjectFileViewerIndexAtom = atom(
+export const setTaskFileViewerIndexAtom = atom(
   null,
   (_get, set, index: number) => {
-    set(projectFileViewerAtom, (prev) => ({ ...prev, currentIndex: index }));
+    set(taskFileViewerAtom, (prev) => ({ ...prev, currentIndex: index }));
   },
 );

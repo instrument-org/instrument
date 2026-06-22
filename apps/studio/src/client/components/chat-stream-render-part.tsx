@@ -27,8 +27,8 @@ export interface RenderPartContext {
   ) => boolean;
   lastMessageId: string | undefined;
   onRetry: (prompt: string) => void;
-  project: Task;
   renderStream: RenderStream;
+  task: Task;
 }
 
 // Returns null for parts that don't render inline (kept in sync with
@@ -55,7 +55,7 @@ export function renderChatPart({
       case "assistant": {
         return (
           <AssistantMessage
-            assetBaseUrl={ctx.project.assetBase}
+            assetBaseUrl={ctx.task.assetBase}
             key={part.metadata.id}
             part={part}
           />
@@ -89,11 +89,11 @@ export function renderChatPart({
   if (part.type === "data-fileChanges") {
     return (
       <FileChangesCard
-        assetBaseUrl={ctx.project.assetBase}
+        assetBaseUrl={ctx.task.assetBase}
         className="mt-2"
         files={part.data.files}
         key={part.metadata.id}
-        taskId={ctx.project.id}
+        taskId={ctx.task.id}
       />
     );
   }
@@ -150,8 +150,8 @@ export function renderChatPart({
         key={part.metadata.id}
         onRetry={ctx.onRetry}
         part={part}
-        project={ctx.project}
         renderStream={ctx.renderStream}
+        task={ctx.task}
       />
     );
   }

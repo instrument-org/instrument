@@ -31,19 +31,19 @@ type DebugTab = "json" | "markdown";
 export function ProjectDebugDialog({
   onOpenChange,
   open,
-  project,
   selectedSessionId,
+  task,
 }: {
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  project: Task;
   selectedSessionId: StoreId.Session | undefined;
+  task: Task;
 }) {
   const [tab, setTab] = useState<DebugTab>("markdown");
 
   const queryInput =
     open && selectedSessionId
-      ? { id: project.id, sessionId: selectedSessionId }
+      ? { id: task.id, sessionId: selectedSessionId }
       : skipToken;
 
   const { data: jsonData } = useQuery(
@@ -59,7 +59,7 @@ export function ProjectDebugDialog({
   );
 
   const downloadFilename = useMemo(() => {
-    const sanitized = project.title
+    const sanitized = task.title
       .normalize("NFKD")
       .replaceAll(/[\u0300-\u036F]/g, "")
       .replaceAll(/[^\w\s-]/g, "")
@@ -67,7 +67,7 @@ export function ProjectDebugDialog({
       .replaceAll(/\s+/g, "-")
       .toLowerCase();
     return sanitized ? `${sanitized}-chat` : "chat";
-  }, [project.title]);
+  }, [task.title]);
 
   const jsonContent = useMemo(
     () => JSON.stringify(jsonData ?? null, null, 2),

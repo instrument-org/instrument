@@ -1,4 +1,4 @@
-import { ProjectStatsCard } from "@/client/components/project/stats-card";
+import { TaskStatsCard } from "@/client/components/task/stats-card";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -17,13 +17,13 @@ import { toast } from "sonner";
 interface ExportZipModalProps {
   isOpen: boolean;
   onClose: () => void;
-  project: Task;
+  task: Task;
 }
 
 export function ExportZipModal({
   isOpen,
   onClose,
-  project,
+  task,
 }: ExportZipModalProps) {
   const showFileInFolderMutation = useMutation(
     rpcClient.utils.showFileInFolder.mutationOptions(),
@@ -57,7 +57,7 @@ export function ExportZipModal({
 
   const handleExport = () => {
     exportZipMutation.mutate({
-      id: project.id,
+      id: task.id,
     });
   };
 
@@ -71,7 +71,7 @@ export function ExportZipModal({
           </DialogDescription>
         </DialogHeader>
 
-        <ProjectStatsCard project={project} />
+        <TaskStatsCard task={task} />
 
         <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
           <Button onClick={onClose} variant="outline">

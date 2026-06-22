@@ -1,5 +1,5 @@
 import { ShareExport } from "@/client/components/icons/share-export";
-import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
+import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -16,20 +16,20 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { ProjectActionsMenu } from "./actions-menu";
-import { ProjectChatMenu } from "./chat-menu";
+import { TaskChatMenu } from "./chat-menu";
 import { ProjectDebugDialog } from "./debug-dialog";
 import { ProjectUsageSummary } from "./usage-summary";
 
-export function ProjectToolbar({
+export function TaskToolbar({
   onSidebarChange,
-  project,
   selectedSessionId,
   sidebar,
+  task,
 }: {
   onSidebarChange: (sidebar: "chat" | "files") => void;
-  project: Task;
   selectedSessionId?: StoreId.Session;
   sidebar: "chat" | "files";
+  task: Task;
 }) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [exportZipModalOpen, setExportZipModalOpen] = useState(false);
@@ -43,11 +43,11 @@ export function ProjectToolbar({
       <div className="@container w-full bg-background p-3">
         <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
           <div className="flex min-w-0 flex-1 items-center gap-x-1 overflow-hidden">
-            <ProjectChatMenu
+            <TaskChatMenu
               onChatClick={() => {
                 onSidebarChange("chat");
               }}
-              projectTitle={project.title}
+              projectTitle={task.title}
               selectedSessionId={selectedSessionId}
               sidebar={sidebar}
             />
@@ -73,7 +73,7 @@ export function ProjectToolbar({
             {isDeveloperMode && (
               <div className="min-w-0 shrink overflow-hidden">
                 <ProjectUsageSummary
-                  id={project.id}
+                  id={task.id}
                   onClick={() => {
                     setDebugDialogOpen(true);
                   }}
@@ -111,7 +111,7 @@ export function ProjectToolbar({
               </DropdownMenu>
               <div className="shrink-0">
                 <ProjectActionsMenu
-                  id={project.id}
+                  id={task.id}
                   onDebugClick={() => {
                     setDebugDialogOpen(true);
                   }}
@@ -129,10 +129,10 @@ export function ProjectToolbar({
         </div>
       </div>
 
-      <ProjectSettingsDialog
+      <TaskSettingsDialog
         onOpenChange={setSettingsDialogOpen}
         open={settingsDialogOpen}
-        project={project}
+        task={task}
       />
 
       <ExportZipModal
@@ -140,14 +140,14 @@ export function ProjectToolbar({
         onClose={() => {
           setExportZipModalOpen(false);
         }}
-        project={project}
+        task={task}
       />
 
       <ProjectDebugDialog
         onOpenChange={setDebugDialogOpen}
         open={debugDialogOpen}
-        project={project}
         selectedSessionId={selectedSessionId}
+        task={task}
       />
 
       <ReplaySessionModal
@@ -155,8 +155,8 @@ export function ProjectToolbar({
         onClose={() => {
           setReplayModalOpen(false);
         }}
-        project={project}
         selectedSessionId={selectedSessionId}
+        task={task}
       />
     </>
   );

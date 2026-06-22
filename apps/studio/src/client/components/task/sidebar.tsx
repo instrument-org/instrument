@@ -1,66 +1,66 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
-import { ProjectChat } from "@/client/components/project/chat";
-import { ProjectFiles } from "@/client/components/project/project-files";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { TaskChat } from "@/client/components/task/chat";
+import { TaskFiles } from "@/client/components/task/task-files";
 import { type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { Activity, type ComponentProps } from "react";
 import { z } from "zod";
 
-import { CurrentProjectFilesProvider } from "./current-project-files";
-import { ProjectToolbar } from "./toolbar";
+import { CurrentTaskFilesProvider } from "./current-task-files";
+import { TaskToolbar } from "./toolbar";
 
-export const ProjectSidebarModeSchema = z.enum(["chat", "files"]);
-export type ProjectSidebarMode = z.output<typeof ProjectSidebarModeSchema>;
+export const TaskSidebarModeSchema = z.enum(["chat", "files"]);
+export type TaskSidebarMode = z.output<typeof TaskSidebarModeSchema>;
 
-export function ProjectSidebar({
+export function TaskSidebar({
   activeFilePath,
   attachedFolders,
   chatProps,
   files,
   onFileSelect,
   onSidebarChange,
-  project,
   selectedSessionId,
   sidebar,
+  task,
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  chatProps: ComponentProps<typeof ProjectChat>;
+  chatProps: ComponentProps<typeof TaskChat>;
   files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
-  onFileSelect: (file: ProjectFileViewerFile) => void;
-  onSidebarChange: (sidebar: ProjectSidebarMode) => void;
-  project: Task;
+  onFileSelect: (file: TaskFileViewerFile) => void;
+  onSidebarChange: (sidebar: TaskSidebarMode) => void;
   selectedSessionId?: StoreId.Session;
-  sidebar: ProjectSidebarMode;
+  sidebar: TaskSidebarMode;
+  task: Task;
 }) {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <ProjectToolbar
+      <TaskToolbar
         onSidebarChange={onSidebarChange}
-        project={project}
         selectedSessionId={selectedSessionId}
         sidebar={sidebar}
+        task={task}
       />
 
-      <CurrentProjectFilesProvider files={files}>
+      <CurrentTaskFilesProvider files={files}>
         <div className="min-h-0 flex-1 overflow-hidden">
           <Activity mode={sidebar === "files" ? "visible" : "hidden"}>
             <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
-              <ProjectFiles
+              <TaskFiles
                 activeFilePath={activeFilePath}
                 attachedFolders={attachedFolders}
                 files={files}
                 onFileSelect={onFileSelect}
-                project={project}
+                task={task}
               />
             </div>
           </Activity>
 
           <Activity mode={sidebar === "chat" ? "visible" : "hidden"}>
-            <ProjectChat {...chatProps} />
+            <TaskChat {...chatProps} />
           </Activity>
         </div>
-      </CurrentProjectFilesProvider>
+      </CurrentTaskFilesProvider>
     </div>
   );
 }

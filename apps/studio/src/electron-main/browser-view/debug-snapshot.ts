@@ -105,7 +105,7 @@ function buildProjectBrowserEntries(
   const snapshot = workspaceRef.getSnapshot();
   const out: ProjectBrowserDebugEntry[] = [];
 
-  for (const [id, ref] of snapshot.context.projectBrowserRefs) {
+  for (const [id, ref] of snapshot.context.taskBrowserRefs) {
     const childSnapshot = ref.getSnapshot();
     const ctx = childSnapshot.context;
     const knownTargets = [...ctx.knownTargets.entries()].map(
@@ -185,7 +185,7 @@ const snapshotLive = devOnly
     const childSubs = new Map<string, () => void>();
     const refreshChildSubs = () => {
       const refs =
-        context.workspaceRef.getSnapshot().context.projectBrowserRefs;
+        context.workspaceRef.getSnapshot().context.taskBrowserRefs;
       const seen = new Set<string>();
       for (const [id, ref] of refs) {
         const key = String(id);

@@ -28,7 +28,7 @@ import { memo, useEffect, useRef, useState } from "react";
 
 import { TaskStatusIcon } from "./session-status-icon";
 
-interface NavProjectItemProps {
+interface NavTaskItemProps {
   isActive: boolean;
   isFavorited: boolean;
   isFavorites: boolean;
@@ -37,14 +37,14 @@ interface NavProjectItemProps {
   project: Task;
 }
 
-export const NavProjectItem = memo(function NavProjectItem({
+export const NavTaskItem = memo(function NavTaskItem({
   isActive,
   isFavorited,
   isFavorites,
   onOpenInNewTab,
   onRemoveFavorite,
   project,
-}: NavProjectItemProps) {
+}: NavTaskItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(project.title);

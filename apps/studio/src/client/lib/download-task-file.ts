@@ -1,9 +1,9 @@
-import { type ProjectFileViewerFile } from "../atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "../atoms/task-file-viewer";
 
-export function downloadProjectFile({
+export function downloadTaskFile({
   blob,
   filename,
-}: ProjectFileViewerFile & {
+}: TaskFileViewerFile & {
   blob: Blob;
 }) {
   const url = URL.createObjectURL(blob);

@@ -29,20 +29,20 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
 
-export function ProjectChat({
+export function TaskChat({
   isReplayActive = false,
   onCancelReplay,
-  project,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   showTutorial,
+  task,
 }: {
   isReplayActive?: boolean;
   onCancelReplay?: () => void;
-  project: Task;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
+  task: Task;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -51,7 +51,7 @@ export function ProjectChat({
   const id = useTaskRouteId();
   // TODO: Stop passing the entire project object down and rely just on the
   // id as much as possible to keep this from being an issue.
-  const isProjectRouteSettled = project.id === id;
+  const isTaskRouteSettled = task.id === id;
 
   const { contentRef, isNearBottom, scrollRef, scrollToBottom } =
     // Less animation when sticking to bottom
@@ -98,7 +98,7 @@ export function ProjectChat({
   const messagesQuery = useQuery(
     rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
       input:
-        selectedSessionId && isProjectRouteSettled
+        selectedSessionId && isTaskRouteSettled
           ? {
               id,
               sessionId: selectedSessionId,
@@ -179,7 +179,7 @@ export function ProjectChat({
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
   const isTutorialVisible =
-    isProjectRouteSettled && showTutorial === true && !isTutorialDismissed;
+    isTaskRouteSettled && showTutorial === true && !isTutorialDismissed;
 
   const handleDismissTutorial = () => {
     setIsTutorialDismissed(true);
@@ -255,7 +255,7 @@ export function ProjectChat({
         ref={contentRef}
       >
         {selectedSessionId ? (
-          isProjectRouteSettled ? (
+          isTaskRouteSettled ? (
             isLoadingMessages ? (
               <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
                 <Spinner className="size-4 text-muted-foreground" />
@@ -300,7 +300,7 @@ export function ProjectChat({
                 onModelChange={setSelectedModelURI}
                 onRetry={handleRetry}
                 onStartNewChat={handleNewSession}
-                project={project}
+                task={task}
               />
             )
           ) : (

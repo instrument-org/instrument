@@ -2,9 +2,9 @@ import { type TaskId } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { toast } from "sonner";
 
-import { type ProjectFileViewerFile } from "../atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "../atoms/task-file-viewer";
 import { rpcClient } from "../rpc/client";
-import { downloadProjectFile } from "./download-project-file";
+import { downloadTaskFile } from "./download-task-file";
 import { isTextMimeType } from "./is-text-mime-type";
 
 export async function copyFileToClipboard({
@@ -37,14 +37,14 @@ export async function copyFileToClipboard({
   }
 }
 
-export async function downloadFile(file: ProjectFileViewerFile) {
+export async function downloadFile(file: TaskFileViewerFile) {
   try {
     const response = await fetch(file.url);
     if (!response.ok) {
       throw new Error(`Failed to fetch file: ${response.statusText}`);
     }
     const blob = await response.blob();
-    downloadProjectFile({
+    downloadTaskFile({
       ...file,
       blob,
     });

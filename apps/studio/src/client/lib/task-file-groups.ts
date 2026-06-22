@@ -44,18 +44,18 @@ const ROOT_SOURCE_EXTENSIONS = [
   ".tsx",
 ];
 
-export function hasVisibleProjectFiles(
+export function hasVisibleTaskFiles(
   rawFiles: undefined | { filePath: string }[],
 ): boolean {
   if (!rawFiles) {
     return false;
   }
-  return rawFiles.some((f) => !shouldFilterProjectFile(f.filePath));
+  return rawFiles.some((f) => !shouldFilterTaskFile(f.filePath));
 }
 
 /**
  * Named root scaffolding files (package.json, lock files, tsconfig, etc.).
- * Unlike shouldFilterProjectFile, this keeps root source files
+ * Unlike shouldFilterTaskFile, this keeps root source files
  * (index.ts, app.tsx, …) visible, so the files grid only demotes config noise.
  */
 export function isRootScaffoldingFile(filePath: string): boolean {
@@ -69,7 +69,7 @@ export function isRootScaffoldingFile(filePath: string): boolean {
   );
 }
 
-export function shouldFilterProjectFile(filePath: string): boolean {
+export function shouldFilterTaskFile(filePath: string): boolean {
   if (filePath.startsWith("tmp/")) {
     return true;
   }

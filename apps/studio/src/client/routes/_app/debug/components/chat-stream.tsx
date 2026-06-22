@@ -81,7 +81,7 @@ function RouteComponent() {
                 onModelChange={createEventHandler("Model Change")}
                 onRetry={createEventHandler("Retry")}
                 onStartNewChat={createEventHandler("Start New Chat")}
-                project={mockProject as never}
+                task={mockProject as never}
               />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

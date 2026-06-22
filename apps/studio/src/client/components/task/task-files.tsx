@@ -1,14 +1,14 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import {
-  hasVisibleProjectFiles,
+  hasVisibleTaskFiles,
   isUnknownTopLevelDirFile,
-  shouldFilterProjectFile,
-} from "@/client/lib/project-file-groups";
+  shouldFilterTaskFile,
+} from "@/client/lib/task-file-groups";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
@@ -65,20 +65,20 @@ type AttachedFolder = NonNullable<
 
 type FileTreeNode =
   | { children: FileTreeNode[]; kind: "dir"; name: string }
-  | { file: ProjectFileViewerFile; kind: "file" };
+  | { file: TaskFileViewerFile; kind: "file" };
 
-export function ProjectFiles({
+export function TaskFiles({
   activeFilePath,
   attachedFolders,
   files,
   onFileSelect,
-  project,
+  task,
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
   files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
-  onFileSelect: (file: ProjectFileViewerFile) => void;
-  project: Task;
+  onFileSelect: (file: TaskFileViewerFile) => void;
+  task: Task;
 }) {
   const computed = useMemo(() => {
     if (!files) {
@@ -87,22 +87,22 @@ export function ProjectFiles({
 
     const toViewerFile = (
       f: (typeof files)[number],
-    ): ProjectFileViewerFile => ({
+    ): TaskFileViewerFile => ({
       ...f,
-      taskId: project.id,
+      taskId: task.id,
       url: getAssetUrl({
-        assetBase: project.assetBase,
+        assetBase: task.assetBase,
         filePath: f.filePath,
         version: f.modifiedAt,
       }),
     });
 
-    const visibleFiles: ProjectFileViewerFile[] = [];
-    const hiddenFiles: ProjectFileViewerFile[] = [];
+    const visibleFiles: TaskFileViewerFile[] = [];
+    const hiddenFiles: TaskFileViewerFile[] = [];
 
     for (const f of files) {
       if (
-        shouldFilterProjectFile(f.filePath) ||
+        shouldFilterTaskFile(f.filePath) ||
         isUnknownTopLevelDirFile(f.filePath)
       ) {
         hiddenFiles.push(toViewerFile(f));
@@ -120,7 +120,7 @@ export function ProjectFiles({
       tree: buildTree(visibleFiles),
       visibleFiles,
     };
-  }, [files, project.id, project.assetBase]);
+  }, [files, task.id, task.assetBase]);
 
   if (!computed) {
     return (
@@ -134,7 +134,7 @@ export function ProjectFiles({
 
   const folderEntries = attachedFolders ? Object.values(attachedFolders) : [];
 
-  if (!hasVisibleProjectFiles(files) && folderEntries.length === 0) {
+  if (!hasVisibleTaskFiles(files) && folderEntries.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
         There are no files yet.
@@ -168,7 +168,7 @@ export function ProjectFiles({
                 <AttachedFolderRow
                   folder={folder}
                   key={folder.id}
-                  taskId={project.id}
+                  taskId={task.id}
                 />
               ))}
             </CollapsibleTreeSection>
@@ -305,7 +305,7 @@ function AttachedFolderRow({
   );
 }
 
-function buildTree(files: ProjectFileViewerFile[]): FileTreeNode[] {
+function buildTree(files: TaskFileViewerFile[]): FileTreeNode[] {
   const root: FileTreeNode[] = [];
 
   for (const file of files) {
@@ -363,7 +363,7 @@ function FileRow({
   isActive,
   onClick,
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   isActive: boolean;
   onClick: () => void;
 }) {
@@ -528,7 +528,7 @@ function TreeNode({
   activeFilePath: null | string;
   defaultOpen?: boolean;
   node: FileTreeNode;
-  onFileClick: (file: ProjectFileViewerFile) => void;
+  onFileClick: (file: TaskFileViewerFile) => void;
   treeDepth?: number;
 }) {
   if (node.kind === "file") {

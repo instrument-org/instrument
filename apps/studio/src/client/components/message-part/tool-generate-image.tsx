@@ -21,7 +21,7 @@ import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
-import { useCurrentProjectFile } from "../project/current-project-files";
+import { useCurrentTaskFile } from "../task/current-task-files";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
@@ -243,7 +243,7 @@ function GeneratedImage({
   thumbnail?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const currentFile = useCurrentProjectFile(filePath);
+  const currentFile = useCurrentTaskFile(filePath);
   const isStale =
     currentFile !== undefined && currentFile.modifiedAt !== modifiedAt;
   const src = getAssetUrl({

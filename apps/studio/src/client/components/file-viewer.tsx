@@ -1,4 +1,4 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { getFileType } from "@/client/lib/get-file-type";
@@ -291,7 +291,7 @@ export function FileViewer({
   onClose,
   onExpand,
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   fullSize?: boolean;
   onClose: () => void;
   onExpand?: () => void;

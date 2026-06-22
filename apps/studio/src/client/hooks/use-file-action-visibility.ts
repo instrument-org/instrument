@@ -1,8 +1,8 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { isFileCopyable, isFileDownloadable } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
 
-export function useFileActionVisibility(file: ProjectFileViewerFile) {
+export function useFileActionVisibility(file: TaskFileViewerFile) {
   const fileType = getFileType(file);
   const isDownloadable = isFileDownloadable(file.url);
   const isCopyableByMime = isFileCopyable(file.mimeType, file.url);

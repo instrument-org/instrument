@@ -14,16 +14,16 @@ import { type Task } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { ProjectStatsCard } from "./stats-card";
+import { TaskStatsCard } from "./stats-card";
 
-export function DuplicateProjectModal({
+export function DuplicateTaskModal({
   isOpen,
   onClose,
-  project,
+  task,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  project: Task;
+  task: Task;
 }) {
   const { addTab } = useTabActions();
 
@@ -49,7 +49,7 @@ export function DuplicateProjectModal({
     e.preventDefault();
     duplicateMutation.mutate({
       keepHistory: true,
-      sourceTaskId: project.id,
+      sourceTaskId: task.id,
     });
   };
 
@@ -62,7 +62,7 @@ export function DuplicateProjectModal({
             This will create a copy of the task with all of its messages and
             files as a new task.
           </AlertDialogDescription>
-          <ProjectStatsCard project={project} />
+          <TaskStatsCard task={task} />
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>

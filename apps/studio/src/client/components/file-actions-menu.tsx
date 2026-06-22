@@ -1,4 +1,4 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { rpcClient } from "@/client/rpc/client";
@@ -32,7 +32,7 @@ export function FileActionsMenu({
   onAddToChat,
   variant = "ghost",
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   onAddToChat?: () => void;
   variant?: ButtonVariant;
 }) {
@@ -70,7 +70,7 @@ export function FileActionsMenuItems({
   onAddToChat,
   variant,
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   onAddToChat?: () => void;
   variant: MenuVariant;
 }) {

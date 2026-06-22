@@ -39,7 +39,7 @@ interface ChatStreamProps {
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
   onStartNewChat: () => void;
-  project: Task;
+  task: Task;
 }
 
 export function ChatStream({
@@ -52,7 +52,7 @@ export function ChatStream({
   onModelChange,
   onRetry,
   onStartNewChat,
-  project,
+  task,
 }: ChatStreamProps) {
   const { contextMessages, regularMessages } = useMemo(() => {
     const result = {
@@ -86,7 +86,7 @@ export function ChatStream({
         onModelChange={onModelChange}
         onRetry={onRetry}
         onStartNewChat={onStartNewChat}
-        project={project}
+        task={task}
       />
     ),
     [
@@ -95,7 +95,7 @@ export function ChatStream({
       onModelChange,
       onRetry,
       onStartNewChat,
-      project,
+      task,
     ],
   );
 
@@ -163,8 +163,8 @@ export function ChatStream({
       isToolStreaming,
       lastMessageId,
       onRetry,
-      project,
       renderStream,
+      task,
     }),
     [
       hideUserMessages,
@@ -173,7 +173,7 @@ export function ChatStream({
       isToolStreaming,
       lastMessageId,
       onRetry,
-      project,
+      task,
       renderStream,
     ],
   );
@@ -286,11 +286,11 @@ export function ChatStream({
         if (fileAttachmentsPart?.type === "data-attachments") {
           messageElements.unshift(
             <AttachmentsCard
-              assetBaseUrl={project.assetBase}
+              assetBaseUrl={task.assetBase}
               files={fileAttachmentsPart.data.files}
               folders={fileAttachmentsPart.data.folders}
               key={`attachments-${message.id}`}
-              taskId={project.id}
+              taskId={task.id}
             />,
           );
         }
@@ -326,7 +326,7 @@ export function ChatStream({
         if (shouldRenderFooter) {
           messageElements.push(
             <AssistantMessagesFooter
-              id={project.id}
+              id={task.id}
               key={`assistant-footer-${message.id}`}
               messages={assistantMessages}
             />,
@@ -347,8 +347,8 @@ export function ChatStream({
     toolBoundaryMap,
     hideLogo,
     hideUserMessages,
-    project.assetBase,
-    project.id,
+    task.assetBase,
+    task.id,
     isAgentRunning,
     isDeveloperMode,
     isPlanningVisible,

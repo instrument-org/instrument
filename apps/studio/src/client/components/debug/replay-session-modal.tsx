@@ -56,13 +56,13 @@ const PLAYBACK_SPEEDS: {
 export function ReplaySessionModal({
   isOpen,
   onClose,
-  project,
   selectedSessionId,
+  task,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  project: Task;
   selectedSessionId: StoreId.Session | undefined;
+  task: Task;
 }) {
   const [mode, setMode] = useState<ReplayMode>("new-session");
   const [speed, setSpeed] = useState<PlaybackSpeed>("instant");
@@ -93,7 +93,7 @@ export function ReplaySessionModal({
     }
     replayMutation.mutate({
       delayMs,
-      id: project.id,
+      id: task.id,
       mode,
       sessionId: selectedSessionId,
     });
@@ -142,7 +142,7 @@ export function ReplaySessionModal({
                 <FieldContent>
                   <FieldTitle>New task</FieldTitle>
                   <FieldDescription>
-                    Creates a fresh task named &quot;Replay of {project.title}
+                    Creates a fresh task named &quot;Replay of {task.title}
                     &quot; and runs the tools there.
                   </FieldDescription>
                 </FieldContent>

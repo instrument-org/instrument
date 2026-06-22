@@ -1,8 +1,8 @@
 import {
   closeFileViewerAtom,
-  projectFileViewerAtom,
-  setProjectFileViewerIndexAtom,
-} from "@/client/atoms/project-file-viewer";
+  setTaskFileViewerIndexAtom,
+  taskFileViewerAtom,
+} from "@/client/atoms/task-file-viewer";
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";
@@ -14,9 +14,9 @@ import { FileViewer } from "../file-viewer";
 import { Button } from "../ui/button";
 
 export function ProjectFileViewerModal() {
-  const state = useAtomValue(projectFileViewerAtom);
+  const state = useAtomValue(taskFileViewerAtom);
   const collapseViewer = useSetAtom(closeFileViewerAtom);
-  const setCurrentIndex = useSetAtom(setProjectFileViewerIndexAtom);
+  const setCurrentIndex = useSetAtom(setTaskFileViewerIndexAtom);
   const router = useRouter();
 
   const currentFile = state.files[state.currentIndex];

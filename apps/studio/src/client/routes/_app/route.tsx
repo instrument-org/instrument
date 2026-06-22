@@ -1,5 +1,5 @@
 import { filePreviewAtom } from "@/client/atoms/file-preview";
-import { projectFileViewerAtom } from "@/client/atoms/project-file-viewer";
+import { taskFileViewerAtom } from "@/client/atoms/task-file-viewer";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInvalidateRouterOnUserChange } from "@/client/hooks/use-invalidate-router-on-user-change";
@@ -20,7 +20,7 @@ const LazyFilePreviewModal = lazy(() =>
 );
 
 const LazyProjectFileViewerModal = lazy(() =>
-  import("@/client/components/project/file-viewer-modal").then((module) => ({
+  import("@/client/components/task/file-viewer-modal").then((module) => ({
     default: module.ProjectFileViewerModal,
   })),
 );
@@ -53,7 +53,7 @@ function RouteComponent() {
   const isDeveloperMode = useDeveloperMode();
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   const isProjectFileViewerOpen = useAtomValue(
-    projectFileViewerAtom,
+    taskFileViewerAtom,
   ).isModalOpen;
 
   useInvalidateRouterOnUserChange();

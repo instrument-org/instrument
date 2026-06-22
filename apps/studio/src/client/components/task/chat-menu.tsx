@@ -57,7 +57,7 @@ const allChatsSubListScrollStyle = {
 const chatSessionRadioItemClassName =
   "group rounded-lg pl-2 data-[state=checked]:bg-black/10 dark:data-[state=checked]:bg-white/10 [&>span:first-child]:hidden";
 
-export function ProjectChatMenu({
+export function TaskChatMenu({
   onChatClick,
   projectTitle,
   selectedSessionId,
@@ -207,7 +207,7 @@ export function ProjectChatMenu({
                 value={selectedSessionId}
               >
                 {visibleSessions.map((session) => (
-                  <ProjectChatMenuSessionRadioItem
+                  <TaskChatMenuSessionRadioItem
                     activeReplaySessionIds={replayStatus?.activeSessionIds}
                     key={session.id}
                     session={session}
@@ -226,7 +226,7 @@ export function ProjectChatMenu({
                         style={allChatsSubListScrollStyle}
                       >
                         {overflowSessions.map((session) => (
-                          <ProjectChatMenuSessionRadioItem
+                          <TaskChatMenuSessionRadioItem
                             activeReplaySessionIds={
                               replayStatus?.activeSessionIds
                             }
@@ -248,7 +248,7 @@ export function ProjectChatMenu({
   );
 }
 
-function ProjectChatMenuSessionRadioItem({
+function TaskChatMenuSessionRadioItem({
   activeReplaySessionIds,
   session,
   sessionActors,

@@ -13,7 +13,7 @@ export function useTrashApp({
   navigateOnDelete?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const trashProjectMutation = useMutation(
+  const trashTaskMutation = useMutation(
     rpcClient.workspace.task.trash.mutationOptions(),
   );
   const { closeTab } = useTabActions();
@@ -22,7 +22,7 @@ export function useTrashApp({
 
   const trashApp = useCallback(
     async (taskId: TaskId) => {
-      await trashProjectMutation.mutateAsync({
+      await trashTaskMutation.mutateAsync({
         id: taskId,
       });
 
@@ -40,17 +40,17 @@ export function useTrashApp({
       if (navigateOnDelete) {
         await navigate({ replace: true, to: "/new-tab" });
       } else {
-        const projectTabs = tabs.filter((tab) =>
+        const taskTabs = tabs.filter((tab) =>
           tab.pathname.includes(`/tasks/${taskId}`),
         );
 
-        for (const tab of projectTabs) {
+        for (const tab of taskTabs) {
           await closeTab({ id: tab.id });
         }
       }
     },
     [
-      trashProjectMutation,
+      trashTaskMutation,
       queryClient,
       tabs,
       closeTab,
@@ -60,8 +60,8 @@ export function useTrashApp({
   );
 
   return {
-    error: trashProjectMutation.error,
-    isPending: trashProjectMutation.isPending,
+    error: trashTaskMutation.error,
+    isPending: trashTaskMutation.isPending,
     trashApp,
   };
 }

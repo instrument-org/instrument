@@ -1,4 +1,4 @@
-import { normalizeProjectFilePath } from "@instrument-org/workspace/client";
+import { normalizeTaskFilePath } from "@instrument-org/workspace/client";
 
 export function getAssetUrl({
   assetBase,
@@ -9,7 +9,7 @@ export function getAssetUrl({
   filePath: string;
   version?: number | string;
 }): string {
-  const url = `${assetBase}/${normalizeProjectFilePath(filePath)}`;
+  const url = `${assetBase}/${normalizeTaskFilePath(filePath)}`;
 
   if (version === undefined) {
     return url;

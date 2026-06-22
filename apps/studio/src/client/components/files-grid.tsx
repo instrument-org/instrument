@@ -1,9 +1,9 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
 import {
   isRootScaffoldingFile,
   isUnknownTopLevelDirFile,
-} from "@/client/lib/project-file-groups";
+} from "@/client/lib/task-file-groups";
 import { cn } from "@/client/lib/utils";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
@@ -21,7 +21,7 @@ import { Button } from "./ui/button";
 interface FilesGridProps {
   alignEnd?: boolean;
   compact?: boolean;
-  files: ProjectFileViewerFile[];
+  files: TaskFileViewerFile[];
   folders?: SessionMessageDataPart.FolderAttachmentDataPart[];
   initialVisibleCount?: number;
   prioritizeUserFiles?: boolean;
@@ -66,7 +66,7 @@ export function FilesGrid({
   });
   const selectedArtifactFile = search?.artifactPanel ?? null;
 
-  const handleFileClick = (file: ProjectFileViewerFile) => {
+  const handleFileClick = (file: TaskFileViewerFile) => {
     if (!search) {
       return;
     }
@@ -331,9 +331,9 @@ function CategorizedFileSection({
   title,
 }: {
   alignEnd: boolean;
-  files: ProjectFileViewerFile[];
+  files: TaskFileViewerFile[];
   isExpanded: boolean;
-  onFileClick: (file: ProjectFileViewerFile) => void;
+  onFileClick: (file: TaskFileViewerFile) => void;
   onToggle: () => void;
   selectedArtifactFile: ArtifactPanel | null;
   title: string;
@@ -382,12 +382,12 @@ function CategorizedFileSection({
   );
 }
 
-function hasMediaPreview(file: ProjectFileViewerFile) {
+function hasMediaPreview(file: TaskFileViewerFile) {
   const fileType = getFileType(file);
   return fileType === "image" || fileType === "video";
 }
 
-function hasRowCardPreview(file: ProjectFileViewerFile) {
+function hasRowCardPreview(file: TaskFileViewerFile) {
   const fileType = getFileType(file);
   return (
     fileType === "html" ||
@@ -401,7 +401,7 @@ function hasRowCardPreview(file: ProjectFileViewerFile) {
 }
 
 function isArtifactPanelFileSelected(
-  file: ProjectFileViewerFile,
+  file: TaskFileViewerFile,
   artifactPanel: ArtifactPanel | null,
 ) {
   return (
@@ -411,20 +411,20 @@ function isArtifactPanelFileSelected(
   );
 }
 
-function isFileInAppFolder(file: ProjectFileViewerFile, folderName: string) {
+function isFileInAppFolder(file: TaskFileViewerFile, folderName: string) {
   return file.filePath.startsWith(`${folderName}/`);
 }
 
-function sortByRichPreview(files: ProjectFileViewerFile[]) {
+function sortByRichPreview(files: TaskFileViewerFile[]) {
   const [media, rest] = fork(files, hasMediaPreview);
   const [rowCard, other] = fork(rest, hasRowCardPreview);
   return [...media, ...rowCard, ...other];
 }
 
-function splitSupportingFiles(files: ProjectFileViewerFile[]) {
+function splitSupportingFiles(files: TaskFileViewerFile[]) {
   const supportingFilesByKey: Record<
     SupportingSectionKey,
-    ProjectFileViewerFile[]
+    TaskFileViewerFile[]
   > = {
     agentRetrieved: [],
     other: [],
@@ -436,7 +436,7 @@ function splitSupportingFiles(files: ProjectFileViewerFile[]) {
   let remainingFiles = files;
   const matchingOrder: {
     key: SupportingSectionKey;
-    matches: (file: ProjectFileViewerFile) => boolean;
+    matches: (file: TaskFileViewerFile) => boolean;
   }[] = [
     {
       key: "scripts",

@@ -85,9 +85,7 @@ export function TaskFiles({
       return null;
     }
 
-    const toViewerFile = (
-      f: (typeof files)[number],
-    ): TaskFileViewerFile => ({
+    const toViewerFile = (f: (typeof files)[number]): TaskFileViewerFile => ({
       ...f,
       taskId: task.id,
       url: getAssetUrl({

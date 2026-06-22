@@ -138,9 +138,7 @@ function ToolCallBody({
       return <ToolReadFile id={task.id} part={part} />;
     }
     case "tool-task": {
-      return (
-        <ToolTask part={part} renderStream={renderStream} task={task} />
-      );
+      return <ToolTask part={part} renderStream={renderStream} task={task} />;
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

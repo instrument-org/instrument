@@ -184,8 +184,7 @@ const snapshotLive = devOnly
     // the workspace machine spawns a new projectBrowser.
     const childSubs = new Map<string, () => void>();
     const refreshChildSubs = () => {
-      const refs =
-        context.workspaceRef.getSnapshot().context.taskBrowserRefs;
+      const refs = context.workspaceRef.getSnapshot().context.taskBrowserRefs;
       const seen = new Set<string>();
       for (const [id, ref] of refs) {
         const key = String(id);

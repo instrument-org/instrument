@@ -20,11 +20,7 @@ interface ExportZipModalProps {
   task: Task;
 }
 
-export function ExportZipModal({
-  isOpen,
-  onClose,
-  task,
-}: ExportZipModalProps) {
+export function ExportZipModal({ isOpen, onClose, task }: ExportZipModalProps) {
   const showFileInFolderMutation = useMutation(
     rpcClient.utils.showFileInFolder.mutationOptions(),
   );

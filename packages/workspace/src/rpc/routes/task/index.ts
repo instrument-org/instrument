@@ -122,7 +122,6 @@ const create = base
     z.object({
       files: z.array(FileUpload.Schema).optional(),
       folders: z.array(z.object({ path: z.string() })).optional(),
-      iconName: z.literal("flask-conical").optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
       preferredFolderName: SubdomainPartSchema.optional(),
@@ -139,15 +138,7 @@ const create = base
     async ({
       context,
       errors,
-      input: {
-        files,
-        folders,
-        iconName,
-        modelURI,
-        name,
-        preferredFolderName,
-        prompt,
-      },
+      input: { files, folders, modelURI, name, preferredFolderName, prompt },
       signal,
     }) => {
       const modelResult = await fetchModel({
@@ -173,7 +164,7 @@ const create = base
 
       const result = await initializeTask(
         {
-          initialManifest: { iconName, name: initialTaskName },
+          initialManifest: { name: initialTaskName },
           taskId,
           templateName: DEFAULT_TEMPLATE_NAME,
           workspaceConfig: context.workspaceConfig,

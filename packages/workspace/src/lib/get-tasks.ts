@@ -1,4 +1,3 @@
-import { EVAL_SUBDOMAIN_PREFIX } from "@instrument-org/shared";
 import { glob } from "glob";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
@@ -101,13 +100,8 @@ async function readTask({ dir }: { dir: TaskDir }) {
   const id = taskIdResult.data;
   const manifest = await getTaskManifest(dir);
 
-  const iconName =
-    manifest?.iconName ||
-    (id.startsWith(EVAL_SUBDOMAIN_PREFIX) ? "flask-conical" : undefined);
-
   const task: Task = {
     ...(await getTaskDirTimestamps(dir)),
-    iconName,
     id,
     title: manifest?.name ?? rawFolderName,
   };

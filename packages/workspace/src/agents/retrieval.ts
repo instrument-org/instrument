@@ -14,7 +14,7 @@ import {
 } from "./shared";
 
 export const retrievalAgent = setupAgent({
-  agentTools: pick(TOOLS, ["CopyToProject", "Glob", "Grep", "ReadFile"]),
+  agentTools: pick(TOOLS, ["CopyToTask", "Glob", "Grep", "ReadFile"]),
   name: "retrieval",
 }).create(({ agentTools, name }) => ({
   getMessages: async ({ sessionId, taskId }) => {
@@ -27,12 +27,12 @@ export const retrievalAgent = setupAgent({
       text: dedent`
         You are a retrieval agent. Your role is to search, inspect, and report on files from user-attached folders, and to copy files into the task only when explicitly asked.
         
-        Use ${agentTools.ReadFile.name}, ${agentTools.Glob.name}, and ${agentTools.Grep.name} to search and read attached folder contents. Use ${agentTools.CopyToProject.name} only when the task requires the files to be present in the task.
+        Use ${agentTools.ReadFile.name}, ${agentTools.Glob.name}, and ${agentTools.Grep.name} to search and read attached folder contents. Use ${agentTools.CopyToTask.name} only when the task requires the files to be present in the task.
         
         ## When to copy vs. when to report
         
         - If the task only requires knowing what files exist, their count, names, sizes, types, or contents: use search/read tools and report the findings directly. Do NOT copy.
-        - If the task requires the files themselves to be in the task (e.g. to use, edit, or process them): copy them with ${agentTools.CopyToProject.name}.
+        - If the task requires the files themselves to be in the task (e.g. to use, edit, or process them): copy them with ${agentTools.CopyToTask.name}.
         
         ## Path Rules
         

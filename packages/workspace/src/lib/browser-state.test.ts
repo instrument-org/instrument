@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { taskDir } from "./app-dir-utils";
 import { getBrowserState, recordBrowserUse } from "./browser-state";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
@@ -19,7 +19,7 @@ let root: string;
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
   const tasksDir = path.join(root, "projects");
-  taskId = createMockAppConfigForDir(path.join(tasksDir, id));
+  taskId = createMockTaskConfigForDir(path.join(tasksDir, id));
   await fs.mkdir(taskDir(taskId), { recursive: true });
 });
 

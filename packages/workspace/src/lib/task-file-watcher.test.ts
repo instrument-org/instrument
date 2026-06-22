@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { type WorkspaceConfig } from "../types";
 import {
   beginTurnChangeTracking,
@@ -26,9 +26,9 @@ async function setupTask() {
   const tasksDir = path.join(root, "projects");
   dir = path.join(tasksDir, id);
   await fs.mkdir(path.join(dir, "sub"), { recursive: true });
-  // createMockAppConfig publishes the singleton; point it at the temp dir so
+  // createMockTaskConfig publishes the singleton; point it at the temp dir so
   // the watcher's createAppConfig resolves dir under it.
-  createMockAppConfig(id);
+  createMockTaskConfig(id);
   workspaceConfig = {
     ...getWorkspaceConfig(),
     tasksDir: AbsolutePathSchema.parse(tasksDir),
@@ -37,9 +37,7 @@ async function setupTask() {
 }
 
 function trackedPaths() {
-  return (getCurrentTaskFiles(id) ?? []).map((file) =>
-    String(file.filePath),
-  );
+  return (getCurrentTaskFiles(id) ?? []).map((file) => String(file.filePath));
 }
 
 afterEach(async () => {

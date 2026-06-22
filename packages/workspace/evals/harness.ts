@@ -21,7 +21,7 @@ import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-app-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import {
   buildProviderConfigs,
   c,

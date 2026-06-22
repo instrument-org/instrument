@@ -20,7 +20,7 @@ import { workspaceMachine } from "../src/electron";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { task as projectRoute } from "../src/rpc/routes/task";
 import { type StoreId } from "../src/schemas/store-id";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-app-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { env } from "./lib/env";
 
 const PROVIDER_CONFIGS: AIGatewayProviderConfig.Type[] = [

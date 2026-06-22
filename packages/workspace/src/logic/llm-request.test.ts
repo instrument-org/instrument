@@ -26,7 +26,7 @@ import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { TOOLS } from "../tools/all";
 import { llmRequestLogic } from "./llm-request";
 
@@ -148,7 +148,7 @@ describe("llmRequestLogic", () => {
         provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
     });
 
-    const projectAppConfig = createMockAppConfig(TaskIdSchema.parse(`mock`), {
+    const projectAppConfig = createMockTaskConfig(TaskIdSchema.parse(`mock`), {
       aiSDKModel: mockLanguageModel,
       model,
     });

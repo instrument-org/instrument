@@ -1,7 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { redactWorkspacePaths } from "./redact-workspace-paths";
 
 describe("redactWorkspacePaths", () => {
@@ -10,7 +10,7 @@ describe("redactWorkspacePaths", () => {
   const appDirEncoded = `/Users/test/Library/Application%20Support/${APP_NAME}%20(Dev)/workspace/projects/test`;
   // The id is the dir's basename ("test"); points the singleton's tasksDir
   // at its parent so taskDir(id) === dir.
-  const mockAppConfig = createMockAppConfigForDir(dir);
+  const mockAppConfig = createMockTaskConfigForDir(dir);
 
   it("redacts literal workspace paths", () => {
     const result = redactWorkspacePaths(

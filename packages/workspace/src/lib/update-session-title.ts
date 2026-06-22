@@ -1,24 +1,24 @@
 import { type StoreId } from "../schemas/store-id";
-import { type AppConfigProject } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { isSessionTitleAutoReplaceable } from "./generate-session-title";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function updateSessionTitle({
-  appConfig,
   sessionId,
+  taskId,
   title,
 }: {
-  appConfig: AppConfigProject;
   sessionId: StoreId.Session;
+  taskId: TaskId;
   title: string;
 }) {
-  const storedSession = await Store.getSession(sessionId, appConfig);
+  const storedSession = await Store.getSession(sessionId, taskId);
   if (storedSession.isErr()) {
     return;
   }
   const canReplace = await isSessionTitleAutoReplaceable({
-    appConfig,
+    taskId,
     title: storedSession.value.title,
   });
   if (!canReplace) {
@@ -30,7 +30,7 @@ export async function updateSessionTitle({
       title,
       updatedAt: new Date(),
     },
-    appConfig,
+    taskId,
   );
   if (renameResult.isErr()) {
     getWorkspaceConfig().captureException(renameResult.error);

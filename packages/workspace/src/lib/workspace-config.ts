@@ -2,7 +2,7 @@ import { type WorkspaceConfig } from "../types";
 
 // The workspace runs a single WorkspaceConfig per process (constructed once when
 // the workspace machine boots and living for the whole app lifetime). Rather
-// than threading it through every AppConfig/function, we hold it here as a
+// than threading it through every TaskId/function, we hold it here as a
 // module singleton and read it via `getWorkspaceConfig()`. See the
 // `refactor/task-rename-foundation` plan for why this is preferred over
 // AsyncLocalStorage (Hono per-request middleware, spawn-runtime stdio

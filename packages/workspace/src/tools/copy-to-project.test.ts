@@ -44,11 +44,11 @@ afterEach(async () => {
 function baseExecuteArgs() {
   return {
     agentName: "retrieval" as const,
-    appConfig: createTmpAppConfig(),
     model,
     projectState: { attachedFolders },
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
+    taskId: createTmpAppConfig(),
   };
 }
 

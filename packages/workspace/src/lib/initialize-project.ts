@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 
 import { APP_FOLDER_NAMES } from "../constants";
 import { type ProjectManifestUpdate } from "../schemas/project-manifest";
+import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
-import { type AppConfigProject } from "./app-config/types";
 import { taskDir, templateExists } from "./app-dir-utils";
 import { copyProject } from "./copy-project";
 import { TypedError } from "./errors";
@@ -14,12 +14,12 @@ import { updateProjectManifest } from "./project-manifest";
 export async function initializeProject(
   {
     initialManifest,
-    projectConfig,
+    taskId,
     templateName,
     workspaceConfig,
   }: {
     initialManifest: Omit<ProjectManifestUpdate, "createdWithAppVersion">;
-    projectConfig: AppConfigProject;
+    taskId: TaskId;
     templateName: string;
     workspaceConfig: WorkspaceConfig;
   },
@@ -28,18 +28,18 @@ export async function initializeProject(
   return safeTry(async function* () {
     // Ensure no folder exists
     const exists = await fs
-      .access(taskDir(projectConfig))
+      .access(taskDir(taskId))
       .then(() => true)
       .catch(() => false);
     if (exists) {
       return errAsync(
         new TypedError.Conflict(
-          `Task directory already exists: ${taskDir(projectConfig)}`,
+          `Task directory already exists: ${taskDir(taskId)}`,
         ),
       );
     }
     yield* ResultAsync.fromPromise(
-      fs.mkdir(taskDir(projectConfig), { recursive: true }),
+      fs.mkdir(taskDir(taskId), { recursive: true }),
       (error) =>
         new TypedError.FileSystem(
           error instanceof Error ? error.message : "Unknown error",
@@ -67,10 +67,10 @@ export async function initializeProject(
       includePrivateFolder: false,
       isTemplate: true,
       sourceDir: templateDir,
-      targetDir: taskDir(projectConfig),
+      targetDir: taskDir(taskId),
     });
 
-    yield* updateProjectManifest(projectConfig, {
+    yield* updateProjectManifest(taskId, {
       ...initialManifest,
       createdWithAppVersion: workspaceConfig.appVersion,
     });
@@ -84,7 +84,7 @@ export async function initializeProject(
     ];
     for (const dirName of standardDirs) {
       yield* ResultAsync.fromPromise(
-        fs.mkdir(absolutePathJoin(taskDir(projectConfig), dirName), {
+        fs.mkdir(absolutePathJoin(taskDir(taskId), dirName), {
           recursive: true,
         }),
         (error) =>
@@ -95,6 +95,6 @@ export async function initializeProject(
       );
     }
 
-    return ok({ projectConfig });
+    return ok({ taskId });
   });
 }

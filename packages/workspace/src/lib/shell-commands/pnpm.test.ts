@@ -22,8 +22,8 @@ const mockCtx: CommandContext = {
 };
 
 describe("createPnpmCommand", () => {
-  const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
-  const command = createPnpmCommand(appConfig);
+  const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+  const command = createPnpmCommand(taskId);
 
   it.each([{ subcommand: "dev" }, { subcommand: "start" }])(
     "errors when trying to run pnpm $subcommand",
@@ -156,7 +156,7 @@ describe("createPnpmCommand", () => {
 
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
-      appConfig,
+      taskId,
       getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining(["dlx", "jiti@2.6.1"]),
       expect.any(Object),
@@ -171,7 +171,7 @@ describe("createPnpmCommand", () => {
       stdout: "1\n",
     });
 
-    const npxCommand = createNpxCommand(appConfig);
+    const npxCommand = createNpxCommand(taskId);
     const result = await npxCommand.execute(
       ["-y", "tsx", "-e", "console.log(1)"],
       {
@@ -229,12 +229,12 @@ describe("createPnpmCommand", () => {
         exitCode: 0,
       } as never);
 
-      const dlxCommand = createCommand(appConfig);
+      const dlxCommand = createCommand(taskId);
       const result = await dlxCommand.execute(args, mockCtx);
 
       expect(result.exitCode).toBe(0);
       expect(vi.mocked(execaNodeForApp)).toHaveBeenLastCalledWith(
-        appConfig,
+        taskId,
         getWorkspaceConfig().pnpmBinPath,
         expectedArgs,
         expect.any(Object),

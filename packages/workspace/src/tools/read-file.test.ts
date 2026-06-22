@@ -20,7 +20,7 @@ const fixturesPath = path.join(
   "../../fixtures/file-system",
 );
 
-const appConfig = createMockAppConfigForDir(fixturesPath, { model });
+const taskId = createMockAppConfigForDir(fixturesPath, { model });
 
 const attachedFolders: Record<string, FolderAttachment.Type> = {
   "test-folder": {
@@ -36,11 +36,11 @@ describe("ReadFile", () => {
   describe("main agent", () => {
     const baseInput = {
       agentName: "main" as const,
-      appConfig,
       model,
       projectState: {},
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
+      taskId,
     };
 
     it("should list files when given a directory path", async () => {
@@ -131,11 +131,11 @@ describe("ReadFile", () => {
   describe("retrieval agent", () => {
     const baseInput = {
       agentName: "retrieval" as const,
-      appConfig,
       model,
       projectState: { attachedFolders },
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
+      taskId,
     };
 
     it("should reject relative paths", async () => {
@@ -242,12 +242,12 @@ describe("ReadFile Unicode path fallbacks", () => {
     const value = (
       await runTool(TOOLS.ReadFile, {
         agentName: "main" as const,
-        appConfig: tmpAppConfig,
         input: { explanation: "read", filePath: `./${inputName}` },
         model,
         projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: tmpAppConfig,
       })
     )
       // eslint-disable-next-line unicorn/no-await-expression-member

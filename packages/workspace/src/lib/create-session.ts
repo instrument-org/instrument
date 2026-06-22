@@ -1,26 +1,26 @@
 import { type StoreId } from "../schemas/store-id";
-import { type AppConfig } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { generateSessionTitle } from "./generate-session-title";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createSession({
-  appConfig,
   parentSessionId,
   sessionId,
   sessionNamePrefix,
   signal,
+  taskId,
 }: {
-  appConfig: AppConfig;
   parentSessionId?: StoreId.Session;
   sessionId: StoreId.Session;
   sessionNamePrefix?: string;
   signal?: AbortSignal;
+  taskId: TaskId;
 }) {
   const title = await generateSessionTitle({
-    appConfig,
     sessionNamePrefix,
     signal,
+    taskId,
   });
   const now = new Date();
   const result = await Store.saveSession(
@@ -31,7 +31,7 @@ export async function createSession({
       title,
       updatedAt: now,
     },
-    appConfig,
+    taskId,
     { signal },
   );
 

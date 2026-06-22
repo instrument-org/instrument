@@ -57,17 +57,17 @@ export const BashTool = setupTool({
   }),
 }).create({
   description: createBashDescription(),
-  async execute({ appConfig, input, messageId, partId, sessionId, signal }) {
+  async execute({ input, messageId, partId, sessionId, signal, taskId }) {
     const bash = createBashEnv({
-      appConfig,
       sessionId,
+      taskId,
       upsertContextItem: async (item) => {
         // Best-effort side-channel write; if the part has been finalized or
         // removed we silently skip, since the screenshot is still on disk.
         await Store.upsertToolPartContextItem(
           { messageId, partId, sessionId },
           item,
-          appConfig,
+          taskId,
           { signal },
         );
       },
@@ -88,7 +88,7 @@ export const BashTool = setupTool({
       spillFilePath = RelativePathSchema.parse(
         path.posix.join(APP_FOLDER_NAMES.state, "bash-output", `${partId}.log`),
       );
-      const absPath = absolutePathJoin(taskDir(appConfig), spillFilePath);
+      const absPath = absolutePathJoin(taskDir(taskId), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });
       await fs.writeFile(absPath, combined, { encoding: "utf8", signal });
     }

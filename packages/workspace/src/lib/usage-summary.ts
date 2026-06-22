@@ -2,7 +2,7 @@ import { parallel, sum } from "radashi";
 import { z } from "zod";
 
 import { type SessionMessage } from "../schemas/session/message";
-import { type AppConfig } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { isToolPart } from "./is-tool-part";
 import { Store } from "./store";
 
@@ -45,10 +45,10 @@ export function emptyUsageSummary(): UsageSummary {
 }
 
 export async function getProjectUsageSummary(
-  appConfig: AppConfig,
+  taskId: TaskId,
   { signal }: { signal?: AbortSignal } = {},
 ): Promise<UsageSummary> {
-  const sessionIdsResult = await Store.getStoreId(appConfig, { signal });
+  const sessionIdsResult = await Store.getStoreId(taskId, { signal });
   if (sessionIdsResult.isErr()) {
     return emptyUsageSummary();
   }
@@ -57,7 +57,7 @@ export async function getProjectUsageSummary(
     { limit: 5, signal },
     sessionIdsResult.value,
     async (sessionId) => {
-      const messageIdsResult = await Store.getMessageIds(sessionId, appConfig, {
+      const messageIdsResult = await Store.getMessageIds(sessionId, taskId, {
         signal,
       });
       if (messageIdsResult.isErr()) {
@@ -69,7 +69,7 @@ export async function getProjectUsageSummary(
         messageIdsResult.value,
         async (messageId) => {
           const result = await Store.getMessageWithParts(
-            { appConfig, messageId, sessionId },
+            { messageId, sessionId, taskId },
             { signal },
           );
           return result.isOk() ? result.value : null;

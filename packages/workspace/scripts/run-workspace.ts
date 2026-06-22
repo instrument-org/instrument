@@ -1,12 +1,12 @@
 import "dotenv/config";
-
-import "./lib/bootstrap-proxy";
-import "./lib/define-globals-apply";
-
 import {
   aiGatewayApp,
   type AIGatewayProviderConfig,
 } from "@instrument-org/ai-gateway";
+
+import "./lib/bootstrap-proxy";
+import "./lib/define-globals-apply";
+
 import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";

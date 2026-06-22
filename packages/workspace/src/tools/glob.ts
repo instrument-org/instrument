@@ -47,11 +47,11 @@ export const Glob = setupTool({
     }
     return "Find files matching a glob pattern in the codebase. Specify a path to search within a specific folder, or omit to search from the task root.";
   },
-  execute: async ({ agentName, appConfig, input, projectState, signal }) => {
+  execute: async ({ agentName, input, projectState, signal, taskId }) => {
     const pathResult = resolveAgentPath({
       agentName,
       attachedFolders: projectState.attachedFolders,
-      dir: taskDir(appConfig),
+      dir: taskDir(taskId),
       inputPath: input.path,
       isRequired: agentName === "retrieval",
     });

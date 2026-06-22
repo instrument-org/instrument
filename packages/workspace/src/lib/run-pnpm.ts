@@ -1,5 +1,5 @@
 import { type AbsolutePath } from "../schemas/paths";
-import { type AppConfig } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
 import { execaNodeForApp } from "./execa-node-for-app";
 import { filterShellOutput } from "./filter-shell-output";
@@ -8,15 +8,14 @@ import { getWorkspaceConfig } from "./workspace-config";
 export const PNPM_NAME = "pnpm";
 
 export async function runPnpmCommand({
-  appConfig,
   args,
   cwd,
   env,
   pnpmLogLevel,
   signal,
   stdin,
+  taskId,
 }: {
-  appConfig: AppConfig;
   args: string[];
   cwd?: AbsolutePath;
   env?: Record<string, string>;
@@ -24,9 +23,10 @@ export async function runPnpmCommand({
   pnpmLogLevel?: "error";
   signal?: AbortSignal;
   stdin?: string;
+  taskId: TaskId;
 }) {
   const execResult = await execaNodeForApp(
-    appConfig,
+    taskId,
     getWorkspaceConfig().pnpmBinPath,
     args,
     {
@@ -50,7 +50,7 @@ export async function runPnpmCommand({
     },
     cwd,
   );
-  const combined = filterShellOutput(execResult.all, taskDir(appConfig));
+  const combined = filterShellOutput(execResult.all, taskDir(taskId));
   return {
     combined,
     command: `${PNPM_NAME} ${args.join(" ")}`,

@@ -11,7 +11,7 @@ import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 
 const model = createMockAIGatewayModel();
-const appConfig = createMockAppConfig(TaskIdSchema.parse("test"), {
+const taskId = createMockAppConfig(TaskIdSchema.parse("test"), {
   model,
 });
 
@@ -51,19 +51,19 @@ function makeExecuteArgs(
 ) {
   return {
     agentName: "main" as const,
-    appConfig,
     input,
     model,
     projectState: {},
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
+    taskId,
   };
 }
 
 function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   mockFs({
     [MOCK_WORKSPACE_DIRS.projects]: {
-      [appConfig]: {
+      [taskId]: {
         "grep-test.txt": GREP_FILE_CONTENT,
         ...files,
       },

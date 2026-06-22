@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
 import { ActiveReplays } from "../../lib/active-replays";
-import { createAppConfig } from "../../lib/app-config/create";
 import { taskDir } from "../../lib/app-dir-utils";
 import { getCurrentDate } from "../../lib/get-current-date";
 import { getProjectManifest } from "../../lib/project-manifest";
@@ -45,10 +44,10 @@ const replaySession = base
     const { delayMs, id, mode, sessionId } = input;
     const { workspaceConfig } = context;
 
-    const sourceAppConfig = createAppConfig({ id });
+    const sourceAppConfig = id;
 
     const messagesResult = await Store.getMessagesWithParts(
-      { appConfig: sourceAppConfig, sessionId },
+      { sessionId, taskId: sourceAppConfig },
       { signal },
     );
     if (messagesResult.isErr()) {
@@ -94,7 +93,7 @@ const replaySession = base
         throw toORPCError(prepareResult.error, errors);
       }
 
-      targetAppConfig = prepareResult.value.projectConfig;
+      targetAppConfig = prepareResult.value.taskId;
       newSessionId = prepareResult.value.sessionId;
       replayMessages = prepareResult.value.replayMessages;
 
@@ -103,10 +102,10 @@ const replaySession = base
       });
     } else {
       const sessionResult = await createReplaySession({
-        appConfig: sourceAppConfig,
         sessionNamePrefix: REPLAY_SESSION_NAME_PREFIX,
         signal,
         sourceMessages,
+        taskId: sourceAppConfig,
       });
       if (sessionResult.isErr()) {
         workspaceConfig.captureException(sessionResult.error);
@@ -170,13 +169,13 @@ const replaySession = base
 
     void executeSessionReplay({
       agentName,
-      appConfig: targetAppConfig,
       delayMs,
       model,
       replayMessages,
       sessionId: newSessionId,
       signal: abortController.signal,
       spawnAgent,
+      taskId: targetAppConfig,
     }).then(() => {
       if (ActiveReplays.isActive(newSessionId)) {
         ActiveReplays.cancel(newSessionId);

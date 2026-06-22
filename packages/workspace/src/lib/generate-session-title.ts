@@ -1,4 +1,4 @@
-import { type AppConfig, type AppConfigProject } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
 import { getProjectManifest } from "./project-manifest";
 import { Store } from "./store";
@@ -8,19 +8,19 @@ const DEFAULT_UNTITLED_BASE = "Untitled chat";
 const defaultUntitledChatPattern = /^Untitled chat(?: \d+)?$/;
 
 export async function generateSessionTitle({
-  appConfig,
   sessionNamePrefix,
   signal,
+  taskId,
 }: {
-  appConfig: AppConfig;
   sessionNamePrefix?: string;
   signal?: AbortSignal;
+  taskId: TaskId;
 }): Promise<string> {
   const baseTitle = sessionNamePrefix
     ? `Untitled ${sessionNamePrefix}`
     : DEFAULT_UNTITLED_BASE;
 
-  const sessionsResult = await Store.getSessions(appConfig, {
+  const sessionsResult = await Store.getSessions(taskId, {
     includeChildSessions: true,
     signal,
   });
@@ -50,16 +50,16 @@ export async function generateSessionTitle({
 }
 
 export async function isSessionTitleAutoReplaceable({
-  appConfig,
+  taskId,
   title,
 }: {
-  appConfig: AppConfigProject;
+  taskId: TaskId;
   title: string;
 }) {
   if (isUntitledChatSessionTitle(title)) {
     return true;
   }
-  const manifest = await getProjectManifest(taskDir(appConfig));
+  const manifest = await getProjectManifest(taskDir(taskId));
   return manifest?.name === title;
 }
 

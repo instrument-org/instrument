@@ -1,25 +1,25 @@
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { encodeBrowserTargetId } from "../types";
-import { type AppConfigProject } from "./app-config/types";
 import { getBrowserState } from "./browser-state";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createBrowserStatusPart({
-  appConfig,
   createdAt,
   messageId,
   sessionId,
+  taskId,
 }: {
-  appConfig: AppConfigProject;
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
+  taskId: TaskId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const targets = await getWorkspaceConfig().browser.listTargets(appConfig);
+    const targets = await getWorkspaceConfig().browser.listTargets(taskId);
     const target = targets.find(
-      ({ id }) => id === encodeBrowserTargetId(appConfig, sessionId),
+      ({ id }) => id === encodeBrowserTargetId(taskId, sessionId),
     );
 
     if (target) {
@@ -34,7 +34,7 @@ export async function createBrowserStatusPart({
       });
     }
 
-    const browserStateResult = await getBrowserState(appConfig, sessionId);
+    const browserStateResult = await getBrowserState(taskId, sessionId);
     if (browserStateResult.isErr()) {
       getWorkspaceConfig().captureException(browserStateResult.error);
       return undefined;

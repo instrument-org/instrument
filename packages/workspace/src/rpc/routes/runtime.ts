@@ -3,7 +3,6 @@ import { isEqual } from "radashi";
 import { ulid } from "ulid";
 import { z } from "zod";
 
-import { createAppConfig } from "../../lib/app-config/create";
 import { redactWorkspacePaths } from "../../lib/redact-workspace-paths";
 import { RuntimeLogEntrySchema } from "../../machines/runtime";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -80,11 +79,11 @@ const logList = base
       logsToReturn = [truncationMessage, ...recentLogs];
     }
 
-    const appConfig = createAppConfig({ id: input.id });
+    const taskId = input.id;
 
     return logsToReturn.map((log) => ({
       ...log,
-      message: redactWorkspacePaths(log.message, appConfig),
+      message: redactWorkspacePaths(log.message, taskId),
     }));
   });
 

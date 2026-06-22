@@ -3,8 +3,6 @@ import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
-import { createAppConfig } from "../../../lib/app-config/create";
-import { newProjectConfig } from "../../../lib/app-config/new";
 import { taskDir } from "../../../lib/app-dir-utils";
 import { createSession } from "../../../lib/create-session";
 import { defaultProjectName } from "../../../lib/default-project-name";
@@ -16,6 +14,7 @@ import { getTask } from "../../../lib/get-task";
 import { importProject as importProjectLib } from "../../../lib/import-project";
 import { initializeProject } from "../../../lib/initialize-project";
 import { newMessage } from "../../../lib/new-message";
+import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
 import {
   getProjectManifest,
@@ -165,7 +164,7 @@ const create = base
 
       const model = modelResult.value;
 
-      const projectConfig = await newProjectConfig({
+      const taskId = await newTaskId({
         preferredFolderName,
         workspaceConfig: context.workspaceConfig,
       });
@@ -175,7 +174,7 @@ const create = base
       const result = await initializeProject(
         {
           initialManifest: { iconName, name: initialProjectName },
-          projectConfig,
+          taskId,
           templateName: DEFAULT_TEMPLATE_NAME,
           workspaceConfig: context.workspaceConfig,
         },
@@ -188,9 +187,9 @@ const create = base
       }
 
       const sessionResult = await createSession({
-        appConfig: projectConfig,
         sessionId: StoreId.newSessionId(),
         signal,
+        taskId,
       });
 
       if (sessionResult.isErr()) {
@@ -199,13 +198,13 @@ const create = base
       }
 
       const messageResult = await newMessage({
-        appConfig: projectConfig,
         files,
         folders,
         model,
         modelURI,
         prompt,
         sessionId: sessionResult.value.id,
+        taskId,
       });
 
       if (messageResult.isErr()) {
@@ -216,7 +215,7 @@ const create = base
 
       const sessionForTitle = await Store.getSession(
         message.metadata.sessionId,
-        projectConfig,
+        taskId,
       );
       if (sessionForTitle.isErr()) {
         context.workspaceConfig.captureException(sessionForTitle.error);
@@ -228,7 +227,7 @@ const create = base
           title: initialProjectName,
           updatedAt: new Date(),
         },
-        projectConfig,
+        taskId,
       );
       if (saveSessionTitleResult.isErr()) {
         context.workspaceConfig.captureException(saveSessionTitleResult.error);
@@ -246,14 +245,13 @@ const create = base
             // Must come before updateProjectManifest so updateSessionTitle can
             // detect if the title is auto replaceable
             await updateSessionTitle({
-              appConfig: projectConfig,
               sessionId: message.metadata.sessionId,
+              taskId,
               title: title.value,
             });
-            const secondManifestResult = await updateProjectManifest(
-              projectConfig,
-              { name: title.value },
-            );
+            const secondManifestResult = await updateProjectManifest(taskId, {
+              name: title.value,
+            });
             if (secondManifestResult.isErr()) {
               context.workspaceConfig.captureException(
                 secondManifestResult.error,
@@ -264,14 +262,14 @@ const create = base
       }
 
       publisher.publish("project.updated", {
-        id: projectConfig,
+        id: taskId,
       });
 
       context.workspaceRef.send({
         type: "createSession",
         value: {
           agentName: "main",
-          id: projectConfig,
+          id: taskId,
           message,
           model,
           sessionId: message.metadata.sessionId,
@@ -286,7 +284,7 @@ const create = base
       });
 
       return {
-        id: projectConfig,
+        id: taskId,
         sessionId: message.metadata.sessionId,
       };
     },
@@ -348,10 +346,10 @@ const duplicate = base
       }
 
       publisher.publish("project.updated", {
-        id: result.value.projectConfig,
+        id: result.value.taskId,
       });
 
-      const workspaceApp = await getTask(result.value.projectConfig);
+      const workspaceApp = await getTask(result.value.taskId);
 
       context.workspaceConfig.captureEvent("project.forked");
 
@@ -385,12 +383,12 @@ const importProject = base
     }
 
     publisher.publish("project.updated", {
-      id: result.value.projectConfig,
+      id: result.value.taskId,
     });
 
     context.workspaceConfig.captureEvent("project.imported");
 
-    return { id: result.value.projectConfig };
+    return { id: result.value.taskId };
   });
 
 const trash = base
@@ -421,23 +419,23 @@ const update = base
   )
   .output(z.void())
   .handler(async ({ context, errors, input: { id, ...updates } }) => {
-    const projectConfig = createAppConfig({ id });
+    const taskId = id;
 
     if (updates.name !== undefined) {
-      const sessionsResult = await Store.getSessions(projectConfig);
+      const sessionsResult = await Store.getSessions(taskId);
       if (sessionsResult.isOk()) {
         const sessions = sessionsResult.value;
         const session = sessions[0];
         if (sessions.length === 1 && session !== undefined) {
           await Store.saveSession(
             { ...session, title: updates.name, updatedAt: new Date() },
-            projectConfig,
+            taskId,
           );
         }
       }
     }
 
-    const result = await updateProjectManifest(projectConfig, updates);
+    const result = await updateProjectManifest(taskId, updates);
 
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);
@@ -467,9 +465,9 @@ const exportZip = base
   )
   .handler(async ({ context, errors, input }) => {
     try {
-      const appConfig = createAppConfig({ id: input.id });
+      const taskId = input.id;
 
-      const manifest = await getProjectManifest(taskDir(appConfig));
+      const manifest = await getProjectManifest(taskDir(taskId));
       const projectName = manifest?.name ?? input.id;
 
       const safeName = projectName
@@ -490,7 +488,7 @@ const exportZip = base
       }
 
       const result = await exportProjectZip({
-        dir: taskDir(appConfig),
+        dir: taskDir(taskId),
         outputPath: filepath,
       });
 
@@ -609,8 +607,8 @@ const usageSummary = base
   .output(UsageSummarySchema)
   .handler(async ({ input, signal }) => {
     const { id } = input;
-    const appConfig = createAppConfig({ id });
-    return getProjectUsageSummary(appConfig, { signal });
+    const taskId = id;
+    return getProjectUsageSummary(taskId, { signal });
   });
 
 const liveUsageSummary = base

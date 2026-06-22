@@ -176,7 +176,6 @@ describe("Grep", () => {
     it("should find matches for a specific pattern in fixtures", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "main",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Looking for async functions",
           pattern: "async function",
@@ -185,6 +184,7 @@ describe("Grep", () => {
         projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result.isOk()).toBe(true);
@@ -224,7 +224,6 @@ describe("Grep", () => {
     it("should return no matches when pattern is not found", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "main",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Looking for non-existent pattern",
           pattern: "nonexistent-pattern-xyz123",
@@ -233,6 +232,7 @@ describe("Grep", () => {
         projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const value = result._unsafeUnwrap();
@@ -244,7 +244,6 @@ describe("Grep", () => {
     it("should use smart case to match case insensitively for lowercase patterns", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "main",
-        appConfig: createFixturesAppConfig(),
         input: {
           pattern: "handles",
         },
@@ -252,6 +251,7 @@ describe("Grep", () => {
         projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result.isOk()).toBe(true);
@@ -296,7 +296,6 @@ describe("Grep", () => {
     it("should use smart case to match case sensitively for uppercase patterns", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "main",
-        appConfig: createFixturesAppConfig(),
         input: {
           pattern: "Handles",
         },
@@ -304,6 +303,7 @@ describe("Grep", () => {
         projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result.isOk()).toBe(true);
@@ -333,7 +333,6 @@ describe("Grep", () => {
     it("should match all text after the first colon", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "main",
-        appConfig: createFixturesAppConfig(),
         input: {
           pattern: "zzz",
         },
@@ -341,6 +340,7 @@ describe("Grep", () => {
         projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result.isOk()).toBe(true);
@@ -365,7 +365,6 @@ describe("Grep", () => {
     it("should handle nested folders with vertical bars", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "main",
-        appConfig: createFixturesAppConfig(),
         input: {
           pattern: "vertical\\|bar",
         },
@@ -373,6 +372,7 @@ describe("Grep", () => {
         projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result.isOk()).toBe(true);
@@ -402,7 +402,6 @@ describe("Grep", () => {
     it("should search within a specific subdirectory when path is provided", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "main",
-        appConfig: createFixturesAppConfig(),
         input: {
           path: "./nested",
           pattern: "vertical\\|bar",
@@ -411,6 +410,7 @@ describe("Grep", () => {
         projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result.isOk()).toBe(true);
@@ -455,7 +455,6 @@ describe("Grep", () => {
     it("should require a path parameter", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           pattern: "async function",
         },
@@ -463,6 +462,7 @@ describe("Grep", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const error = result._unsafeUnwrapErr();
@@ -473,7 +473,6 @@ describe("Grep", () => {
     it("should reject relative paths", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           path: "./nested",
           pattern: "async function",
@@ -482,6 +481,7 @@ describe("Grep", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result._unsafeUnwrapErr().message).toContain(
@@ -492,7 +492,6 @@ describe("Grep", () => {
     it("should reject paths outside attached folders", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           path: "/some/random/path",
           pattern: "async function",
@@ -501,6 +500,7 @@ describe("Grep", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const error = result._unsafeUnwrapErr();
@@ -511,7 +511,6 @@ describe("Grep", () => {
     it("should find matches within attached folder", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           path: fixturesPath,
           pattern: "async function",
@@ -520,6 +519,7 @@ describe("Grep", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const normalizedMatches = sortMatchesForTesting(
@@ -560,7 +560,6 @@ describe("Grep", () => {
       const nestedPath = path.join(fixturesPath, "nested");
       const result = await runTool(TOOLS.Grep, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           path: nestedPath,
           pattern: "vertical\\|bar",
@@ -569,6 +568,7 @@ describe("Grep", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const normalizedMatches = sortMatchesForTesting(

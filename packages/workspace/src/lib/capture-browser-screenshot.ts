@@ -2,8 +2,6 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import type { AppConfig } from "./app-config/types";
-
 import { APP_FOLDER_NAMES } from "../constants";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
@@ -47,13 +45,11 @@ interface CapturedScreenshot {
 // Returns `undefined` only when there is no live browser target at all.
 // Callers should treat that as "this command happened without observation".
 export async function beginBrowserCommandObservation({
-  appConfig,
   sessionId,
   subcommand,
   taskId,
   upsertContextItem,
 }: {
-  appConfig: AppConfig;
   sessionId: StoreId.Session;
   subcommand: string;
   taskId: TaskId;
@@ -66,7 +62,6 @@ export async function beginBrowserCommandObservation({
   }
 
   const start = await captureBrowserScreenshot({
-    appConfig,
     id: taskId,
     sessionId,
   });
@@ -94,7 +89,6 @@ export async function beginBrowserCommandObservation({
     complete: async ({ error }) => {
       try {
         const end = await captureBrowserScreenshot({
-          appConfig,
           id: taskId,
           sessionId,
         });
@@ -125,11 +119,9 @@ export async function beginBrowserCommandObservation({
 }
 
 async function captureBrowserScreenshot({
-  appConfig,
   id,
   sessionId,
 }: {
-  appConfig: AppConfig;
   id: TaskId;
   sessionId: StoreId.Session;
 }): Promise<CapturedScreenshot | undefined> {
@@ -162,7 +154,7 @@ async function captureBrowserScreenshot({
     // timestamp + host + title + hash, unique enough to be multi-agent safe.
     // The `.state/agent-browser/` dir is also surfaced to the agent in the
     // agent-browser skill (separate `skills` repo); keep that in sync if renamed.
-    const dir = getAgentBrowserStateDir(taskDir(appConfig));
+    const dir = getAgentBrowserStateDir(taskDir(id));
     await fs.mkdir(dir, { recursive: true });
     const fileName = buildScreenshotFileName({
       hash,

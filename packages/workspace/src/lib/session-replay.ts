@@ -5,13 +5,13 @@ import { type AgentName } from "../agents/types";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
-import { newProjectConfig } from "./app-config/new";
-import { type AppConfig } from "./app-config/types";
 import { createSession } from "./create-session";
 import { getCurrentDate } from "./get-current-date";
 import { initializeProject } from "./initialize-project";
 import { isToolPart } from "./is-tool-part";
+import { newTaskId } from "./new-task-id";
 import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
@@ -30,24 +30,24 @@ interface ReplayToolPart {
 }
 
 export async function createReplaySession({
-  appConfig,
   sessionNamePrefix,
   signal,
   sourceMessages,
+  taskId,
 }: {
-  appConfig: AppConfig;
   sessionNamePrefix: string;
   signal?: AbortSignal;
   sourceMessages: SessionMessage.WithParts[];
+  taskId: TaskId;
 }) {
   return safeTry(async function* () {
     const sessionId = StoreId.newSessionId();
     const replayMessages = yield* await saveAndBuildReplaySession({
-      appConfig,
       sessionId,
       sessionNamePrefix,
       signal,
       sourceMessages,
+      taskId,
     });
     return ok({ replayMessages, sessionId });
   });
@@ -55,22 +55,22 @@ export async function createReplaySession({
 
 export async function executeSessionReplay({
   agentName,
-  appConfig,
   delayMs = 0,
   model,
   replayMessages,
   sessionId,
   signal,
   spawnAgent,
+  taskId,
 }: {
   agentName: AgentName;
-  appConfig: AppConfig;
   delayMs?: number;
   model: AIGatewayModel.Type;
   replayMessages: ReplayMessage[];
   sessionId: StoreId.Session;
   signal: AbortSignal;
   spawnAgent: SpawnAgentFunction;
+  taskId: TaskId;
 }) {
   const delay = () =>
     new Promise<void>((resolve) => {
@@ -86,7 +86,7 @@ export async function executeSessionReplay({
       return;
     }
 
-    await Store.saveMessage(message, appConfig, { signal });
+    await Store.saveMessage(message, taskId, { signal });
 
     if (delayMs > 0) {
       await delay();
@@ -102,7 +102,7 @@ export async function executeSessionReplay({
       if (replayToolPart) {
         // Save as input-streaming first to simulate partial JSON streaming,
         // then delay before transitioning to input-available for re-execution.
-        await Store.savePart(replayToolPart.inputStreamingPart, appConfig, {
+        await Store.savePart(replayToolPart.inputStreamingPart, taskId, {
           signal,
         });
 
@@ -110,21 +110,21 @@ export async function executeSessionReplay({
           await delay();
         }
 
-        await Store.savePart(replayToolPart.inputAvailablePart, appConfig, {
+        await Store.savePart(replayToolPart.inputAvailablePart, taskId, {
           signal,
         });
 
         await runToolCall({
           agentName,
-          appConfig,
           model,
           part: replayToolPart.inputAvailablePart,
           sessionId,
           signal,
           spawnAgent,
+          taskId,
         });
       } else {
-        await Store.savePart(part, appConfig, { signal });
+        await Store.savePart(part, taskId, { signal });
       }
 
       if (delayMs > 0) {
@@ -148,12 +148,12 @@ export async function prepareProjectReplay({
   workspaceConfig: WorkspaceConfig;
 }) {
   return safeTry(async function* () {
-    const projectConfig = await newProjectConfig({ workspaceConfig });
+    const taskId = await newTaskId({ workspaceConfig });
 
     yield* await initializeProject(
       {
         initialManifest: { name: `Replay of ${sourceProjectName}` },
-        projectConfig,
+        taskId,
         templateName: DEFAULT_TEMPLATE_NAME,
         workspaceConfig,
       },
@@ -162,14 +162,14 @@ export async function prepareProjectReplay({
 
     const sessionId = StoreId.newSessionId();
     const replayMessages = yield* await saveAndBuildReplaySession({
-      appConfig: projectConfig,
       sessionId,
       sessionNamePrefix,
       signal,
       sourceMessages,
+      taskId,
     });
 
-    return ok({ projectConfig, replayMessages, sessionId });
+    return ok({ replayMessages, sessionId, taskId });
   });
 }
 
@@ -245,24 +245,24 @@ function buildReplayMessages(
 }
 
 async function saveAndBuildReplaySession({
-  appConfig,
   sessionId,
   sessionNamePrefix,
   signal,
   sourceMessages,
+  taskId,
 }: {
-  appConfig: AppConfig;
   sessionId: StoreId.Session;
   sessionNamePrefix: string;
   signal?: AbortSignal;
   sourceMessages: SessionMessage.WithParts[];
+  taskId: TaskId;
 }) {
   return safeTry(async function* () {
     yield* await createSession({
-      appConfig,
       sessionId,
       sessionNamePrefix,
       signal,
+      taskId,
     });
 
     const replayMessages = buildReplayMessages(sourceMessages, sessionId);

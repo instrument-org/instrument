@@ -45,6 +45,6 @@ export async function importProject(
         ),
     );
 
-    return ok({ projectConfig: id });
+    return ok({ taskId: id });
   });
 }

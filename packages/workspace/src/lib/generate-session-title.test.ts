@@ -34,7 +34,7 @@ describe("isUntitledChatSessionTitle", () => {
 });
 
 describe("isSessionTitleAutoReplaceable", () => {
-  const appConfig = createMockAppConfigForDir("/tmp/instrument-test-project");
+  const taskId = createMockAppConfigForDir("/tmp/instrument-test-project");
 
   beforeEach(() => {
     mockGetProjectManifest.mockReset();
@@ -43,7 +43,7 @@ describe("isSessionTitleAutoReplaceable", () => {
   it("is true for Untitled chat without reading manifest", async () => {
     await expect(
       isSessionTitleAutoReplaceable({
-        appConfig,
+        taskId,
         title: "Untitled chat",
       }),
     ).resolves.toBe(true);
@@ -54,7 +54,7 @@ describe("isSessionTitleAutoReplaceable", () => {
     mockGetProjectManifest.mockResolvedValue({ name: "Fix login bug" });
     await expect(
       isSessionTitleAutoReplaceable({
-        appConfig,
+        taskId,
         title: "Fix login bug",
       }),
     ).resolves.toBe(true);
@@ -64,7 +64,7 @@ describe("isSessionTitleAutoReplaceable", () => {
     mockGetProjectManifest.mockResolvedValue({ name: "Other" });
     await expect(
       isSessionTitleAutoReplaceable({
-        appConfig,
+        taskId,
         title: "Fix login bug",
       }),
     ).resolves.toBe(false);

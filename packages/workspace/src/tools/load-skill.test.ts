@@ -37,11 +37,11 @@ afterEach(async () => {
 function baseExecuteArgs() {
   return {
     agentName: "main" as const,
-    appConfig: createAppConfigWithDirs(),
     model,
     projectState: {},
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
+    taskId: createAppConfigWithDirs(),
   };
 }
 

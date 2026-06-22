@@ -11,7 +11,7 @@ import { runTool } from "../test/helpers/run-tool";
 import { WriteFile } from "./write-file";
 
 const model = createMockAIGatewayModel();
-const appConfig = createMockAppConfig(TaskIdSchema.parse("test"), {
+const taskId = createMockAppConfig(TaskIdSchema.parse("test"), {
   model,
 });
 
@@ -20,12 +20,12 @@ function makeExecuteArgs(
 ) {
   return {
     agentName: "main" as const,
-    appConfig,
     input,
     model,
     projectState: {},
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
+    taskId,
   };
 }
 
@@ -35,7 +35,7 @@ describe("WriteFile - toModelOutput", () => {
   });
 
   it("returns a bare success line for a new file", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.projects]: { [appConfig]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.projects]: { [taskId]: {} } });
 
     const input = {
       content: "const x = 2;",
@@ -56,7 +56,7 @@ describe("WriteFile - toModelOutput", () => {
   it("returns a bare success line for an overwritten file", async () => {
     mockFs({
       [MOCK_WORKSPACE_DIRS.projects]: {
-        [appConfig]: { "index.ts": "const x = 1;" },
+        [taskId]: { "index.ts": "const x = 1;" },
       },
     });
 

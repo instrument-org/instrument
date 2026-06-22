@@ -6,9 +6,9 @@ import { alphabetical } from "radashi";
 import { type AnyAgent } from "../agents/types";
 import { SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
-import { type AppConfig } from "./app-config/types";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
@@ -20,19 +20,19 @@ const STALE_MESSAGE_THRESHOLD_MINUTES = 60;
 
 export async function prepareModelMessages({
   agent,
-  appConfig,
   model,
   sessionId,
   signal,
+  taskId,
 }: {
   agent: AnyAgent;
-  appConfig: AppConfig;
   model: AIGatewayModel.Type;
   sessionId: StoreId.Session;
   signal: AbortSignal;
+  taskId: TaskId;
 }) {
   const messageResults = await Store.getMessagesWithParts(
-    { appConfig, sessionId },
+    { sessionId, taskId },
     { signal },
   );
 
@@ -62,13 +62,13 @@ export async function prepareModelMessages({
 
   async function createAndSaveContextMessages() {
     const newContextMessages = await agent.getMessages({
-      appConfig,
       sessionId,
+      taskId,
     });
 
     const saveResults = await Promise.all(
       newContextMessages.map((message) =>
-        Store.saveMessageWithParts(message, appConfig, { signal }),
+        Store.saveMessageWithParts(message, taskId, { signal }),
       ),
     );
 
@@ -93,7 +93,7 @@ export async function prepareModelMessages({
         const removeResult = await Store.removeMessage(
           existingMessage.id,
           existingMessage.metadata.sessionId,
-          appConfig,
+          taskId,
           { signal },
         );
 

@@ -8,7 +8,6 @@ import { APP_FOLDER_NAMES } from "../constants";
 import { RelativePathSchema, type TaskDir } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { createAppConfig } from "./app-config/create";
 import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
@@ -193,9 +192,7 @@ export async function getProjectFileIndex(
 }
 
 export async function getProjectFiles(taskId: TaskId) {
-  const projectConfig = createAppConfig({ id: taskId });
-
-  const indexResult = await getProjectFileIndex(taskDir(projectConfig));
+  const indexResult = await getProjectFileIndex(taskDir(taskId));
   if (indexResult.isErr()) {
     return err(indexResult.error);
   }

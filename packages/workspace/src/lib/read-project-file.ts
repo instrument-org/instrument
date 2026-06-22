@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 
 import { RelativePathSchema } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
-import { createAppConfig } from "./app-config/create";
 import { taskDir } from "./app-dir-utils";
 import { normalizeProjectFilePath } from "./normalize-project-file-path";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-app-dir";
@@ -18,8 +17,6 @@ export async function readProjectFile({
   signal,
   taskId,
 }: ReadProjectFileOptions): Promise<Buffer | null> {
-  const projectConfig = createAppConfig({ id: taskId });
-
   const cleanPath = normalizeProjectFilePath(filePath);
 
   // Fail closed: reject absolute paths and any traversal outside dir.
@@ -28,7 +25,7 @@ export async function readProjectFile({
     return null;
   }
   const fullPath = resolvePathWithinTaskDir({
-    dir: taskDir(projectConfig),
+    dir: taskDir(taskId),
     filePath: parsedPath.data,
   });
   if (!fullPath) {

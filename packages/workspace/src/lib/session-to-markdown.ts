@@ -12,23 +12,23 @@ import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
-import { type AppConfig } from "./app-config/types";
 import { isToolPart } from "./is-tool-part";
 import { Store } from "./store";
 
 export async function getSessionMarkdown({
-  appConfig,
   frontMatter,
   includeContextMessages = false,
   sessionId,
+  taskId,
 }: {
-  appConfig: AppConfig;
   frontMatter?: Record<string, unknown>;
   includeContextMessages?: boolean;
   sessionId: StoreId.Session;
+  taskId: TaskId;
 }): Promise<string> {
-  const allSessionsResult = await Store.getSessions(appConfig, {
+  const allSessionsResult = await Store.getSessions(taskId, {
     includeChildSessions: true,
   });
 
@@ -42,7 +42,7 @@ export async function getSessionMarkdown({
   for (const session of allSessions) {
     const result = await Store.getSessionWithMessagesAndParts(
       session.id,
-      appConfig,
+      taskId,
     );
     if (result.isOk()) {
       sessionMap.set(session.id, result.value);

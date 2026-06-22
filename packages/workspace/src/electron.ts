@@ -1,5 +1,4 @@
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
-export { createAppConfig } from "./lib/app-config/create";
 export { taskDir } from "./lib/app-dir-utils";
 export { readProjectFile } from "./lib/read-project-file";
 export { resolvePathWithinTaskDir } from "./lib/resolve-path-within-app-dir";

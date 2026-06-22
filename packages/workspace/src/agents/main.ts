@@ -55,7 +55,7 @@ export const mainAgent = setupAgent({
   ]),
   name: "main",
 }).create(({ agentTools, name }) => ({
-  getMessages: async ({ appConfig, sessionId }) => {
+  getMessages: async ({ sessionId, taskId }) => {
     const now = getCurrentDate();
 
     let text = dedent`
@@ -223,15 +223,15 @@ export const mainAgent = setupAgent({
       text,
     });
 
-    const projectLayout = await getProjectLayoutContext(taskDir(appConfig));
+    const projectLayout = await getProjectLayoutContext(taskDir(taskId));
 
     const packageJsonContent = await readFileWithAnyCase(
-      taskDir(appConfig),
+      taskDir(taskId),
       "package.json",
     );
 
     const nodeModulesStatus = await pathExists(
-      absolutePathJoin(taskDir(appConfig), "node_modules"),
+      absolutePathJoin(taskDir(taskId), "node_modules"),
     );
 
     const userMessage = createContextMessage({
@@ -247,7 +247,7 @@ export const mainAgent = setupAgent({
             </dependencies>
           `,
         await (async () => {
-          const projectState = await getProjectState(taskDir(appConfig));
+          const projectState = await getProjectState(taskDir(taskId));
           if (
             !projectState.attachedFolders ||
             Object.keys(projectState.attachedFolders).length === 0
@@ -282,12 +282,12 @@ export const mainAgent = setupAgent({
 
     return [systemMessage, userMessage];
   },
-  onFinish: async ({ appConfig, parentMessageId, sessionId, signal }) => {
+  onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
     // Resolve the changes recorded by the file watcher during this turn. Always
     // called so the watcher ref acquired in onStart is released, even when we
     // skip saving the change summary below.
     const { after, changes: fileChanges } = await consumeTurnChanges({
-      id: appConfig,
+      id: taskId,
       sessionId,
     });
 
@@ -295,7 +295,7 @@ export const mainAgent = setupAgent({
     // changes aren't re-reported as external on the next user message.
     if (after) {
       const baselineResult = await setFileIndexBaseline(
-        appConfig,
+        taskId,
         sessionId,
         after,
       );
@@ -312,15 +312,15 @@ export const mainAgent = setupAgent({
       const messageIds = yield* Store.getMessageIdsAfter(
         sessionId,
         parentMessageId,
-        appConfig,
+        taskId,
         { signal },
       );
 
       const messages = yield* Store.getMessagesWithParts(
         {
-          appConfig,
           messageIds: [parentMessageId, ...messageIds],
           sessionId,
+          taskId,
         },
         { signal },
       );
@@ -357,7 +357,7 @@ export const mainAgent = setupAgent({
           },
           type: "data-fileChanges",
         },
-        appConfig,
+        taskId,
         { signal },
       );
 
@@ -365,7 +365,7 @@ export const mainAgent = setupAgent({
       if (outputArtifacts.length > 0) {
         publisher.publish("project.outputArtifactsCreated", {
           files: outputArtifacts,
-          id: appConfig,
+          id: taskId,
           sessionId,
         });
       }
@@ -376,9 +376,9 @@ export const mainAgent = setupAgent({
       getWorkspaceConfig().captureException(result.error);
     }
   },
-  onStart: async ({ appConfig, sessionId }) => {
+  onStart: async ({ sessionId, taskId }) => {
     await beginTurnChangeTracking({
-      id: appConfig,
+      id: taskId,
       sessionId,
       workspaceConfig: getWorkspaceConfig(),
     });

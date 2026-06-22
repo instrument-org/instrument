@@ -1,7 +1,7 @@
 import { execa, type Options } from "execa";
 
 import { type AbsolutePath } from "../schemas/paths";
-import { type AppConfig } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
 import { ffmpegSubprocessEnv } from "./ffmpeg";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -9,7 +9,7 @@ import { getWorkspaceConfig } from "./workspace-config";
 export function execaNodeForApp<
   OptionsType extends Omit<Options, "cwd"> = Omit<Options, "cwd">,
 >(
-  appConfig: AppConfig,
+  taskId: TaskId,
   file: string | URL,
   arguments_?: readonly string[],
   options?: OptionsType,
@@ -17,7 +17,7 @@ export function execaNodeForApp<
 ) {
   return execa(file, arguments_, {
     ...options,
-    cwd: cwd ?? taskDir(appConfig),
+    cwd: cwd ?? taskDir(taskId),
     env: {
       ...options?.env,
       ...ffmpegSubprocessEnv(),

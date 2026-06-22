@@ -1,15 +1,12 @@
-import { type AppConfig } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
 
-export function redactWorkspacePaths(
-  message: string,
-  appConfig: AppConfig,
-): string {
+export function redactWorkspacePaths(message: string, taskId: TaskId): string {
   let redactedMessage = message;
 
   const pathsToRedact = [
     {
-      fullPath: taskDir(appConfig),
+      fullPath: taskDir(taskId),
       replacement: "",
     },
   ];

@@ -4,6 +4,7 @@ packages:
 
 allowBuilds:
   "@derhuerst/ffprobe-static": true
+  "@parcel/watcher": false
   "@posthog/cli": true
   "@swc/core": true
   "@vscode/ripgrep": true

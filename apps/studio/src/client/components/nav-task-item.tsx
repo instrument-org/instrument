@@ -34,7 +34,7 @@ interface NavTaskItemProps {
   isFavorites: boolean;
   onOpenInNewTab: (id: TaskId) => void;
   onRemoveFavorite?: (id: TaskId) => void;
-  project: Task;
+  task: Task;
 }
 
 export const NavTaskItem = memo(function NavTaskItem({
@@ -43,26 +43,27 @@ export const NavTaskItem = memo(function NavTaskItem({
   isFavorites,
   onOpenInNewTab,
   onRemoveFavorite,
-  project,
+  task,
 }: NavTaskItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(project.title);
+  const [editValue, setEditValue] = useState(task.title);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { isPending: isRenameLoading, mutateAsync: renameProject } =
-    useMutation(rpcClient.workspace.task.update.mutationOptions());
+  const { isPending: isRenameLoading, mutateAsync: renameTask } = useMutation(
+    rpcClient.workspace.task.update.mutationOptions(),
+  );
 
   const { mutateAsync: addFavorite } = useMutation(
     rpcClient.favorites.add.mutationOptions(),
   );
 
-  if (!isEditing && editValue !== project.title) {
-    setEditValue(project.title);
+  if (!isEditing && editValue !== task.title) {
+    setEditValue(task.title);
   }
 
   const handleStartEdit = () => {
-    setEditValue(project.title);
+    setEditValue(task.title);
     setIsEditing(true);
   };
 
@@ -75,7 +76,7 @@ export const NavTaskItem = memo(function NavTaskItem({
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    setEditValue(project.title);
+    setEditValue(task.title);
   };
 
   const handleSaveEdit = async () => {
@@ -83,14 +84,14 @@ export const NavTaskItem = memo(function NavTaskItem({
       return;
     }
 
-    if (editValue.trim() === project.title) {
+    if (editValue.trim() === task.title) {
       setIsEditing(false);
       return;
     }
 
     try {
-      await renameProject({
-        id: project.id,
+      await renameTask({
+        id: task.id,
         name: editValue.trim(),
       });
       // wait for client update to avoid flicker
@@ -99,7 +100,7 @@ export const NavTaskItem = memo(function NavTaskItem({
       });
       setIsEditing(false);
     } catch {
-      setEditValue(project.title);
+      setEditValue(task.title);
     }
   };
 
@@ -114,11 +115,11 @@ export const NavTaskItem = memo(function NavTaskItem({
   };
 
   const handleAddFavorite = async () => {
-    await addFavorite({ id: project.id });
+    await addFavorite({ id: task.id });
   };
 
   return (
-    <SidebarMenuItem className="group" key={project.id}>
+    <SidebarMenuItem className="group" key={task.id}>
       {isEditing ? (
         <div className="flex h-9 items-center gap-2 px-2">
           <Input
@@ -149,20 +150,17 @@ export const NavTaskItem = memo(function NavTaskItem({
             <InternalLink
               onDoubleClick={handleStartEdit}
               openInCurrentTab
-              params={{ id: project.id }}
+              params={{ id: task.id }}
               to="/tasks/$id"
             >
-              <TaskIcon name={project.iconName} size="xs" />
-              <span>{project.title}</span>
+              <TaskIcon name={task.iconName} size="xs" />
+              <span>{task.title}</span>
             </InternalLink>
           </SidebarMenuButton>
 
           {!isMenuOpen && (
             <div className="pointer-events-none absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md group-hover:hidden">
-              <TaskStatusIcon
-                className="mt-1 size-4 shrink-0"
-                id={project.id}
-              />
+              <TaskStatusIcon className="mt-1 size-4 shrink-0" id={task.id} />
             </div>
           )}
 
@@ -178,7 +176,7 @@ export const NavTaskItem = memo(function NavTaskItem({
               <DropdownMenuItem
                 onClick={() => {
                   if (isFavorites && onRemoveFavorite) {
-                    onRemoveFavorite(project.id);
+                    onRemoveFavorite(task.id);
                   } else {
                     void handleAddFavorite();
                   }
@@ -193,7 +191,7 @@ export const NavTaskItem = memo(function NavTaskItem({
             )}
             <InternalLink
               openInCurrentTab
-              params={{ id: project.id }}
+              params={{ id: task.id }}
               search={{ showDuplicate: true }}
               to="/tasks/$id"
             >
@@ -209,7 +207,7 @@ export const NavTaskItem = memo(function NavTaskItem({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
-                onOpenInNewTab(project.id);
+                onOpenInNewTab(task.id);
               }}
             >
               <ArrowUpRightIcon className="text-muted-foreground" />
@@ -218,7 +216,7 @@ export const NavTaskItem = memo(function NavTaskItem({
             <DropdownMenuSeparator />
             <InternalLink
               openInCurrentTab
-              params={{ id: project.id }}
+              params={{ id: task.id }}
               search={{ showDelete: true }}
               to="/tasks/$id"
             >

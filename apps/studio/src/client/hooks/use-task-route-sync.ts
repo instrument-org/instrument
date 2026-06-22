@@ -3,16 +3,16 @@ import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 // Ensures TanStack Router re-renders meta tags so the tab title and icon are updated
-export function useTaskRouteSync(project?: Task) {
+export function useTaskRouteSync(task?: Task) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!project) {
+    if (!task) {
       return;
     }
     void router.invalidate({
       filter: (m) =>
-        m.routeId === "/_app/tasks/$id/" && m.params.id === project.id,
+        m.routeId === "/_app/tasks/$id/" && m.params.id === task.id,
     });
-  }, [router, project]);
+  }, [router, task]);
 }

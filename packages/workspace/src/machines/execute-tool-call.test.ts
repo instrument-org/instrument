@@ -22,7 +22,7 @@ vi.mock(import("../lib/execa-node-for-app"), () => ({
 
 describe("executeToolCallMachine", () => {
   const model = createMockAIGatewayModel();
-  const projectAppConfig = createMockTaskConfig(TaskIdSchema.parse("test"), {
+  const taskConfig = createMockTaskConfig(TaskIdSchema.parse("test"), {
     model,
   });
   const sessionId = StoreId.newSessionId();
@@ -68,8 +68,8 @@ describe("executeToolCallMachine", () => {
     );
 
     mockFs({
-      [MOCK_WORKSPACE_DIRS.projects]: {
-        [projectAppConfig]: {
+      [MOCK_WORKSPACE_DIRS.tasks]: {
+        [taskConfig]: {
           "nonexistent.js": "",
           "package.json": "{}",
           "test.txt": "Hello, world!",
@@ -83,7 +83,7 @@ describe("executeToolCallMachine", () => {
         id: sessionId,
         title: "Test session",
       },
-      projectAppConfig,
+      taskConfig,
     );
 
     await Store.saveMessage(
@@ -98,7 +98,7 @@ describe("executeToolCallMachine", () => {
         },
         role: "assistant",
       },
-      projectAppConfig,
+      taskConfig,
     );
   });
 
@@ -119,7 +119,7 @@ describe("executeToolCallMachine", () => {
         part,
         sessionId,
         spawnAgent: vi.fn(),
-        taskId: projectAppConfig,
+        taskId: taskConfig,
       },
     });
 
@@ -131,7 +131,7 @@ describe("executeToolCallMachine", () => {
     await waitFor(actor, (state) => state.status === "done");
     const sessionResult = await Store.getSessionWithMessagesAndParts(
       sessionId,
-      projectAppConfig,
+      taskConfig,
     );
     return sessionResult._unsafeUnwrap();
   }
@@ -161,7 +161,7 @@ describe("executeToolCallMachine", () => {
   describe("with successful shell command", () => {
     it("should execute shell command successfully", async () => {
       const part = createShellCommandPart("pnpm install");
-      await Store.savePart(part, projectAppConfig);
+      await Store.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
@@ -169,7 +169,7 @@ describe("executeToolCallMachine", () => {
       // Verify the part was updated with output
       const updatedSession = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        projectAppConfig,
+        taskConfig,
       );
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
@@ -214,7 +214,7 @@ describe("executeToolCallMachine", () => {
   describe("with shell command that throws", () => {
     it("should handle shell command errors", async () => {
       const part = createShellCommandPart("pnpm throw-error");
-      await Store.savePart(part, projectAppConfig);
+      await Store.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
@@ -222,7 +222,7 @@ describe("executeToolCallMachine", () => {
       // Verify the part was updated with error
       const updatedSession = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        projectAppConfig,
+        taskConfig,
       );
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
@@ -268,7 +268,7 @@ describe("executeToolCallMachine", () => {
   describe("with hanging shell command", () => {
     it("should handle hanging shell command", async () => {
       const part = createShellCommandPart("pnpm hang-command", 10); // Very short timeout to trigger cancellation
-      await Store.savePart(part, projectAppConfig);
+      await Store.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
@@ -276,7 +276,7 @@ describe("executeToolCallMachine", () => {
       // Verify the part was updated with cancellation
       const updatedSession = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        projectAppConfig,
+        taskConfig,
       );
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
@@ -326,7 +326,7 @@ describe("executeToolCallMachine", () => {
         type: "tool-read_file",
       };
 
-      await Store.savePart(part, projectAppConfig);
+      await Store.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
@@ -334,7 +334,7 @@ describe("executeToolCallMachine", () => {
       // Verify the part was updated with output
       const updatedSession = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        projectAppConfig,
+        taskConfig,
       );
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
@@ -407,7 +407,7 @@ describe("executeToolCallMachine", () => {
         type: "tool-read_file",
       };
 
-      await Store.savePart(part, projectAppConfig);
+      await Store.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
@@ -415,7 +415,7 @@ describe("executeToolCallMachine", () => {
       // Verify the part was updated with "not found" output (not error)
       const updatedSession = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        projectAppConfig,
+        taskConfig,
       );
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
@@ -457,12 +457,12 @@ describe("executeToolCallMachine", () => {
   describe("with blocked pnpm commands", () => {
     async function testBlockedCommand(command: string) {
       const part = createShellCommandPart(command);
-      await Store.savePart(part, projectAppConfig);
+      await Store.savePart(part, taskConfig);
       const actor = createTestActor({ part });
       await runTestMachine(actor);
       const sessionResult = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        projectAppConfig,
+        taskConfig,
       );
       const session = sessionResult._unsafeUnwrap();
       return session.messages

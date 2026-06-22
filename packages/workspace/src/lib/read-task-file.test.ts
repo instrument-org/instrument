@@ -10,12 +10,12 @@ import { readTaskFile } from "./read-task-file";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("readTaskFile", () => {
-  const id = TaskIdSchema.parse("test-project");
+  const id = TaskIdSchema.parse("test-task");
   let tasksDir: string;
   let dir: string;
 
   beforeEach(async () => {
-    tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "read-project-file-"));
+    tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "read-task-file-"));
     dir = path.join(tasksDir, id);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, "inside.txt"), "inside contents");

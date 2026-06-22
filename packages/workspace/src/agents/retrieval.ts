@@ -48,11 +48,11 @@ export const retrievalAgent = setupAgent({
       `.trim(),
     });
 
-    const projectState = await getTaskState(taskDir(taskId));
+    const taskState = await getTaskState(taskDir(taskId));
 
-    const attachedFoldersText = projectState.attachedFolders
+    const attachedFoldersText = taskState.attachedFolders
       ? await Promise.all(
-          Object.values(projectState.attachedFolders).map(async (folder) => {
+          Object.values(taskState.attachedFolders).map(async (folder) => {
             const exists = await pathExists(folder.path);
             return exists
               ? `- ${folder.name}: ${folder.path}`

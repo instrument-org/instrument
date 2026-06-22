@@ -13,7 +13,7 @@ export { publisher as workspacePublisher } from "./rpc/publisher";
 export {
   type AbsolutePath,
   RelativePathSchema,
-  RelativeProjectPathSchema,
+  RelativeTaskPathSchema,
 } from "./schemas/paths";
 export { SessionMessage } from "./schemas/session/message";
 export { StoreId } from "./schemas/store-id";

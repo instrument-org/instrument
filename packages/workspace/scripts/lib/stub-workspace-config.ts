@@ -15,7 +15,7 @@ export function createStubWorkspaceConfig({
   tasksDir: string;
 }): WorkspaceConfig {
   const absoluteRootDir = path.resolve(rootDir);
-  const absoluteProjectsDir = path.resolve(tasksDir);
+  const absoluteTasksDir = path.resolve(tasksDir);
 
   return {
     appVersion: "0.0.0-test",
@@ -33,7 +33,7 @@ export function createStubWorkspaceConfig({
       path.join(absoluteRootDir, "registry"),
     ),
     rootDir: WorkspaceDirSchema.parse(absoluteRootDir),
-    tasksDir: WorkspaceDirSchema.parse(absoluteProjectsDir),
+    tasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     templatesDir: WorkspaceDirSchema.parse(
       path.join(absoluteRootDir, "registry", "templates"),
     ),

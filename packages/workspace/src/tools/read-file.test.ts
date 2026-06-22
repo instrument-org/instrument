@@ -37,10 +37,10 @@ describe("ReadFile", () => {
     const baseInput = {
       agentName: "main" as const,
       model,
-      projectState: {},
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
       taskId,
+      taskState: {},
     };
 
     it("should list files when given a directory path", async () => {
@@ -118,7 +118,7 @@ describe("ReadFile", () => {
             explanation: "read",
             filePath: path.join(fixturesPath, "grep-test.txt"),
           },
-          projectState: { attachedFolders },
+          taskState: { attachedFolders },
         })
       )._unsafeUnwrapErr();
 
@@ -132,10 +132,10 @@ describe("ReadFile", () => {
     const baseInput = {
       agentName: "retrieval" as const,
       model,
-      projectState: { attachedFolders },
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
       taskId,
+      taskState: { attachedFolders },
     };
 
     it("should reject relative paths", async () => {
@@ -244,10 +244,10 @@ describe("ReadFile Unicode path fallbacks", () => {
         agentName: "main" as const,
         input: { explanation: "read", filePath: `./${inputName}` },
         model,
-        projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: tmpAppConfig,
+        taskState: {},
       })
     )
       // eslint-disable-next-line unicorn/no-await-expression-member

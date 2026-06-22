@@ -303,8 +303,8 @@ function ImagePreviewCard({
 }
 
 function useFileActions(file: TaskFileViewerFile) {
-  const showProjectFileInFolderMutation = useMutation(
-    rpcClient.utils.showProjectFileInFolder.mutationOptions({
+  const showTaskFileInFolderMutation = useMutation(
+    rpcClient.utils.showTaskFileInFolder.mutationOptions({
       onError: (error) => {
         const label = getRevealInFolderLabel();
         const lower = label.charAt(0).toLowerCase() + label.slice(1);
@@ -318,7 +318,7 @@ function useFileActions(file: TaskFileViewerFile) {
       await downloadFile(file);
     },
     revealInFolder: () => {
-      showProjectFileInFolderMutation.mutate({
+      showTaskFileInFolderMutation.mutate({
         filePath: file.filePath,
         id: file.taskId,
       });

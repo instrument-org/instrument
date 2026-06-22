@@ -44,7 +44,28 @@ const remove = base
   });
 
 const live = {
-  listProjects: base.handler(async function* ({ context, signal }) {
+  listTaskIds: base
+    .output(eventIterator(TaskIdSchema.array()))
+    .handler(async function* ({ signal }) {
+      const favoritesStore = getFavoritesStore();
+
+      yield favoritesStore.get("favorites");
+
+      const favoritesUpdated = publisher.subscribe("favorites.updated", {
+        signal,
+      });
+      const taskRemoved = workspacePublisher.subscribe("task.removed", {
+        signal,
+      });
+
+      for await (const _payload of mergeGenerators([
+        favoritesUpdated,
+        taskRemoved,
+      ])) {
+        yield favoritesStore.get("favorites");
+      }
+    }),
+  listTasks: base.handler(async function* ({ context, signal }) {
     const favoritesStore = getFavoritesStore();
 
     const fetchAndCleanFavorites = async (ids: TaskId[]) => {
@@ -54,18 +75,18 @@ const live = {
         { context, signal },
       );
 
-      const favoriteProjectsThatExist = results
+      const favoriteTasksThatExist = results
         .filter((r) => r.ok)
         .map((r) => r.data);
 
-      if (favoriteProjectsThatExist.length !== ids.length) {
+      if (favoriteTasksThatExist.length !== ids.length) {
         favoritesStore.set(
           "favorites",
-          favoriteProjectsThatExist.map((p) => p.id),
+          favoriteTasksThatExist.map((p) => p.id),
         );
       }
 
-      return favoriteProjectsThatExist.toSorted(
+      return favoriteTasksThatExist.toSorted(
         (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
       );
     };
@@ -92,27 +113,6 @@ const live = {
       yield await fetchAndCleanFavorites(favoritesNext);
     }
   }),
-  listTaskIds: base
-    .output(eventIterator(TaskIdSchema.array()))
-    .handler(async function* ({ signal }) {
-      const favoritesStore = getFavoritesStore();
-
-      yield favoritesStore.get("favorites");
-
-      const favoritesUpdated = publisher.subscribe("favorites.updated", {
-        signal,
-      });
-      const taskRemoved = workspacePublisher.subscribe("task.removed", {
-        signal,
-      });
-
-      for await (const _payload of mergeGenerators([
-        favoritesUpdated,
-        taskRemoved,
-      ])) {
-        yield favoritesStore.get("favorites");
-      }
-    }),
 };
 
 export const favorites = {

@@ -37,9 +37,9 @@ import {
 } from "@tanstack/react-table";
 import { useState } from "react";
 
-export const PROJECTS_PAGE_SIZE = 10;
+export const TASKS_PAGE_SIZE = 10;
 
-export function ProjectsDataTable({
+export function TasksDataTable({
   bulkActions,
   columns,
   data,
@@ -80,7 +80,7 @@ export function ProjectsDataTable({
       columnVisibility,
       pagination: {
         pageIndex: page - 1,
-        pageSize: PROJECTS_PAGE_SIZE,
+        pageSize: TASKS_PAGE_SIZE,
       },
       rowSelection,
       sorting,

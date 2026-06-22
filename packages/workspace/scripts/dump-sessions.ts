@@ -18,21 +18,21 @@ const workspaceConfig = createStubWorkspaceConfig({
   tasksDir: path.join(absoluteWorkspaceDir, "projects"),
 });
 
-const { tasks: projects } = await getTasks(workspaceConfig, {
+const { tasks } = await getTasks(workspaceConfig, {
   direction: "desc",
   sortBy: "updatedAt",
 });
 
-if (projects.length === 0) {
+if (tasks.length === 0) {
   throw new Error("No tasks found in workspace");
 }
 
 process.stdout.write("\nSelect a task:\n\n");
 
-for (const [index, project] of projects.entries()) {
-  const updatedDate = project.updatedAt.toLocaleDateString();
+for (const [index, task] of tasks.entries()) {
+  const updatedDate = task.updatedAt.toLocaleDateString();
   process.stdout.write(
-    `  ${index + 1}. ${project.title} (${project.id}) - Updated: ${updatedDate}\n`,
+    `  ${index + 1}. ${task.title} (${task.id}) - Updated: ${updatedDate}\n`,
   );
 }
 
@@ -51,20 +51,20 @@ const selectedIndex = Number.parseInt(answer.trim(), 10) - 1;
 if (
   Number.isNaN(selectedIndex) ||
   selectedIndex < 0 ||
-  selectedIndex >= projects.length
+  selectedIndex >= tasks.length
 ) {
   throw new Error("Invalid selection");
 }
 
-const selectedProject = projects[selectedIndex];
+const selectedTask = tasks[selectedIndex];
 
-if (!selectedProject) {
+if (!selectedTask) {
   throw new Error("Invalid selection");
 }
 
-process.stdout.write(`\nLoading sessions for ${selectedProject.title}...\n`);
+process.stdout.write(`\nLoading sessions for ${selectedTask.title}...\n`);
 
-const taskId = selectedProject.id;
+const taskId = selectedTask.id;
 
 const sessionIdsResult = await Store.getStoreId(taskId);
 

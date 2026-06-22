@@ -11,14 +11,14 @@ export interface WorkspaceContext {
   config: WorkspaceConfig;
   error?: unknown;
   // Resolvers waiting for the taskBrowser at `id` to reach Stopped
-  // before trash-project deletes the directory. Drained when the matching
+  // before trash-task deletes the directory. Drained when the matching
   // taskBrowser.stopped event arrives (or immediately if no machine
   // existed when prepareToTrashApp ran).
   pendingBrowserReapResolvers: Map<TaskId, (() => void)[]>;
   runtimeRefs: Map<TaskId, RuntimeActorRef>;
   sessionRefsByTaskId: Map<TaskId, SessionActorRef[]>;
-  // One taskBrowser actor per project id with browser activity or an
-  // active project-page presence subscription. Spawned lazily and reaped on
+  // One taskBrowser actor per task id with browser activity or an
+  // active task-page presence subscription. Spawned lazily and reaped on
   // taskBrowser.stopped.
   taskBrowserRefs: Map<TaskId, TaskBrowserActorRef>;
   workspaceServerRef: WorkspaceServerActorRef;

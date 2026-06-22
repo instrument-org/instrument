@@ -87,16 +87,16 @@ const getAppVersion = base.handler(() => {
   return { version: app.getVersion() };
 });
 
-const ensureProjectDefaultModelURI = base
+const ensureTaskDefaultModelURI = base
   .input(z.object({ id: TaskIdSchema }))
   .output(z.object({ modelURI: AIGatewayModelURI.Schema.optional() }))
   .handler(async ({ context, input }) => {
-    const projectState = await call(workspaceRouter.task.state.get, input, {
+    const taskState = await call(workspaceRouter.task.state.get, input, {
       context,
     });
 
-    if (projectState.selectedModelURI) {
-      return { modelURI: projectState.selectedModelURI };
+    if (taskState.selectedModelURI) {
+      return { modelURI: taskState.selectedModelURI };
     }
 
     await setDefaultModel({ onlyIfUnset: true });
@@ -152,7 +152,7 @@ const live = {
 
 export const preferences = {
   checkForUpdates,
-  ensureProjectDefaultModelURI,
+  ensureTaskDefaultModelURI,
   get,
   getAppVersion,
   live,

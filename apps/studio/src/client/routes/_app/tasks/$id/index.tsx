@@ -29,7 +29,7 @@ import {
 } from "@tanstack/react-router";
 import { z } from "zod";
 
-const projectSearchSchema = z.object({
+const taskSearchSchema = z.object({
   // `.catch(undefined)` drops legacy persisted artifactPanel values (old
   // `{ type: "app" }` panels and pre-`modifiedAt` file panels) instead of
   // throwing in validateSearch. Safe to remove ~2026-07 once stale URLs/router
@@ -61,7 +61,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
     disableHotkeyReload: true,
   }),
   onLeave: ({ params }) => {
-    // Garbage collect project atoms
+    // Garbage collect task atoms
     promptValueAtomFamily.remove(params.id);
   },
   beforeLoad: async ({ context, params, search }) => {
@@ -89,7 +89,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
       sessions,
     );
 
-    void rpcClient.preferences.ensureProjectDefaultModelURI
+    void rpcClient.preferences.ensureTaskDefaultModelURI
       .call({ id: params.id })
       .then((result) => {
         if (!result.modelURI) {
@@ -103,7 +103,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
         });
       })
       .catch(() => {
-        // The project page can still load with no selected model.
+        // The task page can still load with no selected model.
       });
 
     const newestSession = sessions.at(-1);
@@ -140,7 +140,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
       ],
     };
   },
-  validateSearch: projectSearchSchema,
+  validateSearch: taskSearchSchema,
 });
 /* eslint-enable perfectionist/sort-objects */
 
@@ -192,8 +192,8 @@ function RouteComponent() {
 
   const {
     data: task,
-    error: projectError,
-    isLoading: isProjectLoading,
+    error: taskError,
+    isLoading: isTaskLoading,
   } = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: { id },
@@ -204,9 +204,9 @@ function RouteComponent() {
   useTaskRouteSync(task);
 
   const {
-    data: projectState,
-    error: projectStateError,
-    isLoading: isProjectStateLoading,
+    data: taskState,
+    error: taskStateError,
+    isLoading: isTaskStateLoading,
   } = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({
       input: { id },
@@ -234,9 +234,9 @@ function RouteComponent() {
     selectedSessionId,
   });
 
-  const isLoading = isProjectLoading || isProjectStateLoading;
+  const isLoading = isTaskLoading || isTaskStateLoading;
 
-  const error = projectError ?? projectStateError;
+  const error = taskError ?? taskStateError;
 
   if (isLoading) {
     return null;
@@ -247,7 +247,7 @@ function RouteComponent() {
   }
 
   // Should never happen since both queries are required to load successfully
-  if (!task || !projectState) {
+  if (!task || !taskState) {
     return null;
   }
 
@@ -255,11 +255,11 @@ function RouteComponent() {
     <>
       <TaskView
         artifactPanel={artifactPanel}
-        attachedFolders={projectState.attachedFolders}
+        attachedFolders={taskState.attachedFolders}
         files={files}
-        selectedModelURI={projectState.selectedModelURI}
+        selectedModelURI={taskState.selectedModelURI}
         selectedSessionId={selectedSessionId}
-        showTutorial={projectState.showTutorial}
+        showTutorial={taskState.showTutorial}
         sidebar={sidebar ?? "chat"}
         task={task}
       />

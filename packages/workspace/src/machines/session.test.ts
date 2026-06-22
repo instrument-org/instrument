@@ -60,7 +60,7 @@ type Part =
     : never;
 
 describe("sessionMachine", () => {
-  const projectFolder = "pj-test";
+  const taskFolder = "pj-test";
   const defaultSessionId = StoreId.newSessionId();
   const mockDate = new Date("2025-01-01T00:00:00.000Z");
   const defaultMessageId = StoreId.newMessageId();
@@ -251,15 +251,12 @@ describe("sessionMachine", () => {
     // via the workspace singleton.
     const model = createMockAIGatewayModel({ providerConfigId });
 
-    const testAppConfig = createMockTaskConfig(
-      TaskIdSchema.parse(projectFolder),
-      {
-        aiSDKModel: mockLanguageModel,
-        imageModel,
-        model,
-        webSearchModel,
-      },
-    );
+    const testAppConfig = createMockTaskConfig(TaskIdSchema.parse(taskFolder), {
+      aiSDKModel: mockLanguageModel,
+      imageModel,
+      model,
+      webSearchModel,
+    });
 
     await Store.saveSession(
       {
@@ -409,8 +406,8 @@ describe("sessionMachine", () => {
 
   beforeEach(() => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.projects]: {
-        [projectFolder]: {
+      [MOCK_WORKSPACE_DIRS.tasks]: {
+        [taskFolder]: {
           "image.png": mockFs.load(
             path.resolve(
               import.meta.dirname,

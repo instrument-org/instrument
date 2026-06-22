@@ -180,7 +180,7 @@ export function createAgentBrowserCommand({
     const screenshotDirRelative = path.relative(appCwd, screenshotDir);
     // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
-    // download path); this is a per-project sink for anything that falls back
+    // download path); this is a per-task sink for anything that falls back
     // to $HOME (e.g. ~/.agent-browser/config reads, future writes).
     const homeDir = absolutePathJoin(
       taskDir(taskId),

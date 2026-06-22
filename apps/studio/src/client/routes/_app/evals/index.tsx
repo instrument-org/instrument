@@ -187,7 +187,7 @@ function RouteComponent() {
     });
 
     try {
-      const createdProjects = [];
+      const createdTasks = [];
 
       for (const templateName of selectedEvalTemplates) {
         for (const modelURI of selectedModels) {
@@ -216,39 +216,39 @@ function RouteComponent() {
           );
           const name = `${templateName} - ${model.name}`;
 
-          const project = await createMutation.mutateAsync({
+          const task = await createMutation.mutateAsync({
             iconName: "flask-conical",
             modelURI,
             name,
             preferredFolderName: `${EVAL_SUBDOMAIN_PREFIX}${ulid().toLowerCase()}`,
             prompt,
           });
-          createdProjects.push(project);
+          createdTasks.push(task);
         }
       }
 
-      if (createdProjects.length === 1 && createdProjects[0]) {
+      if (createdTasks.length === 1 && createdTasks[0]) {
         if (openInNewTab) {
           void addTab(
             {
-              params: { id: createdProjects[0].id },
+              params: { id: createdTasks[0].id },
               to: "/tasks/$id",
             },
             { select: false },
           );
         } else {
           void navigate({
-            params: { id: createdProjects[0].id },
+            params: { id: createdTasks[0].id },
             to: "/tasks/$id",
           });
         }
-      } else if (createdProjects.length > 1) {
+      } else if (createdTasks.length > 1) {
         if (openInNewTab) {
-          if (createdProjects.length <= 4) {
-            for (const project of createdProjects) {
+          if (createdTasks.length <= 4) {
+            for (const task of createdTasks) {
               void addTab(
                 {
-                  params: { id: project.id },
+                  params: { id: task.id },
                   to: "/tasks/$id",
                 },
                 { select: false },
@@ -302,9 +302,9 @@ function RouteComponent() {
       return;
     }
 
-    const totalProjects = selectedEvalTemplates.size * selectedModels.size;
+    const totalTasks = selectedEvalTemplates.size * selectedModels.size;
 
-    if (totalProjects > 10) {
+    if (totalTasks > 10) {
       setShowConfirmDialog(true);
       return;
     }
@@ -331,8 +331,7 @@ function RouteComponent() {
     );
   }
 
-  const totalProjectsToCreate =
-    selectedEvalTemplates.size * selectedModels.size;
+  const totalTasksToCreate = selectedEvalTemplates.size * selectedModels.size;
 
   return (
     <div className="mx-auto w-full max-w-7xl flex-1">
@@ -578,16 +577,16 @@ function RouteComponent() {
                   >
                     {isCreating
                       ? "Creating..."
-                      : totalProjectsToCreate === 0
+                      : totalTasksToCreate === 0
                         ? "Run evals"
-                        : `Run ${totalProjectsToCreate} eval${totalProjectsToCreate === 1 ? "" : "s"}`}
+                        : `Run ${totalTasksToCreate} eval${totalTasksToCreate === 1 ? "" : "s"}`}
                   </Button>
                   <div className="flex items-center justify-center">
                     <NewTabHelpMessage />
                   </div>
                 </div>
 
-                {totalProjectsToCreate === 0 ? (
+                {totalTasksToCreate === 0 ? (
                   <div className="py-6 text-center text-sm text-muted-foreground">
                     Select prompts and models to begin
                   </div>
@@ -666,12 +665,11 @@ function RouteComponent() {
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>
-                        Create {totalProjectsToCreate} evals?
+                        Create {totalTasksToCreate} evals?
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        You are about to create {totalProjectsToCreate} eval
-                        tasks. This may take some time and will use significant
-                        tokens.
+                        You are about to create {totalTasksToCreate} eval tasks.
+                        This may take some time and will use significant tokens.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -687,7 +685,7 @@ function RouteComponent() {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
-              {totalProjectsToCreate > 0 && (
+              {totalTasksToCreate > 0 && (
                 <p className="mt-1 text-center text-xs text-muted-foreground">
                   Each prompt-model combination creates a separate app
                 </p>

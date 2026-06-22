@@ -28,8 +28,8 @@ import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
 export const MOCK_WORKSPACE_DIRS = {
-  projects: `${MOCK_WORKSPACE_DIR}/projects`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
+  tasks: `${MOCK_WORKSPACE_DIR}/projects`,
   templates: `${MOCK_WORKSPACE_DIR}/registry/templates`,
 } as const;
 
@@ -100,7 +100,7 @@ export function createMockTaskConfig(
     pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
-    tasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
+    tasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.tasks),
     templatesDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.templates),
     trashItem: () => Promise.resolve(),
   };

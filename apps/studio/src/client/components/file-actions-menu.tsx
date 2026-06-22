@@ -76,8 +76,8 @@ export function FileActionsMenuItems({
 }) {
   const fileActions = useFileActionVisibility(file);
 
-  const showProjectFileInFolderMutation = useMutation(
-    rpcClient.utils.showProjectFileInFolder.mutationOptions({
+  const showTaskFileInFolderMutation = useMutation(
+    rpcClient.utils.showTaskFileInFolder.mutationOptions({
       onError: (error) => {
         const label = getRevealInFolderLabel();
         const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
@@ -108,7 +108,7 @@ export function FileActionsMenuItems({
   };
 
   const handleRevealInFolder = () => {
-    showProjectFileInFolderMutation.mutate({
+    showTaskFileInFolderMutation.mutate({
       filePath: file.filePath,
       id: file.taskId,
     });

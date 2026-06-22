@@ -15,10 +15,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { ProjectActionsMenu } from "./actions-menu";
+import { TaskActionsMenu } from "./actions-menu";
 import { TaskChatMenu } from "./chat-menu";
-import { ProjectDebugDialog } from "./debug-dialog";
-import { ProjectUsageSummary } from "./usage-summary";
+import { TaskDebugDialog } from "./debug-dialog";
+import { TaskUsageSummary } from "./usage-summary";
 
 export function TaskToolbar({
   onSidebarChange,
@@ -47,9 +47,9 @@ export function TaskToolbar({
               onChatClick={() => {
                 onSidebarChange("chat");
               }}
-              projectTitle={task.title}
               selectedSessionId={selectedSessionId}
               sidebar={sidebar}
+              taskTitle={task.title}
             />
 
             <Toggle
@@ -72,7 +72,7 @@ export function TaskToolbar({
           <div className="flex min-w-8 shrink items-center justify-end gap-x-2 overflow-hidden">
             {isDeveloperMode && (
               <div className="min-w-0 shrink overflow-hidden">
-                <ProjectUsageSummary
+                <TaskUsageSummary
                   id={task.id}
                   onClick={() => {
                     setDebugDialogOpen(true);
@@ -110,7 +110,7 @@ export function TaskToolbar({
                 </DropdownMenuContent>
               </DropdownMenu>
               <div className="shrink-0">
-                <ProjectActionsMenu
+                <TaskActionsMenu
                   id={task.id}
                   onDebugClick={() => {
                     setDebugDialogOpen(true);
@@ -143,7 +143,7 @@ export function TaskToolbar({
         task={task}
       />
 
-      <ProjectDebugDialog
+      <TaskDebugDialog
         onOpenChange={setDebugDialogOpen}
         open={debugDialogOpen}
         selectedSessionId={selectedSessionId}

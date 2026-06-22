@@ -69,7 +69,7 @@ describe("extractFileAndScriptArgs", () => {
         cwd: "/skills/sharp-images",
         expected: "../../output/image.png",
         input: "../../output/image.png",
-        label: "dot-dot traversal from nested cwd reaches project root",
+        label: "dot-dot traversal from nested cwd reaches task root",
       },
       {
         cwd: "/skills/sharp-images",

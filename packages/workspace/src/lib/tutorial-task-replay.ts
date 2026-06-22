@@ -69,23 +69,23 @@ export async function startTutorialTaskReplay({
   workspaceConfig: WorkspaceConfig;
 }) {
   const setupResult = await safeTry(async function* () {
-    const { project } = TUTORIAL_TASK_REPLAY;
+    const { task } = TUTORIAL_TASK_REPLAY;
     const taskId = await newTaskId({
-      preferredFolderName: SubdomainPartSchema.parse(project.folderName),
+      preferredFolderName: SubdomainPartSchema.parse(task.folderName),
       workspaceConfig,
     });
 
-    const projectResult = yield* await initializeTask(
+    const taskResult = yield* await initializeTask(
       {
-        initialManifest: { name: project.title },
+        initialManifest: { name: task.title },
         taskId,
-        templateName: project.templateName,
+        templateName: task.templateName,
         workspaceConfig,
       },
       { signal },
     );
 
-    await setTaskState(taskDir(projectResult.taskId), {
+    await setTaskState(taskDir(taskResult.taskId), {
       showTutorial: true,
     });
 
@@ -95,17 +95,17 @@ export async function startTutorialTaskReplay({
       {
         createdAt: now,
         id: sessionId,
-        title: project.title,
+        title: task.title,
         updatedAt: now,
       } satisfies Session.Type,
-      projectResult.taskId,
+      taskResult.taskId,
       { signal },
     );
 
     return ok({
-      id: projectResult.taskId,
+      id: taskResult.taskId,
       sessionId: sessionResult.id,
-      taskId: projectResult.taskId,
+      taskId: taskResult.taskId,
     });
   });
 

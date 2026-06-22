@@ -469,9 +469,9 @@ const exportZip = base
       const taskId = input.id;
 
       const manifest = await getTaskManifest(taskDir(taskId));
-      const projectName = manifest?.name ?? input.id;
+      const taskName = manifest?.name ?? input.id;
 
-      const safeName = projectName
+      const safeName = taskName
         .toLowerCase()
         .replaceAll(/[^a-z0-9-]/g, "-")
         .replaceAll(/-+/g, "-")

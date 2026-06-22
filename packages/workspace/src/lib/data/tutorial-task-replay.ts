@@ -1,11 +1,6 @@
 import { dedent } from "radashi";
 
 export const TUTORIAL_TASK_REPLAY = {
-  project: {
-    folderName: "how-to-use-instrument",
-    templateName: "basic",
-    title: "How to use Instrument",
-  },
   steps: [
     {
       kind: "user",
@@ -35,16 +30,16 @@ export const TUTORIAL_TASK_REPLAY = {
         - Browsing websites, filling forms, and scraping data
         - Creating PDFs, presentations, spreadsheets, and more
 
-        Everything happens inside an isolated project folder on your computer, keeping your work organized and versioned.
+        Everything happens inside an isolated task folder on your computer, keeping your work organized and versioned.
 
         ## How Instrument is unique
 
         Instrument stands apart from typical AI chat tools in a few key ways:
 
-        - **Local execution:** Instrument runs directly on your machine, giving it access to your files, terminal, and system resources within sandboxed project boundaries.
+        - **Local execution:** Instrument runs directly on your machine, giving it access to your files, terminal, and system resources within sandboxed task boundaries.
         - **True automation:** When you ask it to download a file, edit code, generate assets, or process data, it does the work using the same tools you would use yourself.
         - **File-centric workflow:** Generated outputs appear as previews in your chat. You can upload files or attach folders to bring external content into the workspace.
-        - **Project isolation and versioning:** Each project lives in its own folder with automatic history. Old file versions are always recoverable.
+        - **Task isolation and versioning:** Each task lives in its own folder with automatic history. Old file versions are always recoverable.
         - **Skill-based extensibility:** Specialized capabilities, such as browser automation, document handling, and image processing, are available on demand without leaving the conversation.
 
         In short: other AIs tell you how to do things. Instrument does them for you.
@@ -78,7 +73,7 @@ export const TUTORIAL_TASK_REPLAY = {
       text: dedent`
         I've successfully created a tutorial file for you and attached it below. It covers what Instrument can do, how it differs from typical AI tools, and several example prompts for work and personal use.
 
-        I can also tailor my advice to you. Answer these questions so I can help you find ways to use Instrument for your own projects.
+        I can also tailor my advice to you. Answer these questions so I can help you find ways to use Instrument for your own tasks.
 
         1. What kinds of tasks are you usually responsible for at work (e.g., coding, content creation, data analysis, personal organization)?
         2. Do you have any specific apps, programming languages, or file types you work with regularly?
@@ -86,6 +81,11 @@ export const TUTORIAL_TASK_REPLAY = {
       `.trim(),
     },
   ],
+  task: {
+    folderName: "how-to-use-instrument",
+    templateName: "basic",
+    title: "How to use Instrument",
+  },
 } as const;
 
 export type TutorialTaskWriteFileStep = Extract<

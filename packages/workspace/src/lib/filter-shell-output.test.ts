@@ -7,7 +7,7 @@ import {
 } from "./filter-shell-output";
 
 describe("filterShellOutput", () => {
-  const dir = TaskDirSchema.parse("/absolute/path/to/my project");
+  const dir = TaskDirSchema.parse("/absolute/path/to/my task");
 
   it("replaces absolute path with relative path", () => {
     const output = `$ pnpm lint

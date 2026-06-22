@@ -1,4 +1,4 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
@@ -18,10 +18,10 @@ import { TypedError } from "./errors";
 export async function getTaskManifest(
   dir: TaskDir,
 ): Promise<TaskManifest | undefined> {
-  const projectManifestPath = absolutePathJoin(dir, PROJECT_MANIFEST_FILE_NAME);
+  const taskManifestPath = absolutePathJoin(dir, TASK_MANIFEST_FILE_NAME);
 
   try {
-    const manifestContent = await fs.readFile(projectManifestPath, "utf8");
+    const manifestContent = await fs.readFile(taskManifestPath, "utf8");
     const parsed = TaskManifestSchema.safeParse(JSON.parse(manifestContent));
     if (!parsed.success) {
       return undefined;
@@ -49,9 +49,9 @@ export function updateTaskManifest(
 
     const validatedUpdates = parseResult.data;
 
-    const projectManifestPath = absolutePathJoin(
+    const taskManifestPath = absolutePathJoin(
       taskDir(taskId),
-      PROJECT_MANIFEST_FILE_NAME,
+      TASK_MANIFEST_FILE_NAME,
     );
 
     let existing: TaskManifest = { name: "" };
@@ -66,7 +66,7 @@ export function updateTaskManifest(
 
     yield* ResultAsync.fromPromise(
       fs.writeFile(
-        projectManifestPath,
+        taskManifestPath,
         JSON.stringify(
           {
             ...existing,

@@ -67,14 +67,14 @@ window.api.onNavigate((url) => {
   const currentPath = router.state.location.pathname;
   if (currentPath === url) {
     const matches = router.matchRoutes(url, {});
-    const projectRouteMatch = matches.find(
+    const taskRouteMatch = matches.find(
       (m) => m.routeId === "/_app/tasks/$id/",
     );
-    if (projectRouteMatch) {
+    if (taskRouteMatch) {
       // Same pathname as IPC: keep search params (bare path would strip them)
       // except clear `sidebar` so the default chat sidebar shows again.
       const loc = router.state.location;
-      const id = projectRouteMatch.params.id;
+      const id = taskRouteMatch.params.id;
       if (
         (loc.search.sidebar !== undefined ||
           loc.search.artifactPanel !== undefined) &&

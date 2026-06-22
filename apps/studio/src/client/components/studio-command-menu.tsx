@@ -54,7 +54,7 @@ export function StudioCommandMenu() {
   const { mutate: checkForUpdates } = useMutation(
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
-  const projectRouteMatch = useMatch({
+  const taskRouteMatch = useMatch({
     from: "/_app/tasks/$id/",
     shouldThrow: false,
   });
@@ -72,7 +72,7 @@ export function StudioCommandMenu() {
 
   const tasks = tasksData?.tasks ?? [];
 
-  const currentTaskId = projectRouteMatch?.params.id;
+  const currentTaskId = taskRouteMatch?.params.id;
 
   const candidateTasks = tasks.filter((task) => task.id !== currentTaskId);
 
@@ -177,7 +177,7 @@ export function StudioCommandMenu() {
             {!search && (
               <CommandGroup>
                 {!isOnNewTabPage && (
-                  <CommandItem onSelect={handleNewTask} value="new-project">
+                  <CommandItem onSelect={handleNewTask} value="new-task">
                     <PlusIcon className="size-4" />
                     <span>New task</span>
                   </CommandItem>
@@ -235,7 +235,7 @@ export function StudioCommandMenu() {
               </CommandGroup>
             )}
             {matchedTasks.length > 0 && (
-              <VirtualProjectList
+              <VirtualTaskList
                 matchedTasks={matchedTasks}
                 onSelectTask={handleSelectTask}
               />
@@ -247,7 +247,7 @@ export function StudioCommandMenu() {
   );
 }
 
-function VirtualProjectList({
+function VirtualTaskList({
   matchedTasks,
   onSelectTask,
 }: {

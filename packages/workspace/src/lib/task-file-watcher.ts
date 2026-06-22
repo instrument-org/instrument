@@ -191,7 +191,7 @@ export function getCurrentTaskFiles(id: TaskId): TaskFile[] | undefined {
 
 /**
  * Begins watching a task's files, maintaining an incremental in-memory index
- * and publishing `project.files.changed` as the tree changes. Idempotent per
+ * and publishing `task.files.changed` as the tree changes. Idempotent per
  * id via ref-counting; returns a disposer that stops watching once the
  * last holder releases.
  */
@@ -363,7 +363,7 @@ async function initWatcher(entry: WatcherEntry) {
     // exceptional. Still degrade to a low-frequency re-walk so the live
     // subscription reflects changes (only while a watcher is held).
     entry.captureException(
-      new Error("project file watcher: native binding unavailable"),
+      new Error("task file watcher: native binding unavailable"),
       { scopes: ["workspace"] },
     );
     entry.fallbackTimer = setInterval(() => {

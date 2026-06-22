@@ -71,7 +71,7 @@ export async function duplicateTask(
 
       await setTaskState(taskDir(taskId), sourceTaskState);
     } else {
-      // Preserve only the selected model from the source project
+      // Preserve only the selected model from the source task
       if (sourceTaskState.selectedModelURI) {
         await setTaskState(taskDir(taskId), {
           selectedModelURI: sourceTaskState.selectedModelURI,

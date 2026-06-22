@@ -181,10 +181,10 @@ describe("Grep", () => {
           pattern: "async function",
         },
         model,
-        projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: {},
       });
 
       expect(result.isOk()).toBe(true);
@@ -229,10 +229,10 @@ describe("Grep", () => {
           pattern: "nonexistent-pattern-xyz123",
         },
         model,
-        projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: {},
       });
 
       const value = result._unsafeUnwrap();
@@ -248,10 +248,10 @@ describe("Grep", () => {
           pattern: "handles",
         },
         model,
-        projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: {},
       });
 
       expect(result.isOk()).toBe(true);
@@ -300,10 +300,10 @@ describe("Grep", () => {
           pattern: "Handles",
         },
         model,
-        projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: {},
       });
 
       expect(result.isOk()).toBe(true);
@@ -337,10 +337,10 @@ describe("Grep", () => {
           pattern: "zzz",
         },
         model,
-        projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: {},
       });
 
       expect(result.isOk()).toBe(true);
@@ -369,10 +369,10 @@ describe("Grep", () => {
           pattern: "vertical\\|bar",
         },
         model,
-        projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: {},
       });
 
       expect(result.isOk()).toBe(true);
@@ -407,10 +407,10 @@ describe("Grep", () => {
           pattern: "vertical\\|bar",
         },
         model,
-        projectState: {},
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: {},
       });
 
       expect(result.isOk()).toBe(true);
@@ -459,10 +459,10 @@ describe("Grep", () => {
           pattern: "async function",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       const error = result._unsafeUnwrapErr();
@@ -478,10 +478,10 @@ describe("Grep", () => {
           pattern: "async function",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       expect(result._unsafeUnwrapErr().message).toContain(
@@ -497,10 +497,10 @@ describe("Grep", () => {
           pattern: "async function",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       const error = result._unsafeUnwrapErr();
@@ -516,10 +516,10 @@ describe("Grep", () => {
           pattern: "async function",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       const normalizedMatches = sortMatchesForTesting(
@@ -565,10 +565,10 @@ describe("Grep", () => {
           pattern: "vertical\\|bar",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       const normalizedMatches = sortMatchesForTesting(

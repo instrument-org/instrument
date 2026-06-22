@@ -1,4 +1,4 @@
-// Debug-only snapshot of the browser view manager and the projectBrowser
+// Debug-only snapshot of the browser view manager and the taskBrowser
 // XState machines that reap it.
 
 import { devOnly } from "@/electron-main/rpc/base";
@@ -14,7 +14,7 @@ import { z } from "zod";
 
 import { type BrowserViewManager } from "./manager";
 
-const ProjectBrowserDebugEntrySchema = z.object({
+const TaskBrowserDebugEntrySchema = z.object({
   destroyedExternallyTargetIds: z.array(z.string()),
   id: z.string(),
   knownTargets: z.array(
@@ -53,7 +53,7 @@ const BrowserViewManagerDebugSnapshotSchema = z.object({
   capturedAt: z.string(),
   developerMode: z.boolean(),
   entries: z.array(BrowserViewDebugEntrySchema),
-  projectBrowsers: z.array(ProjectBrowserDebugEntrySchema),
+  taskBrowsers: z.array(TaskBrowserDebugEntrySchema),
   totalEntries: z.number(),
 });
 
@@ -61,7 +61,7 @@ type BrowserViewDebugEntry = z.output<typeof BrowserViewDebugEntrySchema>;
 type BrowserViewManagerDebugSnapshot = z.output<
   typeof BrowserViewManagerDebugSnapshotSchema
 >;
-type ProjectBrowserDebugEntry = z.output<typeof ProjectBrowserDebugEntrySchema>;
+type TaskBrowserDebugEntry = z.output<typeof TaskBrowserDebugEntrySchema>;
 
 function buildBrowserViewEntries(
   manager: BrowserViewManager,
@@ -99,11 +99,27 @@ function buildBrowserViewEntries(
   return out;
 }
 
-function buildProjectBrowserEntries(
+function buildSnapshot({
+  manager,
+  workspaceRef,
+}: {
+  manager: BrowserViewManager;
+  workspaceRef: WorkspaceActorRef;
+}): BrowserViewManagerDebugSnapshot {
+  return {
+    capturedAt: new Date().toISOString(),
+    developerMode: isDeveloperMode(),
+    entries: buildBrowserViewEntries(manager),
+    taskBrowsers: buildTaskBrowserEntries(workspaceRef),
+    totalEntries: manager.getDebugEntries().size,
+  };
+}
+
+function buildTaskBrowserEntries(
   workspaceRef: WorkspaceActorRef,
-): ProjectBrowserDebugEntry[] {
+): TaskBrowserDebugEntry[] {
   const snapshot = workspaceRef.getSnapshot();
-  const out: ProjectBrowserDebugEntry[] = [];
+  const out: TaskBrowserDebugEntry[] = [];
 
   for (const [id, ref] of snapshot.context.taskBrowserRefs) {
     const childSnapshot = ref.getSnapshot();
@@ -132,25 +148,9 @@ function buildProjectBrowserEntries(
   return out;
 }
 
-function buildSnapshot({
-  manager,
-  workspaceRef,
-}: {
-  manager: BrowserViewManager;
-  workspaceRef: WorkspaceActorRef;
-}): BrowserViewManagerDebugSnapshot {
-  return {
-    capturedAt: new Date().toISOString(),
-    developerMode: isDeveloperMode(),
-    entries: buildBrowserViewEntries(manager),
-    projectBrowsers: buildProjectBrowserEntries(workspaceRef),
-    totalEntries: manager.getDebugEntries().size,
-  };
-}
-
 // Heartbeat keeps reaping countdowns visually fresh between explicit publish
 // events (which only fire on entry add/remove/title changes, not on the
-// projectBrowser machine's `after` timers ticking down). Re-publishing on a
+// taskBrowser machine's `after` timers ticking down). Re-publishing on a
 // timer wakes up every active subscriber.
 const BROWSER_VIEW_HEARTBEAT_MS = 1000;
 
@@ -178,10 +178,10 @@ const snapshotLive = devOnly
       publisher.publish("debug.browser-view-manager.updated", null);
     };
 
-    // Subscribe to every projectBrowser child actor so state-machine value
+    // Subscribe to every taskBrowser child actor so state-machine value
     // transitions (Active -> Stopping -> Stopped, parallel sub-states, etc.)
     // push updates instead of waiting on the heartbeat. Resubscribes whenever
-    // the workspace machine spawns a new projectBrowser.
+    // the workspace machine spawns a new taskBrowser.
     const childSubs = new Map<string, () => void>();
     const refreshChildSubs = () => {
       const refs = context.workspaceRef.getSnapshot().context.taskBrowserRefs;

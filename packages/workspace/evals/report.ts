@@ -19,7 +19,7 @@ interface RollupSummary {
     total: number;
   };
   modelURIs: string[];
-  projects: number;
+  tasks: number;
 }
 
 export async function generateReport({
@@ -37,42 +37,42 @@ export async function generateReport({
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
 
-  const { tasks: projects } = await getTasks(workspaceConfig, {
+  const { tasks } = await getTasks(workspaceConfig, {
     direction: "asc",
     sortBy: "createdAt",
   });
 
-  if (projects.length === 0) {
+  if (tasks.length === 0) {
     process.stdout.write("No tasks found in workspace.\n");
     return {
       assertions: { failed: 0, pass_rate: 0, passed: 0, total: 0 },
       modelURIs: [],
-      projects: 0,
+      tasks: 0,
     };
   }
 
   process.stdout.write(
-    `${c.dim}Generating report for${c.reset} ${c.yellow}${projects.length}${c.reset} ${c.dim}task(s)...${c.reset}\n`,
+    `${c.dim}Generating report for${c.reset} ${c.yellow}${tasks.length}${c.reset} ${c.dim}task(s)...${c.reset}\n`,
   );
 
   let rollupPassed = 0;
   let rollupFailed = 0;
   const rollupModelURIs = new Set<string>();
 
-  for (const project of projects) {
-    const taskId = project.id;
+  for (const task of tasks) {
+    const taskId = task.id;
 
-    const projectState = await getTaskState(taskDir(taskId));
-    const projectModelURI = projectState.selectedModelURI;
-    if (projectModelURI) {
-      rollupModelURIs.add(projectModelURI);
+    const taskState = await getTaskState(taskDir(taskId));
+    const taskModelURI = taskState.selectedModelURI;
+    if (taskModelURI) {
+      rollupModelURIs.add(taskModelURI);
     }
 
     const sessionsResult = await Store.getSessions(taskId);
 
     if (sessionsResult.isErr()) {
       process.stderr.write(
-        `Error loading sessions for ${project.title}: ${sessionsResult.error.message}\n`,
+        `Error loading sessions for ${task.title}: ${sessionsResult.error.message}\n`,
       );
       continue;
     }
@@ -81,14 +81,14 @@ export async function generateReport({
 
     if (rootSessions.length > 1) {
       process.stderr.write(
-        `Warning: task "${project.title}" has ${rootSessions.length} root sessions (expected 1). Using the first one.\n`,
+        `Warning: task "${task.title}" has ${rootSessions.length} root sessions (expected 1). Using the first one.\n`,
       );
     }
 
     const rootSession = rootSessions[0];
     if (!rootSession) {
       process.stderr.write(
-        `Warning: task "${project.title}" has no root session, skipping.\n`,
+        `Warning: task "${task.title}" has no root session, skipping.\n`,
       );
       continue;
     }
@@ -101,31 +101,31 @@ export async function generateReport({
 
     const stats = await getTaskUsageSummary(taskId);
 
-    const projectOutputDir = path.join(outputDir, project.id);
-    await fs.mkdir(projectOutputDir, { recursive: true });
+    const taskOutputDir = path.join(outputDir, task.id);
+    await fs.mkdir(taskOutputDir, { recursive: true });
     await fs.writeFile(
-      path.join(projectOutputDir, "session.md"),
+      path.join(taskOutputDir, "session.md"),
       markdown,
       "utf8",
     );
     await fs.writeFile(
-      path.join(projectOutputDir, "stats.json"),
+      path.join(taskOutputDir, "stats.json"),
       JSON.stringify(stats, null, 2),
       "utf8",
     );
-    const symlinkPath = path.join(projectOutputDir, "project");
+    const symlinkPath = path.join(taskOutputDir, "task");
     await fs.symlink(taskDir(taskId), symlinkPath).catch(() => {
       return;
     });
 
     const evalCase =
-      evalCasesByName.get(project.id) ??
+      evalCasesByName.get(task.id) ??
       [...evalCasesByName.entries()].find(([name]) =>
-        project.id.endsWith(`-${name}`),
+        task.id.endsWith(`-${name}`),
       )?.[1];
     await fs.writeFile(
-      path.join(projectOutputDir, "eval-case.json"),
-      JSON.stringify({ modelURI: projectModelURI, name: project.id }, null, 2),
+      path.join(taskOutputDir, "eval-case.json"),
+      JSON.stringify({ modelURI: taskModelURI, name: task.id }, null, 2),
       "utf8",
     );
 
@@ -163,7 +163,7 @@ export async function generateReport({
         },
       };
       await fs.writeFile(
-        path.join(projectOutputDir, "assertions.json"),
+        path.join(taskOutputDir, "assertions.json"),
         JSON.stringify(assertionsOutput, null, 2),
         "utf8",
       );
@@ -174,11 +174,11 @@ export async function generateReport({
       });
       const passColor = passed === total ? c.green : c.yellow;
       process.stdout.write(
-        `  ${c.dim}[${c.reset}${project.id}${c.dim}]${c.reset} ${passColor}${passed}/${total} passed${c.reset}\n${lines.join("\n")}\n`,
+        `  ${c.dim}[${c.reset}${task.id}${c.dim}]${c.reset} ${passColor}${passed}/${total} passed${c.reset}\n${lines.join("\n")}\n`,
       );
     } else {
       process.stdout.write(
-        `  ${c.dim}[${c.reset}${project.id}${c.dim}]${c.reset}\n`,
+        `  ${c.dim}[${c.reset}${task.id}${c.dim}]${c.reset}\n`,
       );
     }
   }
@@ -192,7 +192,7 @@ export async function generateReport({
       total: rollupTotal,
     },
     modelURIs: [...rollupModelURIs],
-    projects: projects.length,
+    tasks: tasks.length,
   };
 
   await fs.mkdir(outputDir, { recursive: true });

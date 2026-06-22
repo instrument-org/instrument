@@ -18,15 +18,15 @@ import { taskDir } from "./app-dir-utils";
 import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import {
-  diffProjectFileIndexes,
-  getProjectFileIndex,
+  diffTaskFileIndexes,
+  getTaskFileIndex,
   INTERNAL_IGNORE_PATTERNS,
-  MAX_PROJECT_FILE_INDEX_FILES,
-  type ProjectFile,
-  type ProjectFileChange,
-  type ProjectFileIndex,
-  projectFilesFromIndex,
-} from "./get-project-files";
+  MAX_TASK_FILE_INDEX_FILES,
+  type TaskFile,
+  type TaskFileChange,
+  type TaskFileIndex,
+  taskFilesFromIndex,
+} from "./get-task-files";
 import { normalizePath } from "./normalize-path";
 
 // Trailing window used to coalesce bursts of filesystem events (agents and
@@ -61,7 +61,7 @@ interface ParcelWatcherApi {
 // Per-turn state: the file index snapshotted at turn start (diffed against an
 // authoritative walk at turn end) plus the watcher ref acquired for the turn.
 interface TurnTracker {
-  before: ProjectFileIndex;
+  before: TaskFileIndex;
   release: () => void;
 }
 
@@ -77,7 +77,7 @@ interface WatcherEntry {
   id: TaskId;
   // Null until the first seed completes; seeding always precedes event handling.
   ignore: Ignore | null;
-  index: ProjectFileIndex;
+  index: TaskFileIndex;
   // Absolute paths buffered between debounce flushes.
   pendingPaths: Set<string>;
   // Resolves once the initial seed completes, so turn snapshots are accurate.
@@ -109,7 +109,7 @@ export async function beginTurnChangeTracking({
   sessionId: StoreId.Session;
   workspaceConfig: WorkspaceConfig;
 }): Promise<void> {
-  const release = startWatchingProjectFiles({ id, workspaceConfig });
+  const release = startWatchingTaskFiles({ id, workspaceConfig });
   const entry = REGISTRY.get(id);
   if (!entry) {
     release();
@@ -142,7 +142,7 @@ export async function consumeTurnChanges({
 }: {
   id: TaskId;
   sessionId: StoreId.Session;
-}): Promise<{ after?: ProjectFileIndex; changes: ProjectFileChange[] }> {
+}): Promise<{ after?: TaskFileIndex; changes: TaskFileChange[] }> {
   const entry = REGISTRY.get(id);
   const turn = entry?.turns.get(sessionId);
   if (!entry || !turn) {
@@ -154,7 +154,7 @@ export async function consumeTurnChanges({
     const after = await refreshIndex(entry);
     return {
       after: new Map(after),
-      changes: diffProjectFileIndexes({ after, before: turn.before }),
+      changes: diffTaskFileIndexes({ after, before: turn.before }),
     };
   } catch (error) {
     entry.captureException(error);
@@ -169,9 +169,9 @@ export async function consumeTurnChanges({
  * undefined when no watcher is active. Lets callers diff against the index the
  * watcher already maintains instead of walking disk again.
  */
-export function getCurrentProjectFileIndex(
+export function getCurrentTaskFileIndex(
   id: TaskId,
-): ProjectFileIndex | undefined {
+): TaskFileIndex | undefined {
   const entry = REGISTRY.get(id);
   if (!entry?.seeded) {
     return undefined;
@@ -183,12 +183,12 @@ export function getCurrentProjectFileIndex(
  * Returns the current in-memory file list for a id, or undefined when no
  * watcher is active (callers fall back to a fresh walk in that case).
  */
-export function getCurrentProjectFiles(id: TaskId): ProjectFile[] | undefined {
+export function getCurrentTaskFiles(id: TaskId): TaskFile[] | undefined {
   const entry = REGISTRY.get(id);
   if (!entry?.seeded) {
     return undefined;
   }
-  return projectFilesFromIndex(entry.index);
+  return taskFilesFromIndex(entry.index);
 }
 
 /**
@@ -197,7 +197,7 @@ export function getCurrentProjectFiles(id: TaskId): ProjectFile[] | undefined {
  * id via ref-counting; returns a disposer that stops watching once the
  * last holder releases.
  */
-export function startWatchingProjectFiles({
+export function startWatchingTaskFiles({
   id,
   workspaceConfig,
 }: {
@@ -267,7 +267,7 @@ async function applyChangedPath(
       return false;
     }
     const previous = entry.index.get(key);
-    if (!previous && entry.index.size >= MAX_PROJECT_FILE_INDEX_FILES) {
+    if (!previous && entry.index.size >= MAX_TASK_FILE_INDEX_FILES) {
       return false;
     }
     if (
@@ -417,13 +417,13 @@ function loadParcelWatcher(): Promise<ParcelWatcherApi | undefined> {
 }
 
 /** Re-walks disk to make the index authoritative, publishing if it changed, and returns the refreshed index. */
-async function refreshIndex(entry: WatcherEntry): Promise<ProjectFileIndex> {
-  const before = projectFilesFromIndex(entry.index);
+async function refreshIndex(entry: WatcherEntry): Promise<TaskFileIndex> {
+  const before = taskFilesFromIndex(entry.index);
   await reseed(entry);
   if (
     !isDisposed(entry) &&
     JSON.stringify(before) !==
-      JSON.stringify(projectFilesFromIndex(entry.index))
+      JSON.stringify(taskFilesFromIndex(entry.index))
   ) {
     publisher.publish("project.files.changed", { id: entry.id });
   }
@@ -455,7 +455,7 @@ function releaseWatcher(id: TaskId) {
 async function reseed(entry: WatcherEntry) {
   entry.ignore = await getIgnore(entry.dir);
   entry.ignore.add(INTERNAL_IGNORE_PATTERNS);
-  const result = await getProjectFileIndex(entry.dir);
+  const result = await getTaskFileIndex(entry.dir);
   if (isDisposed(entry)) {
     return;
   }

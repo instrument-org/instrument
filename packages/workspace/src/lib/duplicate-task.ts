@@ -4,32 +4,32 @@ import fs from "node:fs/promises";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { getTaskPrivateDir, sessionStorePath, taskDir } from "./app-dir-utils";
-import { copyProject } from "./copy-project";
+import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { newTaskId } from "./new-task-id";
 import { pathExists } from "./path-exists";
-import { getProjectManifest, updateProjectManifest } from "./project-manifest";
-import { getProjectState, setProjectState } from "./project-state-store";
+import { getTaskManifest, updateTaskManifest } from "./task-manifest";
+import { getTaskState, setTaskState } from "./task-state-store";
 
-interface DuplicateProjectOptions {
+interface DuplicateTaskOptions {
   keepHistory: boolean;
   sourceTaskId: TaskId;
   workspaceConfig: WorkspaceConfig;
 }
 
-export async function duplicateProject(
-  { keepHistory, sourceTaskId, workspaceConfig }: DuplicateProjectOptions,
+export async function duplicateTask(
+  { keepHistory, sourceTaskId, workspaceConfig }: DuplicateTaskOptions,
   _options: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const sourceConfig = sourceTaskId;
+    const sourceId = sourceTaskId;
 
     const taskId = await newTaskId({
       workspaceConfig,
     });
 
-    const projectExists = await pathExists(taskDir(taskId));
-    if (projectExists) {
+    const taskExists = await pathExists(taskDir(taskId));
+    if (taskExists) {
       return errAsync(
         new TypedError.Conflict(
           `Task directory already exists: ${taskDir(taskId)}`,
@@ -37,30 +37,30 @@ export async function duplicateProject(
       );
     }
 
-    const sourceExists = await pathExists(taskDir(sourceConfig));
+    const sourceExists = await pathExists(taskDir(sourceId));
     if (!sourceExists) {
       return errAsync(
         new TypedError.NotFound(
-          `Source task directory does not exist: ${taskDir(sourceConfig)}`,
+          `Source task directory does not exist: ${taskDir(sourceId)}`,
         ),
       );
     }
 
-    yield* copyProject({
+    yield* copyTask({
       includePrivateFolder: false,
       isTemplate: false,
-      sourceDir: taskDir(sourceConfig),
+      sourceDir: taskDir(sourceId),
       targetDir: taskDir(taskId),
     });
 
-    const sourceManifest = await getProjectManifest(taskDir(sourceConfig));
-    const sourceName = sourceManifest?.name || sourceConfig;
+    const sourceManifest = await getTaskManifest(taskDir(sourceId));
+    const sourceName = sourceManifest?.name || sourceId;
     const duplicateName = `Copy of ${sourceName}`;
 
-    const sourceProjectState = await getProjectState(taskDir(sourceConfig));
+    const sourceTaskState = await getTaskState(taskDir(sourceId));
 
     if (keepHistory) {
-      const sourceSessionDbPath = sessionStorePath(taskDir(sourceConfig));
+      const sourceSessionDbPath = sessionStorePath(taskDir(sourceId));
       const targetSessionDbPath = sessionStorePath(taskDir(taskId));
 
       if (await pathExists(sourceSessionDbPath)) {
@@ -69,19 +69,19 @@ export async function duplicateProject(
         await fs.copyFile(sourceSessionDbPath, targetSessionDbPath);
       }
 
-      await setProjectState(taskDir(taskId), sourceProjectState);
+      await setTaskState(taskDir(taskId), sourceTaskState);
     } else {
       // Preserve only the selected model from the source project
-      if (sourceProjectState.selectedModelURI) {
-        await setProjectState(taskDir(taskId), {
-          selectedModelURI: sourceProjectState.selectedModelURI,
+      if (sourceTaskState.selectedModelURI) {
+        await setTaskState(taskDir(taskId), {
+          selectedModelURI: sourceTaskState.selectedModelURI,
         });
       }
     }
 
-    const existingManifest = await getProjectManifest(taskDir(taskId));
+    const existingManifest = await getTaskManifest(taskDir(taskId));
 
-    yield* updateProjectManifest(taskId, {
+    yield* updateTaskManifest(taskId, {
       ...(existingManifest && { iconName: existingManifest.iconName }),
       name: duplicateName,
     });

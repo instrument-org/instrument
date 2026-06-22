@@ -20,7 +20,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { getMimeType } from "./get-mime-type";
-import { getProjectState, setProjectState } from "./project-state-store";
+import { getTaskState, setTaskState } from "./task-state-store";
 import { sanitizeFilename } from "./sanitize-filename";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
@@ -108,7 +108,7 @@ export async function writeUploadedAttachments({
     }
 
     if (folders && folders.length > 0) {
-      const projectState = await getProjectState(dir);
+      const projectState = await getTaskState(dir);
       const existingFolders = projectState.attachedFolders ?? {};
 
       const newFolders: Record<string, FolderAttachment.Type> = {};
@@ -132,7 +132,7 @@ export async function writeUploadedAttachments({
         folderAttachments.push(folderAttachment);
       }
 
-      await setProjectState(dir, {
+      await setTaskState(dir, {
         attachedFolders: { ...existingFolders, ...newFolders },
       });
     }

@@ -2,23 +2,23 @@ import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
 import { APP_FOLDER_NAMES } from "../constants";
-import { type ProjectManifestUpdate } from "../schemas/project-manifest";
+import { type TaskManifestUpdate } from "../schemas/task-manifest";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { taskDir, templateExists } from "./app-dir-utils";
-import { copyProject } from "./copy-project";
+import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
-import { updateProjectManifest } from "./project-manifest";
+import { updateTaskManifest } from "./task-manifest";
 
-export async function initializeProject(
+export async function initializeTask(
   {
     initialManifest,
     taskId,
     templateName,
     workspaceConfig,
   }: {
-    initialManifest: Omit<ProjectManifestUpdate, "createdWithAppVersion">;
+    initialManifest: Omit<TaskManifestUpdate, "createdWithAppVersion">;
     taskId: TaskId;
     templateName: string;
     workspaceConfig: WorkspaceConfig;
@@ -63,14 +63,14 @@ export async function initializeProject(
       );
     }
 
-    yield* copyProject({
+    yield* copyTask({
       includePrivateFolder: false,
       isTemplate: true,
       sourceDir: templateDir,
       targetDir: taskDir(taskId),
     });
 
-    yield* updateProjectManifest(taskId, {
+    yield* updateTaskManifest(taskId, {
       ...initialManifest,
       createdWithAppVersion: workspaceConfig.appVersion,
     });

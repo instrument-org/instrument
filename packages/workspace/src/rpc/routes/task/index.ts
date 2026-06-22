@@ -5,23 +5,23 @@ import { z } from "zod";
 
 import { taskDir } from "../../../lib/app-dir-utils";
 import { createSession } from "../../../lib/create-session";
-import { defaultProjectName } from "../../../lib/default-project-name";
-import { duplicateProject } from "../../../lib/duplicate-project";
-import { exportProjectZip } from "../../../lib/export-project-zip";
+import { defaultTaskName } from "../../../lib/default-task-name";
+import { duplicateTask } from "../../../lib/duplicate-task";
+import { exportTaskZip } from "../../../lib/export-task-zip";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
-import { getApp, getProjects } from "../../../lib/get-apps";
+import { getApp, getTasks } from "../../../lib/get-tasks";
 import { getTask } from "../../../lib/get-task";
-import { importProject as importProjectLib } from "../../../lib/import-project";
-import { initializeProject } from "../../../lib/initialize-project";
+import { importTask } from "../../../lib/import-task";
+import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
 import {
-  getProjectManifest,
-  updateProjectManifest,
-} from "../../../lib/project-manifest";
+  getTaskManifest,
+  updateTaskManifest,
+} from "../../../lib/task-manifest";
 import { Store } from "../../../lib/store";
-import { trashProject } from "../../../lib/trash-project";
+import { trashTask } from "../../../lib/trash-task";
 import { startTutorialTaskReplay } from "../../../lib/tutorial-task-replay";
 import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
@@ -31,7 +31,7 @@ import {
 import { TaskSchema } from "../../../schemas/app";
 import { FileUpload } from "../../../schemas/file-upload";
 import { AbsolutePathSchema } from "../../../schemas/paths";
-import { ProjectManifestUpdateSchema } from "../../../schemas/project-manifest";
+import { TaskManifestUpdateSchema } from "../../../schemas/task-manifest";
 import { StoreId } from "../../../schemas/store-id";
 import { SubdomainPartSchema } from "../../../schemas/subdomain-part";
 import { TaskIdSchema } from "../../../schemas/task-id";
@@ -94,8 +94,8 @@ const byIds = base
     return results;
   });
 
-const ProjectsWithTotalSchema = z.object({
-  projects: TaskSchema.array(),
+const TasksWithTotalSchema = z.object({
+  tasks: TaskSchema.array(),
   total: z.number(),
 });
 
@@ -112,9 +112,9 @@ const ListInputSchema = z
 
 const list = base
   .input(ListInputSchema)
-  .output(ProjectsWithTotalSchema)
+  .output(TasksWithTotalSchema)
   .handler(async ({ context, input }) => {
-    return getProjects(context.workspaceConfig, input);
+    return getTasks(context.workspaceConfig, input);
   });
 
 const create = base
@@ -169,11 +169,11 @@ const create = base
         workspaceConfig: context.workspaceConfig,
       });
 
-      const initialProjectName = name ?? defaultProjectName(prompt);
+      const initialTaskName = name ?? defaultTaskName(prompt);
 
-      const result = await initializeProject(
+      const result = await initializeTask(
         {
-          initialManifest: { iconName, name: initialProjectName },
+          initialManifest: { iconName, name: initialTaskName },
           taskId,
           templateName: DEFAULT_TEMPLATE_NAME,
           workspaceConfig: context.workspaceConfig,
@@ -224,7 +224,7 @@ const create = base
       const saveSessionTitleResult = await Store.saveSession(
         {
           ...sessionForTitle.value,
-          title: initialProjectName,
+          title: initialTaskName,
           updatedAt: new Date(),
         },
         taskId,
@@ -242,14 +242,14 @@ const create = base
           workspaceConfig: context.workspaceConfig,
         }).then(async (title) => {
           if (title.isOk()) {
-            // Must come before updateProjectManifest so updateSessionTitle can
+            // Must come before updateTaskManifest so updateSessionTitle can
             // detect if the title is auto replaceable
             await updateSessionTitle({
               sessionId: message.metadata.sessionId,
               taskId,
               title: title.value,
             });
-            const secondManifestResult = await updateProjectManifest(taskId, {
+            const secondManifestResult = await updateTaskManifest(taskId, {
               name: title.value,
             });
             if (secondManifestResult.isErr()) {
@@ -331,7 +331,7 @@ const duplicate = base
       input: { keepHistory, sourceTaskId },
       signal,
     }) => {
-      const result = await duplicateProject(
+      const result = await duplicateTask(
         {
           keepHistory,
           sourceTaskId,
@@ -369,7 +369,7 @@ const importProject = base
     }),
   )
   .handler(async ({ context, errors, input: { zipFileData }, signal }) => {
-    const result = await importProjectLib(
+    const result = await importTask(
       {
         workspaceConfig: context.workspaceConfig,
         zipFileData,
@@ -394,7 +394,7 @@ const importProject = base
 const trash = base
   .input(z.object({ id: TaskIdSchema }))
   .handler(async ({ context, errors, input: { id } }) => {
-    const result = await trashProject({
+    const result = await trashTask({
       id,
       workspaceConfig: context.workspaceConfig,
       workspaceRef: context.workspaceRef,
@@ -413,7 +413,7 @@ const trash = base
 
 const update = base
   .input(
-    ProjectManifestUpdateSchema.extend({
+    TaskManifestUpdateSchema.extend({
       id: TaskIdSchema,
     }),
   )
@@ -435,7 +435,7 @@ const update = base
       }
     }
 
-    const result = await updateProjectManifest(taskId, updates);
+    const result = await updateTaskManifest(taskId, updates);
 
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);
@@ -467,7 +467,7 @@ const exportZip = base
     try {
       const taskId = input.id;
 
-      const manifest = await getProjectManifest(taskDir(taskId));
+      const manifest = await getTaskManifest(taskDir(taskId));
       const projectName = manifest?.name ?? input.id;
 
       const safeName = projectName
@@ -487,7 +487,7 @@ const exportZip = base
         filepath = `${input.outputPath}/${filename}`;
       }
 
-      const result = await exportProjectZip({
+      const result = await exportTaskZip({
         dir: taskDir(taskId),
         outputPath: filepath,
       });
@@ -525,9 +525,9 @@ const live = {
     .handler(async function* ({ context, input, signal }) {
       yield call(byId, input, { context, signal });
 
-      const projectUpdates = publisher.subscribe("project.updated", { signal });
+      const taskUpdates = publisher.subscribe("project.updated", { signal });
 
-      for await (const payload of projectUpdates) {
+      for await (const payload of taskUpdates) {
         if (payload.id === input.id) {
           yield call(byId, input, { context, signal });
         }
@@ -555,12 +555,12 @@ const live = {
     .handler(async function* ({ context, input, signal }) {
       yield call(byIds, input, { context, signal });
 
-      const projectUpdates = publisher.subscribe("project.updated", { signal });
-      const projectRemoved = publisher.subscribe("project.removed", { signal });
+      const taskUpdates = publisher.subscribe("project.updated", { signal });
+      const taskRemoved = publisher.subscribe("project.removed", { signal });
 
       for await (const payload of mergeGenerators([
-        projectUpdates,
-        projectRemoved,
+        taskUpdates,
+        taskRemoved,
       ])) {
         if (input.ids.includes(payload.id)) {
           yield call(byIds, input, { context, signal });
@@ -569,14 +569,14 @@ const live = {
     }),
   list: base
     .input(ListInputSchema)
-    .output(eventIterator(ProjectsWithTotalSchema))
+    .output(eventIterator(TasksWithTotalSchema))
     .handler(async function* ({ context, input, signal }) {
       yield call(list, input, { context, signal });
 
-      const projectUpdates = publisher.subscribe("project.updated", { signal });
-      const projectRemoved = publisher.subscribe("project.removed", { signal });
+      const taskUpdates = publisher.subscribe("project.updated", { signal });
+      const taskRemoved = publisher.subscribe("project.removed", { signal });
 
-      for await (const _ of mergeGenerators([projectUpdates, projectRemoved])) {
+      for await (const _ of mergeGenerators([taskUpdates, taskRemoved])) {
         yield call(list, input, { context, signal });
       }
     }),

@@ -9,7 +9,7 @@ import { type AgentName } from "../../agents/types";
 import { ActiveReplays } from "../../lib/active-replays";
 import { taskDir } from "../../lib/app-dir-utils";
 import { getCurrentDate } from "../../lib/get-current-date";
-import { getProjectManifest } from "../../lib/project-manifest";
+import { getTaskManifest } from "../../lib/task-manifest";
 import {
   createReplaySession,
   executeSessionReplay,
@@ -78,7 +78,7 @@ const replaySession = base
     let replayMessages: ReplayMessage[];
 
     if (mode === "new-project") {
-      const sourceManifest = await getProjectManifest(taskDir(sourceAppConfig));
+      const sourceManifest = await getTaskManifest(taskDir(sourceAppConfig));
       const sourceProjectName = sourceManifest?.name ?? id;
 
       const prepareResult = await prepareProjectReplay({

@@ -4,11 +4,11 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import {
-  type ProjectFileIndex,
-  projectFileIndexFromSnapshot,
-  ProjectFileIndexSnapshotSchema,
-  projectFileIndexToSnapshot,
-} from "./get-project-files";
+  type TaskFileIndex,
+  taskFileIndexFromSnapshot,
+  TaskFileIndexSnapshotSchema,
+  taskFileIndexToSnapshot,
+} from "./get-task-files";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
@@ -19,11 +19,11 @@ export function getFileIndexBaseline(
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
-  return safeTry<ProjectFileIndex | undefined, Error>(async function* () {
+  return safeTry<TaskFileIndex | undefined, Error>(async function* () {
     const storage = yield* getSessionsStoreStorage(taskId);
     const result = await getParsedStorageItem(
       StorageKey.fileIndexBaseline(sessionId),
-      ProjectFileIndexSnapshotSchema,
+      TaskFileIndexSnapshotSchema,
       storage,
       { signal },
     );
@@ -31,7 +31,7 @@ export function getFileIndexBaseline(
       // Missing baseline is expected on the first message of a session.
       return ok(undefined);
     }
-    return ok(projectFileIndexFromSnapshot(result.value));
+    return ok(taskFileIndexFromSnapshot(result.value));
   });
 }
 
@@ -39,15 +39,15 @@ export function getFileIndexBaseline(
 export function setFileIndexBaseline(
   taskId: TaskId,
   sessionId: StoreId.Session,
-  index: ProjectFileIndex,
+  index: TaskFileIndex,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
     const storage = yield* getSessionsStoreStorage(taskId);
     yield* setParsedStorageItem(
       StorageKey.fileIndexBaseline(sessionId),
-      projectFileIndexToSnapshot(index),
-      ProjectFileIndexSnapshotSchema,
+      taskFileIndexToSnapshot(index),
+      TaskFileIndexSnapshotSchema,
       storage,
       { signal },
     );

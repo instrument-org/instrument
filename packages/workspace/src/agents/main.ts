@@ -12,14 +12,14 @@ import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
 import { getCurrentDate } from "../lib/get-current-date";
-import { outputArtifactsFromChanges } from "../lib/get-project-files";
+import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
 import {
   beginTurnChangeTracking,
   consumeTurnChanges,
-} from "../lib/project-file-watcher";
-import { getProjectState } from "../lib/project-state-store";
+} from "../lib/task-file-watcher";
+import { getTaskState } from "../lib/task-state-store";
 import { readFileWithAnyCase } from "../lib/read-file-with-any-case";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
@@ -247,7 +247,7 @@ export const mainAgent = setupAgent({
             </dependencies>
           `,
         await (async () => {
-          const projectState = await getProjectState(taskDir(taskId));
+          const projectState = await getTaskState(taskDir(taskId));
           if (
             !projectState.attachedFolders ||
             Object.keys(projectState.attachedFolders).length === 0

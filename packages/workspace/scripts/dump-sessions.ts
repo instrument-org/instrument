@@ -2,7 +2,7 @@ import { execa } from "execa";
 import path from "node:path";
 import readline from "node:readline/promises";
 
-import { getProjects } from "../src/lib/get-apps";
+import { getTasks } from "../src/lib/get-tasks";
 import { Store } from "../src/lib/store";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
@@ -18,7 +18,7 @@ const workspaceConfig = createStubWorkspaceConfig({
   tasksDir: path.join(absoluteWorkspaceDir, "projects"),
 });
 
-const { projects } = await getProjects(workspaceConfig, {
+const { tasks: projects } = await getTasks(workspaceConfig, {
   direction: "desc",
   sortBy: "updatedAt",
 });

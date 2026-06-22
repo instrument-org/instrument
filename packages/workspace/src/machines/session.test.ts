@@ -177,7 +177,7 @@ describe("sessionMachine", () => {
     vi.restoreAllMocks();
   });
 
-  async function createActorAndApp({
+  async function createActorAndTask({
     agent = mainAgent,
     baseLLMRetryDelayMs = 1000,
     chunkDelayInMs = [],
@@ -251,7 +251,7 @@ describe("sessionMachine", () => {
     // via the workspace singleton.
     const model = createMockAIGatewayModel({ providerConfigId });
 
-    const testAppConfig = createMockTaskConfig(TaskIdSchema.parse(taskFolder), {
+    const testTaskConfig = createMockTaskConfig(TaskIdSchema.parse(taskFolder), {
       aiSDKModel: mockLanguageModel,
       imageModel,
       model,
@@ -264,7 +264,7 @@ describe("sessionMachine", () => {
         id: sessionId,
         title: "Test session",
       },
-      testAppConfig,
+      testTaskConfig,
     );
 
     const actor = createActor(sessionMachine, {
@@ -287,11 +287,11 @@ describe("sessionMachine", () => {
                       id: event.value.sessionId,
                       title: "Spawned session",
                     },
-                    testAppConfig,
+                    testTaskConfig,
                   );
                   await Store.saveMessageWithParts(
                     event.value.message,
-                    testAppConfig,
+                    testTaskConfig,
                   );
                   // Create a simple assistant response
                   const assistantMessageId = StoreId.newMessageId();
@@ -320,10 +320,10 @@ describe("sessionMachine", () => {
                   };
                   await Store.saveMessageWithParts(
                     responseMessage,
-                    testAppConfig,
+                    testTaskConfig,
                   );
                   publisher.publish("session.done", {
-                    id: testAppConfig,
+                    id: testTaskConfig,
                     sessionId: event.value.sessionId,
                   });
                 })();
@@ -335,7 +335,7 @@ describe("sessionMachine", () => {
         } as unknown as AnyActorRef,
         queuedMessages,
         sessionId,
-        taskId: testAppConfig,
+        taskId: testTaskConfig,
       },
       // Uncomment to debug
       // inspect(event) {
@@ -380,7 +380,7 @@ describe("sessionMachine", () => {
       // },
     });
 
-    return { actor, sessionId, taskId: testAppConfig };
+    return { actor, sessionId, taskId: testTaskConfig };
   }
 
   async function runTestMachine({
@@ -398,9 +398,9 @@ describe("sessionMachine", () => {
   }
 
   async function createAndRunTestMachine(
-    options: Parameters<typeof createActorAndApp>[0],
+    options: Parameters<typeof createActorAndTask>[0],
   ) {
-    const result = await createActorAndApp(options);
+    const result = await createActorAndTask(options);
     return runTestMachine(result);
   }
 
@@ -816,7 +816,7 @@ describe("sessionMachine", () => {
   });
 
   it("should handle multiple actors running in parallel", async () => {
-    const result1 = await createActorAndApp({
+    const result1 = await createActorAndTask({
       chunkSets: [
         [
           { id: "1", type: "text-start" },
@@ -835,7 +835,7 @@ describe("sessionMachine", () => {
 
     const secondSessionId = StoreId.newSessionId();
     const secondMessageId = StoreId.newMessageId();
-    const result2 = await createActorAndApp({
+    const result2 = await createActorAndTask({
       chunkSets: [
         [
           { id: "1", type: "text-start" },
@@ -1143,7 +1143,7 @@ describe("sessionMachine", () => {
   });
 
   it("should stop agents during llm request", async () => {
-    const result = await createActorAndApp({
+    const result = await createActorAndTask({
       chunkSets: [finishChunks],
     });
     result.actor.start();
@@ -1168,7 +1168,7 @@ describe("sessionMachine", () => {
     const onFinishPromise = new Promise<void>((resolve) => {
       finishOnFinish = resolve;
     });
-    const result = await createActorAndApp({
+    const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["ReadFile"]),
         name: "main",
@@ -1204,7 +1204,7 @@ describe("sessionMachine", () => {
   });
 
   it("should handle interactive tool calls with choose tool", async () => {
-    const result = await createActorAndApp({
+    const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["Choose"]),
         name: "main",
@@ -1402,7 +1402,7 @@ describe("sessionMachine", () => {
     });
 
     it("should stop agents during execution", async () => {
-      const result = await createActorAndApp({
+      const result = await createActorAndTask({
         chunkSets: [readFileChunks, writeFileChunks, finishChunks],
       });
       result.actor.start();

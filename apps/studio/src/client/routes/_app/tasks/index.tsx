@@ -20,7 +20,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { useTrashApp } from "@/client/hooks/use-trash-app";
+import { useTrashTask } from "@/client/hooks/use-trash-task";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
@@ -166,7 +166,7 @@ function RouteComponent() {
     rpcClient.workspace.session.stop.mutationOptions(),
   );
 
-  const { trashApp } = useTrashApp({ navigateOnDelete: false });
+  const { trashTask } = useTrashTask({ navigateOnDelete: false });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -281,7 +281,7 @@ function RouteComponent() {
     try {
       for (const task of tasksToDelete) {
         try {
-          await trashApp(task.id);
+          await trashTask(task.id);
           successCount++;
         } catch {
           toast.error(`Failed to delete task ${task.title}`);

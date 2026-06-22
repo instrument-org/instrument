@@ -3,11 +3,10 @@ import { err, ok, safeTry } from "neverthrow";
 import { dedent, pick } from "radashi";
 
 import {
-  APP_FOLDER_NAMES as F,
+  TASK_FOLDER_NAMES as F,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
-import { taskDir } from "../lib/app-dir-utils";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
@@ -21,6 +20,7 @@ import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
 import { Store } from "../lib/store";
+import { taskDir } from "../lib/task-dir-utils";
 import {
   beginTurnChangeTracking,
   consumeTurnChanges,

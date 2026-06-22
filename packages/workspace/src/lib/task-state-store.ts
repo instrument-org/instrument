@@ -5,7 +5,7 @@ import { z } from "zod";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
-import { getTaskPrivateDir } from "./app-dir-utils";
+import { getTaskPrivateDir } from "./task-dir-utils";
 
 const TASK_STATE_FILE_NAME = "project-state.json";
 

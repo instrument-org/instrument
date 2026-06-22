@@ -6,7 +6,7 @@ import {
 } from "@/client/lib/task-file-groups";
 import { cn } from "@/client/lib/utils";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
-import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -89,11 +89,11 @@ export function FilesGrid({
   );
 
   const [outputFiles, nonOutputFiles] = fork(files, (file) =>
-    isFileInAppFolder(file, APP_FOLDER_NAMES.output),
+    isFileInTaskFolder(file, TASK_FOLDER_NAMES.output),
   );
   const [userProvidedFiles, nonUserProvidedFiles] = fork(
     nonOutputFiles,
-    (file) => isFileInAppFolder(file, APP_FOLDER_NAMES.userProvided),
+    (file) => isFileInTaskFolder(file, TASK_FOLDER_NAMES.userProvided),
   );
   const [supportingFilesByKey, regularFiles] =
     splitSupportingFiles(nonUserProvidedFiles);
@@ -411,7 +411,7 @@ function isArtifactPanelFileSelected(
   );
 }
 
-function isFileInAppFolder(file: TaskFileViewerFile, folderName: string) {
+function isFileInTaskFolder(file: TaskFileViewerFile, folderName: string) {
   return file.filePath.startsWith(`${folderName}/`);
 }
 
@@ -440,19 +440,19 @@ function splitSupportingFiles(files: TaskFileViewerFile[]) {
   }[] = [
     {
       key: "scripts",
-      matches: (f) => isFileInAppFolder(f, APP_FOLDER_NAMES.scripts),
+      matches: (f) => isFileInTaskFolder(f, TASK_FOLDER_NAMES.scripts),
     },
     {
       key: "skills",
-      matches: (f) => isFileInAppFolder(f, APP_FOLDER_NAMES.skills),
+      matches: (f) => isFileInTaskFolder(f, TASK_FOLDER_NAMES.skills),
     },
     {
       key: "temporary",
-      matches: (f) => isFileInAppFolder(f, APP_FOLDER_NAMES.tmp),
+      matches: (f) => isFileInTaskFolder(f, TASK_FOLDER_NAMES.tmp),
     },
     {
       key: "agentRetrieved",
-      matches: (f) => isFileInAppFolder(f, APP_FOLDER_NAMES.agentRetrieved),
+      matches: (f) => isFileInTaskFolder(f, TASK_FOLDER_NAMES.agentRetrieved),
     },
     {
       key: "other",

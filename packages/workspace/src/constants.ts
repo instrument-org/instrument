@@ -3,14 +3,14 @@ export const REGISTRY_FOLDER_NAMES = {
   templates: "templates",
 } as const;
 
-import { APP_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 
-export const APP_FOLDER_NAMES = {
+export const TASK_FOLDER_NAMES = {
   agentBrowserState: "agent-browser",
   agentRetrieved: "agent-retrieved",
   browserSession: "browser-session",
   output: "output",
-  private: APP_PRIVATE_FOLDER_NAME,
+  private: TASK_PRIVATE_FOLDER_NAME,
   scripts: "scripts",
   skills: "skills",
   src: "src",
@@ -20,7 +20,7 @@ export const APP_FOLDER_NAMES = {
 } as const;
 export const SESSIONS_DB_FILE_NAME = "sessions.db";
 
-export const APP_STATUSES = [
+export const TASK_STATUSES = [
   "error",
   "loading",
   "not-found",

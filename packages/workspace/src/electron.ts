@@ -1,7 +1,7 @@
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
-export { taskDir } from "./lib/app-dir-utils";
 export { readTaskFile } from "./lib/read-task-file";
-export { resolvePathWithinTaskDir } from "./lib/resolve-path-within-app-dir";
+export { resolvePathWithinTaskDir } from "./lib/resolve-path-within-task-dir";
+export { taskDir } from "./lib/task-dir-utils";
 export {
   type WorkspaceActorRef,
   type WorkspaceEvent,

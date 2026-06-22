@@ -27,7 +27,7 @@ async function setupTask() {
   dir = path.join(tasksDir, id);
   await fs.mkdir(path.join(dir, "sub"), { recursive: true });
   // createMockTaskConfig publishes the singleton; point it at the temp dir so
-  // the watcher's createAppConfig resolves dir under it.
+  // the watcher resolves dir under it.
   createMockTaskConfig(id);
   workspaceConfig = {
     ...getWorkspaceConfig(),

@@ -4,13 +4,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
-import { taskDir } from "../lib/app-dir-utils";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { Store } from "../lib/store";
 import { systemNote } from "../lib/system-note";
+import { taskDir } from "../lib/task-dir-utils";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -86,7 +86,7 @@ export const BashTool = setupTool({
     let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
     if (truncated) {
       spillFilePath = RelativePathSchema.parse(
-        path.posix.join(APP_FOLDER_NAMES.state, "bash-output", `${partId}.log`),
+        path.posix.join(TASK_FOLDER_NAMES.state, "bash-output", `${partId}.log`),
       );
       const absPath = absolutePathJoin(taskDir(taskId), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });

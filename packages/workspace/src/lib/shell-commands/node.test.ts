@@ -3,7 +3,7 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { taskDir } from "../app-dir-utils";
+import { taskDir } from "../task-dir-utils";
 import { createNodeCommand } from "./node";
 
 vi.mock("execa");

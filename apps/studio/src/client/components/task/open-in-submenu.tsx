@@ -7,7 +7,7 @@ import type { TaskId } from "@instrument-org/workspace/client";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { OpenAppInTypeSchema } from "@/shared/schemas/editors";
+import { OpenTaskInTypeSchema } from "@/shared/schemas/editors";
 import { FolderOpenIcon, TerminalWindowIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -52,8 +52,8 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
     rpcClient.utils.getSupportedEditors.queryOptions(),
   );
 
-  const openAppInMutation = useMutation(
-    rpcClient.utils.openAppIn.mutationOptions({
+  const openTaskInMutation = useMutation(
+    rpcClient.utils.openTaskIn.mutationOptions({
       onError: (error) => {
         toast.error("Failed to open in app", {
           description: error.message,
@@ -82,7 +82,7 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
         <DropdownMenuItem
           className={devSubItemClass}
           onClick={() => {
-            void openAppInMutation.mutateAsync({
+            void openTaskInMutation.mutateAsync({
               id,
               type: "show-in-folder",
             });
@@ -103,9 +103,9 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
                   className={devSubItemClass}
                   key={editor.id}
                   onClick={() => {
-                    void openAppInMutation.mutateAsync({
+                    void openTaskInMutation.mutateAsync({
                       id,
-                      type: OpenAppInTypeSchema.parse(editor.id),
+                      type: OpenTaskInTypeSchema.parse(editor.id),
                     });
                   }}
                 >
@@ -128,9 +128,9 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
                   className={devSubItemClass}
                   key={editor.id}
                   onClick={() => {
-                    void openAppInMutation.mutateAsync({
+                    void openTaskInMutation.mutateAsync({
                       id,
-                      type: OpenAppInTypeSchema.parse(editor.id),
+                      type: OpenTaskInTypeSchema.parse(editor.id),
                     });
                   }}
                 >

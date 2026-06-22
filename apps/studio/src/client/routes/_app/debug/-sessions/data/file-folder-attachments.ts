@@ -1,4 +1,4 @@
-import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import { registerSession, SessionBuilder } from "../helpers";
 
@@ -35,37 +35,37 @@ const userMessageGridShowcase = builder.userMessage(
             // user-provided (shown first; image list thumbnail when asset URL resolves)
             mockFile({
               filename: "hero.png",
-              filePath: `${APP_FOLDER_NAMES.userProvided}/hero.png`,
+              filePath: `${TASK_FOLDER_NAMES.userProvided}/hero.png`,
               mimeType: "image/png",
               size: 245_760,
             }),
             mockFile({
               filename: "brief.md",
-              filePath: `${APP_FOLDER_NAMES.userProvided}/brief.md`,
+              filePath: `${TASK_FOLDER_NAMES.userProvided}/brief.md`,
               mimeType: "text/markdown",
             }),
             mockFile({
               filename: "data.csv",
-              filePath: `${APP_FOLDER_NAMES.userProvided}/data.csv`,
+              filePath: `${TASK_FOLDER_NAMES.userProvided}/data.csv`,
               mimeType: "text/csv",
               size: 4096,
             }),
             mockFile({
               filename: "voice.mp3",
-              filePath: `${APP_FOLDER_NAMES.userProvided}/voice.mp3`,
+              filePath: `${TASK_FOLDER_NAMES.userProvided}/voice.mp3`,
               mimeType: "audio/mpeg",
               size: 512_000,
             }),
             // output
             mockFile({
               filename: "summary.pdf",
-              filePath: `${APP_FOLDER_NAMES.output}/summary.pdf`,
+              filePath: `${TASK_FOLDER_NAMES.output}/summary.pdf`,
               mimeType: "application/pdf",
               size: 88_000,
             }),
             mockFile({
               filename: "demo.mp4",
-              filePath: `${APP_FOLDER_NAMES.output}/demo.mp4`,
+              filePath: `${TASK_FOLDER_NAMES.output}/demo.mp4`,
               mimeType: "video/mp4",
               size: 1_024_000,
             }),
@@ -84,22 +84,22 @@ const userMessageGridShowcase = builder.userMessage(
             // supporting sections (collapsed until "Show more")
             mockFile({
               filename: "deploy.sh",
-              filePath: `${APP_FOLDER_NAMES.scripts}/deploy.sh`,
+              filePath: `${TASK_FOLDER_NAMES.scripts}/deploy.sh`,
               mimeType: "text/plain",
             }),
             mockFile({
               filename: "SKILL.md",
-              filePath: `${APP_FOLDER_NAMES.skills}/pdf/SKILL.md`,
+              filePath: `${TASK_FOLDER_NAMES.skills}/pdf/SKILL.md`,
               mimeType: "text/markdown",
             }),
             mockFile({
               filename: "draft.json",
-              filePath: `${APP_FOLDER_NAMES.tmp}/draft.json`,
+              filePath: `${TASK_FOLDER_NAMES.tmp}/draft.json`,
               mimeType: "application/json",
             }),
             mockFile({
               filename: "page.html",
-              filePath: `${APP_FOLDER_NAMES.agentRetrieved}/page.html`,
+              filePath: `${TASK_FOLDER_NAMES.agentRetrieved}/page.html`,
               mimeType: "text/html",
             }),
             mockFile({
@@ -140,7 +140,7 @@ const userMessageWithFolders = builder.userMessage(
           files: [
             mockFile({
               filename: "one-off.txt",
-              filePath: `${APP_FOLDER_NAMES.userProvided}/one-off.txt`,
+              filePath: `${TASK_FOLDER_NAMES.userProvided}/one-off.txt`,
               mimeType: "text/plain",
             }),
           ],

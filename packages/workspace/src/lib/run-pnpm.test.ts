@@ -5,12 +5,12 @@ import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { runPnpmCommand } from "./run-pnpm";
 import { getWorkspaceConfig } from "./workspace-config";
 
-vi.mock(import("./execa-node-for-app"));
+vi.mock(import("./execa-node-for-task"));
 
 describe("runPnpmCommand", () => {
   it("sets npm_config_reporter=append-only on the child process env", async () => {
-    const { execaNodeForApp } = await import("./execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("./execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     } as never);
@@ -18,15 +18,15 @@ describe("runPnpmCommand", () => {
     const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
     await runPnpmCommand({ args: ["install"], taskId });
 
-    expect(execaNodeForApp).toHaveBeenCalledTimes(1);
+    expect(execaNodeForTask).toHaveBeenCalledTimes(1);
 
-    const firstCall = vi.mocked(execaNodeForApp).mock.calls[0];
+    const firstCall = vi.mocked(execaNodeForTask).mock.calls[0];
     expect(firstCall).toBeDefined();
     if (firstCall === undefined) {
-      throw new Error("expected execaNodeForApp to have been called");
+      throw new Error("expected execaNodeForTask to have been called");
     }
 
-    const [passedApp, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
+    const [passedTaskId, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
       typeof taskId,
       string,
       string[],
@@ -34,7 +34,7 @@ describe("runPnpmCommand", () => {
       unknown,
     ];
 
-    expect(passedApp).toBe(taskId);
+    expect(passedTaskId).toBe(taskId);
     expect(pnpmBin).toBe(getWorkspaceConfig().pnpmBinPath);
     expect(cliArgs).toEqual(["install"]);
     expect(execaOpts.env).toMatchObject({
@@ -45,8 +45,8 @@ describe("runPnpmCommand", () => {
   });
 
   it("sets npm_config_loglevel=error when pnpmLogLevel is error", async () => {
-    const { execaNodeForApp } = await import("./execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("./execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     } as never);
@@ -58,7 +58,7 @@ describe("runPnpmCommand", () => {
       taskId,
     });
 
-    expect(execaNodeForApp).toHaveBeenCalledWith(
+    expect(execaNodeForTask).toHaveBeenCalledWith(
       taskId,
       getWorkspaceConfig().pnpmBinPath,
       ["dlx", "jiti@2.6.1", "x.ts"],

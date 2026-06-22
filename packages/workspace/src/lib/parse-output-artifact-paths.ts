@@ -1,6 +1,6 @@
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 
-const OUTPUT_PREFIX = `${APP_FOLDER_NAMES.output}/`;
+const OUTPUT_PREFIX = `${TASK_FOLDER_NAMES.output}/`;
 
 // Parses `git show --name-status` output into the output/ files a commit
 // produced. Keeps added/modified/renamed entries (the destination path for

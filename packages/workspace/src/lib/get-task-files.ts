@@ -4,27 +4,27 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { RelativePathSchema, type TaskDir } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import { normalizePath } from "./normalize-path";
+import { taskDir } from "./task-dir-utils";
 
 export const INTERNAL_IGNORE_PATTERNS = [
   ".git",
   ".git/**",
   "node_modules",
   "node_modules/**",
-  APP_FOLDER_NAMES.private,
-  `${APP_FOLDER_NAMES.private}/**`,
-  APP_FOLDER_NAMES.state,
-  `${APP_FOLDER_NAMES.state}/**`,
-  APP_FOLDER_NAMES.tmp,
-  `${APP_FOLDER_NAMES.tmp}/**`,
+  TASK_FOLDER_NAMES.private,
+  `${TASK_FOLDER_NAMES.private}/**`,
+  TASK_FOLDER_NAMES.state,
+  `${TASK_FOLDER_NAMES.state}/**`,
+  TASK_FOLDER_NAMES.tmp,
+  `${TASK_FOLDER_NAMES.tmp}/**`,
   TASK_MANIFEST_FILE_NAME,
   // Generated lockfile (rewritten by every pnpm install, incl. inside loaded
   // skills). Never read or hand-edited; bare name matches at any depth. We do
@@ -203,7 +203,7 @@ export function outputArtifactsFromChanges(changes: TaskFileChange[]) {
     .filter(
       (change) =>
         change.status !== "deleted" &&
-        change.filePath.startsWith(`${APP_FOLDER_NAMES.output}/`),
+        change.filePath.startsWith(`${TASK_FOLDER_NAMES.output}/`),
     )
     .map(({ filePath, modifiedAt }) => ({ filePath, modifiedAt }))
     .sort((a, b) => a.filePath.localeCompare(b.filePath));

@@ -15,7 +15,6 @@ import { SubdomainPartSchema } from "../schemas/subdomain-part";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { ActiveReplays } from "./active-replays";
-import { taskDir } from "./app-dir-utils";
 import {
   TUTORIAL_TASK_REPLAY,
   type TutorialTaskWriteFileStep,
@@ -25,6 +24,7 @@ import { newTaskId } from "./new-task-id";
 import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
+import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-state-store";
 
 const DEFAULT_REPLAY_TIMING = {

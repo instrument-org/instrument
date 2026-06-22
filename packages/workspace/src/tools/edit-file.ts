@@ -9,18 +9,18 @@ import fs from "node:fs/promises";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { APP_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
-import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import {
   applyUnicodeFallbacks,
   resolveToolPath,
 } from "../lib/resolve-agent-path";
+import { taskDir } from "../lib/task-dir-utils";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -724,7 +724,7 @@ export const EditFile = setupTool({
     Performs exact string replacements in files. 
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./${APP_FOLDER_NAMES.output}/report.md
+    - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./${TASK_FOLDER_NAMES.output}/report.md
     - You must use your \`${ReadFile.name}\` tool at least once in the conversation before editing.
     - When editing text from \`${ReadFile.name}\` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: the line number right-padded with spaces to ${LINE_NUMBER_PAD_WIDTH} characters, followed by the \`${LINE_NUMBER_SEPARATOR}\` separator character. Everything after that separator is the actual file content to match. Never include any part of the line number prefix in the \`${INPUT_PARAMS.oldString}\` or \`${INPUT_PARAMS.newString}\`.
     - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.

@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { ulid } from "ulid";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { type FileUpload } from "../schemas/file-upload";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
@@ -218,7 +218,7 @@ function prepareUploadedFiles({
   files: FileUpload.Type[];
 }) {
   return safeTry(async function* () {
-    const inputDir = absolutePathJoin(dir, APP_FOLDER_NAMES.userProvided);
+    const inputDir = absolutePathJoin(dir, TASK_FOLDER_NAMES.userProvided);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -241,7 +241,7 @@ function prepareUploadedFiles({
       }
 
       const relativePath = RelativePathSchema.parse(
-        `${APP_FOLDER_NAMES.userProvided}/${uniqueFilename}`,
+        `${TASK_FOLDER_NAMES.userProvided}/${uniqueFilename}`,
       );
 
       preparedFiles.push({

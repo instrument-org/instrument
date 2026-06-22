@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
 import { ActiveReplays } from "../../lib/active-replays";
-import { taskDir } from "../../lib/app-dir-utils";
 import { getCurrentDate } from "../../lib/get-current-date";
 import {
   createReplaySession,
@@ -17,6 +16,7 @@ import {
 } from "../../lib/session-replay";
 import { type SpawnAgentFunction } from "../../lib/spawn-agent";
 import { Store } from "../../lib/store";
+import { taskDir } from "../../lib/task-dir-utils";
 import { getTaskManifest } from "../../lib/task-manifest";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -44,10 +44,10 @@ const replaySession = base
     const { delayMs, id, mode, sessionId } = input;
     const { workspaceConfig } = context;
 
-    const sourceAppConfig = id;
+    const sourceTaskId = id;
 
     const messagesResult = await Store.getMessagesWithParts(
-      { sessionId, taskId: sourceAppConfig },
+      { sessionId, taskId: sourceTaskId },
       { signal },
     );
     if (messagesResult.isErr()) {
@@ -73,12 +73,12 @@ const replaySession = base
       }),
     });
 
-    let targetAppConfig = sourceAppConfig;
+    let targetTaskId = sourceTaskId;
     let newSessionId: StoreId.Session;
     let replayMessages: ReplayMessage[];
 
     if (mode === "new-task") {
-      const sourceManifest = await getTaskManifest(taskDir(sourceAppConfig));
+      const sourceManifest = await getTaskManifest(taskDir(sourceTaskId));
       const sourceTaskName = sourceManifest?.name ?? id;
 
       const prepareResult = await prepareTaskReplay({
@@ -93,19 +93,19 @@ const replaySession = base
         throw toORPCError(prepareResult.error, errors);
       }
 
-      targetAppConfig = prepareResult.value.taskId;
+      targetTaskId = prepareResult.value.taskId;
       newSessionId = prepareResult.value.sessionId;
       replayMessages = prepareResult.value.replayMessages;
 
       publisher.publish("task.updated", {
-        id: targetAppConfig,
+        id: targetTaskId,
       });
     } else {
       const sessionResult = await createReplaySession({
         sessionNamePrefix: REPLAY_SESSION_NAME_PREFIX,
         signal,
         sourceMessages,
-        taskId: sourceAppConfig,
+        taskId: sourceTaskId,
       });
       if (sessionResult.isErr()) {
         workspaceConfig.captureException(sessionResult.error);
@@ -118,9 +118,9 @@ const replaySession = base
 
     const agentName: AgentName = "main";
     const abortController = new AbortController();
-    ActiveReplays.register(newSessionId, abortController, targetAppConfig);
+    ActiveReplays.register(newSessionId, abortController, targetTaskId);
     publisher.publish("replay.changed", {
-      id: targetAppConfig,
+      id: targetTaskId,
       isActive: true,
       sessionId: newSessionId,
     });
@@ -155,7 +155,7 @@ const replaySession = base
           ],
           role: "assistant",
         },
-        targetAppConfig,
+        targetTaskId,
       );
       return {
         completion: new Promise((resolve) => {
@@ -175,12 +175,12 @@ const replaySession = base
       sessionId: newSessionId,
       signal: abortController.signal,
       spawnAgent,
-      taskId: targetAppConfig,
+      taskId: targetTaskId,
     }).then(() => {
       if (ActiveReplays.isActive(newSessionId)) {
         ActiveReplays.cancel(newSessionId);
         publisher.publish("replay.changed", {
-          id: targetAppConfig,
+          id: targetTaskId,
           isActive: false,
           sessionId: newSessionId,
         });
@@ -190,7 +190,7 @@ const replaySession = base
     workspaceConfig.captureEvent("session.replay_started");
 
     return {
-      id: targetAppConfig,
+      id: targetTaskId,
       sessionId: newSessionId,
     };
   });

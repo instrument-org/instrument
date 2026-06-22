@@ -12,8 +12,8 @@ import {
   TaskManifestUpdateSchema,
 } from "../schemas/task-manifest";
 import { absolutePathJoin } from "./absolute-path-join";
-import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
+import { taskDir } from "./task-dir-utils";
 
 export async function getTaskManifest(
   dir: TaskDir,

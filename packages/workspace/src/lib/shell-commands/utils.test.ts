@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { taskDir } from "../app-dir-utils";
+import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { extractFileAndScriptArgs, parseScriptRunnerArgs } from "./utils";
 
@@ -84,12 +84,12 @@ describe("extractFileAndScriptArgs", () => {
         label: "deep dot-dot traversal clamped to dir",
       },
     ])("$label", ({ cwd, expected, input }) => {
-      const appCwd = `${dir}${cwd === "/" ? "" : cwd}`;
+      const taskCwd = `${dir}${cwd === "/" ? "" : cwd}`;
       const result = extractFileAndScriptArgs(
         [input],
         [input],
         taskId,
-        appCwd,
+        taskCwd,
         resolvePath(cwd),
       );
       expect(result).toBeDefined();
@@ -158,12 +158,12 @@ describe("extractFileAndScriptArgs", () => {
     ])("$label", ({ cwd, expected, scriptArgs }) => {
       const file = "script.ts";
       const args = [file, ...scriptArgs];
-      const appCwd = `${dir}${cwd === "/" ? "" : cwd}`;
+      const taskCwd = `${dir}${cwd === "/" ? "" : cwd}`;
       const result = extractFileAndScriptArgs(
         [file],
         args,
         taskId,
-        appCwd,
+        taskCwd,
         resolvePath(cwd),
       );
       expect(result).toBeDefined();

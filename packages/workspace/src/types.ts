@@ -7,12 +7,10 @@ import {
 } from "@instrument-org/shared";
 import { z } from "zod";
 
-import { type APP_STATUSES } from "./constants";
+import { type TASK_STATUSES } from "./constants";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
-
-export type AppStatus = (typeof APP_STATUSES)[number];
 
 export interface BrowserConfig {
   captureScreenshot: (targetId: BrowserTargetId) => Promise<Buffer | undefined>;
@@ -56,6 +54,8 @@ export interface BrowserTarget {
   type: "page";
   url: string;
 }
+
+export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 // The bridge routing key for a single browser view: a (id, sessionId)
 // tuple encoded as `${id}/${sessionId}`. The schema delegates to the

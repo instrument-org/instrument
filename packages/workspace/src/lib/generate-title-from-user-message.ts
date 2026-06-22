@@ -111,14 +111,14 @@ function buildSystemPrompt(templateTitle?: string): string {
     "Process these images\n\nFiles attached by user: photo1.jpg, photo2.png" → Image processing
     "Review this document\n\nFiles attached by user: report.pdf" → Document review`;
 
-  const appExamples = dedent`
+  const taskExamples = dedent`
     "Build me a calculator app" → Calculator app
     "Create a todo list with drag and drop" → Todo list
     "Make a kanban board for task management" → Kanban board`;
 
   const examples = dedent`
   <examples>
-  ${appExamples}
+  ${taskExamples}
   ${baseExamples}
   </examples>`;
 

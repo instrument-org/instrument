@@ -8,9 +8,9 @@ import { dedent } from "radashi";
 
 import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
-import { taskDir } from "../app-dir-utils";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
+import { taskDir } from "../task-dir-utils";
 import { createTsCommand, TS_COMMAND } from "./ts";
 import { resolveCommandContext } from "./utils";
 
@@ -220,10 +220,10 @@ function createDlxAliasCommand(
       return aliasResult;
     }
 
-    const { appCwd, env } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const result = await runPnpmCommand({
       args: ["dlx", ...normalizedArgs],
-      cwd: appCwd,
+      cwd: taskCwd,
       env,
       pnpmLogLevel: "error",
       signal: ctx.signal,

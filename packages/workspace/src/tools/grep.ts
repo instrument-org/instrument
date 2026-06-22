@@ -3,9 +3,9 @@ import { err, ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { taskDir } from "../lib/app-dir-utils";
 import { grep } from "../lib/grep";
 import { resolveAgentPath, resolveToolPath } from "../lib/resolve-agent-path";
+import { taskDir } from "../lib/task-dir-utils";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 

@@ -28,7 +28,7 @@ export const CONTACT_EMAIL = `hello@${APP_DOMAIN}`;
 export const TASK_MANIFEST_FILE_NAME = `instrument.json`;
 export const EVAL_SUBDOMAIN_PREFIX = "eval-";
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
-export const APP_PRIVATE_FOLDER_NAME = `.instrument`;
+export const TASK_PRIVATE_FOLDER_NAME = `.instrument`;
 
 // 47xxx-48xxx range: above WSL2/Hyper-V exclusion bands (~4k-10k) and below
 // the OS ephemeral range (49152+). Env suffixes (prod/dev/test) allow all

@@ -7,8 +7,8 @@ import { createStorage } from "unstorage";
 import dbDriver from "unstorage/drivers/db0";
 
 import { type TaskId } from "../schemas/task-id";
-import { sessionStorePath, taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
+import { sessionStorePath, taskDir } from "./task-dir-utils";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
 
 // Avoids possible SQLite database lock errors if we create the same storage

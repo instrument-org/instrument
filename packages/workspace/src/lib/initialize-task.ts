@@ -1,14 +1,14 @@
 import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { type TaskId } from "../schemas/task-id";
 import { type TaskManifestUpdate } from "../schemas/task-manifest";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
-import { taskDir, templateExists } from "./app-dir-utils";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
+import { taskDir, templateExists } from "./task-dir-utils";
 import { updateTaskManifest } from "./task-manifest";
 
 export async function initializeTask(
@@ -78,9 +78,9 @@ export async function initializeTask(
     // Create standard directories so they appear in the file tree. Avoids agent
     // spending a tool call to create them.
     const standardDirs = [
-      APP_FOLDER_NAMES.output,
-      APP_FOLDER_NAMES.scripts,
-      APP_FOLDER_NAMES.tmp,
+      TASK_FOLDER_NAMES.output,
+      TASK_FOLDER_NAMES.scripts,
+      TASK_FOLDER_NAMES.tmp,
     ];
     for (const dirName of standardDirs) {
       yield* ResultAsync.fromPromise(

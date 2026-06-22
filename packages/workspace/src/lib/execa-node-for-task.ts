@@ -2,11 +2,11 @@ import { execa, type Options } from "execa";
 
 import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
-import { taskDir } from "./app-dir-utils";
 import { ffmpegSubprocessEnv } from "./ffmpeg";
+import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
-export function execaNodeForApp<
+export function execaNodeForTask<
   OptionsType extends Omit<Options, "cwd"> = Omit<Options, "cwd">,
 >(
   taskId: TaskId,

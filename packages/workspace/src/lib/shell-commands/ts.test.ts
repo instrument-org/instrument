@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { taskDir } from "../app-dir-utils";
+import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createTsCommand } from "./ts";
 
-vi.mock(import("../execa-node-for-app"));
+vi.mock(import("../execa-node-for-task"));
 
 const realFs = new InMemoryFs();
 
@@ -69,8 +69,8 @@ describe("tsCommand", () => {
   it("executes eval code via -e flag by writing a tmp file", async () => {
     mockFs({ [taskDir(taskId)]: {} });
 
-    const { execaNodeForApp } = await import("../execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "hello",
       exitCode: 0,
     } as never);
@@ -81,7 +81,7 @@ describe("tsCommand", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
+    expect(vi.mocked(execaNodeForTask)).toHaveBeenCalledWith(
       taskId,
       getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
@@ -97,8 +97,8 @@ describe("tsCommand", () => {
   it("executes eval code via --eval flag by writing a tmp file", async () => {
     mockFs({ [taskDir(taskId)]: {} });
 
-    const { execaNodeForApp } = await import("../execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "hello",
       exitCode: 0,
     } as never);
@@ -109,7 +109,7 @@ describe("tsCommand", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
+    expect(vi.mocked(execaNodeForTask)).toHaveBeenCalledWith(
       taskId,
       getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
@@ -135,8 +135,8 @@ describe("tsCommand", () => {
   });
 
   it("passes named flags and their values through to the script", async () => {
-    const { execaNodeForApp } = await import("../execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     } as never);
@@ -153,7 +153,7 @@ describe("tsCommand", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
+    expect(vi.mocked(execaNodeForTask)).toHaveBeenCalledWith(
       taskId,
       getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
@@ -171,15 +171,15 @@ describe("tsCommand", () => {
   });
 
   it("resolves the script file path without exposing the host dir", async () => {
-    const { execaNodeForApp } = await import("../execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     } as never);
 
     await command.execute(["/scripts/run.ts"], mockCtx);
 
-    const calledPath = vi.mocked(execaNodeForApp).mock.calls.at(-1)?.[2]?.[2];
+    const calledPath = vi.mocked(execaNodeForTask).mock.calls.at(-1)?.[2]?.[2];
     expect(calledPath).toBeDefined();
     expect(calledPath).not.toContain(taskDir(taskId));
     expect(calledPath).toBe("scripts/run.ts");

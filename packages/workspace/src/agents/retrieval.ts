@@ -17,7 +17,7 @@ export const retrievalAgent = setupAgent({
   agentTools: pick(TOOLS, ["CopyToProject", "Glob", "Grep", "ReadFile"]),
   name: "retrieval",
 }).create(({ agentTools, name }) => ({
-  getMessages: async ({ appConfig, sessionId }) => {
+  getMessages: async ({ sessionId, taskId }) => {
     const now = getCurrentDate();
 
     const systemMessage = createSystemMessage({
@@ -48,7 +48,7 @@ export const retrievalAgent = setupAgent({
       `.trim(),
     });
 
-    const projectState = await getProjectState(taskDir(appConfig));
+    const projectState = await getProjectState(taskDir(taskId));
 
     const attachedFoldersText = projectState.attachedFolders
       ? await Promise.all(

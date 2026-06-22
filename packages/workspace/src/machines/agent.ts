@@ -13,7 +13,6 @@ import {
 } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
@@ -26,6 +25,7 @@ import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { getToolByType, type ToolOutputByName } from "../tools/all";
 import { type AnyAgentTool } from "../tools/types";
 import {
@@ -83,18 +83,18 @@ export const agentMachine = setup({
       void,
       {
         agent: AnyAgent;
-        appConfig: AppConfig;
         model: AIGatewayModel.Type;
         parentMessageId: StoreId.Message;
         sessionId: StoreId.Session;
+        taskId: TaskId;
       }
     >(async ({ input, signal }) => {
       await input.agent.onFinish({
-        appConfig: input.appConfig,
         model: input.model,
         parentMessageId: input.parentMessageId,
         sessionId: input.sessionId,
         signal,
+        taskId: input.taskId,
       });
     }),
 
@@ -103,14 +103,14 @@ export const agentMachine = setup({
       void,
       {
         agent: AnyAgent;
-        appConfig: AppConfig;
         sessionId: StoreId.Session;
+        taskId: TaskId;
       }
     >(async ({ input, signal }) => {
       return input.agent.onStart({
-        appConfig: input.appConfig,
         sessionId: input.sessionId,
         signal,
+        taskId: input.taskId,
       });
     }),
 
@@ -118,9 +118,9 @@ export const agentMachine = setup({
       // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
       void,
       {
-        appConfig: AppConfig;
         maxStepCount: number;
         sessionId: StoreId.Session;
+        taskId: TaskId;
       }
     >(async ({ input, signal }) => {
       const now = getCurrentDate();
@@ -152,7 +152,7 @@ export const agentMachine = setup({
           ],
           role: "assistant",
         },
-        input.appConfig,
+        input.taskId,
         { signal },
       );
 
@@ -167,14 +167,14 @@ export const agentMachine = setup({
       boolean,
       {
         agent: AnyAgent;
-        appConfig: AppConfig;
         sessionId: StoreId.Session;
+        taskId: TaskId;
       }
     >(async ({ input, signal }) => {
       const messageResults = await Store.getMessagesWithParts(
         {
-          appConfig: input.appConfig,
           sessionId: input.sessionId,
+          taskId: input.taskId,
         },
         { signal },
       );
@@ -201,7 +201,6 @@ export const agentMachine = setup({
   types: {
     context: {} as {
       agent: AnyAgent;
-      appConfig: AppConfig;
       baseLLMRetryDelayMs: number;
       error?: unknown;
       llmRequestChunkTimeoutMs: number;
@@ -215,6 +214,7 @@ export const agentMachine = setup({
       sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
       stepCount: number;
+      taskId: TaskId;
       toolCallExecuteRef: ExecuteToolCallActorRef | null;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
       toolChoice?: "auto" | "none" | "required";
@@ -222,7 +222,6 @@ export const agentMachine = setup({
     events: {} as AgentMachineEvent,
     input: {} as {
       agent: AnyAgent;
-      appConfig: AppConfig;
       baseLLMRetryDelayMs: number;
       llmRequestChunkTimeoutMs: number;
       maxStepCount: number;
@@ -231,6 +230,7 @@ export const agentMachine = setup({
       parentRef: ParentActorRef;
       sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
+      taskId: TaskId;
       toolChoice?: "auto" | "none" | "required";
     },
     output: {} as AgentResult,
@@ -238,7 +238,6 @@ export const agentMachine = setup({
 }).createMachine({
   context: ({ input }) => ({
     agent: input.agent,
-    appConfig: input.appConfig,
     baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
     llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
     maxRetryCount: 3,
@@ -251,6 +250,7 @@ export const agentMachine = setup({
     sessionId: input.sessionId,
     spawnAgent: input.spawnAgent,
     stepCount: 0,
+    taskId: input.taskId,
     toolCallExecuteRef: null,
     toolCallQueue: [],
     toolChoice: input.toolChoice,
@@ -315,7 +315,7 @@ export const agentMachine = setup({
                       },
                       state: "output-error",
                     }) as SessionMessagePart.Type,
-              context.appConfig,
+              context.taskId,
             );
           }
           return context.pendingToolCalls.filter(
@@ -349,11 +349,11 @@ export const agentMachine = setup({
           });
           return {
             agentName: context.agent.name,
-            appConfig: context.appConfig,
             model: context.model,
             part: nextToolCall,
             sessionId: context.sessionId,
             spawnAgent: context.spawnAgent,
+            taskId: context.taskId,
           };
         },
         onDone: {
@@ -385,10 +385,10 @@ export const agentMachine = setup({
       invoke: {
         input: ({ context }) => ({
           agent: context.agent,
-          appConfig: context.appConfig,
           model: context.model,
           parentMessageId: context.parentMessageId,
           sessionId: context.sessionId,
+          taskId: context.taskId,
         }),
         onDone: "Done",
         onError: { actions: "assignEventError", target: "Done" },
@@ -402,11 +402,11 @@ export const agentMachine = setup({
         input: ({ context, self }) => {
           return {
             agent: context.agent,
-            appConfig: context.appConfig,
             model: context.model,
             self,
             sessionId: context.sessionId,
             stepCount: context.stepCount,
+            taskId: context.taskId,
             toolChoice: context.toolChoice,
           };
         },
@@ -501,8 +501,8 @@ export const agentMachine = setup({
       invoke: {
         input: ({ context }) => ({
           agent: context.agent,
-          appConfig: context.appConfig,
           sessionId: context.sessionId,
+          taskId: context.taskId,
         }),
         onDone: [
           {
@@ -581,9 +581,9 @@ export const agentMachine = setup({
     SavingMaxStepsMessage: {
       invoke: {
         input: ({ context }) => ({
-          appConfig: context.appConfig,
           maxStepCount: context.maxStepCount,
           sessionId: context.sessionId,
+          taskId: context.taskId,
         }),
         onDone: "Finishing",
         onError: { actions: "assignEventError", target: "Finishing" },
@@ -595,8 +595,8 @@ export const agentMachine = setup({
       invoke: {
         input: ({ context }) => ({
           agent: context.agent,
-          appConfig: context.appConfig,
           sessionId: context.sessionId,
+          taskId: context.taskId,
         }),
         onDone: "MaybeStartingLLMRequest",
         onError: { actions: "assignEventError", target: "Finishing" },

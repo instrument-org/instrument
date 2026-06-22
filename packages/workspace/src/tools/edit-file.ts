@@ -734,12 +734,12 @@ export const EditFile = setupTool({
     - Multiple calls to this tool will be run in serial, ensuring that each edit is complete before the next one starts.
     - Using this tool multiple times in parallel will still greatly improve efficiency and reduce costs.
   `,
-  execute: async ({ appConfig, input, signal }) => {
+  execute: async ({ input, signal, taskId }) => {
     if (input.oldString === input.newString) {
       return executeError("oldString and newString must be different");
     }
 
-    const pathResult = resolveToolPath(taskDir(appConfig), input.filePath);
+    const pathResult = resolveToolPath(taskDir(taskId), input.filePath);
     if (pathResult.isErr()) {
       return err(pathResult.error);
     }

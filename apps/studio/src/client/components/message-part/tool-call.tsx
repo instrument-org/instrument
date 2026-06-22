@@ -51,7 +51,7 @@ export function ToolCall({
       isStreaming={isStreaming}
     >
       <ToolCallSummary
-        assetBaseUrl={project.urls.assetBase}
+        assetBaseUrl={project.assetBase}
         isDeadDevMode={isDeadDevMode}
         part={part}
       >
@@ -104,7 +104,7 @@ function ToolCallBody({
 
   switch (part.type) {
     case "tool-bash": {
-      return <ToolBash assetBaseUrl={project.urls.assetBase} part={part} />;
+      return <ToolBash assetBaseUrl={project.assetBase} part={part} />;
     }
     case "tool-choose": {
       return <ToolChoose part={part} />;
@@ -118,7 +118,7 @@ function ToolCallBody({
     case "tool-generate_image": {
       return (
         <ToolGenerateImage
-          assetBaseUrl={project.urls.assetBase}
+          assetBaseUrl={project.assetBase}
           id={project.id}
           onRetry={onRetry}
           part={part}

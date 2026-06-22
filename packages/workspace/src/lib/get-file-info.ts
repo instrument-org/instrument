@@ -7,7 +7,7 @@ import { type TaskId } from "../schemas/task-id";
 import { TypedError } from "./errors";
 import { getMimeType } from "./get-mime-type";
 import { normalizeProjectFilePath } from "./normalize-project-file-path";
-import { urlsForSubdomain } from "./url-for-subdomain";
+import { assetBaseUrl } from "./url-for-subdomain";
 
 export const CurrentFileInfoSchema = z.object({
   filename: z.string(),
@@ -23,9 +23,8 @@ export function getCurrentFileInfo({
   filePath: RelativePath;
   taskId: TaskId;
 }) {
-  const urls = urlsForSubdomain(taskId);
   const cleanPath = normalizeProjectFilePath(filePath);
-  const url = `${urls.assetBase}/${cleanPath}`;
+  const url = `${assetBaseUrl(taskId)}/${cleanPath}`;
 
   const filename = path.basename(filePath);
   const mimeType = getMimeType(filename);

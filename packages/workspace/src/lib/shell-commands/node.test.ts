@@ -18,8 +18,8 @@ const mockCtx: CommandContext = {
 };
 
 describe("nodeCommand", () => {
-  const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
-  const command = createNodeCommand(appConfig);
+  const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+  const command = createNodeCommand(taskId);
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -176,7 +176,7 @@ describe("nodeCommand", () => {
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     assert(Array.isArray(calledArgs), "expected args array");
-    expect(calledArgs[0]).not.toContain(taskDir(appConfig));
+    expect(calledArgs[0]).not.toContain(taskDir(taskId));
     expect(calledArgs[0]).toBe("scripts/run.js");
   });
 });

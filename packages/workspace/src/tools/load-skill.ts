@@ -122,7 +122,7 @@ export const LoadSkill = setupTool({
       Note: if the skill includes a package.json, pnpm install will be run automatically in the task after the skill is copied.
     `.trim();
   },
-  execute: async ({ appConfig, input, signal }) => {
+  execute: async ({ input, signal, taskId }) => {
     const { registryDir } = getWorkspaceConfig();
     const { all, skill } = await findSkill(registryDir, input.name);
 
@@ -138,7 +138,7 @@ export const LoadSkill = setupTool({
     }
 
     const copyResult = await copySkill({
-      dir: taskDir(appConfig),
+      dir: taskDir(taskId),
       signal,
       skillDir: skill.skillDir,
       skillName: skill.name,
@@ -167,9 +167,9 @@ export const LoadSkill = setupTool({
 
     if (hasPackageJson) {
       const { combined, exitCode } = await runPnpmCommand({
-        appConfig,
         args: ["install"],
         signal,
+        taskId,
       });
       installResult =
         exitCode === 0

@@ -1,10 +1,9 @@
 import { html } from "hono/html";
 import path from "node:path";
 
-import { createAppConfig } from "../../lib/app-config/create";
-import { type AppConfig } from "../../lib/app-config/types";
 import { taskDir } from "../../lib/app-dir-utils";
 import { getProjects } from "../../lib/get-apps";
+import { localhostUrl } from "../../lib/url-for-subdomain";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type RuntimeActorRef } from "../../machines/runtime";
 import { type Task } from "../../schemas/app";
@@ -14,7 +13,7 @@ import { getWorkspaceServerPort } from "./url";
 
 interface AppAndStatus {
   app: Task;
-  config: AppConfig;
+  config: TaskId;
   port?: number;
   status: string;
 }
@@ -152,7 +151,7 @@ export async function RuntimeList({
                         <div class="flex flex-col">
                           <div class="flex items-center gap-2">
                             <a
-                              href="${app.app.urls.localhost}"
+                              href="${localhostUrl(app.app.id)}"
                               class="text-blue-400 font-medium"
                             >
                               ${app.app.id}
@@ -223,7 +222,7 @@ function getAppWithExtra({
 
   return {
     app,
-    config: createAppConfig({ id: app.id }),
+    config: app.id,
     port,
     status,
   };

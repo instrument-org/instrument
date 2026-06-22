@@ -1,6 +1,5 @@
 import { type ActorRef, type MachineSnapshot } from "xstate";
 
-import { type AppConfig } from "../../lib/app-config/types";
 import { type RuntimeActorRef } from "../../machines/runtime";
 import { type WorkspaceContext } from "../../machines/workspace/types";
 import { type AbsolutePath } from "../../schemas/paths";
@@ -32,9 +31,9 @@ export type WorkspaceServerParentEvent =
   | {
       type: "workspaceServer.heartbeat";
       value: {
-        appConfig: AppConfig;
         createdAt: number;
         shouldCreate: boolean;
+        taskId: TaskId;
       };
     }
   | { type: "workspaceServer.started"; value: { port: number } }

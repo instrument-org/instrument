@@ -235,11 +235,11 @@ export const ReadFile = setupTool({
       - You can read images, PDFs, audio files, and video files by using this tool.
     `;
   },
-  execute: async ({ agentName, appConfig, input, projectState, signal }) => {
+  execute: async ({ agentName, input, projectState, signal, taskId }) => {
     const pathResult = resolveExistingFilePath({
       agentName,
       attachedFolders: projectState.attachedFolders,
-      dir: taskDir(appConfig),
+      dir: taskDir(taskId),
       inputPath: input.filePath,
     });
 

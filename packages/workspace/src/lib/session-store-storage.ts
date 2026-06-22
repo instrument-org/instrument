@@ -7,7 +7,6 @@ import { createStorage } from "unstorage";
 import dbDriver from "unstorage/drivers/db0";
 
 import { type TaskId } from "../schemas/task-id";
-import { type AppConfig } from "./app-config/types";
 import { sessionStorePath, taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
@@ -51,30 +50,30 @@ export function disposeSessionsStoreStorage(id: TaskId) {
   );
 }
 
-export function getSessionsStoreStorage(appConfig: AppConfig) {
+export function getSessionsStoreStorage(taskId: TaskId) {
   return ResultAsync.fromPromise(
-    fs.access(taskDir(appConfig)),
+    fs.access(taskDir(taskId)),
     (error) =>
-      new TypedError.NotFound(`Folder ${taskDir(appConfig)} does not exist`, {
+      new TypedError.NotFound(`Folder ${taskDir(taskId)} does not exist`, {
         cause: error,
       }),
   )
     .andThen(() => {
-      if (DISPOSING_STORAGES.has(appConfig)) {
+      if (DISPOSING_STORAGES.has(taskId)) {
         return err(
           new TypedError.Storage(
-            `Cannot create storage for ${appConfig} while it is being deleted`,
+            `Cannot create storage for ${taskId} while it is being deleted`,
           ),
         );
       }
 
-      const existingStorage = STORAGE_CACHE.get(appConfig);
+      const existingStorage = STORAGE_CACHE.get(taskId);
       if (existingStorage) {
         return ok(existingStorage);
       }
 
       const database = createDatabase(
-        sqlite({ path: sessionStorePath(taskDir(appConfig)) }),
+        sqlite({ path: sessionStorePath(taskDir(taskId)) }),
       );
 
       const storage = createStorage({
@@ -89,18 +88,18 @@ export function getSessionsStoreStorage(appConfig: AppConfig) {
         storage.getItem(`__canary__`),
         (error) =>
           new TypedError.Storage(
-            `Failed to read session database at ${sessionStorePath(taskDir(appConfig))}`,
+            `Failed to read session database at ${sessionStorePath(taskDir(taskId))}`,
             { cause: error },
           ),
       ).map(() => {
         const wrappedStorage = wrapStorage(storage);
         STORAGE_TO_DATABASE.set(wrappedStorage, database);
-        STORAGE_CACHE.set(appConfig, wrappedStorage);
+        STORAGE_CACHE.set(taskId, wrappedStorage);
         return wrappedStorage;
       });
     })
     .orTee(() => {
-      STORAGE_CACHE.delete(appConfig);
+      STORAGE_CACHE.delete(taskId);
     });
 }
 

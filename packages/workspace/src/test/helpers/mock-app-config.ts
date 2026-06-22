@@ -12,7 +12,6 @@ import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import path from "node:path";
 import { noop } from "radashi";
 
-import { createAppConfig } from "../../lib/app-config/create";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -112,12 +111,12 @@ export function createMockAppConfig(
   mockProviderConfigs.set(config.id, config);
   setWorkspaceConfig(workspaceConfig);
 
-  return createAppConfig({ id });
+  return id;
 }
 
 // Returns a task id whose taskDir(id) resolves to `dir`, by pointing the
 // singleton's tasksDir at its parent. Replaces the old pattern of spreading
-// a mock AppConfig and overriding dir. The dir's basename must be a valid id.
+// a mock TaskId and overriding dir. The dir's basename must be a valid id.
 export function createMockAppConfigForDir(
   dir: string,
   options: Parameters<typeof createMockAppConfig>[1] = {},

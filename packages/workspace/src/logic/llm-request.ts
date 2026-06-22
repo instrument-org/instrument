@@ -17,7 +17,6 @@ import {
 import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
@@ -28,15 +27,16 @@ import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { ToolNameSchema } from "../tools/name";
 
 interface LLMRequestInput {
   agent: AnyAgent;
-  appConfig: AppConfig;
   model: AIGatewayModel.Type;
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
   sessionId: StoreId.Session;
   stepCount: number;
+  taskId: TaskId;
   toolChoice?: "auto" | "none" | "required";
 }
 
@@ -49,7 +49,7 @@ export const llmRequestLogic = fromPromise<
 >(async ({ input, signal }) => {
   const scopedStore = {
     saveMessage: (message: Parameters<typeof Store.saveMessage>[0]) =>
-      Store.saveMessage(message, input.appConfig, { signal }).then((result) => {
+      Store.saveMessage(message, input.taskId, { signal }).then((result) => {
         if (result.isErr()) {
           getWorkspaceConfig().captureException(result.error, {
             scopes: ["workspace", "llm-request"],
@@ -59,7 +59,7 @@ export const llmRequestLogic = fromPromise<
         return result.value;
       }),
     savePart: (part: Parameters<typeof Store.savePart>[0]) =>
-      Store.savePart(part, input.appConfig, { signal }).then((result) => {
+      Store.savePart(part, input.taskId, { signal }).then((result) => {
         if (result.isErr()) {
           getWorkspaceConfig().captureException(result.error, {
             scopes: ["workspace", "llm-request"],
@@ -100,7 +100,7 @@ export const llmRequestLogic = fromPromise<
     const partsResult = await Store.getParts(
       input.sessionId,
       assistantMessage.id,
-      input.appConfig,
+      input.taskId,
       { signal },
     );
     if (partsResult.isErr()) {
@@ -117,16 +117,16 @@ export const llmRequestLogic = fromPromise<
   for (const tool of agentTools) {
     tools[tool.name as string] = await tool.aiSDKTool({
       agentName: input.agent.name,
-      appConfig: input.appConfig,
+      taskId: input.taskId,
     });
   }
 
   const messagesResult = await prepareModelMessages({
     agent: input.agent,
-    appConfig: input.appConfig,
     model: input.model,
     sessionId: input.sessionId,
     signal,
+    taskId: input.taskId,
   });
 
   if (messagesResult.isErr()) {

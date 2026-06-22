@@ -121,7 +121,7 @@ export const CopyToProject = setupTool({
     If you must reference copied files when responding to the parent agent, use the destination paths returned by this tool, not the source paths.
     The parent agent can then access the copied files.
   `,
-  execute: async ({ agentName, appConfig, input, projectState, signal }) => {
+  execute: async ({ agentName, input, projectState, signal, taskId }) => {
     if (agentName !== "retrieval") {
       return executeError("This tool is only available to the retrieval agent");
     }
@@ -156,7 +156,7 @@ export const CopyToProject = setupTool({
     const pathResult = resolveAgentPath({
       agentName,
       attachedFolders: projectState.attachedFolders,
-      dir: taskDir(appConfig),
+      dir: taskDir(taskId),
       inputPath: input.path,
       isRequired: true,
     });
@@ -181,7 +181,7 @@ export const CopyToProject = setupTool({
     }
 
     const retrievedDir = absolutePathJoin(
-      taskDir(appConfig),
+      taskDir(taskId),
       APP_FOLDER_NAMES.agentRetrieved,
     );
     await fs.mkdir(retrievedDir, { recursive: true });
@@ -242,7 +242,7 @@ export const CopyToProject = setupTool({
 
       const destinationRelative = `./${APP_FOLDER_NAMES.agentRetrieved}/${uniqueFilename}`;
       const destinationAbsolute = absolutePathJoin(
-        taskDir(appConfig),
+        taskDir(taskId),
         destinationRelative,
       );
 

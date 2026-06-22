@@ -6,8 +6,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent } from "radashi";
 
-import type { AppConfig } from "../app-config/types";
-
 import { APP_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
@@ -90,19 +88,19 @@ const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
 const IDLE_TIMEOUT_MS = "30000";
 
 export function createAgentBrowserCommand({
-  appConfig,
   sessionId,
+  taskId,
   upsertContextItem,
 }: {
-  appConfig: AppConfig;
   sessionId: StoreId.Session;
+  taskId: TaskId;
   upsertContextItem: UpsertContextItem;
 }) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
     const workspaceConfig = getWorkspaceConfig();
     const serverPort = getWorkspaceServerPort();
 
-    if (!isTaskId(appConfig)) {
+    if (!isTaskId(taskId)) {
       return {
         exitCode: 1,
         stderr: "agent-browser: browser is only available in task contexts.\n",
@@ -110,7 +108,7 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const id = appConfig;
+    const id = taskId;
 
     // Match both --flag and --flag=value forms.
     const blockedArg = args.find((a) => {
@@ -139,9 +137,9 @@ export function createAgentBrowserCommand({
       return INFO_ONLY_FLAGS.has(flagName);
     });
 
-    const { appCwd, env } = resolveCommandContext(appConfig, ctx);
+    const { appCwd, env } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
-    const resolvedArgs = resolvePathArgs(strippedArgs, appConfig, ctx);
+    const resolvedArgs = resolvePathArgs(strippedArgs, taskId, ctx);
 
     // Info-only invocations (--help, --version) print and exit without ever
     // touching a browser target, so don't spin up a WebContentsView or attach
@@ -154,14 +152,14 @@ export function createAgentBrowserCommand({
       // (id, sessionId) pair if one is already live, so sub-agents and
       // repeat invocations within the same session reuse the same browsing
       // surface (cookies, page, debugger).
-      const partitionDir = getBrowserSessionDir(taskDir(appConfig));
+      const partitionDir = getBrowserSessionDir(taskDir(taskId));
       const target = await workspaceConfig.browser.createTarget(
         id,
         sessionId,
         partitionDir,
       );
       targetId = target.targetId;
-      await recordBrowserUseBestEffort({ appConfig, sessionId });
+      await recordBrowserUseBestEffort({ sessionId, taskId });
 
       const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
       commandArgs.push(
@@ -173,10 +171,10 @@ export function createAgentBrowserCommand({
       );
     }
 
-    const tmpDir = absolutePathJoin(taskDir(appConfig), APP_FOLDER_NAMES.tmp);
+    const tmpDir = absolutePathJoin(taskDir(taskId), APP_FOLDER_NAMES.tmp);
     const screenshotDir = absolutePathJoin(tmpDir, "agent-browser-screenshots");
     const downloadPath = absolutePathJoin(tmpDir, "agent-browser-downloads");
-    const agentBrowserStateDir = getAgentBrowserStateDir(taskDir(appConfig));
+    const agentBrowserStateDir = getAgentBrowserStateDir(taskDir(taskId));
     // Relative so agent-browser outputs screenshot paths the agent sees as relative
     // to its cwd (e.g. "tmp/agent-browser-screenshots/shot.png"), not host absolute.
     const screenshotDirRelative = path.relative(appCwd, screenshotDir);
@@ -185,7 +183,7 @@ export function createAgentBrowserCommand({
     // download path); this is a per-project sink for anything that falls back
     // to $HOME (e.g. ~/.agent-browser/config reads, future writes).
     const homeDir = absolutePathJoin(
-      taskDir(appConfig),
+      taskDir(taskId),
       APP_FOLDER_NAMES.private,
       "agent-browser-home",
     );
@@ -204,7 +202,6 @@ export function createAgentBrowserCommand({
     const observation = isInfoOnly
       ? undefined
       : await beginBrowserCommandObservation({
-          appConfig,
           sessionId,
           subcommand: subcommandText,
           taskId: id,
@@ -241,10 +238,10 @@ export function createAgentBrowserCommand({
     } finally {
       if (targetId) {
         await enrichBrowserState({
-          appConfig,
           id,
           sessionId,
           targetId,
+          taskId,
         });
       }
     }
@@ -272,23 +269,23 @@ export function createAgentBrowserCommand({
 }
 
 async function enrichBrowserState({
-  appConfig,
   id,
   sessionId,
   targetId,
+  taskId,
 }: {
-  appConfig: AppConfig;
   id: TaskId;
   sessionId: StoreId.Session;
   targetId: BrowserTargetId;
+  taskId: TaskId;
 }) {
   try {
     const targets = await getWorkspaceConfig().browser.listTargets(id);
     const target = targets.find((t) => t.id === targetId);
     if (target) {
       await recordBrowserUseBestEffort({
-        appConfig,
         sessionId,
+        taskId,
         title: target.title,
         url: target.url,
       });
@@ -299,19 +296,19 @@ async function enrichBrowserState({
 }
 
 async function recordBrowserUseBestEffort({
-  appConfig,
   sessionId,
+  taskId,
   title,
   url,
 }: {
-  appConfig: AppConfig;
   sessionId: StoreId.Session;
+  taskId: TaskId;
   title?: string;
   url?: string;
 }) {
   const result = await recordBrowserUse({
-    appConfig,
     sessionId,
+    taskId,
     title,
     url,
   });

@@ -28,12 +28,12 @@ import {
 import { setupAgent } from "../agents/create-agent";
 import { mainAgent } from "../agents/main";
 import { type AnyAgent } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
 import { Store } from "../lib/store";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
@@ -273,7 +273,6 @@ describe("sessionMachine", () => {
     const actor = createActor(sessionMachine, {
       input: {
         agent,
-        appConfig: testAppConfig,
         baseLLMRetryDelayMs,
         llmRequestChunkTimeoutMs,
         maxStepCount,
@@ -339,6 +338,7 @@ describe("sessionMachine", () => {
         } as unknown as AnyActorRef,
         queuedMessages,
         sessionId,
+        taskId: testAppConfig,
       },
       // Uncomment to debug
       // inspect(event) {
@@ -383,21 +383,21 @@ describe("sessionMachine", () => {
       // },
     });
 
-    return { actor, appConfig: testAppConfig, sessionId };
+    return { actor, sessionId, taskId: testAppConfig };
   }
 
   async function runTestMachine({
     actor,
-    appConfig,
     sessionId,
+    taskId,
   }: {
     actor: ActorRefFrom<typeof sessionMachine>;
-    appConfig: AppConfig;
     sessionId: StoreId.Session;
+    taskId: TaskId;
   }) {
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
-    return Store.getSessionWithMessagesAndParts(sessionId, appConfig);
+    return Store.getSessionWithMessagesAndParts(sessionId, taskId);
   }
 
   async function createAndRunTestMachine(

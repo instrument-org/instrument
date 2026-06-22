@@ -1,8 +1,7 @@
 import { defineCommand, latin1FromBytes } from "just-bash";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 
-import type { AppConfig } from "../app-config/types";
-
+import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { runPnpmCommand } from "../run-pnpm";
 import {
@@ -25,9 +24,9 @@ const KNOWN_OPTIONS = {
   version: { type: "boolean" },
 } as const;
 
-export function createTsCommand(appConfig: AppConfig) {
+export function createTsCommand(taskId: TaskId) {
   return defineCommand(TS_COMMAND.name, async (args, ctx) => {
-    const { appCwd, env } = resolveCommandContext(appConfig, ctx);
+    const { appCwd, env } = resolveCommandContext(taskId, ctx);
 
     if (args.length === 0) {
       return {
@@ -61,7 +60,7 @@ export function createTsCommand(appConfig: AppConfig) {
       const fileAndArgs = extractFileAndScriptArgs(
         positionals,
         args,
-        appConfig,
+        taskId,
         appCwd,
         (p) => ctx.fs.resolvePath(ctx.cwd, p),
       );
@@ -95,13 +94,13 @@ export function createTsCommand(appConfig: AppConfig) {
       // Use pnpm dlx for faster execution via cached packages and avoid
       // installing all packages eagerly.
       const result = await runPnpmCommand({
-        appConfig,
         args: ["dlx", "jiti@2.6.1", filePath, ...scriptArgs],
         cwd: appCwd,
         env,
         pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
         signal: ctx.signal,
         stdin: latin1FromBytes(ctx.stdin) || undefined,
+        taskId,
       });
 
       return {

@@ -13,14 +13,14 @@ import { disposeSessionsStoreStorage } from "./session-store-storage";
 const id = TaskIdSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();
 
-let appConfig: TaskId;
+let taskId: TaskId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
   const tasksDir = path.join(root, "projects");
-  appConfig = createMockAppConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(taskDir(appConfig), { recursive: true });
+  taskId = createMockAppConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(taskDir(taskId), { recursive: true });
 });
 
 afterEach(async () => {
@@ -30,12 +30,12 @@ afterEach(async () => {
 
 describe("browser state", () => {
   it("distinguishes unused sessions from recorded browser use", async () => {
-    const before = await getBrowserState(appConfig, sessionId);
+    const before = await getBrowserState(taskId, sessionId);
     expect(before._unsafeUnwrap()).toBeUndefined();
 
-    await recordBrowserUse({ appConfig, sessionId });
+    await recordBrowserUse({ sessionId, taskId });
 
-    expect(await getBrowserState(appConfig, sessionId)).toMatchObject({
+    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
       value: {
         lastUsedAt: expect.any(Date),
       },
@@ -44,14 +44,14 @@ describe("browser state", () => {
 
   it("preserves the last known page when a later observation has none", async () => {
     await recordBrowserUse({
-      appConfig,
       sessionId,
+      taskId,
       title: "Example",
       url: "https://example.com",
     });
-    await recordBrowserUse({ appConfig, sessionId });
+    await recordBrowserUse({ sessionId, taskId });
 
-    expect(await getBrowserState(appConfig, sessionId)).toMatchObject({
+    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
       value: {
         lastTitle: "Example",
         lastUrl: "https://example.com",

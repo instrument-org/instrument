@@ -191,7 +191,6 @@ describe("llmRequestLogic", () => {
                 onStart: () => Promise.resolve(),
                 shouldContinue: () => Promise.resolve(true),
               },
-              appConfig: projectAppConfig,
               captureEvent: () => {
                 // no-op
               },
@@ -200,6 +199,7 @@ describe("llmRequestLogic", () => {
               self: { send: vi.fn() } as unknown as AnyActorRef,
               sessionId,
               stepCount: 1,
+              taskId: projectAppConfig,
             }),
             onDone: "Done",
             onError: {
@@ -214,22 +214,22 @@ describe("llmRequestLogic", () => {
       },
     });
 
-    return { appConfig: projectAppConfig, machine, mockLanguageModel };
+    return { machine, mockLanguageModel, taskId: projectAppConfig };
   }
 
   async function runTestMachine({
-    appConfig,
     machine,
+    taskId,
   }: Pick<
     Awaited<ReturnType<typeof createTestMachine>>,
-    "appConfig" | "machine"
+    "machine" | "taskId"
   >) {
     const actor = createActor(machine);
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
     const sessionResult = await Store.getSessionWithMessagesAndParts(
       sessionId,
-      appConfig,
+      taskId,
     );
     return sessionResult._unsafeUnwrap();
   }
@@ -1372,7 +1372,7 @@ describe("llmRequestLogic", () => {
       await waitFor(actor, (state) => state.status === "done");
       const sessionResult = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        testMachine.appConfig,
+        testMachine.taskId,
       );
       const messages = sessionResult._unsafeUnwrap().messages;
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
@@ -1539,7 +1539,7 @@ describe("llmRequestLogic", () => {
           },
           role: "user",
         },
-        testMachine.appConfig,
+        testMachine.taskId,
       );
       await Store.saveParts(
         [
@@ -1555,7 +1555,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       await Store.saveMessage(
@@ -1564,7 +1564,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       return testMachine;
@@ -1609,12 +1609,12 @@ describe("llmRequestLogic", () => {
       const testMachine = await setupPromptMessagesTest();
       await Store.savePart(
         SessionMessagePart.coerce(readFilePart),
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       await runTestMachine({
-        appConfig: testMachine.appConfig,
         machine: testMachine.machine,
+        taskId: testMachine.taskId,
       });
       expect(prompts).toMatchInlineSnapshot(`
         [
@@ -1709,7 +1709,7 @@ describe("llmRequestLogic", () => {
             type: "tool-write_file",
           },
         ],
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       await runTestMachine(testMachine);
@@ -1826,7 +1826,7 @@ describe("llmRequestLogic", () => {
             type: "tool-write_file",
           },
         ],
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       await runTestMachine(testMachine);
@@ -1913,7 +1913,7 @@ describe("llmRequestLogic", () => {
             type: "tool-read_file",
           },
         ],
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       await runTestMachine(testMachine);
@@ -1994,7 +1994,7 @@ describe("llmRequestLogic", () => {
           },
           role: "user",
         },
-        testMachine.appConfig,
+        testMachine.taskId,
       );
       await Store.saveParts(
         [
@@ -2010,7 +2010,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       await Store.saveMessage(
@@ -2019,7 +2019,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       const secondMessageId = StoreId.newMessageId();
@@ -2029,7 +2029,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.appConfig,
+        testMachine.taskId,
       );
       await Store.saveParts(
         [
@@ -2045,7 +2045,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.appConfig,
+        testMachine.taskId,
       );
       const thirdMessageId = StoreId.newMessageId();
       await Store.saveMessage(
@@ -2054,7 +2054,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.appConfig,
+        testMachine.taskId,
       );
       await Store.saveParts(
         [
@@ -2070,7 +2070,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       await runTestMachine(testMachine);
@@ -2214,7 +2214,7 @@ describe("llmRequestLogic", () => {
           ],
           role: "session-context",
         },
-        testMachine.appConfig,
+        testMachine.taskId,
       );
 
       const { messages } = await runTestMachine(testMachine);

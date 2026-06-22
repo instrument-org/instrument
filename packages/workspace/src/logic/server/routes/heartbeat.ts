@@ -4,7 +4,6 @@ import ms from "ms";
 import { isEqual } from "radashi";
 import { type Subscription } from "xstate";
 
-import { createAppConfig } from "../../../lib/app-config/create";
 import { isRunnable, taskDir } from "../../../lib/app-dir-utils";
 import { type RuntimeSnapshot } from "../../../machines/runtime";
 import { type AppStatus } from "../../../types";
@@ -37,7 +36,7 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
 
   const { id } = uriDetails.value;
 
-  const appConfig = createAppConfig({ id });
+  const taskId = id;
 
   return streamSSE(c, async (stream) => {
     let lastResponse: HeartbeatResponse | null = null;
@@ -72,14 +71,14 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
       const runtimeRef = c.var.getRuntimeRef(id);
 
       if (!runtimeRef) {
-        const canRun = await isRunnable(taskDir(appConfig));
+        const canRun = await isRunnable(taskDir(taskId));
         if (canRun) {
           c.var.parentRef.send({
             type: "workspaceServer.heartbeat",
             value: {
-              appConfig,
               createdAt: Date.now(),
               shouldCreate: false,
+              taskId,
             },
           });
           return pushResponse({ status: "loading" });
@@ -91,9 +90,9 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
       c.var.parentRef.send({
         type: "workspaceServer.heartbeat",
         value: {
-          appConfig,
           createdAt: Date.now(),
           shouldCreate: false,
+          taskId,
         },
       });
 

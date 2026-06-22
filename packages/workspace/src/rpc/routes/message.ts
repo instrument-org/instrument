@@ -4,7 +4,6 @@ import { call, eventIterator } from "@orpc/server";
 import { parallel } from "radashi";
 import { z } from "zod";
 
-import { createAppConfig } from "../../lib/app-config/create";
 import { createSession } from "../../lib/create-session";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { newMessage } from "../../lib/new-message";
@@ -32,10 +31,10 @@ const listWithParts = base
   .output(z.array(SessionMessage.WithPartsSchema))
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const appConfig = createAppConfig({ id });
+    const taskId = id;
     const messages = await Store.getMessagesWithParts({
-      appConfig,
       sessionId,
+      taskId,
     });
 
     if (messages.isErr()) {
@@ -63,7 +62,7 @@ const create = base
       errors,
       input: { files, folders, id, modelURI, prompt, sessionId },
     }) => {
-      const appConfig = createAppConfig({ id });
+      const taskId = id;
 
       const modelResult = await fetchModel({
         captureException: context.workspaceConfig.captureException,
@@ -84,8 +83,8 @@ const create = base
         finalSessionId = sessionId;
       } else {
         const sessionResult = await createSession({
-          appConfig,
           sessionId: StoreId.newSessionId(),
+          taskId,
         });
         if (sessionResult.isErr()) {
           context.workspaceConfig.captureException(sessionResult.error);
@@ -96,7 +95,7 @@ const create = base
 
       const messageIdsBeforeResult = await Store.getMessageIds(
         finalSessionId,
-        appConfig,
+        taskId,
       );
       if (messageIdsBeforeResult.isErr()) {
         context.workspaceConfig.captureException(messageIdsBeforeResult.error);
@@ -105,13 +104,13 @@ const create = base
       const isFirstMessageInSession = messageIdsBeforeResult.value.length === 0;
 
       const messageResult = await newMessage({
-        appConfig,
         files,
         folders,
         model,
         modelURI,
         prompt,
         sessionId: finalSessionId,
+        taskId,
       });
 
       if (messageResult.isErr()) {
@@ -129,8 +128,8 @@ const create = base
         }).then(async (title) => {
           if (title.isOk()) {
             await updateSessionTitle({
-              appConfig,
               sessionId: message.metadata.sessionId,
+              taskId,
               title: title.value,
             });
           }
@@ -149,7 +148,7 @@ const create = base
       });
 
       publisher.publish("project.updated", {
-        id: appConfig,
+        id: taskId,
       });
 
       return { sessionId: message.metadata.sessionId };
@@ -166,11 +165,11 @@ const count = base
   .output(z.number())
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const appConfig = createAppConfig({ id });
+    const taskId = id;
 
     const messageIds = sessionId
-      ? await Store.getMessageIds(sessionId, appConfig)
-      : await Store.getAllMessageIds(appConfig);
+      ? await Store.getMessageIds(sessionId, taskId)
+      : await Store.getAllMessageIds(taskId);
 
     if (messageIds.isErr()) {
       const error = toORPCError(messageIds.error, errors);
@@ -244,14 +243,14 @@ const usageSummary = base
   .output(UsageSummarySchema)
   .handler(async ({ input, signal }) => {
     const { id, messages } = input;
-    const appConfig = createAppConfig({ id });
+    const taskId = id;
 
     const results = await parallel(
       { limit: 10, signal },
       messages,
       async ({ messageId, sessionId }) => {
         const result = await Store.getMessageWithParts(
-          { appConfig, messageId, sessionId },
+          { messageId, sessionId, taskId },
           { signal },
         );
         return result.isOk() ? result.value : null;

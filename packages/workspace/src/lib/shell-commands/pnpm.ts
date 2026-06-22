@@ -6,8 +6,7 @@ import {
 } from "just-bash";
 import { dedent } from "radashi";
 
-import type { AppConfig } from "../app-config/types";
-
+import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { taskDir } from "../app-dir-utils";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
@@ -77,16 +76,16 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
 
 const DEV_OR_START = new Set(["dev", "start"]);
 
-export function createNpxCommand(appConfig: AppConfig) {
+export function createNpxCommand(taskId: TaskId) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
-    appConfig,
+    taskId,
     stripNpxCompatibilityFlags,
   );
 }
 
-export function createPnpmCommand(appConfig: AppConfig) {
-  const tsCommand = createTsCommand(appConfig);
+export function createPnpmCommand(taskId: TaskId) {
+  const tsCommand = createTsCommand(taskId);
 
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
@@ -164,24 +163,24 @@ export function createPnpmCommand(appConfig: AppConfig) {
     let installOutput = "";
     if (!subcommand || !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
       const installResult = await runPnpmCommand({
-        appConfig,
         args: ["install"],
         env,
         signal: ctx.signal,
+        taskId,
       });
       if (installResult.exitCode !== 0) {
         installOutput = `[auto-install failed]\n${installResult.combined}\n\n`;
       }
     }
 
-    const cwd = absolutePathJoin(taskDir(appConfig), ctx.cwd);
+    const cwd = absolutePathJoin(taskDir(taskId), ctx.cwd);
     const result = await runPnpmCommand({
-      appConfig,
       args: filteredArgs,
       cwd,
       env,
       signal: ctx.signal,
       stdin: latin1FromBytes(ctx.stdin) || undefined,
+      taskId,
     });
 
     let globalNote = "";
@@ -201,17 +200,17 @@ export function createPnpmCommand(appConfig: AppConfig) {
   });
 }
 
-export function createPnpxCommand(appConfig: AppConfig) {
-  return createDlxAliasCommand(PNPX_COMMAND.name, appConfig);
+export function createPnpxCommand(taskId: TaskId) {
+  return createDlxAliasCommand(PNPX_COMMAND.name, taskId);
 }
 
-export function createPnxCommand(appConfig: AppConfig) {
-  return createDlxAliasCommand(PNX_COMMAND.name, appConfig);
+export function createPnxCommand(taskId: TaskId) {
+  return createDlxAliasCommand(PNX_COMMAND.name, taskId);
 }
 
 function createDlxAliasCommand(
   name: string,
-  appConfig: AppConfig,
+  taskId: TaskId,
   normalizeArgs = (args: string[]) => args,
 ) {
   return defineCommand(name, async (args, ctx) => {
@@ -221,15 +220,15 @@ function createDlxAliasCommand(
       return aliasResult;
     }
 
-    const { appCwd, env } = resolveCommandContext(appConfig, ctx);
+    const { appCwd, env } = resolveCommandContext(taskId, ctx);
     const result = await runPnpmCommand({
-      appConfig,
       args: ["dlx", ...normalizedArgs],
       cwd: appCwd,
       env,
       pnpmLogLevel: "error",
       signal: ctx.signal,
       stdin: latin1FromBytes(ctx.stdin) || undefined,
+      taskId,
     });
 
     return {

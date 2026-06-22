@@ -2,7 +2,6 @@ import { execa } from "execa";
 import path from "node:path";
 import readline from "node:readline/promises";
 
-import { createAppConfig } from "../src/lib/app-config/create";
 import { getProjects } from "../src/lib/get-apps";
 import { Store } from "../src/lib/store";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
@@ -33,7 +32,7 @@ process.stdout.write("\nSelect a task:\n\n");
 for (const [index, project] of projects.entries()) {
   const updatedDate = project.updatedAt.toLocaleDateString();
   process.stdout.write(
-    `  ${index + 1}. ${project.title} (${project.folderName}) - Updated: ${updatedDate}\n`,
+    `  ${index + 1}. ${project.title} (${project.id}) - Updated: ${updatedDate}\n`,
   );
 }
 
@@ -65,9 +64,9 @@ if (!selectedProject) {
 
 process.stdout.write(`\nLoading sessions for ${selectedProject.title}...\n`);
 
-const appConfig = createAppConfig({ id: selectedProject.id });
+const taskId = selectedProject.id;
 
-const sessionIdsResult = await Store.getStoreId(appConfig);
+const sessionIdsResult = await Store.getStoreId(taskId);
 
 if (sessionIdsResult.isErr()) {
   throw new Error(
@@ -84,7 +83,7 @@ const sessions = [];
 for (const sessionId of sessionIds) {
   const sessionResult = await Store.getSessionWithMessagesAndParts(
     sessionId,
-    appConfig,
+    taskId,
   );
 
   if (sessionResult.isErr()) {

@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
-import { createAppConfig } from "../../../lib/app-config/create";
 import { taskDir } from "../../../lib/app-dir-utils";
 import {
   getProjectState,
@@ -15,9 +14,9 @@ const get = base
   .input(z.object({ id: TaskIdSchema }))
   .output(ProjectStateSchema)
   .handler(async ({ input }) => {
-    const appConfig = createAppConfig({ id: input.id });
+    const taskId = input.id;
 
-    return getProjectState(taskDir(appConfig));
+    return getProjectState(taskDir(taskId));
   });
 
 const set = base
@@ -29,7 +28,7 @@ const set = base
   )
   .output(z.void())
   .handler(async ({ input }) => {
-    const appConfig = createAppConfig({ id: input.id });
+    const taskId = input.id;
 
     const stateToSave = { ...input.state };
 
@@ -40,7 +39,7 @@ const set = base
       delete stateToSave.promptDraft;
     }
 
-    await setProjectState(taskDir(appConfig), stateToSave);
+    await setProjectState(taskDir(taskId), stateToSave);
   });
 
 export const projectState = {

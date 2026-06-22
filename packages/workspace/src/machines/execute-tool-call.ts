@@ -4,13 +4,13 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { assign, fromPromise, log, setup } from "xstate";
 
 import { type AgentName } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
 import { getCurrentDate } from "../lib/get-current-date";
 import { runToolCall } from "../lib/run-tool-call";
 import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { getToolByType } from "../tools/all";
 
 type CancellationReason = "manual" | "timeout" | "unknown";
@@ -19,25 +19,25 @@ const executeToolLogic = fromPromise<
   { preliminarySaved: boolean },
   {
     agentName: AgentName;
-    appConfig: AppConfig;
     model: AIGatewayModel.Type;
     part: SessionMessagePart.ToolPartInputAvailable;
     sessionId: StoreId.Session;
     spawnAgent: SpawnAgentFunction;
+    taskId: TaskId;
   }
 >(
   async ({
-    input: { agentName, appConfig, model, part, sessionId, spawnAgent },
+    input: { agentName, model, part, sessionId, spawnAgent, taskId },
     signal,
   }) => {
     return runToolCall({
       agentName,
-      appConfig,
       model,
       part,
       sessionId,
       signal,
       spawnAgent,
+      taskId,
     });
   },
 );
@@ -48,9 +48,9 @@ export const executeToolCallMachine = setup({
       // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
       void,
       {
-        appConfig: AppConfig;
         part: SessionMessagePart.ToolPartInputAvailable;
         reason: CancellationReason;
+        taskId: TaskId;
       }
     >(async ({ input, signal }) => {
       await Store.updatePart(
@@ -69,7 +69,7 @@ export const executeToolCallMachine = setup({
             },
             state: "output-error",
           }) as SessionMessagePart.Type,
-        input.appConfig,
+        input.taskId,
         { signal },
       );
     }),
@@ -82,8 +82,8 @@ export const executeToolCallMachine = setup({
       const tool = getToolByType(context.part.type);
       return typeof tool.timeoutMs === "function"
         ? tool.timeoutMs({
-            appConfig: context.appConfig,
             input: context.part.input as never,
+            taskId: context.taskId,
           })
         : tool.timeoutMs;
     },
@@ -92,32 +92,32 @@ export const executeToolCallMachine = setup({
   types: {
     context: {} as {
       agentName: AgentName;
-      appConfig: AppConfig;
       cancellationReason: CancellationReason;
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
+      taskId: TaskId;
     },
     events: {} as { type: "stop" },
     input: {} as {
       agentName: AgentName;
-      appConfig: AppConfig;
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
+      taskId: TaskId;
     },
   },
 }).createMachine({
   context: ({ input }) => ({
     agentName: input.agentName,
-    appConfig: input.appConfig,
     cancellationReason: "unknown",
     model: input.model,
     part: input.part,
     sessionId: input.sessionId,
     spawnAgent: input.spawnAgent,
+    taskId: input.taskId,
   }),
   id: "executeToolCall",
   initial: "Executing",
@@ -125,9 +125,9 @@ export const executeToolCallMachine = setup({
     Cancelling: {
       invoke: {
         input: ({ context }) => ({
-          appConfig: context.appConfig,
           part: context.part,
           reason: context.cancellationReason,
+          taskId: context.taskId,
         }),
         onDone: "Done",
         onError: { actions: log(({ event }) => event.error), target: "Done" },
@@ -147,11 +147,11 @@ export const executeToolCallMachine = setup({
       invoke: {
         input: ({ context }) => ({
           agentName: context.agentName,
-          appConfig: context.appConfig,
           model: context.model,
           part: context.part,
           sessionId: context.sessionId,
           spawnAgent: context.spawnAgent,
+          taskId: context.taskId,
         }),
         onDone: [
           {

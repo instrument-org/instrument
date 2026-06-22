@@ -10,7 +10,6 @@ import {
   fromCallback,
 } from "xstate";
 
-import { type AppConfig } from "../lib/app-config/types";
 import { taskDir } from "../lib/app-dir-utils";
 import { cancelableTimeout, TimeoutError } from "../lib/cancelable-timeout";
 import { execaNodeForApp } from "../lib/execa-node-for-app";
@@ -20,6 +19,7 @@ import { getPackageManager } from "../lib/get-package-manager";
 import { pathExists } from "../lib/path-exists";
 import { PortManager } from "../lib/port-manager";
 import { getWorkspaceConfig } from "../lib/workspace-config";
+import { type TaskId } from "../schemas/task-id";
 import { DEFAULT_RUNTIME_BASE_PORT } from "./server/constants";
 import { getWorkspaceServerURL } from "./server/url";
 
@@ -105,11 +105,11 @@ function sendProcessLogs(
 export const spawnRuntimeLogic = fromCallback<
   AnyEventObject,
   {
-    appConfig: AppConfig;
     attempt: number;
     parentRef: ActorRef<AnyMachineSnapshot, SpawnRuntimeEvent>;
+    taskId: TaskId;
   }
->(({ input: { appConfig, attempt, parentRef } }) => {
+>(({ input: { attempt, parentRef, taskId } }) => {
   const abortController = new AbortController();
   const timeout = cancelableTimeout(
     BASE_RUNTIME_TIMEOUT_MS + attempt * RUNTIME_TIMEOUT_MULTIPLIER_MS,
@@ -118,7 +118,7 @@ export const spawnRuntimeLogic = fromCallback<
   let port: number | undefined;
 
   async function main() {
-    const buildInfo = await getBuildInfo({ projectDir: taskDir(appConfig) });
+    const buildInfo = await getBuildInfo({ projectDir: taskDir(taskId) });
 
     port = await portManager.reservePort();
 
@@ -132,15 +132,13 @@ export const spawnRuntimeLogic = fromCallback<
       return;
     }
 
-    if (!(await pathExists(taskDir(appConfig)))) {
+    if (!(await pathExists(taskDir(taskId)))) {
       parentRef.send({
         isRetryable: false,
         shouldLog: true,
         type: "spawnRuntime.error.app-dir-does-not-exist",
         value: {
-          error: new Error(
-            `App directory does not exist: ${taskDir(appConfig)}`,
-          ),
+          error: new Error(`App directory does not exist: ${taskDir(taskId)}`),
         },
       });
       return;
@@ -162,7 +160,7 @@ export const spawnRuntimeLogic = fromCallback<
     });
 
     const installProcess = execaNodeForApp(
-      appConfig,
+      taskId,
       packageManager.command,
       packageManager.arguments,
       { cancelSignal: installSignal },
@@ -183,9 +181,9 @@ export const spawnRuntimeLogic = fromCallback<
     ]);
 
     const frameworkResult = await getFramework({
-      appConfig,
       buildInfo,
       port,
+      taskId,
     });
 
     if (frameworkResult.isErr()) {
@@ -217,7 +215,7 @@ export const spawnRuntimeLogic = fromCallback<
 
     timeout.start();
     const runtimeProcess = execaNodeForApp(
-      appConfig,
+      taskId,
       framework.command,
       framework.arguments,
       {

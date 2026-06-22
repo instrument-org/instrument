@@ -48,7 +48,7 @@ const live = {
         }
       }
     }),
-  statusBySubdomain: base
+  statusByTaskId: base
     .input(z.object({ id: TaskIdSchema }))
     .output(
       eventIterator(

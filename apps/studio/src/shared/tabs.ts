@@ -31,7 +31,7 @@ export function createIconMeta(icon: TabIconName) {
   };
 }
 
-export function createProjectSubdomainMeta(id: TaskId) {
+export function createTaskIdMeta(id: TaskId) {
   return {
     content: id,
     name: META_TAGS.taskId,

@@ -42,7 +42,7 @@ export function TaskStatusIcon({
 }) {
   const { data: appState } = useAppState({ id });
   const { data: replayStatus } = useQuery(
-    rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
+    rpcClient.workspace.replay.live.statusByTaskId.experimental_liveOptions({
       input: { id },
     }),
   );

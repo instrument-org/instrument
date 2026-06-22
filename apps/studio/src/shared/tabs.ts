@@ -21,7 +21,7 @@ export const SingleTabOnlyRoutes = /\/tasks\/[^/]+/;
 
 export const META_TAGS = {
   iconName: `${APP_NAME_SLUG}-icon-name`,
-  taskId: `${APP_NAME_SLUG}-project-subdomain`,
+  taskId: `${APP_NAME_SLUG}-task-id`,
 };
 
 export function createIconMeta(icon: TabIconName) {

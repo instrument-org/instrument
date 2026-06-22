@@ -14,7 +14,7 @@ export async function newProjectConfig({
   preferredFolderName?: SubdomainPart;
   workspaceConfig: WorkspaceConfig;
 }): Promise<AppConfigProject> {
-  const rawSubdomain =
+  const rawId =
     preferredFolderName &&
     !(await pathExists(
       absolutePathJoin(workspaceConfig.tasksDir, preferredFolderName),
@@ -23,6 +23,6 @@ export async function newProjectConfig({
       : await generateNewFolderName(workspaceConfig.tasksDir);
 
   return createAppConfig({
-    id: TaskIdSchema.parse(rawSubdomain),
+    id: TaskIdSchema.parse(rawId),
   });
 }

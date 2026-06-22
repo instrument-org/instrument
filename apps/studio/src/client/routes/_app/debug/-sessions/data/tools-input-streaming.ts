@@ -124,14 +124,14 @@ export function authMiddleware(
           },
           type: "tool-task",
         }),
-        builder.textPart("Calling copy_to_project...", assistantMessageId),
+        builder.textPart("Calling copy_to_task...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
             explanation: "Copy TypeScript config from attached folder",
             path: "/Users/user/external-proj",
             pattern: "tsconfig",
           },
-          type: "tool-copy_to_project",
+          type: "tool-copy_to_task",
         }),
         builder.textPart("Calling glob...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {

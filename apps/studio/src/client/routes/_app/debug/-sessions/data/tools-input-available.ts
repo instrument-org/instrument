@@ -198,7 +198,7 @@ describe("slugify", () => {
             path: "/Users/user/external-project",
             pattern: "tsconfig*.json",
           },
-          type: "tool-copy_to_project",
+          type: "tool-copy_to_task",
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {},

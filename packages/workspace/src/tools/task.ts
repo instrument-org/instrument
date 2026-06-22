@@ -162,7 +162,7 @@ export const Task = setupTool({
             toolCounts[part.type] = (toolCounts[part.type] ?? 0) + 1;
 
             if (
-              part.type === "tool-copy_to_project" &&
+              part.type === "tool-copy_to_task" &&
               part.state === "output-available"
             ) {
               copiedFiles.push(...part.output.files);

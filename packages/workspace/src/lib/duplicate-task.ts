@@ -8,7 +8,7 @@ import { TypedError } from "./errors";
 import { newTaskId } from "./new-task-id";
 import { pathExists } from "./path-exists";
 import { getTaskPrivateDir, sessionStorePath, taskDir } from "./task-dir-utils";
-import { getTaskManifest, updateTaskManifest } from "./task-manifest";
+import { getTaskSettings, updateTaskSettings } from "./task-settings";
 import { getTaskState, setTaskState } from "./task-state-store";
 
 interface DuplicateTaskOptions {
@@ -53,7 +53,7 @@ export async function duplicateTask(
       targetDir: taskDir(taskId),
     });
 
-    const sourceManifest = await getTaskManifest(taskDir(sourceId));
+    const sourceManifest = await getTaskSettings(taskDir(sourceId));
     const sourceName = sourceManifest?.name || sourceId;
     const duplicateName = `Copy of ${sourceName}`;
 
@@ -79,7 +79,7 @@ export async function duplicateTask(
       }
     }
 
-    yield* updateTaskManifest(taskId, {
+    yield* updateTaskSettings(taskId, {
       name: duplicateName,
     });
 

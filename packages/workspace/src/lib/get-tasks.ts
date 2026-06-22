@@ -15,7 +15,7 @@ import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
-import { getTaskManifest } from "./task-manifest";
+import { getTaskSettings } from "./task-settings";
 
 export async function getTask(
   id: TaskId,
@@ -98,7 +98,7 @@ async function readTask({ dir }: { dir: TaskDir }) {
   }
 
   const id = taskIdResult.data;
-  const manifest = await getTaskManifest(dir);
+  const manifest = await getTaskSettings(dir);
 
   const task: Task = {
     ...(await getTaskDirTimestamps(dir)),

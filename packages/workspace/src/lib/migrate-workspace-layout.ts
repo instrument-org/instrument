@@ -1,4 +1,7 @@
-import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import {
+  TASK_PRIVATE_FOLDER_NAME,
+  TASK_SETTINGS_FILE_NAME,
+} from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -8,12 +11,12 @@ import {
   TASKS_DIR_NAME,
 } from "../constants";
 
-// Legacy on-disk names from the phase-1 layout that this migration moves away
-// from. Kept as literals here (not constants) since the live code no longer
-// references them.
+// Legacy on-disk names this migration moves away from. Kept as literals here
+// (not constants) since the live code no longer references them.
 const LEGACY_TASKS_DIR_NAME = "projects";
 const LEGACY_STORE_DB_FILE_NAME = "sessions.db";
 const LEGACY_STATE_FILE_NAME = "project-state.json";
+const LEGACY_SETTINGS_FILE_NAME = "instrument.json";
 
 // SQLite keeps sidecar files next to the db; they must travel with it. Empty
 // suffix is the db file itself. Harmless if a given sidecar is absent.
@@ -41,6 +44,14 @@ export function migrateWorkspaceLayout({
 }: {
   rootDir: string;
 }): WorkspaceLayoutMigration {
+  const migration = migrateLegacyProjectsDir(rootDir);
+  // Normalize task-root files for every task — including ones already under
+  // tasks/ — independent of whether a legacy projects/ dir existed.
+  normalizeTaskRootFiles(path.join(rootDir, TASKS_DIR_NAME));
+  return migration;
+}
+
+function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
   const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
   const migration: WorkspaceLayoutMigration = {
     conflictedTaskIds: [],
@@ -107,6 +118,23 @@ function migrateTaskPrivateFiles(taskFolder: string) {
     path.join(privateDir, LEGACY_STATE_FILE_NAME),
     path.join(privateDir, TASK_STATE_FILE_NAME),
   );
+}
+
+// Renames each task's root settings file from the legacy `instrument.json` to
+// `settings.json`. Idempotent and independent of the projects/ migration.
+function normalizeTaskRootFiles(tasksDir: string) {
+  if (!fs.existsSync(tasksDir)) {
+    return;
+  }
+  for (const entry of fs.readdirSync(tasksDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    renameIfMissingTarget(
+      path.join(tasksDir, entry.name, LEGACY_SETTINGS_FILE_NAME),
+      path.join(tasksDir, entry.name, TASK_SETTINGS_FILE_NAME),
+    );
+  }
 }
 
 function renameIfMissingTarget(source: string, destination: string) {

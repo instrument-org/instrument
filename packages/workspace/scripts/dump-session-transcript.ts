@@ -10,7 +10,7 @@ import { TASKS_DIR_NAME } from "../src/constants";
 import { extractTaskZip } from "../src/lib/extract-task-zip";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
-import { getTaskManifest } from "../src/lib/task-manifest";
+import { getTaskSettings } from "../src/lib/task-settings";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { AbsolutePathSchema, TaskDirSchema } from "../src/schemas/paths";
 import { TaskIdSchema } from "../src/schemas/task-id";
@@ -57,7 +57,7 @@ if (isZip) {
   ({ dir } = await extractTaskZip({ outputDir: extractDir, zipBlob }));
 }
 
-const manifest = await getTaskManifest(dir);
+const manifest = await getTaskSettings(dir);
 const folderName = path.basename(dir);
 const id = TaskIdSchema.parse(folderName);
 setWorkspaceConfig(createStubWorkspaceConfig({ tasksDir }));

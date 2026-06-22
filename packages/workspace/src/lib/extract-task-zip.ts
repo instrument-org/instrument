@@ -1,4 +1,4 @@
-import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -24,11 +24,11 @@ export async function extractTaskZip({
   const entries = await zipReader.getEntries();
 
   const hasManifest = entries.some(
-    (entry) => entry.filename === TASK_MANIFEST_FILE_NAME,
+    (entry) => entry.filename === TASK_SETTINGS_FILE_NAME,
   );
   if (!hasManifest) {
     throw new TypedError.NotFound(
-      `Zip file does not contain ${TASK_MANIFEST_FILE_NAME}`,
+      `Zip file does not contain ${TASK_SETTINGS_FILE_NAME}`,
     );
   }
 

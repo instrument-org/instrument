@@ -344,9 +344,9 @@ export namespace Store {
         signal,
       });
       publisher.publish("message.removed", {
+        id: appConfig,
         messageId,
         sessionId,
-        subdomain: appConfig,
       });
       return ok(undefined);
     });
@@ -393,9 +393,9 @@ export namespace Store {
       );
 
       publisher.publish("message.updated", {
+        id: appConfig,
         messageId: savedMessage.id,
         sessionId: savedMessage.metadata.sessionId,
-        subdomain: appConfig,
       });
 
       return ok(savedMessage);
@@ -473,8 +473,8 @@ export namespace Store {
       // Now it's safe to publish part.updated for all parts
       for (const part of parts) {
         publisher.publish("part.updated", {
+          id: appConfig,
           part,
-          subdomain: appConfig,
         });
       }
       return ok(message);
@@ -506,8 +506,8 @@ export namespace Store {
 
       if (publish) {
         publisher.publish("part.updated", {
+          id: appConfig,
           part: savedPart,
-          subdomain: appConfig,
         });
       }
 
@@ -576,8 +576,8 @@ export namespace Store {
       );
 
       publisher.publish("session.updated", {
+        id: appConfig,
         sessionId: savedSession.id,
-        subdomain: appConfig,
       });
 
       return ok(savedSession);
@@ -706,8 +706,8 @@ export namespace Store {
       }
 
       publisher.publish("session.removed", {
+        id: appConfig,
         sessionId,
-        subdomain: appConfig,
       });
 
       return ok(undefined);

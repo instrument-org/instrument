@@ -44,7 +44,7 @@ export function StudioSidebar({
   );
 
   const favoriteSubdomains = useMemo(
-    () => new Set(favorites?.map((r) => r.subdomain) ?? []),
+    () => new Set(favorites?.map((r) => r.id) ?? []),
     [favorites],
   );
 
@@ -54,7 +54,7 @@ export function StudioSidebar({
     }
 
     return projectsData.projects.filter(
-      (project) => !favoriteSubdomains.has(project.subdomain),
+      (project) => !favoriteSubdomains.has(project.id),
     );
   }, [projectsData, favorites, favoriteSubdomains]);
 

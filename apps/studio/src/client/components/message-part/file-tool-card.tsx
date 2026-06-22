@@ -17,15 +17,15 @@ import { ToolCard, ToolCardHeader } from "./tool-card";
 export function FileToolCard({
   content,
   filePath,
+  id,
   language,
   modifiedAt,
-  subdomain,
 }: {
   content: string;
   filePath: string;
+  id: TaskId;
   language?: string;
   modifiedAt?: number;
-  subdomain: TaskId;
 }) {
   const { isStreaming } = useToolCallSession();
 
@@ -47,7 +47,7 @@ export function FileToolCard({
   };
 
   const handleAddToChat = () => {
-    appendToPrompt({ key: subdomain, update: filePath });
+    appendToPrompt({ key: id, update: filePath });
   };
 
   const handleExpand = () => {

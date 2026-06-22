@@ -9,16 +9,16 @@ import { resolvePathWithinTaskDir } from "./resolve-path-within-app-dir";
 
 interface ReadProjectFileOptions {
   filePath: string;
-  projectSubdomain: TaskId;
   signal?: AbortSignal;
+  taskId: TaskId;
 }
 
 export async function readProjectFile({
   filePath,
-  projectSubdomain,
   signal,
+  taskId,
 }: ReadProjectFileOptions): Promise<Buffer | null> {
-  const projectConfig = createAppConfig({ subdomain: projectSubdomain });
+  const projectConfig = createAppConfig({ id: taskId });
 
   const cleanPath = normalizeProjectFilePath(filePath);
 

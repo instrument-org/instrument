@@ -32,8 +32,8 @@ interface NavProjectItemProps {
   isActive: boolean;
   isFavorited: boolean;
   isFavorites: boolean;
-  onOpenInNewTab: (subdomain: TaskId) => void;
-  onRemoveFavorite?: (subdomain: TaskId) => void;
+  onOpenInNewTab: (id: TaskId) => void;
+  onRemoveFavorite?: (id: TaskId) => void;
   project: Task;
 }
 
@@ -90,8 +90,8 @@ export const NavProjectItem = memo(function NavProjectItem({
 
     try {
       await renameProject({
+        id: project.id,
         name: editValue.trim(),
-        subdomain: project.subdomain,
       });
       // wait for client update to avoid flicker
       await new Promise((resolve) => {
@@ -114,11 +114,11 @@ export const NavProjectItem = memo(function NavProjectItem({
   };
 
   const handleAddFavorite = async () => {
-    await addFavorite({ subdomain: project.subdomain });
+    await addFavorite({ id: project.id });
   };
 
   return (
-    <SidebarMenuItem className="group" key={project.subdomain}>
+    <SidebarMenuItem className="group" key={project.id}>
       {isEditing ? (
         <div className="flex h-9 items-center gap-2 px-2">
           <Input
@@ -149,7 +149,7 @@ export const NavProjectItem = memo(function NavProjectItem({
             <InternalLink
               onDoubleClick={handleStartEdit}
               openInCurrentTab
-              params={{ id: project.subdomain }}
+              params={{ id: project.id }}
               to="/tasks/$id"
             >
               <TaskIcon name={project.iconName} size="xs" />
@@ -161,7 +161,7 @@ export const NavProjectItem = memo(function NavProjectItem({
             <div className="pointer-events-none absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md group-hover:hidden">
               <TaskStatusIcon
                 className="mt-1 size-4 shrink-0"
-                subdomain={project.subdomain}
+                id={project.id}
               />
             </div>
           )}
@@ -178,7 +178,7 @@ export const NavProjectItem = memo(function NavProjectItem({
               <DropdownMenuItem
                 onClick={() => {
                   if (isFavorites && onRemoveFavorite) {
-                    onRemoveFavorite(project.subdomain);
+                    onRemoveFavorite(project.id);
                   } else {
                     void handleAddFavorite();
                   }
@@ -193,7 +193,7 @@ export const NavProjectItem = memo(function NavProjectItem({
             )}
             <InternalLink
               openInCurrentTab
-              params={{ id: project.subdomain }}
+              params={{ id: project.id }}
               search={{ showDuplicate: true }}
               to="/tasks/$id"
             >
@@ -209,7 +209,7 @@ export const NavProjectItem = memo(function NavProjectItem({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
-                onOpenInNewTab(project.subdomain);
+                onOpenInNewTab(project.id);
               }}
             >
               <ArrowUpRightIcon className="text-muted-foreground" />
@@ -218,7 +218,7 @@ export const NavProjectItem = memo(function NavProjectItem({
             <DropdownMenuSeparator />
             <InternalLink
               openInCurrentTab
-              params={{ id: project.subdomain }}
+              params={{ id: project.id }}
               search={{ showDelete: true }}
               to="/tasks/$id"
             >

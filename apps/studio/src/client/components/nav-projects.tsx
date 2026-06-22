@@ -38,9 +38,9 @@ export function NavProjects({
 }) {
   const { addTab } = useTabActions();
 
-  const handleOpenInNewTab = (subdomain: TaskId) => {
+  const handleOpenInNewTab = (id: TaskId) => {
     void addTab({
-      params: { id: subdomain },
+      params: { id },
       to: "/tasks/$id",
     });
   };
@@ -48,8 +48,8 @@ export function NavProjects({
   const { mutate: removeFavorite } = useMutation(
     rpcClient.favorites.remove.mutationOptions(),
   );
-  const handleRemoveFavorite = (subdomain: TaskId) => {
-    removeFavorite({ subdomain });
+  const handleRemoveFavorite = (id: TaskId) => {
+    removeFavorite({ id });
   };
 
   const projectsMatch = matches.find(
@@ -73,10 +73,9 @@ export function NavProjects({
 
   const hasMoreFavorites = isFavorites && projects.length > FAVORITES_LIMIT;
 
-  const isProjectActive = (subdomain: string) =>
+  const isProjectActive = (id: string) =>
     matches.some(
-      (match) =>
-        match.routeId === "/_app/tasks/$id/" && match.params.id === subdomain,
+      (match) => match.routeId === "/_app/tasks/$id/" && match.params.id === id,
     );
 
   return (
@@ -101,10 +100,10 @@ export function NavProjects({
           <>
             {visibleFavorites.map((project) => (
               <NavProjectItem
-                isActive={isProjectActive(project.subdomain)}
-                isFavorited={favoriteSubdomains.has(project.subdomain)}
+                isActive={isProjectActive(project.id)}
+                isFavorited={favoriteSubdomains.has(project.id)}
                 isFavorites
-                key={project.subdomain}
+                key={project.id}
                 onOpenInNewTab={handleOpenInNewTab}
                 onRemoveFavorite={handleRemoveFavorite}
                 project={project}
@@ -145,7 +144,7 @@ function ProjectsList({
 }: {
   favoriteSubdomains: Set<string>;
   matches: MakeRouteMatchUnion[];
-  onOpenInNewTab: (subdomain: TaskId) => void;
+  onOpenInNewTab: (id: TaskId) => void;
   projects: Task[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -187,13 +186,13 @@ function ProjectsList({
   const projectStates = useMemo(
     () =>
       projects.map((project) => ({
+        id: project.id,
         isActive: matches.some(
           (match) =>
             match.routeId === "/_app/tasks/$id/" &&
-            match.params.id === project.subdomain,
+            match.params.id === project.id,
         ),
-        isFavorited: favoriteSubdomains.has(project.subdomain),
-        subdomain: project.subdomain,
+        isFavorited: favoriteSubdomains.has(project.id),
       })),
     [projects, matches, favoriteSubdomains],
   );

@@ -38,10 +38,10 @@ export const workspaceServerLogic = fromCallback<
   const app = new Hono<WorkspaceServerEnv>();
 
   app.use(async (c, next) => {
-    function getRuntimeRef(subdomain: TaskId) {
+    function getRuntimeRef(id: TaskId) {
       const snapshot = input.parentRef.getSnapshot();
       invariant(snapshot, "Workspace not found");
-      return snapshot.context.runtimeRefs.get(subdomain);
+      return snapshot.context.runtimeRefs.get(id);
     }
     c.set("parentRef", input.parentRef);
     c.set("workspaceConfig", input.workspaceConfig);

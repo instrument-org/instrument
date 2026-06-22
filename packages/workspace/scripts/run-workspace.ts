@@ -172,7 +172,7 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-let projectSubdomain: TaskId | undefined;
+let taskId: TaskId | undefined;
 
 const FAKE_FILES = {
   audio: {
@@ -246,15 +246,15 @@ rl.on("line", (input) => {
       workspaceRef: actor,
     };
 
-    if (projectSubdomain) {
+    if (taskId) {
       void call(
         messageRoute.create,
         {
           files,
+          id: taskId,
           modelURI: MODEL_URI,
           prompt,
           sessionId: savedSessionId,
-          subdomain: projectSubdomain,
         },
         { context },
       ).then(({ sessionId }) => {
@@ -270,7 +270,7 @@ rl.on("line", (input) => {
         },
         { context },
       ).then((newProject) => {
-        projectSubdomain = newProject.subdomain;
+        taskId = newProject.id;
         savedSessionId = newProject.sessionId;
       });
     }

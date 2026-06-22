@@ -38,7 +38,7 @@ export function DuplicateProjectModal({
         onClose();
 
         void addTab({
-          params: { id: duplicatedProject.subdomain },
+          params: { id: duplicatedProject.id },
           to: "/tasks/$id",
         });
       },
@@ -49,7 +49,7 @@ export function DuplicateProjectModal({
     e.preventDefault();
     duplicateMutation.mutate({
       keepHistory: true,
-      sourceSubdomain: project.subdomain,
+      sourceSubdomain: project.id,
     });
   };
 

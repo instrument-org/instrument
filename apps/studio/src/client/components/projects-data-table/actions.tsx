@@ -25,19 +25,19 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 export function ProjectActionsCell({
+  id,
   onDelete,
   onOpenInNewTab,
   onSettings,
   onStop,
-  subdomain,
 }: {
-  onDelete: (subdomain: TaskId) => void;
-  onOpenInNewTab: (subdomain: TaskId) => void;
-  onSettings: (subdomain: TaskId) => void;
-  onStop: (subdomain: TaskId) => void;
-  subdomain: TaskId;
+  id: TaskId;
+  onDelete: (id: TaskId) => void;
+  onOpenInNewTab: (id: TaskId) => void;
+  onSettings: (id: TaskId) => void;
+  onStop: (id: TaskId) => void;
 }) {
-  const { data: appState } = useAppState({ subdomain });
+  const { data: appState } = useAppState({ id });
   const sessionActors = appState?.sessionActors ?? [];
   const isRunning = sessionActors.some((actor) =>
     actor.tags.includes("agent.alive"),
@@ -46,7 +46,7 @@ export function ProjectActionsCell({
   const { data: favoriteSubdomains } = useQuery(
     rpcClient.favorites.live.listSubdomains.experimental_liveOptions(),
   );
-  const isFavorite = favoriteSubdomains?.includes(subdomain);
+  const isFavorite = favoriteSubdomains?.includes(id);
 
   const { mutateAsync: removeFavorite } = useMutation(
     rpcClient.favorites.remove.mutationOptions(),
@@ -64,7 +64,7 @@ export function ProjectActionsCell({
             <Button
               onClick={(e) => {
                 e.preventDefault();
-                onStop(subdomain);
+                onStop(id);
               }}
               size="icon"
               variant="ghost"
@@ -80,7 +80,7 @@ export function ProjectActionsCell({
           <Button
             onClick={(e) => {
               e.preventDefault();
-              onDelete(subdomain);
+              onDelete(id);
             }}
             size="icon"
             variant="ghost"
@@ -101,9 +101,9 @@ export function ProjectActionsCell({
           <DropdownMenuItem
             onSelect={() => {
               if (isFavorite) {
-                void removeFavorite({ subdomain });
+                void removeFavorite({ id });
               } else {
-                void addFavorite({ subdomain });
+                void addFavorite({ id });
               }
             }}
           >
@@ -115,7 +115,7 @@ export function ProjectActionsCell({
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {
-              onSettings(subdomain);
+              onSettings(id);
             }}
           >
             <PencilSimpleLineIcon className="text-muted-foreground" />
@@ -123,7 +123,7 @@ export function ProjectActionsCell({
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {
-              onOpenInNewTab(subdomain);
+              onOpenInNewTab(id);
             }}
           >
             <ArrowUpRightIcon className="text-muted-foreground" />

@@ -231,14 +231,14 @@ function RouteComponent() {
         if (openInNewTab) {
           void addTab(
             {
-              params: { id: createdProjects[0].subdomain },
+              params: { id: createdProjects[0].id },
               to: "/tasks/$id",
             },
             { select: false },
           );
         } else {
           void navigate({
-            params: { id: createdProjects[0].subdomain },
+            params: { id: createdProjects[0].id },
             to: "/tasks/$id",
           });
         }
@@ -248,7 +248,7 @@ function RouteComponent() {
             for (const project of createdProjects) {
               void addTab(
                 {
-                  params: { id: project.subdomain },
+                  params: { id: project.id },
                   to: "/tasks/$id",
                 },
                 { select: false },

@@ -6,7 +6,7 @@ export interface ProjectFileViewerFile {
   filePath: string;
   mimeType: string;
   modifiedAt: number;
-  projectSubdomain: TaskId;
+  taskId: TaskId;
   url: string;
 }
 

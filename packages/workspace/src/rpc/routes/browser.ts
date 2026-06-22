@@ -8,13 +8,13 @@ import { base } from "../base";
 const PresenceSchema = z.object({ active: z.literal(true) });
 
 const presence = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+  .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(PresenceSchema))
   .handler(async function* ({ context, input, signal }) {
     invariant(signal, "presence subscription requires an AbortSignal");
     context.workspaceRef.send({
       type: "acquireBrowserPresence",
-      value: { subdomain: input.subdomain },
+      value: { id: input.id },
     });
 
     try {
@@ -35,7 +35,7 @@ const presence = base
     } finally {
       context.workspaceRef.send({
         type: "releaseBrowserPresence",
-        value: { subdomain: input.subdomain },
+        value: { id: input.id },
       });
     }
   });

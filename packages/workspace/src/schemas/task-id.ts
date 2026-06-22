@@ -3,7 +3,7 @@ import { z } from "zod";
 import { type SubdomainPart, validateSubdomainPart } from "./subdomain-part";
 
 // A task id. It doubles as the on-disk folder name and, for the local asset
-// server, a DNS-valid subdomain label — but those are implementation details;
+// server, a DNS-valid id label — but those are implementation details;
 // callers treat it as an opaque id.
 export type TaskId = SubdomainPart & z.$brand<"TaskId">;
 

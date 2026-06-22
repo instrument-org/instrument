@@ -6,15 +6,15 @@ import { Skeleton } from "../ui/skeleton";
 import { UsageStatsTooltip, UsageSummaryText } from "../usage-stats-tooltip";
 
 export function ProjectUsageSummary({
+  id,
   onClick,
-  subdomain,
 }: {
+  id: TaskId;
   onClick?: () => void;
-  subdomain: TaskId;
 }) {
   const { data } = useQuery(
     rpcClient.workspace.task.live.usageSummary.experimental_liveOptions({
-      input: { subdomain },
+      input: { id },
     }),
   );
 

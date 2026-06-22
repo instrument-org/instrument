@@ -35,15 +35,15 @@ export function SessionStatusIcon({
 
 export function TaskStatusIcon({
   className,
-  subdomain,
+  id,
 }: {
   className?: string;
-  subdomain: TaskId;
+  id: TaskId;
 }) {
-  const { data: appState } = useAppState({ subdomain });
+  const { data: appState } = useAppState({ id });
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
-      input: { subdomain },
+      input: { id },
     }),
   );
 

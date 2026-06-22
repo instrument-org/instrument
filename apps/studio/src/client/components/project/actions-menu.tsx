@@ -26,17 +26,17 @@ import { toast } from "sonner";
 import { ProjectOpenInSubmenu } from "./open-in-submenu";
 
 export function ProjectActionsMenu({
+  id,
   onDebugClick,
   onReplayClick,
   onSettingsClick,
   selectedSessionId,
-  subdomain,
 }: {
+  id: TaskId;
   onDebugClick: () => void;
   onReplayClick: () => void;
   onSettingsClick: () => void;
   selectedSessionId?: StoreId.Session;
-  subdomain: TaskId;
 }) {
   const navigate = useNavigate();
   const isDeveloperMode = useDeveloperMode();
@@ -44,7 +44,7 @@ export function ProjectActionsMenu({
   const { data: favoriteSubdomains } = useQuery(
     rpcClient.favorites.live.listSubdomains.experimental_liveOptions(),
   );
-  const isFavorite = favoriteSubdomains?.includes(subdomain) ?? false;
+  const isFavorite = favoriteSubdomains?.includes(id) ?? false;
 
   const { mutateAsync: removeFavorite } = useMutation(
     rpcClient.favorites.remove.mutationOptions(),
@@ -93,9 +93,9 @@ export function ProjectActionsMenu({
         <DropdownMenuItem
           onSelect={() => {
             if (isFavorite) {
-              void removeFavorite({ subdomain });
+              void removeFavorite({ id });
             } else {
-              void addFavorite({ subdomain });
+              void addFavorite({ id });
             }
           }}
         >
@@ -109,7 +109,7 @@ export function ProjectActionsMenu({
           onClick={() => {
             void navigate({
               from: "/tasks/$id",
-              params: { id: subdomain },
+              params: { id },
               search: (prev) => ({ ...prev, showDuplicate: true }),
             });
           }}
@@ -148,13 +148,13 @@ export function ProjectActionsMenu({
             <DropdownMenuItem
               className="text-dev-700 dark:text-dev-300"
               onClick={() => {
-                void copyFolderPathMutation.mutateAsync({ subdomain });
+                void copyFolderPathMutation.mutateAsync({ id });
               }}
             >
               <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />
               Copy folder path
             </DropdownMenuItem>
-            <ProjectOpenInSubmenu subdomain={subdomain} />
+            <ProjectOpenInSubmenu id={id} />
           </>
         )}
 
@@ -164,7 +164,7 @@ export function ProjectActionsMenu({
           onSelect={() => {
             void navigate({
               from: "/tasks/$id",
-              params: { id: subdomain },
+              params: { id },
               search: (prev) => ({ ...prev, showDelete: true }),
             });
           }}

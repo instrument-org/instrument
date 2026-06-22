@@ -113,12 +113,9 @@ export const Tab = ({
       </motion.div>
       {!item.pinned && (
         <div className="flex shrink-0 items-center gap-1 pl-1">
-          {item.projectSubdomain && !isSelected ? (
+          {item.taskId && !isSelected ? (
             <div className="group-hover:hidden">
-              <TaskStatusIcon
-                className="size-3 shrink-0"
-                subdomain={item.projectSubdomain}
-              />
+              <TaskStatusIcon className="size-3 shrink-0" id={item.taskId} />
             </div>
           ) : null}
           <button

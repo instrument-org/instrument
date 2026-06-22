@@ -221,8 +221,8 @@ function ImagePreviewCard({
     try {
       await copyFileToClipboard({
         filePath: file.filePath,
+        id: file.taskId,
         isImage: mimeType.startsWith("image/"),
-        subdomain: file.projectSubdomain,
       });
       triggerCopied();
     } catch {
@@ -320,7 +320,7 @@ function useFileActions(file: ProjectFileViewerFile) {
     revealInFolder: () => {
       showProjectFileInFolderMutation.mutate({
         filePath: file.filePath,
-        subdomain: file.projectSubdomain,
+        id: file.taskId,
       });
     },
   };

@@ -6,18 +6,18 @@ import { type TaskId } from "../schemas/task-id";
 import { getWorkspaceAppForSubdomain } from "./get-workspace-app-for-subdomain";
 
 export async function getWorkspaceAppState({
-  subdomain,
+  id,
   workspaceRef,
 }: {
-  subdomain: TaskId;
+  id: TaskId;
   workspaceRef: WorkspaceActorRef;
 }) {
   const snapshot = workspaceRef.getSnapshot();
   const context = snapshot.context;
 
-  const app = await getWorkspaceAppForSubdomain(subdomain);
+  const app = await getWorkspaceAppForSubdomain(id);
 
-  const sessionRefs = context.sessionRefsBySubdomain.get(subdomain) ?? [];
+  const sessionRefs = context.sessionRefsBySubdomain.get(id) ?? [];
   const sessionActors = sessionRefs.map((sessionRef) => {
     const sessionSnapshot = sessionRef.getSnapshot();
     return {

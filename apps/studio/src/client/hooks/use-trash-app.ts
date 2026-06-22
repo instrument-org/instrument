@@ -21,9 +21,9 @@ export function useTrashApp({
   const navigate = useNavigate();
 
   const trashApp = useCallback(
-    async (projectSubdomain: TaskId) => {
+    async (taskId: TaskId) => {
       await trashProjectMutation.mutateAsync({
-        subdomain: projectSubdomain,
+        id: taskId,
       });
 
       // Not invalidating because live queries cannot be awaited
@@ -34,14 +34,14 @@ export function useTrashApp({
       });
       queryClient.removeQueries({
         // .key() generates a wildcard key for any params
-        queryKey: rpcClient.workspace.app.state.bySubdomains.key(),
+        queryKey: rpcClient.workspace.app.state.byIds.key(),
       });
 
       if (navigateOnDelete) {
         await navigate({ replace: true, to: "/new-tab" });
       } else {
         const projectTabs = tabs.filter((tab) =>
-          tab.pathname.includes(`/tasks/${projectSubdomain}`),
+          tab.pathname.includes(`/tasks/${taskId}`),
         );
 
         for (const tab of projectTabs) {

@@ -37,7 +37,7 @@ function RouteComponent() {
   );
 
   const mockProject = {
-    subdomain: "debug-project",
+    id: "debug-project",
     urls: { assetBase: "" },
   };
 

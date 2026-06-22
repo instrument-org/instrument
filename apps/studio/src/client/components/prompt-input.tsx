@@ -95,6 +95,7 @@ interface PromptInputProps {
   autoResizeMaxHeight?: number;
   className?: string;
   disabled?: boolean;
+  id?: TaskId;
   isLoading: boolean;
   isStoppable?: boolean;
   isSubmittable?: boolean;
@@ -111,7 +112,6 @@ interface PromptInputProps {
   placeholder?: string;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  subdomain?: TaskId;
 }
 
 interface PromptInputRef {
@@ -126,6 +126,7 @@ export const PromptInput = ({
   autoResizeMaxHeight = 400,
   className,
   disabled = false,
+  id,
   isLoading,
   isStoppable = false,
   isSubmittable = true,
@@ -136,7 +137,6 @@ export const PromptInput = ({
   placeholder,
   ref,
   selectedSessionId,
-  subdomain,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
@@ -623,11 +623,11 @@ export const PromptInput = ({
             </div>
           </div>
 
-          {features.context_ring && subdomain && selectedSessionId && (
+          {features.context_ring && id && selectedSessionId && (
             <SessionContextRing
+              id={id}
               model={selectedModel}
               selectedSessionId={selectedSessionId}
-              subdomain={subdomain}
             />
           )}
 

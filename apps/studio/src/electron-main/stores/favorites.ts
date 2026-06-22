@@ -45,7 +45,7 @@ export const getFavoritesStore = (): Store<FavoritesState> => {
       const favorites = favoritesStore.get("favorites");
       favoritesStore.set(
         "favorites",
-        favorites.filter((subdomain) => subdomain !== payload.subdomain),
+        favorites.filter((id) => id !== payload.id),
       );
     });
   }

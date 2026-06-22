@@ -10,12 +10,12 @@ export interface WorkspaceContext {
   appsBeingTrashed: TaskId[];
   config: WorkspaceConfig;
   error?: unknown;
-  // Resolvers waiting for the projectBrowser at `subdomain` to reach Stopped
+  // Resolvers waiting for the projectBrowser at `id` to reach Stopped
   // before trash-project deletes the directory. Drained when the matching
   // projectBrowser.stopped event arrives (or immediately if no machine
   // existed when prepareToTrashApp ran).
   pendingBrowserReapResolvers: Map<TaskId, (() => void)[]>;
-  // One projectBrowser actor per project subdomain with browser activity or an
+  // One projectBrowser actor per project id with browser activity or an
   // active project-page presence subscription. Spawned lazily and reaped on
   // projectBrowser.stopped.
   projectBrowserRefs: Map<TaskId, ProjectBrowserActorRef>;

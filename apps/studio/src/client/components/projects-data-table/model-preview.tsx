@@ -4,10 +4,10 @@ import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
-export function ModelPreview({ subdomain }: { subdomain: TaskId }) {
+export function ModelPreview({ id }: { id: TaskId }) {
   const { data: projectState } = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({
-      input: { subdomain },
+      input: { id },
     }),
   );
 

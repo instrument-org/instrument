@@ -65,7 +65,7 @@ if (!selectedProject) {
 
 process.stdout.write(`\nLoading sessions for ${selectedProject.title}...\n`);
 
-const appConfig = createAppConfig({ subdomain: selectedProject.subdomain });
+const appConfig = createAppConfig({ id: selectedProject.id });
 
 const sessionIdsResult = await Store.getStoreId(appConfig);
 

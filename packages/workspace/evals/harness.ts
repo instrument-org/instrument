@@ -145,7 +145,7 @@ export async function runEvals(
         workspaceRef: actor,
       };
 
-      const { sessionId, subdomain } = await call(
+      const { id, sessionId } = await call(
         projectRoute.create,
         {
           files: evalCase.files,
@@ -162,7 +162,7 @@ export async function runEvals(
       );
 
       process.stdout.write(
-        `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (subdomain: ${subdomain})${c.reset}\n`,
+        `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,
       );
 
       const abortController = new AbortController();
@@ -173,7 +173,7 @@ export async function runEvals(
       void (async () => {
         try {
           for await (const event of partUpdates) {
-            if (event.subdomain !== subdomain) {
+            if (event.id !== id) {
               continue;
             }
 
@@ -186,7 +186,7 @@ export async function runEvals(
             ) {
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
-              const appConfig = createAppConfig({ subdomain });
+              const appConfig = createAppConfig({ id });
               const usage = await getProjectUsageSummary(appConfig);
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
@@ -196,13 +196,11 @@ export async function runEvals(
               stream.write(`${evalPrefix(label)}${toolLabel}${statsSuffix}\n`);
             }
 
-            if (
-              await evalCase.shouldStop?.(part, createAppConfig({ subdomain }))
-            ) {
+            if (await evalCase.shouldStop?.(part, createAppConfig({ id }))) {
               process.stdout.write(
                 `${evalPrefix(label)}${c.yellow}shouldStop returned true, stopping session...${c.reset}\n`,
               );
-              void call(sessionRoute.stop, { subdomain }, { context });
+              void call(sessionRoute.stop, { id }, { context });
             }
           }
         } catch (error) {
@@ -212,7 +210,7 @@ export async function runEvals(
         }
       })();
 
-      await waitForSessionDone(sessionId, subdomain);
+      await waitForSessionDone(sessionId, id);
       abortController.abort();
 
       process.stdout.write(`${evalPrefix(label)}${c.green}Done.${c.reset}\n`);
@@ -230,7 +228,7 @@ function sanitizeCanonicalId(canonicalId: string): string {
 
 async function waitForSessionDone(
   sessionId: StoreId.Session,
-  subdomain: string,
+  id: string,
 ): Promise<void> {
   return new Promise((resolve) => {
     const abortController = new AbortController();
@@ -241,7 +239,7 @@ async function waitForSessionDone(
     void (async () => {
       try {
         for await (const event of unsubscribe) {
-          if (event.sessionId === sessionId && event.subdomain === subdomain) {
+          if (event.sessionId === sessionId && event.id === id) {
             abortController.abort();
             resolve();
             return;

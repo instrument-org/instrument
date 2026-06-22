@@ -47,7 +47,7 @@ const devSubTriggerClass =
 const devSubItemClass =
   "text-dev-700 focus:bg-dev-500/10 focus:text-dev-700 dark:text-dev-300 dark:focus:text-dev-300 [&_svg]:text-dev-700! dark:[&_svg]:text-dev-300!";
 
-export function ProjectOpenInSubmenu({ subdomain }: { subdomain: TaskId }) {
+export function ProjectOpenInSubmenu({ id }: { id: TaskId }) {
   const { data: supportedEditors = [] } = useQuery<SupportedEditor[]>(
     rpcClient.utils.getSupportedEditors.queryOptions(),
   );
@@ -83,7 +83,7 @@ export function ProjectOpenInSubmenu({ subdomain }: { subdomain: TaskId }) {
           className={devSubItemClass}
           onClick={() => {
             void openAppInMutation.mutateAsync({
-              subdomain,
+              id,
               type: "show-in-folder",
             });
           }}
@@ -104,7 +104,7 @@ export function ProjectOpenInSubmenu({ subdomain }: { subdomain: TaskId }) {
                   key={editor.id}
                   onClick={() => {
                     void openAppInMutation.mutateAsync({
-                      subdomain,
+                      id,
                       type: OpenAppInTypeSchema.parse(editor.id),
                     });
                   }}
@@ -129,7 +129,7 @@ export function ProjectOpenInSubmenu({ subdomain }: { subdomain: TaskId }) {
                   key={editor.id}
                   onClick={() => {
                     void openAppInMutation.mutateAsync({
-                      subdomain,
+                      id,
                       type: OpenAppInTypeSchema.parse(editor.id),
                     });
                   }}

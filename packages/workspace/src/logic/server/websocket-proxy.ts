@@ -31,10 +31,10 @@ export function setupWebSocketProxy(
       return;
     }
 
-    const { subdomain } = uriDetails.value;
+    const { id } = uriDetails.value;
     const snapshot = parentRef.getSnapshot();
     invariant(snapshot, "Workspace not found");
-    const runtimeRef = snapshot.context.runtimeRefs.get(subdomain);
+    const runtimeRef = snapshot.context.runtimeRefs.get(id);
 
     if (!runtimeRef) {
       socket.destroy();

@@ -25,14 +25,14 @@ import { publisher } from "../publisher";
 const listWithParts = base
   .input(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.array(SessionMessage.WithPartsSchema))
   .handler(async ({ errors, input }) => {
-    const { sessionId, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id, sessionId } = input;
+    const appConfig = createAppConfig({ id });
     const messages = await Store.getMessagesWithParts({
       appConfig,
       sessionId,
@@ -50,10 +50,10 @@ const create = base
     z.object({
       files: z.array(FileUpload.Schema).optional(),
       folders: z.array(z.object({ path: z.string() })).optional(),
+      id: TaskIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
       sessionId: StoreId.SessionSchema.optional(),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.object({ sessionId: StoreId.SessionSchema }))
@@ -61,9 +61,9 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, modelURI, prompt, sessionId, subdomain },
+      input: { files, folders, id, modelURI, prompt, sessionId },
     }) => {
-      const appConfig = createAppConfig({ subdomain });
+      const appConfig = createAppConfig({ id });
 
       const modelResult = await fetchModel({
         captureException: context.workspaceConfig.captureException,
@@ -141,15 +141,15 @@ const create = base
         type: "addMessage",
         value: {
           agentName: "main",
+          id,
           message,
           model,
           sessionId: message.metadata.sessionId,
-          subdomain,
         },
       });
 
       publisher.publish("project.updated", {
-        subdomain: appConfig,
+        id: appConfig,
       });
 
       return { sessionId: message.metadata.sessionId };
@@ -159,14 +159,14 @@ const create = base
 const count = base
   .input(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema.optional(),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.number())
   .handler(async ({ errors, input }) => {
-    const { sessionId, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id, sessionId } = input;
+    const appConfig = createAppConfig({ id });
 
     const messageIds = sessionId
       ? await Store.getMessageIds(sessionId, appConfig)
@@ -184,8 +184,8 @@ const live = {
   listWithParts: base
     .input(
       z.object({
+        id: TaskIdSchema,
         sessionId: StoreId.SessionSchema,
-        subdomain: TaskIdSchema,
       }),
     )
     .output(eventIterator(SessionMessage.WithPartsSchema.array()))
@@ -206,7 +206,7 @@ const live = {
           | typeof partUpdates,
       ) {
         for await (const payload of generator) {
-          if (payload.subdomain !== input.subdomain) {
+          if (payload.id !== input.id) {
             continue;
           }
           const sessionId =
@@ -237,14 +237,14 @@ const MessageRefSchema = z.object({
 const usageSummary = base
   .input(
     z.object({
+      id: TaskIdSchema,
       messages: z.array(MessageRefSchema),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(UsageSummarySchema)
   .handler(async ({ input, signal }) => {
-    const { messages, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id, messages } = input;
+    const appConfig = createAppConfig({ id });
 
     const results = await parallel(
       { limit: 10, signal },

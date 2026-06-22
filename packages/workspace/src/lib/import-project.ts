@@ -19,11 +19,11 @@ export async function importProject(
   _options: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const subdomain = TaskIdSchema.parse(`import-${ulid().toLowerCase()}`);
+    const id = TaskIdSchema.parse(`import-${ulid().toLowerCase()}`);
 
-    // For tasks the folder name is identical to the subdomain.
+    // For tasks the folder name is identical to the id.
     const projectDir = TaskDirSchema.parse(
-      absolutePathJoin(workspaceConfig.tasksDir, subdomain),
+      absolutePathJoin(workspaceConfig.tasksDir, id),
     );
 
     const projectExists = await pathExists(projectDir);
@@ -45,6 +45,6 @@ export async function importProject(
         ),
     );
 
-    return ok({ projectConfig: subdomain });
+    return ok({ projectConfig: id });
   });
 }

@@ -69,7 +69,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 
     const [sessionError, sessions, isDefined] = await safe(
       rpcClient.workspace.session.list.call({
-        subdomain: params.id,
+        id: params.id,
       }),
     );
 
@@ -84,13 +84,13 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 
     context.queryClient.setQueryData(
       rpcClient.workspace.session.live.list.experimental_liveKey({
-        input: { subdomain: params.id },
+        input: { id: params.id },
       }),
       sessions,
     );
 
     void rpcClient.preferences.ensureProjectDefaultModelURI
-      .call({ subdomain: params.id })
+      .call({ id: params.id })
       .then((result) => {
         if (!result.modelURI) {
           return;
@@ -98,7 +98,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 
         void context.queryClient.invalidateQueries({
           queryKey: rpcClient.workspace.task.state.get.queryOptions({
-            input: { subdomain: params.id },
+            input: { id: params.id },
           }).queryKey,
         });
       })
@@ -123,8 +123,8 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
   component: RouteComponent,
   head: async ({ params }) => {
     const project = await safe(
-      rpcClient.workspace.task.bySubdomain.call({
-        subdomain: params.id,
+      rpcClient.workspace.task.byId.call({
+        id: params.id,
       }),
     );
 
@@ -145,7 +145,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 /* eslint-enable perfectionist/sort-objects */
 
 function RouteComponent() {
-  const { id: subdomain } = Route.useParams();
+  const { id } = Route.useParams();
   const {
     artifactPanel,
     selectedSessionId,
@@ -161,12 +161,12 @@ function RouteComponent() {
     // After a successful delete, trashApp has already navigated the tab away.
     // Guard against calling navigate with from: "/tasks/$id" when
     // this route is no longer matched -- the match is gone and it would throw.
-    if (!matchRoute({ params: { id: subdomain }, to: "/tasks/$id" })) {
+    if (!matchRoute({ params: { id }, to: "/tasks/$id" })) {
       return;
     }
     void navigate({
       from: "/tasks/$id",
-      params: { id: subdomain },
+      params: { id },
       replace: true,
       search: (prev) => ({ ...prev, showDelete: open || undefined }),
     });
@@ -175,7 +175,7 @@ function RouteComponent() {
   const handleDuplicateDialogChange = (open: boolean) => {
     void navigate({
       from: "/tasks/$id",
-      params: { id: subdomain },
+      params: { id },
       replace: true,
       search: (prev) => ({ ...prev, showDuplicate: open || undefined }),
     });
@@ -184,7 +184,7 @@ function RouteComponent() {
   const handleSettingsDialogChange = (open: boolean) => {
     void navigate({
       from: "/tasks/$id",
-      params: { id: subdomain },
+      params: { id },
       replace: true,
       search: (prev) => ({ ...prev, showSettings: open || undefined }),
     });
@@ -195,8 +195,8 @@ function RouteComponent() {
     error: projectError,
     isLoading: isProjectLoading,
   } = useQuery(
-    rpcClient.workspace.task.live.bySubdomain.experimental_liveOptions({
-      input: { subdomain },
+    rpcClient.workspace.task.live.byId.experimental_liveOptions({
+      input: { id },
       placeholderData: keepPreviousData,
     }),
   );
@@ -209,29 +209,29 @@ function RouteComponent() {
     isLoading: isProjectStateLoading,
   } = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({
-      input: { subdomain },
+      input: { id },
       placeholderData: keepPreviousData,
     }),
   );
 
   const { data: files } = useQuery(
     rpcClient.workspace.task.files.live.list.experimental_liveOptions({
-      input: { projectSubdomain: subdomain },
+      input: { taskId: id },
       placeholderData: keepPreviousData,
     }),
   );
 
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { subdomain },
+      input: { id },
     }),
   );
 
   // Focuses output artifacts produced by the active turn.
   useAutoOpenOutputArtifact({
     artifactPanel,
+    id,
     selectedSessionId,
-    subdomain,
   });
 
   const isLoading = isProjectLoading || isProjectStateLoading;

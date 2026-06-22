@@ -11,12 +11,12 @@ export function FileChangesCard({
   assetBaseUrl,
   className,
   files,
-  projectSubdomain,
+  taskId,
 }: {
   assetBaseUrl: string;
   className?: string;
   files: SessionMessageDataPart.FileChangeDataPartItem[];
-  projectSubdomain: TaskId;
+  taskId: TaskId;
 }) {
   // Deleted files have nothing to preview; show the ones that still exist.
   const currentFiles: ProjectFileViewerFile[] = files
@@ -26,7 +26,7 @@ export function FileChangesCard({
       filePath: file.filePath,
       mimeType: file.mimeType,
       modifiedAt: file.modifiedAt,
-      projectSubdomain,
+      taskId,
       url: getAssetUrl({
         assetBase: assetBaseUrl,
         filePath: file.filePath,

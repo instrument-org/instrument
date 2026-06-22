@@ -9,15 +9,15 @@ import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 
-const bySubdomain = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+const byId = base
+  .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(WorkspaceAppStateSchema))
   .handler(async function* ({ context, errors, input, signal }) {
     const { workspaceRef } = context;
 
     const getOrThrow = async () => {
       const result = await getWorkspaceAppState({
-        subdomain: input.subdomain,
+        id: input.id,
         workspaceRef,
       });
 
@@ -43,9 +43,9 @@ const bySubdomain = base
 
     for await (const payload of mergeGenerators(subscriptions)) {
       if (
-        "subdomain" in payload &&
-        payload.subdomain !== input.subdomain &&
-        !payload.subdomain.endsWith(input.subdomain)
+        "id" in payload &&
+        payload.id !== input.id &&
+        !payload.id.endsWith(input.id)
       ) {
         continue;
       }
@@ -78,16 +78,16 @@ const aliveAgentCount = base
     return { count };
   });
 
-const bySubdomains = base
-  .input(z.object({ subdomains: TaskIdSchema.array() }))
+const byIds = base
+  .input(z.object({ ids: TaskIdSchema.array() }))
   .output(WorkspaceAppStateSchema.array())
   .handler(async ({ context, errors, input }) => {
     const { workspaceRef } = context;
     const results = [];
 
-    for (const subdomain of input.subdomains) {
+    for (const id of input.ids) {
       const result = await getWorkspaceAppState({
-        subdomain,
+        id,
         workspaceRef,
       });
 
@@ -103,8 +103,8 @@ const bySubdomains = base
 
 export const appState = {
   aliveAgentCount,
-  bySubdomains,
+  byIds,
   live: {
-    bySubdomain,
+    byId,
   },
 };

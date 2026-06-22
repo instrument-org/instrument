@@ -8,7 +8,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/client/components/ui/alert-dialog";
-import { Button } from "@/client/components/ui/button";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { type WorkspaceAppProject } from "@instrument-org/workspace/client";
@@ -67,15 +66,11 @@ export function DuplicateProjectModal({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction asChild>
-            <Button
-              disabled={duplicateMutation.isPending}
-              onClick={handleDuplicate}
-            >
-              {duplicateMutation.isPending
-                ? "Duplicating..."
-                : "Duplicate task"}
-            </Button>
+          <AlertDialogAction
+            disabled={duplicateMutation.isPending}
+            onClick={handleDuplicate}
+          >
+            {duplicateMutation.isPending ? "Duplicating..." : "Duplicate task"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,4 +1,3 @@
-import { Button } from "@/client/components/ui/button";
 import {
   getTrashTerminology,
   PROGRESS_MESSAGES,
@@ -131,16 +130,14 @@ function DeleteWithProgressDialogBody<T>({
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel>Cancel</AlertDialogCancel>
-        <AlertDialogAction asChild className="text-white">
-          <Button
-            onClick={async (e) => {
-              e.preventDefault();
-              await handleDelete();
-            }}
-            variant="destructive"
-          >
-            Move to {trashTerminology}
-          </Button>
+        <AlertDialogAction
+          onClick={async (e) => {
+            e.preventDefault();
+            await handleDelete();
+          }}
+          variant="destructive"
+        >
+          Move to {trashTerminology}
         </AlertDialogAction>
       </AlertDialogFooter>
     </>

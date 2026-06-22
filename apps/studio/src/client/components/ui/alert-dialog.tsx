@@ -2,6 +2,7 @@ import { buttonVariants } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import * as React from "react";
+import { type VariantProps } from "tailwind-variants";
 
 function AlertDialog({
   ...props
@@ -11,11 +12,16 @@ function AlertDialog({
 
 function AlertDialogAction({
   className,
+  size = "default",
+  variant = "default",
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
+  VariantProps<typeof buttonVariants>) {
   return (
     <AlertDialogPrimitive.Action
-      className={cn(buttonVariants(), className)}
+      className={cn(buttonVariants({ size, variant }), className)}
+      data-size={size}
+      data-variant={variant}
       {...props}
     />
   );

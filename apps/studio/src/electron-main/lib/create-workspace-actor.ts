@@ -4,6 +4,7 @@ import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   closeAllAgentBrowserSessions,
+  migrateWorkspaceLayout,
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
@@ -41,6 +42,26 @@ export function createWorkspaceActor({
   isQuitAlreadyConfirmed: () => boolean;
 }) {
   const rootDir = getWorkspaceFolder();
+
+  // Migrate the on-disk layout (legacy projects/ -> tasks/, sessions.db ->
+  // store.db, project-state.json -> state.json) before the workspace reads any
+  // tasks. Idempotent and keyed on the presence of a projects/ dir; a failure
+  // must not block boot.
+  try {
+    const migration = migrateWorkspaceLayout({ rootDir });
+    if (migration.migrated) {
+      logger.info("Migrated workspace layout to tasks/", {
+        conflictedTaskIds: migration.conflictedTaskIds,
+        movedTaskCount: migration.movedTaskCount,
+      });
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
+
   const browserViewManager = createBrowserViewManager();
 
   const actor = createActor(workspaceMachine, {

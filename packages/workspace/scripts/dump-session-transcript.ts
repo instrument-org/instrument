@@ -49,7 +49,7 @@ if (isZip) {
     path.join(os.tmpdir(), "instrument-transcript-"),
   );
   cleanupDir = tempRoot;
-  tasksDir = path.join(tempRoot, "projects");
+  tasksDir = path.join(tempRoot, "tasks");
   const folderName = `transcript-${ulid().toLowerCase()}`;
   const extractDir = AbsolutePathSchema.parse(path.join(tasksDir, folderName));
   const zipBlob = new Blob([await fs.readFile(absoluteInputPath)]);
@@ -67,7 +67,7 @@ const sessionsResult = await Store.getSessions(taskId, {
 });
 if (sessionsResult.isErr()) {
   throw new Error(
-    `Failed to load sessions from ${path.join(dir, ".instrument", "sessions.db")}: ${sessionsResult.error.message}`,
+    `Failed to load sessions from ${path.join(dir, ".instrument", "store.db")}: ${sessionsResult.error.message}`,
   );
 }
 

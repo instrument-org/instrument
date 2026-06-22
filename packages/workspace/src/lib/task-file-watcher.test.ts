@@ -23,7 +23,7 @@ let workspaceConfig: WorkspaceConfig;
 
 async function setupTask() {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "watcher-test-"));
-  const tasksDir = path.join(root, "projects");
+  const tasksDir = path.join(root, "tasks");
   dir = path.join(tasksDir, id);
   await fs.mkdir(path.join(dir, "sub"), { recursive: true });
   // createMockTaskConfig publishes the singleton; point it at the temp dir so

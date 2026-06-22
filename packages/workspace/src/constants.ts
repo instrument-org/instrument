@@ -18,7 +18,11 @@ export const TASK_FOLDER_NAMES = {
   tmp: "tmp",
   userProvided: "user-provided",
 } as const;
-export const SESSIONS_DB_FILE_NAME = "sessions.db";
+// Per-task SQLite store (sessions + selected model + prompt drafts), in the
+// task's `.instrument/` private dir. Renamed from the legacy `sessions.db`.
+export const STORE_DB_FILE_NAME = "store.db";
+// Per-task UI state JSON in `.instrument/`. Renamed from `project-state.json`.
+export const TASK_STATE_FILE_NAME = "state.json";
 
 export const TASK_STATUSES = [
   "error",

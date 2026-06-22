@@ -15,7 +15,7 @@ if (!workspaceDir) {
 const absoluteWorkspaceDir = path.resolve(workspaceDir);
 
 const workspaceConfig = createStubWorkspaceConfig({
-  tasksDir: path.join(absoluteWorkspaceDir, "projects"),
+  tasksDir: path.join(absoluteWorkspaceDir, "tasks"),
 });
 
 const { tasks } = await getTasks(workspaceConfig, {

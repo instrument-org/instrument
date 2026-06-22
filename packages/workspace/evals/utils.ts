@@ -40,7 +40,7 @@ export function buildReportWorkspaceConfig(
     registryDir: WorkspaceDirSchema.parse(resolveRegistryDir()),
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
     tasksDir: WorkspaceDirSchema.parse(
-      path.join(absoluteWorkspaceDir, "projects"),
+      path.join(absoluteWorkspaceDir, "tasks"),
     ),
     templatesDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, "registry", "templates"),

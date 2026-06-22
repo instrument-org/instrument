@@ -351,9 +351,7 @@ const duplicate = base
         id: result.value.projectConfig,
       });
 
-      const workspaceApp = await getTask(
-        result.value.projectConfig,
-      );
+      const workspaceApp = await getTask(result.value.projectConfig);
 
       context.workspaceConfig.captureEvent("project.forked");
 
@@ -625,7 +623,7 @@ const liveUsageSummary = base
     const messageRemoved = publisher.subscribe("message.removed", { signal });
     const partUpdates = publisher.subscribe("part.updated", { signal });
 
-    async function* filterBySubdomain(
+    async function* filterByTaskId(
       generator:
         | typeof messageRemoved
         | typeof messageUpdates
@@ -639,9 +637,9 @@ const liveUsageSummary = base
     }
 
     for await (const _ of mergeGenerators([
-      filterBySubdomain(messageUpdates),
-      filterBySubdomain(messageRemoved),
-      filterBySubdomain(partUpdates),
+      filterByTaskId(messageUpdates),
+      filterByTaskId(messageRemoved),
+      filterByTaskId(partUpdates),
     ])) {
       yield call(usageSummary, input, { context, signal });
     }

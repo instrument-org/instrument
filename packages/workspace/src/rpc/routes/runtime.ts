@@ -13,14 +13,14 @@ import { publisher } from "../publisher";
 const restart = base
   .input(
     z.object({
-      appSubdomain: TaskIdSchema,
+      taskId: TaskIdSchema,
     }),
   )
   .handler(({ context, input }) => {
     context.workspaceRef.send({
       type: "restartRuntime",
       value: {
-        id: input.appSubdomain,
+        id: input.taskId,
       },
     });
   });
@@ -28,12 +28,12 @@ const restart = base
 const clearLogs = base
   .input(
     z.object({
-      appSubdomain: TaskIdSchema,
+      taskId: TaskIdSchema,
     }),
   )
   .handler(({ context, input }) => {
     const snapshot = context.workspaceRef.getSnapshot();
-    const runtimeRef = snapshot.context.runtimeRefs.get(input.appSubdomain);
+    const runtimeRef = snapshot.context.runtimeRefs.get(input.taskId);
 
     if (runtimeRef) {
       runtimeRef.send({ type: "clearLogs" });

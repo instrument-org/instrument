@@ -844,9 +844,7 @@ export class TabsManager {
       const iconNameResult = TabIconsSchema.safeParse(metaTags.iconName);
       tab.iconName = iconNameResult.success ? iconNameResult.data : undefined;
       const taskIdResult = TaskIdSchema.safeParse(metaTags.taskId);
-      tab.taskId = taskIdResult.success
-        ? taskIdResult.data
-        : undefined;
+      tab.taskId = taskIdResult.success ? taskIdResult.data : undefined;
     } catch (error) {
       captureServerException(
         new Error("Failed to update meta tags", { cause: error }),

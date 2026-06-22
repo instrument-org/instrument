@@ -1,7 +1,7 @@
 import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
-import { getTaskManifest } from "./task-manifest";
 import { Store } from "./store";
+import { getTaskManifest } from "./task-manifest";
 
 const DEFAULT_UNTITLED_BASE = "Untitled chat";
 

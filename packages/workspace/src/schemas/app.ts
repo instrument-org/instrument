@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { TaskManifestSchema } from "./task-manifest";
 import { TaskIdSchema } from "./task-id";
+import { TaskManifestSchema } from "./task-manifest";
 
 // The loaded representation of a task: id + metadata read from disk. This is
 // the "full thing" the client fetches when it needs more than an id.

@@ -7,10 +7,10 @@ import { type TaskId } from "../schemas/task-id";
 import { getToolByType } from "../tools/all";
 import { taskDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
-import { getTaskState } from "./task-state-store";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
+import { getTaskState } from "./task-state-store";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({

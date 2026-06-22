@@ -9,7 +9,6 @@ import { type AgentName } from "../../agents/types";
 import { ActiveReplays } from "../../lib/active-replays";
 import { taskDir } from "../../lib/app-dir-utils";
 import { getCurrentDate } from "../../lib/get-current-date";
-import { getTaskManifest } from "../../lib/task-manifest";
 import {
   createReplaySession,
   executeSessionReplay,
@@ -18,6 +17,7 @@ import {
 } from "../../lib/session-replay";
 import { type SpawnAgentFunction } from "../../lib/spawn-agent";
 import { Store } from "../../lib/store";
+import { getTaskManifest } from "../../lib/task-manifest";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";

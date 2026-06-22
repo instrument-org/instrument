@@ -2,13 +2,16 @@ import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
-import { STORE_DB_FILE_NAME, TASK_STATE_FILE_NAME } from "../constants";
+import {
+  STORE_DB_FILE_NAME,
+  TASK_STATE_FILE_NAME,
+  TASKS_DIR_NAME,
+} from "../constants";
 
 // Legacy on-disk names from the phase-1 layout that this migration moves away
 // from. Kept as literals here (not constants) since the live code no longer
 // references them.
 const LEGACY_TASKS_DIR_NAME = "projects";
-const TASKS_DIR_NAME = "tasks";
 const LEGACY_STORE_DB_FILE_NAME = "sessions.db";
 const LEGACY_STATE_FILE_NAME = "project-state.json";
 

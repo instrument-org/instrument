@@ -2,6 +2,7 @@ import { execa } from "execa";
 import path from "node:path";
 import readline from "node:readline/promises";
 
+import { TASKS_DIR_NAME } from "../src/constants";
 import { getTasks } from "../src/lib/get-tasks";
 import { Store } from "../src/lib/store";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
@@ -15,7 +16,7 @@ if (!workspaceDir) {
 const absoluteWorkspaceDir = path.resolve(workspaceDir);
 
 const workspaceConfig = createStubWorkspaceConfig({
-  tasksDir: path.join(absoluteWorkspaceDir, "tasks"),
+  tasksDir: path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
 });
 
 const { tasks } = await getTasks(workspaceConfig, {

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
@@ -18,7 +19,7 @@ let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
-  const tasksDir = path.join(root, "tasks");
+  const tasksDir = path.join(root, TASKS_DIR_NAME);
   taskId = createMockTaskConfigForDir(path.join(tasksDir, id));
   await fs.mkdir(taskDir(taskId), { recursive: true });
 });

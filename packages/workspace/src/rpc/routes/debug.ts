@@ -97,7 +97,7 @@ const replaySession = base
       newSessionId = prepareResult.value.sessionId;
       replayMessages = prepareResult.value.replayMessages;
 
-      publisher.publish("project.updated", {
+      publisher.publish("task.updated", {
         id: targetAppConfig,
       });
     } else {

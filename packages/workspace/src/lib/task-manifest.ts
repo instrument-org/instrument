@@ -83,7 +83,7 @@ export function updateTaskManifest(
         ),
     );
 
-    publisher.publish("project.updated", {
+    publisher.publish("task.updated", {
       id: taskId,
     });
 

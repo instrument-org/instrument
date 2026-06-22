@@ -328,7 +328,7 @@ async function flush(entry: WatcherEntry) {
   }
 
   if (changed && !isDisposed(entry)) {
-    publisher.publish("project.files.changed", { id: entry.id });
+    publisher.publish("task.files.changed", { id: entry.id });
   }
 }
 
@@ -349,7 +349,7 @@ async function initWatcher(entry: WatcherEntry) {
   // Sync any live subscriber to the freshly seeded index, closing the window
   // between the subscriber's initial walk and the first watcher event.
   if (entry.seeded) {
-    publisher.publish("project.files.changed", { id: entry.id });
+    publisher.publish("task.files.changed", { id: entry.id });
   }
 
   const parcel = await loadParcelWatcher();
@@ -422,7 +422,7 @@ async function refreshIndex(entry: WatcherEntry): Promise<TaskFileIndex> {
     !isDisposed(entry) &&
     JSON.stringify(before) !== JSON.stringify(taskFilesFromIndex(entry.index))
   ) {
-    publisher.publish("project.files.changed", { id: entry.id });
+    publisher.publish("task.files.changed", { id: entry.id });
   }
   return entry.index;
 }

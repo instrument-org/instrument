@@ -20,20 +20,6 @@ export const publisher = new EventPublisher<{
     id: TaskId;
     part: SessionMessagePart.Type;
   };
-  "project.files.changed": {
-    id: TaskId;
-  };
-  "project.outputArtifactsCreated": {
-    files: { filePath: string; modifiedAt: number }[];
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "project.removed": {
-    id: TaskId;
-  };
-  "project.updated": {
-    id: TaskId;
-  };
   "replay.changed": {
     id: TaskId;
     isActive: boolean;
@@ -61,6 +47,20 @@ export const publisher = new EventPublisher<{
   "session.updated": {
     id: TaskId;
     sessionId: StoreId.Session;
+  };
+  "task.files.changed": {
+    id: TaskId;
+  };
+  "task.outputArtifactsCreated": {
+    files: { filePath: string; modifiedAt: number }[];
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
+  "task.removed": {
+    id: TaskId;
+  };
+  "task.updated": {
+    id: TaskId;
   };
   "workspaceActor.snapshot": WorkspaceSnapshot;
 }>({

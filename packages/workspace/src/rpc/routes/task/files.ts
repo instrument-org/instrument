@@ -78,7 +78,7 @@ export const taskFiles = {
         });
 
         try {
-          const changes = publisher.subscribe("project.files.changed", {
+          const changes = publisher.subscribe("task.files.changed", {
             signal,
           });
           yield call(list, input, { context, signal });

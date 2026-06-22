@@ -262,7 +262,7 @@ const create = base
         });
       }
 
-      publisher.publish("project.updated", {
+      publisher.publish("task.updated", {
         id: taskId,
       });
 
@@ -277,7 +277,7 @@ const create = base
         },
       });
 
-      context.workspaceConfig.captureEvent("project.created", {
+      context.workspaceConfig.captureEvent("task.created", {
         files_count: files?.length ?? 0,
         modelId: model.canonicalId,
         providerId: model.params.provider,
@@ -346,13 +346,13 @@ const duplicate = base
         throw toORPCError(result.error, errors);
       }
 
-      publisher.publish("project.updated", {
+      publisher.publish("task.updated", {
         id: result.value.taskId,
       });
 
       const workspaceApp = await getTask(result.value.taskId);
 
-      context.workspaceConfig.captureEvent("project.forked");
+      context.workspaceConfig.captureEvent("task.forked");
 
       return workspaceApp;
     },
@@ -383,11 +383,11 @@ const importTask = base
       throw toORPCError(result.error, errors);
     }
 
-    publisher.publish("project.updated", {
+    publisher.publish("task.updated", {
       id: result.value.taskId,
     });
 
-    context.workspaceConfig.captureEvent("project.imported");
+    context.workspaceConfig.captureEvent("task.imported");
 
     return { id: result.value.taskId };
   });
@@ -405,11 +405,11 @@ const trash = base
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
-    publisher.publish("project.removed", {
+    publisher.publish("task.removed", {
       id,
     });
 
-    context.workspaceConfig.captureEvent("project.trashed");
+    context.workspaceConfig.captureEvent("task.trashed");
   });
 
 const update = base
@@ -443,7 +443,7 @@ const update = base
       throw toORPCError(result.error, errors);
     }
 
-    context.workspaceConfig.captureEvent("project.updated");
+    context.workspaceConfig.captureEvent("task.updated");
   });
 
 const exportZip = base
@@ -497,7 +497,7 @@ const exportZip = base
         throw errors.EXPORT_FAILED({ message: result.error.message });
       }
 
-      context.workspaceConfig.captureEvent("project.shared", {
+      context.workspaceConfig.captureEvent("task.shared", {
         share_type: "exported_zip",
       });
 
@@ -526,7 +526,7 @@ const live = {
     .handler(async function* ({ context, input, signal }) {
       yield call(byId, input, { context, signal });
 
-      const taskUpdates = publisher.subscribe("project.updated", { signal });
+      const taskUpdates = publisher.subscribe("task.updated", { signal });
 
       for await (const payload of taskUpdates) {
         if (payload.id === input.id) {
@@ -556,8 +556,8 @@ const live = {
     .handler(async function* ({ context, input, signal }) {
       yield call(byIds, input, { context, signal });
 
-      const taskUpdates = publisher.subscribe("project.updated", { signal });
-      const taskRemoved = publisher.subscribe("project.removed", { signal });
+      const taskUpdates = publisher.subscribe("task.updated", { signal });
+      const taskRemoved = publisher.subscribe("task.removed", { signal });
 
       for await (const payload of mergeGenerators([taskUpdates, taskRemoved])) {
         if (input.ids.includes(payload.id)) {
@@ -571,8 +571,8 @@ const live = {
     .handler(async function* ({ context, input, signal }) {
       yield call(list, input, { context, signal });
 
-      const taskUpdates = publisher.subscribe("project.updated", { signal });
-      const taskRemoved = publisher.subscribe("project.removed", { signal });
+      const taskUpdates = publisher.subscribe("task.updated", { signal });
+      const taskRemoved = publisher.subscribe("task.removed", { signal });
 
       for await (const _ of mergeGenerators([taskUpdates, taskRemoved])) {
         yield call(list, input, { context, signal });
@@ -585,7 +585,7 @@ const live = {
     .input(z.object({ id: TaskIdSchema }))
     .output(eventIterator(OutputArtifactsCreatedSchema))
     .handler(async function* ({ input, signal }) {
-      const events = publisher.subscribe("project.outputArtifactsCreated", {
+      const events = publisher.subscribe("task.outputArtifactsCreated", {
         signal,
       });
 

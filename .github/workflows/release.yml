@@ -307,6 +307,7 @@ jobs:
                 --no-merges
             )
           fi
+          # shellcheck disable=SC2001  # per-line regex strip; ${//} can't do this
           SUMMARY=$(
             {
               echo "$APP_COMMITS" | sed 's/^[^ ]* /• /'

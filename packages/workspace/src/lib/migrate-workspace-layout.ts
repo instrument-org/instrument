@@ -61,22 +61,25 @@ export function migrateWorkspaceLayout({
     const source = path.join(legacyDir, entry.name);
     const destination = path.join(tasksDir, entry.name);
 
-    // Rename per-task private files in place first, so a run interrupted after
-    // this point (folder already moved) still leaves a consistent task.
-    migrateTaskPrivateFiles(source);
-
     if (fs.existsSync(destination)) {
       // A task with this id already lives under tasks/. Leave the legacy copy
-      // rather than overwrite potentially newer data.
+      // entirely untouched rather than overwrite (or even mutate) potentially
+      // newer data.
       migration.conflictedTaskIds.push(entry.name);
       continue;
     }
+
+    // Rename per-task private files in place first, so a run interrupted after
+    // this point (folder already moved) still leaves a consistent task.
+    migrateTaskPrivateFiles(source);
 
     fs.renameSync(source, destination);
     migration.movedTaskCount += 1;
   }
 
-  // Drop the legacy dir once everything moved cleanly.
+  // Drop the legacy dir once every task folder has moved. Stray non-directory
+  // entries (e.g. a macOS .DS_Store) keep it around — harmless, but the
+  // (fast, rename-only) migration then re-runs every boot until they're gone.
   if (fs.readdirSync(legacyDir).length === 0) {
     fs.rmdirSync(legacyDir);
   }

@@ -49,11 +49,16 @@ export function createWorkspaceActor({
   // must not block boot.
   try {
     const migration = migrateWorkspaceLayout({ rootDir });
-    if (migration.migrated) {
-      logger.info("Migrated workspace layout to tasks/", {
-        conflictedTaskIds: migration.conflictedTaskIds,
-        movedTaskCount: migration.movedTaskCount,
-      });
+    if (migration.movedTaskCount > 0) {
+      logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
+    }
+    if (migration.conflictedTaskIds.length > 0) {
+      // A legacy task was abandoned because tasks/<id> already exists, so
+      // projects/ lingers and this re-runs every boot. Surface it.
+      logger.warn(
+        "Workspace layout migration left legacy task copies in projects/ (id already exists under tasks/)",
+        { conflictedTaskIds: migration.conflictedTaskIds },
+      );
     }
   } catch (error) {
     captureServerException(

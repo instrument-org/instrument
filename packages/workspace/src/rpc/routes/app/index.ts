@@ -5,10 +5,10 @@ import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
 import { appState } from "./state";
 
-const bySubdomain = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+const byId = base
+  .input(z.object({ id: TaskIdSchema }))
   .handler(async ({ context, errors, input }) => {
-    const result = await getApp(input.subdomain, context.workspaceConfig);
+    const result = await getApp(input.id, context.workspaceConfig);
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
@@ -17,6 +17,6 @@ const bySubdomain = base
   });
 
 export const app = {
-  bySubdomain,
+  byId,
   state: appState,
 };

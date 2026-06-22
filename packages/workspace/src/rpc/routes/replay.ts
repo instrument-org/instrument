@@ -15,13 +15,13 @@ const cancel = base
   )
   .output(z.void())
   .handler(({ input }) => {
-    const subdomain = ActiveReplays.getSubdomain(input.sessionId);
+    const id = ActiveReplays.getSubdomain(input.sessionId);
     ActiveReplays.cancel(input.sessionId);
-    if (subdomain) {
+    if (id) {
       publisher.publish("replay.changed", {
+        id,
         isActive: false,
         sessionId: input.sessionId,
-        subdomain,
       });
     }
   });
@@ -49,7 +49,7 @@ const live = {
       }
     }),
   statusBySubdomain: base
-    .input(z.object({ subdomain: TaskIdSchema }))
+    .input(z.object({ id: TaskIdSchema }))
     .output(
       eventIterator(
         z.object({ activeSessionIds: z.array(StoreId.SessionSchema) }),
@@ -57,17 +57,15 @@ const live = {
     )
     .handler(async function* ({ input, signal }) {
       yield {
-        activeSessionIds: ActiveReplays.getActiveSessionIds(input.subdomain),
+        activeSessionIds: ActiveReplays.getActiveSessionIds(input.id),
       };
 
       for await (const payload of publisher.subscribe("replay.changed", {
         signal,
       })) {
-        if (payload.subdomain === input.subdomain) {
+        if (payload.id === input.id) {
           yield {
-            activeSessionIds: ActiveReplays.getActiveSessionIds(
-              input.subdomain,
-            ),
+            activeSessionIds: ActiveReplays.getActiveSessionIds(input.id),
           };
         }
       }

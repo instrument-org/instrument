@@ -27,10 +27,10 @@ const STORAGE_TO_DATABASE = new WeakMap<
 // Tracks storages that are currently being disposed to prevent recreation
 const DISPOSING_STORAGES = new Set<TaskId>();
 
-export function disposeSessionsStoreStorage(subdomain: TaskId) {
+export function disposeSessionsStoreStorage(id: TaskId) {
   return ResultAsync.fromPromise(
     (async () => {
-      const storage = STORAGE_CACHE.get(subdomain);
+      const storage = STORAGE_CACHE.get(id);
       if (storage) {
         const database = STORAGE_TO_DATABASE.get(storage);
         if (database) {
@@ -39,7 +39,7 @@ export function disposeSessionsStoreStorage(subdomain: TaskId) {
           STORAGE_TO_DATABASE.delete(storage);
         }
         await storage.dispose();
-        STORAGE_CACHE.delete(subdomain);
+        STORAGE_CACHE.delete(id);
       }
       return ok(undefined);
     })(),
@@ -104,10 +104,10 @@ export function getSessionsStoreStorage(appConfig: AppConfig) {
     });
 }
 
-export function markStorageAsDisposing(subdomain: TaskId) {
-  DISPOSING_STORAGES.add(subdomain);
+export function markStorageAsDisposing(id: TaskId) {
+  DISPOSING_STORAGES.add(id);
 }
 
-export function unmarkStorageAsDisposing(subdomain: TaskId) {
-  DISPOSING_STORAGES.delete(subdomain);
+export function unmarkStorageAsDisposing(id: TaskId) {
+  DISPOSING_STORAGES.delete(id);
 }

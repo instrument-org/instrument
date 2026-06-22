@@ -25,7 +25,7 @@ import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAppConfig } from "../../lib/app-config/create";
 import { type AppConfig } from "../../lib/app-config/types";
 import { createAssignEventError } from "../../lib/assign-event-error";
-import { isProjectSubdomain } from "../../lib/is-app";
+import { isTaskId } from "../../lib/is-app";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
@@ -62,26 +62,26 @@ export type WorkspaceEvent =
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
-      value: { subdomain: TaskId };
+      value: { id: TaskId };
     }
   | {
       type: "addMessage";
       value: {
         agentName: AgentName;
+        id: TaskId;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
-        subdomain: TaskId;
       };
     }
   | {
       type: "createSession";
       value: {
         agentName: AgentName;
+        id: TaskId;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
-        subdomain: TaskId;
       };
     }
   | {
@@ -106,23 +106,23 @@ export type WorkspaceEvent =
     }
   | {
       type: "internal.updateHeartbeat";
-      value: { createdAt: number; subdomain: TaskId };
+      value: { createdAt: number; id: TaskId };
     }
   | {
       type: "prepareToTrashApp";
-      value: { onBrowserReaped?: () => void; subdomain: TaskId };
+      value: { id: TaskId; onBrowserReaped?: () => void };
     }
   | {
       type: "releaseBrowserPresence";
-      value: { subdomain: TaskId };
+      value: { id: TaskId };
     }
-  | { type: "removeAppBeingTrashed"; value: { subdomain: TaskId } }
+  | { type: "removeAppBeingTrashed"; value: { id: TaskId } }
   | {
       type: "restartAllRuntimes";
     }
   | {
       type: "restartRuntime";
-      value: { subdomain: TaskId };
+      value: { id: TaskId };
     }
   | {
       type: "spawnRuntime";
@@ -131,18 +131,18 @@ export type WorkspaceEvent =
   | {
       type: "stopRuntime";
       value: {
+        id: TaskId;
         includeChildren?: boolean;
-        subdomain: TaskId;
       };
     }
   | {
       type: "stopSessions";
-      value: { subdomain: TaskId };
+      value: { id: TaskId };
     }
   | {
       type: "updateInteractiveToolCall";
       value: {
-        subdomain: TaskId;
+        id: TaskId;
         update: ToolCallUpdate;
       };
     };
@@ -150,15 +150,15 @@ export type WorkspaceEvent =
 export const workspaceMachine = setup({
   actions: {
     acquireBrowserPresence: enqueueActions(
-      ({ enqueue }, { subdomain }: { subdomain: TaskId }) => {
+      ({ enqueue }, { id }: { id: TaskId }) => {
         enqueue.assign(({ context, spawn }) => {
-          const existing = context.projectBrowserRefs.get(subdomain);
+          const existing = context.projectBrowserRefs.get(id);
           const ref =
             existing ??
             spawn("projectBrowserMachine", {
               input: {
                 browser: context.config.browser,
-                subdomain,
+                id,
               },
             });
           ref.send({ type: "acquirePresence" });
@@ -167,7 +167,7 @@ export const workspaceMachine = setup({
           }
           return {
             projectBrowserRefs: new Map(context.projectBrowserRefs).set(
-              subdomain,
+              id,
               ref,
             ),
           };
@@ -178,7 +178,7 @@ export const workspaceMachine = setup({
     assignEventError: createAssignEventError(),
 
     clearSessionRefsBySubdomain: assign(
-      ({ context }, { subdomain }: { subdomain: TaskId }) => {
+      ({ context }, { id }: { id: TaskId }) => {
         const newsessionRefsBySubdomain = new Map<TaskId, SessionActorRef[]>();
 
         for (const [
@@ -186,9 +186,8 @@ export const workspaceMachine = setup({
           refs,
         ] of context.sessionRefsBySubdomain.entries()) {
           const shouldRemove =
-            sessionSubdomain === subdomain ||
-            (isProjectSubdomain(subdomain) &&
-              sessionSubdomain.endsWith(subdomain));
+            sessionSubdomain === id ||
+            (isTaskId(id) && sessionSubdomain.endsWith(id));
 
           if (shouldRemove) {
             continue;
@@ -206,12 +205,9 @@ export const workspaceMachine = setup({
     forwardAttachAgentSession: enqueueActions(
       (
         { context },
-        {
-          sessionId,
-          subdomain,
-        }: { sessionId: StoreId.Session; subdomain: TaskId },
+        { id, sessionId }: { id: TaskId; sessionId: StoreId.Session },
       ) => {
-        const ref = context.projectBrowserRefs.get(subdomain);
+        const ref = context.projectBrowserRefs.get(id);
         ref?.send({
           type: "attachAgentSession",
           value: { sessionId },
@@ -223,25 +219,25 @@ export const workspaceMachine = setup({
       (
         { enqueue },
         {
+          id,
           partitionDir,
           sessionId,
-          subdomain,
           targetId,
         }: {
+          id: TaskId;
           partitionDir: AbsolutePath;
           sessionId: StoreId.Session;
-          subdomain: TaskId;
           targetId: BrowserTargetId;
         },
       ) => {
         enqueue.assign(({ context, spawn }) => {
-          const existing = context.projectBrowserRefs.get(subdomain);
+          const existing = context.projectBrowserRefs.get(id);
           const ref =
             existing ??
             spawn("projectBrowserMachine", {
               input: {
                 browser: context.config.browser,
-                subdomain,
+                id,
               },
             });
           ref.send({
@@ -253,7 +249,7 @@ export const workspaceMachine = setup({
           }
           return {
             projectBrowserRefs: new Map(context.projectBrowserRefs).set(
-              subdomain,
+              id,
               ref,
             ),
           };
@@ -262,11 +258,8 @@ export const workspaceMachine = setup({
     ),
 
     forwardUpdateHeartbeat: enqueueActions(
-      (
-        { context },
-        { createdAt, subdomain }: { createdAt: number; subdomain: TaskId },
-      ) => {
-        const runtimeRef = context.runtimeRefs.get(subdomain);
+      ({ context }, { createdAt, id }: { createdAt: number; id: TaskId }) => {
+        const runtimeRef = context.runtimeRefs.get(id);
         runtimeRef?.send({
           type: "updateHeartbeat",
           value: { createdAt },
@@ -275,40 +268,38 @@ export const workspaceMachine = setup({
     ),
 
     handleProjectBrowserStopped: enqueueActions(
-      ({ context, enqueue }, { subdomain }: { subdomain: TaskId }) => {
-        const ref = context.projectBrowserRefs.get(subdomain);
+      ({ context, enqueue }, { id }: { id: TaskId }) => {
+        const ref = context.projectBrowserRefs.get(id);
         if (ref) {
           enqueue.stopChild(ref);
         }
         const nextRefs = new Map(context.projectBrowserRefs);
-        nextRefs.delete(subdomain);
+        nextRefs.delete(id);
         enqueue.assign({ projectBrowserRefs: nextRefs });
 
-        const resolvers = context.pendingBrowserReapResolvers.get(subdomain);
+        const resolvers = context.pendingBrowserReapResolvers.get(id);
         if (resolvers && resolvers.length > 0) {
           for (const resolve of resolvers) {
             resolve();
           }
           const nextResolvers = new Map(context.pendingBrowserReapResolvers);
-          nextResolvers.delete(subdomain);
+          nextResolvers.delete(id);
           enqueue.assign({ pendingBrowserReapResolvers: nextResolvers });
         }
       },
     ),
 
     releaseBrowserPresence: enqueueActions(
-      ({ context }, { subdomain }: { subdomain: TaskId }) => {
-        context.projectBrowserRefs
-          .get(subdomain)
-          ?.send({ type: "releasePresence" });
+      ({ context }, { id }: { id: TaskId }) => {
+        context.projectBrowserRefs.get(id)?.send({ type: "releasePresence" });
       },
     ),
 
     stopRuntime: enqueueActions(
-      ({ context, enqueue }, { subdomain }: { subdomain: TaskId }) => {
-        const runtimeRef = context.runtimeRefs.get(subdomain);
+      ({ context, enqueue }, { id }: { id: TaskId }) => {
+        const runtimeRef = context.runtimeRefs.get(id);
         const remainingRefs = new Map(context.runtimeRefs);
-        remainingRefs.delete(subdomain);
+        remainingRefs.delete(id);
         if (runtimeRef) {
           enqueue.stopChild(runtimeRef);
           enqueue.assign({ runtimeRefs: remainingRefs });
@@ -320,15 +311,15 @@ export const workspaceMachine = setup({
       (
         { context },
         {
+          id,
           sessionRef,
-          subdomain,
         }: {
+          id: TaskId;
           sessionRef: SessionActorRef;
-          subdomain: TaskId;
         },
       ) => {
         const existingSessionActorRefs =
-          context.sessionRefsBySubdomain.get(subdomain) ?? [];
+          context.sessionRefsBySubdomain.get(id) ?? [];
 
         const activeSessionActorRefs = existingSessionActorRefs.filter(
           (ref) => ref.getSnapshot().status !== "done",
@@ -337,7 +328,7 @@ export const workspaceMachine = setup({
         const newSessionRefsBySubdomain = new Map(
           context.sessionRefsBySubdomain,
         );
-        newSessionRefsBySubdomain.set(subdomain, [
+        newSessionRefsBySubdomain.set(id, [
           ...activeSessionActorRefs,
           sessionRef,
         ]);
@@ -436,15 +427,15 @@ export const workspaceMachine = setup({
     },
     acquireBrowserPresence: {
       actions: {
-        params: ({ event }) => ({ subdomain: event.value.subdomain }),
+        params: ({ event }) => ({ id: event.value.id }),
         type: "acquireBrowserPresence",
       },
     },
     addMessage: [
       {
         actions: ({ context, event }) => {
-          const { sessionId, subdomain } = event.value;
-          const sessionRefs = context.sessionRefsBySubdomain.get(subdomain);
+          const { id, sessionId } = event.value;
+          const sessionRefs = context.sessionRefsBySubdomain.get(id);
 
           const targetRef = sessionRefs?.find(
             (ref) => ref.getSnapshot().context.sessionId === sessionId,
@@ -455,8 +446,8 @@ export const workspaceMachine = setup({
           });
         },
         guard: ({ context, event }) => {
-          const { sessionId, subdomain } = event.value;
-          const sessionRefs = context.sessionRefsBySubdomain.get(subdomain);
+          const { id, sessionId } = event.value;
+          const sessionRefs = context.sessionRefsBySubdomain.get(id);
           return Boolean(
             sessionRefs?.some(
               (ref) =>
@@ -468,8 +459,8 @@ export const workspaceMachine = setup({
       },
       {
         actions: raise(({ event }) => {
-          const subdomain = event.value.subdomain;
-          const appConfig = createAppConfig({ subdomain });
+          const id = event.value.id;
+          const appConfig = createAppConfig({ id });
           return {
             type: "internal.spawnSession",
             value: {
@@ -485,7 +476,7 @@ export const workspaceMachine = setup({
     ],
     createSession: {
       actions: raise(({ event }) => {
-        const appConfig = createAppConfig({ subdomain: event.value.subdomain });
+        const appConfig = createAppConfig({ id: event.value.id });
         return {
           type: "internal.spawnSession",
           value: {
@@ -510,7 +501,7 @@ export const workspaceMachine = setup({
               type: "internal.updateHeartbeat",
               value: {
                 createdAt: event.value.createdAt,
-                subdomain: event.value.appConfig,
+                id: event.value.appConfig,
               },
             };
           }
@@ -554,8 +545,8 @@ export const workspaceMachine = setup({
 
           enqueue({
             params: {
+              id: appConfig,
               sessionRef: sessionMachineRef,
-              subdomain: appConfig,
             },
             type: "trackSessionRef",
           });
@@ -564,12 +555,12 @@ export const workspaceMachine = setup({
         });
       }),
       guard: ({ context, event }) => {
-        const subdomain = event.value.appConfig;
+        const id = event.value.appConfig;
         return !context.appsBeingTrashed.some(
           (trashingSubdomain) =>
-            subdomain === trashingSubdomain ||
-            // Includes any subdomain nested under the project being trashed
-            subdomain.endsWith(trashingSubdomain),
+            id === trashingSubdomain ||
+            // Includes any id nested under the project being trashed
+            id.endsWith(trashingSubdomain),
         );
       },
     },
@@ -577,7 +568,7 @@ export const workspaceMachine = setup({
       actions: {
         params: ({ event }) => ({
           createdAt: event.value.createdAt,
-          subdomain: event.value.subdomain,
+          id: event.value.id,
         }),
         type: "forwardUpdateHeartbeat",
       },
@@ -585,23 +576,20 @@ export const workspaceMachine = setup({
     prepareToTrashApp: {
       actions: enqueueActions(({ context, enqueue, event }) => {
         enqueue.assign({
-          appsBeingTrashed: [
-            ...context.appsBeingTrashed,
-            event.value.subdomain,
-          ],
+          appsBeingTrashed: [...context.appsBeingTrashed, event.value.id],
         });
 
-        // Track every projectBrowser whose subdomain matches the trashed
-        // project (the project itself, plus any subdomain nested under it).
+        // Track every projectBrowser whose id matches the trashed
+        // project (the project itself, plus any id nested under it).
         const matchingSubdomains: TaskId[] = [];
         for (const [
           browserSubdomain,
           ref,
         ] of context.projectBrowserRefs.entries()) {
           const matches =
-            browserSubdomain === event.value.subdomain ||
-            (typeof event.value.subdomain === "string" &&
-              browserSubdomain.endsWith(event.value.subdomain));
+            browserSubdomain === event.value.id ||
+            (typeof event.value.id === "string" &&
+              browserSubdomain.endsWith(event.value.id));
           if (matches) {
             matchingSubdomains.push(browserSubdomain);
             ref.send({ type: "forceReap" });
@@ -639,25 +627,25 @@ export const workspaceMachine = setup({
         enqueue.raise({
           type: "stopRuntime",
           value: {
+            id: event.value.id,
             includeChildren: true,
-            subdomain: event.value.subdomain,
           },
         });
         enqueue.raise({
           type: "stopSessions",
-          value: { subdomain: event.value.subdomain },
+          value: { id: event.value.id },
         });
       }),
     },
     "projectBrowser.stopped": {
       actions: {
-        params: ({ event }) => ({ subdomain: event.value.subdomain }),
+        params: ({ event }) => ({ id: event.value.id }),
         type: "handleProjectBrowserStopped",
       },
     },
     releaseBrowserPresence: {
       actions: {
-        params: ({ event }) => ({ subdomain: event.value.subdomain }),
+        params: ({ event }) => ({ id: event.value.id }),
         type: "releaseBrowserPresence",
       },
     },
@@ -665,7 +653,7 @@ export const workspaceMachine = setup({
       actions: assign(({ context, event }) => {
         return {
           appsBeingTrashed: context.appsBeingTrashed.filter(
-            (subdomain) => subdomain !== event.value.subdomain,
+            (id) => id !== event.value.id,
           ),
         };
       }),
@@ -680,27 +668,27 @@ export const workspaceMachine = setup({
     restartRuntime: [
       {
         actions: ({ context, event }) => {
-          const { subdomain } = event.value;
-          const runtimeRef = context.runtimeRefs.get(subdomain);
+          const { id } = event.value;
+          const runtimeRef = context.runtimeRefs.get(id);
           runtimeRef?.send({ type: "restart" });
         },
         guard: ({ context, event }) => {
-          const { subdomain } = event.value;
-          return context.runtimeRefs.has(subdomain);
+          const { id } = event.value;
+          return context.runtimeRefs.has(id);
         },
       },
       {
         actions: raise(({ event }) => {
-          const { subdomain } = event.value;
-          const appConfig = createAppConfig({ subdomain });
+          const { id } = event.value;
+          const appConfig = createAppConfig({ id });
           return {
             type: "spawnRuntime",
             value: { appConfig },
           };
         }),
         guard: ({ context, event }) => {
-          const { subdomain } = event.value;
-          return !context.runtimeRefs.has(subdomain);
+          const { id } = event.value;
+          return !context.runtimeRefs.has(id);
         },
       },
     ],
@@ -709,7 +697,7 @@ export const workspaceMachine = setup({
         actions: raise(({ event }) => {
           return {
             type: "restartRuntime",
-            value: { subdomain: event.value.appConfig },
+            value: { id: event.value.appConfig },
           };
         }),
         guard: ({ context, event }) =>
@@ -724,8 +712,8 @@ export const workspaceMachine = setup({
       // TODO: Add this back once we have another way to show "done" sessions
       // in the UI because we want to garbage collect them eagerly.
       // actions: assign(({ context, event }) => {
-      //   const { subdomain } = event.value.appConfig;
-      //   const { [subdomain]: sessionActorRefs = [], ...otherRefs } =
+      //   const { id } = event.value.appConfig;
+      //   const { [id]: sessionActorRefs = [], ...otherRefs } =
       //     context.sessionRefsBySubdomain;
       //   const newSessionActorRefs = sessionActorRefs.filter(
       //     (ref) => ref.id !== event.value.actorId,
@@ -733,7 +721,7 @@ export const workspaceMachine = setup({
       //   return {
       //     sessionRefsBySubdomain: {
       //       ...otherRefs,
-      //       [subdomain]: newSessionActorRefs,
+      //       [id]: newSessionActorRefs,
       //     },
       //   };
       // }),
@@ -758,12 +746,12 @@ export const workspaceMachine = setup({
         };
       }),
       guard: ({ context, event }) => {
-        const subdomain = event.value.appConfig;
+        const id = event.value.appConfig;
         return !context.appsBeingTrashed.some(
           (trashingSubdomain) =>
-            subdomain === trashingSubdomain ||
-            // Includes any subdomain nested under the project being trashed
-            subdomain.endsWith(trashingSubdomain),
+            id === trashingSubdomain ||
+            // Includes any id nested under the project being trashed
+            id.endsWith(trashingSubdomain),
         );
       },
     },
@@ -773,18 +761,18 @@ export const workspaceMachine = setup({
           context,
           enqueue,
           event: {
-            value: { includeChildren, subdomain },
+            value: { id, includeChildren },
           },
         }) => {
           enqueue({
-            params: { subdomain },
+            params: { id },
             type: "stopRuntime",
           });
           if (includeChildren) {
             for (const [runtimeSubdomain] of context.runtimeRefs.entries()) {
-              if (runtimeSubdomain.includes(subdomain)) {
+              if (runtimeSubdomain.includes(id)) {
                 enqueue({
-                  params: { subdomain: runtimeSubdomain },
+                  params: { id: runtimeSubdomain },
                   type: "stopRuntime",
                 });
               }
@@ -797,7 +785,7 @@ export const workspaceMachine = setup({
     stopSessions: {
       actions: ({ context, event }) => {
         const sessionActorRefs = context.sessionRefsBySubdomain.get(
-          event.value.subdomain,
+          event.value.id,
         );
         if (sessionActorRefs) {
           for (const sessionActorRef of sessionActorRefs) {
@@ -810,8 +798,8 @@ export const workspaceMachine = setup({
     updateInteractiveToolCall: [
       {
         actions: ({ context, event }) => {
-          const subdomain = event.value.subdomain;
-          const sessionRefs = context.sessionRefsBySubdomain.get(subdomain);
+          const id = event.value.id;
+          const sessionRefs = context.sessionRefsBySubdomain.get(id);
           if (!sessionRefs) {
             return;
           }
@@ -824,14 +812,14 @@ export const workspaceMachine = setup({
           }
         },
         guard: ({ context, event }) => {
-          const subdomain = event.value.subdomain;
-          const sessionRefs = context.sessionRefsBySubdomain.get(subdomain);
+          const id = event.value.id;
+          const sessionRefs = context.sessionRefsBySubdomain.get(id);
           return !!sessionRefs && sessionRefs.length > 0;
         },
       },
       {
         actions: log(({ event }) => {
-          return `No session refs found for subdomain: ${event.value.subdomain}`;
+          return `No session refs found for id: ${event.value.id}`;
         }),
       },
     ],
@@ -839,8 +827,8 @@ export const workspaceMachine = setup({
     "workspaceServer.attachAgentSession": {
       actions: {
         params: ({ event }) => ({
+          id: event.value.id,
           sessionId: event.value.sessionId,
-          subdomain: event.value.subdomain,
         }),
         type: "forwardAttachAgentSession",
       },
@@ -872,9 +860,9 @@ export const workspaceMachine = setup({
     "workspaceServer.updateCdpHeartbeat": {
       actions: {
         params: ({ event }) => ({
+          id: event.value.id,
           partitionDir: event.value.partitionDir,
           sessionId: event.value.sessionId,
-          subdomain: event.value.subdomain,
           targetId: event.value.targetId,
         }),
         type: "forwardUpdateCdpHeartbeat",

@@ -18,12 +18,12 @@ export const CurrentFileInfoSchema = z.object({
 
 export function getCurrentFileInfo({
   filePath,
-  projectSubdomain,
+  taskId,
 }: {
   filePath: RelativePath;
-  projectSubdomain: TaskId;
+  taskId: TaskId;
 }) {
-  const urls = urlsForSubdomain(projectSubdomain);
+  const urls = urlsForSubdomain(taskId);
   const cleanPath = normalizeProjectFilePath(filePath);
   const url = `${urls.assetBase}/${cleanPath}`;
 

@@ -62,9 +62,9 @@ function makeEntry({
       }
     : null;
   const entry = createEntry({
+    id: SUBDOMAIN,
     partitionDir: "/tmp/partition" as AbsolutePath,
     sessionId: SESSION_ID,
-    subdomain: SUBDOMAIN,
     targetId,
     // Cast to satisfy the WebContentsView type while exposing only the surface
     // sendCommand actually touches (entry.view.webContents).

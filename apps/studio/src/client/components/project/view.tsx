@@ -86,7 +86,7 @@ export function ProjectView({
       input: artifactPanel
         ? {
             filePath: artifactPanel.filePath,
-            projectSubdomain: project.subdomain,
+            taskId: project.id,
           }
         : skipToken,
       placeholderData: keepPreviousData,
@@ -101,7 +101,7 @@ export function ProjectView({
       ? {
           ...fileInfo,
           modifiedAt: currentFileMetadata.modifiedAt,
-          projectSubdomain: project.subdomain,
+          taskId: project.id,
           url: getAssetUrl({
             assetBase: project.urls.assetBase,
             filePath: fileInfo.filePath,
@@ -113,7 +113,7 @@ export function ProjectView({
   const handleArtifactPanelClose = () => {
     void navigate({
       from: "/tasks/$id",
-      params: { id: project.subdomain },
+      params: { id: project.id },
       replace: true,
       search: (prev) => ({ ...prev, artifactPanel: undefined }),
     });
@@ -122,7 +122,7 @@ export function ProjectView({
   const handleFileSelect = (file: ProjectFileViewerFile) => {
     void navigate({
       from: "/tasks/$id",
-      params: { id: project.subdomain },
+      params: { id: project.id },
       replace: true,
       search: (prev) => ({
         ...prev,
@@ -144,7 +144,7 @@ export function ProjectView({
   const handleSidebarChange = (nextSidebar: ProjectSidebarMode) => {
     void navigate({
       from: "/tasks/$id",
-      params: { id: project.subdomain },
+      params: { id: project.id },
       replace: true,
       search: (prev) => ({
         ...prev,

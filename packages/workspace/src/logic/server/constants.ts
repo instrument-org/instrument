@@ -7,7 +7,7 @@ export const APPS_SERVER_API_PATH = `/_${APP_NAME_SLUG}`;
 export const SHIM_IFRAME_BASE_PATH = `${APPS_SERVER_API_PATH}/shim-iframe`;
 export const SHIM_SCRIPT_PATH = `${SHIM_IFRAME_BASE_PATH}/src/client/index.js`;
 export const SHIM_DEV_HOST = `http://localhost:${PORTS.shimClient}`;
-export const LOCAL_LOOPBACK_APPS_SERVER_DOMAIN = "lvh.me"; // Due to some browsers not supporting localhost subdomains
+export const LOCAL_LOOPBACK_APPS_SERVER_DOMAIN = "lvh.me"; // Due to some browsers not supporting localhost ids
 export const LOCALHOST_APPS_SERVER_DOMAIN = "localhost";
 export const APPS_SERVER_DOMAINS = [
   LOCAL_LOOPBACK_APPS_SERVER_DOMAIN,

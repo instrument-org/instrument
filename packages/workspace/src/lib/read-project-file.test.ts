@@ -10,13 +10,13 @@ import { readProjectFile } from "./read-project-file";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("readProjectFile", () => {
-  const subdomain = TaskIdSchema.parse("test-project");
+  const id = TaskIdSchema.parse("test-project");
   let tasksDir: string;
   let dir: string;
 
   beforeEach(async () => {
     tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "read-project-file-"));
-    dir = path.join(tasksDir, subdomain);
+    dir = path.join(tasksDir, id);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, "inside.txt"), "inside contents");
     // Sensitive file outside the task dir (sibling of dir under tasksDir).
@@ -24,7 +24,7 @@ describe("readProjectFile", () => {
 
     // createMockAppConfig publishes the singleton; point it at the temp dir so
     // readProjectFile (which reads the singleton) resolves under it.
-    createMockAppConfig(subdomain);
+    createMockAppConfig(id);
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       tasksDir: AbsolutePathSchema.parse(tasksDir),
@@ -38,7 +38,7 @@ describe("readProjectFile", () => {
   it("reads a file inside the task dir", async () => {
     const buffer = await readProjectFile({
       filePath: "inside.txt",
-      projectSubdomain: subdomain,
+      taskId: id,
     });
     expect(buffer?.toString("utf8")).toBe("inside contents");
   });
@@ -51,7 +51,7 @@ describe("readProjectFile", () => {
   ])("fails closed for $label", async ({ filePath }) => {
     const buffer = await readProjectFile({
       filePath,
-      projectSubdomain: subdomain,
+      taskId: id,
     });
     expect(buffer).toBeNull();
   });

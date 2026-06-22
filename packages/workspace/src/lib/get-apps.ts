@@ -16,22 +16,20 @@ import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-app-dir-timestamps";
-import { isProjectSubdomain } from "./is-app";
+import { isTaskId } from "./is-app";
 import { getProjectManifest } from "./project-manifest";
 import { urlsForSubdomain } from "./url-for-subdomain";
 
 export async function getApp(
-  subdomain: TaskId,
+  id: TaskId,
   workspaceConfig: WorkspaceConfig,
 ): Promise<Result<Task, TypedError.NotFound | TypedError.Parse>> {
-  if (!isProjectSubdomain(subdomain)) {
+  if (!isTaskId(id)) {
     return err(new TypedError.Parse("Invalid folder name"));
   }
 
-  // For tasks the folder name is identical to the subdomain.
-  const dir = TaskDirSchema.parse(
-    path.resolve(workspaceConfig.tasksDir, subdomain),
-  );
+  // For tasks the folder name is identical to the id.
+  const dir = TaskDirSchema.parse(path.resolve(workspaceConfig.tasksDir, id));
 
   // Check if the directory exists
   try {
@@ -157,7 +155,7 @@ async function workspaceApp({ dir }: { dir: TaskDir }) {
     description: manifest?.description,
     folderName: rawFolderName,
     iconName,
-    subdomain: subdomainResult.data,
+    id: subdomainResult.data,
     title,
     type: "project",
     urls: urlsForSubdomain(subdomainResult.data),

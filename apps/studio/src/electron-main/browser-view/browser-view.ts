@@ -4,8 +4,8 @@ import { type Session, WebContentsView } from "electron";
 export function createBrowserView({
   session,
 }: {
+  id: TaskId;
   session: Session;
-  subdomain: TaskId;
 }): {
   destroyView: () => void;
   view: WebContentsView;

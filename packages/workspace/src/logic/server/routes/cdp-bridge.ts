@@ -56,9 +56,9 @@ cdpBridgeRoute.get("/json/version", (c) => {
 });
 
 cdpBridgeRoute.get("/json", async (c) => {
-  const subdomainResult = TaskIdSchema.safeParse(c.req.query("subdomain"));
+  const subdomainResult = TaskIdSchema.safeParse(c.req.query("id"));
   if (!subdomainResult.success) {
-    return c.json({ error: "subdomain query parameter required" }, 400);
+    return c.json({ error: "id query parameter required" }, 400);
   }
 
   const { browser } = c.get("workspaceConfig");
@@ -90,9 +90,9 @@ export function setupCdpWebSocketBridge(
       return;
     }
 
-    // The path component IS the target id: `${subdomain}/${sessionId}`.
+    // The path component IS the target id: `${id}/${sessionId}`.
     // No query parameters; everything routing-relevant is in the path so
-    // the WS upgrade alone tells us which (subdomain, sessionId) is wired.
+    // the WS upgrade alone tells us which (id, sessionId) is wired.
     const rawTargetId = req.url.slice(CDP_PAGE_PATH_PREFIX.length);
     const parsed = BrowserTargetIdSchema.safeParse(rawTargetId.split("?")[0]);
     if (!parsed.success) {
@@ -139,8 +139,8 @@ function handleCdpClient(
     workspaceRef.send({
       type: "workspaceServer.attachAgentSession",
       value: {
+        id: initialMeta.id,
         sessionId: initialMeta.sessionId,
-        subdomain: initialMeta.subdomain,
       },
     });
   }
@@ -233,9 +233,9 @@ function handleCdpClient(
       workspaceRef.send({
         type: "workspaceServer.updateCdpHeartbeat",
         value: {
+          id: meta.id,
           partitionDir: meta.partitionDir,
           sessionId: meta.sessionId,
-          subdomain: meta.subdomain,
           targetId,
         },
       });

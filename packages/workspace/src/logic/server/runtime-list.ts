@@ -155,7 +155,7 @@ export async function RuntimeList({
                               href="${app.app.urls.localhost}"
                               class="text-blue-400 font-medium"
                             >
-                              ${app.app.subdomain}
+                              ${app.app.id}
                             </a>
                             <span
                               class="px-1.5 py-0.5 text-xs rounded bg-green-500"
@@ -214,7 +214,7 @@ function getAppWithExtra({
   project: Task;
   runtimeRefs: Map<TaskId, RuntimeActorRef>;
 }): AppAndStatus {
-  const runtimeRef = runtimeRefs.get(app.subdomain);
+  const runtimeRef = runtimeRefs.get(app.id);
   const runtimeSnapshot = runtimeRef?.getSnapshot();
   const port = runtimeSnapshot?.context.port;
   const status = runtimeSnapshot
@@ -223,7 +223,7 @@ function getAppWithExtra({
 
   return {
     app,
-    config: createAppConfig({ subdomain: app.subdomain }),
+    config: createAppConfig({ id: app.id }),
     port,
     status,
   };

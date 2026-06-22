@@ -44,7 +44,7 @@ const mockProviderConfigs = new Map<
 >();
 
 export function createMockAppConfig(
-  subdomain: TaskId,
+  id: TaskId,
   options: {
     aiSDKModel?: LanguageModelV3;
     imageModel?: ImageModelV3;
@@ -112,7 +112,7 @@ export function createMockAppConfig(
   mockProviderConfigs.set(config.id, config);
   setWorkspaceConfig(workspaceConfig);
 
-  return createAppConfig({ subdomain });
+  return createAppConfig({ id });
 }
 
 // Returns a task id whose taskDir(id) resolves to `dir`, by pointing the
@@ -135,9 +135,9 @@ export function createStubBrowserConfig(): BrowserConfig {
   return {
     captureScreenshot: () => Promise.resolve(undefined),
     closeTarget: () => Promise.resolve(),
-    createTarget: (subdomain, sessionId) =>
+    createTarget: (id, sessionId) =>
       Promise.resolve({
-        targetId: encodeBrowserTargetId(subdomain, sessionId),
+        targetId: encodeBrowserTargetId(id, sessionId),
       }),
     getTargetMeta: () => null,
     listTargets: () => Promise.resolve([]),

@@ -15,10 +15,10 @@ import {
 import { BrainIcon, ChatTextIcon, QuestionIcon } from "@phosphor-icons/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 
-export function SessionStatusPreview({ subdomain }: { subdomain: TaskId }) {
+export function SessionStatusPreview({ id }: { id: TaskId }) {
   const { data: sessions = [], isPending } = useQuery({
     ...rpcClient.workspace.session.live.list.experimental_liveOptions({
-      input: { subdomain },
+      input: { id },
     }),
   });
 
@@ -32,26 +32,24 @@ export function SessionStatusPreview({ subdomain }: { subdomain: TaskId }) {
     return <StatusBadge text="Idle" />;
   }
 
-  return (
-    <SessionStatusText sessionId={latestSession.id} subdomain={subdomain} />
-  );
+  return <SessionStatusText id={id} sessionId={latestSession.id} />;
 }
 
 function SessionStatusText({
+  id,
   sessionId,
-  subdomain,
 }: {
+  id: TaskId;
   sessionId: StoreId.Session;
-  subdomain: TaskId;
 }) {
-  const { isAgentAlive } = useAgentSessionStatus({ sessionId, subdomain });
+  const { isAgentAlive } = useAgentSessionStatus({ id, sessionId });
 
   // Only stream full message parts while the agent is live. Idle/completed rows
   // render "Done" without opening a per-row session stream, which otherwise
   // fans out to one full listWithParts subscription per visible table row.
   const { data: messages = [] } = useQuery(
     rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
-      input: isAgentAlive ? { sessionId, subdomain } : skipToken,
+      input: isAgentAlive ? { id, sessionId } : skipToken,
     }),
   );
 

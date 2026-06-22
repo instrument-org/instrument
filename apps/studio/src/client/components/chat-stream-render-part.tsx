@@ -93,7 +93,7 @@ export function renderChatPart({
         className="mt-2"
         files={part.data.files}
         key={part.metadata.id}
-        projectSubdomain={ctx.project.subdomain}
+        taskId={ctx.project.id}
       />
     );
   }

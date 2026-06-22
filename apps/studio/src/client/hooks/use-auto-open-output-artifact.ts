@@ -10,18 +10,18 @@ import { useEffect, useEffectEvent } from "react";
 // non-reactively, so the effect fires once per event, never re-opening one.
 export function useAutoOpenOutputArtifact({
   artifactPanel,
+  id,
   selectedSessionId,
-  subdomain,
 }: {
   artifactPanel: ArtifactPanel | undefined;
+  id: TaskId;
   selectedSessionId: StoreId.Session | undefined;
-  subdomain: TaskId;
 }) {
   const navigate = useNavigate();
 
   const { data: artifacts } = useQuery(
     rpcClient.workspace.task.live.outputArtifacts.experimental_liveOptions({
-      input: { subdomain },
+      input: { id },
     }),
   );
 
@@ -37,7 +37,7 @@ export function useAutoOpenOutputArtifact({
 
     void navigate({
       from: "/tasks/$id",
-      params: { id: subdomain },
+      params: { id },
       replace: true,
       search: (s) => ({
         ...s,

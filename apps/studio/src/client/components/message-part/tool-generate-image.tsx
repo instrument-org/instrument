@@ -87,14 +87,14 @@ export function SourceImagesChip({
 
 export function ToolGenerateImage({
   assetBaseUrl,
+  id,
   onRetry,
   part,
-  subdomain,
 }: {
   assetBaseUrl: string;
+  id: TaskId;
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
-  subdomain: TaskId;
 }) {
   const navigate = useNavigate({ from: "/tasks/$id" });
 
@@ -158,8 +158,8 @@ export function ToolGenerateImage({
           primaryModifiedAt !== undefined && (
             <ImageActions
               filePath={primaryFilePath}
+              id={id}
               modifiedAt={primaryModifiedAt}
-              subdomain={subdomain}
             />
           )}
       </ToolCardHeader>
@@ -300,18 +300,18 @@ function GeneratedImage({
 
 function ImageActions({
   filePath,
+  id,
   modifiedAt,
-  subdomain,
 }: {
   filePath: string;
+  id: TaskId;
   modifiedAt: number;
-  subdomain: TaskId;
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
   const navigate = useNavigate({ from: "/tasks/$id" });
 
   const handleAddToChat = () => {
-    appendToPrompt({ key: subdomain, update: filePath });
+    appendToPrompt({ key: id, update: filePath });
   };
 
   const handleExpand = () => {
@@ -325,7 +325,7 @@ function ImageActions({
   };
 
   const handleCopy = async () => {
-    await copyFileToClipboard({ filePath, isImage: true, subdomain });
+    await copyFileToClipboard({ filePath, id, isImage: true });
   };
 
   return (

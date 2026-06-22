@@ -59,9 +59,9 @@ if (isZip) {
 
 const manifest = await getProjectManifest(dir);
 const folderName = path.basename(dir);
-const subdomain = TaskIdSchema.parse(folderName);
+const id = TaskIdSchema.parse(folderName);
 setWorkspaceConfig(createStubWorkspaceConfig({ tasksDir }));
-const appConfig = createAppConfig({ subdomain });
+const appConfig = createAppConfig({ id });
 
 const sessionsResult = await Store.getSessions(appConfig, {
   includeChildSessions: true,

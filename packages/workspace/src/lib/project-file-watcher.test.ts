@@ -15,7 +15,7 @@ import {
 } from "./project-file-watcher";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
-const subdomain = TaskIdSchema.parse("watcher-test");
+const id = TaskIdSchema.parse("watcher-test");
 
 let root: string;
 let dir: string;
@@ -24,11 +24,11 @@ let workspaceConfig: WorkspaceConfig;
 async function setupTask() {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "watcher-test-"));
   const tasksDir = path.join(root, "projects");
-  dir = path.join(tasksDir, subdomain);
+  dir = path.join(tasksDir, id);
   await fs.mkdir(path.join(dir, "sub"), { recursive: true });
   // createMockAppConfig publishes the singleton; point it at the temp dir so
   // the watcher's createAppConfig resolves dir under it.
-  createMockAppConfig(subdomain);
+  createMockAppConfig(id);
   workspaceConfig = {
     ...getWorkspaceConfig(),
     tasksDir: AbsolutePathSchema.parse(tasksDir),
@@ -37,14 +37,14 @@ async function setupTask() {
 }
 
 function trackedPaths() {
-  return (getCurrentProjectFiles(subdomain) ?? []).map((file) =>
+  return (getCurrentProjectFiles(id) ?? []).map((file) =>
     String(file.filePath),
   );
 }
 
 afterEach(async () => {
   // Release any lingering watcher so it doesn't outlive the test.
-  await consumeTurnChanges({ sessionId: StoreId.newSessionId(), subdomain });
+  await consumeTurnChanges({ id, sessionId: StoreId.newSessionId() });
   await fs.rm(root, { force: true, recursive: true });
 });
 
@@ -55,7 +55,7 @@ describe("project file watcher turn tracking", () => {
     await fs.writeFile(path.join(dir, "sub", "b.txt"), "b");
 
     const sessionId = StoreId.newSessionId();
-    await beginTurnChangeTracking({ sessionId, subdomain, workspaceConfig });
+    await beginTurnChangeTracking({ id, sessionId, workspaceConfig });
 
     expect(trackedPaths()).toEqual(["a.txt", "sub/b.txt"]);
 
@@ -63,7 +63,7 @@ describe("project file watcher turn tracking", () => {
     await fs.writeFile(path.join(dir, "c.txt"), "c");
     await fs.rm(path.join(dir, "sub", "b.txt"));
 
-    const { changes } = await consumeTurnChanges({ sessionId, subdomain });
+    const { changes } = await consumeTurnChanges({ id, sessionId });
     expect(
       changes.map(({ filePath, status }) => ({
         filePath: String(filePath),
@@ -76,7 +76,7 @@ describe("project file watcher turn tracking", () => {
     ]);
 
     // The turn held the only watcher ref, so consuming disposes it.
-    expect(getCurrentProjectFiles(subdomain)).toBeUndefined();
+    expect(getCurrentProjectFiles(id)).toBeUndefined();
   }, 15_000);
 
   it("reports no changes for a turn that touches nothing", async () => {
@@ -84,11 +84,11 @@ describe("project file watcher turn tracking", () => {
     await fs.writeFile(path.join(dir, "a.txt"), "a");
 
     const sessionId = StoreId.newSessionId();
-    await beginTurnChangeTracking({ sessionId, subdomain, workspaceConfig });
+    await beginTurnChangeTracking({ id, sessionId, workspaceConfig });
 
-    const { changes } = await consumeTurnChanges({ sessionId, subdomain });
+    const { changes } = await consumeTurnChanges({ id, sessionId });
     expect(changes).toEqual([]);
-    expect(getCurrentProjectFiles(subdomain)).toBeUndefined();
+    expect(getCurrentProjectFiles(id)).toBeUndefined();
   }, 15_000);
 
   it("ignores files created and deleted within the same turn", async () => {
@@ -96,13 +96,13 @@ describe("project file watcher turn tracking", () => {
     await fs.writeFile(path.join(dir, "a.txt"), "a");
 
     const sessionId = StoreId.newSessionId();
-    await beginTurnChangeTracking({ sessionId, subdomain, workspaceConfig });
+    await beginTurnChangeTracking({ id, sessionId, workspaceConfig });
 
     const ephemeral = path.join(dir, "ephemeral.txt");
     await fs.writeFile(ephemeral, "x");
     await fs.rm(ephemeral);
 
-    const { changes } = await consumeTurnChanges({ sessionId, subdomain });
+    const { changes } = await consumeTurnChanges({ id, sessionId });
     expect(changes).toEqual([]);
   }, 15_000);
 });

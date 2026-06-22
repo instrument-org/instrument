@@ -74,6 +74,7 @@ interface WatcherEntry {
   dir: TaskDir;
   disposed: boolean;
   fallbackTimer: null | ReturnType<typeof setInterval>;
+  id: TaskId;
   // Null until the first seed completes; seeding always precedes event handling.
   ignore: Ignore | null;
   index: ProjectFileIndex;
@@ -84,7 +85,6 @@ interface WatcherEntry {
   refCount: number;
   resolveReady: () => void;
   seeded: boolean;
-  subdomain: TaskId;
   subscription: null | { unsubscribe: () => Promise<void> };
   // Per-session turn trackers; populated only while a turn is in flight.
   turns: Map<StoreId.Session, TurnTracker>;
@@ -96,21 +96,21 @@ let PARCEL_PROMISE: Promise<ParcelWatcherApi | undefined> | undefined;
 
 /**
  * Starts tracking on-disk changes for a turn. Holds a watcher open for the
- * subdomain (ref-counted) and snapshots the current file index as the turn's
+ * id (ref-counted) and snapshots the current file index as the turn's
  * "before" state. Awaits the initial seed so the snapshot reflects pre-turn
  * state. Must be paired with {@link consumeTurnChanges} to release the watcher.
  */
 export async function beginTurnChangeTracking({
+  id,
   sessionId,
-  subdomain,
   workspaceConfig,
 }: {
+  id: TaskId;
   sessionId: StoreId.Session;
-  subdomain: TaskId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<void> {
-  const release = startWatchingProjectFiles({ subdomain, workspaceConfig });
-  const entry = REGISTRY.get(subdomain);
+  const release = startWatchingProjectFiles({ id, workspaceConfig });
+  const entry = REGISTRY.get(id);
   if (!entry) {
     release();
     return;
@@ -137,13 +137,13 @@ export async function beginTurnChangeTracking({
  * unconditionally; returns an empty list when nothing was tracked.
  */
 export async function consumeTurnChanges({
+  id,
   sessionId,
-  subdomain,
 }: {
+  id: TaskId;
   sessionId: StoreId.Session;
-  subdomain: TaskId;
 }): Promise<{ after?: ProjectFileIndex; changes: ProjectFileChange[] }> {
-  const entry = REGISTRY.get(subdomain);
+  const entry = REGISTRY.get(id);
   const turn = entry?.turns.get(sessionId);
   if (!entry || !turn) {
     return { changes: [] };
@@ -165,14 +165,14 @@ export async function consumeTurnChanges({
 }
 
 /**
- * Returns a copy of the current in-memory file index for a subdomain, or
+ * Returns a copy of the current in-memory file index for a id, or
  * undefined when no watcher is active. Lets callers diff against the index the
  * watcher already maintains instead of walking disk again.
  */
 export function getCurrentProjectFileIndex(
-  subdomain: TaskId,
+  id: TaskId,
 ): ProjectFileIndex | undefined {
-  const entry = REGISTRY.get(subdomain);
+  const entry = REGISTRY.get(id);
   if (!entry?.seeded) {
     return undefined;
   }
@@ -180,13 +180,11 @@ export function getCurrentProjectFileIndex(
 }
 
 /**
- * Returns the current in-memory file list for a subdomain, or undefined when no
+ * Returns the current in-memory file list for a id, or undefined when no
  * watcher is active (callers fall back to a fresh walk in that case).
  */
-export function getCurrentProjectFiles(
-  subdomain: TaskId,
-): ProjectFile[] | undefined {
-  const entry = REGISTRY.get(subdomain);
+export function getCurrentProjectFiles(id: TaskId): ProjectFile[] | undefined {
+  const entry = REGISTRY.get(id);
   if (!entry?.seeded) {
     return undefined;
   }
@@ -196,25 +194,25 @@ export function getCurrentProjectFiles(
 /**
  * Begins watching a task's files, maintaining an incremental in-memory index
  * and publishing `project.files.changed` as the tree changes. Idempotent per
- * subdomain via ref-counting; returns a disposer that stops watching once the
+ * id via ref-counting; returns a disposer that stops watching once the
  * last holder releases.
  */
 export function startWatchingProjectFiles({
-  subdomain,
+  id,
   workspaceConfig,
 }: {
-  subdomain: TaskId;
+  id: TaskId;
   workspaceConfig: WorkspaceConfig;
 }): () => void {
-  const existing = REGISTRY.get(subdomain);
+  const existing = REGISTRY.get(id);
   if (existing) {
     existing.refCount += 1;
     return () => {
-      releaseWatcher(subdomain);
+      releaseWatcher(id);
     };
   }
 
-  const dir = taskDir(subdomain);
+  const dir = taskDir(id);
   let resolveReady: () => void = noop;
   const ready = new Promise<void>((resolve) => {
     resolveReady = () => {
@@ -228,6 +226,7 @@ export function startWatchingProjectFiles({
     dir,
     disposed: false,
     fallbackTimer: null,
+    id,
     ignore: null,
     index: new Map(),
     pendingPaths: new Set(),
@@ -235,16 +234,15 @@ export function startWatchingProjectFiles({
     refCount: 1,
     resolveReady,
     seeded: false,
-    subdomain,
     subscription: null,
     turns: new Map(),
   };
-  REGISTRY.set(subdomain, entry);
+  REGISTRY.set(id, entry);
 
   void initWatcher(entry);
 
   return () => {
-    releaseWatcher(subdomain);
+    releaseWatcher(id);
   };
 }
 
@@ -332,7 +330,7 @@ async function flush(entry: WatcherEntry) {
   }
 
   if (changed && !isDisposed(entry)) {
-    publisher.publish("project.files.changed", { subdomain: entry.subdomain });
+    publisher.publish("project.files.changed", { id: entry.id });
   }
 }
 
@@ -353,7 +351,7 @@ async function initWatcher(entry: WatcherEntry) {
   // Sync any live subscriber to the freshly seeded index, closing the window
   // between the subscriber's initial walk and the first watcher event.
   if (entry.seeded) {
-    publisher.publish("project.files.changed", { subdomain: entry.subdomain });
+    publisher.publish("project.files.changed", { id: entry.id });
   }
 
   const parcel = await loadParcelWatcher();
@@ -427,14 +425,14 @@ async function refreshIndex(entry: WatcherEntry): Promise<ProjectFileIndex> {
     JSON.stringify(before) !==
       JSON.stringify(projectFilesFromIndex(entry.index))
   ) {
-    publisher.publish("project.files.changed", { subdomain: entry.subdomain });
+    publisher.publish("project.files.changed", { id: entry.id });
   }
   return entry.index;
 }
 
 /** Drops a ref; tears down timers, the subscription, and the registry entry once the last holder releases. */
-function releaseWatcher(subdomain: TaskId) {
-  const entry = REGISTRY.get(subdomain);
+function releaseWatcher(id: TaskId) {
+  const entry = REGISTRY.get(id);
   if (!entry) {
     return;
   }
@@ -443,7 +441,7 @@ function releaseWatcher(subdomain: TaskId) {
     return;
   }
   entry.disposed = true;
-  REGISTRY.delete(subdomain);
+  REGISTRY.delete(id);
   if (entry.debounceTimer) {
     clearTimeout(entry.debounceTimer);
   }

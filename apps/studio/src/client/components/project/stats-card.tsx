@@ -13,13 +13,13 @@ import { format, formatDistanceToNow } from "date-fns";
 export function ProjectStatsCard({ project }: { project: Task }) {
   const { data: messageCount } = useQuery(
     rpcClient.workspace.message.count.queryOptions({
-      input: { subdomain: project.subdomain },
+      input: { id: project.id },
     }),
   );
 
   const { data: files } = useQuery({
     ...rpcClient.workspace.task.files.list.queryOptions({
-      input: { projectSubdomain: project.subdomain },
+      input: { taskId: project.id },
     }),
   });
   const fileCount = files?.length;

@@ -30,22 +30,22 @@ const replaySession = base
   .input(
     z.object({
       delayMs: z.number().int().min(0).default(0),
+      id: TaskIdSchema,
       mode: z.enum(["new-project", "new-session"]).default("new-project"),
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .output(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .handler(async ({ context, errors, input, signal }) => {
-    const { delayMs, mode, sessionId, subdomain } = input;
+    const { delayMs, id, mode, sessionId } = input;
     const { workspaceConfig } = context;
 
-    const sourceAppConfig = createAppConfig({ subdomain });
+    const sourceAppConfig = createAppConfig({ id });
 
     const messagesResult = await Store.getMessagesWithParts(
       { appConfig: sourceAppConfig, sessionId },
@@ -80,7 +80,7 @@ const replaySession = base
 
     if (mode === "new-project") {
       const sourceManifest = await getProjectManifest(taskDir(sourceAppConfig));
-      const sourceProjectName = sourceManifest?.name ?? subdomain;
+      const sourceProjectName = sourceManifest?.name ?? id;
 
       const prepareResult = await prepareProjectReplay({
         sessionNamePrefix: REPLAY_SESSION_NAME_PREFIX,
@@ -99,7 +99,7 @@ const replaySession = base
       replayMessages = prepareResult.value.replayMessages;
 
       publisher.publish("project.updated", {
-        subdomain: targetAppConfig,
+        id: targetAppConfig,
       });
     } else {
       const sessionResult = await createReplaySession({
@@ -121,9 +121,9 @@ const replaySession = base
     const abortController = new AbortController();
     ActiveReplays.register(newSessionId, abortController, targetAppConfig);
     publisher.publish("replay.changed", {
+      id: targetAppConfig,
       isActive: true,
       sessionId: newSessionId,
-      subdomain: targetAppConfig,
     });
 
     const spawnAgent: SpawnAgentFunction = ({ signal: subSignal }) => {
@@ -181,9 +181,9 @@ const replaySession = base
       if (ActiveReplays.isActive(newSessionId)) {
         ActiveReplays.cancel(newSessionId);
         publisher.publish("replay.changed", {
+          id: targetAppConfig,
           isActive: false,
           sessionId: newSessionId,
-          subdomain: targetAppConfig,
         });
       }
     });
@@ -191,8 +191,8 @@ const replaySession = base
     workspaceConfig.captureEvent("session.replay_started");
 
     return {
+      id: targetAppConfig,
       sessionId: newSessionId,
-      subdomain: targetAppConfig,
     };
   });
 

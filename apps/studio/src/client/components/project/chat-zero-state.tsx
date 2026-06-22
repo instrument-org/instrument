@@ -6,18 +6,15 @@ import { sort } from "radashi";
 import { InternalLink } from "../internal-link";
 
 interface ChatZeroStateProps {
+  id: TaskId;
   message?: string;
   selectedSessionId?: string;
-  subdomain: TaskId;
 }
 
-export function ChatZeroState({
-  selectedSessionId,
-  subdomain,
-}: ChatZeroStateProps) {
+export function ChatZeroState({ id, selectedSessionId }: ChatZeroStateProps) {
   const { data: allSessions = [] } = useQuery(
     rpcClient.workspace.session.live.list.experimental_liveOptions({
-      input: { subdomain },
+      input: { id },
     }),
   );
 
@@ -40,7 +37,7 @@ export function ChatZeroState({
                   allowOpenNewTab={false}
                   className="block text-xs underline hover:text-foreground"
                   key={session.id}
-                  params={{ id: subdomain }}
+                  params={{ id }}
                   replace
                   search={(prev) => ({
                     ...prev,

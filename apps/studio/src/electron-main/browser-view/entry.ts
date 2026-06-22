@@ -23,6 +23,7 @@ export interface BrowserEntry {
   // most once because the set is cleared after draining.
   disposers: Set<() => void>;
   eventListeners: Set<(method: string, params: unknown) => void>;
+  id: TaskId;
   // Chromium profile partition directory; threaded through so callers like
   // BrowserConfig.getTargetMeta can correlate the target back to its session
   // dir without re-deriving it.
@@ -32,8 +33,7 @@ export interface BrowserEntry {
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
   sessionId: StoreId.Session;
-  subdomain: TaskId;
-  // Stable, externally-meaningful target id: `${subdomain}/${sessionId}`.
+  // Stable, externally-meaningful target id: `${id}/${sessionId}`.
   // Used as the manager Map key, the CDP URL path component, and the wire
   // identifier in BrowserConfig. Independent of webContents.id (which becomes
   // undefined after destruction in Electron 41+, electron/electron#50249).
@@ -42,15 +42,15 @@ export interface BrowserEntry {
 }
 
 export function createEntry({
+  id,
   partitionDir,
   sessionId,
-  subdomain,
   targetId,
   view,
 }: {
+  id: TaskId;
   partitionDir: AbsolutePath;
   sessionId: StoreId.Session;
-  subdomain: TaskId;
   targetId: BrowserTargetId;
   view: WebContentsView;
 }): BrowserEntry {
@@ -60,12 +60,12 @@ export function createEntry({
     detachListeners: new Set(),
     disposers: new Set(),
     eventListeners: new Set(),
+    id,
     partitionDir,
     pendingDownloadGuids: new Map(),
     screencastInterval: null,
     screencastSessionId: 0,
     sessionId,
-    subdomain,
     targetId,
     view,
   };

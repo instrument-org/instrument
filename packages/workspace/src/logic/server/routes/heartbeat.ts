@@ -35,9 +35,9 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
     });
   }
 
-  const { subdomain } = uriDetails.value;
+  const { id } = uriDetails.value;
 
-  const appConfig = createAppConfig({ subdomain });
+  const appConfig = createAppConfig({ id });
 
   return streamSSE(c, async (stream) => {
     let lastResponse: HeartbeatResponse | null = null;
@@ -69,7 +69,7 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
     }
 
     const sendHeartbeat = async () => {
-      const runtimeRef = c.var.getRuntimeRef(subdomain);
+      const runtimeRef = c.var.getRuntimeRef(id);
 
       if (!runtimeRef) {
         const canRun = await isRunnable(taskDir(appConfig));
@@ -106,7 +106,7 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
 
     try {
       while (!c.req.raw.signal.aborted) {
-        const runtimeRef = c.var.getRuntimeRef(subdomain);
+        const runtimeRef = c.var.getRuntimeRef(id);
 
         if (runtimeRef && !runtimeRefSubscription) {
           // Ensures immediate updates without polling

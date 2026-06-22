@@ -84,7 +84,7 @@ export function updateProjectManifest(
     );
 
     publisher.publish("project.updated", {
-      subdomain: projectConfig,
+      id: projectConfig,
     });
 
     return ok(undefined);

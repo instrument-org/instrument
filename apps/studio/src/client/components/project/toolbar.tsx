@@ -73,10 +73,10 @@ export function ProjectToolbar({
             {isDeveloperMode && (
               <div className="min-w-0 shrink overflow-hidden">
                 <ProjectUsageSummary
+                  id={project.id}
                   onClick={() => {
                     setDebugDialogOpen(true);
                   }}
-                  subdomain={project.subdomain}
                 />
               </div>
             )}
@@ -111,6 +111,7 @@ export function ProjectToolbar({
               </DropdownMenu>
               <div className="shrink-0">
                 <ProjectActionsMenu
+                  id={project.id}
                   onDebugClick={() => {
                     setDebugDialogOpen(true);
                   }}
@@ -121,7 +122,6 @@ export function ProjectToolbar({
                     setSettingsDialogOpen(true);
                   }}
                   selectedSessionId={selectedSessionId}
-                  subdomain={project.subdomain}
                 />
               </div>
             </div>

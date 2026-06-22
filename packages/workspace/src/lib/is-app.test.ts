@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { isProjectSubdomain } from "./is-app";
+import { isTaskId } from "./is-app";
 
-describe("isProjectSubdomain", () => {
+describe("isTaskId", () => {
   it.each([
     ["my-app", true],
     ["test123", true],
@@ -11,7 +11,7 @@ describe("isProjectSubdomain", () => {
     ["my-app.preview", false],
     ["sandbox-test.my-app", false],
     ["version-abc.my-app", false],
-  ])("should return %s for %s", (subdomain, expected) => {
-    expect(isProjectSubdomain(subdomain)).toBe(expected);
+  ])("should return %s for %s", (id, expected) => {
+    expect(isTaskId(id)).toBe(expected);
   });
 });

@@ -68,8 +68,8 @@ function TaskStream({
   } = useQuery(
     rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
       input: {
+        id: project.id,
         sessionId,
-        subdomain: project.subdomain,
       },
     }),
   );

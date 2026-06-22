@@ -4,15 +4,15 @@ import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 
 export function useContinueSession({
+  id,
   modelURI,
   onSuccess,
   sessionId,
-  subdomain,
 }: {
+  id: TaskId;
   modelURI: AIGatewayModelURI.Type | undefined;
   onSuccess?: () => void;
   sessionId: StoreId.Session | undefined;
-  subdomain: TaskId;
 }) {
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
@@ -25,10 +25,10 @@ export function useContinueSession({
 
     createMessage.mutate(
       {
+        id,
         modelURI,
         prompt: "Continue.",
         sessionId,
-        subdomain,
       },
       { onSuccess },
     );

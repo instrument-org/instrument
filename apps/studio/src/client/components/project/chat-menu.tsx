@@ -69,21 +69,21 @@ export function ProjectChatMenu({
   sidebar: "chat" | "files";
 }) {
   const navigate = useNavigate();
-  // Use the route subdomain for session data; project may be placeholder data
+  // Use the route id for session data; project may be placeholder data
   // from the previous project while keepPreviousData is active.
-  const subdomain = useProjectRouteSubdomain();
+  const id = useProjectRouteSubdomain();
 
   const { data: sessions = [] } = useQuery(
     rpcClient.workspace.session.live.list.experimental_liveOptions({
-      input: { subdomain },
+      input: { id },
     }),
   );
 
-  const { data: appState } = useAppState({ subdomain });
+  const { data: appState } = useAppState({ id });
   const sessionActors = appState?.sessionActors ?? [];
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
-      input: { subdomain },
+      input: { id },
     }),
   );
 
@@ -107,7 +107,7 @@ export function ProjectChatMenu({
   const handleNewChat = () => {
     skipCloseFocusToTriggerRef.current = true;
     createEmptySession.mutate(
-      { subdomain },
+      { id },
       {
         onError: (error) => {
           toast.error("Failed to create new chat", {
@@ -116,7 +116,7 @@ export function ProjectChatMenu({
         },
         onSuccess: (result) => {
           void navigate({
-            params: { id: subdomain },
+            params: { id },
             replace: true,
             search: (prev) => ({
               ...prev,
@@ -133,7 +133,7 @@ export function ProjectChatMenu({
   const navigateToSession = (sessionId: StoreId.Session) => {
     skipCloseFocusToTriggerRef.current = true;
     void navigate({
-      params: { id: subdomain },
+      params: { id },
       replace: true,
       search: (prev) => ({
         ...prev,

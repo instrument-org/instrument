@@ -43,7 +43,7 @@ export function ProjectDebugDialog({
 
   const queryInput =
     open && selectedSessionId
-      ? { sessionId: selectedSessionId, subdomain: project.subdomain }
+      ? { id: project.id, sessionId: selectedSessionId }
       : skipToken;
 
   const { data: jsonData } = useQuery(

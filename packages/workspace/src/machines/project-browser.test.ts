@@ -52,10 +52,8 @@ const { closeAgentBrowserSessionsForSessions } = await import(
   "../lib/agent-browser-cleanup"
 );
 
-const createTargetMock: BrowserConfig["createTarget"] = (
-  subdomain,
-  sessionId,
-) => Promise.resolve({ targetId: encodeBrowserTargetId(subdomain, sessionId) });
+const createTargetMock: BrowserConfig["createTarget"] = (id, sessionId) =>
+  Promise.resolve({ targetId: encodeBrowserTargetId(id, sessionId) });
 
 function makeBrowser(): BrowserConfig {
   return {
@@ -71,7 +69,7 @@ function makeBrowser(): BrowserConfig {
   };
 }
 
-const subdomain = TaskIdSchema.parse("test-project");
+const id = TaskIdSchema.parse("test-project");
 const partitionDir = "/tmp/partition" as AbsolutePath;
 
 interface Harness {
@@ -97,7 +95,7 @@ function spawnHarness(): Harness {
     context: ({ spawn }) => ({
       childRef: spawn("projectBrowserMachine", {
         id: "child",
-        input: { browser, subdomain },
+        input: { browser, id },
       }),
     }),
     id: "harnessParent",
@@ -120,7 +118,7 @@ function spawnHarness(): Harness {
 }
 
 const SESSION_A = StoreId.newSessionId();
-const TARGET_A: BrowserTargetId = encodeBrowserTargetId(subdomain, SESSION_A);
+const TARGET_A: BrowserTargetId = encodeBrowserTargetId(id, SESSION_A);
 
 describe("projectBrowserMachine", () => {
   beforeEach(() => {
@@ -242,7 +240,7 @@ describe("projectBrowserMachine", () => {
       SESSION_A,
     ]);
     expect(parentEvents).toEqual([
-      { type: "projectBrowser.stopped", value: { subdomain } },
+      { type: "projectBrowser.stopped", value: { id } },
     ]);
   });
 
@@ -267,7 +265,7 @@ describe("projectBrowserMachine", () => {
   it("closes one view per session for multi-session projects", async () => {
     const { actor, browser } = spawnHarness();
     const sessionB = StoreId.newSessionId();
-    const targetB: BrowserTargetId = encodeBrowserTargetId(subdomain, sessionB);
+    const targetB: BrowserTargetId = encodeBrowserTargetId(id, sessionB);
 
     actor.send({
       type: "updateCdpHeartbeat",

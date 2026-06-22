@@ -11,11 +11,11 @@ type WriteFilePart = Extract<
 >;
 
 export function ToolWriteFile({
+  id,
   part,
-  subdomain,
 }: {
+  id: TaskId;
   part: WriteFilePart;
-  subdomain: TaskId;
 }) {
   const filePath =
     part.state === "output-available"
@@ -34,8 +34,8 @@ export function ToolWriteFile({
     <FileToolCard
       content={content}
       filePath={filePath}
+      id={id}
       modifiedAt={modifiedAt}
-      subdomain={subdomain}
     />
   );
 }

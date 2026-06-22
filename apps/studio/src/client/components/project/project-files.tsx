@@ -89,7 +89,7 @@ export function ProjectFiles({
       f: (typeof files)[number],
     ): ProjectFileViewerFile => ({
       ...f,
-      projectSubdomain: project.subdomain,
+      taskId: project.id,
       url: getAssetUrl({
         assetBase: project.urls.assetBase,
         filePath: f.filePath,
@@ -120,7 +120,7 @@ export function ProjectFiles({
       tree: buildTree(visibleFiles),
       visibleFiles,
     };
-  }, [files, project.subdomain, project.urls.assetBase]);
+  }, [files, project.id, project.urls.assetBase]);
 
   if (!computed) {
     return (
@@ -168,7 +168,7 @@ export function ProjectFiles({
                 <AttachedFolderRow
                   folder={folder}
                   key={folder.id}
-                  projectSubdomain={project.subdomain}
+                  taskId={project.id}
                 />
               ))}
             </CollapsibleTreeSection>
@@ -229,10 +229,10 @@ function AttachedFolderMenuItems({
 
 function AttachedFolderRow({
   folder,
-  projectSubdomain,
+  taskId,
 }: {
   folder: AttachedFolder;
-  projectSubdomain: TaskId;
+  taskId: TaskId;
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
 
@@ -257,7 +257,7 @@ function AttachedFolderRow({
 
   const handleAddToChat = () => {
     appendToPrompt({
-      key: projectSubdomain,
+      key: taskId,
       update: `the attached folder "${folder.name}"`,
     });
   };
@@ -371,7 +371,7 @@ function FileRow({
 
   const handleAddToChat = () => {
     appendToPrompt({
-      key: file.projectSubdomain,
+      key: file.taskId,
       update: file.filePath,
     });
   };

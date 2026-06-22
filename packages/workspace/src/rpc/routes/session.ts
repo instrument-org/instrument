@@ -15,14 +15,14 @@ import { publisher } from "../publisher";
 const byId = base
   .input(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .output(Session.Schema)
   .handler(async ({ errors, input }) => {
-    const { sessionId, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id, sessionId } = input;
+    const appConfig = createAppConfig({ id });
     const session = await Store.getSession(sessionId, appConfig);
 
     if (session.isErr()) {
@@ -35,14 +35,14 @@ const byId = base
 const byIdWithMessagesAndParts = base
   .input(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .output(Session.WithMessagesAndPartsSchema)
   .handler(async ({ errors, input }) => {
-    const { sessionId, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id, sessionId } = input;
+    const appConfig = createAppConfig({ id });
     const session = await Store.getSessionWithMessagesAndParts(
       sessionId,
       appConfig,
@@ -58,14 +58,14 @@ const byIdWithMessagesAndParts = base
 const list = base
   .input(
     z.object({
+      id: TaskIdSchema,
       includeChildSessions: z.boolean().default(false),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.array(Session.Schema))
   .handler(async ({ errors, input }) => {
-    const { includeChildSessions, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id, includeChildSessions } = input;
+    const appConfig = createAppConfig({ id });
     const sessions = await Store.getSessions(appConfig, {
       includeChildSessions,
     });
@@ -82,14 +82,14 @@ const list = base
 const remove = base
   .input(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
-    const { sessionId, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id, sessionId } = input;
+    const appConfig = createAppConfig({ id });
     const result = await Store.removeSession(sessionId, appConfig);
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);
@@ -100,11 +100,11 @@ const remove = base
   });
 
 const create = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+  .input(z.object({ id: TaskIdSchema }))
   .output(Session.Schema)
   .handler(async ({ context, errors, input }) => {
-    const { subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id } = input;
+    const appConfig = createAppConfig({ id });
     const sessionResult = await createSession({
       appConfig,
       sessionId: StoreId.newSessionId(),
@@ -119,12 +119,12 @@ const create = base
   });
 
 const stop = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+  .input(z.object({ id: TaskIdSchema }))
   .handler(({ context, input }) => {
     context.workspaceRef.send({
       type: "stopSessions",
       value: {
-        subdomain: input.subdomain,
+        id: input.id,
       },
     });
 
@@ -135,14 +135,14 @@ const toMarkdown = base
   .input(
     z.object({
       frontMatter: z.record(z.string(), z.unknown()).optional(),
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.object({ markdown: z.string() }))
   .handler(async ({ input }) => {
-    const { frontMatter, sessionId, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { frontMatter, id, sessionId } = input;
+    const appConfig = createAppConfig({ id });
 
     const markdown = await getSessionMarkdown({
       appConfig,
@@ -155,14 +155,14 @@ const toMarkdown = base
 const contextTokens = base
   .input(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.object({ inputTokens: z.number() }))
   .handler(async ({ errors, input }) => {
-    const { sessionId, subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id, sessionId } = input;
+    const appConfig = createAppConfig({ id });
 
     const messages = await Store.getMessagesWithParts({ appConfig, sessionId });
     if (messages.isErr()) {
@@ -188,8 +188,8 @@ const live = {
   contextTokens: base
     .input(
       z.object({
+        id: TaskIdSchema,
         sessionId: StoreId.SessionSchema,
-        subdomain: TaskIdSchema,
       }),
     )
     .handler(async function* ({ context, input, signal }) {
@@ -206,7 +206,7 @@ const live = {
           | typeof partUpdates,
       ) {
         for await (const payload of generator) {
-          if (payload.subdomain === input.subdomain) {
+          if (payload.id === input.id) {
             yield null;
           }
         }
@@ -223,8 +223,8 @@ const live = {
   list: base
     .input(
       z.object({
+        id: TaskIdSchema,
         includeChildSessions: z.boolean().default(false),
-        subdomain: TaskIdSchema,
       }),
     )
     .handler(async function* ({ context, input, signal }) {
@@ -237,7 +237,7 @@ const live = {
         generator: typeof sessionRemoved | typeof sessionUpdates,
       ) {
         for await (const payload of generator) {
-          if (payload.subdomain === input.subdomain) {
+          if (payload.id === input.id) {
             yield null;
           }
         }

@@ -229,13 +229,13 @@ const openAppIn = base
   })
   .input(
     z.object({
-      subdomain: TaskIdSchema,
+      id: TaskIdSchema,
       type: OpenAppInTypeSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
     const appConfig = createAppConfig({
-      subdomain: input.subdomain,
+      id: input.id,
     });
 
     const platform = os.platform();
@@ -298,12 +298,12 @@ const showProjectFileInFolder = base
   .input(
     z.object({
       filePath: RelativeProjectPathSchema,
-      subdomain: TaskIdSchema,
+      id: TaskIdSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
     const appConfig = createAppConfig({
-      subdomain: input.subdomain,
+      id: input.id,
     });
 
     const fullPath = resolvePathWithinTaskDir({
@@ -340,8 +340,8 @@ const openFolder = base
 const exportZip = base
   .input(
     z.object({
+      id: TaskIdSchema,
       includeChat: z.boolean().default(false),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(
@@ -430,12 +430,12 @@ const live = {
 const copyProjectPathToClipboard = base
   .input(
     z.object({
-      subdomain: TaskIdSchema,
+      id: TaskIdSchema,
     }),
   )
   .handler(({ input }) => {
     const appConfig = createAppConfig({
-      subdomain: input.subdomain,
+      id: input.id,
     });
     clipboard.writeText(taskDir(appConfig));
   });
@@ -448,15 +448,15 @@ const copyFileToClipboard = base
   .input(
     z.object({
       filePath: RelativeProjectPathSchema,
+      id: TaskIdSchema,
       isImage: z.boolean(),
-      subdomain: TaskIdSchema,
     }),
   )
   .handler(async ({ errors, input, signal }) => {
     const buffer = await readProjectFile({
       filePath: input.filePath,
-      projectSubdomain: input.subdomain,
       signal,
+      taskId: input.id,
     });
 
     if (!buffer) {

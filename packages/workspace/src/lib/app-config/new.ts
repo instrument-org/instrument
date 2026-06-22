@@ -23,6 +23,6 @@ export async function newProjectConfig({
       : await generateNewFolderName(workspaceConfig.tasksDir);
 
   return createAppConfig({
-    subdomain: TaskIdSchema.parse(rawSubdomain),
+    id: TaskIdSchema.parse(rawSubdomain),
   });
 }

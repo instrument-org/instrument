@@ -113,15 +113,15 @@ function ToolCallBody({
       return <ToolCopyToProject part={part} />;
     }
     case "tool-edit_file": {
-      return <ToolEditFile part={part} subdomain={project.subdomain} />;
+      return <ToolEditFile id={project.id} part={part} />;
     }
     case "tool-generate_image": {
       return (
         <ToolGenerateImage
           assetBaseUrl={project.urls.assetBase}
+          id={project.id}
           onRetry={onRetry}
           part={part}
-          subdomain={project.subdomain}
         />
       );
     }
@@ -135,7 +135,7 @@ function ToolCallBody({
       return <ToolLoadSkill part={part} />;
     }
     case "tool-read_file": {
-      return <ToolReadFile part={part} subdomain={project.subdomain} />;
+      return <ToolReadFile id={project.id} part={part} />;
     }
     case "tool-task": {
       return (
@@ -149,7 +149,7 @@ function ToolCallBody({
       return <ToolWebSearch onRetry={onRetry} part={part} />;
     }
     case "tool-write_file": {
-      return <ToolWriteFile part={part} subdomain={project.subdomain} />;
+      return <ToolWriteFile id={project.id} part={part} />;
     }
   }
 }

@@ -10,7 +10,7 @@ export const TaskSchema = z.object({
   description: ProjectManifestSchema.shape.description.optional(),
   folderName: z.string(),
   iconName: ProjectManifestSchema.shape.iconName.optional(),
-  subdomain: TaskIdSchema,
+  id: TaskIdSchema,
   title: z.string(),
   type: z.literal("project"),
   updatedAt: z.date(),

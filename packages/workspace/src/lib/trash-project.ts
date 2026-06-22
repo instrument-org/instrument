@@ -18,25 +18,25 @@ import {
 } from "./session-store-storage";
 
 interface RemoveProjectOptions {
-  subdomain: TaskId;
+  id: TaskId;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }
 
 export async function trashProject({
-  subdomain,
+  id,
   workspaceConfig,
   workspaceRef,
 }: RemoveProjectOptions) {
   return ResultAsync.fromPromise(
     (async () => {
-      // Block until every projectBrowser for this subdomain has fully reaped
+      // Block until every projectBrowser for this id has fully reaped
       // its WebContentsView and agent-browser daemon sessions, so the
       // Chromium profile is no longer locked when we delete the app dir.
       const browserReaped = new Promise<void>((resolve) => {
         workspaceRef.send({
           type: "prepareToTrashApp",
-          value: { onBrowserReaped: resolve, subdomain },
+          value: { id, onBrowserReaped: resolve },
         });
       });
 
@@ -45,10 +45,10 @@ export async function trashProject({
       await Promise.race([browserReaped, setTimeoutPromise(2000)]);
 
       // Mark storage as disposing to prevent recreation during deletion
-      markStorageAsDisposing(subdomain);
+      markStorageAsDisposing(id);
 
       try {
-        const appConfig = createAppConfig({ subdomain });
+        const appConfig = createAppConfig({ id });
 
         // Delete node_modules folder before trashing to avoid issues with hard links.
         // On Windows (and potentially other OS) with PNPM hard links, trashing
@@ -63,24 +63,24 @@ export async function trashProject({
           await rmrf(nodeModulesPath);
         }
 
-        const disposeResult = await disposeSessionsStoreStorage(subdomain);
+        const disposeResult = await disposeSessionsStoreStorage(id);
         if (disposeResult.isErr()) {
           return err(disposeResult.error);
         }
 
         await workspaceConfig.trashItem(taskDir(appConfig));
 
-        // In the off chance that a future project with the same subdomain is
+        // In the off chance that a future project with the same id is
         // created, we remove the app being trashed.
         workspaceRef.send({
           type: "removeAppBeingTrashed",
-          value: { subdomain },
+          value: { id },
         });
 
-        return ok({ subdomain });
+        return ok({ id });
       } finally {
         // Always unmark storage as disposing, even if deletion fails
-        unmarkStorageAsDisposing(subdomain);
+        unmarkStorageAsDisposing(id);
       }
     })(),
     (error: unknown) =>

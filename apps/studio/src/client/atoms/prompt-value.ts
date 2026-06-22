@@ -12,13 +12,13 @@ export type PromptValueAtomKey = "$$new-tab$$" | "$$template$$" | TaskId;
 
 export const promptInputRefAtom = atom<HTMLTextAreaElement | null>(null);
 
-const createProjectPromptStorage = (subdomain: TaskId) => {
+const createProjectPromptStorage = (id: TaskId) => {
   let lastValue: string | undefined;
 
   const save = debounce({ delay: 1000 }, async (newValue: string) => {
     await rpcClient.workspace.task.state.set.call({
+      id,
       state: { promptDraft: newValue },
-      subdomain,
     });
   });
 
@@ -46,7 +46,7 @@ const createProjectPromptStorage = (subdomain: TaskId) => {
     ) => {
       let isCancelled = false;
       rpcClient.workspace.task.state.get
-        .call({ subdomain })
+        .call({ id })
         .then((state) => {
           if (isCancelled) {
             return;

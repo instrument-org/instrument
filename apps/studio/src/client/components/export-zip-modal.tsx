@@ -57,7 +57,7 @@ export function ExportZipModal({
 
   const handleExport = () => {
     exportZipMutation.mutate({
-      subdomain: project.subdomain,
+      id: project.id,
     });
   };
 

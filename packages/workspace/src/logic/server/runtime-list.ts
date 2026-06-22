@@ -13,9 +13,9 @@ import { getWorkspaceServerPort } from "./url";
 
 interface TaskAndStatus {
   app: Task;
-  taskId: TaskId;
   port?: number;
   status: string;
+  taskId: TaskId;
 }
 
 export async function RuntimeList({
@@ -28,8 +28,8 @@ export async function RuntimeList({
   const { tasks } = await getTasks(workspaceConfig);
   const tasksWithExtra = tasks.map((task) =>
     getAppWithExtra({
-      task,
       runtimeRefs,
+      task,
     }),
   );
 
@@ -222,9 +222,9 @@ function getAppWithExtra({
 
   return {
     app,
-    taskId: app.id,
     port,
     status,
+    taskId: app.id,
   };
 }
 

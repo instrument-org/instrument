@@ -4,8 +4,8 @@ import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
 import { taskDir } from "../../../lib/app-dir-utils";
 import {
   getTaskState,
-  TaskStateSchema,
   setTaskState,
+  TaskStateSchema,
 } from "../../../lib/task-state-store";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base } from "../../base";

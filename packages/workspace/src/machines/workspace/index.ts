@@ -42,21 +42,21 @@ import {
   type WorkspaceConfig,
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
-import {
-  taskBrowserMachine,
-  type TaskBrowserParentEvent,
-} from "../task-browser";
 import { runtimeMachine } from "../runtime";
 import {
   type SessionActorRef,
   sessionMachine,
   type SessionMachineParentEvent,
 } from "../session";
+import {
+  taskBrowserMachine,
+  type TaskBrowserParentEvent,
+} from "../task-browser";
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
-  | TaskBrowserParentEvent
   | SessionMachineParentEvent
+  | TaskBrowserParentEvent
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
@@ -325,11 +325,11 @@ export const workspaceMachine = setup({
   },
 
   actors: {
-    taskBrowserMachine,
-
     runtimeMachine,
 
     sessionMachine,
+
+    taskBrowserMachine,
 
     workspaceServerLogic,
   },
@@ -381,9 +381,9 @@ export const workspaceMachine = setup({
       appsBeingTrashed: [],
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),
-      taskBrowserRefs: new Map(),
       runtimeRefs: new Map(),
       sessionRefsByTaskId: new Map(),
+      taskBrowserRefs: new Map(),
       workspaceServerRef: spawn("workspaceServerLogic", {
         input: {
           aiGatewayApp: input.aiGatewayApp,
@@ -618,12 +618,6 @@ export const workspaceMachine = setup({
         });
       }),
     },
-    "taskBrowser.stopped": {
-      actions: {
-        params: ({ event }) => ({ id: event.value.id }),
-        type: "handleTaskBrowserStopped",
-      },
-    },
     releaseBrowserPresence: {
       actions: {
         params: ({ event }) => ({ id: event.value.id }),
@@ -762,7 +756,6 @@ export const workspaceMachine = setup({
         },
       ),
     },
-
     stopSessions: {
       actions: ({ context, event }) => {
         const sessionActorRefs = context.sessionRefsByTaskId.get(
@@ -773,6 +766,13 @@ export const workspaceMachine = setup({
             sessionActorRef.send({ type: "stop" });
           }
         }
+      },
+    },
+
+    "taskBrowser.stopped": {
+      actions: {
+        params: ({ event }) => ({ id: event.value.id }),
+        type: "handleTaskBrowserStopped",
       },
     },
 

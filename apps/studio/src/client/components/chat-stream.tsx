@@ -9,6 +9,7 @@ import {
 import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useMemo } from "react";
 
+import { useAssetBaseUrl } from "../hooks/use-asset-base-url";
 import { cn } from "../lib/utils";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
@@ -54,6 +55,8 @@ export function ChatStream({
   onStartNewChat,
   task,
 }: ChatStreamProps) {
+  const assetBaseUrl = useAssetBaseUrl(task.id);
+
   const { contextMessages, regularMessages } = useMemo(() => {
     const result = {
       contextMessages: [] as SessionMessage.ContextWithParts[],
@@ -150,6 +153,7 @@ export function ChatStream({
 
   const renderCtx: RenderPartContext = useMemo(
     () => ({
+      assetBaseUrl,
       hideUserMessages,
       isAgentRunning,
       isDeveloperMode,
@@ -160,6 +164,7 @@ export function ChatStream({
       task,
     }),
     [
+      assetBaseUrl,
       hideUserMessages,
       isAgentRunning,
       isDeveloperMode,
@@ -279,7 +284,7 @@ export function ChatStream({
         if (fileAttachmentsPart?.type === "data-attachments") {
           messageElements.unshift(
             <AttachmentsCard
-              assetBaseUrl={task.assetBase}
+              assetBaseUrl={assetBaseUrl}
               files={fileAttachmentsPart.data.files}
               folders={fileAttachmentsPart.data.folders}
               key={`attachments-${message.id}`}
@@ -340,7 +345,7 @@ export function ChatStream({
     toolBoundaryMap,
     hideLogo,
     hideUserMessages,
-    task.assetBase,
+    assetBaseUrl,
     task.id,
     isAgentRunning,
     isDeveloperMode,

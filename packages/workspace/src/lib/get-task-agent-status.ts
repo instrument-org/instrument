@@ -6,9 +6,8 @@ import {
   type TaskAgentStatus,
 } from "../schemas/task-agent-status";
 import { type TaskId } from "../schemas/task-id";
-import { getTask } from "./get-task";
 
-export async function getTaskAgentStatus({
+export function getTaskAgentStatus({
   id,
   workspaceRef,
 }: {
@@ -17,8 +16,6 @@ export async function getTaskAgentStatus({
 }) {
   const snapshot = workspaceRef.getSnapshot();
   const context = snapshot.context;
-
-  const task = await getTask(id);
 
   const sessionRefs = context.sessionRefsByTaskId.get(id) ?? [];
   const sessionActors = sessionRefs.map((sessionRef) => {
@@ -32,7 +29,7 @@ export async function getTaskAgentStatus({
 
   const taskAgentStatus: TaskAgentStatus = {
     sessionActors,
-    task,
+    taskId: id,
   };
 
   return ok(taskAgentStatus);

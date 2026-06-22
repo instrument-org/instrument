@@ -114,7 +114,7 @@ function RouteComponent() {
     return new Set<TaskId>(
       agentStatuses
         .filter((state) => state.sessionActors.length > 0)
-        .map((state) => state.task.id)
+        .map((state) => state.taskId)
         .filter((id) => isTaskId(id)),
     );
   }, [agentStatuses]);
@@ -156,8 +156,8 @@ function RouteComponent() {
     const selectedTaskIdSet = new Set<TaskId>(selectedTasks.map((p) => p.id));
     return agentStatuses.some(
       (state) =>
-        isTaskId(state.task.id) &&
-        selectedTaskIdSet.has(state.task.id) &&
+        isTaskId(state.taskId) &&
+        selectedTaskIdSet.has(state.taskId) &&
         state.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
     );
   }, [agentStatuses, selectedTasks]);

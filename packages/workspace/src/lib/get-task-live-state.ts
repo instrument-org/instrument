@@ -1,11 +1,14 @@
 import { ok } from "neverthrow";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
-import { type SessionTag, type WorkspaceAppState } from "../schemas/app-state";
 import { type TaskId } from "../schemas/task-id";
+import {
+  type SessionTag,
+  type TaskLiveState,
+} from "../schemas/task-live-state";
 import { getTask } from "./get-task";
 
-export async function getWorkspaceAppState({
+export async function getTaskLiveState({
   id,
   workspaceRef,
 }: {
@@ -15,7 +18,7 @@ export async function getWorkspaceAppState({
   const snapshot = workspaceRef.getSnapshot();
   const context = snapshot.context;
 
-  const app = await getTask(id);
+  const task = await getTask(id);
 
   const sessionRefs = context.sessionRefsByTaskId.get(id) ?? [];
   const sessionActors = sessionRefs.map((sessionRef) => {
@@ -27,10 +30,10 @@ export async function getWorkspaceAppState({
     };
   });
 
-  const workspaceAppState: WorkspaceAppState = {
-    app,
+  const taskLiveState: TaskLiveState = {
     sessionActors,
+    task,
   };
 
-  return ok(workspaceAppState);
+  return ok(taskLiveState);
 }

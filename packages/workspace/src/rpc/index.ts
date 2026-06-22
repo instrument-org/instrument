@@ -1,4 +1,3 @@
-import { app } from "./routes/app";
 import { browser } from "./routes/browser";
 import { debug } from "./routes/debug";
 import { message } from "./routes/message";
@@ -8,7 +7,6 @@ import { session } from "./routes/session";
 import { task } from "./routes/task";
 
 export const router = {
-  app,
   browser,
   debug,
   message,

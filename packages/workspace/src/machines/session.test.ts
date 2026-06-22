@@ -325,7 +325,7 @@ describe("sessionMachine", () => {
                     responseMessage,
                     testAppConfig,
                   );
-                  publisher.publish("appState.session.done", {
+                  publisher.publish("taskLiveState.session.done", {
                     id: testAppConfig,
                     sessionId: event.value.sessionId,
                   });

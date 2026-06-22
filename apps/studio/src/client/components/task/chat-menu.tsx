@@ -20,7 +20,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { getSessionTags } from "@/client/hooks/use-agent-session-status";
-import { useAppState } from "@/client/hooks/use-app-state";
+import { useTaskLiveState } from "@/client/hooks/use-task-live-state";
 import { useTaskRouteId } from "@/client/hooks/use-task-route-id";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionTag, StoreId } from "@instrument-org/workspace/client";
@@ -79,8 +79,8 @@ export function TaskChatMenu({
     }),
   );
 
-  const { data: appState } = useAppState({ id });
-  const sessionActors = appState?.sessionActors ?? [];
+  const { data: taskLiveState } = useTaskLiveState({ id });
+  const sessionActors = taskLiveState?.sessionActors ?? [];
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.statusByTaskId.experimental_liveOptions({
       input: { id },

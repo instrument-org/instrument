@@ -92,7 +92,10 @@ export function resolveCommandContext(
 ) {
   return {
     env: Object.fromEntries(ctx.env),
-    taskCwd: absolutePathJoin(taskDir(taskId), ctx.fs.resolvePath(ctx.cwd, ".")),
+    taskCwd: absolutePathJoin(
+      taskDir(taskId),
+      ctx.fs.resolvePath(ctx.cwd, "."),
+    ),
   };
 }
 

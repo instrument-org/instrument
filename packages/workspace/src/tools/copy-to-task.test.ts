@@ -17,7 +17,7 @@ vi.mock(import("../lib/get-current-date"));
 
 const FIXTURES_PATH = path.join(
   import.meta.dirname,
-  "../../fixtures/copy-to-project",
+  "../../fixtures/copy-to-task",
 );
 
 const model = createMockAIGatewayModel();
@@ -34,7 +34,7 @@ const attachedFolders: Record<string, FolderAttachment.Type> = {
 let tmpDir: string;
 
 beforeEach(async () => {
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "copy-to-project-test-"));
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "copy-to-task-test-"));
 });
 
 afterEach(async () => {

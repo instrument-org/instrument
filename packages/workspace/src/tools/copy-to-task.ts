@@ -95,7 +95,7 @@ export const CopyToTask = setupTool({
       .string()
       .meta({ description: "Glob pattern or direct file path to copy" }),
   }),
-  name: "copy_to_project",
+  name: "copy_to_task",
   outputSchema: z.object({
     errors: z.array(
       z.object({

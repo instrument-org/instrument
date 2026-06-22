@@ -109,7 +109,7 @@ function ToolCallBody({
     case "tool-choose": {
       return <ToolChoose part={part} />;
     }
-    case "tool-copy_to_project": {
+    case "tool-copy_to_task": {
       return <ToolCopyToTask part={part} />;
     }
     case "tool-edit_file": {

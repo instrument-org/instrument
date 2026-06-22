@@ -36,7 +36,7 @@ const TASK_TRIED_DISPLAY_NAMES: Record<TaskAgentName, string> = {
 const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   bash: "Ran terminal command",
   choose: "Waiting for answer",
-  copy_to_project: "Copied to task",
+  copy_to_task: "Copied to task",
   edit_file: "Edited",
   generate_image: "Generated image",
   glob: "Searched files",
@@ -52,7 +52,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
 const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   bash: "Running terminal command",
   choose: "Thinking about a question",
-  copy_to_project: "Copying to task",
+  copy_to_task: "Copying to task",
   edit_file: "Editing a file",
   generate_image: "Generating an image",
   glob: "Searching files",
@@ -71,7 +71,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
 > = {
   bash: TOOL_STREAMING_DISPLAY_NAMES.bash,
   choose: TOOL_STREAMING_DISPLAY_NAMES.choose,
-  copy_to_project: "Copying",
+  copy_to_task: "Copying",
   edit_file: "Editing",
   generate_image: "Generating",
   glob: "Searching for",
@@ -87,7 +87,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
 const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   bash: "Tried to run terminal command",
   choose: "Tried to ask a question",
-  copy_to_project: "Tried to copy to task",
+  copy_to_task: "Tried to copy to task",
   edit_file: "Tried to edit file",
   generate_image: "Tried to generate image",
   glob: "Tried to search files",
@@ -103,7 +103,7 @@ const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
 export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   bash: TerminalIcon,
   choose: QuestionIcon,
-  copy_to_project: FolderSimplePlusIcon,
+  copy_to_task: FolderSimplePlusIcon,
   edit_file: CodeIcon,
   generate_image: ImageIcon,
   glob: ListMagnifyingGlassIcon,

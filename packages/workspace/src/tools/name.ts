@@ -3,7 +3,7 @@ import { z } from "zod";
 const TOOL_NAMES = {
   bash: "bash",
   choose: "choose",
-  copyToTask: "copy_to_project",
+  copyToTask: "copy_to_task",
   editFile: "edit_file",
   generateImage: "generate_image",
   glob: "glob",

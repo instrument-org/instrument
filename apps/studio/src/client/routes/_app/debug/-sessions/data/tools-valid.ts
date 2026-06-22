@@ -478,7 +478,7 @@ describe("slugify", () => {
             truncatedCount: 0,
             truncationReason: null,
           },
-          type: "tool-copy_to_project",
+          type: "tool-copy_to_task",
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {},

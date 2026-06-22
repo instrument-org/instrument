@@ -91,7 +91,7 @@ export const RETRIEVAL_EVALS = [
     prompt: "Add a blank page to the pdf in this folder",
     shouldStop: async (part, taskId) => {
       if (
-        part.type !== "tool-copy_to_project" ||
+        part.type !== "tool-copy_to_task" ||
         part.state !== "output-available"
       ) {
         return false;
@@ -108,7 +108,7 @@ export const RETRIEVAL_EVALS = [
     prompt: "Convert the pdf in this folder to markdown",
     shouldStop: async (part, taskId) => {
       if (
-        part.type !== "tool-copy_to_project" ||
+        part.type !== "tool-copy_to_task" ||
         part.state !== "output-available"
       ) {
         return false;

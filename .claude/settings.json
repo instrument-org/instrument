@@ -1,4 +1,7 @@
 {
+  "enabledPlugins": {
+    "figma@claude-plugins-official": true
+  },
   "hooks": {
     "PostToolUse": [
       {

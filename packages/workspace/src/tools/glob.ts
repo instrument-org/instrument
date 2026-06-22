@@ -2,9 +2,9 @@ import ms from "ms";
 import { ok } from "neverthrow";
 import { z } from "zod";
 
-import { taskDir } from "../lib/app-dir-utils";
 import { globSortedByMtime, resolveGlobPattern } from "../lib/glob";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
+import { taskDir } from "../lib/task-dir-utils";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 

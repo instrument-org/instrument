@@ -8,9 +8,8 @@ import fs from "node:fs/promises";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { addLineNumbers } from "../lib/add-line-numbers";
-import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
 import { getMimeType } from "../lib/get-mime-type";
@@ -20,6 +19,7 @@ import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
 } from "../lib/resolve-agent-path";
+import { taskDir } from "../lib/task-dir-utils";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -218,7 +218,7 @@ export const ReadFile = setupTool({
     const pathExample =
       agentName === "retrieval"
         ? "/path/to/some/file.txt"
-        : `./${APP_FOLDER_NAMES.userProvided}/upload.txt`;
+        : `./${TASK_FOLDER_NAMES.userProvided}/upload.txt`;
 
     return dedent`
       Reads a file from the ${agentName === "retrieval" ? "attached folders" : "app directory"}. You can access any file directly by using this tool.

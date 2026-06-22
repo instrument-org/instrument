@@ -3,11 +3,11 @@ import fs from "node:fs/promises";
 
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
-import { getTaskPrivateDir, sessionStorePath, taskDir } from "./app-dir-utils";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { newTaskId } from "./new-task-id";
 import { pathExists } from "./path-exists";
+import { getTaskPrivateDir, sessionStorePath, taskDir } from "./task-dir-utils";
 import { getTaskManifest, updateTaskManifest } from "./task-manifest";
 import { getTaskState, setTaskState } from "./task-state-store";
 

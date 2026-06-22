@@ -1,12 +1,12 @@
 import { html } from "hono/html";
 import path from "node:path";
 
-import { taskDir } from "../../lib/app-dir-utils";
 import { getTasks } from "../../lib/get-tasks";
+import { taskDir } from "../../lib/task-dir-utils";
 import { localhostUrl } from "../../lib/url-for-subdomain";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type RuntimeActorRef } from "../../machines/runtime";
-import { type Task } from "../../schemas/app";
+import { type Task } from "../../schemas/task";
 import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
 import { getWorkspaceServerPort } from "./url";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isTaskId } from "./is-app";
+import { isTaskId } from "./is-task-id";
 
 describe("isTaskId", () => {
   it.each([

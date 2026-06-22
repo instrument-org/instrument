@@ -2,9 +2,9 @@ import fs from "node:fs/promises";
 
 import { RelativePathSchema } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
-import { taskDir } from "./app-dir-utils";
 import { normalizeTaskFilePath } from "./normalize-task-file-path";
-import { resolvePathWithinTaskDir } from "./resolve-path-within-app-dir";
+import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
+import { taskDir } from "./task-dir-utils";
 
 interface ReadTaskFileOptions {
   filePath: string;

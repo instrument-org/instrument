@@ -3,20 +3,20 @@ import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
-import { taskDir } from "../../../lib/app-dir-utils";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
 import { duplicateTask } from "../../../lib/duplicate-task";
 import { exportTaskZip } from "../../../lib/export-task-zip";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
 import { getTask } from "../../../lib/get-task";
-import { getApp, getTasks } from "../../../lib/get-tasks";
+import { findTask, getTasks } from "../../../lib/get-tasks";
 import { importTask as importTaskLib } from "../../../lib/import-task";
 import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
 import { Store } from "../../../lib/store";
+import { taskDir } from "../../../lib/task-dir-utils";
 import {
   getTaskManifest,
   updateTaskManifest,
@@ -28,11 +28,11 @@ import {
   getTaskUsageSummary,
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
-import { TaskSchema } from "../../../schemas/app";
 import { FileUpload } from "../../../schemas/file-upload";
 import { AbsolutePathSchema } from "../../../schemas/paths";
 import { StoreId } from "../../../schemas/store-id";
 import { SubdomainPartSchema } from "../../../schemas/subdomain-part";
+import { TaskSchema } from "../../../schemas/task";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskManifestUpdateSchema } from "../../../schemas/task-manifest";
 import { base, toORPCError } from "../../base";
@@ -47,7 +47,7 @@ const byId = base
   .input(z.object({ id: TaskIdSchema }))
   .output(TaskSchema)
   .handler(async ({ context, errors, input }) => {
-    const result = await getApp(input.id, context.workspaceConfig);
+    const result = await findTask(input.id, context.workspaceConfig);
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
@@ -75,7 +75,7 @@ const byIds = base
   .handler(async ({ context, errors, input }) => {
     const results = [];
     for (const id of input.ids) {
-      const result = await getApp(id, context.workspaceConfig);
+      const result = await findTask(id, context.workspaceConfig);
       if (result.isErr()) {
         if (result.error.type === "workspace-not-found-error") {
           results.push({
@@ -350,11 +350,11 @@ const duplicate = base
         id: result.value.taskId,
       });
 
-      const workspaceApp = await getTask(result.value.taskId);
+      const task = await getTask(result.value.taskId);
 
       context.workspaceConfig.captureEvent("task.forked");
 
-      return workspaceApp;
+      return task;
     },
   );
 

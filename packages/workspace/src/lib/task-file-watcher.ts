@@ -14,7 +14,6 @@ import { RelativePathSchema, type TaskDir } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
-import { taskDir } from "./app-dir-utils";
 import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import {
@@ -28,6 +27,7 @@ import {
   taskFilesFromIndex,
 } from "./get-task-files";
 import { normalizePath } from "./normalize-path";
+import { taskDir } from "./task-dir-utils";
 
 // Trailing window used to coalesce bursts of filesystem events (agents and
 // editors write many files in quick succession) into a single publish.

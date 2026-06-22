@@ -11,7 +11,7 @@ import { Grep } from "./grep";
 
 const model = createMockAIGatewayModel();
 
-function createFixturesAppConfig() {
+function createFixturesTaskConfig() {
   return createMockTaskConfigForDir(
     TaskDirSchema.parse(
       path.join(import.meta.dirname, "../../fixtures/file-system"),
@@ -183,7 +183,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: {},
       });
 
@@ -231,7 +231,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: {},
       });
 
@@ -250,7 +250,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: {},
       });
 
@@ -302,7 +302,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: {},
       });
 
@@ -339,7 +339,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: {},
       });
 
@@ -371,7 +371,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: {},
       });
 
@@ -409,7 +409,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: {},
       });
 
@@ -461,7 +461,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -480,7 +480,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -499,7 +499,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -518,7 +518,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -567,7 +567,7 @@ describe("Grep", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 

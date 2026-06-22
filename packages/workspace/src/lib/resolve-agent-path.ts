@@ -15,7 +15,7 @@ import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
-import { resolvePathWithinTaskDir } from "./resolve-path-within-app-dir";
+import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import { validateAttachedFolderPath } from "./validate-attached-folder-path";
 
 const NARROW_NO_BREAK_SPACE = "\u202F";

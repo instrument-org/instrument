@@ -14,8 +14,8 @@ import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
-  APP_FOLDER_NAMES,
   type Task,
+  TASK_FOLDER_NAMES,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
@@ -151,8 +151,8 @@ export function TaskFiles({
             activeFilePath={activeFilePath}
             defaultOpen={
               node.kind === "dir" &&
-              (node.name === APP_FOLDER_NAMES.userProvided ||
-                node.name === APP_FOLDER_NAMES.output)
+              (node.name === TASK_FOLDER_NAMES.userProvided ||
+                node.name === TASK_FOLDER_NAMES.output)
             }
             key={i}
             node={node}
@@ -335,10 +335,10 @@ function buildTree(files: TaskFileViewerFile[]): FileTreeNode[] {
 }
 
 function directorySectionLabel(dirName: string) {
-  if (dirName === APP_FOLDER_NAMES.output) {
+  if (dirName === TASK_FOLDER_NAMES.output) {
     return `Made by ${APP_NAME}`;
   }
-  if (dirName === APP_FOLDER_NAMES.userProvided) {
+  if (dirName === TASK_FOLDER_NAMES.userProvided) {
     return "Attached files";
   }
   return dirName;
@@ -441,8 +441,8 @@ function FilesItemMenu({ children }: { children: React.ReactNode }) {
 }
 
 const DIR_RANK: Record<string, number> = {
-  [APP_FOLDER_NAMES.output]: 0,
-  [APP_FOLDER_NAMES.userProvided]: 1,
+  [TASK_FOLDER_NAMES.output]: 0,
+  [TASK_FOLDER_NAMES.userProvided]: 1,
 };
 
 function CollapsibleTreeSection({
@@ -544,8 +544,8 @@ function TreeNode({
   const containsActive = dirContainsActive(node, activeFilePath);
   const isTopSpecialSection =
     treeDepth === 0 &&
-    (node.name === APP_FOLDER_NAMES.output ||
-      node.name === APP_FOLDER_NAMES.userProvided);
+    (node.name === TASK_FOLDER_NAMES.output ||
+      node.name === TASK_FOLDER_NAMES.userProvided);
 
   return (
     <SidebarMenuItem>

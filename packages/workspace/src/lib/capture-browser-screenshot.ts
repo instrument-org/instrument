@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { encodeBrowserTargetId } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
-import { getAgentBrowserStateDir, taskDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
+import { getAgentBrowserStateDir, taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
 // Tail of stderr/stdout to attach as `error` on a failed observation. Sized
@@ -164,8 +164,8 @@ async function captureBrowserScreenshot({
     const fullPath = absolutePathJoin(dir, fileName);
     await fs.writeFile(fullPath, buffer);
     const relativePath = path.posix.join(
-      APP_FOLDER_NAMES.state,
-      APP_FOLDER_NAMES.agentBrowserState,
+      TASK_FOLDER_NAMES.state,
+      TASK_FOLDER_NAMES.agentBrowserState,
       fileName,
     );
 

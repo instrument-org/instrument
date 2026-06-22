@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
-import { taskDir } from "./app-dir-utils";
 import { getBrowserState, recordBrowserUse } from "./browser-state";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
+import { taskDir } from "./task-dir-utils";
 
 const id = TaskIdSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();

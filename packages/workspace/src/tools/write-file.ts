@@ -7,10 +7,10 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import { resolveToolPath } from "../lib/resolve-agent-path";
+import { taskDir } from "../lib/task-dir-utils";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";

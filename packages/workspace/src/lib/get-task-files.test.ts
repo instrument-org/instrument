@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { TaskDirSchema } from "../schemas/paths";
 import {
   diffTaskFileIndexes,
@@ -13,36 +13,36 @@ import {
 } from "./get-task-files";
 
 describe("getTaskFileIndex", () => {
-  let appDirPath: string;
+  let taskDirPath: string;
   let dir: ReturnType<typeof TaskDirSchema.parse>;
 
   beforeEach(async () => {
-    appDirPath = await fs.mkdtemp(path.join(os.tmpdir(), "task-files-"));
-    dir = TaskDirSchema.parse(appDirPath);
+    taskDirPath = await fs.mkdtemp(path.join(os.tmpdir(), "task-files-"));
+    dir = TaskDirSchema.parse(taskDirPath);
 
-    await fs.mkdir(path.join(appDirPath, "output"), { recursive: true });
-    await fs.mkdir(path.join(appDirPath, "tmp"), { recursive: true });
-    await fs.mkdir(path.join(appDirPath, "node_modules", "pkg"), {
+    await fs.mkdir(path.join(taskDirPath, "output"), { recursive: true });
+    await fs.mkdir(path.join(taskDirPath, "tmp"), { recursive: true });
+    await fs.mkdir(path.join(taskDirPath, "node_modules", "pkg"), {
       recursive: true,
     });
-    await fs.mkdir(path.join(appDirPath, ".git", "objects"), {
+    await fs.mkdir(path.join(taskDirPath, ".git", "objects"), {
       recursive: true,
     });
 
-    await fs.writeFile(path.join(appDirPath, ".gitignore"), "ignored.txt\n");
-    await fs.writeFile(path.join(appDirPath, "output", "chart.png"), "png");
-    await fs.writeFile(path.join(appDirPath, "notes.md"), "hello");
-    await fs.writeFile(path.join(appDirPath, "ignored.txt"), "ignored");
-    await fs.writeFile(path.join(appDirPath, "tmp", "scratch.txt"), "tmp");
+    await fs.writeFile(path.join(taskDirPath, ".gitignore"), "ignored.txt\n");
+    await fs.writeFile(path.join(taskDirPath, "output", "chart.png"), "png");
+    await fs.writeFile(path.join(taskDirPath, "notes.md"), "hello");
+    await fs.writeFile(path.join(taskDirPath, "ignored.txt"), "ignored");
+    await fs.writeFile(path.join(taskDirPath, "tmp", "scratch.txt"), "tmp");
     await fs.writeFile(
-      path.join(appDirPath, "node_modules", "pkg", "index.js"),
+      path.join(taskDirPath, "node_modules", "pkg", "index.js"),
       "module",
     );
-    await fs.writeFile(path.join(appDirPath, ".git", "HEAD"), "ref");
+    await fs.writeFile(path.join(taskDirPath, ".git", "HEAD"), "ref");
   });
 
   afterEach(async () => {
-    await fs.rm(appDirPath, { force: true, recursive: true });
+    await fs.rm(taskDirPath, { force: true, recursive: true });
   });
 
   it("lists task files from disk while ignoring git, ignored, and transient files", async () => {
@@ -64,19 +64,19 @@ describe("getTaskFileIndex", () => {
 
   it("excludes every internal folder and generated file from the index", async () => {
     const internalEntries: { file: string; subdir: string }[] = [
-      { file: "secret.json", subdir: APP_FOLDER_NAMES.private },
-      { file: "state.json", subdir: APP_FOLDER_NAMES.state },
-      { file: "scratch.txt", subdir: APP_FOLDER_NAMES.tmp },
+      { file: "secret.json", subdir: TASK_FOLDER_NAMES.private },
+      { file: "state.json", subdir: TASK_FOLDER_NAMES.state },
+      { file: "scratch.txt", subdir: TASK_FOLDER_NAMES.tmp },
       { file: "dep.js", subdir: "node_modules" },
     ];
 
     for (const { file, subdir } of internalEntries) {
-      await fs.mkdir(path.join(appDirPath, subdir), { recursive: true });
-      await fs.writeFile(path.join(appDirPath, subdir, file), "internal");
+      await fs.mkdir(path.join(taskDirPath, subdir), { recursive: true });
+      await fs.writeFile(path.join(taskDirPath, subdir, file), "internal");
     }
 
-    await fs.writeFile(path.join(appDirPath, TASK_MANIFEST_FILE_NAME), "{}");
-    await fs.writeFile(path.join(appDirPath, "pnpm-lock.yaml"), "lockfile");
+    await fs.writeFile(path.join(taskDirPath, TASK_MANIFEST_FILE_NAME), "{}");
+    await fs.writeFile(path.join(taskDirPath, "pnpm-lock.yaml"), "lockfile");
 
     const result = await getTaskFileIndex(dir);
 
@@ -94,14 +94,14 @@ describe("getTaskFileIndex", () => {
   });
 
   it("skips symbolic links and caps recursive scans", async () => {
-    await fs.mkdir(path.join(appDirPath, "many"), { recursive: true });
+    await fs.mkdir(path.join(taskDirPath, "many"), { recursive: true });
     await fs.symlink(
-      path.join(appDirPath, "notes.md"),
-      path.join(appDirPath, "linked-notes.md"),
+      path.join(taskDirPath, "notes.md"),
+      path.join(taskDirPath, "linked-notes.md"),
     );
 
     for (let i = 0; i < 5; i++) {
-      await fs.writeFile(path.join(appDirPath, "many", `${i}.txt`), `${i}`);
+      await fs.writeFile(path.join(taskDirPath, "many", `${i}.txt`), `${i}`);
     }
 
     const result = await getTaskFileIndex(dir, { maxFiles: 4 });
@@ -118,7 +118,7 @@ describe("getTaskFileIndex", () => {
 
   it("skips filenames that normalize into a traversal path instead of aborting", async () => {
     await fs.writeFile(
-      path.join(appDirPath, "a\\..\\..\\b\\..\\..\\outside.txt"),
+      path.join(taskDirPath, "a\\..\\..\\b\\..\\..\\outside.txt"),
       "adversarial",
     );
 
@@ -145,9 +145,9 @@ describe("getTaskFileIndex", () => {
       return;
     }
 
-    await fs.writeFile(path.join(appDirPath, "notes.md"), "changed");
-    await fs.writeFile(path.join(appDirPath, "output", "new.txt"), "new");
-    await fs.rm(path.join(appDirPath, "output", "chart.png"));
+    await fs.writeFile(path.join(taskDirPath, "notes.md"), "changed");
+    await fs.writeFile(path.join(taskDirPath, "output", "new.txt"), "new");
+    await fs.rm(path.join(taskDirPath, "output", "chart.png"));
 
     const afterResult = await getTaskFileIndex(dir);
     expect(afterResult.isOk()).toBe(true);

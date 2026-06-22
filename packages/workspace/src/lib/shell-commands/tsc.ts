@@ -12,11 +12,11 @@ export const TSC_COMMAND = {
 
 export function createTscCommand(taskId: TaskId) {
   return defineCommand(TSC_COMMAND.name, async (args, ctx) => {
-    const { appCwd, env } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     const result = await runPnpmCommand({
       args: ["--package=typescript@5.9.3", "dlx", "tsc", ...args],
-      cwd: appCwd,
+      cwd: taskCwd,
       env,
       pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
       signal: ctx.signal,

@@ -5,15 +5,15 @@ import path from "node:path";
 import { alphabetical, dedent } from "radashi";
 import { z } from "zod";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
-import { taskDir } from "../lib/app-dir-utils";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
 import { glob, resolveGlobPattern } from "../lib/glob";
 import { pathExists } from "../lib/path-exists";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { sanitizeFilename } from "../lib/sanitize-filename";
+import { taskDir } from "../lib/task-dir-utils";
 import {
   type AbsolutePath,
   type RelativePath,
@@ -182,7 +182,7 @@ export const CopyToTask = setupTool({
 
     const retrievedDir = absolutePathJoin(
       taskDir(taskId),
-      APP_FOLDER_NAMES.agentRetrieved,
+      TASK_FOLDER_NAMES.agentRetrieved,
     );
     await fs.mkdir(retrievedDir, { recursive: true });
 
@@ -240,7 +240,7 @@ export const CopyToTask = setupTool({
         sanitizedFilename,
       );
 
-      const destinationRelative = `./${APP_FOLDER_NAMES.agentRetrieved}/${uniqueFilename}`;
+      const destinationRelative = `./${TASK_FOLDER_NAMES.agentRetrieved}/${uniqueFilename}`;
       const destinationAbsolute = absolutePathJoin(
         taskDir(taskId),
         destinationRelative,

@@ -2,7 +2,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RelativePathSchema, TaskDirSchema } from "../schemas/paths";
-import { resolvePathWithinTaskDir } from "./resolve-path-within-app-dir";
+import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 
 describe("resolvePathWithinTaskDir", () => {
   const dir = TaskDirSchema.parse(path.join("/tmp", "task"));

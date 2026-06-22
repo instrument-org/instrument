@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { taskDir } from "../src/lib/app-dir-utils";
 import { getTasks } from "../src/lib/get-tasks";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
+import { taskDir } from "../src/lib/task-dir-utils";
 import { getTaskState } from "../src/lib/task-state-store";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { type Session } from "../src/schemas/session";

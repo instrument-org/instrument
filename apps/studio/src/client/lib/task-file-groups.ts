@@ -1,5 +1,5 @@
 import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
-import { APP_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import { filenameFromFilePath } from "./path-utils";
 
@@ -8,8 +8,8 @@ import { filenameFromFilePath } from "./path-utils";
  * Files in any other top-level dir are collapsed into an "Other" section.
  */
 const PROMINENT_TOP_LEVEL_DIRS = new Set([
-  APP_FOLDER_NAMES.output,
-  APP_FOLDER_NAMES.userProvided,
+  TASK_FOLDER_NAMES.output,
+  TASK_FOLDER_NAMES.userProvided,
 ]);
 
 export function isUnknownTopLevelDirFile(filePath: string): boolean {

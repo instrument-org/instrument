@@ -3,13 +3,13 @@ import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
-import { taskDir } from "../app-dir-utils";
 import { normalizePath } from "../normalize-path";
+import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
  * Extract the resolved file path and trailing script args from positionals + original args.
- * Paths are returned relative to appCwd so the real host dir is not exposed.
+ * Paths are returned relative to taskCwd so the real host dir is not exposed.
  * All path-like script args (absolute or relative traversals) are resolved through
  * the virtual FS so they land correctly regardless of the agent's cwd.
  */
@@ -17,7 +17,7 @@ export function extractFileAndScriptArgs(
   positionals: string[],
   args: string[],
   taskId: TaskId,
-  appCwd: string,
+  taskCwd: string,
   resolvePath: (path: string) => string,
 ): undefined | { filePath: string; scriptArgs: string[] } {
   const rawFilePath = positionals[0];
@@ -28,14 +28,14 @@ export function extractFileAndScriptArgs(
   const filePath = virtualToRealRelative(
     rawFilePath,
     taskId,
-    appCwd,
+    taskCwd,
     resolvePath,
   );
   const filePathIndex = args.indexOf(rawFilePath);
   const rawScriptArgs = args.slice(filePathIndex + 1);
   const scriptArgs = rawScriptArgs.map((arg) =>
     looksLikePath(arg)
-      ? virtualToRealRelative(arg, taskId, appCwd, resolvePath)
+      ? virtualToRealRelative(arg, taskId, taskCwd, resolvePath)
       : arg,
   );
 
@@ -91,8 +91,8 @@ export function resolveCommandContext(
   },
 ) {
   return {
-    appCwd: absolutePathJoin(taskDir(taskId), ctx.fs.resolvePath(ctx.cwd, ".")),
     env: Object.fromEntries(ctx.env),
+    taskCwd: absolutePathJoin(taskDir(taskId), ctx.fs.resolvePath(ctx.cwd, ".")),
   };
 }
 
@@ -143,13 +143,13 @@ function looksLikePath(arg: string): boolean {
 }
 
 /**
- * Resolve a virtual path to a real path, then relativize from appCwd so the
+ * Resolve a virtual path to a real path, then relativize from taskCwd so the
  * host dir is never exposed to the subprocess.
  */
 function virtualToRealRelative(
   virtualPath: string,
   taskId: TaskId,
-  appCwd: string,
+  taskCwd: string,
   resolvePath: (p: string) => string,
 ): string {
   const normalizedVirtualPath = normalizePath(virtualPath);
@@ -157,5 +157,5 @@ function virtualToRealRelative(
     taskDir(taskId),
     resolvePath(normalizedVirtualPath),
   );
-  return path.relative(appCwd, realAbs);
+  return path.relative(taskCwd, realAbs);
 }

@@ -3,9 +3,9 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
-import { taskDir } from "../app-dir-utils";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
+import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { TS_COMMAND } from "./ts";
 import {
@@ -58,7 +58,7 @@ export const NODE_COMMAND = {
 
 export function createNodeCommand(taskId: TaskId) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
-    const { appCwd, env } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     if (args.length === 0) {
       return {
@@ -81,7 +81,7 @@ export function createNodeCommand(taskId: TaskId) {
         taskId,
         ["--version"],
         ctx.signal,
-        appCwd,
+        taskCwd,
         env,
       );
       const combined = filterShellOutput(execResult.all, taskDir(taskId));
@@ -117,7 +117,7 @@ export function createNodeCommand(taskId: TaskId) {
         taskId,
         [...nodeFlags, "-e", evalCode],
         ctx.signal,
-        appCwd,
+        taskCwd,
         env,
         latin1FromBytes(ctx.stdin) || undefined,
       );
@@ -141,7 +141,7 @@ export function createNodeCommand(taskId: TaskId) {
       positionals,
       args,
       taskId,
-      appCwd,
+      taskCwd,
       (p) => ctx.fs.resolvePath(ctx.cwd, p),
     );
 
@@ -158,7 +158,7 @@ export function createNodeCommand(taskId: TaskId) {
       taskId,
       [...nodeFlags, filePath, ...scriptArgs],
       ctx.signal,
-      appCwd,
+      taskCwd,
       env,
       latin1FromBytes(ctx.stdin) || undefined,
     );

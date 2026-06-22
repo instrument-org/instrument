@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { APP_FOLDER_NAMES, REGISTRY_FOLDER_NAMES } from "../constants";
+import { REGISTRY_FOLDER_NAMES, TASK_FOLDER_NAMES } from "../constants";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -40,20 +40,9 @@ function baseExecuteArgs() {
     model,
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
-    taskId: createAppConfigWithDirs(),
+    taskId: createTaskConfigWithDirs(),
     taskState: {},
   };
-}
-
-function createAppConfigWithDirs() {
-  // Point the singleton's tasksDir at dir's parent so taskDir(id) ===
-  // dir, then also override registryDir for skill resolution.
-  const id = createMockTaskConfigForDir(dir, { model });
-  setWorkspaceConfig({
-    ...getWorkspaceConfig(),
-    registryDir: AbsolutePathSchema.parse(registryDir),
-  });
-  return id;
 }
 
 async function createSkill({
@@ -76,6 +65,17 @@ async function createSkill({
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     await fs.writeFile(fullPath, content);
   }
+}
+
+function createTaskConfigWithDirs() {
+  // Point the singleton's tasksDir at dir's parent so taskDir(id) ===
+  // dir, then also override registryDir for skill resolution.
+  const id = createMockTaskConfigForDir(dir, { model });
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    registryDir: AbsolutePathSchema.parse(registryDir),
+  });
+  return id;
 }
 
 /* eslint-disable unicorn/no-await-expression-member */
@@ -116,7 +116,7 @@ describe("LoadSkill", () => {
       input: { explanation: "loading", name: "my-skill" },
     });
 
-    const destBase = path.join(dir, APP_FOLDER_NAMES.skills, "my-skill");
+    const destBase = path.join(dir, TASK_FOLDER_NAMES.skills, "my-skill");
     const md = await fs.readFile(path.join(destBase, "SKILL.md"), "utf8");
     expect(md).toMatchInlineSnapshot(`
       "---
@@ -181,7 +181,7 @@ describe("LoadSkill", () => {
 
     const destScript = path.join(
       dir,
-      APP_FOLDER_NAMES.skills,
+      TASK_FOLDER_NAMES.skills,
       "my-skill",
       "scripts",
       "run.ts",

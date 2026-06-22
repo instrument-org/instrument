@@ -26,7 +26,7 @@ const KNOWN_OPTIONS = {
 
 export function createTsCommand(taskId: TaskId) {
   return defineCommand(TS_COMMAND.name, async (args, ctx) => {
-    const { appCwd, env } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     if (args.length === 0) {
       return {
@@ -61,7 +61,7 @@ export function createTsCommand(taskId: TaskId) {
         positionals,
         args,
         taskId,
-        appCwd,
+        taskCwd,
         (p) => ctx.fs.resolvePath(ctx.cwd, p),
       );
 
@@ -81,13 +81,13 @@ export function createTsCommand(taskId: TaskId) {
       // `cd skills/<skill>`, `tsx -e 'import sharp'` finds the skill's
       // node_modules. A root tmp dir broke this regardless of cwd.
       const fileName = `.ts-eval-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ts`;
-      await mkdir(appCwd, { recursive: true });
-      await writeFile(absolutePathJoin(appCwd, fileName), evalCode, "utf8");
-      // Pass relative to appCwd (the jiti cwd) so the host dir is not
+      await mkdir(taskCwd, { recursive: true });
+      await writeFile(absolutePathJoin(taskCwd, fileName), evalCode, "utf8");
+      // Pass relative to taskCwd (the jiti cwd) so the host dir is not
       // exposed in jiti stack traces.
       filePath = fileName;
       scriptArgs = [];
-      evalFileToCleanup = absolutePathJoin(appCwd, fileName);
+      evalFileToCleanup = absolutePathJoin(taskCwd, fileName);
     }
 
     try {
@@ -95,7 +95,7 @@ export function createTsCommand(taskId: TaskId) {
       // installing all packages eagerly.
       const result = await runPnpmCommand({
         args: ["dlx", "jiti@2.6.1", filePath, ...scriptArgs],
-        cwd: appCwd,
+        cwd: taskCwd,
         env,
         pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
         signal: ctx.signal,

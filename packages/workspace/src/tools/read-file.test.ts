@@ -219,7 +219,7 @@ describe("ReadFile", () => {
 describe("ReadFile Unicode path fallbacks", () => {
   let tmpDir: string;
   let taskRoot: string;
-  let tmpAppConfig: TaskId;
+  let tmpTaskConfig: TaskId;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
@@ -227,7 +227,7 @@ describe("ReadFile Unicode path fallbacks", () => {
     );
     taskRoot = path.join(tmpDir, "test");
     await fs.mkdir(taskRoot, { recursive: true });
-    tmpAppConfig = createMockTaskConfigForDir(taskRoot, { model });
+    tmpTaskConfig = createMockTaskConfigForDir(taskRoot, { model });
   });
 
   afterEach(async () => {
@@ -246,7 +246,7 @@ describe("ReadFile Unicode path fallbacks", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: tmpAppConfig,
+        taskId: tmpTaskConfig,
         taskState: {},
       })
     )

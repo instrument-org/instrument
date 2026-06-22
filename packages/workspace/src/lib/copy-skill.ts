@@ -2,7 +2,7 @@ import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { APP_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
@@ -20,13 +20,13 @@ export async function copySkill({
   skillDir: AbsolutePath;
   skillName: string;
 }): Promise<Result<AbsolutePath, TypedError.Conflict>> {
-  const destDir = absolutePathJoin(dir, APP_FOLDER_NAMES.skills, skillName);
+  const destDir = absolutePathJoin(dir, TASK_FOLDER_NAMES.skills, skillName);
 
   try {
     await fs.access(destDir);
     return err(
       new TypedError.Conflict(
-        `Skill "${skillName}" is already loaded. Read ${normalizedPathJoin(APP_FOLDER_NAMES.skills, skillName, "SKILL.md")} if you haven't yet -- do not read other files in that folder unless the skill instructs you to.`,
+        `Skill "${skillName}" is already loaded. Read ${normalizedPathJoin(TASK_FOLDER_NAMES.skills, skillName, "SKILL.md")} if you haven't yet -- do not read other files in that folder unless the skill instructs you to.`,
       ),
     );
   } catch (error) {

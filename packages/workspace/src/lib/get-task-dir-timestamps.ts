@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 
 import { type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
-import { getTaskPrivateDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
+import { getTaskPrivateDir } from "./task-dir-utils";
 
 export async function getTaskDirTimestamps(dir: TaskDir) {
   const privateDir = getTaskPrivateDir(dir);

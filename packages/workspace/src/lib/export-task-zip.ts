@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable, Writable } from "node:stream";
 
-import { APP_FOLDER_NAMES, SESSIONS_DB_FILE_NAME } from "../constants";
+import { SESSIONS_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
 import { type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
@@ -41,14 +41,14 @@ export function exportTaskZip({ dir, outputPath }: ExportTaskZipOptions) {
 
     const sessionsDbPath = absolutePathJoin(
       dir,
-      APP_FOLDER_NAMES.private,
+      TASK_FOLDER_NAMES.private,
       SESSIONS_DB_FILE_NAME,
     );
     const sessionsDbExists = await pathExists(sessionsDbPath);
 
     if (sessionsDbExists) {
       filesToInclude.add(
-        path.join(APP_FOLDER_NAMES.private, SESSIONS_DB_FILE_NAME),
+        path.join(TASK_FOLDER_NAMES.private, SESSIONS_DB_FILE_NAME),
       );
     }
 

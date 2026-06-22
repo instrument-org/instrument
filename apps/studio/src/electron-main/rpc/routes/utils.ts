@@ -1,5 +1,5 @@
 import type {
-  OpenAppInType,
+  OpenTaskInType,
   SupportedEditor,
   SupportedEditorId,
 } from "@/shared/schemas/editors";
@@ -14,7 +14,7 @@ import {
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  OpenAppInTypeSchema,
+  OpenTaskInTypeSchema,
   SupportedEditorSchema,
 } from "@/shared/schemas/editors";
 import {
@@ -148,7 +148,7 @@ const SPECIAL_COMMANDS: Partial<
 };
 
 const getOpenCommand = (
-  type: OpenAppInType,
+  type: OpenTaskInType,
   dir: string,
   platform: string,
 ): string => {
@@ -220,7 +220,7 @@ const openExternalLink = base
     }
   });
 
-const openAppIn = base
+const openTaskIn = base
   .errors({
     ERROR_OPENING_APP: {
       message: "Error opening app",
@@ -229,7 +229,7 @@ const openAppIn = base
   .input(
     z.object({
       id: TaskIdSchema,
-      type: OpenAppInTypeSchema,
+      type: OpenTaskInTypeSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
@@ -484,9 +484,9 @@ export const utils = {
   exportZip,
   getSupportedEditors,
   live,
-  openAppIn,
   openExternalLink,
   openFolder,
+  openTaskIn,
   showFileInFolder,
   showFolderPicker,
   showTaskFileInFolder,

@@ -2,7 +2,7 @@ import { type SessionTag, type TaskId } from "@instrument-org/workspace/client";
 import { PauseIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
-import { useTaskLiveState } from "../hooks/use-task-live-state";
+import { useTaskAgentStatus } from "../hooks/use-task-agent-status";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { Spinner } from "./ui/spinner";
@@ -40,14 +40,14 @@ export function TaskStatusIcon({
   className?: string;
   id: TaskId;
 }) {
-  const { data: taskLiveState } = useTaskLiveState({ id });
+  const { data: taskAgentStatus } = useTaskAgentStatus({ id });
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.statusByTaskId.experimental_liveOptions({
       input: { id },
     }),
   );
 
-  const tags = taskLiveState?.sessionActors.flatMap((a) => a.tags) ?? [];
+  const tags = taskAgentStatus?.sessionActors.flatMap((a) => a.tags) ?? [];
   const isReplayRunning = (replayStatus?.activeSessionIds.length ?? 0) > 0;
 
   return (

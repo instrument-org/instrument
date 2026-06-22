@@ -1,14 +1,14 @@
 import { ok } from "neverthrow";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
-import { type TaskId } from "../schemas/task-id";
 import {
   type SessionTag,
-  type TaskLiveState,
-} from "../schemas/task-live-state";
+  type TaskAgentStatus,
+} from "../schemas/task-agent-status";
+import { type TaskId } from "../schemas/task-id";
 import { getTask } from "./get-task";
 
-export async function getTaskLiveState({
+export async function getTaskAgentStatus({
   id,
   workspaceRef,
 }: {
@@ -30,10 +30,10 @@ export async function getTaskLiveState({
     };
   });
 
-  const taskLiveState: TaskLiveState = {
+  const taskAgentStatus: TaskAgentStatus = {
     sessionActors,
     task,
   };
 
-  return ok(taskLiveState);
+  return ok(taskAgentStatus);
 }

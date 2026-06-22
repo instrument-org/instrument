@@ -13,7 +13,7 @@ const SessionTagSchema = z.enum([
 
 export type SessionTag = z.output<typeof SessionTagSchema>;
 
-export const TaskLiveStateSchema = z.object({
+export const TaskAgentStatusSchema = z.object({
   sessionActors: z.array(
     z.object({
       sessionId: StoreId.SessionSchema,
@@ -23,4 +23,4 @@ export const TaskLiveStateSchema = z.object({
   task: z.custom<Task>(),
 });
 
-export type TaskLiveState = z.output<typeof TaskLiveStateSchema>;
+export type TaskAgentStatus = z.output<typeof TaskAgentStatusSchema>;

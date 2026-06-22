@@ -26,8 +26,8 @@ import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
+import { type SessionTag } from "../schemas/task-agent-status";
 import { type TaskId } from "../schemas/task-id";
-import { type SessionTag } from "../schemas/task-live-state";
 import {
   agentMachine,
   type AgentMachineActorRef,
@@ -220,7 +220,7 @@ export const sessionMachine = setup({
       const currentTags = alphabetical([...snapshot.tags], (tag) => tag);
 
       if (!isEqual(currentTags, previousTags)) {
-        publisher.publish("taskLiveState.session.tagsChanged", {
+        publisher.publish("session.tagsChanged", {
           id: input.taskId,
           sessionId: input.sessionId,
         });
@@ -228,7 +228,7 @@ export const sessionMachine = setup({
       }
     });
 
-    publisher.publish("taskLiveState.session.added", {
+    publisher.publish("session.added", {
       id: input.taskId,
       sessionId: input.sessionId,
     });
@@ -276,10 +276,9 @@ export const sessionMachine = setup({
         (resolve, reject) => {
           void (async () => {
             try {
-              for await (const payload of publisher.subscribe(
-                "taskLiveState.session.done",
-                { signal },
-              )) {
+              for await (const payload of publisher.subscribe("session.done", {
+                signal,
+              })) {
                 if (payload.sessionId === newSessionId) {
                   const messagesResult = await Store.getMessagesWithParts(
                     {
@@ -471,7 +470,7 @@ export const sessionMachine = setup({
           context.subscription.unsubscribe();
         }
 
-        publisher.publish("taskLiveState.session.done", {
+        publisher.publish("session.done", {
           id: context.taskId,
           sessionId: context.sessionId,
         });

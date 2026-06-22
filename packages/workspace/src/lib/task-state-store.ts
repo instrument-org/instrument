@@ -2,12 +2,11 @@ import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import fs from "node:fs/promises";
 import { z } from "zod";
 
+import { TASK_STATE_FILE_NAME } from "../constants";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getTaskPrivateDir } from "./task-dir-utils";
-
-const TASK_STATE_FILE_NAME = "project-state.json";
 
 const StoredTaskStateSchema = z
   .object({

@@ -36,8 +36,6 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
 
   const { id } = uriDetails.value;
 
-  const taskId = id;
-
   return streamSSE(c, async (stream) => {
     let lastResponse: HeartbeatResponse | null = null;
     const pushResponse = async (
@@ -71,14 +69,14 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
       const runtimeRef = c.var.getRuntimeRef(id);
 
       if (!runtimeRef) {
-        const canRun = await isRunnable(taskDir(taskId));
+        const canRun = await isRunnable(taskDir(id));
         if (canRun) {
           c.var.parentRef.send({
             type: "workspaceServer.heartbeat",
             value: {
               createdAt: Date.now(),
               shouldCreate: false,
-              taskId,
+              taskId: id,
             },
           });
           return pushResponse({ status: "loading" });
@@ -92,7 +90,7 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
         value: {
           createdAt: Date.now(),
           shouldCreate: false,
-          taskId,
+          taskId: id,
         },
       });
 

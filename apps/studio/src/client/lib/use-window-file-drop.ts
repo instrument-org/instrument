@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { captureException } from "./telemetry";
+
 export interface DroppedFolder {
   path: string;
   type: "folder";
@@ -80,8 +82,9 @@ export const useWindowFileDrop = ({
         if (folders.length > 0) {
           onFoldersDropped?.(folders);
         } else {
-          // eslint-disable-next-line no-console
-          console.error("Could not get folder paths from dropped items");
+          captureException(
+            new Error("Could not get folder paths from dropped items"),
+          );
         }
       }
 

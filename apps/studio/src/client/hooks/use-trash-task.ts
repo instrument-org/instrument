@@ -7,7 +7,7 @@ import { rpcClient } from "../rpc/client";
 import { useTabActions } from "./use-tab-actions";
 import { useTabs } from "./use-tabs";
 
-export function useTrashApp({
+export function useTrashTask({
   navigateOnDelete,
 }: {
   navigateOnDelete?: boolean;
@@ -20,7 +20,7 @@ export function useTrashApp({
   const tabs = useTabs();
   const navigate = useNavigate();
 
-  const trashApp = useCallback(
+  const trashTask = useCallback(
     async (taskId: TaskId) => {
       await trashTaskMutation.mutateAsync({
         id: taskId,
@@ -62,6 +62,6 @@ export function useTrashApp({
   return {
     error: trashTaskMutation.error,
     isPending: trashTaskMutation.isPending,
-    trashApp,
+    trashTask,
   };
 }

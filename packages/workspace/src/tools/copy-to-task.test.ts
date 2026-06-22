@@ -47,12 +47,12 @@ function baseExecuteArgs() {
     model,
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
-    taskId: createTmpAppConfig(),
+    taskId: createTmpTaskConfig(),
     taskState: { attachedFolders },
   };
 }
 
-function createTmpAppConfig() {
+function createTmpTaskConfig() {
   return createMockTaskConfigForDir(path.join(tmpDir, "test"), { model });
 }
 

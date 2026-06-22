@@ -23,7 +23,7 @@ import { type AgentName } from "../../agents/types";
 import { REGISTRY_FOLDER_NAMES } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
-import { isTaskId } from "../../lib/is-app";
+import { isTaskId } from "../../lib/is-task-id";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
@@ -107,14 +107,14 @@ export type WorkspaceEvent =
       value: { createdAt: number; id: TaskId };
     }
   | {
-      type: "prepareToTrashApp";
+      type: "prepareToTrashTask";
       value: { id: TaskId; onBrowserReaped?: () => void };
     }
   | {
       type: "releaseBrowserPresence";
       value: { id: TaskId };
     }
-  | { type: "removeAppBeingTrashed"; value: { id: TaskId } }
+  | { type: "removeTaskBeingTrashed"; value: { id: TaskId } }
   | {
       type: "restartAllRuntimes";
     }
@@ -378,12 +378,12 @@ export const workspaceMachine = setup({
     // getWorkspaceConfig() instead of threading it through every TaskId.
     setWorkspaceConfig(workspaceConfig);
     return {
-      appsBeingTrashed: [],
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),
       runtimeRefs: new Map(),
       sessionRefsByTaskId: new Map(),
       taskBrowserRefs: new Map(),
+      tasksBeingTrashed: [],
       workspaceServerRef: spawn("workspaceServerLogic", {
         input: {
           aiGatewayApp: input.aiGatewayApp,
@@ -540,7 +540,7 @@ export const workspaceMachine = setup({
       }),
       guard: ({ context, event }) => {
         const id = event.value.taskId;
-        return !context.appsBeingTrashed.some(
+        return !context.tasksBeingTrashed.some(
           (trashingTaskId) =>
             id === trashingTaskId ||
             // Includes any id nested under the task being trashed
@@ -557,10 +557,10 @@ export const workspaceMachine = setup({
         type: "forwardUpdateHeartbeat",
       },
     },
-    prepareToTrashApp: {
+    prepareToTrashTask: {
       actions: enqueueActions(({ context, enqueue, event }) => {
         enqueue.assign({
-          appsBeingTrashed: [...context.appsBeingTrashed, event.value.id],
+          tasksBeingTrashed: [...context.tasksBeingTrashed, event.value.id],
         });
 
         // Track every taskBrowser whose id matches the trashed
@@ -624,10 +624,10 @@ export const workspaceMachine = setup({
         type: "releaseBrowserPresence",
       },
     },
-    removeAppBeingTrashed: {
+    removeTaskBeingTrashed: {
       actions: assign(({ context, event }) => {
         return {
-          appsBeingTrashed: context.appsBeingTrashed.filter(
+          tasksBeingTrashed: context.tasksBeingTrashed.filter(
             (id) => id !== event.value.id,
           ),
         };
@@ -722,7 +722,7 @@ export const workspaceMachine = setup({
       }),
       guard: ({ context, event }) => {
         const id = event.value.taskId;
-        return !context.appsBeingTrashed.some(
+        return !context.tasksBeingTrashed.some(
           (trashingTaskId) =>
             id === trashingTaskId ||
             // Includes any id nested under the task being trashed

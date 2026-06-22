@@ -6,9 +6,9 @@ import { readPackage } from "read-pkg";
 import { type TaskDir } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { readPNPMShim } from "./read-pnpm-shim";
+import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function getFramework({

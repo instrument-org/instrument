@@ -1,7 +1,7 @@
-import { type Task } from "../schemas/app";
+import { type Task } from "../schemas/task";
 import { type TaskId } from "../schemas/task-id";
-import { taskDir } from "./app-dir-utils";
-import { getTaskDirTimestamps } from "./get-app-dir-timestamps";
+import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
+import { taskDir } from "./task-dir-utils";
 import { assetBaseUrl } from "./url-for-subdomain";
 
 export async function getTask(id: TaskId): Promise<Task> {

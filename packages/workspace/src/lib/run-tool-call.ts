@@ -5,11 +5,11 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { getToolByType } from "../tools/all";
-import { taskDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
+import { taskDir } from "./task-dir-utils";
 import { getTaskState } from "./task-state-store";
 import { getWorkspaceConfig } from "./workspace-config";
 

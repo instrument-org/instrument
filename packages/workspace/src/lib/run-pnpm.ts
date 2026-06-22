@@ -1,8 +1,8 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
-import { taskDir } from "./app-dir-utils";
-import { execaNodeForApp } from "./execa-node-for-app";
+import { execaNodeForTask } from "./execa-node-for-task";
 import { filterShellOutput } from "./filter-shell-output";
+import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export const PNPM_NAME = "pnpm";
@@ -25,7 +25,7 @@ export async function runPnpmCommand({
   stdin?: string;
   taskId: TaskId;
 }) {
-  const execResult = await execaNodeForApp(
+  const execResult = await execaNodeForTask(
     taskId,
     getWorkspaceConfig().pnpmBinPath,
     args,

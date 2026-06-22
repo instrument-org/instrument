@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent } from "radashi";
 
-import { APP_FOLDER_NAMES } from "../../constants";
+import { TASK_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
@@ -15,17 +15,17 @@ import { WebSearch } from "../../tools/web-search";
 import { type BrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
 import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
-import {
-  getAgentBrowserStateDir,
-  getBrowserSessionDir,
-  taskDir,
-} from "../app-dir-utils";
 import { recordBrowserUse } from "../browser-state";
 import {
   beginBrowserCommandObservation,
   type UpsertContextItem,
 } from "../capture-browser-screenshot";
-import { isTaskId } from "../is-app";
+import { isTaskId } from "../is-task-id";
+import {
+  getAgentBrowserStateDir,
+  getBrowserSessionDir,
+  taskDir,
+} from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
@@ -137,7 +137,7 @@ export function createAgentBrowserCommand({
       return INFO_ONLY_FLAGS.has(flagName);
     });
 
-    const { appCwd, env } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
     const resolvedArgs = resolvePathArgs(strippedArgs, taskId, ctx);
 
@@ -171,20 +171,20 @@ export function createAgentBrowserCommand({
       );
     }
 
-    const tmpDir = absolutePathJoin(taskDir(taskId), APP_FOLDER_NAMES.tmp);
+    const tmpDir = absolutePathJoin(taskDir(taskId), TASK_FOLDER_NAMES.tmp);
     const screenshotDir = absolutePathJoin(tmpDir, "agent-browser-screenshots");
     const downloadPath = absolutePathJoin(tmpDir, "agent-browser-downloads");
     const agentBrowserStateDir = getAgentBrowserStateDir(taskDir(taskId));
     // Relative so agent-browser outputs screenshot paths the agent sees as relative
     // to its cwd (e.g. "tmp/agent-browser-screenshots/shot.png"), not host absolute.
-    const screenshotDirRelative = path.relative(appCwd, screenshotDir);
+    const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
     // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
     // download path); this is a per-task sink for anything that falls back
     // to $HOME (e.g. ~/.agent-browser/config reads, future writes).
     const homeDir = absolutePathJoin(
       taskDir(taskId),
-      APP_FOLDER_NAMES.private,
+      TASK_FOLDER_NAMES.private,
       "agent-browser-home",
     );
 
@@ -213,7 +213,7 @@ export function createAgentBrowserCommand({
       result = await runAgentBrowser({
         args: commandArgs,
         cancelSignal: ctx.signal,
-        cwd: appCwd,
+        cwd: taskCwd,
         env: {
           ...env,
           // Null out env-var equivalents of BLOCKED_FLAGS so the user shell

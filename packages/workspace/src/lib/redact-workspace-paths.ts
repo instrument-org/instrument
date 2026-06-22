@@ -1,5 +1,5 @@
 import { type TaskId } from "../schemas/task-id";
-import { taskDir } from "./app-dir-utils";
+import { taskDir } from "./task-dir-utils";
 
 export function redactWorkspacePaths(message: string, taskId: TaskId): string {
   let redactedMessage = message;

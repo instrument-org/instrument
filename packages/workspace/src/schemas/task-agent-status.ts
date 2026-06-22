@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { type Task } from "./app";
 import { StoreId } from "./store-id";
+import { type Task } from "./task";
 
 const SessionTagSchema = z.enum([
   "agent.alive",

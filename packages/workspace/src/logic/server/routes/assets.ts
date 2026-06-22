@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { absolutePathJoin } from "../../../lib/absolute-path-join";
-import { taskDir } from "../../../lib/app-dir-utils";
+import { taskDir } from "../../../lib/task-dir-utils";
 import { APPS_SERVER_API_PATH } from "../constants";
 import { serveStaticFile } from "../serve-static";
 import { type WorkspaceServerEnv } from "../types";

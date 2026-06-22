@@ -13,7 +13,6 @@ import {
 
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { taskDir } from "./app-dir-utils";
 import { type UpsertContextItem } from "./capture-browser-screenshot";
 import {
   AGENT_BROWSER_COMMAND,
@@ -38,6 +37,7 @@ import {
 import { createTsCommand, TS_COMMAND } from "./shell-commands/ts";
 import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
 import { createWhichCommand } from "./shell-commands/which";
+import { taskDir } from "./task-dir-utils";
 
 // cspell:ignore mixmark
 

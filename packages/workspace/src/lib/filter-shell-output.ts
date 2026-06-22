@@ -2,15 +2,15 @@ import { type TaskDir } from "../schemas/paths";
 import { normalizePath } from "./normalize-path";
 
 export function filterShellOutput(output: string, dir: TaskDir): string {
-  const normalizedAppDir = normalizePath(dir);
-  const appDirVariants = new Set([
+  const normalizedTaskDir = normalizePath(dir);
+  const taskDirVariants = new Set([
     dir,
-    normalizedAppDir,
-    normalizedAppDir.replaceAll("/", "\\"),
+    normalizedTaskDir,
+    normalizedTaskDir.replaceAll("/", "\\"),
   ]);
 
   let filtered = output;
-  for (const variant of appDirVariants) {
+  for (const variant of taskDirVariants) {
     filtered = filtered.replaceAll(
       new RegExp(escapeRegExp(variant), "gi"),
       ".",

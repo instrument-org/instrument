@@ -12,12 +12,12 @@ const SupportedEditorIdSchema = z.enum([
 
 export type SupportedEditorId = z.output<typeof SupportedEditorIdSchema>;
 
-export const OpenAppInTypeSchema = z.union([
+export const OpenTaskInTypeSchema = z.union([
   z.literal("show-in-folder"),
   SupportedEditorIdSchema,
 ]);
 
-export type OpenAppInType = z.output<typeof OpenAppInTypeSchema>;
+export type OpenTaskInType = z.output<typeof OpenTaskInTypeSchema>;
 
 export const SupportedEditorSchema = z.object({
   available: z.boolean(),

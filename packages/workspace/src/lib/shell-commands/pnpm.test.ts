@@ -12,7 +12,7 @@ import {
   PNPM_COMMAND,
 } from "./pnpm";
 
-vi.mock(import("../execa-node-for-app"));
+vi.mock(import("../execa-node-for-task"));
 
 const mockCtx: CommandContext = {
   cwd: "/",
@@ -77,8 +77,8 @@ describe("createPnpmCommand", () => {
   });
 
   it("includes auto-install output in stdout when install fails", async () => {
-    const { execaNodeForApp } = await import("../execa-node-for-app");
-    vi.mocked(execaNodeForApp)
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask)
       .mockResolvedValueOnce({
         all: "ERR_PNPM_PEER_DEP_ISSUES",
         exitCode: 1,
@@ -97,8 +97,8 @@ describe("createPnpmCommand", () => {
   });
 
   it("strips --global flag, runs command without it, and appends system note", async () => {
-    const { execaNodeForApp } = await import("../execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "packages installed",
       exitCode: 0,
     } as never);
@@ -120,8 +120,8 @@ describe("createPnpmCommand", () => {
   });
 
   it("strips -g flag, runs command without it, and appends system note", async () => {
-    const { execaNodeForApp } = await import("../execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "packages installed",
       exitCode: 0,
     } as never);
@@ -146,8 +146,8 @@ describe("createPnpmCommand", () => {
       form: "pnpm exec tsx -e ...",
     },
   ])("forwards $form to the ts command", async ({ args }) => {
-    const { execaNodeForApp } = await import("../execa-node-for-app");
-    vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "1",
       exitCode: 0,
     } as never);
@@ -155,7 +155,7 @@ describe("createPnpmCommand", () => {
     const result = await command.execute(args, mockCtx);
 
     expect(result.exitCode).toBe(0);
-    expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
+    expect(vi.mocked(execaNodeForTask)).toHaveBeenCalledWith(
       taskId,
       getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining(["dlx", "jiti@2.6.1"]),
@@ -223,8 +223,8 @@ describe("createPnpmCommand", () => {
   ])(
     "runs $name through pnpm dlx",
     async ({ args, createCommand, expectedArgs }) => {
-      const { execaNodeForApp } = await import("../execa-node-for-app");
-      vi.mocked(execaNodeForApp).mockResolvedValueOnce({
+      const { execaNodeForTask } = await import("../execa-node-for-task");
+      vi.mocked(execaNodeForTask).mockResolvedValueOnce({
         all: "hello",
         exitCode: 0,
       } as never);
@@ -233,7 +233,7 @@ describe("createPnpmCommand", () => {
       const result = await dlxCommand.execute(args, mockCtx);
 
       expect(result.exitCode).toBe(0);
-      expect(vi.mocked(execaNodeForApp)).toHaveBeenLastCalledWith(
+      expect(vi.mocked(execaNodeForTask)).toHaveBeenLastCalledWith(
         taskId,
         getWorkspaceConfig().pnpmBinPath,
         expectedArgs,

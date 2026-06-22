@@ -19,7 +19,7 @@ const FIXTURES_PATH = path.join(
 
 const model = createMockAIGatewayModel();
 
-function createFixturesAppConfig() {
+function createFixturesTaskConfig() {
   return createMockTaskConfigForDir(FIXTURES_PATH, { model });
 }
 
@@ -43,7 +43,7 @@ describe("Glob", () => {
       model,
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
-      taskId: createFixturesAppConfig(),
+      taskId: createFixturesTaskConfig(),
       taskState: {},
     });
 
@@ -67,7 +67,7 @@ describe("Glob", () => {
       model,
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
-      taskId: createFixturesAppConfig(),
+      taskId: createFixturesTaskConfig(),
       taskState: {},
     });
 
@@ -90,7 +90,7 @@ describe("Glob", () => {
       model,
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
-      taskId: createFixturesAppConfig(),
+      taskId: createFixturesTaskConfig(),
       taskState: {},
     });
 
@@ -120,7 +120,7 @@ describe("Glob", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -142,7 +142,7 @@ describe("Glob", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -161,7 +161,7 @@ describe("Glob", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -183,7 +183,7 @@ describe("Glob", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -206,7 +206,7 @@ describe("Glob", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -240,7 +240,7 @@ describe("Glob", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 
@@ -261,7 +261,7 @@ describe("Glob", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
-        taskId: createFixturesAppConfig(),
+        taskId: createFixturesTaskConfig(),
         taskState: { attachedFolders },
       });
 

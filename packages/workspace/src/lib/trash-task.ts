@@ -7,7 +7,6 @@ import { type WorkspaceActorRef } from "../machines/workspace";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
-import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import {
@@ -15,6 +14,7 @@ import {
   markStorageAsDisposing,
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
+import { taskDir } from "./task-dir-utils";
 
 interface RemoveTaskOptions {
   id: TaskId;
@@ -34,7 +34,7 @@ export async function trashTask({
       // Chromium profile is no longer locked when we delete the app dir.
       const browserReaped = new Promise<void>((resolve) => {
         workspaceRef.send({
-          type: "prepareToTrashApp",
+          type: "prepareToTrashTask",
           value: { id, onBrowserReaped: resolve },
         });
       });
@@ -72,7 +72,7 @@ export async function trashTask({
         // In the off chance that a future task with the same id is
         // created, we remove the app being trashed.
         workspaceRef.send({
-          type: "removeAppBeingTrashed",
+          type: "removeTaskBeingTrashed",
           value: { id },
         });
 

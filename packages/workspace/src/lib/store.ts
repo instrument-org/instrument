@@ -8,13 +8,13 @@ import { SessionMessagePart } from "../schemas/session/message-part";
 import { SessionMessageRelaxedPart } from "../schemas/session/message-relaxed-part";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { migrateGitCommitPart } from "./migrate-git-commit-part";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { taskDir } from "./task-dir-utils";
 
 export namespace Store {
   export function getAllMessageIds(

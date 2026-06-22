@@ -69,9 +69,7 @@ registerSession({
           input: {
             explanation: "Refactor auth middleware to use JWT verification",
             filePath: "./src/middleware/auth.ts",
-            newString: `import {
-  verify,
-} from "jsonwebtoken";
+            newString: `import { verify } from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
@@ -115,11 +113,7 @@ export function authMiddleware(
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {
-            content: `import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+            content: `import { describe, expect, it } from "vitest";
 import {
   formatDate,
   formatDateTime,

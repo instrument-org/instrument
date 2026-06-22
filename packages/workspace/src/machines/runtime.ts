@@ -20,7 +20,7 @@ import {
 } from "../logic/spawn-runtime";
 import { publisher } from "../rpc/publisher";
 import { type TaskId } from "../schemas/task-id";
-import { type AppStatus } from "../types";
+import { type TaskStatus } from "../types";
 
 const MAX_RETRIES = 3;
 
@@ -131,7 +131,7 @@ export const runtimeMachine = setup({
       taskId: TaskId;
     },
     output: {} as { error?: unknown },
-    tags: {} as Exclude<AppStatus, "not-found" | "unavailable">,
+    tags: {} as Exclude<TaskStatus, "not-found" | "unavailable">,
   },
 }).createMachine({
   context: ({ input }) => {

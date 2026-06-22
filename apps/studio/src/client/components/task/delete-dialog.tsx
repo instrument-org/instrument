@@ -1,5 +1,5 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
-import { useTrashApp } from "@/client/hooks/use-trash-app";
+import { useTrashTask } from "@/client/hooks/use-trash-task";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { type Task } from "@instrument-org/workspace/client";
 import { toast } from "sonner";
@@ -21,13 +21,13 @@ export function TaskDeleteDialog({
   open: boolean;
   task: Task;
 }) {
-  const { trashApp } = useTrashApp({ navigateOnDelete });
+  const { trashTask } = useTrashTask({ navigateOnDelete });
   const trashTerminology = getTrashTerminology();
 
   const handleDelete = async () => {
     try {
       onDeleteStart?.();
-      await trashApp(task.id);
+      await trashTask(task.id);
     } catch {
       toast.error("Failed to delete task", {
         description:

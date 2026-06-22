@@ -2,9 +2,9 @@ import { execa } from "execa";
 import { defineCommand } from "just-bash";
 
 import { type TaskId } from "../../schemas/task-id";
-import { taskDir } from "../app-dir-utils";
 import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
+import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
@@ -15,7 +15,7 @@ export const FFMPEG_COMMAND = {
 
 export function createFfmpegCommand(taskId: TaskId) {
   return defineCommand(FFMPEG_COMMAND.name, async (args, ctx) => {
-    const { appCwd, env } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     const result = await execa(
       FFMPEG_PATH,
@@ -23,7 +23,7 @@ export function createFfmpegCommand(taskId: TaskId) {
       {
         all: true,
         cancelSignal: ctx.signal,
-        cwd: appCwd,
+        cwd: taskCwd,
         env: {
           ...getWorkspaceConfig().nodeExecEnv,
           ...env,

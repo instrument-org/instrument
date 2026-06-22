@@ -7,13 +7,12 @@ import { type TaskBrowserActorRef } from "../task-browser";
 
 // Declared here to avoid circular dependency
 export interface WorkspaceContext {
-  appsBeingTrashed: TaskId[];
   config: WorkspaceConfig;
   error?: unknown;
   // Resolvers waiting for the taskBrowser at `id` to reach Stopped
   // before trash-task deletes the directory. Drained when the matching
   // taskBrowser.stopped event arrives (or immediately if no machine
-  // existed when prepareToTrashApp ran).
+  // existed when prepareToTrashTask ran).
   pendingBrowserReapResolvers: Map<TaskId, (() => void)[]>;
   runtimeRefs: Map<TaskId, RuntimeActorRef>;
   sessionRefsByTaskId: Map<TaskId, SessionActorRef[]>;
@@ -21,5 +20,6 @@ export interface WorkspaceContext {
   // active task-page presence subscription. Spawned lazily and reaped on
   // taskBrowser.stopped.
   taskBrowserRefs: Map<TaskId, TaskBrowserActorRef>;
+  tasksBeingTrashed: TaskId[];
   workspaceServerRef: WorkspaceServerActorRef;
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
-import { taskDir } from "../../../lib/app-dir-utils";
+import { taskDir } from "../../../lib/task-dir-utils";
 import {
   getTaskState,
   setTaskState,

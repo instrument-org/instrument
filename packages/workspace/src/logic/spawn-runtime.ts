@@ -10,14 +10,14 @@ import {
   fromCallback,
 } from "xstate";
 
-import { taskDir } from "../lib/app-dir-utils";
 import { cancelableTimeout, TimeoutError } from "../lib/cancelable-timeout";
-import { execaNodeForApp } from "../lib/execa-node-for-app";
+import { execaNodeForTask } from "../lib/execa-node-for-task";
 import { shouldFilterDebuggerMessage } from "../lib/filter-shell-output";
 import { getFramework } from "../lib/get-framework";
 import { getPackageManager } from "../lib/get-package-manager";
 import { pathExists } from "../lib/path-exists";
 import { PortManager } from "../lib/port-manager";
+import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { type TaskId } from "../schemas/task-id";
 import { DEFAULT_RUNTIME_BASE_PORT } from "./server/constants";
@@ -159,7 +159,7 @@ export const spawnRuntimeLogic = fromCallback<
       },
     });
 
-    const installProcess = execaNodeForApp(
+    const installProcess = execaNodeForTask(
       taskId,
       packageManager.command,
       packageManager.arguments,
@@ -214,7 +214,7 @@ export const spawnRuntimeLogic = fromCallback<
     });
 
     timeout.start();
-    const runtimeProcess = execaNodeForApp(
+    const runtimeProcess = execaNodeForTask(
       taskId,
       framework.command,
       framework.arguments,

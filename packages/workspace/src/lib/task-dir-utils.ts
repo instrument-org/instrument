@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { APP_FOLDER_NAMES, SESSIONS_DB_FILE_NAME } from "../constants";
+import { SESSIONS_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
 import {
   type AbsolutePath,
   type TaskDir,
@@ -13,18 +13,18 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export function getAgentBrowserStateDir(dir: TaskDir): AbsolutePath {
-  return absolutePathJoin(getStateDir(dir), APP_FOLDER_NAMES.agentBrowserState);
+  return absolutePathJoin(getStateDir(dir), TASK_FOLDER_NAMES.agentBrowserState);
 }
 
 export function getBrowserSessionDir(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(
     getTaskPrivateDir(dir),
-    APP_FOLDER_NAMES.browserSession,
+    TASK_FOLDER_NAMES.browserSession,
   );
 }
 
 export function getTaskPrivateDir(dir: TaskDir): AbsolutePath {
-  return absolutePathJoin(dir, APP_FOLDER_NAMES.private);
+  return absolutePathJoin(dir, TASK_FOLDER_NAMES.private);
 }
 
 export function isRunnable(dir: TaskDir): Promise<boolean> {
@@ -62,5 +62,5 @@ export function templateExists({
 }
 
 function getStateDir(dir: TaskDir): AbsolutePath {
-  return absolutePathJoin(dir, APP_FOLDER_NAMES.state);
+  return absolutePathJoin(dir, TASK_FOLDER_NAMES.state);
 }

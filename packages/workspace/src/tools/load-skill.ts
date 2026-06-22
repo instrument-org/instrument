@@ -5,8 +5,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { APP_FOLDER_NAMES } from "../constants";
-import { taskDir } from "../lib/app-dir-utils";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { copySkill } from "../lib/copy-skill";
 import { executeError } from "../lib/execute-error";
 import { normalizedPathJoin } from "../lib/normalize-path";
@@ -20,6 +19,7 @@ import {
   getSkillSources,
   listSkillFiles,
 } from "../lib/skills";
+import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { type AbsolutePath } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -150,7 +150,7 @@ export const LoadSkill = setupTool({
 
     const destDir = copyResult.value;
     const relativeSkillRoot = normalizedPathJoin(
-      APP_FOLDER_NAMES.skills,
+      TASK_FOLDER_NAMES.skills,
       skill.name,
     );
     const { files: copiedFiles, truncated } = await listSkillFiles(

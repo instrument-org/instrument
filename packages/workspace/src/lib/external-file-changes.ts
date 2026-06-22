@@ -3,12 +3,12 @@ import { ok, safeTry } from "neverthrow";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { taskDir } from "./app-dir-utils";
 import {
   getFileIndexBaseline,
   setFileIndexBaseline,
 } from "./file-index-baseline";
 import { diffTaskFileIndexes, getTaskFileIndex } from "./get-task-files";
+import { taskDir } from "./task-dir-utils";
 import { getCurrentTaskFileIndex } from "./task-file-watcher";
 
 /**

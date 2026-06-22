@@ -5,21 +5,21 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { assign, sort } from "radashi";
 
-import { type Task } from "../schemas/app";
 import {
   type AbsolutePath,
   type TaskDir,
   TaskDirSchema,
 } from "../schemas/paths";
+import { type Task } from "../schemas/task";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
-import { getTaskDirTimestamps } from "./get-app-dir-timestamps";
-import { isTaskId } from "./is-app";
+import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
+import { isTaskId } from "./is-task-id";
 import { getTaskManifest } from "./task-manifest";
 import { assetBaseUrl } from "./url-for-subdomain";
 
-export async function getApp(
+export async function findTask(
   id: TaskId,
   workspaceConfig: WorkspaceConfig,
 ): Promise<Result<Task, TypedError.NotFound | TypedError.Parse>> {
@@ -37,7 +37,7 @@ export async function getApp(
     return err(new TypedError.NotFound("App not found", { cause: error }));
   }
 
-  return workspaceApp({ dir });
+  return readTask({ dir });
 }
 
 export async function getTasks(
@@ -61,9 +61,9 @@ export async function getTasks(
       ? (task: Task) => task.createdAt.getTime()
       : (task: Task) => task.updatedAt.getTime();
 
-  const taskDirs = await appDirsInRootDir(workspaceConfig.tasksDir);
+  const taskDirs = await taskDirsInRootDir(workspaceConfig.tasksDir);
   for (const dir of taskDirs) {
-    const taskResult = await workspaceApp({ dir });
+    const taskResult = await readTask({ dir });
     if (taskResult.isOk()) {
       tasks.push(taskResult.value);
     } else {
@@ -87,29 +87,7 @@ export async function getTasks(
   return { tasks: sortedTasks, total };
 }
 
-async function appDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
-  // First check if the root dir exists
-  const rootDirExists = await fs
-    .stat(rootDir)
-    .then(() => true)
-    .catch(() => false);
-  if (!rootDirExists) {
-    return [];
-  }
-
-  try {
-    const entries = await glob("*/", {
-      absolute: true,
-      cwd: rootDir,
-    });
-    return entries.map((dir) => TaskDirSchema.parse(dir));
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("Error reading apps folder", error);
-    return [];
-  }
-}
-async function workspaceApp({ dir }: { dir: TaskDir }) {
+async function readTask({ dir }: { dir: TaskDir }) {
   const rawFolderName = path.basename(dir);
   const taskIdResult = TaskIdSchema.safeParse(rawFolderName);
 
@@ -137,4 +115,26 @@ async function workspaceApp({ dir }: { dir: TaskDir }) {
     title: manifest?.name ?? rawFolderName,
   };
   return ok(task);
+}
+async function taskDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
+  // First check if the root dir exists
+  const rootDirExists = await fs
+    .stat(rootDir)
+    .then(() => true)
+    .catch(() => false);
+  if (!rootDirExists) {
+    return [];
+  }
+
+  try {
+    const entries = await glob("*/", {
+      absolute: true,
+      cwd: rootDir,
+    });
+    return entries.map((dir) => TaskDirSchema.parse(dir));
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("Error reading apps folder", error);
+    return [];
+  }
 }

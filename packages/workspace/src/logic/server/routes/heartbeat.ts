@@ -4,15 +4,15 @@ import ms from "ms";
 import { isEqual } from "radashi";
 import { type Subscription } from "xstate";
 
-import { isRunnable, taskDir } from "../../../lib/app-dir-utils";
+import { isRunnable, taskDir } from "../../../lib/task-dir-utils";
 import { type RuntimeSnapshot } from "../../../machines/runtime";
-import { type AppStatus } from "../../../types";
+import { type TaskStatus } from "../../../types";
 import { APPS_SERVER_API_PATH, HEARTBEAT_STREAM_ROUTE } from "../constants";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
 
 export interface HeartbeatResponse {
-  status: AppStatus;
+  status: TaskStatus;
 }
 
 const app = new Hono<WorkspaceServerEnv>().basePath(APPS_SERVER_API_PATH);
@@ -41,7 +41,7 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
   return streamSSE(c, async (stream) => {
     let lastResponse: HeartbeatResponse | null = null;
     const pushResponse = async (
-      response: HeartbeatResponse | { status: AppStatus },
+      response: HeartbeatResponse | { status: TaskStatus },
     ) => {
       const normalizedResponse: HeartbeatResponse = {
         status: response.status,
@@ -59,7 +59,7 @@ app.get(HEARTBEAT_STREAM_ROUTE, (c) => {
     };
 
     function pushSnapshotResponse(snapshot: RuntimeSnapshot) {
-      const tags = snapshot.tags as Set<AppStatus>;
+      const tags = snapshot.tags as Set<TaskStatus>;
       const firstTag = tags.values().next().value ?? "unknown";
 
       return pushResponse({

@@ -37,9 +37,9 @@ import { type TaskId } from "../schemas/task-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockAppConfig,
+  createMockTaskConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-app-config";
+} from "../test/helpers/mock-task-config";
 import { sessionToShorthand } from "../test/helpers/session-to-shorthand";
 import { TOOLS } from "../tools/all";
 import { sessionMachine, type SessionMachineParentEvent } from "./session";
@@ -251,7 +251,7 @@ describe("sessionMachine", () => {
     // via the workspace singleton.
     const model = createMockAIGatewayModel({ providerConfigId });
 
-    const testAppConfig = createMockAppConfig(
+    const testAppConfig = createMockTaskConfig(
       TaskIdSchema.parse(projectFolder),
       {
         aiSDKModel: mockLanguageModel,

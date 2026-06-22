@@ -33,7 +33,7 @@ export const MOCK_WORKSPACE_DIRS = {
   templates: `${MOCK_WORKSPACE_DIR}/registry/templates`,
 } as const;
 
-// Provider configs registered by createMockAppConfig. The singleton's
+// Provider configs registered by createMockTaskConfig. The singleton's
 // getAIProviderConfigs returns all of them so a test running two sessions with
 // distinct models (distinct providerConfigIds) resolves each to its own model
 // override. Configs are keyed by id so same-id mocks overwrite.
@@ -42,7 +42,7 @@ const mockProviderConfigs = new Map<
   ReturnType<typeof AIGatewayProviderConfig.Schema.parse>
 >();
 
-export function createMockAppConfig(
+export function createMockTaskConfig(
   id: TaskId,
   options: {
     aiSDKModel?: LanguageModelV3;
@@ -117,12 +117,12 @@ export function createMockAppConfig(
 // Returns a task id whose taskDir(id) resolves to `dir`, by pointing the
 // singleton's tasksDir at its parent. Replaces the old pattern of spreading
 // a mock TaskId and overriding dir. The dir's basename must be a valid id.
-export function createMockAppConfigForDir(
+export function createMockTaskConfigForDir(
   dir: string,
-  options: Parameters<typeof createMockAppConfig>[1] = {},
+  options: Parameters<typeof createMockTaskConfig>[1] = {},
 ): TaskId {
   const id = TaskIdSchema.parse(path.basename(dir));
-  createMockAppConfig(id, options);
+  createMockTaskConfig(id, options);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     tasksDir: AbsolutePathSchema.parse(path.dirname(dir)),

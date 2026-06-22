@@ -164,10 +164,7 @@ export const workspaceMachine = setup({
             return {};
           }
           return {
-            taskBrowserRefs: new Map(context.taskBrowserRefs).set(
-              id,
-              ref,
-            ),
+            taskBrowserRefs: new Map(context.taskBrowserRefs).set(id, ref),
           };
         });
       },
@@ -243,10 +240,7 @@ export const workspaceMachine = setup({
             return {};
           }
           return {
-            taskBrowserRefs: new Map(context.taskBrowserRefs).set(
-              id,
-              ref,
-            ),
+            taskBrowserRefs: new Map(context.taskBrowserRefs).set(id, ref),
           };
         });
       },
@@ -572,10 +566,7 @@ export const workspaceMachine = setup({
         // Track every projectBrowser whose id matches the trashed
         // project (the project itself, plus any id nested under it).
         const matchingTaskIds: TaskId[] = [];
-        for (const [
-          browserTaskId,
-          ref,
-        ] of context.taskBrowserRefs.entries()) {
+        for (const [browserTaskId, ref] of context.taskBrowserRefs.entries()) {
           const matches =
             browserTaskId === event.value.id ||
             (typeof event.value.id === "string" &&

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { TaskDirSchema } from "../schemas/paths";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 import { Grep } from "./grep";
@@ -12,7 +12,7 @@ import { Grep } from "./grep";
 const model = createMockAIGatewayModel();
 
 function createFixturesAppConfig() {
-  return createMockAppConfigForDir(
+  return createMockTaskConfigForDir(
     TaskDirSchema.parse(
       path.join(import.meta.dirname, "../../fixtures/file-system"),
     ),

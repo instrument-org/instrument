@@ -5,10 +5,7 @@ import {
   CurrentFileInfoSchema,
   getCurrentFileInfo,
 } from "../../../lib/get-file-info";
-import {
-  getTaskFiles,
-  TaskFilesSchema,
-} from "../../../lib/get-task-files";
+import { getTaskFiles, TaskFilesSchema } from "../../../lib/get-task-files";
 import {
   getCurrentTaskFiles,
   startWatchingTaskFiles,

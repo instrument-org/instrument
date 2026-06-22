@@ -5,7 +5,7 @@ import type { AnyAgentTool, ToolName } from "./types";
 
 import { BashTool } from "./bash";
 import { Choose } from "./choose";
-import { CopyToProject } from "./copy-to-project";
+import { CopyToTask } from "./copy-to-task";
 import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
 import { Glob } from "./glob";
@@ -20,7 +20,7 @@ import { WriteFile } from "./write-file";
 export const TOOLS = {
   BashTool,
   Choose,
-  CopyToProject,
+  CopyToTask,
   EditFile,
   GenerateImage,
   Glob,
@@ -38,7 +38,7 @@ export type InternalToolName = keyof typeof TOOLS;
 export const TOOLS_BY_NAME = {
   [TOOLS.BashTool.name]: TOOLS.BashTool,
   [TOOLS.Choose.name]: TOOLS.Choose,
-  [TOOLS.CopyToProject.name]: TOOLS.CopyToProject,
+  [TOOLS.CopyToTask.name]: TOOLS.CopyToTask,
   [TOOLS.EditFile.name]: TOOLS.EditFile,
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
   [TOOLS.Glob.name]: TOOLS.Glob,

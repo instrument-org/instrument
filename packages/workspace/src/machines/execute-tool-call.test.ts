@@ -8,9 +8,9 @@ import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockAppConfig,
+  createMockTaskConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-app-config";
+} from "../test/helpers/mock-task-config";
 import { executeToolCallMachine } from "./execute-tool-call";
 
 vi.mock(import("ulid"));
@@ -22,7 +22,7 @@ vi.mock(import("../lib/execa-node-for-app"), () => ({
 
 describe("executeToolCallMachine", () => {
   const model = createMockAIGatewayModel();
-  const projectAppConfig = createMockAppConfig(TaskIdSchema.parse("test"), {
+  const projectAppConfig = createMockTaskConfig(TaskIdSchema.parse("test"), {
     model,
   });
   const sessionId = StoreId.newSessionId();

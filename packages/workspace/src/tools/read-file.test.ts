@@ -8,7 +8,7 @@ import { FolderAttachment } from "../schemas/folder-attachment";
 import { TaskDirSchema } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 import { ReadFile } from "./read-file";
@@ -20,7 +20,7 @@ const fixturesPath = path.join(
   "../../fixtures/file-system",
 );
 
-const taskId = createMockAppConfigForDir(fixturesPath, { model });
+const taskId = createMockTaskConfigForDir(fixturesPath, { model });
 
 const attachedFolders: Record<string, FolderAttachment.Type> = {
   "test-folder": {
@@ -227,7 +227,7 @@ describe("ReadFile Unicode path fallbacks", () => {
     );
     taskRoot = path.join(tmpDir, "test");
     await fs.mkdir(taskRoot, { recursive: true });
-    tmpAppConfig = createMockAppConfigForDir(taskRoot, { model });
+    tmpAppConfig = createMockTaskConfigForDir(taskRoot, { model });
   });
 
   afterEach(async () => {

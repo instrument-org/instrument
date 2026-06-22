@@ -3,7 +3,7 @@ import { z } from "zod";
 const TOOL_NAMES = {
   bash: "bash",
   choose: "choose",
-  copyToProject: "copy_to_project",
+  copyToTask: "copy_to_project",
   editFile: "edit_file",
   generateImage: "generate_image",
   glob: "glob",
@@ -19,7 +19,7 @@ const TOOL_NAMES = {
 export const ToolNameSchema = z.enum([
   TOOL_NAMES.bash,
   TOOL_NAMES.choose,
-  TOOL_NAMES.copyToProject,
+  TOOL_NAMES.copyToTask,
   TOOL_NAMES.editFile,
   TOOL_NAMES.generateImage,
   TOOL_NAMES.glob,

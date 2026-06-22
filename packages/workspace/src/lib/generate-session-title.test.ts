@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import {
   isSessionTitleAutoReplaceable,
   isUntitledChatSessionTitle,
@@ -34,7 +34,7 @@ describe("isUntitledChatSessionTitle", () => {
 });
 
 describe("isSessionTitleAutoReplaceable", () => {
-  const taskId = createMockAppConfigForDir("/tmp/instrument-test-project");
+  const taskId = createMockTaskConfigForDir("/tmp/instrument-test-project");
 
   beforeEach(() => {
     mockGetTaskManifest.mockReset();

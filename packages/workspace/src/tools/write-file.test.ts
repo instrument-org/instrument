@@ -4,14 +4,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockAppConfig,
+  createMockTaskConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-app-config";
+} from "../test/helpers/mock-task-config";
 import { runTool } from "../test/helpers/run-tool";
 import { WriteFile } from "./write-file";
 
 const model = createMockAIGatewayModel();
-const taskId = createMockAppConfig(TaskIdSchema.parse("test"), {
+const taskId = createMockTaskConfig(TaskIdSchema.parse("test"), {
   model,
 });
 

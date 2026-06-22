@@ -3,7 +3,7 @@ import mockFs from "mock-fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../app-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createTsCommand } from "./ts";
@@ -20,7 +20,7 @@ const mockCtx: CommandContext = {
 };
 
 describe("tsCommand", () => {
-  const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
   const command = createTsCommand(taskId);
 
   afterEach(() => {

@@ -558,10 +558,7 @@ const live = {
       const taskUpdates = publisher.subscribe("project.updated", { signal });
       const taskRemoved = publisher.subscribe("project.removed", { signal });
 
-      for await (const payload of mergeGenerators([
-        taskUpdates,
-        taskRemoved,
-      ])) {
+      for await (const payload of mergeGenerators([taskUpdates, taskRemoved])) {
         if (input.ids.includes(payload.id)) {
           yield call(byIds, input, { context, signal });
         }

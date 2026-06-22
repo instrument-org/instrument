@@ -13,7 +13,10 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export function getAgentBrowserStateDir(dir: TaskDir): AbsolutePath {
-  return absolutePathJoin(getStateDir(dir), TASK_FOLDER_NAMES.agentBrowserState);
+  return absolutePathJoin(
+    getStateDir(dir),
+    TASK_FOLDER_NAMES.agentBrowserState,
+  );
 }
 
 export function getBrowserSessionDir(dir: TaskDir): AbsolutePath {

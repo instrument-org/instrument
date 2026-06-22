@@ -42,23 +42,23 @@ export const publisher = new EventPublisher<{
   "runtime.log.updated": {
     id: TaskId;
   };
+  "session.added": {
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
+  "session.done": {
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
   "session.removed": {
     id: TaskId;
     sessionId: StoreId.Session;
   };
+  "session.tagsChanged": {
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
   "session.updated": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "taskLiveState.session.added": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "taskLiveState.session.done": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "taskLiveState.session.tagsChanged": {
     id: TaskId;
     sessionId: StoreId.Session;
   };

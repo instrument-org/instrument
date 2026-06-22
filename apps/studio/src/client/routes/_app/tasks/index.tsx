@@ -88,12 +88,12 @@ function RouteComponent() {
     }),
   );
 
-  const projects = useMemo(() => tasksData?.tasks ?? [], [tasksData?.tasks]);
+  const tasks = useMemo(() => tasksData?.tasks ?? [], [tasksData?.tasks]);
 
-  const taskIds = useMemo(() => projects.map((p) => p.id), [projects]);
+  const taskIds = useMemo(() => tasks.map((p) => p.id), [tasks]);
 
-  const { data: liveStates } = useQuery({
-    ...rpcClient.workspace.task.liveState.byIds.queryOptions({
+  const { data: agentStatuses } = useQuery({
+    ...rpcClient.workspace.task.agentStatus.byIds.queryOptions({
       input: { ids: taskIds },
     }),
   });
@@ -108,59 +108,59 @@ function RouteComponent() {
   );
 
   const activeTaskIds = useMemo(() => {
-    if (!liveStates) {
+    if (!agentStatuses) {
       return new Set<TaskId>();
     }
     return new Set<TaskId>(
-      liveStates
+      agentStatuses
         .filter((state) => state.sessionActors.length > 0)
         .map((state) => state.task.id)
         .filter((id) => isTaskId(id)),
     );
-  }, [liveStates]);
+  }, [agentStatuses]);
 
-  const evalsCount = projects.filter((p) =>
+  const evalsCount = tasks.filter((p) =>
     p.id.startsWith(EVAL_SUBDOMAIN_PREFIX),
   ).length;
 
   const filteredProjects = useMemo(() => {
     switch (filterTab) {
       case "active": {
-        return projects.filter((p) => activeTaskIds.has(p.id));
+        return tasks.filter((p) => activeTaskIds.has(p.id));
       }
       case "evals": {
-        return projects.filter((p) => p.id.startsWith(EVAL_SUBDOMAIN_PREFIX));
+        return tasks.filter((p) => p.id.startsWith(EVAL_SUBDOMAIN_PREFIX));
       }
       case "favorites": {
-        return projects.filter((p) => favoriteTaskIdSet.has(p.id));
+        return tasks.filter((p) => favoriteTaskIdSet.has(p.id));
       }
       default: {
-        return projects;
+        return tasks;
       }
     }
-  }, [activeTaskIds, favoriteTaskIdSet, filterTab, projects]);
+  }, [activeTaskIds, favoriteTaskIdSet, filterTab, tasks]);
 
-  const selectedProjects = useMemo(() => {
+  const selectedTasks = useMemo(() => {
     return Object.keys(rowSelection)
       .filter((key) => rowSelection[key])
       .map((id) => {
-        return projects.find((p) => p.id === id);
+        return tasks.find((p) => p.id === id);
       })
       .filter((p): p is Task => p !== undefined);
-  }, [projects, rowSelection]);
+  }, [tasks, rowSelection]);
 
   const hasRunningAgents = useMemo(() => {
-    if (!liveStates || selectedProjects.length === 0) {
+    if (!agentStatuses || selectedTasks.length === 0) {
       return false;
     }
-    const selectedTaskIds = new Set<TaskId>(selectedProjects.map((p) => p.id));
-    return liveStates.some(
+    const selectedTaskIdSet = new Set<TaskId>(selectedTasks.map((p) => p.id));
+    return agentStatuses.some(
       (state) =>
         isTaskId(state.task.id) &&
-        selectedTaskIds.has(state.task.id) &&
+        selectedTaskIdSet.has(state.task.id) &&
         state.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
     );
-  }, [liveStates, selectedProjects]);
+  }, [agentStatuses, selectedTasks]);
 
   const stopSessionMutation = useMutation(
     rpcClient.workspace.session.stop.mutationOptions(),
@@ -236,7 +236,7 @@ function RouteComponent() {
   );
 
   const handleStopSelected = async () => {
-    const taskIdsToStop = selectedProjects.map((p) => p.id);
+    const taskIdsToStop = selectedTasks.map((p) => p.id);
 
     let successCount = 0;
     for (const id of taskIdsToStop) {
@@ -260,13 +260,13 @@ function RouteComponent() {
 
   const handleDelete = useCallback(
     (id: TaskId) => {
-      const project = projects.find((p) => p.id === id);
+      const project = tasks.find((p) => p.id === id);
       if (project) {
         setTaskToDelete(project);
         setDeleteDialogOpen(true);
       }
     },
-    [projects],
+    [tasks],
   );
 
   const handleDeleteSelected = () => {
@@ -322,13 +322,13 @@ function RouteComponent() {
 
   const handleSettings = useCallback(
     (id: TaskId) => {
-      const project = projects.find((p) => p.id === id);
+      const project = tasks.find((p) => p.id === id);
       if (project) {
         setTaskToEdit(project);
         setSettingsDialogOpen(true);
       }
     },
-    [projects],
+    [tasks],
   );
 
   const columns = useMemo(
@@ -350,7 +350,7 @@ function RouteComponent() {
   );
 
   useEffect(() => {
-    // Ensures we stay on a valid page when filtered projects change
+    // Ensures we stay on a valid page when filtered tasks change
     const maxPage = Math.max(
       1,
       Math.ceil(filteredProjects.length / PROJECTS_PAGE_SIZE),
@@ -391,7 +391,7 @@ function RouteComponent() {
                     className="ml-2 px-1.5"
                     variant={filterTab === "all" ? "default" : "secondary"}
                   >
-                    {projects.length}
+                    {tasks.length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="evals">
@@ -463,7 +463,7 @@ function RouteComponent() {
             <div className="flex flex-col items-center justify-center gap-y-4 rounded-md border bg-muted/20 py-12">
               <div className="text-sm text-muted-foreground">
                 {isBulkDeleting
-                  ? `Deleting ${selectedProjects.length} ${selectedProjects.length === 1 ? "task" : "tasks"}...`
+                  ? `Deleting ${selectedTasks.length} ${selectedTasks.length === 1 ? "task" : "tasks"}...`
                   : "Deleting task..."}
               </div>
             </div>
@@ -481,7 +481,7 @@ function RouteComponent() {
                     Stop
                   </Button>
                   <Button
-                    disabled={selectedProjects.length === 0}
+                    disabled={selectedTasks.length === 0}
                     onClick={handleDeleteSelected}
                     size="sm"
                     variant="outline"
@@ -505,12 +505,12 @@ function RouteComponent() {
       </div>
 
       <DeleteWithProgressDialog
-        description={`${selectedProjects.length === 1 ? "This task" : "These tasks"} will be moved to your system ${trashTerminology}.`}
-        items={selectedProjects}
+        description={`${selectedTasks.length === 1 ? "This task" : "These tasks"} will be moved to your system ${trashTerminology}.`}
+        items={selectedTasks}
         onDelete={confirmDeleteSelected}
         onOpenChange={setDeleteSelectedDialogOpen}
         open={deleteSelectedDialogOpen}
-        title={`Move ${selectedProjects.length} ${selectedProjects.length === 1 ? "task" : "tasks"} to ${trashTerminology}?`}
+        title={`Move ${selectedTasks.length} ${selectedTasks.length === 1 ? "task" : "tasks"} to ${trashTerminology}?`}
       />
 
       {taskToDelete && (

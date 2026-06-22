@@ -1,6 +1,5 @@
 import { workspaceRouter } from "@instrument-org/workspace/electron";
 
-import { appState } from "./app-state";
 import { auth } from "./auth";
 import { debug } from "./debug";
 import { evals } from "./evals";
@@ -23,7 +22,6 @@ import { user } from "./user";
 import { utils } from "./utils";
 
 export const router = {
-  appState,
   auth,
   debug,
   evals,

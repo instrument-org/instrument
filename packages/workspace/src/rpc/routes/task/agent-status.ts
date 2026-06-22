@@ -3,20 +3,20 @@ import { eventIterator } from "@orpc/server";
 import { isEqual } from "radashi";
 import { z } from "zod";
 
-import { getTaskLiveState } from "../../../lib/get-task-live-state";
+import { getTaskAgentStatus } from "../../../lib/get-task-agent-status";
+import { TaskAgentStatusSchema } from "../../../schemas/task-agent-status";
 import { TaskIdSchema } from "../../../schemas/task-id";
-import { TaskLiveStateSchema } from "../../../schemas/task-live-state";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 
 const byId = base
   .input(z.object({ id: TaskIdSchema }))
-  .output(eventIterator(TaskLiveStateSchema))
+  .output(eventIterator(TaskAgentStatusSchema))
   .handler(async function* ({ context, errors, input, signal }) {
     const { workspaceRef } = context;
 
     const getOrThrow = async () => {
-      const result = await getTaskLiveState({
+      const result = await getTaskAgentStatus({
         id: input.id,
         workspaceRef,
       });
@@ -32,9 +32,9 @@ const byId = base
     yield previousState;
 
     const relevantEvents = [
-      "taskLiveState.session.added",
-      "taskLiveState.session.done",
-      "taskLiveState.session.tagsChanged",
+      "session.added",
+      "session.done",
+      "session.tagsChanged",
     ] as const;
 
     const subscriptions = relevantEvents.map((eventName) =>
@@ -79,13 +79,13 @@ const aliveAgentCount = base
 
 const byIds = base
   .input(z.object({ ids: TaskIdSchema.array() }))
-  .output(TaskLiveStateSchema.array())
+  .output(TaskAgentStatusSchema.array())
   .handler(async ({ context, errors, input }) => {
     const { workspaceRef } = context;
     const results = [];
 
     for (const id of input.ids) {
-      const result = await getTaskLiveState({
+      const result = await getTaskAgentStatus({
         id,
         workspaceRef,
       });
@@ -100,7 +100,7 @@ const byIds = base
     return results;
   });
 
-export const taskLiveState = {
+export const taskAgentStatus = {
   aliveAgentCount,
   byIds,
   live: {

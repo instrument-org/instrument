@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../schemas/task-id";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { runPnpmCommand } from "./run-pnpm";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -15,7 +15,7 @@ describe("runPnpmCommand", () => {
       exitCode: 0,
     } as never);
 
-    const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+    const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
     await runPnpmCommand({ args: ["install"], taskId });
 
     expect(execaNodeForApp).toHaveBeenCalledTimes(1);
@@ -51,7 +51,7 @@ describe("runPnpmCommand", () => {
       exitCode: 0,
     } as never);
 
-    const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+    const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["dlx", "jiti@2.6.1", "x.ts"],
       pnpmLogLevel: "error",

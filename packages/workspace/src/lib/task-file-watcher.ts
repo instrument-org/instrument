@@ -169,9 +169,7 @@ export async function consumeTurnChanges({
  * undefined when no watcher is active. Lets callers diff against the index the
  * watcher already maintains instead of walking disk again.
  */
-export function getCurrentTaskFileIndex(
-  id: TaskId,
-): TaskFileIndex | undefined {
+export function getCurrentTaskFileIndex(id: TaskId): TaskFileIndex | undefined {
   const entry = REGISTRY.get(id);
   if (!entry?.seeded) {
     return undefined;
@@ -422,8 +420,7 @@ async function refreshIndex(entry: WatcherEntry): Promise<TaskFileIndex> {
   await reseed(entry);
   if (
     !isDisposed(entry) &&
-    JSON.stringify(before) !==
-      JSON.stringify(taskFilesFromIndex(entry.index))
+    JSON.stringify(before) !== JSON.stringify(taskFilesFromIndex(entry.index))
   ) {
     publisher.publish("project.files.changed", { id: entry.id });
   }

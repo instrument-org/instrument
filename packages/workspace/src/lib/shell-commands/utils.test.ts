@@ -2,12 +2,12 @@ import { InMemoryFs } from "just-bash";
 import { describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../app-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { extractFileAndScriptArgs, parseScriptRunnerArgs } from "./utils";
 
-const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
 const dir = taskDir(taskId);
 const fs = new InMemoryFs();
 

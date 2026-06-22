@@ -68,7 +68,7 @@ async function getUniqueFilename(
   }
 }
 
-export const CopyToProject = setupTool({
+export const CopyToTask = setupTool({
   inputSchema: BaseInputSchema.extend({
     [INPUT_PARAMS.maxFiles]: z
       .number()

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
-import { createMockAppConfig } from "../test/helpers/mock-app-config";
+import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { readTaskFile } from "./read-task-file";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -22,9 +22,9 @@ describe("readTaskFile", () => {
     // Sensitive file outside the task dir (sibling of dir under tasksDir).
     await fs.writeFile(path.join(tasksDir, "secret.txt"), "ssh private key");
 
-    // createMockAppConfig publishes the singleton; point it at the temp dir so
+    // createMockTaskConfig publishes the singleton; point it at the temp dir so
     // readTaskFile (which reads the singleton) resolves under it.
-    createMockAppConfig(id);
+    createMockTaskConfig(id);
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       tasksDir: AbsolutePathSchema.parse(tasksDir),

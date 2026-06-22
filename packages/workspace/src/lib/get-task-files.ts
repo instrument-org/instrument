@@ -62,9 +62,7 @@ const ProjectFileIndexEntrySchema = z.object({
 type TaskFileEntry = z.output<typeof ProjectFileIndexEntrySchema>;
 
 // Serializable form of the index, used to persist a baseline across turns.
-export const TaskFileIndexSnapshotSchema = z.array(
-  ProjectFileIndexEntrySchema,
-);
+export const TaskFileIndexSnapshotSchema = z.array(ProjectFileIndexEntrySchema);
 
 export function diffTaskFileIndexes({
   after,
@@ -217,9 +215,7 @@ export function taskFileIndexFromSnapshot(
   return new Map(snapshot.map((entry) => [entry.filePath, entry]));
 }
 
-export function taskFileIndexToSnapshot(
-  index: TaskFileIndex,
-): TaskFileEntry[] {
+export function taskFileIndexToSnapshot(index: TaskFileIndex): TaskFileEntry[] {
   return [...index.values()];
 }
 

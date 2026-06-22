@@ -4,7 +4,7 @@ import {
   AbsolutePathSchema,
   WorkspaceDirSchema,
 } from "../../src/schemas/paths";
-import { createStubBrowserConfig } from "../../src/test/helpers/mock-app-config";
+import { createStubBrowserConfig } from "../../src/test/helpers/mock-task-config";
 import { type WorkspaceConfig } from "../../src/types";
 
 export function createStubWorkspaceConfig({

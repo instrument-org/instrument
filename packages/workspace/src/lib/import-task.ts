@@ -29,7 +29,9 @@ export async function importTask(
     const taskExists = await pathExists(taskDirPath);
     if (taskExists) {
       return errAsync(
-        new TypedError.Conflict(`Task directory already exists: ${taskDirPath}`),
+        new TypedError.Conflict(
+          `Task directory already exists: ${taskDirPath}`,
+        ),
       );
     }
 

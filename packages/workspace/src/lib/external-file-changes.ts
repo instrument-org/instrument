@@ -8,10 +8,7 @@ import {
   getFileIndexBaseline,
   setFileIndexBaseline,
 } from "./file-index-baseline";
-import {
-  diffTaskFileIndexes,
-  getTaskFileIndex,
-} from "./get-task-files";
+import { diffTaskFileIndexes, getTaskFileIndex } from "./get-task-files";
 import { getCurrentTaskFileIndex } from "./task-file-watcher";
 
 /**

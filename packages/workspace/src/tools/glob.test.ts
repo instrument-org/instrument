@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { TaskDirSchema } from "../schemas/paths";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockAppConfigForDir } from "../test/helpers/mock-app-config";
+import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 
@@ -20,7 +20,7 @@ const FIXTURES_PATH = path.join(
 const model = createMockAIGatewayModel();
 
 function createFixturesAppConfig() {
-  return createMockAppConfigForDir(FIXTURES_PATH, { model });
+  return createMockTaskConfigForDir(FIXTURES_PATH, { model });
 }
 
 // Sort files deterministically for testing (ripgrep returns mtime-sorted)

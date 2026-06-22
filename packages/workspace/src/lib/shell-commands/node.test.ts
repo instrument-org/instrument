@@ -2,7 +2,7 @@ import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockAppConfig } from "../../test/helpers/mock-app-config";
+import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../app-dir-utils";
 import { createNodeCommand } from "./node";
 
@@ -18,7 +18,7 @@ const mockCtx: CommandContext = {
 };
 
 describe("nodeCommand", () => {
-  const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
   const command = createNodeCommand(taskId);
 
   afterEach(() => {

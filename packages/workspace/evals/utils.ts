@@ -10,7 +10,7 @@ import path from "node:path";
 
 import { env } from "../scripts/lib/env";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-app-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { type WorkspaceConfig } from "../src/types";
 
 export const c = {

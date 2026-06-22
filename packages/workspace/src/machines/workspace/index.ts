@@ -177,30 +177,27 @@ export const workspaceMachine = setup({
 
     assignEventError: createAssignEventError(),
 
-    clearSessionRefsBySubdomain: assign(
-      ({ context }, { id }: { id: TaskId }) => {
-        const newsessionRefsBySubdomain = new Map<TaskId, SessionActorRef[]>();
+    clearSessionRefsByTaskId: assign(({ context }, { id }: { id: TaskId }) => {
+      const newsessionRefsByTaskId = new Map<TaskId, SessionActorRef[]>();
 
-        for (const [
-          sessionTaskId,
-          refs,
-        ] of context.sessionRefsBySubdomain.entries()) {
-          const shouldRemove =
-            sessionTaskId === id ||
-            (isTaskId(id) && sessionTaskId.endsWith(id));
+      for (const [
+        sessionTaskId,
+        refs,
+      ] of context.sessionRefsByTaskId.entries()) {
+        const shouldRemove =
+          sessionTaskId === id || (isTaskId(id) && sessionTaskId.endsWith(id));
 
-          if (shouldRemove) {
-            continue;
-          }
-
-          newsessionRefsBySubdomain.set(sessionTaskId, refs);
+        if (shouldRemove) {
+          continue;
         }
 
-        return {
-          sessionRefsBySubdomain: newsessionRefsBySubdomain,
-        };
-      },
-    ),
+        newsessionRefsByTaskId.set(sessionTaskId, refs);
+      }
+
+      return {
+        sessionRefsByTaskId: newsessionRefsByTaskId,
+      };
+    }),
 
     forwardAttachAgentSession: enqueueActions(
       (
@@ -319,22 +316,17 @@ export const workspaceMachine = setup({
         },
       ) => {
         const existingSessionActorRefs =
-          context.sessionRefsBySubdomain.get(id) ?? [];
+          context.sessionRefsByTaskId.get(id) ?? [];
 
         const activeSessionActorRefs = existingSessionActorRefs.filter(
           (ref) => ref.getSnapshot().status !== "done",
         );
 
-        const newSessionRefsBySubdomain = new Map(
-          context.sessionRefsBySubdomain,
-        );
-        newSessionRefsBySubdomain.set(id, [
-          ...activeSessionActorRefs,
-          sessionRef,
-        ]);
+        const newSessionRefsByTaskId = new Map(context.sessionRefsByTaskId);
+        newSessionRefsByTaskId.set(id, [...activeSessionActorRefs, sessionRef]);
 
         return {
-          sessionRefsBySubdomain: newSessionRefsBySubdomain,
+          sessionRefsByTaskId: newSessionRefsByTaskId,
         };
       },
     ),
@@ -399,7 +391,7 @@ export const workspaceMachine = setup({
       pendingBrowserReapResolvers: new Map(),
       projectBrowserRefs: new Map(),
       runtimeRefs: new Map(),
-      sessionRefsBySubdomain: new Map(),
+      sessionRefsByTaskId: new Map(),
       workspaceServerRef: spawn("workspaceServerLogic", {
         input: {
           aiGatewayApp: input.aiGatewayApp,
@@ -435,7 +427,7 @@ export const workspaceMachine = setup({
       {
         actions: ({ context, event }) => {
           const { id, sessionId } = event.value;
-          const sessionRefs = context.sessionRefsBySubdomain.get(id);
+          const sessionRefs = context.sessionRefsByTaskId.get(id);
 
           const targetRef = sessionRefs?.find(
             (ref) => ref.getSnapshot().context.sessionId === sessionId,
@@ -447,7 +439,7 @@ export const workspaceMachine = setup({
         },
         guard: ({ context, event }) => {
           const { id, sessionId } = event.value;
-          const sessionRefs = context.sessionRefsBySubdomain.get(id);
+          const sessionRefs = context.sessionRefsByTaskId.get(id);
           return Boolean(
             sessionRefs?.some(
               (ref) =>
@@ -714,12 +706,12 @@ export const workspaceMachine = setup({
       // actions: assign(({ context, event }) => {
       //   const { id } = event.value.appConfig;
       //   const { [id]: sessionActorRefs = [], ...otherRefs } =
-      //     context.sessionRefsBySubdomain;
+      //     context.sessionRefsByTaskId;
       //   const newSessionActorRefs = sessionActorRefs.filter(
       //     (ref) => ref.id !== event.value.actorId,
       //   );
       //   return {
-      //     sessionRefsBySubdomain: {
+      //     sessionRefsByTaskId: {
       //       ...otherRefs,
       //       [id]: newSessionActorRefs,
       //     },
@@ -784,7 +776,7 @@ export const workspaceMachine = setup({
 
     stopSessions: {
       actions: ({ context, event }) => {
-        const sessionActorRefs = context.sessionRefsBySubdomain.get(
+        const sessionActorRefs = context.sessionRefsByTaskId.get(
           event.value.id,
         );
         if (sessionActorRefs) {
@@ -799,7 +791,7 @@ export const workspaceMachine = setup({
       {
         actions: ({ context, event }) => {
           const id = event.value.id;
-          const sessionRefs = context.sessionRefsBySubdomain.get(id);
+          const sessionRefs = context.sessionRefsByTaskId.get(id);
           if (!sessionRefs) {
             return;
           }
@@ -813,7 +805,7 @@ export const workspaceMachine = setup({
         },
         guard: ({ context, event }) => {
           const id = event.value.id;
-          const sessionRefs = context.sessionRefsBySubdomain.get(id);
+          const sessionRefs = context.sessionRefsByTaskId.get(id);
           return !!sessionRefs && sessionRefs.length > 0;
         },
       },

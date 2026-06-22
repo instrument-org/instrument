@@ -15,7 +15,7 @@ const cancel = base
   )
   .output(z.void())
   .handler(({ input }) => {
-    const id = ActiveReplays.getSubdomain(input.sessionId);
+    const id = ActiveReplays.getTaskId(input.sessionId);
     ActiveReplays.cancel(input.sessionId);
     if (id) {
       publisher.publish("replay.changed", {

@@ -1,13 +1,17 @@
+import { buildAssetBaseUrl } from "@instrument-org/shared";
+
 import {
-  APPS_SERVER_API_PATH,
   LOCAL_LOOPBACK_APPS_SERVER_DOMAIN,
   LOCALHOST_APPS_SERVER_DOMAIN,
 } from "../logic/server/constants";
-import { getWorkspaceServerPort } from "../logic/server/url";
+import {
+  getWorkspaceServerPort,
+  getWorkspaceServerURL,
+} from "../logic/server/url";
 import { type TaskId } from "../schemas/task-id";
 
 export function assetBaseUrl(id: TaskId) {
-  return `${localhostUrl(id)}${APPS_SERVER_API_PATH}/assets`;
+  return buildAssetBaseUrl(getWorkspaceServerURL(), id);
 }
 
 export function localhostUrl(id: TaskId) {

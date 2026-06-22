@@ -17,9 +17,8 @@ import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
 import { getTaskManifest } from "./task-manifest";
-import { assetBaseUrl } from "./url-for-subdomain";
 
-export async function findTask(
+export async function getTask(
   id: TaskId,
   workspaceConfig: WorkspaceConfig,
 ): Promise<Result<Task, TypedError.NotFound | TypedError.Parse>> {
@@ -108,8 +107,6 @@ async function readTask({ dir }: { dir: TaskDir }) {
 
   const task: Task = {
     ...(await getTaskDirTimestamps(dir)),
-    assetBase: assetBaseUrl(id),
-    description: manifest?.description,
     iconName,
     id,
     title: manifest?.name ?? rawFolderName,

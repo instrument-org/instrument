@@ -22,6 +22,7 @@ import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
 
 export function ToolCall({
+  assetBaseUrl,
   isAgentRunning,
   isDeveloperMode,
   isStreaming,
@@ -30,6 +31,7 @@ export function ToolCall({
   renderStream,
   task,
 }: {
+  assetBaseUrl: string;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isStreaming: boolean;
@@ -51,7 +53,7 @@ export function ToolCall({
       isStreaming={isStreaming}
     >
       <ToolCallSummary
-        assetBaseUrl={task.assetBase}
+        assetBaseUrl={assetBaseUrl}
         isDeadDevMode={isDeadDevMode}
         part={part}
       >
@@ -59,6 +61,7 @@ export function ToolCall({
           <DeadDevModeBody part={part} />
         ) : (
           <ToolCallBody
+            assetBaseUrl={assetBaseUrl}
             onRetry={onRetry}
             part={part}
             renderStream={renderStream}
@@ -88,11 +91,13 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
 }
 
 function ToolCallBody({
+  assetBaseUrl,
   onRetry,
   part,
   renderStream,
   task,
 }: {
+  assetBaseUrl: string;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
   renderStream: RenderStream;
@@ -104,7 +109,7 @@ function ToolCallBody({
 
   switch (part.type) {
     case "tool-bash": {
-      return <ToolBash assetBaseUrl={task.assetBase} part={part} />;
+      return <ToolBash assetBaseUrl={assetBaseUrl} part={part} />;
     }
     case "tool-choose": {
       return <ToolChoose part={part} />;
@@ -118,7 +123,7 @@ function ToolCallBody({
     case "tool-generate_image": {
       return (
         <ToolGenerateImage
-          assetBaseUrl={task.assetBase}
+          assetBaseUrl={assetBaseUrl}
           id={task.id}
           onRetry={onRetry}
           part={part}

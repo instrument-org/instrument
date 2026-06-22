@@ -15,8 +15,8 @@ const byId = base
   .handler(async function* ({ context, errors, input, signal }) {
     const { workspaceRef } = context;
 
-    const getOrThrow = async () => {
-      const result = await getTaskAgentStatus({
+    const getOrThrow = () => {
+      const result = getTaskAgentStatus({
         id: input.id,
         workspaceRef,
       });
@@ -28,7 +28,7 @@ const byId = base
       return result.value;
     };
 
-    let previousState = await getOrThrow();
+    let previousState = getOrThrow();
     yield previousState;
 
     const relevantEvents = [
@@ -50,7 +50,7 @@ const byId = base
         continue;
       }
 
-      const currentState = await getOrThrow();
+      const currentState = getOrThrow();
 
       if (!isEqual(currentState, previousState)) {
         previousState = currentState;
@@ -80,12 +80,12 @@ const aliveAgentCount = base
 const byIds = base
   .input(z.object({ ids: TaskIdSchema.array() }))
   .output(TaskAgentStatusSchema.array())
-  .handler(async ({ context, errors, input }) => {
+  .handler(({ context, errors, input }) => {
     const { workspaceRef } = context;
     const results = [];
 
     for (const id of input.ids) {
-      const result = await getTaskAgentStatus({
+      const result = getTaskAgentStatus({
         id,
         workspaceRef,
       });

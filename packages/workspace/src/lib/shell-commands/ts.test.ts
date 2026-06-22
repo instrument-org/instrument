@@ -20,8 +20,8 @@ const mockCtx: CommandContext = {
 };
 
 describe("tsCommand", () => {
-  const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
-  const command = createTsCommand(appConfig);
+  const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+  const command = createTsCommand(taskId);
 
   afterEach(() => {
     mockFs.restore();
@@ -67,7 +67,7 @@ describe("tsCommand", () => {
   });
 
   it("executes eval code via -e flag by writing a tmp file", async () => {
-    mockFs({ [taskDir(appConfig)]: {} });
+    mockFs({ [taskDir(taskId)]: {} });
 
     const { execaNodeForApp } = await import("../execa-node-for-app");
     vi.mocked(execaNodeForApp).mockResolvedValueOnce({
@@ -82,7 +82,7 @@ describe("tsCommand", () => {
 
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
-      appConfig,
+      taskId,
       getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
         "dlx",
@@ -95,7 +95,7 @@ describe("tsCommand", () => {
   });
 
   it("executes eval code via --eval flag by writing a tmp file", async () => {
-    mockFs({ [taskDir(appConfig)]: {} });
+    mockFs({ [taskDir(taskId)]: {} });
 
     const { execaNodeForApp } = await import("../execa-node-for-app");
     vi.mocked(execaNodeForApp).mockResolvedValueOnce({
@@ -110,7 +110,7 @@ describe("tsCommand", () => {
 
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
-      appConfig,
+      taskId,
       getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
         "dlx",
@@ -154,7 +154,7 @@ describe("tsCommand", () => {
 
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execaNodeForApp)).toHaveBeenCalledWith(
-      appConfig,
+      taskId,
       getWorkspaceConfig().pnpmBinPath,
       expect.arrayContaining([
         "dlx",
@@ -181,7 +181,7 @@ describe("tsCommand", () => {
 
     const calledPath = vi.mocked(execaNodeForApp).mock.calls.at(-1)?.[2]?.[2];
     expect(calledPath).toBeDefined();
-    expect(calledPath).not.toContain(taskDir(appConfig));
+    expect(calledPath).not.toContain(taskDir(taskId));
     expect(calledPath).toBe("scripts/run.ts");
   });
 });

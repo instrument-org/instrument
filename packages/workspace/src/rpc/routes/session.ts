@@ -2,7 +2,6 @@ import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call } from "@orpc/server";
 import { z } from "zod";
 
-import { createAppConfig } from "../../lib/app-config/create";
 import { createSession } from "../../lib/create-session";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
@@ -22,8 +21,8 @@ const byId = base
   .output(Session.Schema)
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const appConfig = createAppConfig({ id });
-    const session = await Store.getSession(sessionId, appConfig);
+    const taskId = id;
+    const session = await Store.getSession(sessionId, taskId);
 
     if (session.isErr()) {
       throw toORPCError(session.error, errors);
@@ -42,10 +41,10 @@ const byIdWithMessagesAndParts = base
   .output(Session.WithMessagesAndPartsSchema)
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const appConfig = createAppConfig({ id });
+    const taskId = id;
     const session = await Store.getSessionWithMessagesAndParts(
       sessionId,
-      appConfig,
+      taskId,
     );
 
     if (session.isErr()) {
@@ -65,8 +64,8 @@ const list = base
   .output(z.array(Session.Schema))
   .handler(async ({ errors, input }) => {
     const { id, includeChildSessions } = input;
-    const appConfig = createAppConfig({ id });
-    const sessions = await Store.getSessions(appConfig, {
+    const taskId = id;
+    const sessions = await Store.getSessions(taskId, {
       includeChildSessions,
     });
     if (sessions.isErr()) {
@@ -89,8 +88,8 @@ const remove = base
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
     const { id, sessionId } = input;
-    const appConfig = createAppConfig({ id });
-    const result = await Store.removeSession(sessionId, appConfig);
+    const taskId = id;
+    const result = await Store.removeSession(sessionId, taskId);
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
@@ -104,10 +103,10 @@ const create = base
   .output(Session.Schema)
   .handler(async ({ context, errors, input }) => {
     const { id } = input;
-    const appConfig = createAppConfig({ id });
+    const taskId = id;
     const sessionResult = await createSession({
-      appConfig,
       sessionId: StoreId.newSessionId(),
+      taskId,
     });
 
     if (sessionResult.isErr()) {
@@ -142,12 +141,12 @@ const toMarkdown = base
   .output(z.object({ markdown: z.string() }))
   .handler(async ({ input }) => {
     const { frontMatter, id, sessionId } = input;
-    const appConfig = createAppConfig({ id });
+    const taskId = id;
 
     const markdown = await getSessionMarkdown({
-      appConfig,
       frontMatter,
       sessionId,
+      taskId,
     });
     return { markdown };
   });
@@ -162,9 +161,9 @@ const contextTokens = base
   .output(z.object({ inputTokens: z.number() }))
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const appConfig = createAppConfig({ id });
+    const taskId = id;
 
-    const messages = await Store.getMessagesWithParts({ appConfig, sessionId });
+    const messages = await Store.getMessagesWithParts({ sessionId, taskId });
     if (messages.isErr()) {
       throw toORPCError(messages.error, errors);
     }

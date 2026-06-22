@@ -12,8 +12,6 @@ import { createActor } from "xstate";
 import type { Session } from "../src/schemas/session";
 
 import { workspaceMachine } from "../src/electron";
-import { createAppConfig } from "../src/lib/app-config/create";
-import { type AppConfig } from "../src/lib/app-config/types";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { getProjectUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
@@ -22,6 +20,7 @@ import { task as projectRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
+import { type TaskId } from "../src/schemas/task-id";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-app-config";
 import {
   buildProviderConfigs,
@@ -62,13 +61,13 @@ export interface EvalCase {
   prompt: string;
   shouldStop?: (
     part: SessionMessagePart.Type,
-    appConfig: AppConfig,
+    taskId: TaskId,
   ) => boolean | Promise<boolean>;
 }
 
 interface AssertionContext {
-  appConfig: AppConfig;
   sessions: Session.WithMessagesAndParts[];
+  taskId: TaskId;
 }
 
 export function defineEval(evalCase: EvalCase): EvalCase {
@@ -186,8 +185,8 @@ export async function runEvals(
             ) {
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
-              const appConfig = createAppConfig({ id });
-              const usage = await getProjectUsageSummary(appConfig);
+              const taskId = id;
+              const usage = await getProjectUsageSummary(taskId);
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
                 ? `${c.red}${toolName} ERROR${c.reset}`
@@ -196,7 +195,7 @@ export async function runEvals(
               stream.write(`${evalPrefix(label)}${toolLabel}${statsSuffix}\n`);
             }
 
-            if (await evalCase.shouldStop?.(part, createAppConfig({ id }))) {
+            if (await evalCase.shouldStop?.(part, id)) {
               process.stdout.write(
                 `${evalPrefix(label)}${c.yellow}shouldStop returned true, stopping session...${c.reset}\n`,
               );

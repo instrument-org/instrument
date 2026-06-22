@@ -103,7 +103,7 @@ export function ProjectView({
           modifiedAt: currentFileMetadata.modifiedAt,
           taskId: project.id,
           url: getAssetUrl({
-            assetBase: project.urls.assetBase,
+            assetBase: project.assetBase,
             filePath: fileInfo.filePath,
             version: currentFileMetadata.modifiedAt,
           }),

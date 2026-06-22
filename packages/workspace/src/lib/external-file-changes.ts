@@ -2,7 +2,7 @@ import { ok, safeTry } from "neverthrow";
 
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type AppConfigProject } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
 import {
   getFileIndexBaseline,
@@ -22,29 +22,29 @@ import { getCurrentProjectFileIndex } from "./project-file-watcher";
  * changed. Uses the live watcher index when one is active, otherwise walks disk.
  */
 export function detectExternalFileChanges({
-  appConfig,
   messageId,
   sessionId,
   signal,
+  taskId,
 }: {
-  appConfig: AppConfigProject;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
+  taskId: TaskId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
       const current =
-        getCurrentProjectFileIndex(appConfig) ??
-        (yield* await getProjectFileIndex(taskDir(appConfig), { signal }));
+        getCurrentProjectFileIndex(taskId) ??
+        (yield* await getProjectFileIndex(taskDir(taskId), { signal }));
 
-      const baseline = yield* getFileIndexBaseline(appConfig, sessionId, {
+      const baseline = yield* getFileIndexBaseline(taskId, sessionId, {
         signal,
       });
 
       // Re-baseline regardless of the outcome so the next message diffs against
       // the tree as it stands now.
-      yield* setFileIndexBaseline(appConfig, sessionId, current, { signal });
+      yield* setFileIndexBaseline(taskId, sessionId, current, { signal });
 
       if (!baseline) {
         return ok(undefined);

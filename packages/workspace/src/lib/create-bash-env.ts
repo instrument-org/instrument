@@ -11,9 +11,8 @@ import {
   type TransformPlugin,
 } from "just-bash";
 
-import type { AppConfig } from "./app-config/types";
-
 import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
 import { type UpsertContextItem } from "./capture-browser-screenshot";
 import {
@@ -159,7 +158,7 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
 
 interface CustomCommandDef {
   description: string;
-  factory: (appConfig: AppConfig) => ReturnType<typeof defineCommand>;
+  factory: (taskId: TaskId) => ReturnType<typeof defineCommand>;
   // When false, the command is available (including via `which`) but omitted
   // from the agent-facing description to discourage its use.
   listInDescription: boolean;
@@ -283,17 +282,17 @@ export function createBashDescription() {
 }
 
 export function createBashEnv({
-  appConfig,
   sessionId,
+  taskId,
   upsertContextItem,
 }: {
-  appConfig: AppConfig;
   sessionId: StoreId.Session;
+  taskId: TaskId;
   upsertContextItem: UpsertContextItem;
 }) {
   const fs = new ReadWriteFs({
     maxFileReadSize: SANDBOX_MAX_BYTES,
-    root: taskDir(appConfig),
+    root: taskDir(taskId),
   });
 
   const allowedCommands = [
@@ -307,11 +306,11 @@ export function createBashEnv({
     commands: allowedCommands,
     customCommands: [
       createAgentBrowserCommand({
-        appConfig,
         sessionId,
+        taskId,
         upsertContextItem,
       }),
-      ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(appConfig)),
+      ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       createWhichCommand(
         new Set([
           AGENT_BROWSER_COMMAND.name,

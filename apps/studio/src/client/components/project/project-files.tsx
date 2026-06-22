@@ -91,7 +91,7 @@ export function ProjectFiles({
       ...f,
       taskId: project.id,
       url: getAssetUrl({
-        assetBase: project.urls.assetBase,
+        assetBase: project.assetBase,
         filePath: f.filePath,
         version: f.modifiedAt,
       }),
@@ -120,7 +120,7 @@ export function ProjectFiles({
       tree: buildTree(visibleFiles),
       visibleFiles,
     };
-  }, [files, project.id, project.urls.assetBase]);
+  }, [files, project.id, project.assetBase]);
 
   if (!computed) {
     return (

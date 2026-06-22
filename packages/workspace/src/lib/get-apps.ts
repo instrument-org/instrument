@@ -11,14 +11,13 @@ import {
   type TaskDir,
   TaskDirSchema,
 } from "../schemas/paths";
-import { SubdomainPartSchema } from "../schemas/subdomain-part";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-app-dir-timestamps";
 import { isTaskId } from "./is-app";
 import { getProjectManifest } from "./project-manifest";
-import { urlsForSubdomain } from "./url-for-subdomain";
+import { assetBaseUrl } from "./url-for-subdomain";
 
 export async function getApp(
   id: TaskId,
@@ -110,28 +109,9 @@ async function appDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
     return [];
   }
 }
-async function getAppTitle(dir: TaskDir, folderName: string): Promise<string> {
-  try {
-    const questManifest = await getProjectManifest(dir);
-    return questManifest?.name ?? folderName;
-  } catch {
-    return folderName;
-  }
-}
-
 async function workspaceApp({ dir }: { dir: TaskDir }) {
   const rawFolderName = path.basename(dir);
-  const folderNameResult = SubdomainPartSchema.safeParse(rawFolderName);
-
-  if (!folderNameResult.success) {
-    return err(
-      new TypedError.Parse("Invalid folder name", {
-        cause: folderNameResult.error,
-      }),
-    );
-  }
-
-  const taskIdResult = TaskIdSchema.safeParse(folderNameResult.data);
+  const taskIdResult = TaskIdSchema.safeParse(rawFolderName);
 
   if (!taskIdResult.success) {
     return err(
@@ -141,24 +121,20 @@ async function workspaceApp({ dir }: { dir: TaskDir }) {
     );
   }
 
-  const title = await getAppTitle(dir, rawFolderName);
+  const id = taskIdResult.data;
   const manifest = await getProjectManifest(dir);
 
   const iconName =
     manifest?.iconName ||
-    (taskIdResult.data.startsWith(EVAL_SUBDOMAIN_PREFIX)
-      ? "flask-conical"
-      : undefined);
+    (id.startsWith(EVAL_SUBDOMAIN_PREFIX) ? "flask-conical" : undefined);
 
-  const projectApp: Task = {
+  const task: Task = {
     ...(await getTaskDirTimestamps(dir)),
+    assetBase: assetBaseUrl(id),
     description: manifest?.description,
-    folderName: rawFolderName,
     iconName,
-    id: taskIdResult.data,
-    title,
-    type: "project",
-    urls: urlsForSubdomain(taskIdResult.data),
+    id,
+    title: manifest?.name ?? rawFolderName,
   };
-  return ok(projectApp);
+  return ok(task);
 }

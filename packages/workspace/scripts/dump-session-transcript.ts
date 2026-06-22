@@ -6,7 +6,6 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { ulid } from "ulid";
 
-import { createAppConfig } from "../src/lib/app-config/create";
 import { extractProjectZip } from "../src/lib/extract-project-zip";
 import { getProjectManifest } from "../src/lib/project-manifest";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
@@ -61,9 +60,9 @@ const manifest = await getProjectManifest(dir);
 const folderName = path.basename(dir);
 const id = TaskIdSchema.parse(folderName);
 setWorkspaceConfig(createStubWorkspaceConfig({ tasksDir }));
-const appConfig = createAppConfig({ id });
+const taskId = id;
 
-const sessionsResult = await Store.getSessions(appConfig, {
+const sessionsResult = await Store.getSessions(taskId, {
   includeChildSessions: true,
 });
 if (sessionsResult.isErr()) {
@@ -87,7 +86,6 @@ if (!rootSession) {
 }
 
 const markdown = await getSessionMarkdown({
-  appConfig,
   frontMatter: {
     projectName: manifest?.name ?? folderName,
     sessionId: rootSession.id,
@@ -96,6 +94,7 @@ const markdown = await getSessionMarkdown({
   },
   includeContextMessages,
   sessionId: rootSession.id,
+  taskId,
 });
 
 if (outputPath) {

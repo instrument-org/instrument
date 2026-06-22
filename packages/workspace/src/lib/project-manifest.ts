@@ -10,8 +10,8 @@ import {
   type ProjectManifestUpdate,
   ProjectManifestUpdateSchema,
 } from "../schemas/project-manifest";
+import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { type AppConfigProject } from "./app-config/types";
 import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 
@@ -33,7 +33,7 @@ export async function getProjectManifest(
 }
 
 export function updateProjectManifest(
-  projectConfig: AppConfigProject,
+  taskId: TaskId,
   updates: ProjectManifestUpdate,
 ) {
   return safeTry(async function* () {
@@ -50,14 +50,14 @@ export function updateProjectManifest(
     const validatedUpdates = parseResult.data;
 
     const projectManifestPath = absolutePathJoin(
-      taskDir(projectConfig),
+      taskDir(taskId),
       PROJECT_MANIFEST_FILE_NAME,
     );
 
     let existing: ProjectManifest = { name: "" };
 
     try {
-      existing = (await getProjectManifest(taskDir(projectConfig))) ?? {
+      existing = (await getProjectManifest(taskDir(taskId))) ?? {
         name: "",
       };
     } catch {
@@ -84,7 +84,7 @@ export function updateProjectManifest(
     );
 
     publisher.publish("project.updated", {
-      id: projectConfig,
+      id: taskId,
     });
 
     return ok(undefined);

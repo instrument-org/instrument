@@ -18,7 +18,6 @@ import {
   SupportedEditorSchema,
 } from "@/shared/schemas/editors";
 import {
-  createAppConfig,
   readProjectFile,
   RelativeProjectPathSchema,
   resolvePathWithinTaskDir,
@@ -234,25 +233,19 @@ const openAppIn = base
     }),
   )
   .handler(async ({ errors, input }) => {
-    const appConfig = createAppConfig({
-      id: input.id,
-    });
+    const taskId = input.id;
 
     const platform = os.platform();
 
     try {
       if (input.type === "show-in-folder") {
-        const errorMessage = await shell.openPath(taskDir(appConfig));
+        const errorMessage = await shell.openPath(taskDir(taskId));
         if (errorMessage) {
           captureServerException(errorMessage);
-          shell.showItemInFolder(taskDir(appConfig));
+          shell.showItemInFolder(taskDir(taskId));
         }
       } else {
-        const command = getOpenCommand(
-          input.type,
-          taskDir(appConfig),
-          platform,
-        );
+        const command = getOpenCommand(input.type, taskDir(taskId), platform);
         await execAsync(command);
       }
 
@@ -302,12 +295,10 @@ const showProjectFileInFolder = base
     }),
   )
   .handler(async ({ errors, input }) => {
-    const appConfig = createAppConfig({
-      id: input.id,
-    });
+    const taskId = input.id;
 
     const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(appConfig),
+      dir: taskDir(taskId),
       filePath: input.filePath,
     });
     if (!fullPath) {
@@ -434,10 +425,8 @@ const copyProjectPathToClipboard = base
     }),
   )
   .handler(({ input }) => {
-    const appConfig = createAppConfig({
-      id: input.id,
-    });
-    clipboard.writeText(taskDir(appConfig));
+    const taskId = input.id;
+    clipboard.writeText(taskDir(taskId));
   });
 
 const copyFileToClipboard = base

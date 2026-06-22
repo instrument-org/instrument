@@ -1,8 +1,7 @@
 import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
-import type { AppConfig } from "../app-config/types";
-
+import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { taskDir } from "../app-dir-utils";
 import { normalizePath } from "../normalize-path";
@@ -17,7 +16,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 export function extractFileAndScriptArgs(
   positionals: string[],
   args: string[],
-  appConfig: AppConfig,
+  taskId: TaskId,
   appCwd: string,
   resolvePath: (path: string) => string,
 ): undefined | { filePath: string; scriptArgs: string[] } {
@@ -28,7 +27,7 @@ export function extractFileAndScriptArgs(
 
   const filePath = virtualToRealRelative(
     rawFilePath,
-    appConfig,
+    taskId,
     appCwd,
     resolvePath,
   );
@@ -36,7 +35,7 @@ export function extractFileAndScriptArgs(
   const rawScriptArgs = args.slice(filePathIndex + 1);
   const scriptArgs = rawScriptArgs.map((arg) =>
     looksLikePath(arg)
-      ? virtualToRealRelative(arg, appConfig, appCwd, resolvePath)
+      ? virtualToRealRelative(arg, taskId, appCwd, resolvePath)
       : arg,
   );
 
@@ -84,7 +83,7 @@ export function parseScriptRunnerArgs<
 
 /** Resolve the effective cwd and env for a shell command. */
 export function resolveCommandContext(
-  appConfig: AppConfig,
+  taskId: TaskId,
   ctx: {
     cwd: string;
     env: Map<string, string>;
@@ -92,10 +91,7 @@ export function resolveCommandContext(
   },
 ) {
   return {
-    appCwd: absolutePathJoin(
-      taskDir(appConfig),
-      ctx.fs.resolvePath(ctx.cwd, "."),
-    ),
+    appCwd: absolutePathJoin(taskDir(taskId), ctx.fs.resolvePath(ctx.cwd, ".")),
     env: Object.fromEntries(ctx.env),
   };
 }
@@ -107,7 +103,7 @@ export function resolveCommandContext(
  */
 export function resolvePathArgs(
   args: string[],
-  appConfig: AppConfig,
+  taskId: TaskId,
   ctx: {
     cwd: string;
     fs: { resolvePath(cwd: string, path: string): string };
@@ -118,7 +114,7 @@ export function resolvePathArgs(
       return arg;
     }
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
-    return absolutePathJoin(taskDir(appConfig), virtualPath);
+    return absolutePathJoin(taskDir(taskId), virtualPath);
   });
 }
 
@@ -152,13 +148,13 @@ function looksLikePath(arg: string): boolean {
  */
 function virtualToRealRelative(
   virtualPath: string,
-  appConfig: AppConfig,
+  taskId: TaskId,
   appCwd: string,
   resolvePath: (p: string) => string,
 ): string {
   const normalizedVirtualPath = normalizePath(virtualPath);
   const realAbs = absolutePathJoin(
-    taskDir(appConfig),
+    taskDir(taskId),
     resolvePath(normalizedVirtualPath),
   );
   return path.relative(appCwd, realAbs);

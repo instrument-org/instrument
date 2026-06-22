@@ -70,14 +70,14 @@ export const Grep = setupTool({
       - Use this tool when you need to find files containing specific patterns.
     `;
   },
-  execute: async ({ agentName, appConfig, input, projectState, signal }) => {
+  execute: async ({ agentName, input, projectState, signal, taskId }) => {
     // For retrieval agents: validate absolute path and search from that path
     // For non-retrieval agents: resolve path and maintain relative paths in results
     if (agentName === "retrieval") {
       const pathResult = resolveAgentPath({
         agentName,
         attachedFolders: projectState.attachedFolders,
-        dir: taskDir(appConfig),
+        dir: taskDir(taskId),
         inputPath: input.path,
         isRequired: true,
       });
@@ -91,7 +91,7 @@ export const Grep = setupTool({
       // Use dir as cwd, pass absolute path as searchPath
       // This makes ripgrep return absolute paths in results
       const result = await grep({
-        cwd: taskDir(appConfig),
+        cwd: taskDir(taskId),
         include: input.include,
         limit: GREP_LIMIT,
         pattern: input.pattern,
@@ -104,14 +104,14 @@ export const Grep = setupTool({
 
     // Non-retrieval agent: search from dir with optional relative searchPath
     if (input.path) {
-      const pathResult = resolveToolPath(taskDir(appConfig), input.path);
+      const pathResult = resolveToolPath(taskDir(taskId), input.path);
       if (pathResult.isErr()) {
         return err(pathResult.error);
       }
       const searchPath = pathResult.value.displayPath;
 
       const result = await grep({
-        cwd: taskDir(appConfig),
+        cwd: taskDir(taskId),
         include: input.include,
         limit: GREP_LIMIT,
         pattern: input.pattern,
@@ -124,7 +124,7 @@ export const Grep = setupTool({
 
     // No path specified, search from root
     const result = await grep({
-      cwd: taskDir(appConfig),
+      cwd: taskDir(taskId),
       include: input.include,
       limit: GREP_LIMIT,
       pattern: input.pattern,

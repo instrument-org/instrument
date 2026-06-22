@@ -11,7 +11,6 @@ import {
 } from "xstate";
 import { z } from "zod";
 
-import { type AppConfig } from "../lib/app-config/types";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
@@ -20,6 +19,7 @@ import {
   type SpawnRuntimeRef,
 } from "../logic/spawn-runtime";
 import { publisher } from "../rpc/publisher";
+import { type TaskId } from "../schemas/task-id";
 import { type AppStatus } from "../types";
 
 const MAX_RETRIES = 3;
@@ -94,7 +94,7 @@ export const runtimeMachine = setup({
 
     publishLogs: ({ context }) => {
       publisher.publish("runtime.log.updated", {
-        id: context.appConfig,
+        id: context.taskId,
       });
     },
 
@@ -119,16 +119,16 @@ export const runtimeMachine = setup({
 
   types: {
     context: {} as {
-      appConfig: AppConfig;
       lastHeartbeat: Date;
       logs: RuntimeLogEntry[];
       port?: number;
       retryCount: number;
       spawnRuntimeRef?: SpawnRuntimeRef;
+      taskId: TaskId;
     },
     events: {} as RuntimeEvent,
     input: {} as {
-      appConfig: AppConfig;
+      taskId: TaskId;
     },
     output: {} as { error?: unknown },
     tags: {} as Exclude<AppStatus, "not-found" | "unavailable">,
@@ -136,10 +136,10 @@ export const runtimeMachine = setup({
 }).createMachine({
   context: ({ input }) => {
     return {
-      appConfig: input.appConfig,
       lastHeartbeat: new Date(),
       logs: [],
       retryCount: 0,
+      taskId: input.taskId,
     };
   },
   id: "runtime",
@@ -316,9 +316,9 @@ export const runtimeMachine = setup({
       entry: assign(({ context, self, spawn }) => ({
         spawnRuntimeRef: spawn("spawnRuntimeLogic", {
           input: {
-            appConfig: context.appConfig,
             attempt: context.retryCount,
             parentRef: self,
+            taskId: context.taskId,
           },
         }),
       })),

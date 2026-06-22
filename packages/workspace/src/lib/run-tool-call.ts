@@ -3,8 +3,8 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { type AgentName } from "../agents/types";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { getToolByType } from "../tools/all";
-import { type AppConfig } from "./app-config/types";
 import { taskDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
 import { getProjectState } from "./project-state-store";
@@ -15,32 +15,31 @@ import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
   agentName,
-  appConfig,
   model,
   part,
   sessionId,
   signal,
   spawnAgent,
+  taskId,
 }: {
   agentName: AgentName;
-  appConfig: AppConfig;
   model: AIGatewayModel.Type;
   part: SessionMessagePart.ToolPartInputAvailable;
   sessionId: StoreId.Session;
   signal: AbortSignal;
   spawnAgent: SpawnAgentFunction;
+  taskId: TaskId;
 }) {
   const tool = getToolByType(part.type);
   let preliminarySaved = false;
 
   try {
-    const projectState = await getProjectState(taskDir(appConfig));
+    const projectState = await getProjectState(taskDir(taskId));
 
     for await (const { output, type } of streamTool({
       execute: tool.execute,
       options: {
         agentName,
-        appConfig,
         input: part.input as never,
         messageId: part.metadata.messageId,
         model,
@@ -49,6 +48,7 @@ export async function runToolCall({
         sessionId,
         signal,
         spawnAgent,
+        taskId,
       },
     })) {
       if (signal.aborted) {
@@ -73,7 +73,7 @@ export async function runToolCall({
                 preliminary: true,
                 state: "output-available",
               }) as SessionMessagePart.Type,
-            appConfig,
+            taskId,
             { signal },
           );
           preliminarySaved = true;
@@ -93,7 +93,7 @@ export async function runToolCall({
                   preliminary: false,
                   state: "output-available",
                 }) as SessionMessagePart.Type,
-              appConfig,
+              taskId,
               { signal },
             )
           : Store.updatePart(
@@ -108,7 +108,7 @@ export async function runToolCall({
                   },
                   state: "output-error",
                 }) as SessionMessagePart.Type,
-              appConfig,
+              taskId,
               { signal },
             ));
         getWorkspaceConfig().captureEvent("llm.tool_executed", {
@@ -139,7 +139,7 @@ export async function runToolCall({
           },
           state: "output-error",
         }) as SessionMessagePart.Type,
-      appConfig,
+      taskId,
       { signal },
     );
   }

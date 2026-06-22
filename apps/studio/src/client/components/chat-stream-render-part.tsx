@@ -55,7 +55,7 @@ export function renderChatPart({
       case "assistant": {
         return (
           <AssistantMessage
-            assetBaseUrl={ctx.project.urls.assetBase}
+            assetBaseUrl={ctx.project.assetBase}
             key={part.metadata.id}
             part={part}
           />
@@ -89,7 +89,7 @@ export function renderChatPart({
   if (part.type === "data-fileChanges") {
     return (
       <FileChangesCard
-        assetBaseUrl={ctx.project.urls.assetBase}
+        assetBaseUrl={ctx.project.assetBase}
         className="mt-2"
         files={part.data.files}
         key={part.metadata.id}

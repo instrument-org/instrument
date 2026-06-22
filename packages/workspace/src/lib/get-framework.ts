@@ -4,21 +4,21 @@ import { err, ok, type Result } from "neverthrow";
 import { readPackage } from "read-pkg";
 
 import { type TaskDir } from "../schemas/paths";
+import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { type AppConfig } from "./app-config/types";
 import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { readPNPMShim } from "./read-pnpm-shim";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function getFramework({
-  appConfig,
   buildInfo: { frameworks },
   port,
+  taskId,
 }: {
-  appConfig: AppConfig;
   buildInfo: Info;
   port: number;
+  taskId: TaskId;
 }): Promise<
   Result<
     {
@@ -39,7 +39,7 @@ export async function getFramework({
   const [framework] = frameworks; // First framework is already sorted by accuracy
 
   if (!framework) {
-    const packageJson = await readPackage({ cwd: taskDir(appConfig) });
+    const packageJson = await readPackage({ cwd: taskDir(taskId) });
     const scripts = packageJson.scripts ?? {};
     const scriptName = scripts.dev ? "dev" : scripts.start ? "start" : null;
 
@@ -78,7 +78,7 @@ export async function getFramework({
   }
 
   const binPathResult = await readPNPMShim(
-    getBinShimPath(taskDir(appConfig), devCommand),
+    getBinShimPath(taskDir(taskId), devCommand),
   );
 
   if (binPathResult.isErr()) {

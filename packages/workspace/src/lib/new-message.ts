@@ -8,7 +8,7 @@ import { type FileUpload } from "../schemas/file-upload";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type AppConfig } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectExternalFileChanges } from "./external-file-changes";
@@ -17,21 +17,21 @@ import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 export async function newMessage({
-  appConfig,
   files,
   folders,
   model,
   modelURI,
   prompt,
   sessionId,
+  taskId,
 }: {
-  appConfig: AppConfig;
   files?: FileUpload.Type[];
   folders?: { path: string }[];
   model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   sessionId: StoreId.Session;
+  taskId: TaskId;
 }) {
   const messageId = StoreId.newMessageId();
   const createdAt = new Date();
@@ -51,7 +51,7 @@ export async function newMessage({
 
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: taskDir(appConfig),
+      dir: taskDir(taskId),
       files,
       folders,
       messageId,
@@ -66,19 +66,19 @@ export async function newMessage({
   }
 
   const browserStatusPart = await createBrowserStatusPart({
-    appConfig,
     createdAt,
     messageId,
     sessionId,
+    taskId,
   });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
   }
 
   const externalChanges = await detectExternalFileChanges({
-    appConfig,
     messageId,
     sessionId,
+    taskId,
   });
   if (externalChanges.isErr()) {
     // Awareness of disk changes is best-effort; never block sending.
@@ -94,7 +94,7 @@ export async function newMessage({
     role: "user",
   };
 
-  await setProjectState(taskDir(appConfig), { selectedModelURI: modelURI });
+  await setProjectState(taskDir(taskId), { selectedModelURI: modelURI });
 
   getWorkspaceConfig().captureEvent("message.created", {
     files_count: files?.length ?? 0,

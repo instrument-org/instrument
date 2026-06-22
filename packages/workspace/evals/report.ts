@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { createAppConfig } from "../src/lib/app-config/create";
 import { taskDir } from "../src/lib/app-dir-utils";
 import { getProjects } from "../src/lib/get-apps";
 import { getProjectState } from "../src/lib/project-state-store";
@@ -61,15 +60,15 @@ export async function generateReport({
   const rollupModelURIs = new Set<string>();
 
   for (const project of projects) {
-    const appConfig = createAppConfig({ id: project.id });
+    const taskId = project.id;
 
-    const projectState = await getProjectState(taskDir(appConfig));
+    const projectState = await getProjectState(taskDir(taskId));
     const projectModelURI = projectState.selectedModelURI;
     if (projectModelURI) {
       rollupModelURIs.add(projectModelURI);
     }
 
-    const sessionsResult = await Store.getSessions(appConfig);
+    const sessionsResult = await Store.getSessions(taskId);
 
     if (sessionsResult.isErr()) {
       process.stderr.write(
@@ -95,14 +94,14 @@ export async function generateReport({
     }
 
     const markdown = await getSessionMarkdown({
-      appConfig,
       includeContextMessages,
       sessionId: rootSession.id,
+      taskId,
     });
 
-    const stats = await getProjectUsageSummary(appConfig);
+    const stats = await getProjectUsageSummary(taskId);
 
-    const projectOutputDir = path.join(outputDir, project.folderName);
+    const projectOutputDir = path.join(outputDir, project.id);
     await fs.mkdir(projectOutputDir, { recursive: true });
     await fs.writeFile(
       path.join(projectOutputDir, "session.md"),
@@ -115,27 +114,23 @@ export async function generateReport({
       "utf8",
     );
     const symlinkPath = path.join(projectOutputDir, "project");
-    await fs.symlink(taskDir(appConfig), symlinkPath).catch(() => {
+    await fs.symlink(taskDir(taskId), symlinkPath).catch(() => {
       return;
     });
 
     const evalCase =
-      evalCasesByName.get(project.folderName) ??
+      evalCasesByName.get(project.id) ??
       [...evalCasesByName.entries()].find(([name]) =>
-        project.folderName.endsWith(`-${name}`),
+        project.id.endsWith(`-${name}`),
       )?.[1];
     await fs.writeFile(
       path.join(projectOutputDir, "eval-case.json"),
-      JSON.stringify(
-        { modelURI: projectModelURI, name: project.folderName },
-        null,
-        2,
-      ),
+      JSON.stringify({ modelURI: projectModelURI, name: project.id }, null, 2),
       "utf8",
     );
 
     if (evalCase?.assertions && evalCase.assertions.length > 0) {
-      const allSessionsResult = await Store.getSessions(appConfig, {
+      const allSessionsResult = await Store.getSessions(taskId, {
         includeChildSessions: true,
       });
       const allSessionsList = allSessionsResult.isOk()
@@ -143,14 +138,14 @@ export async function generateReport({
         : [];
       const sessionsWithParts: Session.WithMessagesAndParts[] = [];
       for (const s of allSessionsList) {
-        const r = await Store.getSessionWithMessagesAndParts(s.id, appConfig);
+        const r = await Store.getSessionWithMessagesAndParts(s.id, taskId);
         if (r.isOk()) {
           sessionsWithParts.push(r.value);
         }
       }
       const sessions = sessionsWithParts;
       const assertionResults: AssertionResult[] = await Promise.all(
-        evalCase.assertions.map((a) => a.check({ appConfig, sessions })),
+        evalCase.assertions.map((a) => a.check({ sessions, taskId })),
       );
       const passed = assertionResults.filter((r) => r.passed).length;
       const failed = assertionResults.filter((r) => !r.passed).length;
@@ -179,11 +174,11 @@ export async function generateReport({
       });
       const passColor = passed === total ? c.green : c.yellow;
       process.stdout.write(
-        `  ${c.dim}[${c.reset}${project.folderName}${c.dim}]${c.reset} ${passColor}${passed}/${total} passed${c.reset}\n${lines.join("\n")}\n`,
+        `  ${c.dim}[${c.reset}${project.id}${c.dim}]${c.reset} ${passColor}${passed}/${total} passed${c.reset}\n${lines.join("\n")}\n`,
       );
     } else {
       process.stdout.write(
-        `  ${c.dim}[${c.reset}${project.folderName}${c.dim}]${c.reset}\n`,
+        `  ${c.dim}[${c.reset}${project.id}${c.dim}]${c.reset}\n`,
       );
     }
   }

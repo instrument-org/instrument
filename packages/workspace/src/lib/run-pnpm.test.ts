@@ -15,8 +15,8 @@ describe("runPnpmCommand", () => {
       exitCode: 0,
     } as never);
 
-    const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
-    await runPnpmCommand({ appConfig, args: ["install"] });
+    const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+    await runPnpmCommand({ args: ["install"], taskId });
 
     expect(execaNodeForApp).toHaveBeenCalledTimes(1);
 
@@ -27,14 +27,14 @@ describe("runPnpmCommand", () => {
     }
 
     const [passedApp, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
-      typeof appConfig,
+      typeof taskId,
       string,
       string[],
       { env?: Record<string, string> },
       unknown,
     ];
 
-    expect(passedApp).toBe(appConfig);
+    expect(passedApp).toBe(taskId);
     expect(pnpmBin).toBe(getWorkspaceConfig().pnpmBinPath);
     expect(cliArgs).toEqual(["install"]);
     expect(execaOpts.env).toMatchObject({
@@ -51,15 +51,15 @@ describe("runPnpmCommand", () => {
       exitCode: 0,
     } as never);
 
-    const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
+    const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
     await runPnpmCommand({
-      appConfig,
       args: ["dlx", "jiti@2.6.1", "x.ts"],
       pnpmLogLevel: "error",
+      taskId,
     });
 
     expect(execaNodeForApp).toHaveBeenCalledWith(
-      appConfig,
+      taskId,
       getWorkspaceConfig().pnpmBinPath,
       ["dlx", "jiti@2.6.1", "x.ts"],
       expect.objectContaining({

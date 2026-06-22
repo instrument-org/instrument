@@ -36,7 +36,6 @@ describe("Glob", () => {
   it("should find files matching a specific pattern", async () => {
     const result = await runTool(TOOLS.Glob, {
       agentName: "main",
-      appConfig: createFixturesAppConfig(),
       input: {
         explanation: "Find ts files",
         pattern: "**/*.ts",
@@ -45,6 +44,7 @@ describe("Glob", () => {
       projectState: {},
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
+      taskId: createFixturesAppConfig(),
     });
 
     expect(sortFilesForTesting(result._unsafeUnwrap().files))
@@ -59,7 +59,6 @@ describe("Glob", () => {
   it("should find files in a subdirectory when path is provided", async () => {
     const result = await runTool(TOOLS.Glob, {
       agentName: "main",
-      appConfig: createFixturesAppConfig(),
       input: {
         explanation: "Find txt files in folder",
         path: "./folder",
@@ -69,6 +68,7 @@ describe("Glob", () => {
       projectState: {},
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
+      taskId: createFixturesAppConfig(),
     });
 
     expect(sortFilesForTesting(result._unsafeUnwrap().files))
@@ -83,7 +83,6 @@ describe("Glob", () => {
   it("should return empty array when no files match", async () => {
     const result = await runTool(TOOLS.Glob, {
       agentName: "main",
-      appConfig: createFixturesAppConfig(),
       input: {
         explanation: "Find nonexistent files",
         pattern: "*.nonexistent_extension_xyz",
@@ -92,6 +91,7 @@ describe("Glob", () => {
       projectState: {},
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
+      taskId: createFixturesAppConfig(),
     });
 
     const output = result._unsafeUnwrap();
@@ -113,7 +113,6 @@ describe("Glob", () => {
     it("should require a path parameter", async () => {
       const result = await runTool(TOOLS.Glob, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Find all txt files",
           pattern: "*.txt",
@@ -122,6 +121,7 @@ describe("Glob", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result._unsafeUnwrap().error).toContain(
@@ -134,7 +134,6 @@ describe("Glob", () => {
     it("should reject relative paths", async () => {
       const result = await runTool(TOOLS.Glob, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Find all txt files",
           path: "./nested",
@@ -144,6 +143,7 @@ describe("Glob", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result._unsafeUnwrap().error).toContain("Path must be absolute");
@@ -153,7 +153,6 @@ describe("Glob", () => {
     it("should reject paths outside attached folders", async () => {
       const result = await runTool(TOOLS.Glob, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Find all txt files",
           path: "/some/random/path",
@@ -163,6 +162,7 @@ describe("Glob", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       expect(result._unsafeUnwrap().error).toContain(
@@ -175,7 +175,6 @@ describe("Glob", () => {
     it("should find ts files in attached folder with absolute paths", async () => {
       const result = await runTool(TOOLS.Glob, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Find all ts files",
           path: FIXTURES_PATH,
@@ -185,6 +184,7 @@ describe("Glob", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const rawFiles = sortFilesForTesting(result._unsafeUnwrap().files);
@@ -198,7 +198,6 @@ describe("Glob", () => {
     it("should find files recursively in attached folder", async () => {
       const result = await runTool(TOOLS.Glob, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Find all txt files recursively",
           path: FIXTURES_PATH,
@@ -208,6 +207,7 @@ describe("Glob", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const files = stripFixturesPath(
@@ -232,7 +232,6 @@ describe("Glob", () => {
 
       const result = await runTool(TOOLS.Glob, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Find a specific file",
           path: FIXTURES_PATH,
@@ -242,6 +241,7 @@ describe("Glob", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const files = result._unsafeUnwrap().files;
@@ -253,7 +253,6 @@ describe("Glob", () => {
       const nestedPath = path.join(FIXTURES_PATH, "nested");
       const result = await runTool(TOOLS.Glob, {
         agentName: "retrieval",
-        appConfig: createFixturesAppConfig(),
         input: {
           explanation: "Find files in nested folder",
           path: nestedPath,
@@ -263,6 +262,7 @@ describe("Glob", () => {
         projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
+        taskId: createFixturesAppConfig(),
       });
 
       const files = sortFilesForTesting(result._unsafeUnwrap().files).map((f) =>

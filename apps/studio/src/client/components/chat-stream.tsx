@@ -286,7 +286,7 @@ export function ChatStream({
         if (fileAttachmentsPart?.type === "data-attachments") {
           messageElements.unshift(
             <AttachmentsCard
-              assetBaseUrl={project.urls.assetBase}
+              assetBaseUrl={project.assetBase}
               files={fileAttachmentsPart.data.files}
               folders={fileAttachmentsPart.data.folders}
               key={`attachments-${message.id}`}
@@ -347,7 +347,7 @@ export function ChatStream({
     toolBoundaryMap,
     hideLogo,
     hideUserMessages,
-    project.urls.assetBase,
+    project.assetBase,
     project.id,
     isAgentRunning,
     isDeveloperMode,

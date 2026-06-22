@@ -102,8 +102,8 @@ export const GenerateImage = setupTool({
     for img2img conditioning. Do not re-describe them from scratch in the
     ${INPUT_PARAMS.prompt} alone.
   `,
-  execute: async ({ appConfig, input, model, signal }) => {
-    const filePathResult = resolveToolPath(taskDir(appConfig), input.filePath);
+  execute: async ({ input, model, signal, taskId }) => {
+    const filePathResult = resolveToolPath(taskDir(taskId), input.filePath);
     if (filePathResult.isErr()) {
       return err(filePathResult.error);
     }
@@ -120,7 +120,7 @@ export const GenerateImage = setupTool({
     if (input.sourceImages && input.sourceImages.length > 0) {
       const resolvedSourcePaths = [];
       for (const relativePath of input.sourceImages) {
-        const pathResult = resolveToolPath(taskDir(appConfig), relativePath);
+        const pathResult = resolveToolPath(taskDir(taskId), relativePath);
         if (pathResult.isErr()) {
           return err(pathResult.error);
         }
@@ -195,7 +195,7 @@ export const GenerateImage = setupTool({
             ? `${pathWithoutExt}-${index + 1}.${ext}`
             : `${pathWithoutExt}.${ext}`;
 
-        const absolutePath = absolutePathJoin(taskDir(appConfig), filename);
+        const absolutePath = absolutePathJoin(taskDir(taskId), filename);
         const imageBuffer = Buffer.from(image.base64, "base64");
 
         await writeFileWithDir(absolutePath, imageBuffer, { signal });

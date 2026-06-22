@@ -22,8 +22,6 @@ import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
 import { REGISTRY_FOLDER_NAMES } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
-import { createAppConfig } from "../../lib/app-config/create";
-import { type AppConfig } from "../../lib/app-config/types";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { isTaskId } from "../../lib/is-app";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
@@ -87,21 +85,21 @@ export type WorkspaceEvent =
   | {
       type: "heartbeat";
       value: {
-        appConfig: AppConfig;
         createdAt: number;
         shouldCreate: boolean;
+        taskId: TaskId;
       };
     }
   | {
       type: "internal.spawnSession";
       value: {
         agentName: AgentName;
-        appConfig: AppConfig;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         parentSessionId?: StoreId.Session;
         sessionId: StoreId.Session;
         sessionNamePrefix?: string;
+        taskId: TaskId;
       };
     }
   | {
@@ -126,7 +124,7 @@ export type WorkspaceEvent =
     }
   | {
       type: "spawnRuntime";
-      value: { appConfig: AppConfig };
+      value: { taskId: TaskId };
     }
   | {
       type: "stopRuntime";
@@ -383,7 +381,7 @@ export const workspaceMachine = setup({
       trashItem: input.trashItem,
     };
     // Publish the single per-process config so code can read it via
-    // getWorkspaceConfig() instead of threading it through every AppConfig.
+    // getWorkspaceConfig() instead of threading it through every TaskId.
     setWorkspaceConfig(workspaceConfig);
     return {
       appsBeingTrashed: [],
@@ -452,15 +450,15 @@ export const workspaceMachine = setup({
       {
         actions: raise(({ event }) => {
           const id = event.value.id;
-          const appConfig = createAppConfig({ id });
+          const taskId = id;
           return {
             type: "internal.spawnSession",
             value: {
               agentName: event.value.agentName,
-              appConfig,
               message: event.value.message,
               model: event.value.model,
               sessionId: event.value.sessionId,
+              taskId,
             },
           };
         }),
@@ -468,15 +466,15 @@ export const workspaceMachine = setup({
     ],
     createSession: {
       actions: raise(({ event }) => {
-        const appConfig = createAppConfig({ id: event.value.id });
+        const taskId = event.value.id;
         return {
           type: "internal.spawnSession",
           value: {
             agentName: event.value.agentName,
-            appConfig,
             message: event.value.message,
             model: event.value.model,
             sessionId: event.value.sessionId,
+            taskId,
           },
         };
       }),
@@ -485,7 +483,7 @@ export const workspaceMachine = setup({
       {
         actions: raise(({ context, event }) => {
           const existingRuntimeRef = context.runtimeRefs.get(
-            event.value.appConfig,
+            event.value.taskId,
           );
 
           if (existingRuntimeRef) {
@@ -493,7 +491,7 @@ export const workspaceMachine = setup({
               type: "internal.updateHeartbeat",
               value: {
                 createdAt: event.value.createdAt,
-                id: event.value.appConfig,
+                id: event.value.taskId,
               },
             };
           }
@@ -501,7 +499,7 @@ export const workspaceMachine = setup({
           return {
             type: "spawnRuntime",
             value: {
-              appConfig: event.value.appConfig,
+              taskId: event.value.taskId,
             },
           };
         }),
@@ -512,18 +510,17 @@ export const workspaceMachine = setup({
         enqueue.assign(({ spawn }) => {
           const {
             agentName,
-            appConfig,
             message,
             model,
             parentSessionId,
             sessionId,
             sessionNamePrefix,
+            taskId,
           } = event.value;
 
           const sessionMachineRef = spawn("sessionMachine", {
             input: {
               agent: AGENTS[agentName],
-              appConfig,
               baseLLMRetryDelayMs: ms("1 second"),
               llmRequestChunkTimeoutMs: ms("5 minutes"),
               model,
@@ -532,12 +529,13 @@ export const workspaceMachine = setup({
               queuedMessages: [message],
               sessionId,
               sessionNamePrefix,
+              taskId,
             },
           });
 
           enqueue({
             params: {
-              id: appConfig,
+              id: taskId,
               sessionRef: sessionMachineRef,
             },
             type: "trackSessionRef",
@@ -547,7 +545,7 @@ export const workspaceMachine = setup({
         });
       }),
       guard: ({ context, event }) => {
-        const id = event.value.appConfig;
+        const id = event.value.taskId;
         return !context.appsBeingTrashed.some(
           (trashingTaskId) =>
             id === trashingTaskId ||
@@ -672,10 +670,10 @@ export const workspaceMachine = setup({
       {
         actions: raise(({ event }) => {
           const { id } = event.value;
-          const appConfig = createAppConfig({ id });
+          const taskId = id;
           return {
             type: "spawnRuntime",
-            value: { appConfig },
+            value: { taskId },
           };
         }),
         guard: ({ context, event }) => {
@@ -689,14 +687,14 @@ export const workspaceMachine = setup({
         actions: raise(({ event }) => {
           return {
             type: "restartRuntime",
-            value: { id: event.value.appConfig },
+            value: { id: event.value.taskId },
           };
         }),
         guard: ({ context, event }) =>
           // Only restart if non-read-only tools were used
           event.value.usedNonReadOnlyTools &&
           // Don't restart if the runtime if it isn't running
-          context.runtimeRefs.has(event.value.appConfig),
+          context.runtimeRefs.has(event.value.taskId),
       },
       {
         // No restart needed if only read-only tools were used
@@ -704,7 +702,7 @@ export const workspaceMachine = setup({
       // TODO: Add this back once we have another way to show "done" sessions
       // in the UI because we want to garbage collect them eagerly.
       // actions: assign(({ context, event }) => {
-      //   const { id } = event.value.appConfig;
+      //   const { id } = event.value.taskId;
       //   const { [id]: sessionActorRefs = [], ...otherRefs } =
       //     context.sessionRefsByTaskId;
       //   const newSessionActorRefs = sessionActorRefs.filter(
@@ -728,17 +726,17 @@ export const workspaceMachine = setup({
       actions: assign(({ context, event, spawn }) => {
         return {
           runtimeRefs: new Map(context.runtimeRefs).set(
-            event.value.appConfig,
+            event.value.taskId,
             spawn("runtimeMachine", {
               input: {
-                appConfig: event.value.appConfig,
+                taskId: event.value.taskId,
               },
             }),
           ),
         };
       }),
       guard: ({ context, event }) => {
-        const id = event.value.appConfig;
+        const id = event.value.taskId;
         return !context.appsBeingTrashed.some(
           (trashingTaskId) =>
             id === trashingTaskId ||

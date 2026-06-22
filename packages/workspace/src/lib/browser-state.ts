@@ -2,7 +2,7 @@ import { ok, safeTry } from "neverthrow";
 import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
-import { type AppConfig } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
@@ -17,12 +17,12 @@ const BrowserStateSchema = z.object({
 type BrowserState = z.output<typeof BrowserStateSchema>;
 
 export function getBrowserState(
-  appConfig: AppConfig,
+  taskId: TaskId,
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry<BrowserState | undefined, Error>(async function* () {
-    const storage = yield* getSessionsStoreStorage(appConfig);
+    const storage = yield* getSessionsStoreStorage(taskId);
     const result = await getParsedStorageItem(
       StorageKey.browserState(sessionId),
       BrowserStateSchema,
@@ -37,21 +37,21 @@ export function getBrowserState(
 }
 
 export function recordBrowserUse({
-  appConfig,
   sessionId,
   signal,
+  taskId,
   title,
   url,
 }: {
-  appConfig: AppConfig;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
+  taskId: TaskId;
   title?: string;
   url?: string;
 }) {
   return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(appConfig);
-    const current = yield* getBrowserState(appConfig, sessionId, { signal });
+    const storage = yield* getSessionsStoreStorage(taskId);
+    const current = yield* getBrowserState(taskId, sessionId, { signal });
     const state: BrowserState = {
       ...(current?.lastTitle ? { lastTitle: current.lastTitle } : {}),
       ...(current?.lastUrl ? { lastUrl: current.lastUrl } : {}),

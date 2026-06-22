@@ -1,8 +1,7 @@
 import { execa } from "execa";
 import { defineCommand } from "just-bash";
 
-import type { AppConfig } from "../app-config/types";
-
+import { type TaskId } from "../../schemas/task-id";
 import { taskDir } from "../app-dir-utils";
 import { FFPROBE_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
@@ -14,13 +13,13 @@ export const FFPROBE_COMMAND = {
   name: "ffprobe",
 } as const;
 
-export function createFfprobeCommand(appConfig: AppConfig) {
+export function createFfprobeCommand(taskId: TaskId) {
   return defineCommand(FFPROBE_COMMAND.name, async (args, ctx) => {
-    const { appCwd, env } = resolveCommandContext(appConfig, ctx);
+    const { appCwd, env } = resolveCommandContext(taskId, ctx);
 
     const result = await execa(
       FFPROBE_PATH,
-      resolvePathArgs(args, appConfig, ctx),
+      resolvePathArgs(args, taskId, ctx),
       {
         all: true,
         cancelSignal: ctx.signal,
@@ -34,7 +33,7 @@ export function createFfprobeCommand(appConfig: AppConfig) {
       },
     );
 
-    const combined = filterShellOutput(result.all, taskDir(appConfig));
+    const combined = filterShellOutput(result.all, taskDir(taskId));
     return {
       exitCode: result.exitCode ?? 1,
       stderr: "",

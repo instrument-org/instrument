@@ -13,7 +13,6 @@ import {
 } from "xstate";
 
 import { type AgentName, type AnyAgent } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { createSession } from "../lib/create-session";
 import { getCurrentDate } from "../lib/get-current-date";
@@ -28,6 +27,7 @@ import { publisher } from "../rpc/publisher";
 import { type SessionTag } from "../schemas/app-state";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import {
   agentMachine,
   type AgentMachineActorRef,
@@ -40,8 +40,8 @@ export type SessionMachineParentEvent =
       type: "session.done";
       value: {
         actorId: string;
-        appConfig: AppConfig;
         error?: unknown;
+        taskId: TaskId;
         usedNonReadOnlyTools: boolean;
       };
     }
@@ -49,12 +49,12 @@ export type SessionMachineParentEvent =
       type: "session.spawnSubAgent";
       value: {
         agentName: AgentName;
-        appConfig: AppConfig;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         parentSessionId: StoreId.Session;
         sessionId: StoreId.Session;
         sessionNamePrefix?: string;
+        taskId: TaskId;
       };
     };
 
@@ -94,9 +94,9 @@ export const sessionMachine = setup({
     saveQueuedMessage: fromPromise<
       SessionMessage.WithParts,
       {
-        appConfig: AppConfig;
         message: SessionMessage.UserWithParts;
         sessionId: StoreId.Session;
+        taskId: TaskId;
       }
     >(async ({ input, signal }) => {
       const hasMismatchedSessionId = input.message.parts.some(
@@ -109,7 +109,7 @@ export const sessionMachine = setup({
       }
       const result = await Store.saveMessageWithParts(
         input.message,
-        input.appConfig,
+        input.taskId,
         { signal },
       );
       if (result.isErr()) {
@@ -122,27 +122,27 @@ export const sessionMachine = setup({
       // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
       void,
       {
-        appConfig: AppConfig;
         parentSessionId?: StoreId.Session;
         sessionId: StoreId.Session;
         sessionNamePrefix?: string;
+        taskId: TaskId;
       }
     >(
       async ({
-        input: { appConfig, parentSessionId, sessionId, sessionNamePrefix },
+        input: { parentSessionId, sessionId, sessionNamePrefix, taskId },
         signal,
       }) => {
-        const existingSession = await Store.getSession(sessionId, appConfig, {
+        const existingSession = await Store.getSession(sessionId, taskId, {
           signal,
         });
         if (existingSession.isErr()) {
           if (existingSession.error.type === "workspace-not-found-error") {
             const result = await createSession({
-              appConfig,
               parentSessionId,
               sessionId,
               sessionNamePrefix,
               signal,
+              taskId,
             });
             if (result.isErr()) {
               throw new Error(
@@ -161,7 +161,7 @@ export const sessionMachine = setup({
               ...existingSession.value,
               updatedAt: new Date(),
             },
-            appConfig,
+            taskId,
             { signal },
           );
           if (result.isErr()) {
@@ -181,7 +181,6 @@ export const sessionMachine = setup({
     context: {} as {
       agent: AnyAgent;
       agentRef?: AgentMachineActorRef;
-      appConfig: AppConfig;
       baseLLMRetryDelayMs: number;
       error?: unknown;
       llmRequestChunkTimeoutMs: number;
@@ -194,12 +193,12 @@ export const sessionMachine = setup({
       sessionNamePrefix?: string;
       spawnAgent: SpawnAgentFunction;
       subscription?: { unsubscribe: () => void };
+      taskId: TaskId;
       usedNonReadOnlyTools: boolean;
     },
     events: {} as SessionMachineEvent,
     input: {} as {
       agent: AnyAgent;
-      appConfig: AppConfig;
       baseLLMRetryDelayMs: number;
       llmRequestChunkTimeoutMs: number;
       maxStepCount?: number;
@@ -209,6 +208,7 @@ export const sessionMachine = setup({
       queuedMessages: SessionMessage.UserWithParts[];
       sessionId: StoreId.Session;
       sessionNamePrefix?: string;
+      taskId: TaskId;
     },
     tags: {} as SessionTag,
   },
@@ -221,7 +221,7 @@ export const sessionMachine = setup({
 
       if (!isEqual(currentTags, previousTags)) {
         publisher.publish("appState.session.tagsChanged", {
-          id: input.appConfig,
+          id: input.taskId,
           sessionId: input.sessionId,
         });
         previousTags = currentTags;
@@ -229,7 +229,7 @@ export const sessionMachine = setup({
     });
 
     publisher.publish("appState.session.added", {
-      id: input.appConfig,
+      id: input.taskId,
       sessionId: input.sessionId,
     });
 
@@ -247,7 +247,6 @@ export const sessionMachine = setup({
         type: "session.spawnSubAgent",
         value: {
           agentName,
-          appConfig: input.appConfig,
           message: {
             id: messageId,
             metadata: { createdAt, sessionId: newSessionId },
@@ -269,6 +268,7 @@ export const sessionMachine = setup({
           parentSessionId: input.sessionId,
           sessionId: newSessionId,
           sessionNamePrefix,
+          taskId: input.taskId,
         },
       });
 
@@ -283,8 +283,8 @@ export const sessionMachine = setup({
                 if (payload.sessionId === newSessionId) {
                   const messagesResult = await Store.getMessagesWithParts(
                     {
-                      appConfig: input.appConfig,
                       sessionId: newSessionId,
+                      taskId: input.taskId,
                     },
                     { signal },
                   );
@@ -304,7 +304,6 @@ export const sessionMachine = setup({
 
     return {
       agent: input.agent,
-      appConfig: input.appConfig,
       baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
       llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
       maxStepCount: input.maxStepCount ?? 50,
@@ -316,6 +315,7 @@ export const sessionMachine = setup({
       sessionNamePrefix: input.sessionNamePrefix,
       spawnAgent,
       subscription,
+      taskId: input.taskId,
       usedNonReadOnlyTools: false,
     };
   },
@@ -472,7 +472,7 @@ export const sessionMachine = setup({
         }
 
         publisher.publish("appState.session.done", {
-          id: context.appConfig,
+          id: context.taskId,
           sessionId: context.sessionId,
         });
 
@@ -480,8 +480,8 @@ export const sessionMachine = setup({
           type: "session.done",
           value: {
             actorId: self.id,
-            appConfig: context.appConfig,
             error: context.error,
+            taskId: context.taskId,
             usedNonReadOnlyTools: context.usedNonReadOnlyTools,
           },
         });
@@ -509,9 +509,9 @@ export const sessionMachine = setup({
           const [message] = context.queuedMessages;
           invariant(message, "No message to save");
           return {
-            appConfig: context.appConfig,
             message,
             sessionId: context.sessionId,
+            taskId: context.taskId,
           };
         },
         onDone: {
@@ -522,7 +522,6 @@ export const sessionMachine = setup({
                   id: "agent",
                   input: {
                     agent: context.agent,
-                    appConfig: context.appConfig,
                     baseLLMRetryDelayMs: context.baseLLMRetryDelayMs,
                     llmRequestChunkTimeoutMs: context.llmRequestChunkTimeoutMs,
                     maxStepCount: context.maxStepCount,
@@ -531,6 +530,7 @@ export const sessionMachine = setup({
                     parentRef: self,
                     sessionId: context.sessionId,
                     spawnAgent: context.spawnAgent,
+                    taskId: context.taskId,
                   },
                 }),
               queuedMessages: ({ context }) => {
@@ -553,10 +553,10 @@ export const sessionMachine = setup({
     UpdatingSession: {
       invoke: {
         input: ({ context }) => ({
-          appConfig: context.appConfig,
           parentSessionId: context.parentSessionId,
           sessionId: context.sessionId,
           sessionNamePrefix: context.sessionNamePrefix,
+          taskId: context.taskId,
         }),
         onDone: {
           target: "ProcessingQueuedMessages",

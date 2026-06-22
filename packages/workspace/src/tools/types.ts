@@ -8,11 +8,11 @@ import { type z } from "zod";
 import type { ToolNameSchema } from "./name";
 
 import { type AgentName } from "../agents/types";
-import { type AppConfig } from "../lib/app-config/types";
 import { type ExecuteError } from "../lib/execute-error";
 import { type ProjectState } from "../lib/project-state-store";
 import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 
 export interface AgentTool<
   TName extends ToolName,
@@ -21,17 +21,16 @@ export interface AgentTool<
 > {
   aiSDKTool: (options: {
     agentName: AgentName;
-    appConfig: AppConfig;
+    taskId: TaskId;
   }) => Promise<Tool<z.output<TInputSchema>, z.output<TOutputSchema>>>;
   description:
     | ((options: {
         agentName: AgentName;
-        appConfig: AppConfig;
+        taskId: TaskId;
       }) => Promise<string> | string)
     | string;
   execute: (options: {
     agentName: AgentName;
-    appConfig: AppConfig;
     input: z.output<TInputSchema>;
     messageId: StoreId.Message;
     model: AIGatewayModel.Type;
@@ -40,6 +39,7 @@ export interface AgentTool<
     sessionId: StoreId.Session;
     signal: AbortSignal;
     spawnAgent: SpawnAgentFunction;
+    taskId: TaskId;
   }) =>
     | AsyncGenerator<ExecuteResult<z.output<TOutputSchema>>>
     | Promise<ExecuteResult<z.output<TOutputSchema>>>;
@@ -48,13 +48,10 @@ export interface AgentTool<
   outputSchema: TOutputSchema;
   readOnly: boolean;
   // Description-free variant used for static type inference and toModelOutput mapping.
-  // Does not call description(), so it is safe to call synchronously without appConfig.
+  // Does not call description(), so it is safe to call synchronously without taskId.
   staticAISDKTool: () => Tool<z.output<TInputSchema>, z.output<TOutputSchema>>;
   timeoutMs:
-    | ((options: {
-        appConfig: AppConfig;
-        input: z.output<TInputSchema>;
-      }) => number)
+    | ((options: { input: z.output<TInputSchema>; taskId: TaskId }) => number)
     | number;
   toModelOutput: (options: {
     input: z.output<TInputSchema>;

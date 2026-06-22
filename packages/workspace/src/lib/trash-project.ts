@@ -7,7 +7,6 @@ import { type WorkspaceActorRef } from "../machines/workspace";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
-import { createAppConfig } from "./app-config/create";
 import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
@@ -48,14 +47,14 @@ export async function trashProject({
       markStorageAsDisposing(id);
 
       try {
-        const appConfig = createAppConfig({ id });
+        const taskId = id;
 
         // Delete node_modules folder before trashing to avoid issues with hard links.
         // On Windows (and potentially other OS) with PNPM hard links, trashing
         // node_modules will fail. Since node_modules can be recreated, we delete
         // it first using the fastest removal method available.
         const nodeModulesPath = absolutePathJoin(
-          taskDir(appConfig),
+          taskDir(taskId),
           "node_modules",
         );
 
@@ -68,7 +67,7 @@ export async function trashProject({
           return err(disposeResult.error);
         }
 
-        await workspaceConfig.trashItem(taskDir(appConfig));
+        await workspaceConfig.trashItem(taskDir(taskId));
 
         // In the off chance that a future project with the same id is
         // created, we remove the app being trashed.

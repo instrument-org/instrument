@@ -2,13 +2,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { APP_FOLDER_NAMES } from "../../src/constants";
-import { type AppConfig } from "../../src/lib/app-config/types";
 import { taskDir } from "../../src/lib/app-dir-utils";
+import { type TaskId } from "../../src/schemas/task-id";
 import { type Assertion, defineEval } from "../harness";
 
 const assertHasOutputMarkdown: Assertion = {
-  check: async ({ appConfig }) => {
-    const outputDir = path.join(taskDir(appConfig), APP_FOLDER_NAMES.output);
+  check: async ({ taskId }) => {
+    const outputDir = path.join(taskDir(taskId), APP_FOLDER_NAMES.output);
     let files: string[] = [];
     try {
       files = await fs.readdir(outputDir);
@@ -33,9 +33,9 @@ const assertHasOutputMarkdown: Assertion = {
 };
 
 const assertHasAgentRetrievedPdf: Assertion = {
-  check: async ({ appConfig }) => {
+  check: async ({ taskId }) => {
     const agentRetrievedDir = path.join(
-      taskDir(appConfig),
+      taskDir(taskId),
       APP_FOLDER_NAMES.agentRetrieved,
     );
     let files: string[] = [];
@@ -61,8 +61,8 @@ const assertHasAgentRetrievedPdf: Assertion = {
   text: "Has a PDF in the agent-retrieved folder",
 };
 
-async function hasMdInOutput(appConfig: AppConfig): Promise<boolean> {
-  const dir = path.join(taskDir(appConfig), APP_FOLDER_NAMES.output);
+async function hasMdInOutput(taskId: TaskId): Promise<boolean> {
+  const dir = path.join(taskDir(taskId), APP_FOLDER_NAMES.output);
   try {
     const files = await fs.readdir(dir);
     return files.some((f) => f.endsWith(".md"));
@@ -71,8 +71,8 @@ async function hasMdInOutput(appConfig: AppConfig): Promise<boolean> {
   }
 }
 
-async function hasPdfInAgentRetrieved(appConfig: AppConfig): Promise<boolean> {
-  const dir = path.join(taskDir(appConfig), APP_FOLDER_NAMES.agentRetrieved);
+async function hasPdfInAgentRetrieved(taskId: TaskId): Promise<boolean> {
+  const dir = path.join(taskDir(taskId), APP_FOLDER_NAMES.agentRetrieved);
   try {
     const files = await fs.readdir(dir);
     return files.some((f) => f.toLowerCase().endsWith(".pdf"));
@@ -89,14 +89,14 @@ export const RETRIEVAL_EVALS = [
     ],
     name: "pdf-retrieval",
     prompt: "Add a blank page to the pdf in this folder",
-    shouldStop: async (part, appConfig) => {
+    shouldStop: async (part, taskId) => {
       if (
         part.type !== "tool-copy_to_project" ||
         part.state !== "output-available"
       ) {
         return false;
       }
-      return hasPdfInAgentRetrieved(appConfig);
+      return hasPdfInAgentRetrieved(taskId);
     },
   }),
   defineEval({
@@ -106,14 +106,14 @@ export const RETRIEVAL_EVALS = [
     ],
     name: "pdf-to-markdown",
     prompt: "Convert the pdf in this folder to markdown",
-    shouldStop: async (part, appConfig) => {
+    shouldStop: async (part, taskId) => {
       if (
         part.type !== "tool-copy_to_project" ||
         part.state !== "output-available"
       ) {
         return false;
       }
-      return hasMdInOutput(appConfig);
+      return hasMdInOutput(taskId);
     },
   }),
 ];

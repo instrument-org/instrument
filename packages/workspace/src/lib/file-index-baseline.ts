@@ -1,7 +1,7 @@
 import { ok, safeTry } from "neverthrow";
 
 import { type StoreId } from "../schemas/store-id";
-import { type AppConfig } from "./app-config/types";
+import { type TaskId } from "../schemas/task-id";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import {
   type ProjectFileIndex,
@@ -15,12 +15,12 @@ import { StorageKey } from "./storage-key";
 
 /** Reads the session's persisted file-index baseline, or undefined when none is stored yet. */
 export function getFileIndexBaseline(
-  appConfig: AppConfig,
+  taskId: TaskId,
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry<ProjectFileIndex | undefined, Error>(async function* () {
-    const storage = yield* getSessionsStoreStorage(appConfig);
+    const storage = yield* getSessionsStoreStorage(taskId);
     const result = await getParsedStorageItem(
       StorageKey.fileIndexBaseline(sessionId),
       ProjectFileIndexSnapshotSchema,
@@ -37,13 +37,13 @@ export function getFileIndexBaseline(
 
 /** Persists the file-index baseline for the session. */
 export function setFileIndexBaseline(
-  appConfig: AppConfig,
+  taskId: TaskId,
   sessionId: StoreId.Session,
   index: ProjectFileIndex,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(appConfig);
+    const storage = yield* getSessionsStoreStorage(taskId);
     yield* setParsedStorageItem(
       StorageKey.fileIndexBaseline(sessionId),
       projectFileIndexToSnapshot(index),

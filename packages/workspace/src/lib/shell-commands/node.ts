@@ -1,9 +1,8 @@
 import { execa } from "execa";
 import { defineCommand, latin1FromBytes } from "just-bash";
 
-import type { AppConfig } from "../app-config/types";
-
 import { type AbsolutePath } from "../../schemas/paths";
+import { type TaskId } from "../../schemas/task-id";
 import { taskDir } from "../app-dir-utils";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
@@ -18,7 +17,7 @@ import {
 } from "./utils";
 
 function execNode(
-  appConfig: AppConfig,
+  taskId: TaskId,
   args: string[],
   signal?: AbortSignal,
   cwd?: AbsolutePath,
@@ -28,7 +27,7 @@ function execNode(
   return execa(process.execPath, args, {
     all: true,
     cancelSignal: signal,
-    cwd: cwd ?? taskDir(appConfig),
+    cwd: cwd ?? taskDir(taskId),
     env: {
       ...getWorkspaceConfig().nodeExecEnv,
       ...env,
@@ -57,9 +56,9 @@ export const NODE_COMMAND = {
   name: "node",
 } as const;
 
-export function createNodeCommand(appConfig: AppConfig) {
+export function createNodeCommand(taskId: TaskId) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
-    const { appCwd, env } = resolveCommandContext(appConfig, ctx);
+    const { appCwd, env } = resolveCommandContext(taskId, ctx);
 
     if (args.length === 0) {
       return {
@@ -79,13 +78,13 @@ export function createNodeCommand(appConfig: AppConfig) {
 
     if (isVersion) {
       const execResult = await execNode(
-        appConfig,
+        taskId,
         ["--version"],
         ctx.signal,
         appCwd,
         env,
       );
-      const combined = filterShellOutput(execResult.all, taskDir(appConfig));
+      const combined = filterShellOutput(execResult.all, taskDir(taskId));
       return {
         exitCode: execResult.exitCode ?? 1,
         stderr: "",
@@ -115,14 +114,14 @@ export function createNodeCommand(appConfig: AppConfig) {
 
     if (evalCode !== undefined) {
       const execResult = await execNode(
-        appConfig,
+        taskId,
         [...nodeFlags, "-e", evalCode],
         ctx.signal,
         appCwd,
         env,
         latin1FromBytes(ctx.stdin) || undefined,
       );
-      const combined = filterShellOutput(execResult.all, taskDir(appConfig));
+      const combined = filterShellOutput(execResult.all, taskDir(taskId));
       return {
         exitCode: execResult.exitCode ?? 1,
         stderr: "",
@@ -141,7 +140,7 @@ export function createNodeCommand(appConfig: AppConfig) {
     const fileAndArgs = extractFileAndScriptArgs(
       positionals,
       args,
-      appConfig,
+      taskId,
       appCwd,
       (p) => ctx.fs.resolvePath(ctx.cwd, p),
     );
@@ -156,14 +155,14 @@ export function createNodeCommand(appConfig: AppConfig) {
 
     const { filePath, scriptArgs } = fileAndArgs;
     const execResult = await execNode(
-      appConfig,
+      taskId,
       [...nodeFlags, filePath, ...scriptArgs],
       ctx.signal,
       appCwd,
       env,
       latin1FromBytes(ctx.stdin) || undefined,
     );
-    const combined = filterShellOutput(execResult.all, taskDir(appConfig));
+    const combined = filterShellOutput(execResult.all, taskDir(taskId));
 
     return {
       exitCode: execResult.exitCode ?? 1,

@@ -7,8 +7,8 @@ import { taskDir } from "../app-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { extractFileAndScriptArgs, parseScriptRunnerArgs } from "./utils";
 
-const appConfig = createMockAppConfig(TaskIdSchema.parse("test"));
-const dir = taskDir(appConfig);
+const taskId = createMockAppConfig(TaskIdSchema.parse("test"));
+const dir = taskDir(taskId);
 const fs = new InMemoryFs();
 
 function resolvePath(cwd: string) {
@@ -20,7 +20,7 @@ describe("extractFileAndScriptArgs", () => {
     const result = extractFileAndScriptArgs(
       [],
       [],
-      appConfig,
+      taskId,
       dir,
       resolvePath("/"),
     );
@@ -88,7 +88,7 @@ describe("extractFileAndScriptArgs", () => {
       const result = extractFileAndScriptArgs(
         [input],
         [input],
-        appConfig,
+        taskId,
         appCwd,
         resolvePath(cwd),
       );
@@ -162,7 +162,7 @@ describe("extractFileAndScriptArgs", () => {
       const result = extractFileAndScriptArgs(
         [file],
         args,
-        appConfig,
+        taskId,
         appCwd,
         resolvePath(cwd),
       );

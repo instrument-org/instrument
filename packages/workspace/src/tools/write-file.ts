@@ -53,8 +53,8 @@ export const WriteFile = setupTool({
     - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
     - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
   `,
-  execute: async ({ appConfig, input, signal }) => {
-    const pathResult = resolveToolPath(taskDir(appConfig), input.filePath);
+  execute: async ({ input, signal, taskId }) => {
+    const pathResult = resolveToolPath(taskDir(taskId), input.filePath);
     if (pathResult.isErr()) {
       return err(pathResult.error);
     }

@@ -1,7 +1,6 @@
 import { defineCommand, latin1FromBytes } from "just-bash";
 
-import type { AppConfig } from "../app-config/types";
-
+import { type TaskId } from "../../schemas/task-id";
 import { runPnpmCommand } from "../run-pnpm";
 import { resolveCommandContext } from "./utils";
 
@@ -11,18 +10,18 @@ export const TSC_COMMAND = {
   name: "tsc",
 } as const;
 
-export function createTscCommand(appConfig: AppConfig) {
+export function createTscCommand(taskId: TaskId) {
   return defineCommand(TSC_COMMAND.name, async (args, ctx) => {
-    const { appCwd, env } = resolveCommandContext(appConfig, ctx);
+    const { appCwd, env } = resolveCommandContext(taskId, ctx);
 
     const result = await runPnpmCommand({
-      appConfig,
       args: ["--package=typescript@5.9.3", "dlx", "tsc", ...args],
       cwd: appCwd,
       env,
       pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
       signal: ctx.signal,
       stdin: latin1FromBytes(ctx.stdin) || undefined,
+      taskId,
     });
 
     return {

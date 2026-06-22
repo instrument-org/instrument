@@ -41,10 +41,10 @@ describe("Glob", () => {
         pattern: "**/*.ts",
       },
       model,
-      projectState: {},
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
       taskId: createFixturesAppConfig(),
+      taskState: {},
     });
 
     expect(sortFilesForTesting(result._unsafeUnwrap().files))
@@ -65,10 +65,10 @@ describe("Glob", () => {
         pattern: "*.txt",
       },
       model,
-      projectState: {},
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
       taskId: createFixturesAppConfig(),
+      taskState: {},
     });
 
     expect(sortFilesForTesting(result._unsafeUnwrap().files))
@@ -88,10 +88,10 @@ describe("Glob", () => {
         pattern: "*.nonexistent_extension_xyz",
       },
       model,
-      projectState: {},
       signal: AbortSignal.timeout(10_000),
       spawnAgent: vi.fn(),
       taskId: createFixturesAppConfig(),
+      taskState: {},
     });
 
     const output = result._unsafeUnwrap();
@@ -118,10 +118,10 @@ describe("Glob", () => {
           pattern: "*.txt",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       expect(result._unsafeUnwrap().error).toContain(
@@ -140,10 +140,10 @@ describe("Glob", () => {
           pattern: "*.txt",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       expect(result._unsafeUnwrap().error).toContain("Path must be absolute");
@@ -159,10 +159,10 @@ describe("Glob", () => {
           pattern: "*.txt",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       expect(result._unsafeUnwrap().error).toContain(
@@ -181,10 +181,10 @@ describe("Glob", () => {
           pattern: "**/*.ts",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       const rawFiles = sortFilesForTesting(result._unsafeUnwrap().files);
@@ -204,10 +204,10 @@ describe("Glob", () => {
           pattern: "**/*.txt",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       const files = stripFixturesPath(
@@ -238,10 +238,10 @@ describe("Glob", () => {
           pattern: absoluteFilePath,
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       const files = result._unsafeUnwrap().files;
@@ -259,10 +259,10 @@ describe("Glob", () => {
           pattern: "**/*.txt",
         },
         model,
-        projectState: { attachedFolders },
         signal: AbortSignal.timeout(10_000),
         spawnAgent: vi.fn(),
         taskId: createFixturesAppConfig(),
+        taskState: { attachedFolders },
       });
 
       const files = sortFilesForTesting(result._unsafeUnwrap().files).map((f) =>

@@ -19,10 +19,10 @@ export function getSessionTags({
 }
 
 /**
- * Derives agent status for a specific session within a project app.
+ * Derives agent status for a specific session within a task app.
  * Replay status is queried automatically by id.
  * Pass `isReplayActive` to additionally treat an external replay signal as
- * live (e.g. for cancel button logic in project-chat).
+ * live (e.g. for cancel button logic in task-chat).
  */
 export function useAgentSessionStatus({
   id,

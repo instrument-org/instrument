@@ -21,7 +21,7 @@ describe("isUntitledChatSessionTitle", () => {
     ["untitled chat", false],
     ["Untitled Chat", false],
     ["Untitled research", false],
-    ["My project", false],
+    ["My task", false],
     ["2026-04-29 Chat", false],
     ["2026-04-29 Chat 2", false],
     ["2026-04-29 Chat 10", false],
@@ -34,7 +34,7 @@ describe("isUntitledChatSessionTitle", () => {
 });
 
 describe("isSessionTitleAutoReplaceable", () => {
-  const taskId = createMockTaskConfigForDir("/tmp/instrument-test-project");
+  const taskId = createMockTaskConfigForDir("/tmp/instrument-test-task");
 
   beforeEach(() => {
     mockGetTaskManifest.mockReset();

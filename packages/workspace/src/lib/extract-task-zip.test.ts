@@ -1,4 +1,4 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import { BlobWriter, TextReader, ZipWriter } from "@zip.js/zip.js";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -34,12 +34,12 @@ describe("extractTaskZip", () => {
 
   it("extracts valid entries under the output directory", async () => {
     const outputDir = TaskDirSchema.parse(
-      await fs.mkdtemp(path.join(os.tmpdir(), "extract-project-zip-")),
+      await fs.mkdtemp(path.join(os.tmpdir(), "extract-task-zip-")),
     );
     tempDirs.push(outputDir);
 
     const zipBlob = await createZipBlob([
-      { data: "{}", filename: PROJECT_MANIFEST_FILE_NAME },
+      { data: "{}", filename: TASK_MANIFEST_FILE_NAME },
       { data: "hello", filename: "notes/readme.txt" },
     ]);
 
@@ -56,13 +56,13 @@ describe("extractTaskZip", () => {
     "rejects zip entries that escape the output directory (%s)",
     async (filename) => {
       const outputDir = TaskDirSchema.parse(
-        await fs.mkdtemp(path.join(os.tmpdir(), "extract-project-zip-")),
+        await fs.mkdtemp(path.join(os.tmpdir(), "extract-task-zip-")),
       );
       tempDirs.push(outputDir);
 
       const outsidePath = path.resolve(outputDir, filename);
       const zipBlob = await createZipBlob([
-        { data: "{}", filename: PROJECT_MANIFEST_FILE_NAME },
+        { data: "{}", filename: TASK_MANIFEST_FILE_NAME },
         { data: "pwned", filename },
       ]);
 

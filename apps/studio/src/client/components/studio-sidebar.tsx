@@ -36,7 +36,7 @@ export function StudioSidebar({
   );
 
   const { data: favorites } = useQuery(
-    rpcClient.favorites.live.listProjects.experimental_liveOptions(),
+    rpcClient.favorites.live.listTasks.experimental_liveOptions(),
   );
 
   const { data: tasksData } = useQuery(
@@ -53,9 +53,7 @@ export function StudioSidebar({
       return tasksData?.tasks ?? [];
     }
 
-    return tasksData.tasks.filter(
-      (project) => !favoriteTaskIds.has(project.id),
-    );
+    return tasksData.tasks.filter((task) => !favoriteTaskIds.has(task.id));
   }, [tasksData, favorites, favoriteTaskIds]);
 
   return (
@@ -68,7 +66,7 @@ export function StudioSidebar({
             favoriteTaskIds={favoriteTaskIds}
             isFavorites
             matches={matches}
-            projects={favorites}
+            tasks={favorites}
             title="Favorites"
           />
         )}
@@ -77,7 +75,7 @@ export function StudioSidebar({
             favoriteTaskIds={favoriteTaskIds}
             isFavorites={false}
             matches={matches}
-            projects={filteredTasks}
+            tasks={filteredTasks}
             title="Tasks"
           />
         )}

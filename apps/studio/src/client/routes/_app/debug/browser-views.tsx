@@ -19,8 +19,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getDebugRoute } from "./-debug-routes";
 
 type Entry = Snapshot["entries"][number];
-type ProjectBrowser = Snapshot["projectBrowsers"][number];
 type Snapshot = RPCOutput["debug"]["browserViewManager"]["snapshot"];
+type TaskBrowser = Snapshot["taskBrowsers"][number];
 type Tone = "danger" | "muted" | "ok" | "warn";
 
 const toneClass: Record<Tone, string> = {
@@ -165,111 +165,6 @@ function Mono({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ProjectBrowserCard({
-  projectBrowser,
-}: {
-  projectBrowser: ProjectBrowser;
-}) {
-  const status = projectBrowserStatus(projectBrowser.state);
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader className="gap-2 space-y-0 pb-3">
-        <div className="flex min-w-0 items-start gap-2">
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <CardTitle className="truncate text-sm">
-              {projectBrowser.id}
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">{status.help}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          <StatusBadge label={status.label} tone={status.tone} />
-          {projectBrowser.pendingReapResolverCount > 0 && (
-            <StatusBadge
-              label={`${projectBrowser.pendingReapResolverCount} waiting`}
-              tone="warn"
-            />
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2 pt-0">
-        <Field label="Open pages">
-          {projectBrowser.knownTargets.length === 0 ? (
-            <span className="text-muted-foreground">none</span>
-          ) : (
-            <div className="space-y-1">
-              {projectBrowser.knownTargets.map(
-                (t: ProjectBrowser["knownTargets"][number]) => (
-                  <Mono key={t.sessionId}>
-                    <span className="text-muted-foreground">{t.sessionId}</span>
-                    {t.targetId ? ` → ${t.targetId}` : " (not yet attached)"}
-                  </Mono>
-                ),
-              )}
-            </div>
-          )}
-        </Field>
-        {projectBrowser.destroyedExternallyTargetIds.length > 0 && (
-          <Field label="Closed elsewhere">
-            <Mono>{projectBrowser.destroyedExternallyTargetIds.join(" ")}</Mono>
-          </Field>
-        )}
-
-        <Collapsible>
-          <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <CaretRightIcon className="size-3 transition-transform group-data-[state=open]:rotate-90" />
-            Internals
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2 space-y-2">
-            <Field label="Machine state">
-              <Mono>{projectBrowser.state}</Mono>
-            </Field>
-            <Field label="Profile dir">
-              <Mono>{projectBrowser.partitionDir ?? "(none)"}</Mono>
-            </Field>
-            <Field label="Watched">
-              {projectBrowser.watchedTargetIds.length === 0 ? (
-                <span className="text-muted-foreground">none</span>
-              ) : (
-                <Mono>{projectBrowser.watchedTargetIds.join(" ")}</Mono>
-              )}
-            </Field>
-          </CollapsibleContent>
-        </Collapsible>
-      </CardContent>
-    </Card>
-  );
-}
-
-function projectBrowserStatus(state: string): {
-  help: string;
-  label: string;
-  tone: Tone;
-} {
-  if (state.includes("Stopping")) {
-    return {
-      help: "Idle long enough to be cleaned up. Pages are being torn down.",
-      label: "shutting down",
-      tone: "warn",
-    };
-  }
-  if (state.includes("Stopped")) {
-    return {
-      help: "All browsers for this task have been reaped.",
-      label: "stopped",
-      tone: "danger",
-    };
-  }
-  if (state.includes("Active")) {
-    return {
-      help: "Agent or user is actively using a browser in this task.",
-      label: "running",
-      tone: "ok",
-    };
-  }
-  return { help: state, label: state, tone: "muted" };
-}
-
 function RouteComponent() {
   const { data } = useQuery(
     rpcClient.debug.browserViewManager.live.snapshot.experimental_liveOptions(),
@@ -316,17 +211,17 @@ function RouteComponent() {
 
         <section className="flex flex-col gap-2">
           <SectionHeader
-            count={data?.projectBrowsers.length}
+            count={data?.taskBrowsers.length}
             help="One per task. Tracks which sessions are watching, and reaps idle browsers after the cleanup delay."
             title="Cleanup machines"
           />
-          {data && data.projectBrowsers.length === 0 ? (
+          {data && data.taskBrowsers.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               No tasks have spawned a browser machine yet.
             </p>
           ) : (
-            data?.projectBrowsers.map((pb) => (
-              <ProjectBrowserCard key={pb.id} projectBrowser={pb} />
+            data?.taskBrowsers.map((pb) => (
+              <TaskBrowserCard key={pb.id} taskBrowser={pb} />
             ))
           )}
         </section>
@@ -361,4 +256,103 @@ function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
       {label}
     </Badge>
   );
+}
+
+function TaskBrowserCard({ taskBrowser }: { taskBrowser: TaskBrowser }) {
+  const status = taskBrowserStatus(taskBrowser.state);
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="gap-2 space-y-0 pb-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <CardTitle className="truncate text-sm">{taskBrowser.id}</CardTitle>
+            <p className="text-xs text-muted-foreground">{status.help}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <StatusBadge label={status.label} tone={status.tone} />
+          {taskBrowser.pendingReapResolverCount > 0 && (
+            <StatusBadge
+              label={`${taskBrowser.pendingReapResolverCount} waiting`}
+              tone="warn"
+            />
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2 pt-0">
+        <Field label="Open pages">
+          {taskBrowser.knownTargets.length === 0 ? (
+            <span className="text-muted-foreground">none</span>
+          ) : (
+            <div className="space-y-1">
+              {taskBrowser.knownTargets.map(
+                (t: TaskBrowser["knownTargets"][number]) => (
+                  <Mono key={t.sessionId}>
+                    <span className="text-muted-foreground">{t.sessionId}</span>
+                    {t.targetId ? ` → ${t.targetId}` : " (not yet attached)"}
+                  </Mono>
+                ),
+              )}
+            </div>
+          )}
+        </Field>
+        {taskBrowser.destroyedExternallyTargetIds.length > 0 && (
+          <Field label="Closed elsewhere">
+            <Mono>{taskBrowser.destroyedExternallyTargetIds.join(" ")}</Mono>
+          </Field>
+        )}
+
+        <Collapsible>
+          <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <CaretRightIcon className="size-3 transition-transform group-data-[state=open]:rotate-90" />
+            Internals
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-2">
+            <Field label="Machine state">
+              <Mono>{taskBrowser.state}</Mono>
+            </Field>
+            <Field label="Profile dir">
+              <Mono>{taskBrowser.partitionDir ?? "(none)"}</Mono>
+            </Field>
+            <Field label="Watched">
+              {taskBrowser.watchedTargetIds.length === 0 ? (
+                <span className="text-muted-foreground">none</span>
+              ) : (
+                <Mono>{taskBrowser.watchedTargetIds.join(" ")}</Mono>
+              )}
+            </Field>
+          </CollapsibleContent>
+        </Collapsible>
+      </CardContent>
+    </Card>
+  );
+}
+
+function taskBrowserStatus(state: string): {
+  help: string;
+  label: string;
+  tone: Tone;
+} {
+  if (state.includes("Stopping")) {
+    return {
+      help: "Idle long enough to be cleaned up. Pages are being torn down.",
+      label: "shutting down",
+      tone: "warn",
+    };
+  }
+  if (state.includes("Stopped")) {
+    return {
+      help: "All browsers for this task have been reaped.",
+      label: "stopped",
+      tone: "danger",
+    };
+  }
+  if (state.includes("Active")) {
+    return {
+      help: "Agent or user is actively using a browser in this task.",
+      label: "running",
+      tone: "ok",
+    };
+  }
+  return { help: state, label: state, tone: "muted" };
 }

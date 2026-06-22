@@ -53,16 +53,16 @@ function makeExecuteArgs(
     agentName: "main" as const,
     input,
     model,
-    projectState: {},
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
     taskId,
+    taskState: {},
   };
 }
 
 function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   mockFs({
-    [MOCK_WORKSPACE_DIRS.projects]: {
+    [MOCK_WORKSPACE_DIRS.tasks]: {
       [taskId]: {
         "grep-test.txt": GREP_FILE_CONTENT,
         ...files,

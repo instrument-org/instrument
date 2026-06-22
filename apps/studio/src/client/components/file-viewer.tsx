@@ -305,7 +305,7 @@ export function FileViewer({
   const contentRef = useRef<HTMLDivElement>(null);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
   const revealFileMutation = useMutation(
-    rpcClient.utils.showProjectFileInFolder.mutationOptions({
+    rpcClient.utils.showTaskFileInFolder.mutationOptions({
       onError: (error) => {
         const label = getRevealInFolderLabel();
         const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);

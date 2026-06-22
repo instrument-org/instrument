@@ -148,7 +148,7 @@ describe("llmRequestLogic", () => {
         provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
     });
 
-    const projectAppConfig = createMockTaskConfig(TaskIdSchema.parse(`mock`), {
+    const taskConfig = createMockTaskConfig(TaskIdSchema.parse(`mock`), {
       aiSDKModel: mockLanguageModel,
       model,
     });
@@ -158,7 +158,7 @@ describe("llmRequestLogic", () => {
         id: sessionId,
         title: "Test session",
       },
-      projectAppConfig,
+      taskConfig,
     );
 
     const machine = setup({
@@ -199,7 +199,7 @@ describe("llmRequestLogic", () => {
               self: { send: vi.fn() } as unknown as AnyActorRef,
               sessionId,
               stepCount: 1,
-              taskId: projectAppConfig,
+              taskId: taskConfig,
             }),
             onDone: "Done",
             onError: {
@@ -214,7 +214,7 @@ describe("llmRequestLogic", () => {
       },
     });
 
-    return { machine, mockLanguageModel, taskId: projectAppConfig };
+    return { machine, mockLanguageModel, taskId: taskConfig };
   }
 
   async function runTestMachine({

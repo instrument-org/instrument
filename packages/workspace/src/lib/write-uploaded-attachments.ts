@@ -108,8 +108,8 @@ export async function writeUploadedAttachments({
     }
 
     if (folders && folders.length > 0) {
-      const projectState = await getTaskState(dir);
-      const existingFolders = projectState.attachedFolders ?? {};
+      const taskState = await getTaskState(dir);
+      const existingFolders = taskState.attachedFolders ?? {};
 
       const newFolders: Record<string, FolderAttachment.Type> = {};
 

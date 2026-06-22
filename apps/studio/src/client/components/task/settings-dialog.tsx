@@ -41,7 +41,7 @@ function RenameForm({
   onOpenChange: (open: boolean) => void;
   task: Task;
 }) {
-  const { isPending, mutateAsync: updateProject } = useMutation(
+  const { isPending, mutateAsync: updateTask } = useMutation(
     rpcClient.workspace.task.update.mutationOptions({
       onError: (error) => {
         toast.error("Failed to rename task", {
@@ -56,7 +56,7 @@ function RenameForm({
       name: task.title,
     },
     onSubmit: async ({ value }) => {
-      await updateProject({
+      await updateTask({
         id: task.id,
         name: value.name,
       });

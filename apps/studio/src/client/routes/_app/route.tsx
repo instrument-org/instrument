@@ -19,9 +19,9 @@ const LazyFilePreviewModal = lazy(() =>
   })),
 );
 
-const LazyProjectFileViewerModal = lazy(() =>
+const LazyTaskFileViewerModal = lazy(() =>
   import("@/client/components/task/file-viewer-modal").then((module) => ({
-    default: module.ProjectFileViewerModal,
+    default: module.TaskFileViewerModal,
   })),
 );
 
@@ -52,7 +52,7 @@ const DevPanel = lazy(() =>
 function RouteComponent() {
   const isDeveloperMode = useDeveloperMode();
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
-  const isProjectFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
+  const isTaskFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
 
   useInvalidateRouterOnUserChange();
 
@@ -75,9 +75,9 @@ function RouteComponent() {
       <Suspense fallback={null}>
         <StudioCommandMenu />
       </Suspense>
-      {isProjectFileViewerOpen && (
+      {isTaskFileViewerOpen && (
         <Suspense fallback={null}>
-          <LazyProjectFileViewerModal />
+          <LazyTaskFileViewerModal />
         </Suspense>
       )}
       {isFilePreviewOpen && (

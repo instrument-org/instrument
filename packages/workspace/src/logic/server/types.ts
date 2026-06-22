@@ -18,7 +18,7 @@ export interface WorkspaceServerEnv {
 
 export type WorkspaceServerParentEvent =
   // Surfaced by the CDP bridge when an agent-browser daemon connects so the
-  // workspace's projectBrowser machine can track the originating session id
+  // workspace's taskBrowser machine can track the originating session id
   // for daemon-close fan-out at reap time.
   | {
       type: "workspaceServer.attachAgentSession";
@@ -26,7 +26,7 @@ export type WorkspaceServerParentEvent =
     }
   // Surfaced by the CDP bridge for every non-intercepted CDP command sent by
   // agent-browser. Acts as the agent-activity heartbeat that resets the
-  // projectBrowser machine's idle timer.
+  // taskBrowser machine's idle timer.
   | { type: "workspaceServer.error"; value: { error: Error } }
   | {
       type: "workspaceServer.heartbeat";

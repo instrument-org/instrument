@@ -84,7 +84,7 @@ Use these rules:
 
 1. Ignore `data:text/html,<body bgcolor=...>` style pages. That is the internal shield view.
 2. If you want the sidebar or shell chrome, pick the page whose URL contains `#/shell`.
-3. If you want the main app, pick a non-shell Studio route such as `#/projects/...`, `#/debug/...`, or another `#/...` page that is not `#/shell`.
+3. If you want the main app, pick a non-shell Studio route such as `#/tasks/...`, `#/debug/...`, or another `#/...` page that is not `#/shell`.
 4. If multiple candidate pages exist, prefer the one whose URL matches the route the user is looking at right now.
 5. After selecting a page, immediately run `take_snapshot` to confirm you landed in the right renderer.
 

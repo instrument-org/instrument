@@ -93,7 +93,18 @@ export function createSystemMessage({
   };
 }
 
-export async function getProjectLayoutContext(dir: AbsolutePath) {
+export function getSystemInfoText() {
+  const now = getCurrentDate();
+  return dedent`
+    <system_info>
+    Host operating system: ${getSystemInfo()}
+    Shell environment: unix-like (POSIX), regardless of the host OS.
+    Current date: ${now.toLocaleDateString("en-US", { day: "numeric", month: "long", weekday: "long", year: "numeric" })}
+    </system_info>
+  `.trim();
+}
+
+export async function getTaskLayoutContext(dir: AbsolutePath) {
   const fileTreeResult = await fileTree(dir);
 
   return fileTreeResult.match(
@@ -107,17 +118,6 @@ export async function getProjectLayoutContext(dir: AbsolutePath) {
     `,
     () => "",
   );
-}
-
-export function getSystemInfoText() {
-  const now = getCurrentDate();
-  return dedent`
-    <system_info>
-    Host operating system: ${getSystemInfo()}
-    Shell environment: unix-like (POSIX), regardless of the host OS.
-    Current date: ${now.toLocaleDateString("en-US", { day: "numeric", month: "long", weekday: "long", year: "numeric" })}
-    </system_info>
-  `.trim();
 }
 
 export function shouldContinueWithToolCalls({

@@ -10,7 +10,7 @@ import {
   getCurrentTaskFiles,
   startWatchingTaskFiles,
 } from "../../../lib/task-file-watcher";
-import { RelativeProjectPathSchema } from "../../../schemas/paths";
+import { RelativeTaskPathSchema } from "../../../schemas/paths";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
@@ -42,7 +42,7 @@ const list = base
 const fileInfo = base
   .input(
     z.object({
-      filePath: RelativeProjectPathSchema,
+      filePath: RelativeTaskPathSchema,
       taskId: TaskIdSchema,
     }),
   )

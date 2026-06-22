@@ -17,23 +17,23 @@ import { InternalLink } from "./internal-link";
 import { NavTaskItem } from "./nav-task-item";
 
 const FAVORITES_LIMIT = 5;
-const PROJECT_ITEM_HEIGHT = 36;
-const PROJECT_ITEM_GAP = 2;
-const PROJECT_ROW_HEIGHT = PROJECT_ITEM_HEIGHT + PROJECT_ITEM_GAP;
+const TASK_ITEM_HEIGHT = 36;
+const TASK_ITEM_GAP = 2;
+const TASK_ROW_HEIGHT = TASK_ITEM_HEIGHT + TASK_ITEM_GAP;
 
 export function NavTasks({
   favoriteTaskIds,
   isFavorites,
   matches,
-  projects,
   sortFavoritesBy = "activity",
+  tasks,
   title,
 }: {
   favoriteTaskIds: Set<string>;
   isFavorites: boolean;
   matches: MakeRouteMatchUnion[];
-  projects: Task[];
   sortFavoritesBy?: "activity" | "added";
+  tasks: Task[];
   title: string;
 }) {
   const { addTab } = useTabActions();
@@ -52,14 +52,12 @@ export function NavTasks({
     removeFavorite({ id });
   };
 
-  const projectsMatch = matches.find(
-    (match) => match.routeId === "/_app/tasks/",
-  );
+  const tasksMatch = matches.find((match) => match.routeId === "/_app/tasks/");
 
-  const isProjectsPage = projectsMatch !== undefined;
-  const currentFilter = projectsMatch?.search.filter ?? "all";
+  const isTasksPage = tasksMatch !== undefined;
+  const currentFilter = tasksMatch?.search.filter ?? "all";
 
-  const isActive = isProjectsPage
+  const isActive = isTasksPage
     ? isFavorites
       ? currentFilter === "favorites"
       : currentFilter === "all"
@@ -67,13 +65,13 @@ export function NavTasks({
 
   const visibleFavorites = isFavorites
     ? sortFavoritesBy === "activity"
-      ? projects.slice(0, FAVORITES_LIMIT)
-      : projects.slice(-FAVORITES_LIMIT)
-    : projects;
+      ? tasks.slice(0, FAVORITES_LIMIT)
+      : tasks.slice(-FAVORITES_LIMIT)
+    : tasks;
 
-  const hasMoreFavorites = isFavorites && projects.length > FAVORITES_LIMIT;
+  const hasMoreFavorites = isFavorites && tasks.length > FAVORITES_LIMIT;
 
-  const isProjectActive = (id: string) =>
+  const isTaskActive = (id: string) =>
     matches.some(
       (match) => match.routeId === "/_app/tasks/$id/" && match.params.id === id,
     );
@@ -98,15 +96,15 @@ export function NavTasks({
       <SidebarMenu className="gap-0.5">
         {isFavorites ? (
           <>
-            {visibleFavorites.map((project) => (
+            {visibleFavorites.map((task) => (
               <NavTaskItem
-                isActive={isProjectActive(project.id)}
-                isFavorited={favoriteTaskIds.has(project.id)}
+                isActive={isTaskActive(task.id)}
+                isFavorited={favoriteTaskIds.has(task.id)}
                 isFavorites
-                key={project.id}
+                key={task.id}
                 onOpenInNewTab={handleOpenInNewTab}
                 onRemoveFavorite={handleRemoveFavorite}
-                project={project}
+                task={task}
               />
             ))}
             {hasMoreFavorites && (
@@ -124,11 +122,11 @@ export function NavTasks({
             )}
           </>
         ) : (
-          <ProjectsList
+          <TasksList
             favoriteTaskIds={favoriteTaskIds}
             matches={matches}
             onOpenInNewTab={handleOpenInNewTab}
-            projects={projects}
+            tasks={tasks}
           />
         )}
       </SidebarMenu>
@@ -136,16 +134,16 @@ export function NavTasks({
   );
 }
 
-function ProjectsList({
+function TasksList({
   favoriteTaskIds,
   matches,
   onOpenInNewTab,
-  projects,
+  tasks,
 }: {
   favoriteTaskIds: Set<string>;
   matches: MakeRouteMatchUnion[];
   onOpenInNewTab: (id: TaskId) => void;
-  projects: Task[];
+  tasks: Task[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
@@ -176,25 +174,24 @@ function ProjectsList({
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
-    count: projects.length,
-    estimateSize: () => PROJECT_ROW_HEIGHT,
+    count: tasks.length,
+    estimateSize: () => TASK_ROW_HEIGHT,
     getScrollElement: () => scrollElement,
     overscan: 5,
     scrollMargin,
   });
 
-  const projectStates = useMemo(
+  const taskStates = useMemo(
     () =>
-      projects.map((project) => ({
-        id: project.id,
+      tasks.map((task) => ({
+        id: task.id,
         isActive: matches.some(
           (match) =>
-            match.routeId === "/_app/tasks/$id/" &&
-            match.params.id === project.id,
+            match.routeId === "/_app/tasks/$id/" && match.params.id === task.id,
         ),
-        isFavorited: favoriteTaskIds.has(project.id),
+        isFavorited: favoriteTaskIds.has(task.id),
       })),
-    [projects, matches, favoriteTaskIds],
+    [tasks, matches, favoriteTaskIds],
   );
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -205,16 +202,16 @@ function ProjectsList({
       style={{ height: virtualizer.getTotalSize(), position: "relative" }}
     >
       {virtualItems.map((virtualItem) => {
-        const project = projects[virtualItem.index];
-        const state = projectStates[virtualItem.index];
-        if (!project || !state) {
+        const task = tasks[virtualItem.index];
+        const state = taskStates[virtualItem.index];
+        if (!task || !state) {
           return null;
         }
         return (
           <div
             key={virtualItem.key}
             style={{
-              height: PROJECT_ITEM_HEIGHT,
+              height: TASK_ITEM_HEIGHT,
               left: 0,
               position: "absolute",
               top: 0,
@@ -227,7 +224,7 @@ function ProjectsList({
               isFavorited={state.isFavorited}
               isFavorites={false}
               onOpenInNewTab={onOpenInNewTab}
-              project={project}
+              task={task}
             />
           </div>
         );

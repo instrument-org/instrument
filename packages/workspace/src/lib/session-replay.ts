@@ -134,17 +134,17 @@ export async function executeSessionReplay({
   }
 }
 
-export async function prepareProjectReplay({
+export async function prepareTaskReplay({
   sessionNamePrefix,
   signal,
   sourceMessages,
-  sourceProjectName,
+  sourceTaskName,
   workspaceConfig,
 }: {
   sessionNamePrefix: string;
   signal?: AbortSignal;
   sourceMessages: SessionMessage.WithParts[];
-  sourceProjectName: string;
+  sourceTaskName: string;
   workspaceConfig: WorkspaceConfig;
 }) {
   return safeTry(async function* () {
@@ -152,7 +152,7 @@ export async function prepareProjectReplay({
 
     yield* await initializeTask(
       {
-        initialManifest: { name: `Replay of ${sourceProjectName}` },
+        initialManifest: { name: `Replay of ${sourceTaskName}` },
         taskId,
         templateName: DEFAULT_TEMPLATE_NAME,
         workspaceConfig,

@@ -36,8 +36,8 @@ function RouteComponent() {
     (s) => s.id === selectedSessionId,
   );
 
-  const mockProject = {
-    id: "debug-project",
+  const mockTask = {
+    id: "debug-task",
     urls: { assetBase: "" },
   };
 
@@ -81,7 +81,7 @@ function RouteComponent() {
                 onModelChange={createEventHandler("Model Change")}
                 onRetry={createEventHandler("Retry")}
                 onStartNewChat={createEventHandler("Start New Chat")}
-                task={mockProject as never}
+                task={mockTask as never}
               />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

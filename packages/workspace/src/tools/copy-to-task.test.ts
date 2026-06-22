@@ -45,10 +45,10 @@ function baseExecuteArgs() {
   return {
     agentName: "retrieval" as const,
     model,
-    projectState: { attachedFolders },
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
     taskId: createTmpAppConfig(),
+    taskState: { attachedFolders },
   };
 }
 
@@ -270,7 +270,7 @@ describe("CopyToTask", () => {
       const result = await runTool(TOOLS.CopyToTask, {
         ...baseExecuteArgs(),
         input: { path: FIXTURES_PATH, pattern: "*.txt" },
-        projectState: {},
+        taskState: {},
       });
 
       expect(result._unsafeUnwrapErr().message).toContain(
@@ -456,7 +456,7 @@ describe("CopyToTask", () => {
       const result = await runTool(TOOLS.CopyToTask, {
         ...baseExecuteArgs(),
         input: { path: nestedPath, pattern: "*.txt" },
-        projectState: { attachedFolders: nestedAttachedFolders },
+        taskState: { attachedFolders: nestedAttachedFolders },
       });
       const output = result._unsafeUnwrap();
 

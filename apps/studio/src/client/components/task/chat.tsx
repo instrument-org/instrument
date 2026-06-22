@@ -46,10 +46,10 @@ export function TaskChat({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Use the route id for chat data; project may be placeholder data
-  // from the previous project while keepPreviousData is active.
+  // Use the route id for chat data; task may be placeholder data
+  // from the previous task while keepPreviousData is active.
   const id = useTaskRouteId();
-  // TODO: Stop passing the entire project object down and rely just on the
+  // TODO: Stop passing the entire task object down and rely just on the
   // id as much as possible to keep this from being an issue.
   const isTaskRouteSettled = task.id === id;
 

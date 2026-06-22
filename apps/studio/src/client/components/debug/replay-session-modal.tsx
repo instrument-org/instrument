@@ -25,7 +25,7 @@ import { toast } from "sonner";
 
 type PlaybackSpeed = "instant" | "normal" | "slow";
 
-type ReplayMode = "new-project" | "new-session";
+type ReplayMode = "new-session" | "new-task";
 
 const PLAYBACK_SPEEDS: {
   delayMs: number;
@@ -137,7 +137,7 @@ export function ReplaySessionModal({
                 <RadioGroupItem id="mode-new-session" value="new-session" />
               </Field>
             </FieldLabel>
-            <FieldLabel htmlFor="mode-new-project">
+            <FieldLabel htmlFor="mode-new-task">
               <Field orientation="horizontal">
                 <FieldContent>
                   <FieldTitle>New task</FieldTitle>
@@ -146,7 +146,7 @@ export function ReplaySessionModal({
                     &quot; and runs the tools there.
                   </FieldDescription>
                 </FieldContent>
-                <RadioGroupItem id="mode-new-project" value="new-project" />
+                <RadioGroupItem id="mode-new-task" value="new-task" />
               </Field>
             </FieldLabel>
           </RadioGroup>

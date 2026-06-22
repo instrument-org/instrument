@@ -69,7 +69,7 @@ function makeBrowser(): BrowserConfig {
   };
 }
 
-const id = TaskIdSchema.parse("test-project");
+const id = TaskIdSchema.parse("test-task");
 const partitionDir = "/tmp/partition" as AbsolutePath;
 
 interface Harness {
@@ -262,7 +262,7 @@ describe("taskBrowserMachine", () => {
     expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledTimes(1);
   });
 
-  it("closes one view per session for multi-session projects", async () => {
+  it("closes one view per session for multi-session tasks", async () => {
     const { actor, browser } = spawnHarness();
     const sessionB = StoreId.newSessionId();
     const targetB: BrowserTargetId = encodeBrowserTargetId(id, sessionB);

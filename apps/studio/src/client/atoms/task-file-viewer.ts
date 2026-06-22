@@ -10,19 +10,19 @@ export interface TaskFileViewerFile {
   url: string;
 }
 
-interface ProjectFileViewerState {
+interface TaskFileViewerState {
   currentIndex: number;
   files: TaskFileViewerFile[];
   isModalOpen: boolean;
 }
 
-const initialState: ProjectFileViewerState = {
+const initialState: TaskFileViewerState = {
   currentIndex: 0,
   files: [],
   isModalOpen: false,
 };
 
-export const taskFileViewerAtom = atom<ProjectFileViewerState>(initialState);
+export const taskFileViewerAtom = atom<TaskFileViewerState>(initialState);
 
 export const openFileViewerAtom = atom(
   null,

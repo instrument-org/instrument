@@ -12,7 +12,7 @@ import { getCurrentDate } from "../../lib/get-current-date";
 import {
   createReplaySession,
   executeSessionReplay,
-  prepareProjectReplay,
+  prepareTaskReplay,
   type ReplayMessage,
 } from "../../lib/session-replay";
 import { type SpawnAgentFunction } from "../../lib/spawn-agent";
@@ -30,7 +30,7 @@ const replaySession = base
     z.object({
       delayMs: z.number().int().min(0).default(0),
       id: TaskIdSchema,
-      mode: z.enum(["new-project", "new-session"]).default("new-project"),
+      mode: z.enum(["new-task", "new-session"]).default("new-task"),
       sessionId: StoreId.SessionSchema,
     }),
   )
@@ -77,15 +77,15 @@ const replaySession = base
     let newSessionId: StoreId.Session;
     let replayMessages: ReplayMessage[];
 
-    if (mode === "new-project") {
+    if (mode === "new-task") {
       const sourceManifest = await getTaskManifest(taskDir(sourceAppConfig));
-      const sourceProjectName = sourceManifest?.name ?? id;
+      const sourceTaskName = sourceManifest?.name ?? id;
 
-      const prepareResult = await prepareProjectReplay({
+      const prepareResult = await prepareTaskReplay({
         sessionNamePrefix: REPLAY_SESSION_NAME_PREFIX,
         signal,
         sourceMessages,
-        sourceProjectName,
+        sourceTaskName,
         workspaceConfig,
       });
       if (prepareResult.isErr()) {

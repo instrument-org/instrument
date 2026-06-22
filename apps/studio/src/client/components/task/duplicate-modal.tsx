@@ -34,11 +34,11 @@ export function DuplicateTaskModal({
           description: error.message,
         });
       },
-      onSuccess: (duplicatedProject) => {
+      onSuccess: (duplicatedTask) => {
         onClose();
 
         void addTab({
-          params: { id: duplicatedProject.id },
+          params: { id: duplicatedTask.id },
           to: "/tasks/$id",
         });
       },

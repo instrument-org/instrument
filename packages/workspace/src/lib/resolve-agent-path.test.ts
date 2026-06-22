@@ -96,7 +96,7 @@ describe("applyUnicodeFallbacks", () => {
 });
 
 describe("resolveToolPath", () => {
-  const dir = TaskDirSchema.parse(path.join("/tmp", "project"));
+  const dir = TaskDirSchema.parse(path.join("/tmp", "task"));
 
   it.each([
     {
@@ -118,7 +118,7 @@ describe("resolveToolPath", () => {
       if (result.isOk()) {
         expect(result.value.displayPath).toBe(displayPath);
         expect(result.value.absolutePath).toBe(
-          path.join("/tmp", "project", displayPath),
+          path.join("/tmp", "task", displayPath),
         );
       }
     },

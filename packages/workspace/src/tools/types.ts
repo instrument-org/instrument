@@ -35,11 +35,11 @@ export interface AgentTool<
     messageId: StoreId.Message;
     model: AIGatewayModel.Type;
     partId: StoreId.Part;
-    projectState: TaskState;
     sessionId: StoreId.Session;
     signal: AbortSignal;
     spawnAgent: SpawnAgentFunction;
     taskId: TaskId;
+    taskState: TaskState;
   }) =>
     | AsyncGenerator<ExecuteResult<z.output<TOutputSchema>>>
     | Promise<ExecuteResult<z.output<TOutputSchema>>>;

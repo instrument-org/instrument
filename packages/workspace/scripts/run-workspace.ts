@@ -18,7 +18,7 @@ import { createActor } from "xstate";
 import { type TaskId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
 import { message as messageRoute } from "../src/rpc/routes/message";
-import { task as projectRoute } from "../src/rpc/routes/task";
+import { task as taskRoute } from "../src/rpc/routes/task";
 import { type StoreId } from "../src/schemas/store-id";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { env } from "./lib/env";
@@ -262,16 +262,16 @@ rl.on("line", (input) => {
       });
     } else {
       void call(
-        projectRoute.create,
+        taskRoute.create,
         {
           files,
           modelURI: MODEL_URI,
           prompt,
         },
         { context },
-      ).then((newProject) => {
-        taskId = newProject.id;
-        savedSessionId = newProject.sessionId;
+      ).then((newTask) => {
+        taskId = newTask.id;
+        savedSessionId = newTask.sessionId;
       });
     }
   }

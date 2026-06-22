@@ -47,7 +47,7 @@ const devSubTriggerClass =
 const devSubItemClass =
   "text-dev-700 focus:bg-dev-500/10 focus:text-dev-700 dark:text-dev-300 dark:focus:text-dev-300 [&_svg]:text-dev-700! dark:[&_svg]:text-dev-300!";
 
-export function ProjectOpenInSubmenu({ id }: { id: TaskId }) {
+export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
   const { data: supportedEditors = [] } = useQuery<SupportedEditor[]>(
     rpcClient.utils.getSupportedEditors.queryOptions(),
   );

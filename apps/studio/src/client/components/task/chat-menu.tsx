@@ -59,18 +59,18 @@ const chatSessionRadioItemClassName =
 
 export function TaskChatMenu({
   onChatClick,
-  projectTitle,
   selectedSessionId,
   sidebar,
+  taskTitle,
 }: {
   onChatClick: () => void;
-  projectTitle: string;
   selectedSessionId?: StoreId.Session;
   sidebar: "chat" | "files";
+  taskTitle: string;
 }) {
   const navigate = useNavigate();
-  // Use the route id for session data; project may be placeholder data
-  // from the previous project while keepPreviousData is active.
+  // Use the route id for session data; task may be placeholder data
+  // from the previous task while keepPreviousData is active.
   const id = useTaskRouteId();
 
   const { data: sessions = [] } = useQuery(
@@ -101,7 +101,7 @@ export function TaskChatMenu({
     selectedSessionId && sessions.find((s) => s.id === selectedSessionId);
   const chatMenuTitle =
     selectedSessionId === undefined
-      ? projectTitle
+      ? taskTitle
       : (selectedSession?.title ?? "Untitled chat");
 
   const handleNewChat = () => {

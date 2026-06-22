@@ -5,7 +5,7 @@ export function useToggleCommandMenu(onToggle: () => void) {
   useEffect(() => {
     let isCancelled = false;
 
-    async function subscribeToToggleProjectLauncher() {
+    async function subscribeToToggleTaskLauncher() {
       const subscription = await rpcClient.utils.live.toggleCommandMenu.call();
 
       for await (const _ of subscription) {
@@ -17,7 +17,7 @@ export function useToggleCommandMenu(onToggle: () => void) {
       }
     }
 
-    void subscribeToToggleProjectLauncher();
+    void subscribeToToggleTaskLauncher();
 
     return () => {
       isCancelled = true;

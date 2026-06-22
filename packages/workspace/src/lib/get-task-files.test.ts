@@ -1,4 +1,4 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -17,7 +17,7 @@ describe("getTaskFileIndex", () => {
   let dir: ReturnType<typeof TaskDirSchema.parse>;
 
   beforeEach(async () => {
-    appDirPath = await fs.mkdtemp(path.join(os.tmpdir(), "project-files-"));
+    appDirPath = await fs.mkdtemp(path.join(os.tmpdir(), "task-files-"));
     dir = TaskDirSchema.parse(appDirPath);
 
     await fs.mkdir(path.join(appDirPath, "output"), { recursive: true });
@@ -75,7 +75,7 @@ describe("getTaskFileIndex", () => {
       await fs.writeFile(path.join(appDirPath, subdir, file), "internal");
     }
 
-    await fs.writeFile(path.join(appDirPath, PROJECT_MANIFEST_FILE_NAME), "{}");
+    await fs.writeFile(path.join(appDirPath, TASK_MANIFEST_FILE_NAME), "{}");
     await fs.writeFile(path.join(appDirPath, "pnpm-lock.yaml"), "lockfile");
 
     const result = await getTaskFileIndex(dir);
@@ -89,7 +89,7 @@ describe("getTaskFileIndex", () => {
     for (const { subdir } of internalEntries) {
       expect(filePaths.some((p) => p.startsWith(`${subdir}/`))).toBe(false);
     }
-    expect(filePaths).not.toContain(PROJECT_MANIFEST_FILE_NAME);
+    expect(filePaths).not.toContain(TASK_MANIFEST_FILE_NAME);
     expect(filePaths).not.toContain("pnpm-lock.yaml");
   });
 

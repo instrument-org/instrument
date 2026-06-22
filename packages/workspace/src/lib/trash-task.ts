@@ -29,7 +29,7 @@ export async function trashTask({
 }: RemoveTaskOptions) {
   return ResultAsync.fromPromise(
     (async () => {
-      // Block until every projectBrowser for this id has fully reaped
+      // Block until every taskBrowser for this id has fully reaped
       // its WebContentsView and agent-browser daemon sessions, so the
       // Chromium profile is no longer locked when we delete the app dir.
       const browserReaped = new Promise<void>((resolve) => {
@@ -69,7 +69,7 @@ export async function trashTask({
 
         await workspaceConfig.trashItem(taskDir(taskId));
 
-        // In the off chance that a future project with the same id is
+        // In the off chance that a future task with the same id is
         // created, we remove the app being trashed.
         workspaceRef.send({
           type: "removeAppBeingTrashed",

@@ -12,9 +12,10 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## Product terminology
 
-- User/agent-facing copy calls the user's unit of work a **task**.
-- Internal code may still say `project` for routes, RPC, telemetry, types,
-  folders, and tool names. Keep those unless migrating the API/data model.
+- The user's unit of work is a **task** everywhere: copy, code, routes, RPC,
+  telemetry, types, and tool names.
+- The only remaining `project` references are on-disk layout (the `projects/`
+  directory and `project-state.json`), kept until the data migration lands.
 
 ## Registry Submodule
 

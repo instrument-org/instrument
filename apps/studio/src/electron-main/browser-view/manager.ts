@@ -199,7 +199,7 @@ export function createBrowserViewManager(): BrowserViewManager {
 
     // Renderer crash: today only `handleDetach` was called via the debugger
     // detach event (and only sometimes, depending on how the renderer dies).
-    // Force a full entry teardown so the projectBrowser machine reaps.
+    // Force a full entry teardown so the taskBrowser machine reaps.
     wc.on("render-process-gone", () => {
       destroyEntry(entries, targetId);
       notifyDebugChange();

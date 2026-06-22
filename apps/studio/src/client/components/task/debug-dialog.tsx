@@ -28,7 +28,7 @@ const MAX_DISPLAY_SIZE = 1_000_000;
 
 type DebugTab = "json" | "markdown";
 
-export function ProjectDebugDialog({
+export function TaskDebugDialog({
   onOpenChange,
   open,
   selectedSessionId,

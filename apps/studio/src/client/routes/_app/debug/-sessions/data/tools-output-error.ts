@@ -105,11 +105,10 @@ registerSession({
           type: "tool-task",
         }),
         builder.toolPart(assistantMessageId, "output-error", {
-          errorText:
-            "Source path does not exist: /Users/user/nonexistent-project",
+          errorText: "Source path does not exist: /Users/user/nonexistent-task",
           input: {
             explanation: "Copy files from missing folder",
-            path: "/Users/user/nonexistent-project",
+            path: "/Users/user/nonexistent-task",
             pattern: "*.json",
           },
           type: "tool-copy_to_task",

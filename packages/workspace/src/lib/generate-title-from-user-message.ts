@@ -11,7 +11,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { isNonRetryableGatewayError } from "./gateway-response-body";
-import { PROJECT_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
+import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { textForMessage } from "./text-for-message";
 
 const MAX_TITLE_WORDS = 5;
@@ -50,7 +50,7 @@ export function generateTitleFromUserMessage({
       const aiSDKModel = aiSDKModelResult.value;
 
       const title = await generateText({
-        maxOutputTokens: PROJECT_NAME_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: TASK_NAME_MAX_OUTPUT_TOKENS,
         model: aiSDKModel,
         prompt: userMessage,
         system: buildSystemPrompt(templateTitle),
@@ -71,7 +71,7 @@ export function generateTitleFromUserMessage({
       );
       cleanedTitle = cleanedTitle.replaceAll(/^["'`]+|["'`]+$/g, "");
       cleanedTitle = cleanedTitle.replace(
-        /^\s*(?:title|name|project|app):\s*/i,
+        /^\s*(?:title|name|task|app):\s*/i,
         "",
       );
       cleanedTitle = cleanedTitle.trim();
@@ -114,7 +114,7 @@ function buildSystemPrompt(templateTitle?: string): string {
   const appExamples = dedent`
     "Build me a calculator app" → Calculator app
     "Create a todo list with drag and drop" → Todo list
-    "Make a kanban board for project management" → Kanban board`;
+    "Make a kanban board for task management" → Kanban board`;
 
   const examples = dedent`
   <examples>

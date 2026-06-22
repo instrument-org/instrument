@@ -19,7 +19,7 @@ import {
 } from "@/shared/schemas/editors";
 import {
   readTaskFile,
-  RelativeProjectPathSchema,
+  RelativeTaskPathSchema,
   resolvePathWithinTaskDir,
   taskDir,
   TaskIdSchema,
@@ -279,7 +279,7 @@ const showFileInFolder = base
     }
   });
 
-const showProjectFileInFolder = base
+const showTaskFileInFolder = base
   .errors({
     FILE_NOT_FOUND: {
       message: "File not found",
@@ -290,7 +290,7 @@ const showProjectFileInFolder = base
   })
   .input(
     z.object({
-      filePath: RelativeProjectPathSchema,
+      filePath: RelativeTaskPathSchema,
       id: TaskIdSchema,
     }),
   )
@@ -418,7 +418,7 @@ const live = {
   }),
 };
 
-const copyProjectPathToClipboard = base
+const copyTaskPathToClipboard = base
   .input(
     z.object({
       id: TaskIdSchema,
@@ -436,7 +436,7 @@ const copyFileToClipboard = base
   })
   .input(
     z.object({
-      filePath: RelativeProjectPathSchema,
+      filePath: RelativeTaskPathSchema,
       id: TaskIdSchema,
       isImage: z.boolean(),
     }),
@@ -480,7 +480,7 @@ const showFolderPicker = base
 export const utils = {
   clearExceptions,
   copyFileToClipboard,
-  copyProjectPathToClipboard,
+  copyTaskPathToClipboard,
   exportZip,
   getSupportedEditors,
   live,
@@ -489,5 +489,5 @@ export const utils = {
   openFolder,
   showFileInFolder,
   showFolderPicker,
-  showProjectFileInFolder,
+  showTaskFileInFolder,
 };

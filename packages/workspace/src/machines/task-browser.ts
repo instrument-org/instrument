@@ -35,7 +35,7 @@ interface TaskBrowserContext {
   // close) so the reap path skips closeTarget but still cleans daemons.
   destroyedExternallyTargets: Set<BrowserTargetId>;
   id: TaskId;
-  // Per-project map of (sessionId -> live target id). Value is undefined
+  // Per-task map of (sessionId -> live target id). Value is undefined
   // for sessions seeded by `attachAgentSession` before any updateCdpHeartbeat
   // observed a real target id; the next updateCdpHeartbeat fills it in. We still
   // record the session so daemon cleanup runs even if no CDP traffic was

@@ -20,7 +20,7 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import { REGISTRY_FOLDER_NAMES } from "../../constants";
+import { REGISTRY_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { isTaskId } from "../../lib/is-task-id";
@@ -367,7 +367,7 @@ export const workspaceMachine = setup({
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
-      tasksDir: absolutePathJoin(rootDir, "tasks"),
+      tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       templatesDir: absolutePathJoin(
         registryDir,
         REGISTRY_FOLDER_NAMES.templates,

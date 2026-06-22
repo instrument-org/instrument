@@ -18,6 +18,8 @@ export const TASK_FOLDER_NAMES = {
   tmp: "tmp",
   userProvided: "user-provided",
 } as const;
+// The per-workspace directory holding every task folder: <root>/tasks/<id>/.
+export const TASKS_DIR_NAME = "tasks";
 // Per-task SQLite store (sessions + selected model + prompt drafts), in the
 // task's `.instrument/` private dir. Renamed from the legacy `sessions.db`.
 export const STORE_DB_FILE_NAME = "store.db";

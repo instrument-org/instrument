@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { TASKS_DIR_NAME } from "../constants";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
@@ -23,7 +24,7 @@ let workspaceConfig: WorkspaceConfig;
 
 async function setupTask() {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "watcher-test-"));
-  const tasksDir = path.join(root, "tasks");
+  const tasksDir = path.join(root, TASKS_DIR_NAME);
   dir = path.join(tasksDir, id);
   await fs.mkdir(path.join(dir, "sub"), { recursive: true });
   // createMockTaskConfig publishes the singleton; point it at the temp dir so

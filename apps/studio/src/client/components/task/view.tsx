@@ -8,8 +8,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/client/components/ui/resizable";
-import { useAssetBaseUrl } from "@/client/hooks/use-asset-base-url";
 import { useReload } from "@/client/hooks/use-reload";
+import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
@@ -61,7 +61,7 @@ export function TaskView({
 }) {
   const navigate = useNavigate();
   const openFileViewer = useSetAtom(openFileViewerAtom);
-  const assetBaseUrl = useAssetBaseUrl(task.id);
+  const assetBaseUrl = getAssetBaseUrl(task.id);
 
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.status.experimental_liveOptions({

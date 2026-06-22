@@ -52,9 +52,7 @@ const DevPanel = lazy(() =>
 function RouteComponent() {
   const isDeveloperMode = useDeveloperMode();
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
-  const isProjectFileViewerOpen = useAtomValue(
-    taskFileViewerAtom,
-  ).isModalOpen;
+  const isProjectFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
 
   useInvalidateRouterOnUserChange();
 

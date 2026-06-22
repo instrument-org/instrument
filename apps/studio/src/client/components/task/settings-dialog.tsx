@@ -28,11 +28,7 @@ export function TaskSettingsDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
-        <RenameForm
-          key={task.id}
-          onOpenChange={onOpenChange}
-          task={task}
-        />
+        <RenameForm key={task.id} onOpenChange={onOpenChange} task={task} />
       </DialogContent>
     </Dialog>
   );

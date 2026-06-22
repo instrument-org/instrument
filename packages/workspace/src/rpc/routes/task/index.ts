@@ -8,8 +8,7 @@ import { defaultTaskName } from "../../../lib/default-task-name";
 import { duplicateTask } from "../../../lib/duplicate-task";
 import { exportTaskZip } from "../../../lib/export-task-zip";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
-import { getTask } from "../../../lib/get-task";
-import { findTask, getTasks } from "../../../lib/get-tasks";
+import { getTask, getTasks } from "../../../lib/get-tasks";
 import { importTask as importTaskLib } from "../../../lib/import-task";
 import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
@@ -47,7 +46,7 @@ const byId = base
   .input(z.object({ id: TaskIdSchema }))
   .output(TaskSchema)
   .handler(async ({ context, errors, input }) => {
-    const result = await findTask(input.id, context.workspaceConfig);
+    const result = await getTask(input.id, context.workspaceConfig);
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
@@ -75,7 +74,7 @@ const byIds = base
   .handler(async ({ context, errors, input }) => {
     const results = [];
     for (const id of input.ids) {
-      const result = await findTask(id, context.workspaceConfig);
+      const result = await getTask(id, context.workspaceConfig);
       if (result.isErr()) {
         if (result.error.type === "workspace-not-found-error") {
           results.push({
@@ -350,11 +349,18 @@ const duplicate = base
         id: result.value.taskId,
       });
 
-      const task = await getTask(result.value.taskId);
+      const taskResult = await getTask(
+        result.value.taskId,
+        context.workspaceConfig,
+      );
+      if (taskResult.isErr()) {
+        context.workspaceConfig.captureException(taskResult.error);
+        throw toORPCError(taskResult.error, errors);
+      }
 
       context.workspaceConfig.captureEvent("task.forked");
 
-      return task;
+      return taskResult.value;
     },
   );
 

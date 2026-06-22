@@ -6,9 +6,7 @@ import { TaskManifestSchema } from "./task-manifest";
 // The loaded representation of a task: id + metadata read from disk. This is
 // the "full thing" the client fetches when it needs more than an id.
 export const TaskSchema = z.object({
-  assetBase: z.string(),
   createdAt: z.date(),
-  description: TaskManifestSchema.shape.description.optional(),
   iconName: TaskManifestSchema.shape.iconName.optional(),
   id: TaskIdSchema,
   title: z.string(),

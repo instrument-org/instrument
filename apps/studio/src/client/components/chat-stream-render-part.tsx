@@ -18,6 +18,7 @@ import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
 
 export interface RenderPartContext {
+  assetBaseUrl: string;
   hideUserMessages: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
@@ -55,7 +56,7 @@ export function renderChatPart({
       case "assistant": {
         return (
           <AssistantMessage
-            assetBaseUrl={ctx.task.assetBase}
+            assetBaseUrl={ctx.assetBaseUrl}
             key={part.metadata.id}
             part={part}
           />
@@ -89,7 +90,7 @@ export function renderChatPart({
   if (part.type === "data-fileChanges") {
     return (
       <FileChangesCard
-        assetBaseUrl={ctx.task.assetBase}
+        assetBaseUrl={ctx.assetBaseUrl}
         className="mt-2"
         files={part.data.files}
         key={part.metadata.id}
@@ -144,6 +145,7 @@ export function renderChatPart({
     // by the chat stream caller, not here.
     return (
       <ToolCall
+        assetBaseUrl={ctx.assetBaseUrl}
         isAgentRunning={ctx.isAgentRunning}
         isDeveloperMode={ctx.isDeveloperMode}
         isStreaming={streaming}

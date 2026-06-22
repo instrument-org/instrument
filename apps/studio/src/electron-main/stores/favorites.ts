@@ -40,7 +40,7 @@ export const getFavoritesStore = (): Store<FavoritesState> => {
       publisher.publish("favorites.updated", null);
     });
 
-    workspacePublisher.subscribe("project.removed", (payload) => {
+    workspacePublisher.subscribe("task.removed", (payload) => {
       const favoritesStore = getFavoritesStore();
       const favorites = favoritesStore.get("favorites");
       favoritesStore.set(

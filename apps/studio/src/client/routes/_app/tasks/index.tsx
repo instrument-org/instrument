@@ -252,7 +252,7 @@ function RouteComponent() {
       toast.success(
         `Stopped ${successCount} ${successCount === 1 ? "session" : "sessions"}`,
       );
-      captureClientEvent("project.bulk_stopped", {
+      captureClientEvent("task.bulk_stopped", {
         project_count: successCount,
       });
     }
@@ -293,7 +293,7 @@ function RouteComponent() {
         toast.success(
           `Moved ${successCount} ${successCount === 1 ? "task" : "tasks"} to ${trashTerminology}`,
         );
-        captureClientEvent("project.bulk_deleted", {
+        captureClientEvent("task.bulk_deleted", {
           project_count: successCount,
         });
       }

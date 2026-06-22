@@ -64,29 +64,6 @@ export interface AnalyticsEvents {
     had_results: boolean;
     query: string;
   };
-  "project.bulk_deleted": {
-    project_count: number;
-  };
-  "project.bulk_stopped": {
-    project_count: number;
-  };
-  "project.created": WithModelProperties<{
-    eval_name?: string;
-    files_count: number;
-    template_name: string;
-  }>;
-  "project.forked": never;
-  "project.imported": never;
-  "project.opened_in": {
-    app_name: string;
-  };
-  "project.restored_version": never;
-  "project.share_menu_opened": never;
-  "project.shared": {
-    share_type: "copied_screenshot" | "exported_zip" | "saved_screenshot";
-  };
-  "project.trashed": never;
-  "project.updated": never;
   "provider.created": {
     provider_type: AIProviderType;
   };
@@ -112,6 +89,29 @@ export interface AnalyticsEvents {
     billing_cycle: "monthly" | "yearly";
     plan_name: string;
   };
+  "task.bulk_deleted": {
+    project_count: number;
+  };
+  "task.bulk_stopped": {
+    project_count: number;
+  };
+  "task.created": WithModelProperties<{
+    eval_name?: string;
+    files_count: number;
+    template_name: string;
+  }>;
+  "task.forked": never;
+  "task.imported": never;
+  "task.opened_in": {
+    app_name: string;
+  };
+  "task.restored_version": never;
+  "task.share_menu_opened": never;
+  "task.shared": {
+    share_type: "copied_screenshot" | "exported_zip" | "saved_screenshot";
+  };
+  "task.trashed": never;
+  "task.updated": never;
   "upgrade.clicked": {
     source: "nav_user" | "toolbar";
   };

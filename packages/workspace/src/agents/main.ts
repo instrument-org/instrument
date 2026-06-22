@@ -363,7 +363,7 @@ export const mainAgent = setupAgent({
 
       const outputArtifacts = outputArtifactsFromChanges(fileChanges);
       if (outputArtifacts.length > 0) {
-        publisher.publish("project.outputArtifactsCreated", {
+        publisher.publish("task.outputArtifactsCreated", {
           files: outputArtifacts,
           id: taskId,
           sessionId,

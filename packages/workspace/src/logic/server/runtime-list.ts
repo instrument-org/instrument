@@ -12,9 +12,9 @@ import { type WorkspaceConfig } from "../../types";
 import { getWorkspaceServerPort } from "./url";
 
 interface TaskAndStatus {
-  app: Task;
   port?: number;
   status: string;
+  task: Task;
   taskId: TaskId;
 }
 
@@ -27,7 +27,7 @@ export async function RuntimeList({
 }) {
   const { tasks } = await getTasks(workspaceConfig);
   const tasksWithExtra = tasks.map((task) =>
-    getAppWithExtra({
+    getTaskWithExtra({
       runtimeRefs,
       task,
     }),
@@ -98,7 +98,7 @@ export async function RuntimeList({
               ? html`<div class="flex items-center gap-3">
                   ${["ready", "loading", "error", "stopped"].map((status) => {
                     const count = tasksWithExtra.filter(
-                      (app) => app.status === status,
+                      (entry) => entry.status === status,
                     ).length;
                     return count > 0
                       ? html`<div class="flex items-center gap-1">
@@ -133,28 +133,28 @@ export async function RuntimeList({
                     d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   ></path>
                 </svg>
-                <p>No apps configured</p>
+                <p>No tasks configured</p>
               </div>`
             : html`<div class="grid gap-4 mb-6">
                 ${tasksWithExtra.map(
-                  (app) => html`
+                  (entry) => html`
                     <div
                       class="bg-neutral-800 rounded-lg p-4 border border-neutral-700 flex items-center justify-between"
                     >
                       <div class="flex items-center">
                         <div
                           class="w-3 h-3 rounded-full ${getStatusColor(
-                            app.status,
+                            entry.status,
                           )} mr-3"
-                          title="${app.status}"
+                          title="${entry.status}"
                         ></div>
                         <div class="flex flex-col">
                           <div class="flex items-center gap-2">
                             <a
-                              href="${localhostUrl(app.app.id)}"
+                              href="${localhostUrl(entry.task.id)}"
                               class="text-blue-400 font-medium"
                             >
-                              ${app.app.id}
+                              ${entry.task.id}
                             </a>
                             <span
                               class="px-1.5 py-0.5 text-xs rounded bg-green-500"
@@ -165,7 +165,7 @@ export async function RuntimeList({
                           <span class="text-xs text-neutral-400">
                             ${path.relative(
                               getWorkspaceConfig().rootDir,
-                              taskDir(app.taskId),
+                              taskDir(entry.taskId),
                             )}
                           </span>
                         </div>
@@ -174,14 +174,14 @@ export async function RuntimeList({
                         <span
                           class="px-2 py-1 text-xs rounded bg-neutral-700 text-neutral-300"
                         >
-                          ${app.status}
+                          ${entry.status}
                         </span>
-                        ${app.port
+                        ${entry.port
                           ? html`
                               <span
                                 class="px-2 py-1 text-xs rounded bg-blue-900 text-blue-300"
                               >
-                                port:${app.port}
+                                port:${entry.port}
                               </span>
                             `
                           : ""}
@@ -206,28 +206,6 @@ export async function RuntimeList({
   `;
 }
 
-function getAppWithExtra({
-  runtimeRefs,
-  task: app,
-}: {
-  runtimeRefs: Map<TaskId, RuntimeActorRef>;
-  task: Task;
-}): TaskAndStatus {
-  const runtimeRef = runtimeRefs.get(app.id);
-  const runtimeSnapshot = runtimeRef?.getSnapshot();
-  const port = runtimeSnapshot?.context.port;
-  const status = runtimeSnapshot
-    ? ([...runtimeSnapshot.tags.values()][0] ?? "stopped")
-    : "stopped";
-
-  return {
-    app,
-    port,
-    status,
-    taskId: app.id,
-  };
-}
-
 function getStatusColor(status: string): string {
   switch (status) {
     case "error": {
@@ -246,4 +224,26 @@ function getStatusColor(status: string): string {
       return "bg-neutral-500";
     }
   }
+}
+
+function getTaskWithExtra({
+  runtimeRefs,
+  task,
+}: {
+  runtimeRefs: Map<TaskId, RuntimeActorRef>;
+  task: Task;
+}): TaskAndStatus {
+  const runtimeRef = runtimeRefs.get(task.id);
+  const runtimeSnapshot = runtimeRef?.getSnapshot();
+  const port = runtimeSnapshot?.context.port;
+  const status = runtimeSnapshot
+    ? ([...runtimeSnapshot.tags.values()][0] ?? "stopped")
+    : "stopped";
+
+  return {
+    port,
+    status,
+    task,
+    taskId: task.id,
+  };
 }

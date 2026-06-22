@@ -192,8 +192,8 @@ export async function getProjectFileIndex(
   }
 }
 
-export async function getProjectFiles(projectSubdomain: TaskId) {
-  const projectConfig = createAppConfig({ subdomain: projectSubdomain });
+export async function getProjectFiles(taskId: TaskId) {
+  const projectConfig = createAppConfig({ id: taskId });
 
   const indexResult = await getProjectFileIndex(taskDir(projectConfig));
   if (indexResult.isErr()) {

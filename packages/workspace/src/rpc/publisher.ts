@@ -7,60 +7,60 @@ import { type TaskId } from "../schemas/task-id";
 
 export const publisher = new EventPublisher<{
   "appState.session.added": {
+    id: TaskId;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "appState.session.done": {
+    id: TaskId;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "appState.session.tagsChanged": {
+    id: TaskId;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "message.removed": {
+    id: TaskId;
     messageId: StoreId.Message;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "message.updated": {
+    id: TaskId;
     messageId: StoreId.Message;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "part.updated": {
+    id: TaskId;
     part: SessionMessagePart.Type;
-    subdomain: TaskId;
   };
   "project.files.changed": {
-    subdomain: TaskId;
+    id: TaskId;
   };
   "project.outputArtifactsCreated": {
     files: { filePath: string; modifiedAt: number }[];
+    id: TaskId;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "project.removed": {
-    subdomain: TaskId;
+    id: TaskId;
   };
   "project.updated": {
-    subdomain: TaskId;
+    id: TaskId;
   };
   "replay.changed": {
+    id: TaskId;
     isActive: boolean;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "runtime.log.updated": {
-    subdomain: TaskId;
+    id: TaskId;
   };
   "session.removed": {
+    id: TaskId;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "session.updated": {
+    id: TaskId;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
   "workspaceActor.snapshot": WorkspaceSnapshot;
 }>({

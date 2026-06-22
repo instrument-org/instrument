@@ -43,11 +43,11 @@ import { projectState } from "./state";
 
 const DEFAULT_TEMPLATE_NAME = "basic";
 
-const bySubdomain = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+const byId = base
+  .input(z.object({ id: TaskIdSchema }))
   .output(TaskSchema)
   .handler(async ({ context, errors, input }) => {
-    const result = await getApp(input.subdomain, context.workspaceConfig);
+    const result = await getApp(input.id, context.workspaceConfig);
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
@@ -55,8 +55,8 @@ const bySubdomain = base
     return result.value;
   });
 
-const bySubdomains = base
-  .input(z.object({ subdomains: TaskIdSchema.array() }))
+const byIds = base
+  .input(z.object({ ids: TaskIdSchema.array() }))
   .output(
     z
       .discriminatedUnion("ok", [
@@ -66,22 +66,22 @@ const bySubdomains = base
         }),
         z.object({
           error: z.object({ type: z.literal("not-found") }),
+          id: TaskIdSchema,
           ok: z.literal(false),
-          subdomain: TaskIdSchema,
         }),
       ])
       .array(),
   )
   .handler(async ({ context, errors, input }) => {
     const results = [];
-    for (const subdomain of input.subdomains) {
-      const result = await getApp(subdomain, context.workspaceConfig);
+    for (const id of input.ids) {
+      const result = await getApp(id, context.workspaceConfig);
       if (result.isErr()) {
         if (result.error.type === "workspace-not-found-error") {
           results.push({
             error: { type: "not-found" as const },
+            id,
             ok: false as const,
-            subdomain,
           });
           continue;
         }
@@ -132,8 +132,8 @@ const create = base
   )
   .output(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .handler(
@@ -264,17 +264,17 @@ const create = base
       }
 
       publisher.publish("project.updated", {
-        subdomain: projectConfig,
+        id: projectConfig,
       });
 
       context.workspaceRef.send({
         type: "createSession",
         value: {
           agentName: "main",
+          id: projectConfig,
           message,
           model,
           sessionId: message.metadata.sessionId,
-          subdomain: projectConfig,
         },
       });
 
@@ -286,8 +286,8 @@ const create = base
       });
 
       return {
+        id: projectConfig,
         sessionId: message.metadata.sessionId,
-        subdomain: projectConfig,
       };
     },
   );
@@ -296,8 +296,8 @@ const createTutorial = base
   .input(z.object({ delayMs: z.number().int().min(0).optional() }).optional())
   .output(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .handler(async ({ context, errors, input, signal }) => {
@@ -313,8 +313,8 @@ const createTutorial = base
     }
 
     return {
+      id: result.value.id,
       sessionId: result.value.sessionId,
-      subdomain: result.value.subdomain,
     };
   });
 
@@ -348,7 +348,7 @@ const duplicate = base
       }
 
       publisher.publish("project.updated", {
-        subdomain: result.value.projectConfig,
+        id: result.value.projectConfig,
       });
 
       const workspaceApp = await getWorkspaceAppForSubdomain(
@@ -369,7 +369,7 @@ const importProject = base
   )
   .output(
     z.object({
-      subdomain: TaskIdSchema,
+      id: TaskIdSchema,
     }),
   )
   .handler(async ({ context, errors, input: { zipFileData }, signal }) => {
@@ -387,19 +387,19 @@ const importProject = base
     }
 
     publisher.publish("project.updated", {
-      subdomain: result.value.projectConfig,
+      id: result.value.projectConfig,
     });
 
     context.workspaceConfig.captureEvent("project.imported");
 
-    return { subdomain: result.value.projectConfig };
+    return { id: result.value.projectConfig };
   });
 
 const trash = base
-  .input(z.object({ subdomain: TaskIdSchema }))
-  .handler(async ({ context, errors, input: { subdomain } }) => {
+  .input(z.object({ id: TaskIdSchema }))
+  .handler(async ({ context, errors, input: { id } }) => {
     const result = await trashProject({
-      subdomain,
+      id,
       workspaceConfig: context.workspaceConfig,
       workspaceRef: context.workspaceRef,
     });
@@ -409,7 +409,7 @@ const trash = base
       throw toORPCError(result.error, errors);
     }
     publisher.publish("project.removed", {
-      subdomain,
+      id,
     });
 
     context.workspaceConfig.captureEvent("project.trashed");
@@ -418,12 +418,12 @@ const trash = base
 const update = base
   .input(
     ProjectManifestUpdateSchema.extend({
-      subdomain: TaskIdSchema,
+      id: TaskIdSchema,
     }),
   )
   .output(z.void())
-  .handler(async ({ context, errors, input: { subdomain, ...updates } }) => {
-    const projectConfig = createAppConfig({ subdomain });
+  .handler(async ({ context, errors, input: { id, ...updates } }) => {
+    const projectConfig = createAppConfig({ id });
 
     if (updates.name !== undefined) {
       const sessionsResult = await Store.getSessions(projectConfig);
@@ -457,8 +457,8 @@ const exportZip = base
   })
   .input(
     z.object({
+      id: TaskIdSchema,
       outputPath: z.string(),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(
@@ -469,10 +469,10 @@ const exportZip = base
   )
   .handler(async ({ context, errors, input }) => {
     try {
-      const appConfig = createAppConfig({ subdomain: input.subdomain });
+      const appConfig = createAppConfig({ id: input.id });
 
       const manifest = await getProjectManifest(taskDir(appConfig));
-      const projectName = manifest?.name ?? input.subdomain;
+      const projectName = manifest?.name ?? input.id;
 
       const safeName = projectName
         .toLowerCase()
@@ -523,22 +523,22 @@ const OutputArtifactsCreatedSchema = z.object({
 });
 
 const live = {
-  bySubdomain: base
-    .input(z.object({ subdomain: TaskIdSchema }))
+  byId: base
+    .input(z.object({ id: TaskIdSchema }))
     .output(eventIterator(TaskSchema))
     .handler(async function* ({ context, input, signal }) {
-      yield call(bySubdomain, input, { context, signal });
+      yield call(byId, input, { context, signal });
 
       const projectUpdates = publisher.subscribe("project.updated", { signal });
 
       for await (const payload of projectUpdates) {
-        if (payload.subdomain === input.subdomain) {
-          yield call(bySubdomain, input, { context, signal });
+        if (payload.id === input.id) {
+          yield call(byId, input, { context, signal });
         }
       }
     }),
-  bySubdomains: base
-    .input(z.object({ subdomains: TaskIdSchema.array() }))
+  byIds: base
+    .input(z.object({ ids: TaskIdSchema.array() }))
     .output(
       eventIterator(
         z
@@ -549,15 +549,15 @@ const live = {
             }),
             z.object({
               error: z.object({ type: z.literal("not-found") }),
+              id: TaskIdSchema,
               ok: z.literal(false),
-              subdomain: TaskIdSchema,
             }),
           ])
           .array(),
       ),
     )
     .handler(async function* ({ context, input, signal }) {
-      yield call(bySubdomains, input, { context, signal });
+      yield call(byIds, input, { context, signal });
 
       const projectUpdates = publisher.subscribe("project.updated", { signal });
       const projectRemoved = publisher.subscribe("project.removed", { signal });
@@ -566,8 +566,8 @@ const live = {
         projectUpdates,
         projectRemoved,
       ])) {
-        if (input.subdomains.includes(payload.subdomain)) {
-          yield call(bySubdomains, input, { context, signal });
+        if (input.ids.includes(payload.id)) {
+          yield call(byIds, input, { context, signal });
         }
       }
     }),
@@ -588,7 +588,7 @@ const live = {
   // endpoints this is a pure event stream (no initial snapshot): clients only
   // react to runs that finish while subscribed.
   outputArtifacts: base
-    .input(z.object({ subdomain: TaskIdSchema }))
+    .input(z.object({ id: TaskIdSchema }))
     .output(eventIterator(OutputArtifactsCreatedSchema))
     .handler(async function* ({ input, signal }) {
       const events = publisher.subscribe("project.outputArtifactsCreated", {
@@ -596,7 +596,7 @@ const live = {
       });
 
       for await (const payload of events) {
-        if (payload.subdomain === input.subdomain) {
+        if (payload.id === input.id) {
           yield {
             files: payload.files,
             sessionId: payload.sessionId,
@@ -607,16 +607,16 @@ const live = {
 };
 
 const usageSummary = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+  .input(z.object({ id: TaskIdSchema }))
   .output(UsageSummarySchema)
   .handler(async ({ input, signal }) => {
-    const { subdomain } = input;
-    const appConfig = createAppConfig({ subdomain });
+    const { id } = input;
+    const appConfig = createAppConfig({ id });
     return getProjectUsageSummary(appConfig, { signal });
   });
 
 const liveUsageSummary = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+  .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(UsageSummarySchema))
   .handler(async function* ({ context, input, signal }) {
     yield call(usageSummary, input, { context, signal });
@@ -632,7 +632,7 @@ const liveUsageSummary = base
         | typeof partUpdates,
     ) {
       for await (const payload of generator) {
-        if (payload.subdomain === input.subdomain) {
+        if (payload.id === input.id) {
           yield null;
         }
       }
@@ -648,8 +648,8 @@ const liveUsageSummary = base
   });
 
 export const task = {
-  bySubdomain,
-  bySubdomains,
+  byId,
+  byIds,
   create,
   createTutorial,
   duplicate,

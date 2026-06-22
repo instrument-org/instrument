@@ -94,7 +94,7 @@ export const runtimeMachine = setup({
 
     publishLogs: ({ context }) => {
       publisher.publish("runtime.log.updated", {
-        subdomain: context.appConfig,
+        id: context.appConfig,
       });
     },
 

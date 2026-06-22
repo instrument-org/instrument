@@ -94,12 +94,12 @@ function RouteComponent() {
                     `There was an error starting your task: ${error.message}`,
                   );
                 },
-                onSuccess: ({ sessionId, subdomain }) => {
+                onSuccess: ({ id, sessionId }) => {
                   promptInputRef.current?.clear();
                   if (openInNewTab) {
                     void addTab(
                       {
-                        params: { id: subdomain },
+                        params: { id },
                         search: { selectedSessionId: sessionId },
                         to: "/tasks/$id",
                       },
@@ -107,7 +107,7 @@ function RouteComponent() {
                     );
                   } else {
                     void navigate({
-                      params: { id: subdomain },
+                      params: { id },
                       search: { selectedSessionId: sessionId },
                       to: "/tasks/$id",
                     });

@@ -27,8 +27,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { UsageStatsTooltip, UsageSummaryText } from "./usage-stats-tooltip";
 
 interface AssistantMessagesFooterProps {
+  id: TaskId;
   messages: SessionMessage.AssistantWithParts[];
-  subdomain: TaskId;
 }
 
 interface ModelUsageData {
@@ -42,8 +42,8 @@ interface ModelUsageData {
 }
 
 export function AssistantMessagesFooter({
+  id,
   messages,
-  subdomain,
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isDeveloperMode = useDeveloperMode();
@@ -59,7 +59,7 @@ export function AssistantMessagesFooter({
 
   const { data: usageSummary } = useQuery({
     ...rpcClient.workspace.message.usageSummary.queryOptions({
-      input: { messages: messageRefs, subdomain },
+      input: { id, messages: messageRefs },
     }),
     enabled: isDeveloperMode,
   });

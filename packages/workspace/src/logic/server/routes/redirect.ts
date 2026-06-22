@@ -8,7 +8,7 @@ import { getWorkspaceServerPort } from "../url";
 
 const app = new Hono<WorkspaceServerEnv>();
 
-// Most browsers support localhost subdomains, but Safari does not
+// Most browsers support localhost ids, but Safari does not
 // Still making this a whitelist because our loopback domain works everywhere
 function supportsLocalhostSubdomains(userAgent: string): boolean {
   return (
@@ -21,18 +21,18 @@ function supportsLocalhostSubdomains(userAgent: string): boolean {
   );
 }
 
-app.get("/redirect/:subdomain", async (c, next) => {
+app.get("/redirect/:id", async (c, next) => {
   const host = c.req.header("host") || "";
   const isBare =
     host === `${LOCAL_LOOPBACK_APPS_SERVER_DOMAIN}:${getWorkspaceServerPort()}`;
 
   if (!isBare) {
-    // If we have a subdomain, allow those apps to handle the request
+    // If we have a id, allow those apps to handle the request
     await next();
     return;
   }
 
-  const subdomainParam = c.req.param("subdomain");
+  const subdomainParam = c.req.param("id");
   const userAgent = c.req.header("user-agent") || "";
 
   const subdomainResult = TaskIdSchema.safeParse(subdomainParam);
@@ -40,11 +40,9 @@ app.get("/redirect/:subdomain", async (c, next) => {
     return c.notFound();
   }
 
-  const subdomain = subdomainResult.data;
+  const id = subdomainResult.data;
   const supportsSubdomains = supportsLocalhostSubdomains(userAgent);
-  const targetUrl = supportsSubdomains
-    ? localhostUrl(subdomain)
-    : loopbackUrl(subdomain);
+  const targetUrl = supportsSubdomains ? localhostUrl(id) : loopbackUrl(id);
 
   return c.redirect(targetUrl);
 });

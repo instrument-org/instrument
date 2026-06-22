@@ -20,7 +20,7 @@ const restart = base
     context.workspaceRef.send({
       type: "restartRuntime",
       value: {
-        subdomain: input.appSubdomain,
+        id: input.appSubdomain,
       },
     });
   });
@@ -47,14 +47,14 @@ const RuntimeLogEntrySchemaWithTruncation = RuntimeLogEntrySchema.extend({
 const logList = base
   .input(
     z.object({
+      id: TaskIdSchema,
       limit: z.number().optional().default(1000),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(RuntimeLogEntrySchemaWithTruncation.array())
   .handler(({ context, input }) => {
     const snapshot = context.workspaceRef.getSnapshot();
-    const runtimeRef = snapshot.context.runtimeRefs.get(input.subdomain);
+    const runtimeRef = snapshot.context.runtimeRefs.get(input.id);
 
     if (!runtimeRef) {
       return [];
@@ -80,7 +80,7 @@ const logList = base
       logsToReturn = [truncationMessage, ...recentLogs];
     }
 
-    const appConfig = createAppConfig({ subdomain: input.subdomain });
+    const appConfig = createAppConfig({ id: input.id });
 
     return logsToReturn.map((log) => ({
       ...log,
@@ -91,8 +91,8 @@ const logList = base
 const logLiveList = base
   .input(
     z.object({
+      id: TaskIdSchema,
       limit: z.number().optional().default(1000),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(eventIterator(RuntimeLogEntrySchemaWithTruncation.array()))
@@ -102,7 +102,7 @@ const logLiveList = base
     for await (const payload of publisher.subscribe("runtime.log.updated", {
       signal,
     })) {
-      if (payload.subdomain === input.subdomain) {
+      if (payload.id === input.id) {
         const currentLogs = yield call(logList, input, { context, signal });
 
         if (!isEqual(currentLogs, previousLogs)) {

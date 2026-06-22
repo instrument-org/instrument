@@ -70,13 +70,13 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   function createTarget(
-    subdomain: TaskId,
+    id: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ): Promise<{ targetId: BrowserTargetId }> {
-    const targetId = encodeBrowserTargetId(subdomain, sessionId);
+    const targetId = encodeBrowserTargetId(id, sessionId);
 
-    // Idempotent: a single (subdomain, sessionId) pair owns at most one view.
+    // Idempotent: a single (id, sessionId) pair owns at most one view.
     // Sub-agents and repeat agent-browser invocations for the same session
     // hit this fast path and reuse the existing WebContentsView.
     const existing = entries.get(targetId);
@@ -91,8 +91,8 @@ export function createBrowserViewManager(): BrowserViewManager {
     const ses = session.fromPath(partitionDir, { cache: true });
 
     const { destroyView, view } = createBrowserView({
+      id,
       session: ses,
-      subdomain,
     });
 
     const wc = view.webContents;
@@ -128,9 +128,9 @@ export function createBrowserViewManager(): BrowserViewManager {
     );
 
     const entry = createEntry({
+      id,
       partitionDir,
       sessionId,
-      subdomain,
       targetId,
       view,
     });
@@ -185,7 +185,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       getTabsManager()?.addTab({
         iconName: "globe",
         keepMounted: true,
-        title: `Browser: ${String(entry.subdomain)}`,
+        title: `Browser: ${String(entry.id)}`,
         webView: entry.view,
       });
     } catch {
@@ -217,11 +217,11 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
   }
 
-  function listTargets(subdomain: TaskId): Promise<BrowserTarget[]> {
+  function listTargets(id: TaskId): Promise<BrowserTarget[]> {
     const targets: BrowserTarget[] = [];
 
     for (const [targetId, entry] of entries) {
-      if (entry.subdomain !== subdomain) {
+      if (entry.id !== id) {
         continue;
       }
 
@@ -319,9 +319,9 @@ export function createBrowserViewManager(): BrowserViewManager {
         return null;
       }
       return {
+        id: entry.id,
         partitionDir: entry.partitionDir,
         sessionId: entry.sessionId,
-        subdomain: entry.subdomain,
       };
     },
     listTargets,

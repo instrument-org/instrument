@@ -18,16 +18,16 @@ export interface BrowserConfig {
   captureScreenshot: (targetId: BrowserTargetId) => Promise<Buffer | undefined>;
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
   createTarget: (
-    subdomain: TaskId,
+    id: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ) => Promise<{ targetId: BrowserTargetId }>;
   getTargetMeta: (targetId: BrowserTargetId) => null | {
+    id: TaskId;
     partitionDir: AbsolutePath;
     sessionId: StoreId.Session;
-    subdomain: TaskId;
   };
-  listTargets: (subdomain: TaskId) => Promise<BrowserTarget[]>;
+  listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
   onTargetDestroyed: (
     targetId: BrowserTargetId,
     listener: () => void,
@@ -57,8 +57,8 @@ export interface BrowserTarget {
   url: string;
 }
 
-// The bridge routing key for a single browser view: a (subdomain, sessionId)
-// tuple encoded as `${subdomain}/${sessionId}`. The schema delegates to the
+// The bridge routing key for a single browser view: a (id, sessionId)
+// tuple encoded as `${id}/${sessionId}`. The schema delegates to the
 // existing TaskId and StoreId.Session validators so a parse failure
 // pinpoints the offending half. Use `encodeBrowserTargetId` /
 // `decodeBrowserTargetId` to construct or parse one; never build by hand.
@@ -81,14 +81,14 @@ export const BrowserTargetIdSchema = z
         fatal: true,
         input: val,
         message:
-          "BrowserTargetId must be `${subdomain}/${sessionId}` with both halves non-empty",
+          "BrowserTargetId must be `${id}/${sessionId}` with both halves non-empty",
       });
       return;
     }
     const subdomainResult = TaskIdSchema.safeParse(val.slice(0, slash));
     if (!subdomainResult.success) {
       for (const issue of subdomainResult.error.issues) {
-        ctx.addIssue({ ...issue, path: ["subdomain", ...issue.path] });
+        ctx.addIssue({ ...issue, path: ["id", ...issue.path] });
       }
     }
     const sessionResult = StoreId.SessionSchema.safeParse(val.slice(slash + 1));
@@ -135,21 +135,21 @@ type CdpSendArgs<M extends CdpMethod> =
 
 export function decodeBrowserTargetId(
   targetId: string,
-): null | { sessionId: StoreId.Session; subdomain: TaskId } {
+): null | { id: TaskId; sessionId: StoreId.Session } {
   const result = BrowserTargetIdSchema.safeParse(targetId);
   if (!result.success) {
     return null;
   }
   const slash = result.data.indexOf("/");
   return {
+    id: result.data.slice(0, slash) as TaskId,
     sessionId: result.data.slice(slash + 1) as StoreId.Session,
-    subdomain: result.data.slice(0, slash) as TaskId,
   };
 }
 
 export function encodeBrowserTargetId(
-  subdomain: TaskId,
+  id: TaskId,
   sessionId: StoreId.Session,
 ): BrowserTargetId {
-  return BrowserTargetIdSchema.parse(`${subdomain}/${sessionId}`);
+  return BrowserTargetIdSchema.parse(`${id}/${sessionId}`);
 }

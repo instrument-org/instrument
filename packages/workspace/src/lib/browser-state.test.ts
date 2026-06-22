@@ -10,7 +10,7 @@ import { taskDir } from "./app-dir-utils";
 import { getBrowserState, recordBrowserUse } from "./browser-state";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 
-const subdomain = TaskIdSchema.parse("browser-state-test");
+const id = TaskIdSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();
 
 let appConfig: TaskId;
@@ -19,12 +19,12 @@ let root: string;
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
   const tasksDir = path.join(root, "projects");
-  appConfig = createMockAppConfigForDir(path.join(tasksDir, subdomain));
+  appConfig = createMockAppConfigForDir(path.join(tasksDir, id));
   await fs.mkdir(taskDir(appConfig), { recursive: true });
 });
 
 afterEach(async () => {
-  await disposeSessionsStoreStorage(subdomain);
+  await disposeSessionsStoreStorage(id);
   await fs.rm(root, { force: true, recursive: true });
 });
 

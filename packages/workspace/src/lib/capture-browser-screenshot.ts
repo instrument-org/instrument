@@ -50,16 +50,16 @@ export async function beginBrowserCommandObservation({
   appConfig,
   sessionId,
   subcommand,
-  subdomain,
+  taskId,
   upsertContextItem,
 }: {
   appConfig: AppConfig;
   sessionId: StoreId.Session;
   subcommand: string;
-  subdomain: TaskId;
+  taskId: TaskId;
   upsertContextItem: UpsertContextItem;
 }): Promise<BrowserCommandObservation | undefined> {
-  const targetId = encodeBrowserTargetId(subdomain, sessionId);
+  const targetId = encodeBrowserTargetId(taskId, sessionId);
   const meta = getWorkspaceConfig().browser.getTargetMeta(targetId);
   if (!meta) {
     return undefined;
@@ -67,8 +67,8 @@ export async function beginBrowserCommandObservation({
 
   const start = await captureBrowserScreenshot({
     appConfig,
+    id: taskId,
     sessionId,
-    subdomain,
   });
   const startScreenshot = start?.screenshot;
 
@@ -95,8 +95,8 @@ export async function beginBrowserCommandObservation({
       try {
         const end = await captureBrowserScreenshot({
           appConfig,
+          id: taskId,
           sessionId,
-          subdomain,
         });
         // Reuse the start screenshot when content is unchanged so the UI
         // collapses no-op commands (e.g. `get title`) into one frame.
@@ -126,17 +126,17 @@ export async function beginBrowserCommandObservation({
 
 async function captureBrowserScreenshot({
   appConfig,
+  id,
   sessionId,
-  subdomain,
 }: {
   appConfig: AppConfig;
+  id: TaskId;
   sessionId: StoreId.Session;
-  subdomain: TaskId;
 }): Promise<CapturedScreenshot | undefined> {
   try {
     const workspaceConfig = getWorkspaceConfig();
-    const targetId = encodeBrowserTargetId(subdomain, sessionId);
-    const targets = await workspaceConfig.browser.listTargets(subdomain);
+    const targetId = encodeBrowserTargetId(id, sessionId);
+    const targets = await workspaceConfig.browser.listTargets(id);
     const target = targets.find((t) => t.id === targetId);
     if (!target) {
       return undefined;

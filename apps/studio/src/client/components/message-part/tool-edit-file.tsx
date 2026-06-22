@@ -10,13 +10,7 @@ type EditFilePart = Extract<
   { type: "tool-edit_file" }
 >;
 
-export function ToolEditFile({
-  part,
-  subdomain,
-}: {
-  part: EditFilePart;
-  subdomain: TaskId;
-}) {
+export function ToolEditFile({ id, part }: { id: TaskId; part: EditFilePart }) {
   const filePath =
     part.state === "output-available"
       ? part.output.filePath
@@ -44,9 +38,9 @@ export function ToolEditFile({
     <FileToolCard
       content={content}
       filePath={filePath}
+      id={id}
       language={language}
       modifiedAt={isDone ? part.output.modifiedAt : undefined}
-      subdomain={subdomain}
     />
   );
 }

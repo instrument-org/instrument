@@ -7,8 +7,8 @@ export interface Tab {
   id: string;
   pathname: string;
   pinned?: boolean;
-  projectSubdomain?: TaskId;
   tabBarHidden?: boolean;
+  taskId?: TaskId;
   title?: string;
 }
 
@@ -21,7 +21,7 @@ export const SingleTabOnlyRoutes = /\/tasks\/[^/]+/;
 
 export const META_TAGS = {
   iconName: `${APP_NAME_SLUG}-icon-name`,
-  projectSubdomain: `${APP_NAME_SLUG}-project-subdomain`,
+  taskId: `${APP_NAME_SLUG}-project-subdomain`,
 };
 
 export function createIconMeta(icon: TabIconName) {
@@ -31,9 +31,9 @@ export function createIconMeta(icon: TabIconName) {
   };
 }
 
-export function createProjectSubdomainMeta(subdomain: TaskId) {
+export function createProjectSubdomainMeta(id: TaskId) {
   return {
-    content: subdomain,
-    name: META_TAGS.projectSubdomain,
+    content: id,
+    name: META_TAGS.taskId,
   };
 }

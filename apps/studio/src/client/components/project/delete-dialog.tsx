@@ -27,7 +27,7 @@ export function ProjectDeleteDialog({
   const handleDelete = async () => {
     try {
       onDeleteStart?.();
-      await trashApp(project.subdomain);
+      await trashApp(project.id);
     } catch {
       toast.error("Failed to delete task", {
         description:

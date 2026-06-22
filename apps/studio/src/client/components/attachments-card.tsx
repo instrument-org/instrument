@@ -10,22 +10,22 @@ interface FileAttachmentsCardProps {
   assetBaseUrl: string;
   files: SessionMessageDataPart.FileAttachmentDataPart[];
   folders?: SessionMessageDataPart.FolderAttachmentDataPart[];
-  projectSubdomain: TaskId;
+  taskId: TaskId;
 }
 
 export function AttachmentsCard({
   assetBaseUrl,
   files,
   folders,
-  projectSubdomain,
+  taskId,
 }: FileAttachmentsCardProps) {
   const fileItems = files.map((file) => ({
     filename: file.filename,
     filePath: file.filePath,
     mimeType: file.mimeType,
     modifiedAt: file.modifiedAt,
-    projectSubdomain,
     size: file.size,
+    taskId,
     url: getAssetUrl({
       assetBase: assetBaseUrl,
       filePath: file.filePath,

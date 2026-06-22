@@ -14,15 +14,15 @@ import { z } from "zod";
 const add = base
   .input(
     z.object({
-      subdomain: TaskIdSchema,
+      id: TaskIdSchema,
     }),
   )
   .output(z.void())
   .handler(({ context, input }) => {
     const favoritesStore = getFavoritesStore();
     const favorites = favoritesStore.get("favorites");
-    if (!favorites.includes(input.subdomain)) {
-      const updatedFavorites = [...favorites, input.subdomain];
+    if (!favorites.includes(input.id)) {
+      const updatedFavorites = [...favorites, input.id];
       favoritesStore.set("favorites", updatedFavorites);
     }
     context.workspaceConfig.captureEvent("favorite.added");
@@ -31,14 +31,14 @@ const add = base
 const remove = base
   .input(
     z.object({
-      subdomain: TaskIdSchema,
+      id: TaskIdSchema,
     }),
   )
   .output(z.void())
   .handler(({ context, input }) => {
     const favoritesStore = getFavoritesStore();
     const favorites = favoritesStore.get("favorites");
-    const updatedFavorites = favorites.filter((app) => app !== input.subdomain);
+    const updatedFavorites = favorites.filter((app) => app !== input.id);
     favoritesStore.set("favorites", updatedFavorites);
     context.workspaceConfig.captureEvent("favorite.removed");
   });
@@ -47,10 +47,10 @@ const live = {
   listProjects: base.handler(async function* ({ context, signal }) {
     const favoritesStore = getFavoritesStore();
 
-    const fetchAndCleanFavorites = async (subdomains: TaskId[]) => {
+    const fetchAndCleanFavorites = async (ids: TaskId[]) => {
       const results = await call(
-        workspaceRouter.task.bySubdomains,
-        { subdomains },
+        workspaceRouter.task.byIds,
+        { ids },
         { context, signal },
       );
 
@@ -58,10 +58,10 @@ const live = {
         .filter((r) => r.ok)
         .map((r) => r.data);
 
-      if (favoriteProjectsThatExist.length !== subdomains.length) {
+      if (favoriteProjectsThatExist.length !== ids.length) {
         favoritesStore.set(
           "favorites",
-          favoriteProjectsThatExist.map((p) => p.subdomain),
+          favoriteProjectsThatExist.map((p) => p.id),
         );
       }
 

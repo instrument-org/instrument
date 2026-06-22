@@ -3,7 +3,7 @@ import { type TaskId } from "../schemas/task-id";
 
 interface ActiveReplay {
   controller: AbortController;
-  subdomain: TaskId;
+  id: TaskId;
 }
 
 const activeReplays = new Map<StoreId.Session, ActiveReplay>();
@@ -16,17 +16,17 @@ export const ActiveReplays = {
       activeReplays.delete(sessionId);
     }
   },
-  getActiveSessionIds(subdomain: TaskId): StoreId.Session[] {
+  getActiveSessionIds(id: TaskId): StoreId.Session[] {
     const result: StoreId.Session[] = [];
     for (const [sessionId, entry] of activeReplays) {
-      if (entry.subdomain === subdomain) {
+      if (entry.id === id) {
         result.push(sessionId);
       }
     }
     return result;
   },
   getSubdomain(sessionId: StoreId.Session): TaskId | undefined {
-    return activeReplays.get(sessionId)?.subdomain;
+    return activeReplays.get(sessionId)?.id;
   },
   isActive(sessionId: StoreId.Session) {
     return activeReplays.has(sessionId);
@@ -34,9 +34,9 @@ export const ActiveReplays = {
   register(
     sessionId: StoreId.Session,
     controller: AbortController,
-    subdomain: TaskId,
+    id: TaskId,
   ) {
-    activeReplays.set(sessionId, { controller, subdomain });
+    activeReplays.set(sessionId, { controller, id });
     controller.signal.addEventListener("abort", () => {
       activeReplays.delete(sessionId);
     });

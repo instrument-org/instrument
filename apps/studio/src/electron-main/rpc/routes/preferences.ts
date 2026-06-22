@@ -88,7 +88,7 @@ const getAppVersion = base.handler(() => {
 });
 
 const ensureProjectDefaultModelURI = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+  .input(z.object({ id: TaskIdSchema }))
   .output(z.object({ modelURI: AIGatewayModelURI.Schema.optional() }))
   .handler(async ({ context, input }) => {
     const projectState = await call(workspaceRouter.task.state.get, input, {
@@ -106,8 +106,8 @@ const ensureProjectDefaultModelURI = base
       await call(
         workspaceRouter.task.state.set,
         {
+          id: input.id,
           state: { selectedModelURI: modelURI },
-          subdomain: input.subdomain,
         },
         { context },
       );

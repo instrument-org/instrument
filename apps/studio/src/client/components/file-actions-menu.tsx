@@ -94,8 +94,8 @@ export function FileActionsMenuItems({
     try {
       await copyFileToClipboard({
         filePath: file.filePath,
+        id: file.taskId,
         isImage: file.mimeType.startsWith("image/"),
-        subdomain: file.projectSubdomain,
       });
       triggerCopied();
     } catch {
@@ -110,7 +110,7 @@ export function FileActionsMenuItems({
   const handleRevealInFolder = () => {
     showProjectFileInFolderMutation.mutate({
       filePath: file.filePath,
-      subdomain: file.projectSubdomain,
+      id: file.taskId,
     });
   };
 

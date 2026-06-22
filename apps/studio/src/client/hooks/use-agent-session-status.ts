@@ -20,25 +20,25 @@ export function getSessionTags({
 
 /**
  * Derives agent status for a specific session within a project app.
- * Replay status is queried automatically by subdomain.
+ * Replay status is queried automatically by id.
  * Pass `isReplayActive` to additionally treat an external replay signal as
  * live (e.g. for cancel button logic in project-chat).
  */
 export function useAgentSessionStatus({
+  id,
   isReplayActive = false,
   sessionId,
-  subdomain,
 }: {
+  id: TaskId;
   isReplayActive?: boolean;
   sessionId: StoreId.Session | typeof skipToken | undefined;
-  subdomain: TaskId;
 }) {
-  const { data: appState } = useAppState({ subdomain });
+  const { data: appState } = useAppState({ id });
   const sessionActors = appState?.sessionActors ?? [];
 
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
-      input: sessionId && sessionId !== skipToken ? { subdomain } : skipToken,
+      input: sessionId && sessionId !== skipToken ? { id } : skipToken,
     }),
   );
   const isReplayActiveForSession =

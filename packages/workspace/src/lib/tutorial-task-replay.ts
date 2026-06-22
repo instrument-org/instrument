@@ -105,8 +105,8 @@ export async function startTutorialTaskReplay({
 
     return ok({
       appConfig: projectResult.projectConfig,
+      id: projectResult.projectConfig,
       sessionId: sessionResult.id,
-      subdomain: projectResult.projectConfig,
     });
   });
 
@@ -114,11 +114,11 @@ export async function startTutorialTaskReplay({
     return setupResult;
   }
 
-  const { appConfig, sessionId, subdomain } = setupResult.value;
+  const { appConfig, id, sessionId } = setupResult.value;
   const controller = new AbortController();
 
-  ActiveReplays.register(sessionId, controller, subdomain);
-  publishReplayChanged({ isActive: true, sessionId, subdomain });
+  ActiveReplays.register(sessionId, controller, id);
+  publishReplayChanged({ id, isActive: true, sessionId });
   const completion = runTutorialTaskReplay({
     appConfig,
     sessionId,
@@ -127,7 +127,7 @@ export async function startTutorialTaskReplay({
     workspaceConfig,
   });
 
-  return ok({ completion, sessionId, subdomain });
+  return ok({ completion, id, sessionId });
 }
 
 async function delay({
@@ -201,15 +201,15 @@ function getStreamingContentChunks(content: string) {
 }
 
 function publishReplayChanged({
+  id,
   isActive,
   sessionId,
-  subdomain,
 }: {
+  id: TaskId;
   isActive: boolean;
   sessionId: StoreId.Session;
-  subdomain: TaskId;
 }) {
-  publisher.publish("replay.changed", { isActive, sessionId, subdomain });
+  publisher.publish("replay.changed", { id, isActive, sessionId });
 }
 
 function replayModel() {
@@ -335,9 +335,9 @@ async function runTutorialTaskReplay({
   } finally {
     ActiveReplays.cancel(sessionId);
     publishReplayChanged({
+      id: appConfig,
       isActive: false,
       sessionId,
-      subdomain: appConfig,
     });
   }
 }

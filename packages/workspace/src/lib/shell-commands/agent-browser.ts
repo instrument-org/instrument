@@ -27,7 +27,7 @@ import {
   beginBrowserCommandObservation,
   type UpsertContextItem,
 } from "../capture-browser-screenshot";
-import { isProjectSubdomain } from "../is-app";
+import { isTaskId } from "../is-app";
 import { getWorkspaceConfig } from "../workspace-config";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
@@ -102,7 +102,7 @@ export function createAgentBrowserCommand({
     const workspaceConfig = getWorkspaceConfig();
     const serverPort = getWorkspaceServerPort();
 
-    if (!isProjectSubdomain(appConfig)) {
+    if (!isTaskId(appConfig)) {
       return {
         exitCode: 1,
         stderr: "agent-browser: browser is only available in task contexts.\n",
@@ -110,7 +110,7 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const subdomain = appConfig;
+    const id = appConfig;
 
     // Match both --flag and --flag=value forms.
     const blockedArg = args.find((a) => {
@@ -151,12 +151,12 @@ export function createAgentBrowserCommand({
 
     if (!isInfoOnly) {
       // Idempotent: createTarget returns the existing view for this
-      // (subdomain, sessionId) pair if one is already live, so sub-agents and
+      // (id, sessionId) pair if one is already live, so sub-agents and
       // repeat invocations within the same session reuse the same browsing
       // surface (cookies, page, debugger).
       const partitionDir = getBrowserSessionDir(taskDir(appConfig));
       const target = await workspaceConfig.browser.createTarget(
-        subdomain,
+        id,
         sessionId,
         partitionDir,
       );
@@ -207,7 +207,7 @@ export function createAgentBrowserCommand({
           appConfig,
           sessionId,
           subcommand: subcommandText,
-          subdomain,
+          taskId: id,
           upsertContextItem,
         });
 
@@ -242,8 +242,8 @@ export function createAgentBrowserCommand({
       if (targetId) {
         await enrichBrowserState({
           appConfig,
+          id,
           sessionId,
-          subdomain,
           targetId,
         });
       }
@@ -273,18 +273,18 @@ export function createAgentBrowserCommand({
 
 async function enrichBrowserState({
   appConfig,
+  id,
   sessionId,
-  subdomain,
   targetId,
 }: {
   appConfig: AppConfig;
+  id: TaskId;
   sessionId: StoreId.Session;
-  subdomain: TaskId;
   targetId: BrowserTargetId;
 }) {
   try {
-    const targets = await getWorkspaceConfig().browser.listTargets(subdomain);
-    const target = targets.find(({ id }) => id === targetId);
+    const targets = await getWorkspaceConfig().browser.listTargets(id);
+    const target = targets.find((t) => t.id === targetId);
     if (target) {
       await recordBrowserUseBestEffort({
         appConfig,

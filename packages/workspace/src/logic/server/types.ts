@@ -10,7 +10,7 @@ import { type BrowserTargetId, type WorkspaceConfig } from "../../types";
 
 export interface WorkspaceServerEnv {
   Variables: {
-    getRuntimeRef: (subdomain: TaskId) => RuntimeActorRef | undefined;
+    getRuntimeRef: (id: TaskId) => RuntimeActorRef | undefined;
     parentRef: WorkspaceServerParentRef;
     shimClientDir: "dev-server" | AbsolutePath;
     workspaceConfig: WorkspaceConfig;
@@ -23,7 +23,7 @@ export type WorkspaceServerParentEvent =
   // for daemon-close fan-out at reap time.
   | {
       type: "workspaceServer.attachAgentSession";
-      value: { sessionId: StoreId.Session; subdomain: TaskId };
+      value: { id: TaskId; sessionId: StoreId.Session };
     }
   // Surfaced by the CDP bridge for every non-intercepted CDP command sent by
   // agent-browser. Acts as the agent-activity heartbeat that resets the
@@ -41,9 +41,9 @@ export type WorkspaceServerParentEvent =
   | {
       type: "workspaceServer.updateCdpHeartbeat";
       value: {
+        id: TaskId;
         partitionDir: AbsolutePath;
         sessionId: StoreId.Session;
-        subdomain: TaskId;
         targetId: BrowserTargetId;
       };
     };

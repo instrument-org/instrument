@@ -46,12 +46,12 @@ export function ProjectChat({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Use the route subdomain for chat data; project may be placeholder data
+  // Use the route id for chat data; project may be placeholder data
   // from the previous project while keepPreviousData is active.
-  const subdomain = useProjectRouteSubdomain();
+  const id = useProjectRouteSubdomain();
   // TODO: Stop passing the entire project object down and rely just on the
-  // subdomain as much as possible to keep this from being an issue.
-  const isProjectRouteSettled = project.subdomain === subdomain;
+  // id as much as possible to keep this from being an issue.
+  const isProjectRouteSettled = project.id === id;
 
   const { contentRef, isNearBottom, scrollRef, scrollToBottom } =
     // Less animation when sticking to bottom
@@ -77,7 +77,7 @@ export function ProjectChat({
       onSuccess: () => {
         void queryClient.invalidateQueries({
           queryKey: rpcClient.workspace.task.state.get.queryOptions({
-            input: { subdomain },
+            input: { id },
           }).queryKey,
         });
       },
@@ -100,8 +100,8 @@ export function ProjectChat({
       input:
         selectedSessionId && isProjectRouteSettled
           ? {
+              id,
               sessionId: selectedSessionId,
-              subdomain,
             }
           : skipToken,
       retry: 1,
@@ -116,15 +116,15 @@ export function ProjectChat({
   const isDeveloperMode = useDeveloperMode();
 
   const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
+    id,
     isReplayActive,
     sessionId: selectedSessionId,
-    subdomain,
   });
 
   const { handleContinue } = useContinueSession({
+    id,
     modelURI: selectedModelURI,
     sessionId: selectedSessionId,
-    subdomain,
   });
 
   const handleRetry = (prompt: string) => {
@@ -137,10 +137,10 @@ export function ProjectChat({
       return;
     }
     createMessage.mutate({
+      id,
       modelURI: selectedModelURI,
       prompt,
       sessionId: selectedSessionId,
-      subdomain,
     });
   };
 
@@ -150,7 +150,7 @@ export function ProjectChat({
 
   const handleNewSession = () => {
     createEmptySessionMutation.mutate(
-      { subdomain },
+      { id },
       {
         onError: (error) => {
           toast.error("Failed to create new chat", {
@@ -159,7 +159,7 @@ export function ProjectChat({
         },
         onSuccess: (result) => {
           void navigate({
-            params: { id: subdomain },
+            params: { id },
             replace: true,
             search: (prev) => ({
               ...prev,
@@ -184,18 +184,19 @@ export function ProjectChat({
   const handleDismissTutorial = () => {
     setIsTutorialDismissed(true);
     dismissTutorial.mutate({
+      id,
       state: {
         showTutorial: false,
       },
-      subdomain,
     });
   };
 
   const promptInput = (
     <PromptInput
-      atomKey={subdomain}
+      atomKey={id}
       autoFocus
       className="relative z-10"
+      id={id}
       isLoading={createMessage.isPending}
       isStoppable={isAgentAlive}
       isSubmittable={!isAgentAlive}
@@ -205,7 +206,7 @@ export function ProjectChat({
         if (isReplayActive && onCancelReplay) {
           onCancelReplay();
         } else {
-          stopSessions.mutate({ subdomain });
+          stopSessions.mutate({ id });
         }
       }}
       onSubmit={({ files, folders, modelURI, prompt }) => {
@@ -217,16 +218,16 @@ export function ProjectChat({
           {
             files,
             folders,
+            id,
             modelURI,
             prompt,
             sessionId: selectedSessionId,
-            subdomain,
           },
           {
             onSuccess: ({ sessionId }) => {
               void scrollToBottom();
               void navigate({
-                params: { id: subdomain },
+                params: { id },
                 replace: true,
                 search: (prev) => ({
                   ...prev,
@@ -241,7 +242,6 @@ export function ProjectChat({
       placeholder={`Talk to ${APP_NAME}`}
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
-      subdomain={subdomain}
     />
   );
 
@@ -290,10 +290,7 @@ export function ProjectChat({
                 </AlertDescription>
               </Alert>
             ) : !isAgentRunning && messages.length === 0 ? (
-              <ChatZeroState
-                selectedSessionId={selectedSessionId}
-                subdomain={subdomain}
-              />
+              <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
             ) : (
               <ChatStream
                 isAgentRunning={isAgentRunning}
@@ -312,10 +309,7 @@ export function ProjectChat({
             </div>
           )
         ) : (
-          <ChatZeroState
-            selectedSessionId={selectedSessionId}
-            subdomain={subdomain}
-          />
+          <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
         )}
       </div>
 

@@ -12,10 +12,10 @@ import { TaskIdSchema } from "../../../schemas/task-id";
 import { base } from "../../base";
 
 const get = base
-  .input(z.object({ subdomain: TaskIdSchema }))
+  .input(z.object({ id: TaskIdSchema }))
   .output(ProjectStateSchema)
   .handler(async ({ input }) => {
-    const appConfig = createAppConfig({ subdomain: input.subdomain });
+    const appConfig = createAppConfig({ id: input.id });
 
     return getProjectState(taskDir(appConfig));
   });
@@ -23,13 +23,13 @@ const get = base
 const set = base
   .input(
     z.object({
+      id: TaskIdSchema,
       state: ProjectStateSchema.partial(),
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.void())
   .handler(async ({ input }) => {
-    const appConfig = createAppConfig({ subdomain: input.subdomain });
+    const appConfig = createAppConfig({ id: input.id });
 
     const stateToSave = { ...input.state };
 

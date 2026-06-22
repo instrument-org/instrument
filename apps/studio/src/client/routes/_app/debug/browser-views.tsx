@@ -63,7 +63,7 @@ function EntryCard({ entry }: { entry: Entry }) {
               {entry.title || entry.url || "(blank page)"}
             </CardTitle>
             <p className="truncate font-mono text-[11px] text-muted-foreground">
-              {entry.subdomain} · {entry.sessionId}
+              {entry.id} · {entry.sessionId}
             </p>
           </div>
           <Button
@@ -177,7 +177,7 @@ function ProjectBrowserCard({
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1 space-y-0.5">
             <CardTitle className="truncate text-sm">
-              {projectBrowser.subdomain}
+              {projectBrowser.id}
             </CardTitle>
             <p className="text-xs text-muted-foreground">{status.help}</p>
           </div>
@@ -326,7 +326,7 @@ function RouteComponent() {
             </p>
           ) : (
             data?.projectBrowsers.map((pb) => (
-              <ProjectBrowserCard key={pb.subdomain} projectBrowser={pb} />
+              <ProjectBrowserCard key={pb.id} projectBrowser={pb} />
             ))
           )}
         </section>

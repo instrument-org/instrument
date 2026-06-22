@@ -34,9 +34,9 @@ interface FakeItem extends EventEmitter {
 
 function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
   return createEntry({
+    id: SUBDOMAIN,
     partitionDir: "/tmp/partition" as AbsolutePath,
     sessionId: SESSION_ID,
-    subdomain: SUBDOMAIN,
     targetId,
     view: {} as WebContentsView,
   });

@@ -290,7 +290,7 @@ export function ChatStream({
               files={fileAttachmentsPart.data.files}
               folders={fileAttachmentsPart.data.folders}
               key={`attachments-${message.id}`}
-              projectSubdomain={project.subdomain}
+              taskId={project.id}
             />,
           );
         }
@@ -326,9 +326,9 @@ export function ChatStream({
         if (shouldRenderFooter) {
           messageElements.push(
             <AssistantMessagesFooter
+              id={project.id}
               key={`assistant-footer-${message.id}`}
               messages={assistantMessages}
-              subdomain={project.subdomain}
             />,
           );
         }
@@ -348,7 +348,7 @@ export function ChatStream({
     hideLogo,
     hideUserMessages,
     project.urls.assetBase,
-    project.subdomain,
+    project.id,
     isAgentRunning,
     isDeveloperMode,
     isPlanningVisible,

@@ -51,8 +51,8 @@ app.all("/*", async (c, next) => {
     }
   }
 
-  const { subdomain } = uriDetails.value;
-  const runtimeRef = c.var.getRuntimeRef(subdomain);
+  const { id } = uriDetails.value;
+  const runtimeRef = c.var.getRuntimeRef(id);
   if (!runtimeRef) {
     return c.html(fallbackPage);
   }

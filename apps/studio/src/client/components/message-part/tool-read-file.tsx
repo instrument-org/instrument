@@ -19,13 +19,7 @@ type ReadFilePart = Extract<
   { type: "tool-read_file" }
 >;
 
-export function ToolReadFile({
-  part,
-  subdomain,
-}: {
-  part: ReadFilePart;
-  subdomain: TaskId;
-}) {
+export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
   if (part.state !== "output-available") {
     return null;
   }
@@ -38,8 +32,8 @@ export function ToolReadFile({
       return (
         <ReadFileCard
           filePath={output.filePath}
+          id={id}
           modifiedAt={output.modifiedAt}
-          subdomain={subdomain}
         >
           <audio className="w-full" controls src={src} />
         </ReadFileCard>
@@ -47,7 +41,7 @@ export function ToolReadFile({
     }
     case "does-not-exist": {
       return (
-        <ReadFileCard filePath={output.filePath} subdomain={subdomain}>
+        <ReadFileCard filePath={output.filePath} id={id}>
           <p className="text-xs text-muted-foreground">File not found</p>
         </ReadFileCard>
       );
@@ -57,8 +51,8 @@ export function ToolReadFile({
         <FileToolCard
           content={output.content}
           filePath={output.filePath}
+          id={id}
           modifiedAt={output.modifiedAt}
-          subdomain={subdomain}
         />
       );
     }
@@ -68,8 +62,8 @@ export function ToolReadFile({
       return (
         <ReadFileCard
           filePath={output.filePath}
+          id={id}
           modifiedAt={output.modifiedAt}
-          subdomain={subdomain}
         >
           <div className="flex items-center justify-center">
             <ImageWithFallback
@@ -88,7 +82,7 @@ export function ToolReadFile({
         <FileToolCard
           content={output.entries.join("\n")}
           filePath={output.filePath}
-          subdomain={subdomain}
+          id={id}
         />
       );
     }
@@ -97,8 +91,8 @@ export function ToolReadFile({
       return (
         <ReadFileCard
           filePath={output.filePath}
+          id={id}
           modifiedAt={output.modifiedAt}
-          subdomain={subdomain}
         >
           <iframe
             className="h-96 w-full rounded-lg"
@@ -116,8 +110,8 @@ export function ToolReadFile({
       return (
         <ReadFileCard
           filePath={output.filePath}
+          id={id}
           modifiedAt={output.modifiedAt}
-          subdomain={subdomain}
         >
           <p className="text-xs text-muted-foreground">{message}</p>
         </ReadFileCard>
@@ -128,8 +122,8 @@ export function ToolReadFile({
       return (
         <ReadFileCard
           filePath={output.filePath}
+          id={id}
           modifiedAt={output.modifiedAt}
-          subdomain={subdomain}
         >
           <video className="max-h-96 w-full rounded-lg" controls src={src} />
         </ReadFileCard>
@@ -145,13 +139,13 @@ export function ToolReadFile({
 function ReadFileCard({
   children,
   filePath,
+  id,
   modifiedAt,
-  subdomain,
 }: {
   children: React.ReactNode;
   filePath: string;
+  id: TaskId;
   modifiedAt?: number;
-  subdomain: TaskId;
 }) {
   const filename = filenameFromFilePath(filePath);
   const currentFile = useCurrentProjectFile(filePath);
@@ -163,7 +157,7 @@ function ReadFileCard({
   const navigate = useNavigate({ from: "/tasks/$id" });
 
   const handleAddToChat = () => {
-    appendToPrompt({ key: subdomain, update: filePath });
+    appendToPrompt({ key: id, update: filePath });
   };
 
   const handleExpand = () => {

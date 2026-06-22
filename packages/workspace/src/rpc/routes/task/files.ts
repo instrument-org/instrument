@@ -21,19 +21,19 @@ import { publisher } from "../../publisher";
 const list = base
   .input(
     z.object({
-      projectSubdomain: TaskIdSchema,
+      taskId: TaskIdSchema,
     }),
   )
   .output(ProjectFilesSchema)
-  .handler(async ({ errors, input: { projectSubdomain } }) => {
+  .handler(async ({ errors, input: { taskId } }) => {
     // Serve the live in-memory index when a watcher is active; otherwise fall
     // back to a fresh walk of disk.
-    const live = getCurrentProjectFiles(projectSubdomain);
+    const live = getCurrentProjectFiles(taskId);
     if (live) {
       return live;
     }
 
-    const result = await getProjectFiles(projectSubdomain);
+    const result = await getProjectFiles(taskId);
 
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
@@ -46,14 +46,14 @@ const fileInfo = base
   .input(
     z.object({
       filePath: RelativeProjectPathSchema,
-      projectSubdomain: TaskIdSchema,
+      taskId: TaskIdSchema,
     }),
   )
   .output(CurrentFileInfoSchema)
-  .handler(({ errors, input: { filePath, projectSubdomain } }) => {
+  .handler(({ errors, input: { filePath, taskId } }) => {
     const result = getCurrentFileInfo({
       filePath,
-      projectSubdomain,
+      taskId,
     });
 
     if (result.isErr()) {
@@ -70,13 +70,13 @@ export const projectFiles = {
     list: base
       .input(
         z.object({
-          projectSubdomain: TaskIdSchema,
+          taskId: TaskIdSchema,
         }),
       )
       .output(eventIterator(ProjectFilesSchema))
       .handler(async function* ({ context, input, signal }) {
         const release = startWatchingProjectFiles({
-          subdomain: input.projectSubdomain,
+          id: input.taskId,
           workspaceConfig: context.workspaceConfig,
         });
 
@@ -87,7 +87,7 @@ export const projectFiles = {
           yield call(list, input, { context, signal });
 
           for await (const payload of changes) {
-            if (payload.subdomain === input.projectSubdomain) {
+            if (payload.id === input.taskId) {
               yield call(list, input, { context, signal });
             }
           }

@@ -59,8 +59,8 @@ const systemInfo = devOnly.handler(async ({ context }) => {
 const sessionMarkdown = devOnly
   .input(
     z.object({
+      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
-      subdomain: TaskIdSchema,
     }),
   )
   .output(z.object({ markdown: z.string() }))
@@ -68,7 +68,7 @@ const sessionMarkdown = devOnly
     const frontMatter = buildSystemFrontMatter();
     return call(
       workspaceRouter.session.toMarkdown,
-      { frontMatter, sessionId: input.sessionId, subdomain: input.subdomain },
+      { frontMatter, id: input.id, sessionId: input.sessionId },
       { context, signal },
     );
   });

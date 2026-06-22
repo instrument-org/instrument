@@ -78,7 +78,7 @@ export function ReplaySessionModal({
       onSuccess: (result) => {
         onClose();
         void navigate({
-          params: { id: result.subdomain },
+          params: { id: result.id },
           search: (prev) => ({ ...prev, selectedSessionId: result.sessionId }),
           to: "/tasks/$id",
         });
@@ -93,9 +93,9 @@ export function ReplaySessionModal({
     }
     replayMutation.mutate({
       delayMs,
+      id: project.id,
       mode,
       sessionId: selectedSessionId,
-      subdomain: project.subdomain,
     });
   };
 

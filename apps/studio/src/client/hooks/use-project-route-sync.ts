@@ -12,7 +12,7 @@ export function useProjectRouteSync(project?: Task) {
     }
     void router.invalidate({
       filter: (m) =>
-        m.routeId === "/_app/tasks/$id/" && m.params.id === project.subdomain,
+        m.routeId === "/_app/tasks/$id/" && m.params.id === project.id,
     });
   }, [router, project]);
 }

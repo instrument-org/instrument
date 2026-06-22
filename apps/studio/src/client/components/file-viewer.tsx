@@ -296,7 +296,7 @@ export function FileViewer({
   onClose: () => void;
   onExpand?: () => void;
 }) {
-  const { filename, filePath, mimeType, projectSubdomain, url } = file;
+  const { filename, filePath, mimeType, taskId, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
@@ -335,8 +335,8 @@ export function FileViewer({
     try {
       await copyFileToClipboard({
         filePath,
+        id: taskId,
         isImage: mimeType.startsWith("image/"),
-        subdomain: projectSubdomain,
       });
       triggerCopied();
     } catch {
@@ -353,7 +353,7 @@ export function FileViewer({
   const handleRevealInFolder = () => {
     revealFileMutation.mutate({
       filePath,
-      subdomain: projectSubdomain,
+      id: taskId,
     });
   };
 

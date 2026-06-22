@@ -16,13 +16,13 @@ import { type BrowserViewManager } from "./manager";
 
 const ProjectBrowserDebugEntrySchema = z.object({
   destroyedExternallyTargetIds: z.array(z.string()),
+  id: z.string(),
   knownTargets: z.array(
     z.object({ sessionId: z.string(), targetId: z.string().nullable() }),
   ),
   partitionDir: z.string().nullable(),
   pendingReapResolverCount: z.number(),
   state: z.string(),
-  subdomain: z.string(),
   watchedTargetIds: z.array(z.string()),
 });
 
@@ -34,6 +34,7 @@ const BrowserViewDebugEntrySchema = z.object({
   detachListenerCount: z.number(),
   disposerCount: z.number(),
   eventListenerCount: z.number(),
+  id: z.string(),
   isCrashed: z.boolean(),
   isLoading: z.boolean(),
   partitionDir: z.string(),
@@ -41,7 +42,6 @@ const BrowserViewDebugEntrySchema = z.object({
   screencastActive: z.boolean(),
   screencastSessionId: z.number(),
   sessionId: z.string(),
-  subdomain: z.string(),
   targetId: BrowserTargetIdSchema,
   title: z.string(),
   url: z.string(),
@@ -80,6 +80,7 @@ function buildBrowserViewEntries(
       detachListenerCount: entry.detachListeners.size,
       disposerCount: entry.disposers.size,
       eventListenerCount: entry.eventListeners.size,
+      id: entry.id,
       isCrashed: wcDestroyed ? false : wc.isCrashed(),
       isLoading: wcDestroyed ? false : wc.isLoading(),
       partitionDir: entry.partitionDir,
@@ -87,7 +88,6 @@ function buildBrowserViewEntries(
       screencastActive: entry.screencastInterval !== null,
       screencastSessionId: entry.screencastSessionId,
       sessionId: entry.sessionId,
-      subdomain: entry.subdomain,
       targetId,
       title: wcDestroyed ? "" : wc.getTitle(),
       url: wcDestroyed ? "" : wc.getURL(),
@@ -105,7 +105,7 @@ function buildProjectBrowserEntries(
   const snapshot = workspaceRef.getSnapshot();
   const out: ProjectBrowserDebugEntry[] = [];
 
-  for (const [subdomain, ref] of snapshot.context.projectBrowserRefs) {
+  for (const [id, ref] of snapshot.context.projectBrowserRefs) {
     const childSnapshot = ref.getSnapshot();
     const ctx = childSnapshot.context;
     const knownTargets = [...ctx.knownTargets.entries()].map(
@@ -119,13 +119,12 @@ function buildProjectBrowserEntries(
       destroyedExternallyTargetIds: [...ctx.destroyedExternallyTargets].map(
         String,
       ),
+      id: String(id),
       knownTargets,
       partitionDir: ctx.partitionDir,
       pendingReapResolverCount:
-        snapshot.context.pendingBrowserReapResolvers.get(subdomain)?.length ??
-        0,
+        snapshot.context.pendingBrowserReapResolvers.get(id)?.length ?? 0,
       state: JSON.stringify(childSnapshot.value),
-      subdomain: String(subdomain),
       watchedTargetIds: [...ctx.watchedTargets].map(String),
     });
   }
@@ -188,8 +187,8 @@ const snapshotLive = devOnly
       const refs =
         context.workspaceRef.getSnapshot().context.projectBrowserRefs;
       const seen = new Set<string>();
-      for (const [subdomain, ref] of refs) {
-        const key = String(subdomain);
+      for (const [id, ref] of refs) {
+        const key = String(id);
         seen.add(key);
         if (childSubs.has(key)) {
           continue;

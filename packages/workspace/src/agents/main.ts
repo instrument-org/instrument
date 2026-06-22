@@ -287,8 +287,8 @@ export const mainAgent = setupAgent({
     // called so the watcher ref acquired in onStart is released, even when we
     // skip saving the change summary below.
     const { after, changes: fileChanges } = await consumeTurnChanges({
+      id: appConfig,
       sessionId,
-      subdomain: appConfig,
     });
 
     // Advance the cross-turn baseline to the post-turn tree so the agent's own
@@ -365,8 +365,8 @@ export const mainAgent = setupAgent({
       if (outputArtifacts.length > 0) {
         publisher.publish("project.outputArtifactsCreated", {
           files: outputArtifacts,
+          id: appConfig,
           sessionId,
-          subdomain: appConfig,
         });
       }
 
@@ -378,8 +378,8 @@ export const mainAgent = setupAgent({
   },
   onStart: async ({ appConfig, sessionId }) => {
     await beginTurnChangeTracking({
+      id: appConfig,
       sessionId,
-      subdomain: appConfig,
       workspaceConfig: getWorkspaceConfig(),
     });
   },

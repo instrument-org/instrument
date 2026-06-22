@@ -29,7 +29,7 @@ export function ProjectSettingsDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
         <RenameForm
-          key={project.subdomain}
+          key={project.id}
           onOpenChange={onOpenChange}
           project={project}
         />
@@ -61,8 +61,8 @@ function RenameForm({
     },
     onSubmit: async ({ value }) => {
       await updateProject({
+        id: project.id,
         name: value.name,
-        subdomain: project.subdomain,
       });
       onOpenChange(false);
     },

@@ -77,7 +77,7 @@ export function StudioCommandMenu() {
   const currentProjectSubdomain = projectRouteMatch?.params.id;
 
   const candidateProjects = projects.filter(
-    (project) => project.subdomain !== currentProjectSubdomain,
+    (project) => project.id !== currentProjectSubdomain,
   );
 
   const matchedProjects = useMemo((): MatchedProject[] => {
@@ -128,10 +128,10 @@ export function StudioCommandMenu() {
     }, 200);
   };
 
-  const handleSelectProject = (subdomain: TaskId) => {
+  const handleSelectProject = (id: TaskId) => {
     handleClose();
     void navigateTab({
-      params: { id: subdomain },
+      params: { id },
       to: "/tasks/$id",
     });
   };
@@ -261,7 +261,7 @@ function VirtualProjectList({
   onSelectProject,
 }: {
   matchedProjects: MatchedProject[];
-  onSelectProject: (subdomain: TaskId) => void;
+  onSelectProject: (id: TaskId) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -298,15 +298,15 @@ function VirtualProjectList({
               <div
                 className="absolute top-0 left-0 w-full"
                 data-index={virtualItem.index}
-                key={project.subdomain}
+                key={project.id}
                 ref={virtualizer.measureElement}
                 style={{ transform: `translateY(${virtualItem.start}px)` }}
               >
                 <CommandItem
                   onSelect={() => {
-                    onSelectProject(project.subdomain);
+                    onSelectProject(project.id);
                   }}
-                  value={project.subdomain}
+                  value={project.id}
                 >
                   <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
                   <span className="flex-1 truncate text-sm">

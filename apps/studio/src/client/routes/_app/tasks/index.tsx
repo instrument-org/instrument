@@ -31,7 +31,7 @@ import {
   PROJECT_MANIFEST_FILE_NAME,
 } from "@instrument-org/shared";
 import {
-  isProjectSubdomain,
+  isTaskId,
   type Task,
   type TaskId,
 } from "@instrument-org/workspace/client";
@@ -94,13 +94,13 @@ function RouteComponent() {
   );
 
   const projectSubdomains = useMemo(
-    () => projects.map((p) => p.subdomain),
+    () => projects.map((p) => p.id),
     [projects],
   );
 
   const { data: appStates } = useQuery({
-    ...rpcClient.workspace.app.state.bySubdomains.queryOptions({
-      input: { subdomains: projectSubdomains },
+    ...rpcClient.workspace.app.state.byIds.queryOptions({
+      input: { ids: projectSubdomains },
     }),
   });
 
@@ -120,29 +120,25 @@ function RouteComponent() {
     return new Set<TaskId>(
       appStates
         .filter((state) => state.sessionActors.length > 0)
-        .map((state) => state.app.subdomain)
-        .filter((subdomain) => isProjectSubdomain(subdomain)),
+        .map((state) => state.app.id)
+        .filter((id) => isTaskId(id)),
     );
   }, [appStates]);
 
   const evalsCount = projects.filter((p) =>
-    p.subdomain.startsWith(EVAL_SUBDOMAIN_PREFIX),
+    p.id.startsWith(EVAL_SUBDOMAIN_PREFIX),
   ).length;
 
   const filteredProjects = useMemo(() => {
     switch (filterTab) {
       case "active": {
-        return projects.filter((p) => activeProjectSubdomains.has(p.subdomain));
+        return projects.filter((p) => activeProjectSubdomains.has(p.id));
       }
       case "evals": {
-        return projects.filter((p) =>
-          p.subdomain.startsWith(EVAL_SUBDOMAIN_PREFIX),
-        );
+        return projects.filter((p) => p.id.startsWith(EVAL_SUBDOMAIN_PREFIX));
       }
       case "favorites": {
-        return projects.filter((p) =>
-          favoriteProjectSubdomains.has(p.subdomain),
-        );
+        return projects.filter((p) => favoriteProjectSubdomains.has(p.id));
       }
       default: {
         return projects;
@@ -153,8 +149,8 @@ function RouteComponent() {
   const selectedProjects = useMemo(() => {
     return Object.keys(rowSelection)
       .filter((key) => rowSelection[key])
-      .map((subdomain) => {
-        return projects.find((p) => p.subdomain === subdomain);
+      .map((id) => {
+        return projects.find((p) => p.id === id);
       })
       .filter((p): p is Task => p !== undefined);
   }, [projects, rowSelection]);
@@ -164,12 +160,12 @@ function RouteComponent() {
       return false;
     }
     const selectedSubdomains = new Set<TaskId>(
-      selectedProjects.map((p) => p.subdomain),
+      selectedProjects.map((p) => p.id),
     );
     return appStates.some(
       (state) =>
-        isProjectSubdomain(state.app.subdomain) &&
-        selectedSubdomains.has(state.app.subdomain) &&
+        isTaskId(state.app.id) &&
+        selectedSubdomains.has(state.app.id) &&
         state.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
     );
   }, [appStates, selectedProjects]);
@@ -217,7 +213,7 @@ function RouteComponent() {
             onSuccess: (data) => {
               toast.success("Task imported successfully");
               void router.navigate({
-                params: { id: data.subdomain },
+                params: { id: data.id },
                 to: "/tasks/$id",
               });
             },
@@ -234,9 +230,9 @@ function RouteComponent() {
   );
 
   const handleStop = useCallback(
-    (subdomain: TaskId) => {
+    (id: TaskId) => {
       stopSessionMutation.mutate(
-        { subdomain },
+        { id },
         {
           onError: () => {
             toast.error("Failed to stop session");
@@ -248,15 +244,15 @@ function RouteComponent() {
   );
 
   const handleStopSelected = async () => {
-    const subdomainsToStop = selectedProjects.map((p) => p.subdomain);
+    const subdomainsToStop = selectedProjects.map((p) => p.id);
 
     let successCount = 0;
-    for (const subdomain of subdomainsToStop) {
+    for (const id of subdomainsToStop) {
       try {
-        await stopSessionMutation.mutateAsync({ subdomain });
+        await stopSessionMutation.mutateAsync({ id });
         successCount++;
       } catch {
-        toast.error(`Failed to stop session for ${subdomain}`);
+        toast.error(`Failed to stop session for ${id}`);
       }
     }
 
@@ -271,8 +267,8 @@ function RouteComponent() {
   };
 
   const handleDelete = useCallback(
-    (subdomain: TaskId) => {
-      const project = projects.find((p) => p.subdomain === subdomain);
+    (id: TaskId) => {
+      const project = projects.find((p) => p.id === id);
       if (project) {
         setProjectToDelete(project);
         setDeleteDialogOpen(true);
@@ -293,7 +289,7 @@ function RouteComponent() {
     try {
       for (const project of projectsToDelete) {
         try {
-          await trashApp(project.subdomain);
+          await trashApp(project.id);
           successCount++;
         } catch {
           toast.error(`Failed to delete task ${project.title}`);
@@ -320,10 +316,10 @@ function RouteComponent() {
   };
 
   const handleOpenInNewTab = useCallback(
-    (subdomain: TaskId) => {
+    (id: TaskId) => {
       void addTab(
         {
-          params: { id: subdomain },
+          params: { id },
           to: "/tasks/$id",
         },
         { select: true },
@@ -333,8 +329,8 @@ function RouteComponent() {
   );
 
   const handleSettings = useCallback(
-    (subdomain: TaskId) => {
-      const project = projects.find((p) => p.subdomain === subdomain);
+    (id: TaskId) => {
+      const project = projects.find((p) => p.id === id);
       if (project) {
         setProjectToEdit(project);
         setSettingsDialogOpen(true);

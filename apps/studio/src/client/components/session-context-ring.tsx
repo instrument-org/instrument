@@ -60,17 +60,17 @@ const RADIUS = 7;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function SessionContextRing({
+  id,
   model,
   selectedSessionId,
-  subdomain,
 }: {
+  id: TaskId;
   model?: AIGatewayModel.Type;
   selectedSessionId: StoreId.Session;
-  subdomain: TaskId;
 }) {
   const { data } = useQuery(
     rpcClient.workspace.session.live.contextTokens.experimental_liveOptions({
-      input: { sessionId: selectedSessionId, subdomain },
+      input: { id, sessionId: selectedSessionId },
     }),
   );
 

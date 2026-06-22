@@ -813,7 +813,7 @@ export class TabsManager {
   private async updateMetaTags(tab: TabWithView) {
     const metaTagQueries = {
       iconName: META_TAGS.iconName,
-      projectSubdomain: META_TAGS.projectSubdomain,
+      taskId: META_TAGS.taskId,
     } as const;
 
     type MetaTagsResult = {
@@ -843,10 +843,8 @@ export class TabsManager {
       )) as MetaTagsResult;
       const iconNameResult = TabIconsSchema.safeParse(metaTags.iconName);
       tab.iconName = iconNameResult.success ? iconNameResult.data : undefined;
-      const projectSubdomainResult = TaskIdSchema.safeParse(
-        metaTags.projectSubdomain,
-      );
-      tab.projectSubdomain = projectSubdomainResult.success
+      const projectSubdomainResult = TaskIdSchema.safeParse(metaTags.taskId);
+      tab.taskId = projectSubdomainResult.success
         ? projectSubdomainResult.data
         : undefined;
     } catch (error) {

@@ -74,14 +74,14 @@ window.api.onNavigate((url) => {
       // Same pathname as IPC: keep search params (bare path would strip them)
       // except clear `sidebar` so the default chat sidebar shows again.
       const loc = router.state.location;
-      const subdomain = projectRouteMatch.params.id;
+      const id = projectRouteMatch.params.id;
       if (
         (loc.search.sidebar !== undefined ||
           loc.search.artifactPanel !== undefined) &&
-        subdomain
+        id
       ) {
         void router.navigate({
-          params: { id: subdomain },
+          params: { id },
           replace: true,
           search: (prev) => ({
             ...prev,

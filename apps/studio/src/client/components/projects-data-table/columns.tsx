@@ -21,10 +21,10 @@ export function createColumns({
   onStop,
 }: {
   favoriteProjectSubdomains: Set<string>;
-  onDelete: (subdomain: TaskId) => void;
-  onOpenInNewTab: (subdomain: TaskId) => void;
-  onSettings: (subdomain: TaskId) => void;
-  onStop: (subdomain: TaskId) => void;
+  onDelete: (id: TaskId) => void;
+  onOpenInNewTab: (id: TaskId) => void;
+  onSettings: (id: TaskId) => void;
+  onStop: (id: TaskId) => void;
 }): ColumnDef<Task>[] {
   return [
     {
@@ -79,7 +79,7 @@ export function createColumns({
       accessorKey: "title",
       cell: ({ row }) => {
         const project = row.original;
-        const isFavorite = favoriteProjectSubdomains.has(project.subdomain);
+        const isFavorite = favoriteProjectSubdomains.has(project.id);
         return (
           <div className="flex min-w-0 items-center gap-x-2">
             {isFavorite && (
@@ -91,14 +91,14 @@ export function createColumns({
             <InternalLink
               className="flex min-w-0 flex-1 items-center gap-x-2"
               openInCurrentTab
-              params={{ id: project.subdomain }}
+              params={{ id: project.id }}
               to="/tasks/$id"
             >
               <TaskIcon name={project.iconName} size="sm" />
               <span className="truncate font-medium">{project.title}</span>
               <TaskStatusIcon
                 className="ml-auto size-4 shrink-0"
-                subdomain={project.subdomain}
+                id={project.id}
               />
             </InternalLink>
           </div>
@@ -125,7 +125,7 @@ export function createColumns({
       accessorKey: "model",
       cell: ({ row }) => {
         const project = row.original;
-        return <ModelPreview subdomain={project.subdomain} />;
+        return <ModelPreview id={project.id} />;
       },
       header: "Model",
       minSize: 150,
@@ -134,7 +134,7 @@ export function createColumns({
       accessorKey: "chatPreview",
       cell: ({ row }) => {
         const project = row.original;
-        return <SessionStatusPreview subdomain={project.subdomain} />;
+        return <SessionStatusPreview id={project.id} />;
       },
       header: "Chat preview",
       maxSize: 150,
@@ -201,11 +201,11 @@ export function createColumns({
         const project = row.original;
         return (
           <ProjectActionsCell
+            id={project.id}
             onDelete={onDelete}
             onOpenInNewTab={onOpenInNewTab}
             onSettings={onSettings}
             onStop={onStop}
-            subdomain={project.subdomain}
           />
         );
       },

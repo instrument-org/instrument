@@ -16,22 +16,22 @@ import {
 import { Field, FieldError, FieldLabel } from "../ui/field";
 import { Input } from "../ui/input";
 
-export function ProjectSettingsDialog({
+export function TaskSettingsDialog({
   onOpenChange,
   open,
-  project,
+  task,
 }: {
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  project: Task;
+  task: Task;
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
         <RenameForm
-          key={project.id}
+          key={task.id}
           onOpenChange={onOpenChange}
-          project={project}
+          task={task}
         />
       </DialogContent>
     </Dialog>
@@ -40,10 +40,10 @@ export function ProjectSettingsDialog({
 
 function RenameForm({
   onOpenChange,
-  project,
+  task,
 }: {
   onOpenChange: (open: boolean) => void;
-  project: Task;
+  task: Task;
 }) {
   const { isPending, mutateAsync: updateProject } = useMutation(
     rpcClient.workspace.task.update.mutationOptions({
@@ -57,11 +57,11 @@ function RenameForm({
 
   const form = useForm({
     defaultValues: {
-      name: project.title,
+      name: task.title,
     },
     onSubmit: async ({ value }) => {
       await updateProject({
-        id: project.id,
+        id: task.id,
         name: value.name,
       });
       onOpenChange(false);

@@ -9,8 +9,8 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useToggleCommandMenu } from "@/client/hooks/use-toggle-command-menu";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { rpcClient } from "@/client/rpc/client";
+import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
 import {
   ArrowsClockwiseIcon,
@@ -26,12 +26,10 @@ import { toast } from "sonner";
 
 import { FuzzyHighlight } from "./fuzzy-highlight";
 
-interface MatchedProject {
-  project: Project;
+interface MatchedTask {
+  task: Task;
   titleRanges: null | number[];
 }
-
-type Project = RPCOutput["workspace"]["task"]["list"]["projects"][number];
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
@@ -64,7 +62,7 @@ export function StudioCommandMenu() {
     from: "/_app/new-tab",
     shouldThrow: false,
   });
-  const { data: projectsData, isLoading } = useQuery(
+  const { data: tasksData, isLoading } = useQuery(
     rpcClient.workspace.task.list.queryOptions({
       enabled: open,
       input: { direction: "desc", sortBy: "updatedAt" },
@@ -72,23 +70,18 @@ export function StudioCommandMenu() {
     }),
   );
 
-  const projects = projectsData?.projects ?? [];
+  const tasks = tasksData?.tasks ?? [];
 
   const currentTaskId = projectRouteMatch?.params.id;
 
-  const candidateProjects = projects.filter(
-    (project) => project.id !== currentTaskId,
-  );
+  const candidateTasks = tasks.filter((task) => task.id !== currentTaskId);
 
-  const matchedProjects = useMemo((): MatchedProject[] => {
+  const matchedTasks = useMemo((): MatchedTask[] => {
     if (!search) {
-      return candidateProjects.map((project) => ({
-        project,
-        titleRanges: null,
-      }));
+      return candidateTasks.map((task) => ({ task, titleRanges: null }));
     }
 
-    const haystack = candidateProjects.map((p) => p.title);
+    const haystack = candidateTasks.map((p) => p.title);
     // eslint-disable-next-line unicorn/no-array-method-this-argument
     const indexes = fuzzy.filter(haystack, search);
 
@@ -100,12 +93,10 @@ export function StudioCommandMenu() {
     const order = fuzzy.sort(info, haystack, search);
 
     return order.flatMap((orderIdx) => {
-      const project = candidateProjects[info.idx[orderIdx] ?? -1];
-      return project
-        ? [{ project, titleRanges: info.ranges[orderIdx] ?? null }]
-        : [];
+      const task = candidateTasks[info.idx[orderIdx] ?? -1];
+      return task ? [{ task, titleRanges: info.ranges[orderIdx] ?? null }] : [];
     });
-  }, [candidateProjects, search]);
+  }, [candidateTasks, search]);
 
   const isOnNewTabPage = !!newTabRouteMatch;
 
@@ -128,7 +119,7 @@ export function StudioCommandMenu() {
     }, 200);
   };
 
-  const handleSelectProject = (id: TaskId) => {
+  const handleSelectTask = (id: TaskId) => {
     handleClose();
     void navigateTab({
       params: { id },
@@ -136,7 +127,7 @@ export function StudioCommandMenu() {
     });
   };
 
-  const handleNewProject = () => {
+  const handleNewTask = () => {
     handleClose();
     void navigate({ to: "/new-tab" });
   };
@@ -161,7 +152,7 @@ export function StudioCommandMenu() {
         value={search}
       />
       <CommandList className="max-h-none! min-h-48 overflow-visible!">
-        {isLoading && projects.length === 0 ? (
+        {isLoading && tasks.length === 0 ? (
           <div className="space-y-4 px-2 py-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <div className="flex items-center gap-x-3" key={i}>
@@ -178,7 +169,7 @@ export function StudioCommandMenu() {
             {search &&
               search !== "!dev" &&
               search !== "!beta" &&
-              matchedProjects.length === 0 && (
+              matchedTasks.length === 0 && (
                 <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
                   No tasks found
                 </div>
@@ -186,7 +177,7 @@ export function StudioCommandMenu() {
             {!search && (
               <CommandGroup>
                 {!isOnNewTabPage && (
-                  <CommandItem onSelect={handleNewProject} value="new-project">
+                  <CommandItem onSelect={handleNewTask} value="new-project">
                     <PlusIcon className="size-4" />
                     <span>New task</span>
                   </CommandItem>
@@ -243,10 +234,10 @@ export function StudioCommandMenu() {
                 </CommandItem>
               </CommandGroup>
             )}
-            {matchedProjects.length > 0 && (
+            {matchedTasks.length > 0 && (
               <VirtualProjectList
-                matchedProjects={matchedProjects}
-                onSelectProject={handleSelectProject}
+                matchedTasks={matchedTasks}
+                onSelectTask={handleSelectTask}
               />
             )}
           </>
@@ -257,17 +248,17 @@ export function StudioCommandMenu() {
 }
 
 function VirtualProjectList({
-  matchedProjects,
-  onSelectProject,
+  matchedTasks,
+  onSelectTask,
 }: {
-  matchedProjects: MatchedProject[];
-  onSelectProject: (id: TaskId) => void;
+  matchedTasks: MatchedTask[];
+  onSelectTask: (id: TaskId) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
-    count: matchedProjects.length,
+    count: matchedTasks.length,
     estimateSize: () => 36,
     getScrollElement: () => parentRef.current,
     measureElement: (el) => el.getBoundingClientRect().height,
@@ -289,31 +280,31 @@ function VirtualProjectList({
           style={{ height: `${virtualizer.getTotalSize()}px` }}
         >
           {virtualizer.getVirtualItems().map((virtualItem) => {
-            const matched = matchedProjects[virtualItem.index];
+            const matched = matchedTasks[virtualItem.index];
             if (!matched) {
               return null;
             }
-            const { project, titleRanges } = matched;
+            const { task, titleRanges } = matched;
             return (
               <div
                 className="absolute top-0 left-0 w-full"
                 data-index={virtualItem.index}
-                key={project.id}
+                key={task.id}
                 ref={virtualizer.measureElement}
                 style={{ transform: `translateY(${virtualItem.start}px)` }}
               >
                 <CommandItem
                   onSelect={() => {
-                    onSelectProject(project.id);
+                    onSelectTask(task.id);
                   }}
-                  value={project.id}
+                  value={task.id}
                 >
                   <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
                   <span className="flex-1 truncate text-sm">
-                    <FuzzyHighlight ranges={titleRanges} text={project.title} />
+                    <FuzzyHighlight ranges={titleRanges} text={task.title} />
                   </span>
                   <span className="text-xs text-muted-foreground/60">
-                    {formatDistanceToNow(new Date(project.updatedAt), {
+                    {formatDistanceToNow(new Date(task.updatedAt), {
                       addSuffix: true,
                     }).replace(/^about /, "")}
                   </span>

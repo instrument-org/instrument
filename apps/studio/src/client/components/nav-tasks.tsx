@@ -14,14 +14,14 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { InternalLink } from "./internal-link";
-import { NavProjectItem } from "./nav-project-item";
+import { NavTaskItem } from "./nav-task-item";
 
 const FAVORITES_LIMIT = 5;
 const PROJECT_ITEM_HEIGHT = 36;
 const PROJECT_ITEM_GAP = 2;
 const PROJECT_ROW_HEIGHT = PROJECT_ITEM_HEIGHT + PROJECT_ITEM_GAP;
 
-export function NavProjects({
+export function NavTasks({
   favoriteTaskIds,
   isFavorites,
   matches,
@@ -99,7 +99,7 @@ export function NavProjects({
         {isFavorites ? (
           <>
             {visibleFavorites.map((project) => (
-              <NavProjectItem
+              <NavTaskItem
                 isActive={isProjectActive(project.id)}
                 isFavorited={favoriteTaskIds.has(project.id)}
                 isFavorites
@@ -222,7 +222,7 @@ function ProjectsList({
               width: "100%",
             }}
           >
-            <NavProjectItem
+            <NavTaskItem
               isActive={state.isActive}
               isFavorited={state.isFavorited}
               isFavorites={false}

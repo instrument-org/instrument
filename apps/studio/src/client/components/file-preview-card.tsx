@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
-import { useProjectFileReferenceStatus } from "@/client/components/project/current-project-files";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useTaskFileReferenceStatus } from "@/client/components/task/current-task-files";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
@@ -37,7 +37,7 @@ export function FilePreviewCard({
   isSelected,
   onClick,
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   onClick: () => void;
@@ -49,7 +49,7 @@ export function FilePreviewCard({
   const [timeRemaining, setTimeRemaining] = useState<null | number>(null);
   const [videoDuration, setVideoDuration] = useState<null | number>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const referenceStatus = useProjectFileReferenceStatus(file);
+  const referenceStatus = useTaskFileReferenceStatus(file);
   const isStale = referenceStatus === "stale";
 
   const fileType = getFileType({ filename, mimeType });
@@ -132,7 +132,7 @@ function FileRowCard({
   isStale,
   onClick,
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   isStale: boolean;
@@ -206,7 +206,7 @@ function ImagePreviewCard({
   isStale,
   onClick,
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   isStale: boolean;
@@ -302,7 +302,7 @@ function ImagePreviewCard({
   );
 }
 
-function useFileActions(file: ProjectFileViewerFile) {
+function useFileActions(file: TaskFileViewerFile) {
   const showProjectFileInFolderMutation = useMutation(
     rpcClient.utils.showProjectFileInFolder.mutationOptions({
       onError: (error) => {
@@ -342,7 +342,7 @@ function VideoPreviewCard({
   videoProgress,
   videoRef,
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   handleMouseEnter: () => void;
   handleMouseLeave: () => void;
   hideActionsMenu?: boolean;

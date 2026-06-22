@@ -1,4 +1,4 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import {
   type SessionMessageDataPart,
@@ -19,7 +19,7 @@ export function FileChangesCard({
   taskId: TaskId;
 }) {
   // Deleted files have nothing to preview; show the ones that still exist.
-  const currentFiles: ProjectFileViewerFile[] = files
+  const currentFiles: TaskFileViewerFile[] = files
     .filter((file) => file.status !== "deleted")
     .map((file) => ({
       filename: file.filename,

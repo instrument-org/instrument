@@ -1,7 +1,7 @@
 import {
   openFileViewerAtom,
-  type ProjectFileViewerFile,
-} from "@/client/atoms/project-file-viewer";
+  type TaskFileViewerFile,
+} from "@/client/atoms/task-file-viewer";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
   ResizableHandle,
@@ -24,7 +24,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
-import { ProjectSidebar, type ProjectSidebarMode } from "./sidebar";
+import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
 
 const PANEL_SIZES = {
   artifactMin: 300,
@@ -39,24 +39,24 @@ const LAYOUT = {
   ]),
 };
 
-export function ProjectView({
+export function TaskView({
   artifactPanel,
   attachedFolders,
   files,
-  project,
   selectedModelURI,
   selectedSessionId,
   showTutorial,
   sidebar,
+  task,
 }: {
   artifactPanel: ArtifactPanel | undefined;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
   files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
-  project: Task;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
-  sidebar: ProjectSidebarMode;
+  sidebar: TaskSidebarMode;
+  task: Task;
 }) {
   const navigate = useNavigate();
   const openFileViewer = useSetAtom(openFileViewerAtom);
@@ -86,7 +86,7 @@ export function ProjectView({
       input: artifactPanel
         ? {
             filePath: artifactPanel.filePath,
-            taskId: project.id,
+            taskId: task.id,
           }
         : skipToken,
       placeholderData: keepPreviousData,
@@ -96,14 +96,14 @@ export function ProjectView({
   const currentFileMetadata = files?.find(
     (file) => file.filePath === artifactPanel?.filePath,
   );
-  const currentFile: null | ProjectFileViewerFile =
+  const currentFile: null | TaskFileViewerFile =
     fileInfo && currentFileMetadata
       ? {
           ...fileInfo,
           modifiedAt: currentFileMetadata.modifiedAt,
-          taskId: project.id,
+          taskId: task.id,
           url: getAssetUrl({
-            assetBase: project.assetBase,
+            assetBase: task.assetBase,
             filePath: fileInfo.filePath,
             version: currentFileMetadata.modifiedAt,
           }),
@@ -113,16 +113,16 @@ export function ProjectView({
   const handleArtifactPanelClose = () => {
     void navigate({
       from: "/tasks/$id",
-      params: { id: project.id },
+      params: { id: task.id },
       replace: true,
       search: (prev) => ({ ...prev, artifactPanel: undefined }),
     });
   };
 
-  const handleFileSelect = (file: ProjectFileViewerFile) => {
+  const handleFileSelect = (file: TaskFileViewerFile) => {
     void navigate({
       from: "/tasks/$id",
-      params: { id: project.id },
+      params: { id: task.id },
       replace: true,
       search: (prev) => ({
         ...prev,
@@ -141,10 +141,10 @@ export function ProjectView({
     }, []),
   );
 
-  const handleSidebarChange = (nextSidebar: ProjectSidebarMode) => {
+  const handleSidebarChange = (nextSidebar: TaskSidebarMode) => {
     void navigate({
       from: "/tasks/$id",
-      params: { id: project.id },
+      params: { id: task.id },
       replace: true,
       search: (prev) => ({
         ...prev,
@@ -156,10 +156,10 @@ export function ProjectView({
   const chatProps = {
     isReplayActive,
     onCancelReplay: handleCancelReplay,
-    project,
     selectedModelURI,
     selectedSessionId,
     showTutorial,
+    task,
   };
 
   return (
@@ -174,16 +174,16 @@ export function ProjectView({
           id="sidebar"
           minSize={PANEL_SIZES.sidebarMin}
         >
-          <ProjectSidebar
+          <TaskSidebar
             activeFilePath={artifactPanel?.filePath ?? null}
             attachedFolders={attachedFolders}
             chatProps={chatProps}
             files={files}
             onFileSelect={handleFileSelect}
             onSidebarChange={handleSidebarChange}
-            project={project}
             selectedSessionId={selectedSessionId}
             sidebar={sidebar}
+            task={task}
           />
         </ResizablePanel>
 

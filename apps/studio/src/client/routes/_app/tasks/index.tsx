@@ -3,13 +3,13 @@ import type { RowSelectionState } from "@tanstack/react-table";
 import { CommandMenuCTA } from "@/client/components/command-menu-cta";
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { InternalLink } from "@/client/components/internal-link";
-import { ProjectDeleteDialog } from "@/client/components/project/delete-dialog";
-import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
 import {
   PROJECTS_PAGE_SIZE,
   ProjectsDataTable,
 } from "@/client/components/projects-data-table";
 import { createColumns } from "@/client/components/projects-data-table/columns";
+import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
+import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -74,23 +74,23 @@ function RouteComponent() {
     useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<null | Task>(null);
-  const [projectToEdit, setProjectToEdit] = useState<null | Task>(null);
+  const [taskToDelete, setTaskToDelete] = useState<null | Task>(null);
+  const [taskToEdit, setTaskToEdit] = useState<null | Task>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isSingleDeleting, setIsSingleDeleting] = useState(false);
   const filterTab = search.filter;
   const trashTerminology = getTrashTerminology();
 
-  const { data: projectsData, isLoading } = useQuery(
+  const { data: tasksData, isLoading } = useQuery(
     rpcClient.workspace.task.live.list.experimental_liveOptions({
       input: { direction: "desc", sortBy: "updatedAt" },
     }),
   );
 
   const projects = useMemo(
-    () => projectsData?.projects ?? [],
-    [projectsData?.projects],
+    () => tasksData?.tasks ?? [],
+    [tasksData?.tasks],
   );
 
   const taskIds = useMemo(() => projects.map((p) => p.id), [projects]);
@@ -265,7 +265,7 @@ function RouteComponent() {
     (id: TaskId) => {
       const project = projects.find((p) => p.id === id);
       if (project) {
-        setProjectToDelete(project);
+        setTaskToDelete(project);
         setDeleteDialogOpen(true);
       }
     },
@@ -327,7 +327,7 @@ function RouteComponent() {
     (id: TaskId) => {
       const project = projects.find((p) => p.id === id);
       if (project) {
-        setProjectToEdit(project);
+        setTaskToEdit(project);
         setSettingsDialogOpen(true);
       }
     },
@@ -516,8 +516,8 @@ function RouteComponent() {
         title={`Move ${selectedProjects.length} ${selectedProjects.length === 1 ? "task" : "tasks"} to ${trashTerminology}?`}
       />
 
-      {projectToDelete && (
-        <ProjectDeleteDialog
+      {taskToDelete && (
+        <TaskDeleteDialog
           navigateOnDelete={false}
           onDeleteEnd={() => {
             setIsSingleDeleting(false);
@@ -528,24 +528,24 @@ function RouteComponent() {
           onOpenChange={(open) => {
             setDeleteDialogOpen(open);
             if (!open) {
-              setProjectToDelete(null);
+              setTaskToDelete(null);
             }
           }}
           open={deleteDialogOpen}
-          project={projectToDelete}
+          task={taskToDelete}
         />
       )}
 
-      {projectToEdit && (
-        <ProjectSettingsDialog
+      {taskToEdit && (
+        <TaskSettingsDialog
           onOpenChange={(open) => {
             setSettingsDialogOpen(open);
             if (!open) {
-              setProjectToEdit(null);
+              setTaskToEdit(null);
             }
           }}
           open={settingsDialogOpen}
-          project={projectToEdit}
+          task={taskToEdit}
         />
       )}
     </div>

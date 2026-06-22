@@ -1,4 +1,4 @@
-import { normalizeProjectFilePath } from "@instrument-org/workspace/client";
+import { normalizeTaskFilePath } from "@instrument-org/workspace/client";
 import { z } from "zod";
 
 // Self-contained traversal check: defense-in-depth before the request reaches
@@ -16,7 +16,7 @@ const filePathSchema = z
     (val) => !val.split(/[/\\]/).includes(".."),
     "Path must not contain '..' segments",
   )
-  .transform(normalizeProjectFilePath);
+  .transform(normalizeTaskFilePath);
 
 export const artifactPanelSchema = z.object({
   filePath: filePathSchema,

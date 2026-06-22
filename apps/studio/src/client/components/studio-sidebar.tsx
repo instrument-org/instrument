@@ -1,6 +1,6 @@
 import { NavPrimary } from "@/client/components/nav-primary";
-import { NavProjects } from "@/client/components/nav-projects";
 import { NavSupport } from "@/client/components/nav-support";
+import { NavTasks } from "@/client/components/nav-tasks";
 import { NavUser } from "@/client/components/nav-user";
 import { ServerExceptionsAlert } from "@/client/components/server-exceptions-alert";
 import {
@@ -39,7 +39,7 @@ export function StudioSidebar({
     rpcClient.favorites.live.listProjects.experimental_liveOptions(),
   );
 
-  const { data: projectsData } = useQuery(
+  const { data: tasksData } = useQuery(
     rpcClient.workspace.task.live.list.experimental_liveOptions(),
   );
 
@@ -48,15 +48,15 @@ export function StudioSidebar({
     [favorites],
   );
 
-  const filteredProjects = useMemo(() => {
-    if (!projectsData?.projects || !favorites?.length) {
-      return projectsData?.projects ?? [];
+  const filteredTasks = useMemo(() => {
+    if (!tasksData?.tasks || !favorites?.length) {
+      return tasksData?.tasks ?? [];
     }
 
-    return projectsData.projects.filter(
+    return tasksData.tasks.filter(
       (project) => !favoriteTaskIds.has(project.id),
     );
-  }, [projectsData, favorites, favoriteTaskIds]);
+  }, [tasksData, favorites, favoriteTaskIds]);
 
   return (
     <Sidebar collapsible="none" side="left" {...props}>
@@ -64,7 +64,7 @@ export function StudioSidebar({
       <NavPrimary items={primaryNavItems} />
       <SidebarContent>
         {favorites && favorites.length > 0 && (
-          <NavProjects
+          <NavTasks
             favoriteTaskIds={favoriteTaskIds}
             isFavorites
             matches={matches}
@@ -72,12 +72,12 @@ export function StudioSidebar({
             title="Favorites"
           />
         )}
-        {filteredProjects.length > 0 && (
-          <NavProjects
+        {filteredTasks.length > 0 && (
+          <NavTasks
             favoriteTaskIds={favoriteTaskIds}
             isFavorites={false}
             matches={matches}
-            projects={filteredProjects}
+            projects={filteredTasks}
             title="Tasks"
           />
         )}

@@ -1,5 +1,5 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
-import { useCurrentProjectFile } from "@/client/components/project/current-project-files";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useCurrentTaskFile } from "@/client/components/task/current-task-files";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 
@@ -14,13 +14,13 @@ export function FilePreviewListItem({
   isSelected = false,
   onClick,
 }: {
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   isSelected?: boolean;
   onClick: () => void;
 }) {
   const { filename, filePath, mimeType, url } = file;
   const fileType = getFileType(file);
-  const currentFile = useCurrentProjectFile(filePath);
+  const currentFile = useCurrentTaskFile(filePath);
   const isStale =
     currentFile !== undefined && currentFile.modifiedAt !== file.modifiedAt;
 

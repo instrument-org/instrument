@@ -20,12 +20,12 @@ type TaskPart = Extract<SessionMessagePart.ToolPart, { type: "tool-task" }>;
 
 export function ToolTask({
   part,
-  project,
   renderStream,
+  task,
 }: {
   part: TaskPart;
-  project: Task;
   renderStream: RenderStream;
+  task: Task;
 }) {
   const { isStreaming } = useToolCallSession();
   const isSuccess = part.state === "output-available";
@@ -42,9 +42,9 @@ export function ToolTask({
     <div className="mt-2 overflow-hidden rounded-2xl bg-gray-100 dark:bg-[#211d1b]">
       <TaskStream
         isRunning={isTaskRunning}
-        project={project}
         renderStream={renderStream}
         sessionId={part.output.sessionId}
+        task={task}
       />
     </div>
   );
@@ -52,14 +52,14 @@ export function ToolTask({
 
 function TaskStream({
   isRunning,
-  project,
   renderStream,
   sessionId,
+  task,
 }: {
   isRunning: boolean;
-  project: Task;
   renderStream: RenderStream;
   sessionId: string;
+  task: Task;
 }) {
   const {
     data: messages,
@@ -68,7 +68,7 @@ function TaskStream({
   } = useQuery(
     rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
       input: {
-        id: project.id,
+        id: task.id,
         sessionId,
       },
     }),

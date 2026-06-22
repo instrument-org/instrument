@@ -9,7 +9,7 @@ import { ToolCallSessionProvider } from "./tool-call-session";
 import { ToolCallSummary } from "./tool-call-summary";
 import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
-import { ToolCopyToProject } from "./tool-copy-to-project";
+import { ToolCopyToTask } from "./tool-copy-to-task";
 import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolGlob } from "./tool-glob";
@@ -27,16 +27,16 @@ export function ToolCall({
   isStreaming,
   onRetry,
   part,
-  project,
   renderStream,
+  task,
 }: {
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isStreaming: boolean;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  project: Task;
   renderStream: RenderStream;
+  task: Task;
 }) {
   if (!isToolCallVisible({ isDeveloperMode, isStreaming, part })) {
     return null;
@@ -51,7 +51,7 @@ export function ToolCall({
       isStreaming={isStreaming}
     >
       <ToolCallSummary
-        assetBaseUrl={project.assetBase}
+        assetBaseUrl={task.assetBase}
         isDeadDevMode={isDeadDevMode}
         part={part}
       >
@@ -61,8 +61,8 @@ export function ToolCall({
           <ToolCallBody
             onRetry={onRetry}
             part={part}
-            project={project}
             renderStream={renderStream}
+            task={task}
           />
         )}
       </ToolCallSummary>
@@ -90,13 +90,13 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
 function ToolCallBody({
   onRetry,
   part,
-  project,
   renderStream,
+  task,
 }: {
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  project: Task;
   renderStream: RenderStream;
+  task: Task;
 }) {
   if (part.state === "output-error") {
     return <ToolCallError part={part} />;
@@ -104,22 +104,22 @@ function ToolCallBody({
 
   switch (part.type) {
     case "tool-bash": {
-      return <ToolBash assetBaseUrl={project.assetBase} part={part} />;
+      return <ToolBash assetBaseUrl={task.assetBase} part={part} />;
     }
     case "tool-choose": {
       return <ToolChoose part={part} />;
     }
     case "tool-copy_to_project": {
-      return <ToolCopyToProject part={part} />;
+      return <ToolCopyToTask part={part} />;
     }
     case "tool-edit_file": {
-      return <ToolEditFile id={project.id} part={part} />;
+      return <ToolEditFile id={task.id} part={part} />;
     }
     case "tool-generate_image": {
       return (
         <ToolGenerateImage
-          assetBaseUrl={project.assetBase}
-          id={project.id}
+          assetBaseUrl={task.assetBase}
+          id={task.id}
           onRetry={onRetry}
           part={part}
         />
@@ -135,11 +135,11 @@ function ToolCallBody({
       return <ToolLoadSkill part={part} />;
     }
     case "tool-read_file": {
-      return <ToolReadFile id={project.id} part={part} />;
+      return <ToolReadFile id={task.id} part={part} />;
     }
     case "tool-task": {
       return (
-        <ToolTask part={part} project={project} renderStream={renderStream} />
+        <ToolTask part={part} renderStream={renderStream} task={task} />
       );
     }
     case "tool-unavailable": {
@@ -149,7 +149,7 @@ function ToolCallBody({
       return <ToolWebSearch onRetry={onRetry} part={part} />;
     }
     case "tool-write_file": {
-      return <ToolWriteFile id={project.id} part={part} />;
+      return <ToolWriteFile id={task.id} part={part} />;
     }
   }
 }

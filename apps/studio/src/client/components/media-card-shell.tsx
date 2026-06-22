@@ -1,4 +1,4 @@
-import { type ProjectFileViewerFile } from "@/client/atoms/project-file-viewer";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { cn } from "@/client/lib/utils";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
@@ -31,7 +31,7 @@ export function MediaCardShell({
   aspectRatio: "square" | "video";
   bottomBar?: React.ReactNode;
   children: React.ReactNode;
-  file: ProjectFileViewerFile;
+  file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   onClick: () => void;

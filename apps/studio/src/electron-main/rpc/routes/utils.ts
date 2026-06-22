@@ -18,7 +18,7 @@ import {
   SupportedEditorSchema,
 } from "@/shared/schemas/editors";
 import {
-  readProjectFile,
+  readTaskFile,
   RelativeProjectPathSchema,
   resolvePathWithinTaskDir,
   taskDir,
@@ -442,7 +442,7 @@ const copyFileToClipboard = base
     }),
   )
   .handler(async ({ errors, input, signal }) => {
-    const buffer = await readProjectFile({
+    const buffer = await readTaskFile({
       filePath: input.filePath,
       signal,
       taskId: input.id,

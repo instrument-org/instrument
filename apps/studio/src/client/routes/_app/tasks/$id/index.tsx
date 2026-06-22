@@ -1,11 +1,11 @@
 import { promptValueAtomFamily } from "@/client/atoms/prompt-value";
-import { ProjectDeleteDialog } from "@/client/components/project/delete-dialog";
-import { DuplicateProjectModal } from "@/client/components/project/duplicate-modal";
-import { ProjectSettingsDialog } from "@/client/components/project/settings-dialog";
-import { ProjectSidebarModeSchema } from "@/client/components/project/sidebar";
-import { ProjectView } from "@/client/components/project/view";
+import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
+import { DuplicateTaskModal } from "@/client/components/task/duplicate-modal";
+import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
+import { TaskSidebarModeSchema } from "@/client/components/task/sidebar";
+import { TaskView } from "@/client/components/task/view";
 import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-artifact";
-import { useProjectRouteSync } from "@/client/hooks/use-project-route-sync";
+import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
 import { createIconMeta, createTaskIdMeta } from "@/shared/tabs";
@@ -40,11 +40,11 @@ const projectSearchSchema = z.object({
   showDelete: z.boolean().optional(),
   showDuplicate: z.boolean().optional(),
   showSettings: z.boolean().optional(),
-  sidebar: ProjectSidebarModeSchema.optional(),
+  sidebar: TaskSidebarModeSchema.optional(),
 });
 
-function title(project?: Task) {
-  return project?.title ?? "Not Found";
+function title(task?: Task) {
+  return task?.title ?? "Not Found";
 }
 
 /* eslint-disable perfectionist/sort-objects */
@@ -122,7 +122,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
   },
   component: RouteComponent,
   head: async ({ params }) => {
-    const project = await safe(
+    const taskResult = await safe(
       rpcClient.workspace.task.byId.call({
         id: params.id,
       }),
@@ -131,10 +131,10 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
     return {
       meta: [
         {
-          title: title(project.data),
+          title: title(taskResult.data),
         },
-        ...(project.data?.iconName
-          ? [createIconMeta(project.data.iconName)]
+        ...(taskResult.data?.iconName
+          ? [createIconMeta(taskResult.data.iconName)]
           : []),
         createTaskIdMeta(params.id),
       ],
@@ -191,7 +191,7 @@ function RouteComponent() {
   };
 
   const {
-    data: project,
+    data: task,
     error: projectError,
     isLoading: isProjectLoading,
   } = useQuery(
@@ -201,7 +201,7 @@ function RouteComponent() {
     }),
   );
 
-  useProjectRouteSync(project);
+  useTaskRouteSync(task);
 
   const {
     data: projectState,
@@ -247,42 +247,42 @@ function RouteComponent() {
   }
 
   // Should never happen since both queries are required to load successfully
-  if (!project || !projectState) {
+  if (!task || !projectState) {
     return null;
   }
 
   return (
     <>
-      <ProjectView
+      <TaskView
         artifactPanel={artifactPanel}
         attachedFolders={projectState.attachedFolders}
         files={files}
-        project={project}
         selectedModelURI={projectState.selectedModelURI}
         selectedSessionId={selectedSessionId}
         showTutorial={projectState.showTutorial}
         sidebar={sidebar ?? "chat"}
+        task={task}
       />
 
-      <ProjectDeleteDialog
+      <TaskDeleteDialog
         navigateOnDelete
         onOpenChange={handleDeleteDialogChange}
         open={showDelete ?? false}
-        project={project}
+        task={task}
       />
 
-      <DuplicateProjectModal
+      <DuplicateTaskModal
         isOpen={showDuplicate ?? false}
         onClose={() => {
           handleDuplicateDialogChange(false);
         }}
-        project={project}
+        task={task}
       />
 
-      <ProjectSettingsDialog
+      <TaskSettingsDialog
         onOpenChange={handleSettingsDialogChange}
         open={showSettings ?? false}
-        project={project}
+        task={task}
       />
     </>
   );

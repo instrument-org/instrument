@@ -11,7 +11,7 @@ import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
-import { useCurrentProjectFile } from "../project/current-project-files";
+import { useCurrentTaskFile } from "../task/current-task-files";
 import { FileToolCard } from "./file-tool-card";
 
 type ReadFilePart = Extract<
@@ -148,7 +148,7 @@ function ReadFileCard({
   modifiedAt?: number;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const currentFile = useCurrentProjectFile(filePath);
+  const currentFile = useCurrentTaskFile(filePath);
   const isStale =
     modifiedAt !== undefined &&
     currentFile !== undefined &&

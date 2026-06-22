@@ -4,22 +4,22 @@ import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { type Task } from "@instrument-org/workspace/client";
 import { toast } from "sonner";
 
-import { ProjectStatsCard } from "./stats-card";
+import { TaskStatsCard } from "./stats-card";
 
-export function ProjectDeleteDialog({
+export function TaskDeleteDialog({
   navigateOnDelete,
   onDeleteEnd,
   onDeleteStart,
   onOpenChange,
   open,
-  project,
+  task,
 }: {
   navigateOnDelete: boolean;
   onDeleteEnd?: () => void;
   onDeleteStart?: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  project: Task;
+  task: Task;
 }) {
   const { trashApp } = useTrashApp({ navigateOnDelete });
   const trashTerminology = getTrashTerminology();
@@ -27,7 +27,7 @@ export function ProjectDeleteDialog({
   const handleDelete = async () => {
     try {
       onDeleteStart?.();
-      await trashApp(project.id);
+      await trashApp(task.id);
     } catch {
       toast.error("Failed to delete task", {
         description:
@@ -41,9 +41,9 @@ export function ProjectDeleteDialog({
 
   return (
     <DeleteWithProgressDialog
-      content={<ProjectStatsCard project={project} />}
+      content={<TaskStatsCard task={task} />}
       description={`This task will be moved to your system ${trashTerminology}. You can restore it from there if needed.`}
-      items={[project]}
+      items={[task]}
       onDelete={handleDelete}
       onOpenChange={onOpenChange}
       open={open}

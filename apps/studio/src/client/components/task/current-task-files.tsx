@@ -3,11 +3,11 @@ import { createContext, type ReactNode, useContext } from "react";
 
 type ProjectFile = RPCOutput["workspace"]["task"]["files"]["list"][number];
 
-const CurrentProjectFilesContext = createContext<
+const CurrentTaskFilesContext = createContext<
   ReadonlyMap<string, ProjectFile> | undefined
 >(undefined);
 
-export function CurrentProjectFilesProvider({
+export function CurrentTaskFilesProvider({
   children,
   files,
 }: {
@@ -19,26 +19,26 @@ export function CurrentProjectFilesProvider({
     : undefined;
 
   return (
-    <CurrentProjectFilesContext value={filesByPath}>
+    <CurrentTaskFilesContext value={filesByPath}>
       {children}
-    </CurrentProjectFilesContext>
+    </CurrentTaskFilesContext>
   );
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useCurrentProjectFile(filePath: string) {
-  return useContext(CurrentProjectFilesContext)?.get(filePath);
+export function useCurrentTaskFile(filePath: string) {
+  return useContext(CurrentTaskFilesContext)?.get(filePath);
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useProjectFileReferenceStatus({
+export function useTaskFileReferenceStatus({
   filePath,
   modifiedAt,
 }: {
   filePath: string;
   modifiedAt: number | undefined;
 }) {
-  const files = useContext(CurrentProjectFilesContext);
+  const files = useContext(CurrentTaskFilesContext);
   if (!files || modifiedAt === undefined) {
     return;
   }

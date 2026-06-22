@@ -88,10 +88,7 @@ function RouteComponent() {
     }),
   );
 
-  const projects = useMemo(
-    () => tasksData?.tasks ?? [],
-    [tasksData?.tasks],
-  );
+  const projects = useMemo(() => tasksData?.tasks ?? [], [tasksData?.tasks]);
 
   const taskIds = useMemo(() => projects.map((p) => p.id), [projects]);
 

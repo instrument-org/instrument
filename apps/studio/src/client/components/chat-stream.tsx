@@ -89,14 +89,7 @@ export function ChatStream({
         task={task}
       />
     ),
-    [
-      isDeveloperMode,
-      onContinue,
-      onModelChange,
-      onRetry,
-      onStartNewChat,
-      task,
-    ],
+    [isDeveloperMode, onContinue, onModelChange, onRetry, onStartNewChat, task],
   );
 
   const isToolStreaming = useCallback(

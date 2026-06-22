@@ -6,36 +6,36 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
-import { extractProjectZip } from "./extract-project-zip";
+import { extractTaskZip } from "./extract-task-zip";
 import { pathExists } from "./path-exists";
 
-interface ImportProjectOptions {
+interface ImportTaskOptions {
   workspaceConfig: WorkspaceConfig;
   zipFileData: string;
 }
 
-export async function importProject(
-  { workspaceConfig, zipFileData }: ImportProjectOptions,
+export async function importTask(
+  { workspaceConfig, zipFileData }: ImportTaskOptions,
   _options: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
     const id = TaskIdSchema.parse(`import-${ulid().toLowerCase()}`);
 
     // For tasks the folder name is identical to the id.
-    const projectDir = TaskDirSchema.parse(
+    const taskDirPath = TaskDirSchema.parse(
       absolutePathJoin(workspaceConfig.tasksDir, id),
     );
 
-    const projectExists = await pathExists(projectDir);
-    if (projectExists) {
+    const taskExists = await pathExists(taskDirPath);
+    if (taskExists) {
       return errAsync(
-        new TypedError.Conflict(`Task directory already exists: ${projectDir}`),
+        new TypedError.Conflict(`Task directory already exists: ${taskDirPath}`),
       );
     }
 
     yield* ResultAsync.fromPromise(
-      extractProjectZip({
-        outputDir: projectDir,
+      extractTaskZip({
+        outputDir: taskDirPath,
         zipBlob: new Blob([Buffer.from(zipFileData, "base64")]),
       }),
       (error) =>

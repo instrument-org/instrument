@@ -18,8 +18,8 @@ import { type BrowserConfig, type BrowserTargetId } from "../types";
 export const AGENT_IDLE_TIMEOUT_MS = ms("1 hour");
 export const USER_PRESENCE_TIMEOUT_MS = ms("5 minutes");
 
-export interface ProjectBrowserParentEvent {
-  type: "projectBrowser.stopped";
+export interface TaskBrowserParentEvent {
+  type: "taskBrowser.stopped";
   value: { id: TaskId };
 }
 
@@ -29,7 +29,7 @@ interface DestroyAndCloseInput {
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
 }
 
-interface ProjectBrowserContext {
+interface TaskBrowserContext {
   browser: BrowserConfig;
   // Set when an entry was destroyed by the host (renderer crash, window
   // close) so the reap path skips closeTarget but still cleans daemons.
@@ -48,7 +48,7 @@ interface ProjectBrowserContext {
   watchedTargets: Set<BrowserTargetId>;
 }
 
-type ProjectBrowserEvent =
+type TaskBrowserEvent =
   | { type: "acquirePresence" }
   | { type: "attachAgentSession"; value: { sessionId: StoreId.Session } }
   | { type: "forceReap" }
@@ -70,7 +70,7 @@ type ProjectBrowserEvent =
 // machine event. Spawned per target on first observation; unsubscribes when
 // the parent state stops (i.e. when we transition to Stopping/Stopped).
 const watchTargetDestructionLogic = fromCallback<
-  ProjectBrowserEvent,
+  TaskBrowserEvent,
   { browser: BrowserConfig; targetId: BrowserTargetId }
 >(({ input, sendBack }) =>
   input.browser.onTargetDestroyed(input.targetId, () => {
@@ -101,7 +101,7 @@ const destroyAndCloseLogic = fromPromise<undefined, DestroyAndCloseInput>(
   },
 );
 
-export const projectBrowserMachine = setup({
+export const taskBrowserMachine = setup({
   actions: {
     acquirePresence: assign({
       presenceCount: ({ context }) => context.presenceCount + 1,
@@ -127,7 +127,7 @@ export const projectBrowserMachine = setup({
     }),
 
     notifyParentStopped: sendParent(({ context }) => ({
-      type: "projectBrowser.stopped" as const,
+      type: "taskBrowser.stopped" as const,
       value: { id: context.id },
     })),
 
@@ -181,8 +181,8 @@ export const projectBrowserMachine = setup({
   },
 
   types: {
-    context: {} as ProjectBrowserContext,
-    events: {} as ProjectBrowserEvent,
+    context: {} as TaskBrowserContext,
+    events: {} as TaskBrowserEvent,
     input: {} as { browser: BrowserConfig; id: TaskId },
   },
 }).createMachine({
@@ -195,7 +195,7 @@ export const projectBrowserMachine = setup({
     presenceCount: 0,
     watchedTargets: new Set<BrowserTargetId>(),
   }),
-  id: "projectBrowser",
+  id: "taskBrowser",
   initial: "Unobserved",
   on: {
     attachAgentSession: {
@@ -294,4 +294,4 @@ export const projectBrowserMachine = setup({
   },
 });
 
-export type ProjectBrowserActorRef = ActorRefFrom<typeof projectBrowserMachine>;
+export type TaskBrowserActorRef = ActorRefFrom<typeof taskBrowserMachine>;

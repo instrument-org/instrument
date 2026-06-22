@@ -3,7 +3,7 @@ import { textForMessage } from "./text-for-message";
 
 const MAX_CHARS = 50;
 
-export function defaultProjectName(
+export function defaultTaskName(
   source: SessionMessage.WithParts | string,
 ): string {
   const text = (

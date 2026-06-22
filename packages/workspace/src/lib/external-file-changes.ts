@@ -9,10 +9,10 @@ import {
   setFileIndexBaseline,
 } from "./file-index-baseline";
 import {
-  diffProjectFileIndexes,
-  getProjectFileIndex,
-} from "./get-project-files";
-import { getCurrentProjectFileIndex } from "./project-file-watcher";
+  diffTaskFileIndexes,
+  getTaskFileIndex,
+} from "./get-task-files";
+import { getCurrentTaskFileIndex } from "./task-file-watcher";
 
 /**
  * Diffs the current on-disk file index against the persisted baseline to find
@@ -35,8 +35,8 @@ export function detectExternalFileChanges({
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
       const current =
-        getCurrentProjectFileIndex(taskId) ??
-        (yield* await getProjectFileIndex(taskDir(taskId), { signal }));
+        getCurrentTaskFileIndex(taskId) ??
+        (yield* await getTaskFileIndex(taskDir(taskId), { signal }));
 
       const baseline = yield* getFileIndexBaseline(taskId, sessionId, {
         signal,
@@ -50,7 +50,7 @@ export function detectExternalFileChanges({
         return ok(undefined);
       }
 
-      const changes = diffProjectFileIndexes({
+      const changes = diffTaskFileIndexes({
         after: current,
         before: baseline,
       });

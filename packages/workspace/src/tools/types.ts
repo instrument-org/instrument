@@ -9,7 +9,7 @@ import type { ToolNameSchema } from "./name";
 
 import { type AgentName } from "../agents/types";
 import { type ExecuteError } from "../lib/execute-error";
-import { type ProjectState } from "../lib/project-state-store";
+import { type TaskState } from "../lib/task-state-store";
 import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -35,7 +35,7 @@ export interface AgentTool<
     messageId: StoreId.Message;
     model: AIGatewayModel.Type;
     partId: StoreId.Part;
-    projectState: ProjectState;
+    projectState: TaskState;
     sessionId: StoreId.Session;
     signal: AbortSignal;
     spawnAgent: SpawnAgentFunction;

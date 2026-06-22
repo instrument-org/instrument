@@ -20,9 +20,9 @@ import {
   TUTORIAL_TASK_REPLAY,
   type TutorialTaskWriteFileStep,
 } from "./data/tutorial-task-replay";
-import { initializeProject } from "./initialize-project";
+import { initializeTask } from "./initialize-task";
 import { newTaskId } from "./new-task-id";
-import { setProjectState } from "./project-state-store";
+import { setTaskState } from "./task-state-store";
 import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
@@ -75,7 +75,7 @@ export async function startTutorialTaskReplay({
       workspaceConfig,
     });
 
-    const projectResult = yield* await initializeProject(
+    const projectResult = yield* await initializeTask(
       {
         initialManifest: { name: project.title },
         taskId,
@@ -85,7 +85,7 @@ export async function startTutorialTaskReplay({
       { signal },
     );
 
-    await setProjectState(taskDir(projectResult.taskId), {
+    await setTaskState(taskDir(projectResult.taskId), {
       showTutorial: true,
     });
 

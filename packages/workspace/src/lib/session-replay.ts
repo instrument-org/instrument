@@ -9,7 +9,7 @@ import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { createSession } from "./create-session";
 import { getCurrentDate } from "./get-current-date";
-import { initializeProject } from "./initialize-project";
+import { initializeTask } from "./initialize-task";
 import { isToolPart } from "./is-tool-part";
 import { newTaskId } from "./new-task-id";
 import { runToolCall } from "./run-tool-call";
@@ -150,7 +150,7 @@ export async function prepareProjectReplay({
   return safeTry(async function* () {
     const taskId = await newTaskId({ workspaceConfig });
 
-    yield* await initializeProject(
+    yield* await initializeTask(
       {
         initialManifest: { name: `Replay of ${sourceProjectName}` },
         taskId,

@@ -9,7 +9,7 @@ import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { normalizePath } from "./normalize-path";
 
-export function copyProject({
+export function copyTask({
   includePrivateFolder,
   isTemplate,
   sourceDir,

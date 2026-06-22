@@ -1,7 +1,7 @@
 import { type WorkspaceServerActorRef } from "../../logic/server";
 import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
-import { type ProjectBrowserActorRef } from "../project-browser";
+import { type TaskBrowserActorRef } from "../task-browser";
 import { type RuntimeActorRef } from "../runtime";
 import { type SessionActorRef } from "../session";
 
@@ -10,15 +10,15 @@ export interface WorkspaceContext {
   appsBeingTrashed: TaskId[];
   config: WorkspaceConfig;
   error?: unknown;
-  // Resolvers waiting for the projectBrowser at `id` to reach Stopped
+  // Resolvers waiting for the taskBrowser at `id` to reach Stopped
   // before trash-project deletes the directory. Drained when the matching
-  // projectBrowser.stopped event arrives (or immediately if no machine
+  // taskBrowser.stopped event arrives (or immediately if no machine
   // existed when prepareToTrashApp ran).
   pendingBrowserReapResolvers: Map<TaskId, (() => void)[]>;
-  // One projectBrowser actor per project id with browser activity or an
+  // One taskBrowser actor per project id with browser activity or an
   // active project-page presence subscription. Spawned lazily and reaped on
-  // projectBrowser.stopped.
-  projectBrowserRefs: Map<TaskId, ProjectBrowserActorRef>;
+  // taskBrowser.stopped.
+  taskBrowserRefs: Map<TaskId, TaskBrowserActorRef>;
   runtimeRefs: Map<TaskId, RuntimeActorRef>;
   sessionRefsByTaskId: Map<TaskId, SessionActorRef[]>;
   workspaceServerRef: WorkspaceServerActorRef;

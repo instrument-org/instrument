@@ -7,7 +7,7 @@ import { type TaskId } from "../schemas/task-id";
 import { getToolByType } from "../tools/all";
 import { taskDir } from "./app-dir-utils";
 import { getCurrentDate } from "./get-current-date";
-import { getProjectState } from "./project-state-store";
+import { getTaskState } from "./task-state-store";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
@@ -34,7 +34,7 @@ export async function runToolCall({
   let preliminarySaved = false;
 
   try {
-    const projectState = await getProjectState(taskDir(taskId));
+    const projectState = await getTaskState(taskDir(taskId));
 
     for await (const { output, type } of streamTool({
       execute: tool.execute,

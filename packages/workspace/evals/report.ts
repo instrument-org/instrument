@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { taskDir } from "../src/lib/app-dir-utils";
-import { getProjects } from "../src/lib/get-apps";
-import { getProjectState } from "../src/lib/project-state-store";
+import { getTasks } from "../src/lib/get-tasks";
+import { getTaskState } from "../src/lib/task-state-store";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { getProjectUsageSummary } from "../src/lib/usage-summary";
@@ -37,7 +37,7 @@ export async function generateReport({
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
 
-  const { projects } = await getProjects(workspaceConfig, {
+  const { tasks: projects } = await getTasks(workspaceConfig, {
     direction: "asc",
     sortBy: "createdAt",
   });
@@ -62,7 +62,7 @@ export async function generateReport({
   for (const project of projects) {
     const taskId = project.id;
 
-    const projectState = await getProjectState(taskDir(taskId));
+    const projectState = await getTaskState(taskDir(taskId));
     const projectModelURI = projectState.selectedModelURI;
     if (projectModelURI) {
       rollupModelURIs.add(projectModelURI);

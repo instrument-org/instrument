@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { getApp } from "../../../lib/get-apps";
+import { getApp } from "../../../lib/get-tasks";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
 import { appState } from "./state";

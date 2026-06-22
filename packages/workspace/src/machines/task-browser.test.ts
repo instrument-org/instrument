@@ -18,10 +18,10 @@ import {
 } from "../types";
 import {
   AGENT_IDLE_TIMEOUT_MS,
-  projectBrowserMachine,
-  type ProjectBrowserParentEvent,
+  taskBrowserMachine,
+  type TaskBrowserParentEvent,
   USER_PRESENCE_TIMEOUT_MS,
-} from "./project-browser";
+} from "./task-browser";
 
 function asyncNoop(): Promise<void> {
   return Promise.resolve();
@@ -73,34 +73,34 @@ const id = TaskIdSchema.parse("test-project");
 const partitionDir = "/tmp/partition" as AbsolutePath;
 
 interface Harness {
-  actor: ActorRefFrom<typeof projectBrowserMachine>;
+  actor: ActorRefFrom<typeof taskBrowserMachine>;
   browser: BrowserConfig;
-  parentEvents: ProjectBrowserParentEvent[];
+  parentEvents: TaskBrowserParentEvent[];
   parentRef: AnyActorRef;
 }
 
 function spawnHarness(): Harness {
   const browser = makeBrowser();
-  const parentEvents: ProjectBrowserParentEvent[] = [];
+  const parentEvents: TaskBrowserParentEvent[] = [];
 
   const parentMachine = setup({
-    actors: { projectBrowserMachine },
+    actors: { taskBrowserMachine },
     types: {
       context: {} as {
-        childRef: ActorRefFrom<typeof projectBrowserMachine> | null;
+        childRef: ActorRefFrom<typeof taskBrowserMachine> | null;
       },
-      events: {} as ProjectBrowserParentEvent,
+      events: {} as TaskBrowserParentEvent,
     },
   }).createMachine({
     context: ({ spawn }) => ({
-      childRef: spawn("projectBrowserMachine", {
+      childRef: spawn("taskBrowserMachine", {
         id: "child",
         input: { browser, id },
       }),
     }),
     id: "harnessParent",
     on: {
-      "projectBrowser.stopped": {
+      "taskBrowser.stopped": {
         actions: ({ event }) => {
           parentEvents.push(event);
         },
@@ -120,7 +120,7 @@ function spawnHarness(): Harness {
 const SESSION_A = StoreId.newSessionId();
 const TARGET_A: BrowserTargetId = encodeBrowserTargetId(id, SESSION_A);
 
-describe("projectBrowserMachine", () => {
+describe("taskBrowserMachine", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.mocked(closeAgentBrowserSessionsForSessions).mockClear();
@@ -240,7 +240,7 @@ describe("projectBrowserMachine", () => {
       SESSION_A,
     ]);
     expect(parentEvents).toEqual([
-      { type: "projectBrowser.stopped", value: { id } },
+      { type: "taskBrowser.stopped", value: { id } },
     ]);
   });
 

@@ -33,7 +33,7 @@ export const INTERNAL_IGNORE_PATTERNS = [
   "pnpm-lock.yaml",
 ];
 
-const ProjectFileSchema = z.object({
+const TaskFileSchema = z.object({
   filename: z.string(),
   filePath: RelativePathSchema,
   mimeType: z.string(),
@@ -41,15 +41,15 @@ const ProjectFileSchema = z.object({
   size: z.number(),
 });
 
-export const ProjectFilesSchema = z.array(ProjectFileSchema);
+export const TaskFilesSchema = z.array(TaskFileSchema);
 
-export const MAX_PROJECT_FILE_INDEX_FILES = 5000;
+export const MAX_TASK_FILE_INDEX_FILES = 5000;
 
-export type ProjectFile = z.output<typeof ProjectFileSchema>;
-export type ProjectFileChange = ProjectFile & {
+export type TaskFile = z.output<typeof TaskFileSchema>;
+export type TaskFileChange = TaskFile & {
   status: "added" | "deleted" | "modified";
 };
-export type ProjectFileIndex = Map<string, ProjectFileEntry>;
+export type TaskFileIndex = Map<string, TaskFileEntry>;
 
 const ProjectFileIndexEntrySchema = z.object({
   filename: z.string(),
@@ -59,31 +59,31 @@ const ProjectFileIndexEntrySchema = z.object({
   size: z.number(),
 });
 
-type ProjectFileEntry = z.output<typeof ProjectFileIndexEntrySchema>;
+type TaskFileEntry = z.output<typeof ProjectFileIndexEntrySchema>;
 
 // Serializable form of the index, used to persist a baseline across turns.
-export const ProjectFileIndexSnapshotSchema = z.array(
+export const TaskFileIndexSnapshotSchema = z.array(
   ProjectFileIndexEntrySchema,
 );
 
-export function diffProjectFileIndexes({
+export function diffTaskFileIndexes({
   after,
   before,
 }: {
-  after: ProjectFileIndex;
-  before: ProjectFileIndex;
-}): ProjectFileChange[] {
-  const changes: ProjectFileChange[] = [];
+  after: TaskFileIndex;
+  before: TaskFileIndex;
+}): TaskFileChange[] {
+  const changes: TaskFileChange[] = [];
 
   for (const [filePath, file] of after) {
     const previous = before.get(filePath);
     if (!previous) {
-      changes.push({ ...toProjectFile(file), status: "added" });
+      changes.push({ ...toTaskFile(file), status: "added" });
       continue;
     }
 
     if (previous.size !== file.size || previous.mtimeMs !== file.mtimeMs) {
-      changes.push({ ...toProjectFile(file), status: "modified" });
+      changes.push({ ...toTaskFile(file), status: "modified" });
     }
   }
 
@@ -91,16 +91,16 @@ export function diffProjectFileIndexes({
     if (after.has(filePath)) {
       continue;
     }
-    changes.push({ ...toProjectFile(file), status: "deleted" });
+    changes.push({ ...toTaskFile(file), status: "deleted" });
   }
 
   return changes.sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
-export async function getProjectFileIndex(
+export async function getTaskFileIndex(
   dir: TaskDir,
   {
-    maxFiles = MAX_PROJECT_FILE_INDEX_FILES,
+    maxFiles = MAX_TASK_FILE_INDEX_FILES,
     signal,
   }: { maxFiles?: number; signal?: AbortSignal } = {},
 ) {
@@ -108,7 +108,7 @@ export async function getProjectFileIndex(
     const ignore = await getIgnore(dir, { signal });
     ignore.add(INTERNAL_IGNORE_PATTERNS);
 
-    const files: ProjectFileEntry[] = [];
+    const files: TaskFileEntry[] = [];
     let reachedFileLimit = false;
 
     async function walk(relativeDir: string) {
@@ -191,16 +191,16 @@ export async function getProjectFileIndex(
   }
 }
 
-export async function getProjectFiles(taskId: TaskId) {
-  const indexResult = await getProjectFileIndex(taskDir(taskId));
+export async function getTaskFiles(taskId: TaskId) {
+  const indexResult = await getTaskFileIndex(taskDir(taskId));
   if (indexResult.isErr()) {
     return err(indexResult.error);
   }
 
-  return ok(projectFilesFromIndex(indexResult.value));
+  return ok(taskFilesFromIndex(indexResult.value));
 }
 
-export function outputArtifactsFromChanges(changes: ProjectFileChange[]) {
+export function outputArtifactsFromChanges(changes: TaskFileChange[]) {
   return changes
     .filter(
       (change) =>
@@ -211,25 +211,25 @@ export function outputArtifactsFromChanges(changes: ProjectFileChange[]) {
     .sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
-export function projectFileIndexFromSnapshot(
-  snapshot: ProjectFileEntry[],
-): ProjectFileIndex {
+export function taskFileIndexFromSnapshot(
+  snapshot: TaskFileEntry[],
+): TaskFileIndex {
   return new Map(snapshot.map((entry) => [entry.filePath, entry]));
 }
 
-export function projectFileIndexToSnapshot(
-  index: ProjectFileIndex,
-): ProjectFileEntry[] {
+export function taskFileIndexToSnapshot(
+  index: TaskFileIndex,
+): TaskFileEntry[] {
   return [...index.values()];
 }
 
-export function projectFilesFromIndex(index: ProjectFileIndex): ProjectFile[] {
+export function taskFilesFromIndex(index: TaskFileIndex): TaskFile[] {
   return [...index.values()]
-    .map(toProjectFile)
+    .map(toTaskFile)
     .sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
-function toProjectFile({ mtimeMs, ...file }: ProjectFileEntry): ProjectFile {
+function toTaskFile({ mtimeMs, ...file }: TaskFileEntry): TaskFile {
   return {
     ...file,
     modifiedAt: mtimeMs,

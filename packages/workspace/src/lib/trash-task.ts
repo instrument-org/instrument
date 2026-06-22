@@ -16,17 +16,17 @@ import {
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
 
-interface RemoveProjectOptions {
+interface RemoveTaskOptions {
   id: TaskId;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }
 
-export async function trashProject({
+export async function trashTask({
   id,
   workspaceConfig,
   workspaceRef,
-}: RemoveProjectOptions) {
+}: RemoveTaskOptions) {
   return ResultAsync.fromPromise(
     (async () => {
       // Block until every projectBrowser for this id has fully reaped

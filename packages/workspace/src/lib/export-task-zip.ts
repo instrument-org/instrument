@@ -12,12 +12,12 @@ import { filterIgnoredFiles } from "./filter-ignored-files";
 import { getIgnore } from "./get-ignore";
 import { pathExists } from "./path-exists";
 
-interface ExportProjectZipOptions {
+interface ExportTaskZipOptions {
   dir: TaskDir;
   outputPath: string;
 }
 
-export function exportProjectZip({ dir, outputPath }: ExportProjectZipOptions) {
+export function exportTaskZip({ dir, outputPath }: ExportTaskZipOptions) {
   return safeTry(async function* () {
     const ignore = yield* ResultAsync.fromPromise(
       getIgnore(dir, { includeGit: true }),

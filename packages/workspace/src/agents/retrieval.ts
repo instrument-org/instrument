@@ -3,7 +3,7 @@ import { dedent, pick } from "radashi";
 import { taskDir } from "../lib/app-dir-utils";
 import { getCurrentDate } from "../lib/get-current-date";
 import { pathExists } from "../lib/path-exists";
-import { getProjectState } from "../lib/project-state-store";
+import { getTaskState } from "../lib/task-state-store";
 import { TOOLS } from "../tools/all";
 import { setupAgent } from "./create-agent";
 import {
@@ -48,7 +48,7 @@ export const retrievalAgent = setupAgent({
       `.trim(),
     });
 
-    const projectState = await getProjectState(taskDir(taskId));
+    const projectState = await getTaskState(taskDir(taskId));
 
     const attachedFoldersText = projectState.attachedFolders
       ? await Promise.all(

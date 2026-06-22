@@ -12,7 +12,7 @@ import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectExternalFileChanges } from "./external-file-changes";
-import { setProjectState } from "./project-state-store";
+import { setTaskState } from "./task-state-store";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
@@ -94,7 +94,7 @@ export async function newMessage({
     role: "user",
   };
 
-  await setProjectState(taskDir(taskId), { selectedModelURI: modelURI });
+  await setTaskState(taskDir(taskId), { selectedModelURI: modelURI });
 
   getWorkspaceConfig().captureEvent("message.created", {
     files_count: files?.length ?? 0,

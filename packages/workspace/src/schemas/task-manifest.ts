@@ -1,7 +1,7 @@
 import { TabIconsSchema } from "@instrument-org/shared/icons";
 import { z } from "zod";
 
-export const ProjectManifestSchema = z.object({
+export const TaskManifestSchema = z.object({
   createdWithAppVersion: z.string().optional(),
   description: z.string().optional(),
   // eslint-disable-next-line unicorn/prefer-top-level-await
@@ -9,12 +9,12 @@ export const ProjectManifestSchema = z.object({
   name: z.string().default("Untitled task"),
 });
 
-export const ProjectManifestUpdateSchema =
-  ProjectManifestSchema.partial().extend({
+export const TaskManifestUpdateSchema =
+  TaskManifestSchema.partial().extend({
     name: z.string().trim().min(1).optional(),
   });
 
-export type ProjectManifest = z.output<typeof ProjectManifestSchema>;
-export type ProjectManifestUpdate = z.output<
-  typeof ProjectManifestUpdateSchema
+export type TaskManifest = z.output<typeof TaskManifestSchema>;
+export type TaskManifestUpdate = z.output<
+  typeof TaskManifestUpdateSchema
 >;

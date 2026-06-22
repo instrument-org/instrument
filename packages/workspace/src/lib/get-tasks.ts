@@ -16,7 +16,7 @@ import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-app-dir-timestamps";
 import { isTaskId } from "./is-app";
-import { getProjectManifest } from "./project-manifest";
+import { getTaskManifest } from "./task-manifest";
 import { assetBaseUrl } from "./url-for-subdomain";
 
 export async function getApp(
@@ -40,14 +40,14 @@ export async function getApp(
   return workspaceApp({ dir });
 }
 
-export async function getProjects(
+export async function getTasks(
   workspaceConfig: WorkspaceConfig,
   options: {
     direction?: "asc" | "desc";
     limit?: number;
     sortBy?: "createdAt" | "updatedAt";
   } = {},
-): Promise<{ projects: Task[]; total: number }> {
+): Promise<{ tasks: Task[]; total: number }> {
   const { direction, limit, sortBy } = assign(
     {
       direction: "desc",
@@ -55,36 +55,36 @@ export async function getProjects(
     },
     options,
   );
-  const projects: Task[] = [];
+  const tasks: Task[] = [];
   const sortByFn =
     sortBy === "createdAt"
-      ? (project: Task) => project.createdAt.getTime()
-      : (project: Task) => project.updatedAt.getTime();
+      ? (task: Task) => task.createdAt.getTime()
+      : (task: Task) => task.updatedAt.getTime();
 
-  const projectAppDirs = await appDirsInRootDir(workspaceConfig.tasksDir);
-  for (const dir of projectAppDirs) {
-    const projectApp = await workspaceApp({ dir });
-    if (projectApp.isOk()) {
-      projects.push(projectApp.value);
+  const taskDirs = await appDirsInRootDir(workspaceConfig.tasksDir);
+  for (const dir of taskDirs) {
+    const taskResult = await workspaceApp({ dir });
+    if (taskResult.isOk()) {
+      tasks.push(taskResult.value);
     } else {
-      workspaceConfig.captureException(projectApp.error, {
+      workspaceConfig.captureException(taskResult.error, {
         scopes: ["workspace"],
       });
     }
   }
 
-  const sortedProjects = sort(
-    projects,
-    (project) => (direction === "asc" ? 1 : -1) * sortByFn(project),
+  const sortedTasks = sort(
+    tasks,
+    (task) => (direction === "asc" ? 1 : -1) * sortByFn(task),
   );
 
-  const total = sortedProjects.length;
+  const total = sortedTasks.length;
 
   if (limit !== undefined) {
-    return { projects: sortedProjects.slice(0, limit), total };
+    return { tasks: sortedTasks.slice(0, limit), total };
   }
 
-  return { projects: sortedProjects, total };
+  return { tasks: sortedTasks, total };
 }
 
 async function appDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
@@ -122,7 +122,7 @@ async function workspaceApp({ dir }: { dir: TaskDir }) {
   }
 
   const id = taskIdResult.data;
-  const manifest = await getProjectManifest(dir);
+  const manifest = await getTaskManifest(dir);
 
   const iconName =
     manifest?.iconName ||

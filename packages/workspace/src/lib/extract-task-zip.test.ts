@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { TaskDirSchema } from "../schemas/paths";
 import { TypedError } from "./errors";
-import { extractProjectZip } from "./extract-project-zip";
+import { extractTaskZip } from "./extract-task-zip";
 
 async function createZipBlob(
   entries: { data: string; filename: string }[],
@@ -21,7 +21,7 @@ async function createZipBlob(
   return zipWriter.close();
 }
 
-describe("extractProjectZip", () => {
+describe("extractTaskZip", () => {
   const tempDirs: string[] = [];
 
   afterEach(async () => {
@@ -43,7 +43,7 @@ describe("extractProjectZip", () => {
       { data: "hello", filename: "notes/readme.txt" },
     ]);
 
-    await extractProjectZip({ outputDir, zipBlob });
+    await extractTaskZip({ outputDir, zipBlob });
 
     const readme = await fs.readFile(
       path.join(outputDir, "notes/readme.txt"),
@@ -67,7 +67,7 @@ describe("extractProjectZip", () => {
       ]);
 
       await expect(
-        extractProjectZip({ outputDir, zipBlob }),
+        extractTaskZip({ outputDir, zipBlob }),
       ).rejects.toBeInstanceOf(TypedError.FileSystem);
       await expect(fs.stat(outsidePath)).rejects.toThrow();
     },

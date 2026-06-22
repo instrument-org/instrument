@@ -92,8 +92,8 @@ function RouteComponent() {
 
   const taskIds = useMemo(() => projects.map((p) => p.id), [projects]);
 
-  const { data: appStates } = useQuery({
-    ...rpcClient.workspace.app.state.byIds.queryOptions({
+  const { data: liveStates } = useQuery({
+    ...rpcClient.workspace.task.liveState.byIds.queryOptions({
       input: { ids: taskIds },
     }),
   });
@@ -108,16 +108,16 @@ function RouteComponent() {
   );
 
   const activeTaskIds = useMemo(() => {
-    if (!appStates) {
+    if (!liveStates) {
       return new Set<TaskId>();
     }
     return new Set<TaskId>(
-      appStates
+      liveStates
         .filter((state) => state.sessionActors.length > 0)
-        .map((state) => state.app.id)
+        .map((state) => state.task.id)
         .filter((id) => isTaskId(id)),
     );
-  }, [appStates]);
+  }, [liveStates]);
 
   const evalsCount = projects.filter((p) =>
     p.id.startsWith(EVAL_SUBDOMAIN_PREFIX),
@@ -150,17 +150,17 @@ function RouteComponent() {
   }, [projects, rowSelection]);
 
   const hasRunningAgents = useMemo(() => {
-    if (!appStates || selectedProjects.length === 0) {
+    if (!liveStates || selectedProjects.length === 0) {
       return false;
     }
     const selectedTaskIds = new Set<TaskId>(selectedProjects.map((p) => p.id));
-    return appStates.some(
+    return liveStates.some(
       (state) =>
-        isTaskId(state.app.id) &&
-        selectedTaskIds.has(state.app.id) &&
+        isTaskId(state.task.id) &&
+        selectedTaskIds.has(state.task.id) &&
         state.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
     );
-  }, [appStates, selectedProjects]);
+  }, [liveStates, selectedProjects]);
 
   const stopSessionMutation = useMutation(
     rpcClient.workspace.session.stop.mutationOptions(),

@@ -11,7 +11,7 @@ import { exportTaskZip } from "../../../lib/export-task-zip";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
 import { getTask } from "../../../lib/get-task";
 import { getApp, getTasks } from "../../../lib/get-tasks";
-import { importTask } from "../../../lib/import-task";
+import { importTask as importTaskLib } from "../../../lib/import-task";
 import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
@@ -25,7 +25,7 @@ import { trashTask } from "../../../lib/trash-task";
 import { startTutorialTaskReplay } from "../../../lib/tutorial-task-replay";
 import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
-  getProjectUsageSummary,
+  getTaskUsageSummary,
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
 import { TaskSchema } from "../../../schemas/app";
@@ -37,8 +37,9 @@ import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskManifestUpdateSchema } from "../../../schemas/task-manifest";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
-import { projectFiles } from "./files";
-import { projectState } from "./state";
+import { taskFiles } from "./files";
+import { taskLiveState } from "./live-state";
+import { taskState } from "./state";
 
 const DEFAULT_TEMPLATE_NAME = "basic";
 
@@ -357,7 +358,7 @@ const duplicate = base
     },
   );
 
-const importProject = base
+const importTask = base
   .input(
     z.object({
       zipFileData: z.string(),
@@ -369,7 +370,7 @@ const importProject = base
     }),
   )
   .handler(async ({ context, errors, input: { zipFileData }, signal }) => {
-    const result = await importTask(
+    const result = await importTaskLib(
       {
         workspaceConfig: context.workspaceConfig,
         zipFileData,
@@ -605,7 +606,7 @@ const usageSummary = base
   .handler(async ({ input, signal }) => {
     const { id } = input;
     const taskId = id;
-    return getProjectUsageSummary(taskId, { signal });
+    return getTaskUsageSummary(taskId, { signal });
   });
 
 const liveUsageSummary = base
@@ -647,14 +648,15 @@ export const task = {
   createTutorial,
   duplicate,
   exportZip,
-  files: projectFiles,
-  import: importProject,
+  files: taskFiles,
+  import: importTask,
   list,
   live: {
     ...live,
     usageSummary: liveUsageSummary,
   },
-  state: projectState,
+  liveState: taskLiveState,
+  state: taskState,
   trash,
   update,
   usageSummary,

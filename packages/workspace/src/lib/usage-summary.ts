@@ -44,7 +44,7 @@ export function emptyUsageSummary(): UsageSummary {
   };
 }
 
-export async function getProjectUsageSummary(
+export async function getTaskUsageSummary(
   taskId: TaskId,
   { signal }: { signal?: AbortSignal } = {},
 ): Promise<UsageSummary> {

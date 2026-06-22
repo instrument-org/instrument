@@ -42,7 +42,7 @@ const set = base
     await setTaskState(taskDir(taskId), stateToSave);
   });
 
-export const projectState = {
+export const taskState = {
   get,
   set,
 };

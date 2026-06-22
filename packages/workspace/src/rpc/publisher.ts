@@ -6,18 +6,6 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 
 export const publisher = new EventPublisher<{
-  "appState.session.added": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "appState.session.done": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
-  "appState.session.tagsChanged": {
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
   "message.removed": {
     id: TaskId;
     messageId: StoreId.Message;
@@ -59,6 +47,18 @@ export const publisher = new EventPublisher<{
     sessionId: StoreId.Session;
   };
   "session.updated": {
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
+  "taskLiveState.session.added": {
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
+  "taskLiveState.session.done": {
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
+  "taskLiveState.session.tagsChanged": {
     id: TaskId;
     sessionId: StoreId.Session;
   };

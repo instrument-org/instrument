@@ -101,6 +101,11 @@ are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
 - Run a specific test file: `cd packages/<name> && pnpm test run <path/to/file.test.ts>`.
 - Run all tests in a package: `cd packages/<name> && pnpm test run`.
 
+## Code intelligence (Claude Code)
+
+- Prefer LSP (`goToDefinition`, `findReferences`, `hover`) over `rg` for TypeScript navigation — semantically accurate, catches renamed/generated symbols.
+- Use `rg` for broad discovery, LSP for precise symbol work.
+
 ## Additional guidance
 
 - `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.

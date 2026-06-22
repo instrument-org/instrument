@@ -115,6 +115,10 @@ describe("migrateWorkspaceLayout", () => {
     // existing data preserved; legacy copy left behind (projects/ retained)
     expect(read("tasks", "abc", ".instrument", "store.db")).toBe("current-db");
     expect(exists("projects", "abc")).toBe(true);
+    // the abandoned legacy copy is left entirely untouched (not even renamed)
+    expect(read("projects", "abc", ".instrument", "sessions.db")).toBe(
+      "legacy-db",
+    );
   });
 
   it("re-migrates a projects/ dir that reappears later", () => {

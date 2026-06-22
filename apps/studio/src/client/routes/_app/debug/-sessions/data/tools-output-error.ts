@@ -112,7 +112,7 @@ registerSession({
             path: "/Users/user/nonexistent-project",
             pattern: "*.json",
           },
-          type: "tool-copy_to_project",
+          type: "tool-copy_to_task",
         }),
         builder.toolPart(assistantMessageId, "output-error", {
           errorText: "Tool 'foobar' is not available",

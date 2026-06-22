@@ -9,7 +9,7 @@ import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type CopyToTaskPart = Extract<
   SessionMessagePart.ToolPart,
-  { type: "tool-copy_to_project" }
+  { type: "tool-copy_to_task" }
 >;
 
 export function ToolCopyToTask({ part }: { part: CopyToTaskPart }) {
@@ -20,8 +20,8 @@ export function ToolCopyToTask({ part }: { part: CopyToTaskPart }) {
 
   const hasOutput = part.state === "output-available";
   const label = isStreaming
-    ? getToolStreamingLabel("copy_to_project")
-    : getToolLabel("copy_to_project");
+    ? getToolStreamingLabel("copy_to_task")
+    : getToolLabel("copy_to_task");
 
   return (
     <ToolCard>

@@ -199,7 +199,7 @@ const live = {
       const messageRemoved = publisher.subscribe("message.removed", { signal });
       const partUpdates = publisher.subscribe("part.updated", { signal });
 
-      async function* filterBySubdomain(
+      async function* filterByTaskId(
         generator:
           | typeof messageRemoved
           | typeof messageUpdates
@@ -213,9 +213,9 @@ const live = {
       }
 
       for await (const _ of mergeGenerators([
-        filterBySubdomain(messageUpdates),
-        filterBySubdomain(messageRemoved),
-        filterBySubdomain(partUpdates),
+        filterByTaskId(messageUpdates),
+        filterByTaskId(messageRemoved),
+        filterByTaskId(partUpdates),
       ])) {
         yield call(contextTokens, input, { context, signal });
       }
@@ -233,7 +233,7 @@ const live = {
       const sessionUpdates = publisher.subscribe("session.updated", { signal });
       const sessionRemoved = publisher.subscribe("session.removed", { signal });
 
-      async function* filterBySubdomain(
+      async function* filterByTaskId(
         generator: typeof sessionRemoved | typeof sessionUpdates,
       ) {
         for await (const payload of generator) {
@@ -244,8 +244,8 @@ const live = {
       }
 
       for await (const _ of mergeGenerators([
-        filterBySubdomain(sessionUpdates),
-        filterBySubdomain(sessionRemoved),
+        filterByTaskId(sessionUpdates),
+        filterByTaskId(sessionRemoved),
       ])) {
         yield call(list, input, { context, signal });
       }

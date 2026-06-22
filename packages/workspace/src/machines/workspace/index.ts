@@ -182,18 +182,18 @@ export const workspaceMachine = setup({
         const newsessionRefsBySubdomain = new Map<TaskId, SessionActorRef[]>();
 
         for (const [
-          sessionSubdomain,
+          sessionTaskId,
           refs,
         ] of context.sessionRefsBySubdomain.entries()) {
           const shouldRemove =
-            sessionSubdomain === id ||
-            (isTaskId(id) && sessionSubdomain.endsWith(id));
+            sessionTaskId === id ||
+            (isTaskId(id) && sessionTaskId.endsWith(id));
 
           if (shouldRemove) {
             continue;
           }
 
-          newsessionRefsBySubdomain.set(sessionSubdomain, refs);
+          newsessionRefsBySubdomain.set(sessionTaskId, refs);
         }
 
         return {
@@ -557,10 +557,10 @@ export const workspaceMachine = setup({
       guard: ({ context, event }) => {
         const id = event.value.appConfig;
         return !context.appsBeingTrashed.some(
-          (trashingSubdomain) =>
-            id === trashingSubdomain ||
+          (trashingTaskId) =>
+            id === trashingTaskId ||
             // Includes any id nested under the project being trashed
-            id.endsWith(trashingSubdomain),
+            id.endsWith(trashingTaskId),
         );
       },
     },
@@ -581,24 +581,24 @@ export const workspaceMachine = setup({
 
         // Track every projectBrowser whose id matches the trashed
         // project (the project itself, plus any id nested under it).
-        const matchingSubdomains: TaskId[] = [];
+        const matchingTaskIds: TaskId[] = [];
         for (const [
-          browserSubdomain,
+          browserTaskId,
           ref,
         ] of context.projectBrowserRefs.entries()) {
           const matches =
-            browserSubdomain === event.value.id ||
+            browserTaskId === event.value.id ||
             (typeof event.value.id === "string" &&
-              browserSubdomain.endsWith(event.value.id));
+              browserTaskId.endsWith(event.value.id));
           if (matches) {
-            matchingSubdomains.push(browserSubdomain);
+            matchingTaskIds.push(browserTaskId);
             ref.send({ type: "forceReap" });
           }
         }
 
         if (event.value.onBrowserReaped) {
           const resolver = event.value.onBrowserReaped;
-          if (matchingSubdomains.length === 0) {
+          if (matchingTaskIds.length === 0) {
             // Nothing to wait for: resolve immediately so trash-project can
             // proceed without blocking.
             resolver();
@@ -607,14 +607,14 @@ export const workspaceMachine = setup({
             enqueue.assign({
               pendingBrowserReapResolvers: () => {
                 const next = new Map(context.pendingBrowserReapResolvers);
-                let remaining = matchingSubdomains.length;
+                let remaining = matchingTaskIds.length;
                 const onceAll = () => {
                   remaining -= 1;
                   if (remaining === 0) {
                     resolver();
                   }
                 };
-                for (const sd of matchingSubdomains) {
+                for (const sd of matchingTaskIds) {
                   const existing = next.get(sd) ?? [];
                   next.set(sd, [...existing, onceAll]);
                 }
@@ -748,10 +748,10 @@ export const workspaceMachine = setup({
       guard: ({ context, event }) => {
         const id = event.value.appConfig;
         return !context.appsBeingTrashed.some(
-          (trashingSubdomain) =>
-            id === trashingSubdomain ||
+          (trashingTaskId) =>
+            id === trashingTaskId ||
             // Includes any id nested under the project being trashed
-            id.endsWith(trashingSubdomain),
+            id.endsWith(trashingTaskId),
         );
       },
     },
@@ -769,10 +769,10 @@ export const workspaceMachine = setup({
             type: "stopRuntime",
           });
           if (includeChildren) {
-            for (const [runtimeSubdomain] of context.runtimeRefs.entries()) {
-              if (runtimeSubdomain.includes(id)) {
+            for (const [runtimeTaskId] of context.runtimeRefs.entries()) {
+              if (runtimeTaskId.includes(id)) {
                 enqueue({
-                  params: { id: runtimeSubdomain },
+                  params: { id: runtimeTaskId },
                   type: "stopRuntime",
                 });
               }

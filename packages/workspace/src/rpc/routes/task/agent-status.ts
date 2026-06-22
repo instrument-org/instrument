@@ -42,11 +42,7 @@ const byId = base
     );
 
     for await (const payload of mergeGenerators(subscriptions)) {
-      if (
-        "id" in payload &&
-        payload.id !== input.id &&
-        !payload.id.endsWith(input.id)
-      ) {
+      if ("id" in payload && payload.id !== input.id) {
         continue;
       }
 

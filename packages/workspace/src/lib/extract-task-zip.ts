@@ -13,7 +13,7 @@ import { normalizePath } from "./normalize-path";
 
 // Extracts a project zip into outputDir, verifying it contains a manifest.
 // Shared by importProject (RPC) and the dump-session-transcript script.
-export async function extractProjectZip({
+export async function extractTaskZip({
   outputDir,
   zipBlob,
 }: {

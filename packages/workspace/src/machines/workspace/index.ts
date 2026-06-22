@@ -43,9 +43,9 @@ import {
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
 import {
-  projectBrowserMachine,
-  type ProjectBrowserParentEvent,
-} from "../project-browser";
+  taskBrowserMachine,
+  type TaskBrowserParentEvent,
+} from "../task-browser";
 import { runtimeMachine } from "../runtime";
 import {
   type SessionActorRef,
@@ -55,7 +55,7 @@ import {
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
-  | ProjectBrowserParentEvent
+  | TaskBrowserParentEvent
   | SessionMachineParentEvent
   | WorkspaceServerParentEvent
   | {
@@ -150,10 +150,10 @@ export const workspaceMachine = setup({
     acquireBrowserPresence: enqueueActions(
       ({ enqueue }, { id }: { id: TaskId }) => {
         enqueue.assign(({ context, spawn }) => {
-          const existing = context.projectBrowserRefs.get(id);
+          const existing = context.taskBrowserRefs.get(id);
           const ref =
             existing ??
-            spawn("projectBrowserMachine", {
+            spawn("taskBrowserMachine", {
               input: {
                 browser: context.config.browser,
                 id,
@@ -164,7 +164,7 @@ export const workspaceMachine = setup({
             return {};
           }
           return {
-            projectBrowserRefs: new Map(context.projectBrowserRefs).set(
+            taskBrowserRefs: new Map(context.taskBrowserRefs).set(
               id,
               ref,
             ),
@@ -202,7 +202,7 @@ export const workspaceMachine = setup({
         { context },
         { id, sessionId }: { id: TaskId; sessionId: StoreId.Session },
       ) => {
-        const ref = context.projectBrowserRefs.get(id);
+        const ref = context.taskBrowserRefs.get(id);
         ref?.send({
           type: "attachAgentSession",
           value: { sessionId },
@@ -226,10 +226,10 @@ export const workspaceMachine = setup({
         },
       ) => {
         enqueue.assign(({ context, spawn }) => {
-          const existing = context.projectBrowserRefs.get(id);
+          const existing = context.taskBrowserRefs.get(id);
           const ref =
             existing ??
-            spawn("projectBrowserMachine", {
+            spawn("taskBrowserMachine", {
               input: {
                 browser: context.config.browser,
                 id,
@@ -243,7 +243,7 @@ export const workspaceMachine = setup({
             return {};
           }
           return {
-            projectBrowserRefs: new Map(context.projectBrowserRefs).set(
+            taskBrowserRefs: new Map(context.taskBrowserRefs).set(
               id,
               ref,
             ),
@@ -262,15 +262,15 @@ export const workspaceMachine = setup({
       },
     ),
 
-    handleProjectBrowserStopped: enqueueActions(
+    handleTaskBrowserStopped: enqueueActions(
       ({ context, enqueue }, { id }: { id: TaskId }) => {
-        const ref = context.projectBrowserRefs.get(id);
+        const ref = context.taskBrowserRefs.get(id);
         if (ref) {
           enqueue.stopChild(ref);
         }
-        const nextRefs = new Map(context.projectBrowserRefs);
+        const nextRefs = new Map(context.taskBrowserRefs);
         nextRefs.delete(id);
-        enqueue.assign({ projectBrowserRefs: nextRefs });
+        enqueue.assign({ taskBrowserRefs: nextRefs });
 
         const resolvers = context.pendingBrowserReapResolvers.get(id);
         if (resolvers && resolvers.length > 0) {
@@ -286,7 +286,7 @@ export const workspaceMachine = setup({
 
     releaseBrowserPresence: enqueueActions(
       ({ context }, { id }: { id: TaskId }) => {
-        context.projectBrowserRefs.get(id)?.send({ type: "releasePresence" });
+        context.taskBrowserRefs.get(id)?.send({ type: "releasePresence" });
       },
     ),
 
@@ -331,7 +331,7 @@ export const workspaceMachine = setup({
   },
 
   actors: {
-    projectBrowserMachine,
+    taskBrowserMachine,
 
     runtimeMachine,
 
@@ -387,7 +387,7 @@ export const workspaceMachine = setup({
       appsBeingTrashed: [],
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),
-      projectBrowserRefs: new Map(),
+      taskBrowserRefs: new Map(),
       runtimeRefs: new Map(),
       sessionRefsByTaskId: new Map(),
       workspaceServerRef: spawn("workspaceServerLogic", {
@@ -575,7 +575,7 @@ export const workspaceMachine = setup({
         for (const [
           browserTaskId,
           ref,
-        ] of context.projectBrowserRefs.entries()) {
+        ] of context.taskBrowserRefs.entries()) {
           const matches =
             browserTaskId === event.value.id ||
             (typeof event.value.id === "string" &&
@@ -627,10 +627,10 @@ export const workspaceMachine = setup({
         });
       }),
     },
-    "projectBrowser.stopped": {
+    "taskBrowser.stopped": {
       actions: {
         params: ({ event }) => ({ id: event.value.id }),
-        type: "handleProjectBrowserStopped",
+        type: "handleTaskBrowserStopped",
       },
     },
     releaseBrowserPresence: {

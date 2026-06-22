@@ -5,24 +5,24 @@ import fs from "node:fs/promises";
 import { publisher } from "../rpc/publisher";
 import { type TaskDir } from "../schemas/paths";
 import {
-  type ProjectManifest,
-  ProjectManifestSchema,
-  type ProjectManifestUpdate,
-  ProjectManifestUpdateSchema,
-} from "../schemas/project-manifest";
+  type TaskManifest,
+  TaskManifestSchema,
+  type TaskManifestUpdate,
+  TaskManifestUpdateSchema,
+} from "../schemas/task-manifest";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { taskDir } from "./app-dir-utils";
 import { TypedError } from "./errors";
 
-export async function getProjectManifest(
+export async function getTaskManifest(
   dir: TaskDir,
-): Promise<ProjectManifest | undefined> {
+): Promise<TaskManifest | undefined> {
   const projectManifestPath = absolutePathJoin(dir, PROJECT_MANIFEST_FILE_NAME);
 
   try {
     const manifestContent = await fs.readFile(projectManifestPath, "utf8");
-    const parsed = ProjectManifestSchema.safeParse(JSON.parse(manifestContent));
+    const parsed = TaskManifestSchema.safeParse(JSON.parse(manifestContent));
     if (!parsed.success) {
       return undefined;
     }
@@ -32,12 +32,12 @@ export async function getProjectManifest(
   }
 }
 
-export function updateProjectManifest(
+export function updateTaskManifest(
   taskId: TaskId,
-  updates: ProjectManifestUpdate,
+  updates: TaskManifestUpdate,
 ) {
   return safeTry(async function* () {
-    const parseResult = ProjectManifestUpdateSchema.safeParse(updates);
+    const parseResult = TaskManifestUpdateSchema.safeParse(updates);
     if (!parseResult.success) {
       return err(
         new TypedError.Parse(
@@ -54,10 +54,10 @@ export function updateProjectManifest(
       PROJECT_MANIFEST_FILE_NAME,
     );
 
-    let existing: ProjectManifest = { name: "" };
+    let existing: TaskManifest = { name: "" };
 
     try {
-      existing = (await getProjectManifest(taskDir(taskId))) ?? {
+      existing = (await getTaskManifest(taskDir(taskId))) ?? {
         name: "",
       };
     } catch {

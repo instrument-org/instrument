@@ -5,13 +5,13 @@ import {
   isSessionTitleAutoReplaceable,
   isUntitledChatSessionTitle,
 } from "./generate-session-title";
-import { getProjectManifest } from "./project-manifest";
+import { getTaskManifest } from "./task-manifest";
 
-vi.mock("./project-manifest", () => ({
-  getProjectManifest: vi.fn(),
+vi.mock("./task-manifest", () => ({
+  getTaskManifest: vi.fn(),
 }));
 
-const mockGetProjectManifest = vi.mocked(getProjectManifest);
+const mockGetTaskManifest = vi.mocked(getTaskManifest);
 
 describe("isUntitledChatSessionTitle", () => {
   it.each([
@@ -37,7 +37,7 @@ describe("isSessionTitleAutoReplaceable", () => {
   const taskId = createMockAppConfigForDir("/tmp/instrument-test-project");
 
   beforeEach(() => {
-    mockGetProjectManifest.mockReset();
+    mockGetTaskManifest.mockReset();
   });
 
   it("is true for Untitled chat without reading manifest", async () => {
@@ -47,11 +47,11 @@ describe("isSessionTitleAutoReplaceable", () => {
         title: "Untitled chat",
       }),
     ).resolves.toBe(true);
-    expect(mockGetProjectManifest).not.toHaveBeenCalled();
+    expect(mockGetTaskManifest).not.toHaveBeenCalled();
   });
 
   it("is true when title equals manifest name", async () => {
-    mockGetProjectManifest.mockResolvedValue({ name: "Fix login bug" });
+    mockGetTaskManifest.mockResolvedValue({ name: "Fix login bug" });
     await expect(
       isSessionTitleAutoReplaceable({
         taskId,
@@ -61,7 +61,7 @@ describe("isSessionTitleAutoReplaceable", () => {
   });
 
   it("is false when title differs from manifest name", async () => {
-    mockGetProjectManifest.mockResolvedValue({ name: "Other" });
+    mockGetTaskManifest.mockResolvedValue({ name: "Other" });
     await expect(
       isSessionTitleAutoReplaceable({
         taskId,

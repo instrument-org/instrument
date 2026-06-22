@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ProjectManifestSchema } from "./project-manifest";
+import { TaskManifestSchema } from "./task-manifest";
 import { TaskIdSchema } from "./task-id";
 
 // The loaded representation of a task: id + metadata read from disk. This is
@@ -8,8 +8,8 @@ import { TaskIdSchema } from "./task-id";
 export const TaskSchema = z.object({
   assetBase: z.string(),
   createdAt: z.date(),
-  description: ProjectManifestSchema.shape.description.optional(),
-  iconName: ProjectManifestSchema.shape.iconName.optional(),
+  description: TaskManifestSchema.shape.description.optional(),
+  iconName: TaskManifestSchema.shape.iconName.optional(),
   id: TaskIdSchema,
   title: z.string(),
   updatedAt: z.date(),

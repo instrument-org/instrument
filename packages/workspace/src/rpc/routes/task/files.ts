@@ -6,13 +6,13 @@ import {
   getCurrentFileInfo,
 } from "../../../lib/get-file-info";
 import {
-  getProjectFiles,
-  ProjectFilesSchema,
-} from "../../../lib/get-project-files";
+  getTaskFiles,
+  TaskFilesSchema,
+} from "../../../lib/get-task-files";
 import {
-  getCurrentProjectFiles,
-  startWatchingProjectFiles,
-} from "../../../lib/project-file-watcher";
+  getCurrentTaskFiles,
+  startWatchingTaskFiles,
+} from "../../../lib/task-file-watcher";
 import { RelativeProjectPathSchema } from "../../../schemas/paths";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
@@ -24,16 +24,16 @@ const list = base
       taskId: TaskIdSchema,
     }),
   )
-  .output(ProjectFilesSchema)
+  .output(TaskFilesSchema)
   .handler(async ({ errors, input: { taskId } }) => {
     // Serve the live in-memory index when a watcher is active; otherwise fall
     // back to a fresh walk of disk.
-    const live = getCurrentProjectFiles(taskId);
+    const live = getCurrentTaskFiles(taskId);
     if (live) {
       return live;
     }
 
-    const result = await getProjectFiles(taskId);
+    const result = await getTaskFiles(taskId);
 
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
@@ -73,9 +73,9 @@ export const projectFiles = {
           taskId: TaskIdSchema,
         }),
       )
-      .output(eventIterator(ProjectFilesSchema))
+      .output(eventIterator(TaskFilesSchema))
       .handler(async function* ({ context, input, signal }) {
-        const release = startWatchingProjectFiles({
+        const release = startWatchingTaskFiles({
           id: input.taskId,
           workspaceConfig: context.workspaceConfig,
         });

@@ -6,8 +6,8 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { ulid } from "ulid";
 
-import { extractProjectZip } from "../src/lib/extract-project-zip";
-import { getProjectManifest } from "../src/lib/project-manifest";
+import { extractTaskZip } from "../src/lib/extract-task-zip";
+import { getTaskManifest } from "../src/lib/task-manifest";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
@@ -53,10 +53,10 @@ if (isZip) {
   const folderName = `transcript-${ulid().toLowerCase()}`;
   const extractDir = AbsolutePathSchema.parse(path.join(tasksDir, folderName));
   const zipBlob = new Blob([await fs.readFile(absoluteInputPath)]);
-  ({ dir } = await extractProjectZip({ outputDir: extractDir, zipBlob }));
+  ({ dir } = await extractTaskZip({ outputDir: extractDir, zipBlob }));
 }
 
-const manifest = await getProjectManifest(dir);
+const manifest = await getTaskManifest(dir);
 const folderName = path.basename(dir);
 const id = TaskIdSchema.parse(folderName);
 setWorkspaceConfig(createStubWorkspaceConfig({ tasksDir }));

@@ -11,8 +11,8 @@ import { type WorkspaceConfig } from "../types";
 import {
   beginTurnChangeTracking,
   consumeTurnChanges,
-  getCurrentProjectFiles,
-} from "./project-file-watcher";
+  getCurrentTaskFiles,
+} from "./task-file-watcher";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const id = TaskIdSchema.parse("watcher-test");
@@ -37,7 +37,7 @@ async function setupTask() {
 }
 
 function trackedPaths() {
-  return (getCurrentProjectFiles(id) ?? []).map((file) =>
+  return (getCurrentTaskFiles(id) ?? []).map((file) =>
     String(file.filePath),
   );
 }
@@ -76,7 +76,7 @@ describe("project file watcher turn tracking", () => {
     ]);
 
     // The turn held the only watcher ref, so consuming disposes it.
-    expect(getCurrentProjectFiles(id)).toBeUndefined();
+    expect(getCurrentTaskFiles(id)).toBeUndefined();
   }, 15_000);
 
   it("reports no changes for a turn that touches nothing", async () => {
@@ -88,7 +88,7 @@ describe("project file watcher turn tracking", () => {
 
     const { changes } = await consumeTurnChanges({ id, sessionId });
     expect(changes).toEqual([]);
-    expect(getCurrentProjectFiles(id)).toBeUndefined();
+    expect(getCurrentTaskFiles(id)).toBeUndefined();
   }, 15_000);
 
   it("ignores files created and deleted within the same turn", async () => {

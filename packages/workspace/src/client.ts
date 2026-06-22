@@ -12,7 +12,7 @@ export * from "./lib/is-app";
 export { isInteractiveTool } from "./lib/is-interactive-tool";
 export { isTaskAgentName } from "./lib/is-task-agent-name";
 export { isToolPart } from "./lib/is-tool-part";
-export { normalizeProjectFilePath } from "./lib/normalize-project-file-path";
+export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export type { Task } from "./schemas/app";
 export type { SessionTag } from "./schemas/app-state";
 export { FileUpload } from "./schemas/file-upload";

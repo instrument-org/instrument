@@ -2,7 +2,7 @@ import { html } from "hono/html";
 import path from "node:path";
 
 import { taskDir } from "../../lib/app-dir-utils";
-import { getProjects } from "../../lib/get-apps";
+import { getTasks } from "../../lib/get-tasks";
 import { localhostUrl } from "../../lib/url-for-subdomain";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type RuntimeActorRef } from "../../machines/runtime";
@@ -11,9 +11,9 @@ import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
 import { getWorkspaceServerPort } from "./url";
 
-interface AppAndStatus {
+interface TaskAndStatus {
   app: Task;
-  config: TaskId;
+  taskId: TaskId;
   port?: number;
   status: string;
 }
@@ -25,10 +25,10 @@ export async function RuntimeList({
   runtimeRefs: Map<TaskId, RuntimeActorRef>;
   workspaceConfig: WorkspaceConfig;
 }) {
-  const projects = await getProjects(workspaceConfig);
-  const projectsWithExtra = projects.projects.map((project) =>
+  const { tasks } = await getTasks(workspaceConfig);
+  const tasksWithExtra = tasks.map((task) =>
     getAppWithExtra({
-      project,
+      task,
       runtimeRefs,
     }),
   );
@@ -94,10 +94,10 @@ export async function RuntimeList({
             class="flex items-center justify-between mb-6 border-b border-neutral-700 pb-4"
           >
             <h1 class="text-3xl font-bold">Workspace Server</h1>
-            ${projectsWithExtra.length > 0
+            ${tasksWithExtra.length > 0
               ? html`<div class="flex items-center gap-3">
                   ${["ready", "loading", "error", "stopped"].map((status) => {
-                    const count = projectsWithExtra.filter(
+                    const count = tasksWithExtra.filter(
                       (app) => app.status === status,
                     ).length;
                     return count > 0
@@ -115,7 +115,7 @@ export async function RuntimeList({
               : ""}
           </div>
 
-          ${projectsWithExtra.length === 0
+          ${tasksWithExtra.length === 0
             ? html`<div
                 class="bg-neutral-800 rounded-lg p-6 text-center text-neutral-400 border border-neutral-700"
               >
@@ -136,7 +136,7 @@ export async function RuntimeList({
                 <p>No apps configured</p>
               </div>`
             : html`<div class="grid gap-4 mb-6">
-                ${projectsWithExtra.map(
+                ${tasksWithExtra.map(
                   (app) => html`
                     <div
                       class="bg-neutral-800 rounded-lg p-4 border border-neutral-700 flex items-center justify-between"
@@ -165,7 +165,7 @@ export async function RuntimeList({
                           <span class="text-xs text-neutral-400">
                             ${path.relative(
                               getWorkspaceConfig().rootDir,
-                              taskDir(app.config),
+                              taskDir(app.taskId),
                             )}
                           </span>
                         </div>
@@ -207,12 +207,12 @@ export async function RuntimeList({
 }
 
 function getAppWithExtra({
-  project: app,
   runtimeRefs,
+  task: app,
 }: {
-  project: Task;
   runtimeRefs: Map<TaskId, RuntimeActorRef>;
-}): AppAndStatus {
+  task: Task;
+}): TaskAndStatus {
   const runtimeRef = runtimeRefs.get(app.id);
   const runtimeSnapshot = runtimeRef?.getSnapshot();
   const port = runtimeSnapshot?.context.port;
@@ -222,7 +222,7 @@ function getAppWithExtra({
 
   return {
     app,
-    config: app.id,
+    taskId: app.id,
     port,
     status,
   };

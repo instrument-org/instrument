@@ -1,6 +1,6 @@
 import { type TaskId } from "../schemas/task-id";
 import { taskDir } from "./app-dir-utils";
-import { getProjectManifest } from "./project-manifest";
+import { getTaskManifest } from "./task-manifest";
 import { Store } from "./store";
 
 const DEFAULT_UNTITLED_BASE = "Untitled chat";
@@ -59,7 +59,7 @@ export async function isSessionTitleAutoReplaceable({
   if (isUntitledChatSessionTitle(title)) {
     return true;
   }
-  const manifest = await getProjectManifest(taskDir(taskId));
+  const manifest = await getTaskManifest(taskDir(taskId));
   return manifest?.name === title;
 }
 

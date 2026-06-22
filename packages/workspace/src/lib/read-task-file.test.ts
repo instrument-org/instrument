@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAppConfig } from "../test/helpers/mock-app-config";
-import { readProjectFile } from "./read-project-file";
+import { readTaskFile } from "./read-task-file";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
-describe("readProjectFile", () => {
+describe("readTaskFile", () => {
   const id = TaskIdSchema.parse("test-project");
   let tasksDir: string;
   let dir: string;
@@ -23,7 +23,7 @@ describe("readProjectFile", () => {
     await fs.writeFile(path.join(tasksDir, "secret.txt"), "ssh private key");
 
     // createMockAppConfig publishes the singleton; point it at the temp dir so
-    // readProjectFile (which reads the singleton) resolves under it.
+    // readTaskFile (which reads the singleton) resolves under it.
     createMockAppConfig(id);
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
@@ -36,7 +36,7 @@ describe("readProjectFile", () => {
   });
 
   it("reads a file inside the task dir", async () => {
-    const buffer = await readProjectFile({
+    const buffer = await readTaskFile({
       filePath: "inside.txt",
       taskId: id,
     });
@@ -49,7 +49,7 @@ describe("readProjectFile", () => {
     { filePath: "..\\secret.txt", label: "backslash traversal" },
     { filePath: "/etc/passwd", label: "absolute path" },
   ])("fails closed for $label", async ({ filePath }) => {
-    const buffer = await readProjectFile({
+    const buffer = await readTaskFile({
       filePath,
       taskId: id,
     });

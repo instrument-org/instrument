@@ -3,6 +3,7 @@ import { type z } from "zod";
 
 import type { AnyAgentTool, ToolName } from "./types";
 
+import { Agent } from "./agent";
 import { BashTool } from "./bash";
 import { Choose } from "./choose";
 import { CopyToTask } from "./copy-to-task";
@@ -12,12 +13,12 @@ import { Glob } from "./glob";
 import { Grep } from "./grep";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
-import { Task } from "./task";
 import { Unavailable } from "./unavailable";
 import { WebSearch } from "./web-search";
 import { WriteFile } from "./write-file";
 
 export const TOOLS = {
+  Agent,
   BashTool,
   Choose,
   CopyToTask,
@@ -27,7 +28,6 @@ export const TOOLS = {
   Grep,
   LoadSkill,
   ReadFile,
-  Task,
   Unavailable,
   WebSearch,
   WriteFile,
@@ -36,6 +36,7 @@ export const TOOLS = {
 export type InternalToolName = keyof typeof TOOLS;
 
 export const TOOLS_BY_NAME = {
+  [TOOLS.Agent.name]: TOOLS.Agent,
   [TOOLS.BashTool.name]: TOOLS.BashTool,
   [TOOLS.Choose.name]: TOOLS.Choose,
   [TOOLS.CopyToTask.name]: TOOLS.CopyToTask,
@@ -45,7 +46,6 @@ export const TOOLS_BY_NAME = {
   [TOOLS.Grep.name]: TOOLS.Grep,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
-  [TOOLS.Task.name]: TOOLS.Task,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
   [TOOLS.WebSearch.name]: TOOLS.WebSearch,
   [TOOLS.WriteFile.name]: TOOLS.WriteFile,

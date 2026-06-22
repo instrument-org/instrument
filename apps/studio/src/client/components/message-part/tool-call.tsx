@@ -3,6 +3,7 @@ import {
   type Task,
 } from "@instrument-org/workspace/client";
 
+import { type RenderStream, ToolAgent } from "./tool-agent";
 import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallSessionProvider } from "./tool-call-session";
@@ -16,7 +17,6 @@ import { ToolGlob } from "./tool-glob";
 import { ToolGrep } from "./tool-grep";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
-import { type RenderStream, ToolTask } from "./tool-task";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
@@ -108,6 +108,9 @@ function ToolCallBody({
   }
 
   switch (part.type) {
+    case "tool-agent": {
+      return <ToolAgent part={part} renderStream={renderStream} task={task} />;
+    }
     case "tool-bash": {
       return <ToolBash assetBaseUrl={assetBaseUrl} part={part} />;
     }
@@ -141,9 +144,6 @@ function ToolCallBody({
     }
     case "tool-read_file": {
       return <ToolReadFile id={task.id} part={part} />;
-    }
-    case "tool-task": {
-      return <ToolTask part={part} renderStream={renderStream} task={task} />;
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

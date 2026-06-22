@@ -76,7 +76,7 @@ function buildTaskSessionIdMap(
   const map = new Map<string, StoreId.Session>();
   for (const message of session.messages) {
     for (const part of message.parts) {
-      if (part.type === "tool-task" && part.state === "output-available") {
+      if (part.type === "tool-agent" && part.state === "output-available") {
         map.set(part.toolCallId, part.output.sessionId);
       }
     }
@@ -179,7 +179,7 @@ async function renderAssistantMessage(
           inputToXml(part.toolName, part.input),
         );
 
-        if (part.toolName === "task") {
+        if (part.toolName === "agent") {
           const childSessionId = taskSessionIds.get(part.toolCallId);
           if (childSessionId) {
             const childSession = childSessions.get(childSessionId);

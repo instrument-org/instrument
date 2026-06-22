@@ -767,16 +767,16 @@ describe("sessionMachine", () => {
         [
           {
             id: "test-call-task",
-            toolName: "task",
+            toolName: "agent",
             type: "tool-input-start",
           },
           {
             input: JSON.stringify({
+              agent_type: "retrieval",
               prompt: "Write a test file",
-              subagent_type: "retrieval",
             }),
             toolCallId: "test-call-task",
-            toolName: "task",
+            toolName: "agent",
             type: "tool-call",
           },
         ],
@@ -791,11 +791,11 @@ describe("sessionMachine", () => {
         </user>
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
-          <tool tool="task" state="output-available" callId="test-call-task">
+          <tool tool="agent" state="output-available" callId="test-call-task">
             <input>
               {
-                "prompt": "Write a test file",
-                "subagent_type": "retrieval"
+                "agent_type": "retrieval",
+                "prompt": "Write a test file"
               }
             </input>
             <output>
@@ -938,7 +938,7 @@ describe("sessionMachine", () => {
                 "filePath": "test.txt"
               }
             </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, glob, grep, load_skill, read_file, bash, task, web_search, write_file.</error>
+            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, glob, grep, load_skill, read_file, bash, agent, web_search, write_file.</error>
           </tool>
         </assistant>
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">

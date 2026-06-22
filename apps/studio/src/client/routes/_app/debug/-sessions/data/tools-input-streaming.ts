@@ -116,11 +116,11 @@ export function authMiddleware(
         builder.textPart("Calling task...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {
+            agent_type: "retrieval",
             explanation: "Launch retrieval agent to search external folder",
             prompt: "Search the attached folder for any existing TypeScript",
-            subagent_type: "retrieval",
           },
-          type: "tool-task",
+          type: "tool-agent",
         }),
         builder.textPart("Calling copy_to_task...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {

@@ -123,7 +123,7 @@ describe("ReadFile", () => {
       )._unsafeUnwrapErr();
 
       expect(error.message).toContain("retrieval");
-      expect(error.message).toContain("task");
+      expect(error.message).toContain("agent");
       expect(error.message).toContain("Test Folder");
     });
   });

@@ -49,7 +49,7 @@ export const mainAgent = setupAgent({
     "LoadSkill",
     "ReadFile",
     "BashTool",
-    "Task",
+    "Agent",
     "WebSearch",
     "WriteFile",
   ]),

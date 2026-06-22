@@ -36,12 +36,12 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {
+            agent_type: "retrieval",
             explanation: "Launch retrieval agent to search external folder",
             prompt:
               "Search the attached folder for any existing TypeScript config files and report what you find.",
-            subagent_type: "retrieval",
           },
-          type: "tool-task",
+          type: "tool-agent",
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {

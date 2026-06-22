@@ -16,14 +16,14 @@ export type RenderStream = (args: {
   messages: SessionMessage.WithParts[];
 }) => ReactNode;
 
-type TaskPart = Extract<SessionMessagePart.ToolPart, { type: "tool-task" }>;
+type AgentPart = Extract<SessionMessagePart.ToolPart, { type: "tool-agent" }>;
 
-export function ToolTask({
+export function ToolAgent({
   part,
   renderStream,
   task,
 }: {
-  part: TaskPart;
+  part: AgentPart;
   renderStream: RenderStream;
   task: Task;
 }) {
@@ -40,7 +40,7 @@ export function ToolTask({
     // Opaque composites of bg-muted/40 and dark:bg-muted/20 over card --
     // transparent values bleed through the hover card popover surface.
     <div className="mt-2 overflow-hidden rounded-2xl bg-gray-100 dark:bg-[#211d1b]">
-      <TaskStream
+      <AgentStream
         isRunning={isTaskRunning}
         renderStream={renderStream}
         sessionId={part.output.sessionId}
@@ -50,7 +50,7 @@ export function ToolTask({
   );
 }
 
-function TaskStream({
+function AgentStream({
   isRunning,
   renderStream,
   sessionId,

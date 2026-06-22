@@ -154,14 +154,14 @@ describe("SessionMessage.toModelMessages", () => {
         parts: [
           {
             callProviderMetadata: undefined,
-            input: { prompt: "Test task", subagent_type: "retrieval" },
+            input: { agent_type: "retrieval", prompt: "Test task" },
             metadata: {
               createdAt: mockDate,
               endedAt: new Date("2024-01-01T10:01:00Z"),
               id: StoreId.newPartId(),
               messageId: assistantMessageId,
               sessionId,
-              toolName: "task",
+              toolName: "agent",
             },
             output: {
               sessionId,
@@ -171,7 +171,7 @@ describe("SessionMessage.toModelMessages", () => {
             providerExecuted: true,
             state: "output-available",
             toolCallId,
-            type: "tool-task",
+            type: "tool-agent",
           },
         ],
         role: "assistant",
@@ -189,12 +189,12 @@ describe("SessionMessage.toModelMessages", () => {
           "content": [
             {
               "input": {
+                "agent_type": "retrieval",
                 "prompt": "Test task",
-                "subagent_type": "retrieval",
               },
               "providerExecuted": true,
               "toolCallId": "call_789",
-              "toolName": "task",
+              "toolName": "agent",
               "type": "tool-call",
             },
             {
@@ -203,7 +203,7 @@ describe("SessionMessage.toModelMessages", () => {
                 "value": "Agent was stopped before it completed. Some tools may have been executed.",
               },
               "toolCallId": "call_789",
-              "toolName": "task",
+              "toolName": "agent",
               "type": "tool-result",
             },
           ],

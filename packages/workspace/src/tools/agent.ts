@@ -11,10 +11,10 @@ import { StoreId } from "../schemas/store-id";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
-const TOOL_NAME = "task";
+const TOOL_NAME = "agent";
 const INPUT_PARAMS = {
+  agent_type: "agent_type",
   prompt: "prompt",
-  subagent_type: "subagent_type",
 } as const;
 
 const TASK_AGENT_DISPLAY_NAMES: Record<TaskAgentName, string> = {
@@ -24,13 +24,13 @@ const TASK_AGENT_DISPLAY_NAMES: Record<TaskAgentName, string> = {
 const TASK_AGENT_DESCRIPTIONS: Record<TaskAgentName, string> = {
   retrieval: dedent`
     Specialized agent for accessing external folders that the user has attached to the task. Use this ONLY when the user has attached external folders to the task and you need to search, inspect, or copy files from those external folders.
-    
+
     DO NOT use this agent for files the user uploaded directly to a message -- those are already in the task folder at ${TASK_FOLDER_NAMES.userProvided}/ and you can read them directly.
-    
+
     This agent can search and read files to answer questions directly (e.g. count files, check contents, list structure) WITHOUT copying them. Only instruct it to copy files when the files themselves are actually needed in the task.
-    
+
     When files ARE copied, they are ALWAYS placed in the ${TASK_FOLDER_NAMES.agentRetrieved} folder. The destination cannot be changed.
-    
+
     IMPORTANT: When writing the prompt for this agent, be clear about whether you need the files copied or just need information about them. If you only need to know what files exist, their count, names, or contents, the agent can report that directly without copying.
     IMPORTANT: This agent cannot directly access files inside the current task - it can only access files from attached external folders outside the task.
   `.trim(),
@@ -48,15 +48,15 @@ const DoneOutputSchema = z.object({
   summary: z.string(),
 });
 
-export const Task = setupTool({
+export const Agent = setupTool({
   inputSchema: BaseInputSchema.extend({
-    [INPUT_PARAMS.prompt]: z
-      .string()
-      .meta({ description: "The task for the agent to perform" }),
-    [INPUT_PARAMS.subagent_type]: z.string().meta({
+    [INPUT_PARAMS.agent_type]: z.string().meta({
       description:
         "The type of specialized agent to use for this task. Generate this first.",
     }),
+    [INPUT_PARAMS.prompt]: z
+      .string()
+      .meta({ description: "The task for the agent to perform" }),
   }),
   name: TOOL_NAME,
   outputSchema: z.discriminatedUnion("status", [
@@ -92,7 +92,7 @@ export const Task = setupTool({
       return;
     }
 
-    const requestedAgentName = input.subagent_type as TaskAgentName;
+    const requestedAgentName = input.agent_type as TaskAgentName;
     if (!TASK_AGENT_NAMES.includes(requestedAgentName)) {
       yield executeError(
         `Unknown agent type: ${requestedAgentName}. Available types: ${TASK_AGENT_NAMES.join(", ")}`,
@@ -128,7 +128,7 @@ export const Task = setupTool({
       .find((msg) => msg.role === "assistant");
 
     if (!lastAssistantMessage) {
-      yield executeError("Subagent did not produce a response");
+      yield executeError("Agent did not produce a response");
       return;
     }
 

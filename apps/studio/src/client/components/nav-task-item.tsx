@@ -1,5 +1,4 @@
 import { InternalLink } from "@/client/components/internal-link";
-import { TaskIcon } from "@/client/components/task-icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,7 +152,6 @@ export const NavTaskItem = memo(function NavTaskItem({
               params={{ id: task.id }}
               to="/tasks/$id"
             >
-              <TaskIcon name={task.iconName} size="xs" />
               <span>{task.title}</span>
             </InternalLink>
           </SidebarMenuButton>

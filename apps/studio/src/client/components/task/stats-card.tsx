@@ -1,4 +1,3 @@
-import { TaskIcon } from "@/client/components/task-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
 import {
@@ -26,7 +25,6 @@ export function TaskStatsCard({ task }: { task: Task }) {
 
   return (
     <div className="flex items-center gap-3 overflow-hidden rounded-lg border bg-muted/50 p-4">
-      <TaskIcon name={task.iconName} size="lg" />
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="truncate font-medium text-foreground">{task.title}</div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">

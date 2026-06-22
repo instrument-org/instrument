@@ -3,7 +3,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { InternalLink } from "@/client/components/internal-link";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
-import { TaskIcon } from "@/client/components/task-icon";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import { ArrowsDownUpIcon, StarIcon } from "@phosphor-icons/react";
@@ -94,7 +93,6 @@ export function createColumns({
               params={{ id: task.id }}
               to="/tasks/$id"
             >
-              <TaskIcon name={task.iconName} size="sm" />
               <span className="truncate font-medium">{task.title}</span>
               <TaskStatusIcon
                 className="ml-auto size-4 shrink-0"

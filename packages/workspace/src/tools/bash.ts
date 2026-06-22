@@ -86,7 +86,11 @@ export const BashTool = setupTool({
     let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
     if (truncated) {
       spillFilePath = RelativePathSchema.parse(
-        path.posix.join(TASK_FOLDER_NAMES.state, "bash-output", `${partId}.log`),
+        path.posix.join(
+          TASK_FOLDER_NAMES.state,
+          "bash-output",
+          `${partId}.log`,
+        ),
       );
       const absPath = absolutePathJoin(taskDir(taskId), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });

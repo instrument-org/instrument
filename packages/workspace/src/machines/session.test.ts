@@ -251,12 +251,15 @@ describe("sessionMachine", () => {
     // via the workspace singleton.
     const model = createMockAIGatewayModel({ providerConfigId });
 
-    const testTaskConfig = createMockTaskConfig(TaskIdSchema.parse(taskFolder), {
-      aiSDKModel: mockLanguageModel,
-      imageModel,
-      model,
-      webSearchModel,
-    });
+    const testTaskConfig = createMockTaskConfig(
+      TaskIdSchema.parse(taskFolder),
+      {
+        aiSDKModel: mockLanguageModel,
+        imageModel,
+        model,
+        webSearchModel,
+      },
+    );
 
     await Store.saveSession(
       {

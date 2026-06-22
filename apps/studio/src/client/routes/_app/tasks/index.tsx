@@ -28,7 +28,7 @@ import { createIconMeta } from "@/shared/tabs";
 import {
   APP_NAME,
   EVAL_SUBDOMAIN_PREFIX,
-  TASK_MANIFEST_FILE_NAME,
+  TASK_SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import {
   isTaskId,
@@ -439,7 +439,7 @@ function RouteComponent() {
                 </TooltipTrigger>
                 <TooltipContent>
                   Select a zip file exported from {APP_NAME} containing a
-                  {TASK_MANIFEST_FILE_NAME} file
+                  {TASK_SETTINGS_FILE_NAME} file
                 </TooltipContent>
               </Tooltip>
               <input

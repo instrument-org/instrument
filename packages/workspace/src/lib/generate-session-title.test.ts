@@ -5,13 +5,13 @@ import {
   isSessionTitleAutoReplaceable,
   isUntitledChatSessionTitle,
 } from "./generate-session-title";
-import { getTaskManifest } from "./task-manifest";
+import { getTaskSettings } from "./task-settings";
 
-vi.mock("./task-manifest", () => ({
-  getTaskManifest: vi.fn(),
+vi.mock("./task-settings", () => ({
+  getTaskSettings: vi.fn(),
 }));
 
-const mockGetTaskManifest = vi.mocked(getTaskManifest);
+const mockGetTaskManifest = vi.mocked(getTaskSettings);
 
 describe("isUntitledChatSessionTitle", () => {
   it.each([

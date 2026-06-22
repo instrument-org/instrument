@@ -1,4 +1,4 @@
-import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { BlobWriter, TextReader, ZipWriter } from "@zip.js/zip.js";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -39,7 +39,7 @@ describe("extractTaskZip", () => {
     tempDirs.push(outputDir);
 
     const zipBlob = await createZipBlob([
-      { data: "{}", filename: TASK_MANIFEST_FILE_NAME },
+      { data: "{}", filename: TASK_SETTINGS_FILE_NAME },
       { data: "hello", filename: "notes/readme.txt" },
     ]);
 
@@ -62,7 +62,7 @@ describe("extractTaskZip", () => {
 
       const outsidePath = path.resolve(outputDir, filename);
       const zipBlob = await createZipBlob([
-        { data: "{}", filename: TASK_MANIFEST_FILE_NAME },
+        { data: "{}", filename: TASK_SETTINGS_FILE_NAME },
         { data: "pwned", filename },
       ]);
 

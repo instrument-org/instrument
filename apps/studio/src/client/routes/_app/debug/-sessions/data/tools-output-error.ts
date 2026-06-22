@@ -98,11 +98,11 @@ registerSession({
         builder.toolPart(assistantMessageId, "output-error", {
           errorText: "Subagent timed out after 120s",
           input: {
+            agent_type: "retrieval",
             explanation: "Launch retrieval agent",
             prompt: "Search for config files",
-            subagent_type: "retrieval",
           },
-          type: "tool-task",
+          type: "tool-agent",
         }),
         builder.toolPart(assistantMessageId, "output-error", {
           errorText: "Source path does not exist: /Users/user/nonexistent-task",

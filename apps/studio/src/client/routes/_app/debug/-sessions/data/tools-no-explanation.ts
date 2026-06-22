@@ -56,8 +56,8 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
+            agent_type: "retrieval",
             prompt: "Find TypeScript config files.",
-            subagent_type: "retrieval",
           },
           output: {
             result: "Found tsconfig.json.",
@@ -65,7 +65,7 @@ registerSession({
             status: "done",
             summary: "read 1 file",
           },
-          type: "tool-task",
+          type: "tool-agent",
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {

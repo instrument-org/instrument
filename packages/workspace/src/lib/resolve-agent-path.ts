@@ -10,7 +10,7 @@ import {
   AbsolutePathSchema,
   type TaskDir,
 } from "../schemas/paths";
-import { Task } from "../tools/task";
+import { Agent } from "../tools/agent";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { normalizePath } from "./normalize-path";
@@ -176,7 +176,7 @@ export function resolveAgentPath(options: {
     if (matchingFolder) {
       return executeError(
         `The path "${trimmedPath}" is within the attached folder "${matchingFolder.name}". ` +
-          `Use the ${Task.name} tool with subagent_type "${RETRIEVAL_AGENT_NAME}" to access files from attached folders.`,
+          `Use the ${Agent.name} tool with agent_type "${RETRIEVAL_AGENT_NAME}" to access files from attached folders.`,
       );
     }
   }

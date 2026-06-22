@@ -24,7 +24,7 @@ import {
 } from "./chat-stream-utils";
 import { ContextMessages } from "./context-messages";
 import { MessageError } from "./message-error";
-import { type RenderStream } from "./message-part/tool-task";
+import { type RenderStream } from "./message-part/tool-agent";
 import { ReasoningMessage } from "./reasoning-message";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";

@@ -34,6 +34,7 @@ const TASK_TRIED_DISPLAY_NAMES: Record<TaskAgentName, string> = {
 
 // | undefined ensures runtime type safety
 const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
+  agent: "Agent",
   bash: "Ran terminal command",
   choose: "Waiting for answer",
   copy_to_task: "Copied to task",
@@ -43,13 +44,13 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   grep: "Searched text",
   load_skill: "Loaded skill",
   read_file: "Read",
-  task: "Task",
   unavailable: "Used unknown tool",
   web_search: "Searched web",
   write_file: "Created",
 };
 
 const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
+  agent: "Agent",
   bash: "Running terminal command",
   choose: "Thinking about a question",
   copy_to_task: "Copying to task",
@@ -59,7 +60,6 @@ const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   grep: "Searching text",
   load_skill: "Loading skill",
   read_file: "Reading file",
-  task: "Task",
   unavailable: "Using unknown tool",
   web_search: "Searching the web",
   write_file: "Creating a file",
@@ -69,6 +69,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   ToolName,
   string | undefined
 > = {
+  agent: TOOL_STREAMING_DISPLAY_NAMES.agent,
   bash: TOOL_STREAMING_DISPLAY_NAMES.bash,
   choose: TOOL_STREAMING_DISPLAY_NAMES.choose,
   copy_to_task: "Copying",
@@ -78,13 +79,13 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   grep: "Searching for",
   load_skill: "Loading skill",
   read_file: "Reading",
-  task: TOOL_STREAMING_DISPLAY_NAMES.task,
   unavailable: TOOL_STREAMING_DISPLAY_NAMES.unavailable,
   web_search: "Searching for",
   write_file: "Creating",
 };
 
 const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
+  agent: "Tried to run agent",
   bash: "Tried to run terminal command",
   choose: "Tried to ask a question",
   copy_to_task: "Tried to copy to task",
@@ -94,13 +95,13 @@ const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   grep: "Tried to search text",
   load_skill: "Tried to load skill",
   read_file: "Tried to read file",
-  task: "Tried to run task",
   unavailable: "Tried unknown tool",
   web_search: "Tried to search the web",
   write_file: "Tried to create file",
 };
 
 export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
+  agent: TreeStructureIcon,
   bash: TerminalIcon,
   choose: QuestionIcon,
   copy_to_task: FolderSimplePlusIcon,
@@ -110,7 +111,6 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   grep: FileMagnifyingGlassIcon,
   load_skill: BookOpenIcon,
   read_file: EyeIcon,
-  task: TreeStructureIcon,
   unavailable: WrenchIcon,
   web_search: GlobeIcon,
   write_file: CodeIcon,
@@ -133,7 +133,7 @@ export function getToolLabelForPart({
   state: "completed" | "streaming" | "tried";
   toolName: ToolName;
 }): string {
-  if (toolName !== "task") {
+  if (toolName !== "agent") {
     switch (state) {
       case "completed": {
         return hasCapabilityFailure
@@ -150,8 +150,8 @@ export function getToolLabelForPart({
   }
 
   const taskAgentName =
-    part.type === "tool-task" && part.input
-      ? part.input.subagent_type
+    part.type === "tool-agent" && part.input
+      ? part.input.agent_type
       : undefined;
 
   const taskState =

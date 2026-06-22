@@ -62,10 +62,10 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
+            agent_type: "retrieval",
             explanation: "Launch retrieval agent to search external folder",
             prompt:
               "Search the attached folder for any existing TypeScript config files and report what you find.",
-            subagent_type: "retrieval",
           },
           output: {
             result:
@@ -74,7 +74,7 @@ registerSession({
             status: "done",
             summary: "read 2 files, 1 search",
           },
-          type: "tool-task",
+          type: "tool-agent",
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {

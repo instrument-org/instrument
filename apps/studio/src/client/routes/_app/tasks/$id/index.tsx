@@ -8,7 +8,7 @@ import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-a
 import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
-import { createIconMeta, createTaskIdMeta } from "@/shared/tabs";
+import { createTaskIdMeta } from "@/shared/tabs";
 import {
   StoreId,
   type Task,
@@ -133,9 +133,6 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
         {
           title: title(taskResult.data),
         },
-        ...(taskResult.data?.iconName
-          ? [createIconMeta(taskResult.data.iconName)]
-          : []),
         createTaskIdMeta(params.id),
       ],
     };

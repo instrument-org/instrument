@@ -217,7 +217,6 @@ function RouteComponent() {
           const name = `${templateName} - ${model.name}`;
 
           const task = await createMutation.mutateAsync({
-            iconName: "flask-conical",
             modelURI,
             name,
             preferredFolderName: `${EVAL_SUBDOMAIN_PREFIX}${ulid().toLowerCase()}`,

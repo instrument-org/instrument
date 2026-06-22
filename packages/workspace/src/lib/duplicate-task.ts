@@ -79,10 +79,7 @@ export async function duplicateTask(
       }
     }
 
-    const existingManifest = await getTaskManifest(taskDir(taskId));
-
     yield* updateTaskManifest(taskId, {
-      ...(existingManifest && { iconName: existingManifest.iconName }),
       name: duplicateName,
     });
 

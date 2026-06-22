@@ -73,10 +73,10 @@ const live = {
     const favorites = favoritesStore.get("favorites");
     yield await fetchAndCleanFavorites(favorites);
 
-    const projectUpdates = workspacePublisher.subscribe("project.updated", {
+    const taskUpdates = workspacePublisher.subscribe("task.updated", {
       signal,
     });
-    const projectRemoved = workspacePublisher.subscribe("project.removed", {
+    const taskRemoved = workspacePublisher.subscribe("task.removed", {
       signal,
     });
     const favoritesUpdated = publisher.subscribe("favorites.updated", {
@@ -84,8 +84,8 @@ const live = {
     });
 
     for await (const _payload of mergeGenerators([
-      projectUpdates,
-      projectRemoved,
+      taskUpdates,
+      taskRemoved,
       favoritesUpdated,
     ])) {
       const favoritesNext = favoritesStore.get("favorites");
@@ -102,13 +102,13 @@ const live = {
       const favoritesUpdated = publisher.subscribe("favorites.updated", {
         signal,
       });
-      const projectRemoved = workspacePublisher.subscribe("project.removed", {
+      const taskRemoved = workspacePublisher.subscribe("task.removed", {
         signal,
       });
 
       for await (const _payload of mergeGenerators([
         favoritesUpdated,
-        projectRemoved,
+        taskRemoved,
       ])) {
         yield favoritesStore.get("favorites");
       }

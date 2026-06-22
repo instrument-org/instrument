@@ -249,7 +249,7 @@ const openAppIn = base
         await execAsync(command);
       }
 
-      captureServerEvent("project.opened_in", {
+      captureServerEvent("task.opened_in", {
         app_name: input.type,
       });
     } catch (error) {

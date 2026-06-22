@@ -14,13 +14,13 @@ import { ModelPreview } from "./model-preview";
 import { SessionStatusPreview } from "./session-status-preview";
 
 export function createColumns({
-  favoriteProjectSubdomains,
+  favoriteTaskIds,
   onDelete,
   onOpenInNewTab,
   onSettings,
   onStop,
 }: {
-  favoriteProjectSubdomains: Set<string>;
+  favoriteTaskIds: Set<string>;
   onDelete: (id: TaskId) => void;
   onOpenInNewTab: (id: TaskId) => void;
   onSettings: (id: TaskId) => void;
@@ -79,7 +79,7 @@ export function createColumns({
       accessorKey: "title",
       cell: ({ row }) => {
         const project = row.original;
-        const isFavorite = favoriteProjectSubdomains.has(project.id);
+        const isFavorite = favoriteTaskIds.has(project.id);
         return (
           <div className="flex min-w-0 items-center gap-x-2">
             {isFavorite && (

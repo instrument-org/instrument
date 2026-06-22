@@ -2,7 +2,7 @@ import { promptInputRefAtom } from "@/client/atoms/prompt-value";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { useProjectRouteSubdomain } from "@/client/hooks/use-project-route-subdomain";
+import { useTaskRouteId } from "@/client/hooks/use-task-route-id";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -48,7 +48,7 @@ export function ProjectChat({
   const queryClient = useQueryClient();
   // Use the route id for chat data; project may be placeholder data
   // from the previous project while keepPreviousData is active.
-  const id = useProjectRouteSubdomain();
+  const id = useTaskRouteId();
   // TODO: Stop passing the entire project object down and rely just on the
   // id as much as possible to keep this from being an issue.
   const isProjectRouteSettled = project.id === id;

@@ -74,10 +74,10 @@ export function StudioCommandMenu() {
 
   const projects = projectsData?.projects ?? [];
 
-  const currentProjectSubdomain = projectRouteMatch?.params.id;
+  const currentTaskId = projectRouteMatch?.params.id;
 
   const candidateProjects = projects.filter(
-    (project) => project.id !== currentProjectSubdomain,
+    (project) => project.id !== currentTaskId,
   );
 
   const matchedProjects = useMemo((): MatchedProject[] => {

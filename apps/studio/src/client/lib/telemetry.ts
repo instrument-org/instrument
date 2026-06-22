@@ -114,6 +114,20 @@ let telemetryPromise: null | Promise<
   Awaited<ReturnType<typeof initTelemetry>>
 > = null;
 
+// Loudly report a caught exception: console for dev visibility, PostHog for
+// production. Use for failures that should never happen (e.g. foundational
+// boot data not resolving), not for expected/handled errors.
+export function captureException(
+  error: unknown,
+  properties?: Record<string, unknown>,
+) {
+  // eslint-disable-next-line no-console -- foundational failures should be loud in dev too
+  console.error(error);
+  void getTelemetry().then((telemetry) => {
+    telemetry?.captureException(error, properties);
+  });
+}
+
 export function capturePageView() {
   void getTelemetry().then((telemetry) => {
     telemetry?.capture("$pageview");

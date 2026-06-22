@@ -9,7 +9,7 @@ import {
 import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useMemo } from "react";
 
-import { useAssetBaseUrl } from "../hooks/use-asset-base-url";
+import { getAssetBaseUrl } from "../lib/asset-base-url";
 import { cn } from "../lib/utils";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
@@ -55,7 +55,7 @@ export function ChatStream({
   onStartNewChat,
   task,
 }: ChatStreamProps) {
-  const assetBaseUrl = useAssetBaseUrl(task.id);
+  const assetBaseUrl = getAssetBaseUrl(task.id);
 
   const { contextMessages, regularMessages } = useMemo(() => {
     const result = {

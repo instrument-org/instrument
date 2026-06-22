@@ -2,7 +2,7 @@ import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
-import { useAssetBaseUrl } from "@/client/hooks/use-asset-base-url";
+import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import {
@@ -81,7 +81,7 @@ export function TaskFiles({
   onFileSelect: (file: TaskFileViewerFile) => void;
   task: Task;
 }) {
-  const assetBaseUrl = useAssetBaseUrl(task.id);
+  const assetBaseUrl = getAssetBaseUrl(task.id);
 
   const computed = useMemo(() => {
     if (!files) {

@@ -843,9 +843,9 @@ export class TabsManager {
       )) as MetaTagsResult;
       const iconNameResult = TabIconsSchema.safeParse(metaTags.iconName);
       tab.iconName = iconNameResult.success ? iconNameResult.data : undefined;
-      const projectSubdomainResult = TaskIdSchema.safeParse(metaTags.taskId);
-      tab.taskId = projectSubdomainResult.success
-        ? projectSubdomainResult.data
+      const taskIdResult = TaskIdSchema.safeParse(metaTags.taskId);
+      tab.taskId = taskIdResult.success
+        ? taskIdResult.data
         : undefined;
     } catch (error) {
       captureServerException(

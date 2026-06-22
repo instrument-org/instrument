@@ -14,16 +14,16 @@ import { getProjectState, setProjectState } from "./project-state-store";
 
 interface DuplicateProjectOptions {
   keepHistory: boolean;
-  sourceSubdomain: TaskId;
+  sourceTaskId: TaskId;
   workspaceConfig: WorkspaceConfig;
 }
 
 export async function duplicateProject(
-  { keepHistory, sourceSubdomain, workspaceConfig }: DuplicateProjectOptions,
+  { keepHistory, sourceTaskId, workspaceConfig }: DuplicateProjectOptions,
   _options: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const sourceConfig = createAppConfig({ id: sourceSubdomain });
+    const sourceConfig = createAppConfig({ id: sourceTaskId });
 
     const projectConfig = await newProjectConfig({
       workspaceConfig,

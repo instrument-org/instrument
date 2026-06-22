@@ -43,7 +43,7 @@ export function StudioSidebar({
     rpcClient.workspace.task.live.list.experimental_liveOptions(),
   );
 
-  const favoriteSubdomains = useMemo(
+  const favoriteTaskIds = useMemo(
     () => new Set(favorites?.map((r) => r.id) ?? []),
     [favorites],
   );
@@ -54,9 +54,9 @@ export function StudioSidebar({
     }
 
     return projectsData.projects.filter(
-      (project) => !favoriteSubdomains.has(project.id),
+      (project) => !favoriteTaskIds.has(project.id),
     );
-  }, [projectsData, favorites, favoriteSubdomains]);
+  }, [projectsData, favorites, favoriteTaskIds]);
 
   return (
     <Sidebar collapsible="none" side="left" {...props}>
@@ -65,7 +65,7 @@ export function StudioSidebar({
       <SidebarContent>
         {favorites && favorites.length > 0 && (
           <NavProjects
-            favoriteSubdomains={favoriteSubdomains}
+            favoriteTaskIds={favoriteTaskIds}
             isFavorites
             matches={matches}
             projects={favorites}
@@ -74,7 +74,7 @@ export function StudioSidebar({
         )}
         {filteredProjects.length > 0 && (
           <NavProjects
-            favoriteSubdomains={favoriteSubdomains}
+            favoriteTaskIds={favoriteTaskIds}
             isFavorites={false}
             matches={matches}
             projects={filteredProjects}

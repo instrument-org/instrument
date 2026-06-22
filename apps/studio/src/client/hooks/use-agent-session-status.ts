@@ -37,7 +37,7 @@ export function useAgentSessionStatus({
   const sessionActors = appState?.sessionActors ?? [];
 
   const { data: replayStatus } = useQuery(
-    rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
+    rpcClient.workspace.replay.live.statusByTaskId.experimental_liveOptions({
       input: sessionId && sessionId !== skipToken ? { id } : skipToken,
     }),
   );

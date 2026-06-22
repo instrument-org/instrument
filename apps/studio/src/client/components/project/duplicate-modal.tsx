@@ -49,7 +49,7 @@ export function DuplicateProjectModal({
     e.preventDefault();
     duplicateMutation.mutate({
       keepHistory: true,
-      sourceSubdomain: project.id,
+      sourceTaskId: project.id,
     });
   };
 

@@ -93,27 +93,24 @@ function RouteComponent() {
     [projectsData?.projects],
   );
 
-  const projectSubdomains = useMemo(
-    () => projects.map((p) => p.id),
-    [projects],
-  );
+  const taskIds = useMemo(() => projects.map((p) => p.id), [projects]);
 
   const { data: appStates } = useQuery({
     ...rpcClient.workspace.app.state.byIds.queryOptions({
-      input: { ids: projectSubdomains },
+      input: { ids: taskIds },
     }),
   });
 
-  const { data: favoriteSubdomains } = useQuery(
-    rpcClient.favorites.live.listSubdomains.experimental_liveOptions(),
+  const { data: favoriteTaskIds } = useQuery(
+    rpcClient.favorites.live.listTaskIds.experimental_liveOptions(),
   );
 
-  const favoriteProjectSubdomains = useMemo(
-    () => new Set<TaskId>(favoriteSubdomains),
-    [favoriteSubdomains],
+  const favoriteTaskIdSet = useMemo(
+    () => new Set<TaskId>(favoriteTaskIds),
+    [favoriteTaskIds],
   );
 
-  const activeProjectSubdomains = useMemo(() => {
+  const activeTaskIds = useMemo(() => {
     if (!appStates) {
       return new Set<TaskId>();
     }
@@ -132,19 +129,19 @@ function RouteComponent() {
   const filteredProjects = useMemo(() => {
     switch (filterTab) {
       case "active": {
-        return projects.filter((p) => activeProjectSubdomains.has(p.id));
+        return projects.filter((p) => activeTaskIds.has(p.id));
       }
       case "evals": {
         return projects.filter((p) => p.id.startsWith(EVAL_SUBDOMAIN_PREFIX));
       }
       case "favorites": {
-        return projects.filter((p) => favoriteProjectSubdomains.has(p.id));
+        return projects.filter((p) => favoriteTaskIdSet.has(p.id));
       }
       default: {
         return projects;
       }
     }
-  }, [activeProjectSubdomains, favoriteProjectSubdomains, filterTab, projects]);
+  }, [activeTaskIds, favoriteTaskIdSet, filterTab, projects]);
 
   const selectedProjects = useMemo(() => {
     return Object.keys(rowSelection)
@@ -159,13 +156,11 @@ function RouteComponent() {
     if (!appStates || selectedProjects.length === 0) {
       return false;
     }
-    const selectedSubdomains = new Set<TaskId>(
-      selectedProjects.map((p) => p.id),
-    );
+    const selectedTaskIds = new Set<TaskId>(selectedProjects.map((p) => p.id));
     return appStates.some(
       (state) =>
         isTaskId(state.app.id) &&
-        selectedSubdomains.has(state.app.id) &&
+        selectedTaskIds.has(state.app.id) &&
         state.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
     );
   }, [appStates, selectedProjects]);
@@ -244,10 +239,10 @@ function RouteComponent() {
   );
 
   const handleStopSelected = async () => {
-    const subdomainsToStop = selectedProjects.map((p) => p.id);
+    const taskIdsToStop = selectedProjects.map((p) => p.id);
 
     let successCount = 0;
-    for (const id of subdomainsToStop) {
+    for (const id of taskIdsToStop) {
       try {
         await stopSessionMutation.mutateAsync({ id });
         successCount++;
@@ -342,14 +337,14 @@ function RouteComponent() {
   const columns = useMemo(
     () =>
       createColumns({
-        favoriteProjectSubdomains,
+        favoriteTaskIds: favoriteTaskIdSet,
         onDelete: handleDelete,
         onOpenInNewTab: handleOpenInNewTab,
         onSettings: handleSettings,
         onStop: handleStop,
       }),
     [
-      favoriteProjectSubdomains,
+      favoriteTaskIdSet,
       handleDelete,
       handleOpenInNewTab,
       handleSettings,
@@ -417,7 +412,7 @@ function RouteComponent() {
                     className="ml-2 px-1.5"
                     variant={filterTab === "active" ? "default" : "secondary"}
                   >
-                    {activeProjectSubdomains.size}
+                    {activeTaskIds.size}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="favorites">
@@ -428,7 +423,7 @@ function RouteComponent() {
                       filterTab === "favorites" ? "default" : "secondary"
                     }
                   >
-                    {favoriteProjectSubdomains.size}
+                    {favoriteTaskIdSet.size}
                   </Badge>
                 </TabsTrigger>
               </TabsList>

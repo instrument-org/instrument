@@ -12,7 +12,7 @@ import { duplicateProject } from "../../../lib/duplicate-project";
 import { exportProjectZip } from "../../../lib/export-project-zip";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
 import { getApp, getProjects } from "../../../lib/get-apps";
-import { getWorkspaceAppForSubdomain } from "../../../lib/get-workspace-app-for-subdomain";
+import { getTask } from "../../../lib/get-task";
 import { importProject as importProjectLib } from "../../../lib/import-project";
 import { initializeProject } from "../../../lib/initialize-project";
 import { newMessage } from "../../../lib/new-message";
@@ -322,7 +322,7 @@ const duplicate = base
   .input(
     z.object({
       keepHistory: z.boolean().optional().default(false),
-      sourceSubdomain: TaskIdSchema,
+      sourceTaskId: TaskIdSchema,
     }),
   )
   .output(TaskSchema)
@@ -330,13 +330,13 @@ const duplicate = base
     async ({
       context,
       errors,
-      input: { keepHistory, sourceSubdomain },
+      input: { keepHistory, sourceTaskId },
       signal,
     }) => {
       const result = await duplicateProject(
         {
           keepHistory,
-          sourceSubdomain,
+          sourceTaskId,
           workspaceConfig: context.workspaceConfig,
         },
         { signal },
@@ -351,7 +351,7 @@ const duplicate = base
         id: result.value.projectConfig,
       });
 
-      const workspaceApp = await getWorkspaceAppForSubdomain(
+      const workspaceApp = await getTask(
         result.value.projectConfig,
       );
 

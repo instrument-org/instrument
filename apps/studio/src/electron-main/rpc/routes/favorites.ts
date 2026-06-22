@@ -92,7 +92,7 @@ const live = {
       yield await fetchAndCleanFavorites(favoritesNext);
     }
   }),
-  listSubdomains: base
+  listTaskIds: base
     .output(eventIterator(TaskIdSchema.array()))
     .handler(async function* ({ signal }) {
       const favoritesStore = getFavoritesStore();

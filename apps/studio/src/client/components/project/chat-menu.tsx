@@ -21,7 +21,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { getSessionTags } from "@/client/hooks/use-agent-session-status";
 import { useAppState } from "@/client/hooks/use-app-state";
-import { useProjectRouteSubdomain } from "@/client/hooks/use-project-route-subdomain";
+import { useTaskRouteId } from "@/client/hooks/use-task-route-id";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionTag, StoreId } from "@instrument-org/workspace/client";
 import {
@@ -71,7 +71,7 @@ export function ProjectChatMenu({
   const navigate = useNavigate();
   // Use the route id for session data; project may be placeholder data
   // from the previous project while keepPreviousData is active.
-  const id = useProjectRouteSubdomain();
+  const id = useTaskRouteId();
 
   const { data: sessions = [] } = useQuery(
     rpcClient.workspace.session.live.list.experimental_liveOptions({
@@ -82,7 +82,7 @@ export function ProjectChatMenu({
   const { data: appState } = useAppState({ id });
   const sessionActors = appState?.sessionActors ?? [];
   const { data: replayStatus } = useQuery(
-    rpcClient.workspace.replay.live.statusBySubdomain.experimental_liveOptions({
+    rpcClient.workspace.replay.live.statusByTaskId.experimental_liveOptions({
       input: { id },
     }),
   );

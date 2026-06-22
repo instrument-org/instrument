@@ -22,14 +22,14 @@ const PROJECT_ITEM_GAP = 2;
 const PROJECT_ROW_HEIGHT = PROJECT_ITEM_HEIGHT + PROJECT_ITEM_GAP;
 
 export function NavProjects({
-  favoriteSubdomains,
+  favoriteTaskIds,
   isFavorites,
   matches,
   projects,
   sortFavoritesBy = "activity",
   title,
 }: {
-  favoriteSubdomains: Set<string>;
+  favoriteTaskIds: Set<string>;
   isFavorites: boolean;
   matches: MakeRouteMatchUnion[];
   projects: Task[];
@@ -101,7 +101,7 @@ export function NavProjects({
             {visibleFavorites.map((project) => (
               <NavProjectItem
                 isActive={isProjectActive(project.id)}
-                isFavorited={favoriteSubdomains.has(project.id)}
+                isFavorited={favoriteTaskIds.has(project.id)}
                 isFavorites
                 key={project.id}
                 onOpenInNewTab={handleOpenInNewTab}
@@ -125,7 +125,7 @@ export function NavProjects({
           </>
         ) : (
           <ProjectsList
-            favoriteSubdomains={favoriteSubdomains}
+            favoriteTaskIds={favoriteTaskIds}
             matches={matches}
             onOpenInNewTab={handleOpenInNewTab}
             projects={projects}
@@ -137,12 +137,12 @@ export function NavProjects({
 }
 
 function ProjectsList({
-  favoriteSubdomains,
+  favoriteTaskIds,
   matches,
   onOpenInNewTab,
   projects,
 }: {
-  favoriteSubdomains: Set<string>;
+  favoriteTaskIds: Set<string>;
   matches: MakeRouteMatchUnion[];
   onOpenInNewTab: (id: TaskId) => void;
   projects: Task[];
@@ -192,9 +192,9 @@ function ProjectsList({
             match.routeId === "/_app/tasks/$id/" &&
             match.params.id === project.id,
         ),
-        isFavorited: favoriteSubdomains.has(project.id),
+        isFavorited: favoriteTaskIds.has(project.id),
       })),
-    [projects, matches, favoriteSubdomains],
+    [projects, matches, favoriteTaskIds],
   );
 
   const virtualItems = virtualizer.getVirtualItems();

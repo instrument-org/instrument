@@ -3,7 +3,7 @@ import { ok } from "neverthrow";
 import { type WorkspaceActorRef } from "../machines/workspace";
 import { type SessionTag, type WorkspaceAppState } from "../schemas/app-state";
 import { type TaskId } from "../schemas/task-id";
-import { getWorkspaceAppForSubdomain } from "./get-workspace-app-for-subdomain";
+import { getTask } from "./get-task";
 
 export async function getWorkspaceAppState({
   id,
@@ -15,7 +15,7 @@ export async function getWorkspaceAppState({
   const snapshot = workspaceRef.getSnapshot();
   const context = snapshot.context;
 
-  const app = await getWorkspaceAppForSubdomain(id);
+  const app = await getTask(id);
 
   const sessionRefs = context.sessionRefsBySubdomain.get(id) ?? [];
   const sessionActors = sessionRefs.map((sessionRef) => {

@@ -41,10 +41,10 @@ export function ProjectActionsMenu({
   const navigate = useNavigate();
   const isDeveloperMode = useDeveloperMode();
 
-  const { data: favoriteSubdomains } = useQuery(
-    rpcClient.favorites.live.listSubdomains.experimental_liveOptions(),
+  const { data: favoriteTaskIds } = useQuery(
+    rpcClient.favorites.live.listTaskIds.experimental_liveOptions(),
   );
-  const isFavorite = favoriteSubdomains?.includes(id) ?? false;
+  const isFavorite = favoriteTaskIds?.includes(id) ?? false;
 
   const { mutateAsync: removeFavorite } = useMutation(
     rpcClient.favorites.remove.mutationOptions(),

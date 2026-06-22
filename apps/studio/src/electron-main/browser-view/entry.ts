@@ -15,7 +15,7 @@ export interface BrowserEntry {
   // Listeners notified once when the entry is removed from the manager (for
   // any reason: explicit close, detach, renderer crash). Drained as part of
   // the disposer chain so they never fire more than once. Used to surface
-  // "view destroyed" to higher layers (e.g. the projectBrowser machine).
+  // "view destroyed" to higher layers (e.g. the taskBrowser machine).
   destructionListeners: Set<() => void>;
   detachListeners: Set<() => void>;
   // Disposers run once when the entry is torn down (either via explicit close

@@ -34,8 +34,8 @@ import { setupAgent } from "./create-agent";
 import {
   createContextMessage,
   createSystemMessage,
-  getProjectLayoutContext,
   getSystemInfoText,
+  getTaskLayoutContext,
   shouldContinueWithToolCalls,
 } from "./shared";
 import { RETRIEVAL_AGENT_NAME } from "./types";
@@ -223,7 +223,7 @@ export const mainAgent = setupAgent({
       text,
     });
 
-    const projectLayout = await getProjectLayoutContext(taskDir(taskId));
+    const taskLayout = await getTaskLayoutContext(taskDir(taskId));
 
     const packageJsonContent = await readFileWithAnyCase(
       taskDir(taskId),
@@ -247,16 +247,16 @@ export const mainAgent = setupAgent({
             </dependencies>
           `,
         await (async () => {
-          const projectState = await getTaskState(taskDir(taskId));
+          const taskState = await getTaskState(taskDir(taskId));
           if (
-            !projectState.attachedFolders ||
-            Object.keys(projectState.attachedFolders).length === 0
+            !taskState.attachedFolders ||
+            Object.keys(taskState.attachedFolders).length === 0
           ) {
             return null;
           }
 
           const folderNames = await Promise.all(
-            Object.values(projectState.attachedFolders).map(async (folder) => {
+            Object.values(taskState.attachedFolders).map(async (folder) => {
               const exists = await pathExists(folder.path);
               return exists ? folder.name : `${folder.name} (no longer exists)`;
             }),
@@ -267,7 +267,7 @@ export const mainAgent = setupAgent({
             intro: "The user has attached these folders to this task.",
           });
         })(),
-        projectLayout,
+        taskLayout,
         packageJsonContent &&
           dedent`
             <package_json>

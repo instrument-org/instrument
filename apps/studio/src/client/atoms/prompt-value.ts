@@ -12,7 +12,7 @@ export type PromptValueAtomKey = "$$new-tab$$" | "$$template$$" | TaskId;
 
 export const promptInputRefAtom = atom<HTMLTextAreaElement | null>(null);
 
-const createProjectPromptStorage = (id: TaskId) => {
+const createTaskPromptStorage = (id: TaskId) => {
   let lastValue: string | undefined;
 
   const save = debounce({ delay: 1000 }, async (newValue: string) => {
@@ -75,7 +75,7 @@ export const promptValueAtomFamily = atomFamily((key: PromptValueAtomKey) => {
   return atomWithStorage(
     `prompt-draft-${key}`,
     "",
-    createProjectPromptStorage(key),
+    createTaskPromptStorage(key),
   );
 });
 

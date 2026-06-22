@@ -1,4 +1,4 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -11,8 +11,8 @@ import {
 import { TypedError } from "./errors";
 import { normalizePath } from "./normalize-path";
 
-// Extracts a project zip into outputDir, verifying it contains a manifest.
-// Shared by importProject (RPC) and the dump-session-transcript script.
+// Extracts a task zip into outputDir, verifying it contains a manifest.
+// Shared by importTask (RPC) and the dump-session-transcript script.
 export async function extractTaskZip({
   outputDir,
   zipBlob,
@@ -24,11 +24,11 @@ export async function extractTaskZip({
   const entries = await zipReader.getEntries();
 
   const hasManifest = entries.some(
-    (entry) => entry.filename === PROJECT_MANIFEST_FILE_NAME,
+    (entry) => entry.filename === TASK_MANIFEST_FILE_NAME,
   );
   if (!hasManifest) {
     throw new TypedError.NotFound(
-      `Zip file does not contain ${PROJECT_MANIFEST_FILE_NAME}`,
+      `Zip file does not contain ${TASK_MANIFEST_FILE_NAME}`,
     );
   }
 
@@ -39,7 +39,7 @@ export async function extractTaskZip({
       continue;
     }
 
-    // Needed for importing a project from Windows on a POSIX machine.
+    // Needed for importing a task from Windows on a POSIX machine.
     const normalizedFilename = normalizePath(entry.filename);
     const fullPath = resolvePathWithinOutputDir({
       outputDir,

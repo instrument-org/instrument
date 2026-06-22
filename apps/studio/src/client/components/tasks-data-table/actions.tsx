@@ -24,7 +24,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-export function ProjectActionsCell({
+export function TaskActionsCell({
   id,
   onDelete,
   onOpenInNewTab,

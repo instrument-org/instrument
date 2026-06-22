@@ -90,10 +90,10 @@ export interface AnalyticsEvents {
     plan_name: string;
   };
   "task.bulk_deleted": {
-    project_count: number;
+    task_count: number;
   };
   "task.bulk_stopped": {
-    project_count: number;
+    task_count: number;
   };
   "task.created": WithModelProperties<{
     eval_name?: string;

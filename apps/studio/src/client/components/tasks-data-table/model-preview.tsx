@@ -5,7 +5,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
 export function ModelPreview({ id }: { id: TaskId }) {
-  const { data: projectState } = useQuery(
+  const { data: taskState } = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({
       input: { id },
     }),
@@ -15,11 +15,11 @@ export function ModelPreview({ id }: { id: TaskId }) {
     rpcClient.gateway.models.list.queryOptions(),
   );
 
-  if (!projectState?.selectedModelURI) {
+  if (!taskState?.selectedModelURI) {
     return <span className="text-xs text-muted-foreground">No model</span>;
   }
 
-  const selectedModelURI = projectState.selectedModelURI;
+  const selectedModelURI = taskState.selectedModelURI;
   const models = modelsResponse?.models ?? [];
 
   const matchedModel = models.find((model) => model.uri === selectedModelURI);

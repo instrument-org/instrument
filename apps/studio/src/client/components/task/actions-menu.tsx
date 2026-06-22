@@ -23,9 +23,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { ProjectOpenInSubmenu } from "./open-in-submenu";
+import { TaskOpenInSubmenu } from "./open-in-submenu";
 
-export function ProjectActionsMenu({
+export function TaskActionsMenu({
   id,
   onDebugClick,
   onReplayClick,
@@ -55,7 +55,7 @@ export function ProjectActionsMenu({
   );
 
   const copyFolderPathMutation = useMutation(
-    rpcClient.utils.copyProjectPathToClipboard.mutationOptions({
+    rpcClient.utils.copyTaskPathToClipboard.mutationOptions({
       onError: (error) => {
         toast.error("Failed to copy folder path", {
           description: error.message,
@@ -154,7 +154,7 @@ export function ProjectActionsMenu({
               <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />
               Copy folder path
             </DropdownMenuItem>
-            <ProjectOpenInSubmenu id={id} />
+            <TaskOpenInSubmenu id={id} />
           </>
         )}
 

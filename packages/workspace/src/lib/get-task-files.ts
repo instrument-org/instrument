@@ -1,4 +1,4 @@
-import { PROJECT_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -25,7 +25,7 @@ export const INTERNAL_IGNORE_PATTERNS = [
   `${APP_FOLDER_NAMES.state}/**`,
   APP_FOLDER_NAMES.tmp,
   `${APP_FOLDER_NAMES.tmp}/**`,
-  PROJECT_MANIFEST_FILE_NAME,
+  TASK_MANIFEST_FILE_NAME,
   // Generated lockfile (rewritten by every pnpm install, incl. inside loaded
   // skills). Never read or hand-edited; bare name matches at any depth. We do
   // not ignore pnpm-workspace.yaml: it is real, occasionally agent-edited config
@@ -51,7 +51,7 @@ export type TaskFileChange = TaskFile & {
 };
 export type TaskFileIndex = Map<string, TaskFileEntry>;
 
-const ProjectFileIndexEntrySchema = z.object({
+const TaskFileIndexEntrySchema = z.object({
   filename: z.string(),
   filePath: RelativePathSchema,
   mimeType: z.string(),
@@ -59,10 +59,10 @@ const ProjectFileIndexEntrySchema = z.object({
   size: z.number(),
 });
 
-type TaskFileEntry = z.output<typeof ProjectFileIndexEntrySchema>;
+type TaskFileEntry = z.output<typeof TaskFileIndexEntrySchema>;
 
 // Serializable form of the index, used to persist a baseline across turns.
-export const TaskFileIndexSnapshotSchema = z.array(ProjectFileIndexEntrySchema);
+export const TaskFileIndexSnapshotSchema = z.array(TaskFileIndexEntrySchema);
 
 export function diffTaskFileIndexes({
   after,

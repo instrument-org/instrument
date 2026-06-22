@@ -46,7 +46,7 @@ afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
-describe("project file watcher turn tracking", () => {
+describe("task file watcher turn tracking", () => {
   it("classifies added, modified, and deleted files across a turn", async () => {
     await setupTask();
     await fs.writeFile(path.join(dir, "a.txt"), "a");

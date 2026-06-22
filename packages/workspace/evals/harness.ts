@@ -16,7 +16,7 @@ import { isToolPart } from "../src/lib/is-tool-part";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { session as sessionRoute } from "../src/rpc/routes/session";
-import { task as projectRoute } from "../src/rpc/routes/task";
+import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
@@ -145,7 +145,7 @@ export async function runEvals(
       };
 
       const { id, sessionId } = await call(
-        projectRoute.create,
+        taskRoute.create,
         {
           files: evalCase.files,
           folders: evalCase.folders,

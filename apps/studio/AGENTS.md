@@ -24,7 +24,7 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
   `src/client/routes`, run
   `pnpm --filter @instrument-org/studio run routes:generate`. Do not hand-edit
   `src/client/routeTree.gen.ts`.
-- RPC-derived types: use `RPCInput` / `RPCOutput` from `@/client/rpc/client`, e.g. `RPCOutput["workspace"]["project"]["list"]`. Never redeclare inferable types.
+- RPC-derived types: use `RPCInput` / `RPCOutput` from `@/client/rpc/client`, e.g. `RPCOutput["workspace"]["task"]["list"]`. Never redeclare inferable types.
 
 ## Where things are
 

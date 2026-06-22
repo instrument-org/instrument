@@ -38,10 +38,10 @@ function baseExecuteArgs() {
   return {
     agentName: "main" as const,
     model,
-    projectState: {},
     signal: AbortSignal.timeout(10_000),
     spawnAgent: vi.fn(),
     taskId: createAppConfigWithDirs(),
+    taskState: {},
   };
 }
 

@@ -3,13 +3,13 @@ import type { RowSelectionState } from "@tanstack/react-table";
 import { CommandMenuCTA } from "@/client/components/command-menu-cta";
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { InternalLink } from "@/client/components/internal-link";
-import {
-  PROJECTS_PAGE_SIZE,
-  ProjectsDataTable,
-} from "@/client/components/projects-data-table";
-import { createColumns } from "@/client/components/projects-data-table/columns";
 import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
+import {
+  TASKS_PAGE_SIZE,
+  TasksDataTable,
+} from "@/client/components/tasks-data-table";
+import { createColumns } from "@/client/components/tasks-data-table/columns";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -28,7 +28,7 @@ import { createIconMeta } from "@/shared/tabs";
 import {
   APP_NAME,
   EVAL_SUBDOMAIN_PREFIX,
-  PROJECT_MANIFEST_FILE_NAME,
+  TASK_MANIFEST_FILE_NAME,
 } from "@instrument-org/shared";
 import {
   isTaskId,
@@ -42,7 +42,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
-const projectsSearchSchema = z.object({
+const tasksSearchSchema = z.object({
   filter: z
     .enum(["all", "evals", "active", "favorites"])
     .optional()
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/_app/tasks/")({
       ],
     };
   },
-  validateSearch: projectsSearchSchema,
+  validateSearch: tasksSearchSchema,
 });
 
 function RouteComponent() {
@@ -123,7 +123,7 @@ function RouteComponent() {
     p.id.startsWith(EVAL_SUBDOMAIN_PREFIX),
   ).length;
 
-  const filteredProjects = useMemo(() => {
+  const filteredTasks = useMemo(() => {
     switch (filterTab) {
       case "active": {
         return tasks.filter((p) => activeTaskIds.has(p.id));
@@ -170,7 +170,7 @@ function RouteComponent() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const importProjectMutation = useMutation(
+  const importTaskMutation = useMutation(
     rpcClient.workspace.task.import.mutationOptions(),
   );
 
@@ -194,7 +194,7 @@ function RouteComponent() {
         }
         const base64 = dataUrl.split(",")[1] ?? "";
 
-        importProjectMutation.mutate(
+        importTaskMutation.mutate(
           { zipFileData: base64 },
           {
             onError: (error) => {
@@ -218,7 +218,7 @@ function RouteComponent() {
         fileInputRef.current.value = "";
       }
     },
-    [importProjectMutation, router],
+    [importTaskMutation, router],
   );
 
   const handleStop = useCallback(
@@ -253,16 +253,16 @@ function RouteComponent() {
         `Stopped ${successCount} ${successCount === 1 ? "session" : "sessions"}`,
       );
       captureClientEvent("task.bulk_stopped", {
-        project_count: successCount,
+        task_count: successCount,
       });
     }
   };
 
   const handleDelete = useCallback(
     (id: TaskId) => {
-      const project = tasks.find((p) => p.id === id);
-      if (project) {
-        setTaskToDelete(project);
+      const task = tasks.find((p) => p.id === id);
+      if (task) {
+        setTaskToDelete(task);
         setDeleteDialogOpen(true);
       }
     },
@@ -273,18 +273,18 @@ function RouteComponent() {
     setDeleteSelectedDialogOpen(true);
   };
 
-  const confirmDeleteSelected = async (projectsToDelete: Task[]) => {
+  const confirmDeleteSelected = async (tasksToDelete: Task[]) => {
     setIsBulkDeleting(true);
     let successCount = 0;
     let hasError = false;
 
     try {
-      for (const project of projectsToDelete) {
+      for (const task of tasksToDelete) {
         try {
-          await trashApp(project.id);
+          await trashApp(task.id);
           successCount++;
         } catch {
-          toast.error(`Failed to delete task ${project.title}`);
+          toast.error(`Failed to delete task ${task.title}`);
           hasError = true;
         }
       }
@@ -294,7 +294,7 @@ function RouteComponent() {
           `Moved ${successCount} ${successCount === 1 ? "task" : "tasks"} to ${trashTerminology}`,
         );
         captureClientEvent("task.bulk_deleted", {
-          project_count: successCount,
+          task_count: successCount,
         });
       }
       setRowSelection({});
@@ -322,9 +322,9 @@ function RouteComponent() {
 
   const handleSettings = useCallback(
     (id: TaskId) => {
-      const project = tasks.find((p) => p.id === id);
-      if (project) {
-        setTaskToEdit(project);
+      const task = tasks.find((p) => p.id === id);
+      if (task) {
+        setTaskToEdit(task);
         setSettingsDialogOpen(true);
       }
     },
@@ -353,13 +353,13 @@ function RouteComponent() {
     // Ensures we stay on a valid page when filtered tasks change
     const maxPage = Math.max(
       1,
-      Math.ceil(filteredProjects.length / PROJECTS_PAGE_SIZE),
+      Math.ceil(filteredTasks.length / TASKS_PAGE_SIZE),
     );
 
     if (search.page > maxPage) {
       void navigate({ replace: true, search: { ...search, page: maxPage } });
     }
-  }, [filteredProjects.length, navigate, search]);
+  }, [filteredTasks.length, navigate, search]);
 
   return (
     <div className="mx-auto w-full max-w-7xl flex-1">
@@ -379,7 +379,7 @@ function RouteComponent() {
           <div className="flex items-center justify-between">
             <Tabs
               onValueChange={(v) => {
-                const filter = projectsSearchSchema.parse({ filter: v });
+                const filter = tasksSearchSchema.parse({ filter: v });
                 void navigate({ search: filter });
               }}
               value={filterTab}
@@ -429,7 +429,7 @@ function RouteComponent() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    disabled={importProjectMutation.isPending}
+                    disabled={importTaskMutation.isPending}
                     onClick={handleImport}
                     size="sm"
                     variant="secondary"
@@ -439,7 +439,7 @@ function RouteComponent() {
                 </TooltipTrigger>
                 <TooltipContent>
                   Select a zip file exported from {APP_NAME} containing a
-                  {PROJECT_MANIFEST_FILE_NAME} file
+                  {TASK_MANIFEST_FILE_NAME} file
                 </TooltipContent>
               </Tooltip>
               <input
@@ -468,7 +468,7 @@ function RouteComponent() {
               </div>
             </div>
           ) : (
-            <ProjectsDataTable
+            <TasksDataTable
               bulkActions={
                 <>
                   <Button
@@ -492,7 +492,7 @@ function RouteComponent() {
                 </>
               }
               columns={columns}
-              data={filteredProjects}
+              data={filteredTasks}
               onPageChange={(page) => {
                 void navigate({ replace: true, search: { ...search, page } });
               }}

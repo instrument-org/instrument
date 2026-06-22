@@ -34,7 +34,7 @@ export async function runToolCall({
   let preliminarySaved = false;
 
   try {
-    const projectState = await getTaskState(taskDir(taskId));
+    const taskState = await getTaskState(taskDir(taskId));
 
     for await (const { output, type } of streamTool({
       execute: tool.execute,
@@ -44,11 +44,11 @@ export async function runToolCall({
         messageId: part.metadata.messageId,
         model,
         partId: part.metadata.id,
-        projectState,
         sessionId,
         signal,
         spawnAgent,
         taskId,
+        taskState,
       },
     })) {
       if (signal.aborted) {

@@ -50,15 +50,15 @@ function RouteComponent() {
   const router = useRouter();
   const { addTab } = useTabActions();
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
-  const createProjectMutation = useMutation(
+  const createTaskMutation = useMutation(
     rpcClient.workspace.task.create.mutationOptions(),
   );
 
   useEffect(() => {
-    // Preload the project route chunk for faster navigation
+    // Preload the task route chunk for faster navigation
     async function preloadRouteChunks() {
-      const projectRoute = router.routesByPath["/tasks/$id"];
-      await router.loadRouteChunk(projectRoute);
+      const taskRoute = router.routesByPath["/tasks/$id"];
+      await router.loadRouteChunk(taskRoute);
     }
 
     void preloadRouteChunks();
@@ -80,13 +80,13 @@ function RouteComponent() {
           atomKey="$$new-tab$$"
           autoFocus
           autoResizeMaxHeight={300}
-          isLoading={createProjectMutation.isPending}
+          isLoading={createTaskMutation.isPending}
           modelURI={selectedModelURI}
           onModelChange={setSelectedModelURI}
           onSubmit={({ files, folders, modelURI, openInNewTab, prompt }) => {
             saveSelectedModelURI(modelURI);
 
-            createProjectMutation.mutate(
+            createTaskMutation.mutate(
               { files, folders, modelURI, prompt },
               {
                 onError: (error) => {

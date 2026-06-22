@@ -1,10 +1,10 @@
 import { type RPCOutput } from "@/client/rpc/client";
 import { createContext, type ReactNode, useContext } from "react";
 
-type ProjectFile = RPCOutput["workspace"]["task"]["files"]["list"][number];
+type TaskFile = RPCOutput["workspace"]["task"]["files"]["list"][number];
 
 const CurrentTaskFilesContext = createContext<
-  ReadonlyMap<string, ProjectFile> | undefined
+  ReadonlyMap<string, TaskFile> | undefined
 >(undefined);
 
 export function CurrentTaskFilesProvider({
@@ -12,7 +12,7 @@ export function CurrentTaskFilesProvider({
   files,
 }: {
   children: ReactNode;
-  files: ProjectFile[] | undefined;
+  files: TaskFile[] | undefined;
 }) {
   const filesByPath = files
     ? new Map(files.map((file) => [file.filePath, file]))

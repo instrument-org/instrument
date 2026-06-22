@@ -6,8 +6,8 @@ import { redactWorkspacePaths } from "./redact-workspace-paths";
 
 describe("redactWorkspacePaths", () => {
   const APP_DIR_NAME = `${APP_NAME} (Dev)`;
-  const dir = `/Users/test/Library/Application Support/${APP_DIR_NAME}/workspace/projects/test`;
-  const appDirEncoded = `/Users/test/Library/Application%20Support/${APP_NAME}%20(Dev)/workspace/projects/test`;
+  const dir = `/Users/test/Library/Application Support/${APP_DIR_NAME}/workspace/tasks/test`;
+  const appDirEncoded = `/Users/test/Library/Application%20Support/${APP_NAME}%20(Dev)/workspace/tasks/test`;
   // The id is the dir's basename ("test"); points the singleton's tasksDir
   // at its parent so taskDir(id) === dir.
   const mockAppConfig = createMockTaskConfigForDir(dir);

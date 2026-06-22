@@ -30,7 +30,7 @@ const outputPath = values.output;
 if (!inputPath) {
   throw new Error(
     [
-      "Usage: pnpm run script:dump-session-transcript <project-dir-or.zip>",
+      "Usage: pnpm run script:dump-session-transcript <task-dir-or.zip>",
       "  [--output <file>] [--include-context]",
     ].join("\n"),
   );
@@ -87,10 +87,10 @@ if (!rootSession) {
 
 const markdown = await getSessionMarkdown({
   frontMatter: {
-    projectName: manifest?.name ?? folderName,
     sessionId: rootSession.id,
     sessionTitle: rootSession.title,
     source: isZip ? absoluteInputPath : dir,
+    taskName: manifest?.name ?? folderName,
   },
   includeContextMessages,
   sessionId: rootSession.id,

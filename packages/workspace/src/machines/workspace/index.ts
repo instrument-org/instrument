@@ -543,7 +543,7 @@ export const workspaceMachine = setup({
         return !context.appsBeingTrashed.some(
           (trashingTaskId) =>
             id === trashingTaskId ||
-            // Includes any id nested under the project being trashed
+            // Includes any id nested under the task being trashed
             id.endsWith(trashingTaskId),
         );
       },
@@ -563,8 +563,8 @@ export const workspaceMachine = setup({
           appsBeingTrashed: [...context.appsBeingTrashed, event.value.id],
         });
 
-        // Track every projectBrowser whose id matches the trashed
-        // project (the project itself, plus any id nested under it).
+        // Track every taskBrowser whose id matches the trashed
+        // task (the task itself, plus any id nested under it).
         const matchingTaskIds: TaskId[] = [];
         for (const [browserTaskId, ref] of context.taskBrowserRefs.entries()) {
           const matches =
@@ -580,11 +580,11 @@ export const workspaceMachine = setup({
         if (event.value.onBrowserReaped) {
           const resolver = event.value.onBrowserReaped;
           if (matchingTaskIds.length === 0) {
-            // Nothing to wait for: resolve immediately so trash-project can
+            // Nothing to wait for: resolve immediately so trash-task can
             // proceed without blocking.
             resolver();
           } else {
-            // Wait for every matching projectBrowser.stopped before resolving.
+            // Wait for every matching taskBrowser.stopped before resolving.
             enqueue.assign({
               pendingBrowserReapResolvers: () => {
                 const next = new Map(context.pendingBrowserReapResolvers);
@@ -725,7 +725,7 @@ export const workspaceMachine = setup({
         return !context.appsBeingTrashed.some(
           (trashingTaskId) =>
             id === trashingTaskId ||
-            // Includes any id nested under the project being trashed
+            // Includes any id nested under the task being trashed
             id.endsWith(trashingTaskId),
         );
       },

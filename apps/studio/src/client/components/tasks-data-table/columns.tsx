@@ -9,7 +9,7 @@ import { Checkbox } from "@/client/components/ui/checkbox";
 import { ArrowsDownUpIcon, StarIcon } from "@phosphor-icons/react";
 import { format, formatDistanceToNow } from "date-fns";
 
-import { ProjectActionsCell } from "./actions";
+import { TaskActionsCell } from "./actions";
 import { ModelPreview } from "./model-preview";
 import { SessionStatusPreview } from "./session-status-preview";
 
@@ -78,8 +78,8 @@ export function createColumns({
     {
       accessorKey: "title",
       cell: ({ row }) => {
-        const project = row.original;
-        const isFavorite = favoriteTaskIds.has(project.id);
+        const task = row.original;
+        const isFavorite = favoriteTaskIds.has(task.id);
         return (
           <div className="flex min-w-0 items-center gap-x-2">
             {isFavorite && (
@@ -91,14 +91,14 @@ export function createColumns({
             <InternalLink
               className="flex min-w-0 flex-1 items-center gap-x-2"
               openInCurrentTab
-              params={{ id: project.id }}
+              params={{ id: task.id }}
               to="/tasks/$id"
             >
-              <TaskIcon name={project.iconName} size="sm" />
-              <span className="truncate font-medium">{project.title}</span>
+              <TaskIcon name={task.iconName} size="sm" />
+              <span className="truncate font-medium">{task.title}</span>
               <TaskStatusIcon
                 className="ml-auto size-4 shrink-0"
-                id={project.id}
+                id={task.id}
               />
             </InternalLink>
           </div>
@@ -124,8 +124,8 @@ export function createColumns({
     {
       accessorKey: "model",
       cell: ({ row }) => {
-        const project = row.original;
-        return <ModelPreview id={project.id} />;
+        const task = row.original;
+        return <ModelPreview id={task.id} />;
       },
       header: "Model",
       minSize: 150,
@@ -133,8 +133,8 @@ export function createColumns({
     {
       accessorKey: "chatPreview",
       cell: ({ row }) => {
-        const project = row.original;
-        return <SessionStatusPreview id={project.id} />;
+        const task = row.original;
+        return <SessionStatusPreview id={task.id} />;
       },
       header: "Chat preview",
       maxSize: 150,
@@ -143,10 +143,10 @@ export function createColumns({
     {
       accessorKey: "updatedAt",
       cell: ({ row }) => {
-        const project = row.original;
+        const task = row.original;
         return (
           <span className="text-sm text-muted-foreground">
-            {formatDistanceToNow(project.updatedAt, {
+            {formatDistanceToNow(task.updatedAt, {
               addSuffix: true,
             })
               .replace("less than ", "")
@@ -173,10 +173,10 @@ export function createColumns({
     {
       accessorKey: "createdAt",
       cell: ({ row }) => {
-        const project = row.original;
+        const task = row.original;
         return (
           <span className="text-sm text-muted-foreground">
-            {format(project.createdAt, "MMM d, yyyy")}
+            {format(task.createdAt, "MMM d, yyyy")}
           </span>
         );
       },
@@ -198,10 +198,10 @@ export function createColumns({
     },
     {
       cell: ({ row }) => {
-        const project = row.original;
+        const task = row.original;
         return (
-          <ProjectActionsCell
-            id={project.id}
+          <TaskActionsCell
+            id={task.id}
             onDelete={onDelete}
             onOpenInNewTab={onOpenInNewTab}
             onSettings={onSettings}

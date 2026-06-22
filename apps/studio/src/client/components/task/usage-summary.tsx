@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "../ui/skeleton";
 import { UsageStatsTooltip, UsageSummaryText } from "../usage-stats-tooltip";
 
-export function ProjectUsageSummary({
+export function TaskUsageSummary({
   id,
   onClick,
 }: {

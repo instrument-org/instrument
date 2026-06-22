@@ -7,7 +7,7 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
-import { PROJECT_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
+import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { getWorkspaceConfig } from "./workspace-config";
 
 function createMockLanguageModel(text: string) {
@@ -124,14 +124,14 @@ function setupTestWithModel(
 describe("generateTitleFromUserMessage", () => {
   it("should limit generated title to 5 words maximum", async () => {
     const { generate } = setupTest(
-      "Very Long Project Title That Exceeds The Five Word Limit",
+      "Very Long Task Title That Exceeds The Five Word Limit",
     );
 
     const result = await generate();
     const title = result._unsafeUnwrap();
 
     expect(title.split(" ")).toHaveLength(5);
-    expect(title).toBe("Very Long Project Title That");
+    expect(title).toBe("Very Long Task Title That");
   });
 
   it("should preserve titles with 5 words or fewer", async () => {
@@ -164,7 +164,7 @@ describe("generateTitleFromUserMessage", () => {
     expect(title).toBe("Todos");
   });
 
-  it("should cap max output tokens for project-name generation", async () => {
+  it("should cap max output tokens for task-name generation", async () => {
     const { generate, mockLanguageModel } = setupTest("Todo List Manager");
 
     const result = await generate();
@@ -172,7 +172,7 @@ describe("generateTitleFromUserMessage", () => {
     expect(result.isOk()).toBe(true);
     expect(mockLanguageModel.doGenerateCalls).toHaveLength(1);
     expect(mockLanguageModel.doGenerateCalls[0]?.maxOutputTokens).toBe(
-      PROJECT_NAME_MAX_OUTPUT_TOKENS,
+      TASK_NAME_MAX_OUTPUT_TOKENS,
     );
   });
 

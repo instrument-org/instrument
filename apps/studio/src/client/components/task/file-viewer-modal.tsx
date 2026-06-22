@@ -13,7 +13,7 @@ import { FilePreviewListItem } from "../file-preview-list-item";
 import { FileViewer } from "../file-viewer";
 import { Button } from "../ui/button";
 
-export function ProjectFileViewerModal() {
+export function TaskFileViewerModal() {
   const state = useAtomValue(taskFileViewerAtom);
   const collapseViewer = useSetAtom(closeFileViewerAtom);
   const setCurrentIndex = useSetAtom(setTaskFileViewerIndexAtom);

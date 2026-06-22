@@ -5,7 +5,7 @@ import { RelativePathSchema, TaskDirSchema } from "../schemas/paths";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-app-dir";
 
 describe("resolvePathWithinTaskDir", () => {
-  const dir = TaskDirSchema.parse(path.join("/tmp", "project"));
+  const dir = TaskDirSchema.parse(path.join("/tmp", "task"));
 
   it.each([
     {

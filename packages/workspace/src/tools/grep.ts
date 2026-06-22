@@ -70,13 +70,13 @@ export const Grep = setupTool({
       - Use this tool when you need to find files containing specific patterns.
     `;
   },
-  execute: async ({ agentName, input, projectState, signal, taskId }) => {
+  execute: async ({ agentName, input, signal, taskId, taskState }) => {
     // For retrieval agents: validate absolute path and search from that path
     // For non-retrieval agents: resolve path and maintain relative paths in results
     if (agentName === "retrieval") {
       const pathResult = resolveAgentPath({
         agentName,
-        attachedFolders: projectState.attachedFolders,
+        attachedFolders: taskState.attachedFolders,
         dir: taskDir(taskId),
         inputPath: input.path,
         isRequired: true,

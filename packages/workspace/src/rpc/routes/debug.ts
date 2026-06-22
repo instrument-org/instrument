@@ -17,7 +17,7 @@ import {
 import { type SpawnAgentFunction } from "../../lib/spawn-agent";
 import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
-import { getTaskManifest } from "../../lib/task-manifest";
+import { getTaskSettings } from "../../lib/task-settings";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
@@ -78,7 +78,7 @@ const replaySession = base
     let replayMessages: ReplayMessage[];
 
     if (mode === "new-task") {
-      const sourceManifest = await getTaskManifest(taskDir(sourceTaskId));
+      const sourceManifest = await getTaskSettings(taskDir(sourceTaskId));
       const sourceTaskName = sourceManifest?.name ?? id;
 
       const prepareResult = await prepareTaskReplay({

@@ -1,4 +1,4 @@
-import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import { filenameFromFilePath } from "./path-utils";
@@ -21,7 +21,7 @@ export function isUnknownTopLevelDirFile(filePath: string): boolean {
 }
 
 const FILTERED_FILENAMES = [
-  TASK_MANIFEST_FILE_NAME,
+  TASK_SETTINGS_FILE_NAME,
   "AGENTS.md",
   ".gitignore",
   "eslint.config.js",

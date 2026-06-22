@@ -17,9 +17,9 @@ import { pathExists } from "../../../lib/path-exists";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {
-  getTaskManifest,
-  updateTaskManifest,
-} from "../../../lib/task-manifest";
+  getTaskSettings,
+  updateTaskSettings,
+} from "../../../lib/task-settings";
 import { trashTask } from "../../../lib/trash-task";
 import { startTutorialTaskReplay } from "../../../lib/tutorial-task-replay";
 import { updateSessionTitle } from "../../../lib/update-session-title";
@@ -33,7 +33,7 @@ import { StoreId } from "../../../schemas/store-id";
 import { SubdomainPartSchema } from "../../../schemas/subdomain-part";
 import { TaskSchema } from "../../../schemas/task";
 import { TaskIdSchema } from "../../../schemas/task-id";
-import { TaskManifestUpdateSchema } from "../../../schemas/task-manifest";
+import { TaskSettingsUpdateSchema } from "../../../schemas/task-settings";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 import { taskAgentStatus } from "./agent-status";
@@ -233,14 +233,14 @@ const create = base
           workspaceConfig: context.workspaceConfig,
         }).then(async (title) => {
           if (title.isOk()) {
-            // Must come before updateTaskManifest so updateSessionTitle can
+            // Must come before updateTaskSettings so updateSessionTitle can
             // detect if the title is auto replaceable
             await updateSessionTitle({
               sessionId: message.metadata.sessionId,
               taskId,
               title: title.value,
             });
-            const secondManifestResult = await updateTaskManifest(taskId, {
+            const secondManifestResult = await updateTaskSettings(taskId, {
               name: title.value,
             });
             if (secondManifestResult.isErr()) {
@@ -411,7 +411,7 @@ const trash = base
 
 const update = base
   .input(
-    TaskManifestUpdateSchema.extend({
+    TaskSettingsUpdateSchema.extend({
       id: TaskIdSchema,
     }),
   )
@@ -433,7 +433,7 @@ const update = base
       }
     }
 
-    const result = await updateTaskManifest(taskId, updates);
+    const result = await updateTaskSettings(taskId, updates);
 
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);
@@ -465,7 +465,7 @@ const exportZip = base
     try {
       const taskId = input.id;
 
-      const manifest = await getTaskManifest(taskDir(taskId));
+      const manifest = await getTaskSettings(taskDir(taskId));
       const taskName = manifest?.name ?? input.id;
 
       const safeName = taskName

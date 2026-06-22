@@ -1,4 +1,4 @@
-import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { ok, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -31,7 +31,7 @@ export function copyTask({
     .andThen((ignore) => {
       if (isTemplate) {
         // New tasks will generate their own title and icon
-        ignore.add(TASK_MANIFEST_FILE_NAME);
+        ignore.add(TASK_SETTINGS_FILE_NAME);
         // Screenshots can confuse the agent
         ignore.add("screenshot.*");
       }

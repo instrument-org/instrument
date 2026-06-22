@@ -3,13 +3,13 @@ import fs from "node:fs/promises";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { type TaskId } from "../schemas/task-id";
-import { type TaskManifestUpdate } from "../schemas/task-manifest";
+import { type TaskSettingsUpdate } from "../schemas/task-settings";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { taskDir, templateExists } from "./task-dir-utils";
-import { updateTaskManifest } from "./task-manifest";
+import { updateTaskSettings } from "./task-settings";
 
 export async function initializeTask(
   {
@@ -18,7 +18,7 @@ export async function initializeTask(
     templateName,
     workspaceConfig,
   }: {
-    initialManifest: Omit<TaskManifestUpdate, "createdWithAppVersion">;
+    initialManifest: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
     taskId: TaskId;
     templateName: string;
     workspaceConfig: WorkspaceConfig;
@@ -70,7 +70,7 @@ export async function initializeTask(
       targetDir: taskDir(taskId),
     });
 
-    yield* updateTaskManifest(taskId, {
+    yield* updateTaskSettings(taskId, {
       ...initialManifest,
       createdWithAppVersion: workspaceConfig.appVersion,
     });

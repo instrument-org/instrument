@@ -1,4 +1,4 @@
-import { TASK_MANIFEST_FILE_NAME } from "@instrument-org/shared";
+import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -75,7 +75,7 @@ describe("getTaskFileIndex", () => {
       await fs.writeFile(path.join(taskDirPath, subdir, file), "internal");
     }
 
-    await fs.writeFile(path.join(taskDirPath, TASK_MANIFEST_FILE_NAME), "{}");
+    await fs.writeFile(path.join(taskDirPath, TASK_SETTINGS_FILE_NAME), "{}");
     await fs.writeFile(path.join(taskDirPath, "pnpm-lock.yaml"), "lockfile");
 
     const result = await getTaskFileIndex(dir);
@@ -89,7 +89,7 @@ describe("getTaskFileIndex", () => {
     for (const { subdir } of internalEntries) {
       expect(filePaths.some((p) => p.startsWith(`${subdir}/`))).toBe(false);
     }
-    expect(filePaths).not.toContain(TASK_MANIFEST_FILE_NAME);
+    expect(filePaths).not.toContain(TASK_SETTINGS_FILE_NAME);
     expect(filePaths).not.toContain("pnpm-lock.yaml");
   });
 

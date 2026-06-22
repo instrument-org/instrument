@@ -24,10 +24,10 @@ import {
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
-import { type SessionTag } from "../schemas/app-state";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import { type SessionTag } from "../schemas/task-live-state";
 import {
   agentMachine,
   type AgentMachineActorRef,
@@ -220,7 +220,7 @@ export const sessionMachine = setup({
       const currentTags = alphabetical([...snapshot.tags], (tag) => tag);
 
       if (!isEqual(currentTags, previousTags)) {
-        publisher.publish("appState.session.tagsChanged", {
+        publisher.publish("taskLiveState.session.tagsChanged", {
           id: input.taskId,
           sessionId: input.sessionId,
         });
@@ -228,7 +228,7 @@ export const sessionMachine = setup({
       }
     });
 
-    publisher.publish("appState.session.added", {
+    publisher.publish("taskLiveState.session.added", {
       id: input.taskId,
       sessionId: input.sessionId,
     });
@@ -277,7 +277,7 @@ export const sessionMachine = setup({
           void (async () => {
             try {
               for await (const payload of publisher.subscribe(
-                "appState.session.done",
+                "taskLiveState.session.done",
                 { signal },
               )) {
                 if (payload.sessionId === newSessionId) {
@@ -471,7 +471,7 @@ export const sessionMachine = setup({
           context.subscription.unsubscribe();
         }
 
-        publisher.publish("appState.session.done", {
+        publisher.publish("taskLiveState.session.done", {
           id: context.taskId,
           sessionId: context.sessionId,
         });

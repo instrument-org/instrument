@@ -3,20 +3,20 @@ import { eventIterator } from "@orpc/server";
 import { isEqual } from "radashi";
 import { z } from "zod";
 
-import { getWorkspaceAppState } from "../../../lib/get-workspace-app-state";
-import { WorkspaceAppStateSchema } from "../../../schemas/app-state";
+import { getTaskLiveState } from "../../../lib/get-task-live-state";
 import { TaskIdSchema } from "../../../schemas/task-id";
+import { TaskLiveStateSchema } from "../../../schemas/task-live-state";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 
 const byId = base
   .input(z.object({ id: TaskIdSchema }))
-  .output(eventIterator(WorkspaceAppStateSchema))
+  .output(eventIterator(TaskLiveStateSchema))
   .handler(async function* ({ context, errors, input, signal }) {
     const { workspaceRef } = context;
 
     const getOrThrow = async () => {
-      const result = await getWorkspaceAppState({
+      const result = await getTaskLiveState({
         id: input.id,
         workspaceRef,
       });
@@ -32,9 +32,9 @@ const byId = base
     yield previousState;
 
     const relevantEvents = [
-      "appState.session.added",
-      "appState.session.done",
-      "appState.session.tagsChanged",
+      "taskLiveState.session.added",
+      "taskLiveState.session.done",
+      "taskLiveState.session.tagsChanged",
     ] as const;
 
     const subscriptions = relevantEvents.map((eventName) =>
@@ -79,13 +79,13 @@ const aliveAgentCount = base
 
 const byIds = base
   .input(z.object({ ids: TaskIdSchema.array() }))
-  .output(WorkspaceAppStateSchema.array())
+  .output(TaskLiveStateSchema.array())
   .handler(async ({ context, errors, input }) => {
     const { workspaceRef } = context;
     const results = [];
 
     for (const id of input.ids) {
-      const result = await getWorkspaceAppState({
+      const result = await getTaskLiveState({
         id,
         workspaceRef,
       });
@@ -100,7 +100,7 @@ const byIds = base
     return results;
   });
 
-export const appState = {
+export const taskLiveState = {
   aliveAgentCount,
   byIds,
   live: {

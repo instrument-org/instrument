@@ -13,7 +13,7 @@ import type { Session } from "../src/schemas/session";
 
 import { workspaceMachine } from "../src/electron";
 import { isToolPart } from "../src/lib/is-tool-part";
-import { getProjectUsageSummary } from "../src/lib/usage-summary";
+import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { session as sessionRoute } from "../src/rpc/routes/session";
 import { task as projectRoute } from "../src/rpc/routes/task";
@@ -186,7 +186,7 @@ export async function runEvals(
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
               const taskId = id;
-              const usage = await getProjectUsageSummary(taskId);
+              const usage = await getTaskUsageSummary(taskId);
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
                 ? `${c.red}${toolName} ERROR${c.reset}`
@@ -231,7 +231,7 @@ async function waitForSessionDone(
 ): Promise<void> {
   return new Promise((resolve) => {
     const abortController = new AbortController();
-    const unsubscribe = publisher.subscribe("appState.session.done", {
+    const unsubscribe = publisher.subscribe("taskLiveState.session.done", {
       signal: abortController.signal,
     });
 

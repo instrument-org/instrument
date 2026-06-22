@@ -60,7 +60,7 @@ const fileInfo = base
     return result.value;
   });
 
-export const projectFiles = {
+export const taskFiles = {
   fileInfo,
   list,
   live: {

@@ -6,7 +6,7 @@ import { getTasks } from "../src/lib/get-tasks";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { getTaskState } from "../src/lib/task-state-store";
-import { getProjectUsageSummary } from "../src/lib/usage-summary";
+import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { type Session } from "../src/schemas/session";
 import { type AssertionResult, type EvalCase } from "./harness";
 import { buildReportWorkspaceConfig, c } from "./utils";
@@ -99,7 +99,7 @@ export async function generateReport({
       taskId,
     });
 
-    const stats = await getProjectUsageSummary(taskId);
+    const stats = await getTaskUsageSummary(taskId);
 
     const projectOutputDir = path.join(outputDir, project.id);
     await fs.mkdir(projectOutputDir, { recursive: true });

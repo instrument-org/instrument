@@ -17,6 +17,7 @@ export default [
     "coverage",
     ".next",
     "registry",
+    ".claude/worktrees",
   ]),
   ...baseConfig,
   {

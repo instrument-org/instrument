@@ -10,3 +10,4 @@ dist/
 registry/
 **/out/
 _tmp_*
+.claude/worktrees/

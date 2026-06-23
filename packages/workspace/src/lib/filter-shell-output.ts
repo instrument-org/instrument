@@ -1,3 +1,5 @@
+import os from "node:os";
+
 import { type TaskDir } from "../schemas/paths";
 import { normalizePath } from "./normalize-path";
 
@@ -15,6 +17,25 @@ export function filterShellOutput(output: string, dir: TaskDir): string {
       new RegExp(escapeRegExp(variant), "gi"),
       ".",
     );
+  }
+
+  // Redact the host home dir (the pnpm store/cache/dlx paths and tool stack
+  // traces sit beneath it) so output stays sandbox-shaped and never leaks the
+  // host layout or username. Runs after the task-dir pass so task paths still
+  // collapse to ".".
+  const home = os.homedir();
+  if (home) {
+    const normalizedHome = normalizePath(home);
+    for (const variant of new Set([
+      home,
+      normalizedHome,
+      normalizedHome.replaceAll("/", "\\"),
+    ])) {
+      filtered = filtered.replaceAll(
+        new RegExp(escapeRegExp(variant), "gi"),
+        "~",
+      );
+    }
   }
 
   // Keep agent-facing shell output consistent with tool path inputs.

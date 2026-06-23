@@ -1,3 +1,4 @@
+import os from "node:os";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { TaskDirSchema } from "../schemas/paths";
@@ -69,6 +70,17 @@ ${dir}\output\rainbow.pdf`;
     const result = filterShellOutput(output, dir);
 
     expect(result).toMatchInlineSnapshot(`"./output/file.png"`);
+  });
+
+  it("redacts the host home dir from runner/cache paths", () => {
+    const home = os.homedir();
+    const output = `Error: ENOENT
+    at async file://${home}/Library/Caches/pnpm/dlx/abc123/jiti-cli.mjs:31:1`;
+
+    const result = filterShellOutput(output, dir);
+
+    expect(result).toBe(`Error: ENOENT
+    at async file://~/Library/Caches/pnpm/dlx/abc123/jiti-cli.mjs:31:1`);
   });
 
   it("handles output without absolute path", () => {

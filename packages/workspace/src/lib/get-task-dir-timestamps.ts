@@ -1,18 +1,14 @@
-import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
 import { type TaskDir } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
-import { getTaskPrivateDir } from "./task-dir-utils";
+import { getTaskPrivateDir, sessionStorePath } from "./task-dir-utils";
 
 export async function getTaskDirTimestamps(dir: TaskDir) {
-  const privateDir = getTaskPrivateDir(dir);
-  const taskConfigPath = absolutePathJoin(dir, TASK_SETTINGS_FILE_NAME);
   const paths = [
-    privateDir, // Changes when agent changes
-    taskConfigPath, // Changes when app name/icon changes
+    sessionStorePath(dir), // Changes when sessions/messages change.
+    getTaskPrivateDir(dir), // Fallback for tasks without a db yet.
   ];
 
   for (const path of paths) {

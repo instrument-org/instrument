@@ -48,7 +48,7 @@ describe("migrateWorkspaceLayout", () => {
       "sessions.db": "db-bytes",
     });
     // a settings file at the task root should travel with the folder and be
-    // renamed from the legacy instrument.json
+    // moved into the private dir from the legacy instrument.json
     fs.writeFileSync(
       path.join(rootDir, "projects", "abc", "instrument.json"),
       `{"name":"My Task"}`,
@@ -68,17 +68,20 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", ".instrument", "state.json")).toBe(
       `{"showTutorial":true}`,
     );
-    expect(read("tasks", "abc", "settings.json")).toBe(`{"name":"My Task"}`);
+    expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
+      `{"name":"My Task"}`,
+    );
 
     // old names gone
     expect(exists("tasks", "abc", "instrument.json")).toBe(false);
+    expect(exists("tasks", "abc", "settings.json")).toBe(false);
     expect(exists("tasks", "abc", ".instrument", "sessions.db")).toBe(false);
     expect(exists("tasks", "abc", ".instrument", "project-state.json")).toBe(
       false,
     );
   });
 
-  it("renames instrument.json -> settings.json for tasks already under tasks/", () => {
+  it("moves instrument.json -> .instrument/settings.json for tasks already under tasks/", () => {
     // no projects/ dir; a task already migrated to tasks/ but still on the
     // legacy settings filename
     const taskDir = path.join(rootDir, "tasks", "abc");
@@ -88,8 +91,24 @@ describe("migrateWorkspaceLayout", () => {
     const result = migrateWorkspaceLayout({ rootDir });
 
     expect(result.migrated).toBe(false);
-    expect(read("tasks", "abc", "settings.json")).toBe(`{"name":"Abc"}`);
+    expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
+      `{"name":"Abc"}`,
+    );
     expect(exists("tasks", "abc", "instrument.json")).toBe(false);
+  });
+
+  it("moves root settings.json -> .instrument/settings.json", () => {
+    const taskDir = path.join(rootDir, "tasks", "abc");
+    fs.mkdirSync(taskDir, { recursive: true });
+    fs.writeFileSync(path.join(taskDir, "settings.json"), `{"name":"Abc"}`);
+
+    const result = migrateWorkspaceLayout({ rootDir });
+
+    expect(result.migrated).toBe(false);
+    expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
+      `{"name":"Abc"}`,
+    );
+    expect(exists("tasks", "abc", "settings.json")).toBe(false);
   });
 
   it("renames sqlite sidecar files alongside the db", () => {

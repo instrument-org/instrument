@@ -1,4 +1,3 @@
-import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -25,7 +24,6 @@ export const INTERNAL_IGNORE_PATTERNS = [
   `${TASK_FOLDER_NAMES.state}/**`,
   TASK_FOLDER_NAMES.tmp,
   `${TASK_FOLDER_NAMES.tmp}/**`,
-  TASK_SETTINGS_FILE_NAME,
   // Generated lockfile (rewritten by every pnpm install, incl. inside loaded
   // skills). Never read or hand-edited; bare name matches at any depth. We do
   // not ignore pnpm-workspace.yaml: it is real, occasionally agent-edited config

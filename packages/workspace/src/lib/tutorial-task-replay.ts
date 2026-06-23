@@ -77,7 +77,7 @@ export async function startTutorialTaskReplay({
 
     const taskResult = yield* await initializeTask(
       {
-        initialManifest: { name: task.title },
+        initialSettings: { name: task.title },
         taskId,
         workspaceConfig,
       },

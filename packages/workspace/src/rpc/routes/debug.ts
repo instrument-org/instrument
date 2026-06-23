@@ -78,8 +78,8 @@ const replaySession = base
     let replayMessages: ReplayMessage[];
 
     if (mode === "new-task") {
-      const sourceManifest = await getTaskSettings(taskDir(sourceTaskId));
-      const sourceTaskName = sourceManifest?.name ?? id;
+      const sourceSettings = await getTaskSettings(taskDir(sourceTaskId));
+      const sourceTaskName = sourceSettings?.name ?? id;
 
       const prepareResult = await prepareTaskReplay({
         sessionNamePrefix: REPLAY_SESSION_NAME_PREFIX,

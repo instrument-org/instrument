@@ -34,7 +34,7 @@ describe("initializeTask", () => {
 
     const result = await initializeTask(
       {
-        initialManifest: { name: "Test task" },
+        initialSettings: { name: "Test task" },
         taskId,
         workspaceConfig: getWorkspaceConfig(),
       },

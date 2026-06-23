@@ -13,11 +13,11 @@ import { updateTaskSettings } from "./task-settings";
 
 export async function initializeTask(
   {
-    initialManifest,
+    initialSettings,
     taskId,
     workspaceConfig,
   }: {
-    initialManifest: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
+    initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
     taskId: TaskId;
     workspaceConfig: WorkspaceConfig;
   },
@@ -52,7 +52,7 @@ export async function initializeTask(
     });
 
     yield* updateTaskSettings(taskId, {
-      ...initialManifest,
+      ...initialSettings,
       createdWithAppVersion: workspaceConfig.appVersion,
     });
 

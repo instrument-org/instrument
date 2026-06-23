@@ -52,8 +52,8 @@ export async function duplicateTask(
       targetDir: taskDir(taskId),
     });
 
-    const sourceManifest = await getTaskSettings(taskDir(sourceId));
-    const sourceName = sourceManifest?.name || sourceId;
+    const sourceSettings = await getTaskSettings(taskDir(sourceId));
+    const sourceName = sourceSettings?.name || sourceId;
     const duplicateName = `Copy of ${sourceName}`;
 
     const sourceTaskState = await getTaskState(taskDir(sourceId));

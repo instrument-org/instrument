@@ -98,12 +98,12 @@ async function readTask({ dir }: { dir: TaskDir }) {
   }
 
   const id = taskIdResult.data;
-  const manifest = await getTaskSettings(dir);
+  const settings = await getTaskSettings(dir);
 
   const task: Task = {
     ...(await getTaskDirTimestamps(dir)),
     id,
-    title: manifest?.name ?? rawFolderName,
+    title: settings?.name ?? rawFolderName,
   };
   return ok(task);
 }

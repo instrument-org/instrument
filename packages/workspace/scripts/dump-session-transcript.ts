@@ -57,7 +57,7 @@ if (isZip) {
   ({ dir } = await extractTaskZip({ outputDir: extractDir, zipBlob }));
 }
 
-const manifest = await getTaskSettings(dir);
+const settings = await getTaskSettings(dir);
 const folderName = path.basename(dir);
 const id = TaskIdSchema.parse(folderName);
 setWorkspaceConfig(createStubWorkspaceConfig({ tasksDir }));
@@ -91,7 +91,7 @@ const markdown = await getSessionMarkdown({
     sessionId: rootSession.id,
     sessionTitle: rootSession.title,
     source: isZip ? absoluteInputPath : dir,
-    taskName: manifest?.name ?? folderName,
+    taskName: settings?.name ?? folderName,
   },
   includeContextMessages,
   sessionId: rootSession.id,

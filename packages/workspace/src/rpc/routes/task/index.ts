@@ -162,7 +162,7 @@ const create = base
 
       const result = await initializeTask(
         {
-          initialManifest: { name: initialTaskName },
+          initialSettings: { name: initialTaskName },
           taskId,
           workspaceConfig: context.workspaceConfig,
         },
@@ -237,12 +237,12 @@ const create = base
               taskId,
               title: title.value,
             });
-            const secondManifestResult = await updateTaskSettings(taskId, {
+            const secondSettingsResult = await updateTaskSettings(taskId, {
               name: title.value,
             });
-            if (secondManifestResult.isErr()) {
+            if (secondSettingsResult.isErr()) {
               context.workspaceConfig.captureException(
-                secondManifestResult.error,
+                secondSettingsResult.error,
               );
             }
           }
@@ -461,8 +461,8 @@ const exportZip = base
     try {
       const taskId = input.id;
 
-      const manifest = await getTaskSettings(taskDir(taskId));
-      const taskName = manifest?.name ?? input.id;
+      const settings = await getTaskSettings(taskDir(taskId));
+      const taskName = settings?.name ?? input.id;
 
       const safeName = taskName
         .toLowerCase()

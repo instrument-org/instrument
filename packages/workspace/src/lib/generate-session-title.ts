@@ -59,8 +59,8 @@ export async function isSessionTitleAutoReplaceable({
   if (isUntitledChatSessionTitle(title)) {
     return true;
   }
-  const manifest = await getTaskSettings(taskDir(taskId));
-  return manifest?.name === title;
+  const settings = await getTaskSettings(taskDir(taskId));
+  return settings?.name === title;
 }
 
 export function isUntitledChatSessionTitle(title: string) {

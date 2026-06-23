@@ -10,6 +10,8 @@ export default [
     "fixtures",
     "*.vitest-temp.json",
     "*.local",
+    "templates/default/pnpm-lock.yaml",
+    "templates/default/pnpm-workspace.yaml",
   ]),
   ...baseConfig,
   {

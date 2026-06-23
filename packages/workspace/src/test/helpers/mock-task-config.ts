@@ -29,9 +29,9 @@ import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
 export const MOCK_WORKSPACE_DIRS = {
+  defaultTaskTemplate: `${MOCK_WORKSPACE_DIR}/default-task-template`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
-  templates: `${MOCK_WORKSPACE_DIR}/registry/templates`,
 } as const;
 
 // Provider configs registered by createMockTaskConfig. The singleton's
@@ -96,13 +96,15 @@ export function createMockTaskConfig(
       // eslint-disable-next-line no-console
       console.error("captureException", args);
     },
+    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+      MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
+    ),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
     tasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.tasks),
-    templatesDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.templates),
     trashItem: () => Promise.resolve(),
   };
 

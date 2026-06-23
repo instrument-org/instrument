@@ -21,9 +21,14 @@ import { getWorkspaceFolder } from "./get-workspace-folder";
 import { getPNPMBinPath } from "./setup-bin-directory";
 
 const REGISTRY_DIR_NAME = "registry";
+const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
 let UNPACKAGED_REGISTRY_DIR = path.resolve(
   import.meta.dirname,
   `../../../../${REGISTRY_DIR_NAME}`,
+);
+const UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR = path.resolve(
+  import.meta.dirname,
+  "../../../../packages/workspace/templates/default",
 );
 
 const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_APP_REGISTRY_DIR_PATH;
@@ -76,6 +81,9 @@ export function createWorkspaceActor({
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
       captureException: captureServerException,
+      defaultTaskTemplateDir: app.isPackaged
+        ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
+        : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       getAIProviderConfigs,
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process

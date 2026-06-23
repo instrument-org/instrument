@@ -57,14 +57,9 @@ const config: Configuration = {
   },
   extraResources: [
     {
-      filter: [
-        "**/*",
-        "!**/node_modules/**",
-        "!**/.turbo/**",
-        "!**/.eslintcache",
-      ],
-      from: "../../registry/templates",
-      to: "registry/templates",
+      filter: ["**/*"],
+      from: "../../packages/workspace/templates/default",
+      to: "default-task-template",
     },
     {
       filter: ["**/*.json"],

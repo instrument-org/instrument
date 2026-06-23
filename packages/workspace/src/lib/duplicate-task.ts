@@ -48,7 +48,6 @@ export async function duplicateTask(
 
     yield* copyTask({
       includePrivateFolder: false,
-      isTemplate: false,
       sourceDir: taskDir(sourceId),
       targetDir: taskDir(taskId),
     });

@@ -409,6 +409,9 @@ describe("sessionMachine", () => {
 
   beforeEach(() => {
     mockFs({
+      [MOCK_WORKSPACE_DIRS.defaultTaskTemplate]: {
+        "package.json": "{}",
+      },
       [MOCK_WORKSPACE_DIRS.tasks]: {
         [taskFolder]: {
           "image.png": mockFs.load(
@@ -419,12 +422,6 @@ describe("sessionMachine", () => {
           ),
           "package.json": "{}",
           "test.txt": "Hello, world!",
-        },
-      },
-      [MOCK_WORKSPACE_DIRS.templates]: {
-        basic: {
-          "file-from-basic.txt": "from basic",
-          "package.json": "{}",
         },
       },
     });

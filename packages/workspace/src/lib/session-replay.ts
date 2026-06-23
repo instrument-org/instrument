@@ -16,8 +16,6 @@ import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 
-const DEFAULT_TEMPLATE_NAME = "basic";
-
 export interface ReplayMessage {
   allParts: SessionMessagePart.Type[];
   message: SessionMessage.WithParts;
@@ -154,7 +152,6 @@ export async function prepareTaskReplay({
       {
         initialManifest: { name: `Replay of ${sourceTaskName}` },
         taskId,
-        templateName: DEFAULT_TEMPLATE_NAME,
         workspaceConfig,
       },
       { signal },

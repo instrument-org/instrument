@@ -26,6 +26,9 @@ export function createStubWorkspaceConfig({
     captureException: () => {
       return;
     },
+    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "default-task-template"),
+    ),
     getAIProviderConfigs: () => [],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
@@ -34,9 +37,6 @@ export function createStubWorkspaceConfig({
     ),
     rootDir: WorkspaceDirSchema.parse(absoluteRootDir),
     tasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
-    templatesDir: WorkspaceDirSchema.parse(
-      path.join(absoluteRootDir, "registry", "templates"),
-    ),
     trashItem: () => Promise.resolve(),
   };
 }

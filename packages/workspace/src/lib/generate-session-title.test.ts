@@ -11,7 +11,7 @@ vi.mock("./task-settings", () => ({
   getTaskSettings: vi.fn(),
 }));
 
-const mockGetTaskManifest = vi.mocked(getTaskSettings);
+const mockGetTaskSettings = vi.mocked(getTaskSettings);
 
 describe("isUntitledChatSessionTitle", () => {
   it.each([
@@ -37,21 +37,21 @@ describe("isSessionTitleAutoReplaceable", () => {
   const taskId = createMockTaskConfigForDir("/tmp/instrument-test-task");
 
   beforeEach(() => {
-    mockGetTaskManifest.mockReset();
+    mockGetTaskSettings.mockReset();
   });
 
-  it("is true for Untitled chat without reading manifest", async () => {
+  it("is true for Untitled chat without reading settings", async () => {
     await expect(
       isSessionTitleAutoReplaceable({
         taskId,
         title: "Untitled chat",
       }),
     ).resolves.toBe(true);
-    expect(mockGetTaskManifest).not.toHaveBeenCalled();
+    expect(mockGetTaskSettings).not.toHaveBeenCalled();
   });
 
-  it("is true when title equals manifest name", async () => {
-    mockGetTaskManifest.mockResolvedValue({ name: "Fix login bug" });
+  it("is true when title equals settings name", async () => {
+    mockGetTaskSettings.mockResolvedValue({ name: "Fix login bug" });
     await expect(
       isSessionTitleAutoReplaceable({
         taskId,
@@ -60,8 +60,8 @@ describe("isSessionTitleAutoReplaceable", () => {
     ).resolves.toBe(true);
   });
 
-  it("is false when title differs from manifest name", async () => {
-    mockGetTaskManifest.mockResolvedValue({ name: "Other" });
+  it("is false when title differs from settings name", async () => {
+    mockGetTaskSettings.mockResolvedValue({ name: "Other" });
     await expect(
       isSessionTitleAutoReplaceable({
         taskId,

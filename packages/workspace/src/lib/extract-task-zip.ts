@@ -11,7 +11,7 @@ import {
 import { TypedError } from "./errors";
 import { normalizePath } from "./normalize-path";
 
-// Extracts a task zip into outputDir, verifying it contains a manifest.
+// Extracts a task zip into outputDir, verifying it contains task settings.
 // Shared by importTask (RPC) and the dump-session-transcript script.
 export async function extractTaskZip({
   outputDir,
@@ -23,10 +23,10 @@ export async function extractTaskZip({
   const zipReader = new ZipReader(new BlobReader(zipBlob));
   const entries = await zipReader.getEntries();
 
-  const hasManifest = entries.some(
+  const hasSettings = entries.some(
     (entry) => entry.filename === TASK_SETTINGS_FILE_NAME,
   );
-  if (!hasManifest) {
+  if (!hasSettings) {
     throw new TypedError.NotFound(
       `Zip file does not contain ${TASK_SETTINGS_FILE_NAME}`,
     );

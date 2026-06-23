@@ -150,7 +150,7 @@ export async function prepareTaskReplay({
 
     yield* await initializeTask(
       {
-        initialManifest: { name: `Replay of ${sourceTaskName}` },
+        initialSettings: { name: `Replay of ${sourceTaskName}` },
         taskId,
         workspaceConfig,
       },

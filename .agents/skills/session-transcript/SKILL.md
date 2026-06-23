@@ -36,7 +36,7 @@ pnpm run script:dump-session-transcript my-task --include-context
 ## Notes
 
 - Zip handling is shared with the RPC import flow via
-  `src/lib/extract-task-zip.ts`; a zip must contain a task manifest.
+  `src/lib/extract-task-zip.ts`; a zip must contain task settings.
 - Reads only; never mutates the task. Output is stdout unless `--output` is set.
 - To explore raw session JSON interactively instead, use
   `script:dump-sessions` (prompts for a task, copies JSON to the clipboard).

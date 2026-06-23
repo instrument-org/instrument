@@ -155,6 +155,7 @@ const create = base
 
       const taskId = await newTaskId({
         preferredFolderName,
+        prompt,
         workspaceConfig: context.workspaceConfig,
       });
 

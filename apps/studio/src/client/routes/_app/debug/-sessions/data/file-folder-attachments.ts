@@ -35,24 +35,24 @@ const userMessageGridShowcase = builder.userMessage(
             // user-provided (shown first; image list thumbnail when asset URL resolves)
             mockFile({
               filename: "hero.png",
-              filePath: `${TASK_FOLDER_NAMES.userProvided}/hero.png`,
+              filePath: `${TASK_FOLDER_NAMES.attachments}/hero.png`,
               mimeType: "image/png",
               size: 245_760,
             }),
             mockFile({
               filename: "brief.md",
-              filePath: `${TASK_FOLDER_NAMES.userProvided}/brief.md`,
+              filePath: `${TASK_FOLDER_NAMES.attachments}/brief.md`,
               mimeType: "text/markdown",
             }),
             mockFile({
               filename: "data.csv",
-              filePath: `${TASK_FOLDER_NAMES.userProvided}/data.csv`,
+              filePath: `${TASK_FOLDER_NAMES.attachments}/data.csv`,
               mimeType: "text/csv",
               size: 4096,
             }),
             mockFile({
               filename: "voice.mp3",
-              filePath: `${TASK_FOLDER_NAMES.userProvided}/voice.mp3`,
+              filePath: `${TASK_FOLDER_NAMES.attachments}/voice.mp3`,
               mimeType: "audio/mpeg",
               size: 512_000,
             }),
@@ -84,7 +84,7 @@ const userMessageGridShowcase = builder.userMessage(
             // supporting sections (collapsed until "Show more")
             mockFile({
               filename: "deploy.sh",
-              filePath: `${TASK_FOLDER_NAMES.scripts}/deploy.sh`,
+              filePath: `${TASK_FOLDER_NAMES.work}/deploy.sh`,
               mimeType: "text/plain",
             }),
             mockFile({
@@ -94,12 +94,12 @@ const userMessageGridShowcase = builder.userMessage(
             }),
             mockFile({
               filename: "draft.json",
-              filePath: `${TASK_FOLDER_NAMES.tmp}/draft.json`,
+              filePath: `${TASK_FOLDER_NAMES.work}/draft.json`,
               mimeType: "application/json",
             }),
             mockFile({
               filename: "page.html",
-              filePath: `${TASK_FOLDER_NAMES.agentRetrieved}/page.html`,
+              filePath: `${TASK_FOLDER_NAMES.work}/page.html`,
               mimeType: "text/html",
             }),
             mockFile({
@@ -140,7 +140,7 @@ const userMessageWithFolders = builder.userMessage(
           files: [
             mockFile({
               filename: "one-off.txt",
-              filePath: `${TASK_FOLDER_NAMES.userProvided}/one-off.txt`,
+              filePath: `${TASK_FOLDER_NAMES.attachments}/one-off.txt`,
               mimeType: "text/plain",
             }),
           ],

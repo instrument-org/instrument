@@ -14,4 +14,3 @@ node_modules/
 # Instrument
 .instrument/
 .state/
-tmp/

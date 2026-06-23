@@ -19,7 +19,7 @@ import {
   getSkillSources,
   listSkillFiles,
 } from "../lib/skills";
-import { taskDir } from "../lib/task-dir-utils";
+import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { type AbsolutePath } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -150,6 +150,7 @@ export const LoadSkill = setupTool({
 
     const destDir = copyResult.value;
     const relativeSkillRoot = normalizedPathJoin(
+      TASK_FOLDER_NAMES.work,
       TASK_FOLDER_NAMES.skills,
       skill.name,
     );
@@ -168,6 +169,7 @@ export const LoadSkill = setupTool({
     if (hasPackageJson) {
       const { combined, exitCode } = await runPnpmCommand({
         args: ["install"],
+        cwd: getTaskWorkDir(taskDir(taskId)),
         signal,
         taskId,
       });
@@ -239,12 +241,12 @@ export const LoadSkill = setupTool({
       const text =
         output.installResult.state === "success"
           ? [
-              `\`${PNPM_COMMAND.name} install\` was run at the task root.`,
+              `\`${PNPM_COMMAND.name} install\` was run in \`${TASK_FOLDER_NAMES.work}/\`.`,
               `This is a monorepo -- skill dependencies are scoped to this skill's folder and are ready to use.`,
               `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
             ].join(" ")
           : [
-              `\`${PNPM_COMMAND.name} install\` was run at the task root but exited with code ${output.installResult.exitCode}.`,
+              `\`${PNPM_COMMAND.name} install\` was run in \`${TASK_FOLDER_NAMES.work}/\` but exited with code ${output.installResult.exitCode}.`,
               `The skill's dependencies may not be fully installed.`,
               `Raw output:\n\`\`\`\n${output.installResult.output}\n\`\`\``,
             ].join(" ");

@@ -105,7 +105,7 @@ describe("CopyToTask", () => {
           files: [
             {
               destinationPath: RelativePathSchema.parse(
-                "./agent-retrieved/file.txt",
+                "./attachments/file.txt",
               ),
               size: 1024,
               sourcePath: "/source/file.txt",
@@ -119,7 +119,7 @@ describe("CopyToTask", () => {
       expect(result).toMatchInlineSnapshot(`
         {
           "type": "text",
-          "value": "Copied to ./agent-retrieved/file.txt 1KB. Parent agent can now access this file.",
+          "value": "Copied to ./attachments/file.txt 1KB. Parent agent can now access this file.",
         }
       `);
     });
@@ -132,14 +132,14 @@ describe("CopyToTask", () => {
           files: [
             {
               destinationPath: RelativePathSchema.parse(
-                "./agent-retrieved/file1.txt",
+                "./attachments/file1.txt",
               ),
               size: 1024,
               sourcePath: "/source/file1.txt",
             },
             {
               destinationPath: RelativePathSchema.parse(
-                "./agent-retrieved/file2.txt",
+                "./attachments/file2.txt",
               ),
               size: 2048,
               sourcePath: "/source/file2.txt",
@@ -154,8 +154,8 @@ describe("CopyToTask", () => {
         {
           "type": "text",
           "value": "Copied 2 files (3KB total). Parent agent can now access these files:
-          - ./agent-retrieved/file1.txt 1KB
-          - ./agent-retrieved/file2.txt 2KB",
+          - ./attachments/file1.txt 1KB
+          - ./attachments/file2.txt 2KB",
         }
       `);
     });
@@ -168,7 +168,7 @@ describe("CopyToTask", () => {
           files: [
             {
               destinationPath: RelativePathSchema.parse(
-                "./agent-retrieved/file1.txt",
+                "./attachments/file1.txt",
               ),
               size: 1024,
               sourcePath: "/source/file1.txt",
@@ -183,7 +183,7 @@ describe("CopyToTask", () => {
         {
           "type": "text",
           "value": "Copied 1 files (1KB total). Parent agent can now access these files:
-          - ./agent-retrieved/file1.txt 1KB
+          - ./attachments/file1.txt 1KB
 
         Truncated file count limit reached (maxFiles): 3 file(s) not copied. Use a more specific pattern or increase the limit to copy the remaining files.",
         }
@@ -198,7 +198,7 @@ describe("CopyToTask", () => {
           files: [
             {
               destinationPath: RelativePathSchema.parse(
-                "./agent-retrieved/file1.txt",
+                "./attachments/file1.txt",
               ),
               size: 1024,
               sourcePath: "/source/file1.txt",
@@ -213,7 +213,7 @@ describe("CopyToTask", () => {
         {
           "type": "text",
           "value": "Copied 1 files (1KB total). Parent agent can now access these files:
-          - ./agent-retrieved/file1.txt 1KB
+          - ./attachments/file1.txt 1KB
 
         Truncated total size limit reached (maxTotalSizeBytes): 3 file(s) not copied. Use a more specific pattern or increase the limit to copy the remaining files.",
         }
@@ -230,7 +230,7 @@ describe("CopyToTask", () => {
           files: [
             {
               destinationPath: RelativePathSchema.parse(
-                "./agent-retrieved/small.txt",
+                "./attachments/small.txt",
               ),
               size: 512,
               sourcePath: "/source/small.txt",
@@ -245,7 +245,7 @@ describe("CopyToTask", () => {
         {
           "type": "text",
           "value": "Copied 1 files (512B total). Parent agent can now access these files:
-          - ./agent-retrieved/small.txt 512B
+          - ./attachments/small.txt 512B
         Failed to copy 1 files:
           - /source/big.txt: File too large",
         }
@@ -301,7 +301,7 @@ describe("CopyToTask", () => {
       expect(result._unsafeUnwrapErr().message).toContain("No files found");
     });
 
-    it("should copy a single matching file to agent-retrieved folder", async () => {
+    it("should copy a single matching file to attachments folder", async () => {
       const result = await runTool(TOOLS.CopyToTask, {
         ...baseExecuteArgs(),
         input: { path: FIXTURES_PATH, pattern: "file-a.txt" },
@@ -310,7 +310,7 @@ describe("CopyToTask", () => {
 
       expect(output.errors).toEqual([]);
       expect(output.files).toHaveLength(1);
-      expect(output.files[0]?.destinationPath).toContain("agent-retrieved");
+      expect(output.files[0]?.destinationPath).toContain("attachments");
       expect(output.files[0]?.destinationPath).toContain("file-a.txt");
     });
 
@@ -324,9 +324,7 @@ describe("CopyToTask", () => {
       expect(output.errors).toEqual([]);
       expect(output.files).toHaveLength(2);
       expect(
-        output.files.every((f) =>
-          f.destinationPath.includes("agent-retrieved"),
-        ),
+        output.files.every((f) => f.destinationPath.includes("attachments")),
       ).toBe(true);
     });
 

@@ -60,8 +60,7 @@ export async function initializeTask(
     // spending a tool call to create them.
     const standardDirs = [
       TASK_FOLDER_NAMES.output,
-      TASK_FOLDER_NAMES.scripts,
-      TASK_FOLDER_NAMES.tmp,
+      TASK_FOLDER_NAMES.attachments,
     ];
     for (const dirName of standardDirs) {
       yield* ResultAsync.fromPromise(

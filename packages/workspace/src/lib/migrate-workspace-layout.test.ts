@@ -64,7 +64,7 @@ describe("migrateWorkspaceLayout", () => {
     expect(exists("projects")).toBe(false);
 
     // renamed + relocated under tasks/
-    expect(read("tasks", "abc", ".instrument", "store.db")).toBe("db-bytes");
+    expect(read("tasks", "abc", ".instrument", "task.db")).toBe("db-bytes");
     expect(read("tasks", "abc", ".instrument", "state.json")).toBe(
       `{"showTutorial":true}`,
     );
@@ -120,9 +120,9 @@ describe("migrateWorkspaceLayout", () => {
 
     migrateWorkspaceLayout({ rootDir });
 
-    expect(read("tasks", "abc", ".instrument", "store.db")).toBe("main");
-    expect(read("tasks", "abc", ".instrument", "store.db-wal")).toBe("wal");
-    expect(read("tasks", "abc", ".instrument", "store.db-shm")).toBe("shm");
+    expect(read("tasks", "abc", ".instrument", "task.db")).toBe("main");
+    expect(read("tasks", "abc", ".instrument", "task.db-wal")).toBe("wal");
+    expect(read("tasks", "abc", ".instrument", "task.db-shm")).toBe("shm");
   });
 
   it("is idempotent — a second run no-ops", () => {
@@ -133,7 +133,7 @@ describe("migrateWorkspaceLayout", () => {
 
     expect(first.migrated).toBe(true);
     expect(second.migrated).toBe(false);
-    expect(read("tasks", "abc", ".instrument", "store.db")).toBe("db");
+    expect(read("tasks", "abc", ".instrument", "task.db")).toBe("db");
   });
 
   it("does not clobber an existing migrated task and reports the conflict", () => {
@@ -141,14 +141,14 @@ describe("migrateWorkspaceLayout", () => {
     // an already-migrated task with the same id
     const migratedPrivate = path.join(rootDir, "tasks", "abc", ".instrument");
     fs.mkdirSync(migratedPrivate, { recursive: true });
-    fs.writeFileSync(path.join(migratedPrivate, "store.db"), "current-db");
+    fs.writeFileSync(path.join(migratedPrivate, "task.db"), "current-db");
 
     const result = migrateWorkspaceLayout({ rootDir });
 
     expect(result.conflictedTaskIds).toEqual(["abc"]);
     expect(result.movedTaskCount).toBe(0);
     // existing data preserved; legacy copy left behind (projects/ retained)
-    expect(read("tasks", "abc", ".instrument", "store.db")).toBe("current-db");
+    expect(read("tasks", "abc", ".instrument", "task.db")).toBe("current-db");
     expect(exists("projects", "abc")).toBe(true);
     // the abandoned legacy copy is left entirely untouched (not even renamed)
     expect(read("projects", "abc", ".instrument", "sessions.db")).toBe(
@@ -165,7 +165,61 @@ describe("migrateWorkspaceLayout", () => {
 
     expect(result.migrated).toBe(true);
     expect(result.movedTaskCount).toBe(1);
-    expect(read("tasks", "def", ".instrument", "store.db")).toBe("db2");
+    expect(read("tasks", "def", ".instrument", "task.db")).toBe("db2");
     expect(exists("projects")).toBe(false);
+  });
+
+  it("folds the runnable package and agent dirs into work/", () => {
+    const taskRoot = path.join(rootDir, "tasks", "abc");
+    fs.mkdirSync(path.join(taskRoot, "skills", "pdf"), { recursive: true });
+    fs.mkdirSync(path.join(taskRoot, "output"), { recursive: true });
+    fs.writeFileSync(path.join(taskRoot, "package.json"), `{"name":"task"}`);
+    fs.writeFileSync(path.join(taskRoot, "skills", "pdf", "SKILL.md"), "skill");
+    fs.writeFileSync(path.join(taskRoot, "output", "report.md"), "out");
+
+    migrateWorkspaceLayout({ rootDir });
+
+    expect(read("tasks", "abc", "work", "package.json")).toBe(
+      `{"name":"task"}`,
+    );
+    expect(read("tasks", "abc", "work", "skills", "pdf", "SKILL.md")).toBe(
+      "skill",
+    );
+    // output stays at the task root
+    expect(read("tasks", "abc", "output", "report.md")).toBe("out");
+    expect(exists("tasks", "abc", "package.json")).toBe(false);
+    expect(exists("tasks", "abc", "skills")).toBe(false);
+  });
+
+  it("leaves a legacy .state dir in place (db references point at it)", () => {
+    const taskRoot = path.join(rootDir, "tasks", "abc");
+    fs.mkdirSync(path.join(taskRoot, ".state", "agent-browser"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(taskRoot, ".state", "agent-browser", "shot.png"),
+      "img",
+    );
+
+    migrateWorkspaceLayout({ rootDir });
+
+    expect(read("tasks", "abc", ".state", "agent-browser", "shot.png")).toBe(
+      "img",
+    );
+  });
+
+  it("folds user-provided and agent-retrieved into attachments/", () => {
+    const taskRoot = path.join(rootDir, "tasks", "abc");
+    fs.mkdirSync(path.join(taskRoot, "user-provided"), { recursive: true });
+    fs.mkdirSync(path.join(taskRoot, "agent-retrieved"), { recursive: true });
+    fs.writeFileSync(path.join(taskRoot, "user-provided", "upload.txt"), "up");
+    fs.writeFileSync(path.join(taskRoot, "agent-retrieved", "page.html"), "pg");
+
+    migrateWorkspaceLayout({ rootDir });
+
+    expect(read("tasks", "abc", "attachments", "upload.txt")).toBe("up");
+    expect(read("tasks", "abc", "attachments", "page.html")).toBe("pg");
+    expect(exists("tasks", "abc", "user-provided")).toBe(false);
+    expect(exists("tasks", "abc", "agent-retrieved")).toBe(false);
   });
 });

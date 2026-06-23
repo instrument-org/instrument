@@ -6,6 +6,7 @@ import {
 } from "just-bash";
 import { dedent } from "radashi";
 
+import { TASK_FOLDER_NAMES } from "../../constants";
 import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
@@ -160,10 +161,32 @@ export function createPnpmCommand(taskId: TaskId) {
 
     const env = Object.fromEntries(ctx.env);
 
+    const cwd = absolutePathJoin(taskDir(taskId), ctx.cwd);
+
+    // The runnable workspace lives in `work/`; there is no manifest at the task
+    // root. Fail fast with guidance instead of pnpm's opaque
+    // ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND when run from the wrong directory.
+    const isInformational =
+      !subcommand || subcommand.startsWith("-") || subcommand === "help";
+    const hasManifest =
+      (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "package.json"))) ||
+      (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "pnpm-workspace.yaml")));
+    if (!isInformational && !hasManifest) {
+      return {
+        exitCode: 1,
+        stderr: dedent`
+          No package manifest found here. Your project lives in \`${TASK_FOLDER_NAMES.work}/\`.
+          Run package commands from there, e.g. \`cd ${TASK_FOLDER_NAMES.work} && ${PNPM_COMMAND.name} ${args.join(" ")}\`.
+        `,
+        stdout: "",
+      };
+    }
+
     let installOutput = "";
     if (!subcommand || !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
       const installResult = await runPnpmCommand({
         args: ["install"],
+        cwd,
         env,
         signal: ctx.signal,
         taskId,
@@ -172,8 +195,6 @@ export function createPnpmCommand(taskId: TaskId) {
         installOutput = `[auto-install failed]\n${installResult.combined}\n\n`;
       }
     }
-
-    const cwd = absolutePathJoin(taskDir(taskId), ctx.cwd);
     const result = await runPnpmCommand({
       args: filteredArgs,
       cwd,

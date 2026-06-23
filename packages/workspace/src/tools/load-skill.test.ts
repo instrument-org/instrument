@@ -105,7 +105,7 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("copies skill directory to skills/<name> on load", async () => {
+  it("copies skill directory to work/skills/<name> on load", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "console.log('hello')" },
       name: "my-skill",
@@ -116,7 +116,12 @@ describe("LoadSkill", () => {
       input: { explanation: "loading", name: "my-skill" },
     });
 
-    const destBase = path.join(dir, TASK_FOLDER_NAMES.skills, "my-skill");
+    const destBase = path.join(
+      dir,
+      TASK_FOLDER_NAMES.work,
+      TASK_FOLDER_NAMES.skills,
+      "my-skill",
+    );
     const md = await fs.readFile(path.join(destBase, "SKILL.md"), "utf8");
     expect(md).toMatchInlineSnapshot(`
       "---
@@ -159,9 +164,9 @@ describe("LoadSkill", () => {
     }
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "skills/my-skill/references/notes.md",
-        "skills/my-skill/scripts/lib/helper.ts",
-        "skills/my-skill/scripts/run.ts",
+        "work/skills/my-skill/references/notes.md",
+        "work/skills/my-skill/scripts/lib/helper.ts",
+        "work/skills/my-skill/scripts/run.ts",
       ]
     `);
   });
@@ -181,6 +186,7 @@ describe("LoadSkill", () => {
 
     const destScript = path.join(
       dir,
+      TASK_FOLDER_NAMES.work,
       TASK_FOLDER_NAMES.skills,
       "my-skill",
       "scripts",
@@ -195,7 +201,7 @@ describe("LoadSkill", () => {
     expect(fileContent).toMatchInlineSnapshot(`"modified"`);
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
-      `"Skill "my-skill" is already loaded. Read skills/my-skill/SKILL.md if you haven't yet -- do not read other files in that folder unless the skill instructs you to."`,
+      `"Skill "my-skill" is already loaded. Read work/skills/my-skill/SKILL.md if you haven't yet -- do not read other files in that folder unless the skill instructs you to."`,
     );
   });
 

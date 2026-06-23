@@ -36,7 +36,7 @@ const assertHasAgentRetrievedPdf: Assertion = {
   check: async ({ taskId }) => {
     const agentRetrievedDir = path.join(
       taskDir(taskId),
-      TASK_FOLDER_NAMES.agentRetrieved,
+      TASK_FOLDER_NAMES.attachments,
     );
     let files: string[] = [];
     try {
@@ -72,7 +72,7 @@ async function hasMdInOutput(taskId: TaskId): Promise<boolean> {
 }
 
 async function hasPdfInAgentRetrieved(taskId: TaskId): Promise<boolean> {
-  const dir = path.join(taskDir(taskId), TASK_FOLDER_NAMES.agentRetrieved);
+  const dir = path.join(taskDir(taskId), TASK_FOLDER_NAMES.attachments);
   try {
     const files = await fs.readdir(dir);
     return files.some((f) => f.toLowerCase().endsWith(".pdf"));

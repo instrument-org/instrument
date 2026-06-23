@@ -54,4 +54,53 @@ describe("exportTaskZip", () => {
         ]
       `);
   });
+
+  it("bundles task files but excludes node_modules and the browser profile/home", async () => {
+    const privateDir = path.join(taskDirPath, TASK_FOLDER_NAMES.private);
+    const workDir = path.join(taskDirPath, TASK_FOLDER_NAMES.work);
+
+    // Included: settings, screenshots, tool-output, work source, root downloads.
+    await fs.writeFile(
+      path.join(privateDir, "settings.json"),
+      `{"name":"Test"}`,
+    );
+    await writeUnder(privateDir, TASK_FOLDER_NAMES.screenshots, "shot.png");
+    await writeUnder(privateDir, TASK_FOLDER_NAMES.toolOutput, "part-1.log");
+    await writeUnder(workDir, "src", "index.ts");
+    await writeUnder(taskDirPath, TASK_FOLDER_NAMES.downloads, "report.pdf");
+
+    // Excluded: node_modules (any depth), browser session + home.
+    await writeUnder(workDir, "node_modules", "dep.js");
+    await writeUnder(privateDir, TASK_FOLDER_NAMES.browserSession, "cookies");
+    await writeUnder(privateDir, "agent-browser-home", ".agent-browser-config");
+
+    const result = await exportTaskZip({
+      dir: TaskDirSchema.parse(taskDirPath),
+      outputPath,
+    });
+
+    expect(result.isOk()).toBe(true);
+
+    const zipReader = new ZipReader(
+      new BlobReader(new Blob([await fs.readFile(outputPath)])),
+    );
+    const entries = await zipReader.getEntries();
+    await zipReader.close();
+
+    expect(entries.map((entry) => entry.filename).sort())
+      .toMatchInlineSnapshot(`
+        [
+          ".instrument/screenshots/shot.png",
+          ".instrument/settings.json",
+          ".instrument/tool-output/part-1.log",
+          "downloads/report.pdf",
+          "work/src/index.ts",
+        ]
+      `);
+  });
 });
+
+async function writeUnder(base: string, dir: string, file: string) {
+  await fs.mkdir(path.join(base, dir), { recursive: true });
+  await fs.writeFile(path.join(base, dir, file), "x");
+}

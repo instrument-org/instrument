@@ -6,7 +6,6 @@ import {
   TASK_FOLDER_NAMES as F,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
@@ -14,7 +13,6 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
-import { readFileWithAnyCase } from "../lib/read-file-with-any-case";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
@@ -124,16 +122,18 @@ export const mainAgent = setupAgent({
     - When making code changes, NEVER output code to the USER, unless requested. Instead use one of the code edit tools to implement the change.
     - Always follow security best practices. Never introduce code that exposes or logs secrets and keys.
     - IMPORTANT: Do NOT create documentation files (README.md, GUIDE.md, QUICKSTART.md, or similar) unless the user explicitly requests them.
-    - For TypeScript/JavaScript changes, you can run \`${TSC_COMMAND.name} --noEmit\` via the \`${agentTools.BashTool.name}\` tool to check for type errors before finishing. For files inside a skill folder, \`cd ${F.skills}/<skill-name> && ${TSC_COMMAND.name} --noEmit\`.
+    - For TypeScript/JavaScript changes, you can run \`${TSC_COMMAND.name} --noEmit\` via the \`${agentTools.BashTool.name}\` tool to check for type errors before finishing. For files inside a skill folder, \`cd ${F.work}/${F.skills}/<skill-name> && ${TSC_COMMAND.name} --noEmit\`.
 
     # Task Folder
-    The task folder is the isolated workspace for all your work. Users may also edit its files directly.
+    The task folder is your isolated workspace; users may also edit its files directly. Everything lives in one of these top-level folders:
+    - \`${F.work}/\` -- your project: a pnpm monorepo where you run code, install dependencies, and load skills. Put everything that isn't a finished deliverable or a user input here -- source, scripts, scratch, and intermediate files. Hidden from the user.
+    - \`${F.attachments}/\` -- the user's inputs: uploads, plus files copied in from attached folders. Read from here.
+    - \`${F.output}/\` -- finished deliverables, shown to the user inline with previews. Write final results here.
+    - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
-    - Files uploaded in a message are available in \`${F.userProvided}/\`.
-    - Attached folders are external and can only be accessed by the ${RETRIEVAL_AGENT_NAME} agent.
-    - Ask the ${RETRIEVAL_AGENT_NAME} agent to report findings without copying when you only need information. When files must be processed in the task, ask it to find and copy them in the same call.
-    - Scripts and code must use relative paths contained within the task folder. Never use absolute paths or parent directory paths.
-    - If needed files are not already available, tell the user they can upload them or attach the containing folder.
+    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Use relative paths within the task folder; never absolute paths.
+    - Attached folders are external and reachable only by the ${RETRIEVAL_AGENT_NAME} agent. Ask it to report findings without copying when you only need information; when files must be processed in the task, ask it to find and copy them in the same call.
+    - If needed files aren't available, tell the user they can upload them or attach the containing folder.
 
     # Tools Usage Guidance
     - Do not spend multiple tool calls probing for equivalent system binaries when the operation can be implemented directly with a short TypeScript script. This is especially useful for file generation, file manipulation, data processing, and other deterministic local operations.
@@ -152,7 +152,7 @@ export const mainAgent = setupAgent({
     - Modifying part of an existing text file: \`${agentTools.EditFile.name}\`.
     - Copying, moving, renaming, deleting, or making directories: \`${agentTools.BashTool.name}\` (\`cp\`, \`mv\`, \`rm\`, \`mkdir\`).
     - Downloading a file from a URL: \`${agentTools.BashTool.name}\` with \`curl -L -o <path> <url>\`. Only write a script when you need to transform or paginate the response.
-    - Surfacing a file from \`${F.tmp}/\` (or anywhere else on disk) to the user: copy or move it into \`${F.output}/\` with \`${agentTools.BashTool.name}\` (e.g. \`cp ${F.tmp}/foo.html ${F.output}/foo.html\`).
+    - Surfacing a file from \`${F.work}/\` (or anywhere else on disk) to the user: copy or move it into \`${F.output}/\` with \`${agentTools.BashTool.name}\` (e.g. \`cp ${F.work}/foo.html ${F.output}/foo.html\`).
     - CRITICAL: Do NOT use \`${agentTools.WriteFile.name}\` to re-emit content you have already produced or read from disk. That wastes tokens and risks corrupting bytes (line endings, whitespace, base64-ish or minified content). Use \`cp\`/\`mv\` instead.
 
     ## Web Search
@@ -162,47 +162,18 @@ export const mainAgent = setupAgent({
     - This applies to your own work: before relying on an API surface, a package version, pricing, or any other external fact in something you build or write, verify it with a search rather than trusting memory.
     - You do not need to search for timeless or purely local matters (math, logic over files already in the task, or general how-to that does not depend on current state).
 
-    # Task Structure and Usage
-    You have access to a task folder with different directories for different purposes:
-    
-    ## Default Approach: Generate Artifacts and Assets
-    When the user needs content, visualizations, documents, or media, generate them as files in the \`${F.output}/\` directory. This is faster, cheaper, and often sufficient.
+    # Producing Deliverables
+    Prefer generating content -- visualizations, documents, media -- as files in \`${F.output}/\`. Create or edit a file when the user wants a reusable work product, will share or revise it outside the conversation, or refers to a document, report, presentation, spreadsheet, image, or other file. Don't make the user name a file format when their intended use makes the right one clear.
 
-    Create or edit a file when the user asks for a reusable work product, when they will likely need to share or revise the result outside the conversation, or when they explicitly refer to a document, report, presentation, spreadsheet, image, or other file. Do not require the user to name a file format when their intended use makes an appropriate format clear.
+    \`${F.output}/\` files are shown to the user with built-in previews -- images, video, audio, HTML, markdown, PDF, CSV, plaintext, and more -- so they see results immediately without an interactive app. Examples: charts as images, animations as video/GIF, reports as markdown/HTML/PDF, generated images, data exports.
 
-    For research-backed deliverables, establish the substantive content and evidence first, then use the relevant skill and format to produce it. Do not let document mechanics or visual formatting substitute for correct, useful content.
-    
-    You can generate output files by:
-    - Writing scripts that generate content (images, videos, charts, reports, etc.) -- see "Scripts" below for where to place them
-    - Directly writing files to \`${F.output}/\` using a tool like \`${agentTools.WriteFile.name}\`
-    
-    **When to use scripts vs. direct file generation:**
-    - Write simple static text directly.
-    - Use scripts when the output requires computation, transformation, aggregation, repeated or positioned structures, or would be impractical to produce through direct file writing.
-    
-    All files in \`${F.output}/\` are automatically displayed to the user in the conversation with built-in previews for: images (PNG, JPG, SVG, etc.), videos (MP4, WebM, etc.), audio, HTML, markdown, PDFs, plaintext, CSV, and more. The user sees these immediately without needing an interactive app.
-    
-    Examples: data visualizations (charts as images), animations (videos/GIFs), reports (markdown/HTML/PDF), generated images, data analysis results, CSV exports, HTML wireframes, diagrams.
-    
-    # Scripts
-    Node.js and ${PNPM_COMMAND.name} are available. Write scripts in TypeScript or bash, and run TypeScript with \`${TS_COMMAND.name}\`. Put scripts in \`${F.scripts}/\` or the relevant skill's scripts folder, never in \`${F.tmp}/\`.
-    Add dependencies with ${PNPM_COMMAND.name} only when needed, and use \`${TSC_COMMAND.name}\` to check scripts when the risk or complexity warrants it.
+    Write simple static text directly with \`${agentTools.WriteFile.name}\`. Use a script when the output needs computation, transformation, aggregation, or repeated/positioned structure. For research-backed deliverables, establish correct content and evidence first, then format; don't let formatting substitute for substance.
 
-    ## Where to place scripts
-    The task is a pnpm monorepo. The task root and each skill folder (\`${F.skills}/<skill-name>/\`) are separate workspace packages, each with their own \`package.json\` and isolated \`node_modules\`. Dependencies installed in one workspace are NOT available to scripts in another -- a script at the task root cannot import packages from a skill's \`node_modules\`, and vice versa.
+    # Scripts and Running Code
+    Node.js and ${PNPM_COMMAND.name} are available. \`${F.work}/\` is the pnpm monorepo -- run all ${PNPM_COMMAND.name} and script commands from inside it (\`cd ${F.work} && ${PNPM_COMMAND.name} install\`, \`cd ${F.work} && ${TS_COMMAND.name} scripts/build.ts\`); the task root has no package. From \`${F.work}/\`, read inputs from \`../${F.attachments}/\` and write deliverables to \`../${F.output}/\`. Write scripts in TypeScript or bash, run TypeScript with \`${TS_COMMAND.name}\`, add dependencies with ${PNPM_COMMAND.name} only when needed, and check with \`${TSC_COMMAND.name}\` when risk or complexity warrants it.
 
-    - **Skill folder** (\`${F.skills}/<skill-name>/scripts/\`): REQUIRED whenever any skill is involved.
-      - Scripts here can import the skill's deps with no extra setup.
-      - Skill files are yours to edit freely -- treat them as a starting point, not read-only templates.
-      - When a task spans two skills, pick the most relevant skill folder; add missing deps with \`cd ${F.skills}/<skill-name> && ${PNPM_COMMAND.name} add <package>\`.
-    - **Task scripts** (\`${F.scripts}/\`): Only when NO skills are involved. If you place a script here and it imports from a skill's packages, those imports will fail at runtime.
-      
-    # Output Files
-    - Files in \`${F.output}/\` are automatically shown to the user. They can click them to view in full or download.
+    \`${F.work}/\` and each skill folder (\`${F.work}/${F.skills}/<skill-name>/\`) are separate workspace packages with isolated \`node_modules\`; dependencies installed in one are not visible to another. A script that uses a skill's dependencies must live in that skill's folder. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
 
-    # Temporary Files
-    - Use \`${F.tmp}/\` for intermediate or scratch files that would clutter or confuse the user if shown (e.g. intermediate processing files, staging data, temp downloads). Files here are hidden from the user by default.
-    
     # File Changes
     - File changes are detected from the task folder after your turn finishes.
     - There is no automatic version history for task files.
@@ -225,27 +196,12 @@ export const mainAgent = setupAgent({
 
     const taskLayout = await getTaskLayoutContext(taskDir(taskId));
 
-    const packageJsonContent = await readFileWithAnyCase(
-      taskDir(taskId),
-      "package.json",
-    );
-
-    const nodeModulesStatus = await pathExists(
-      absolutePathJoin(taskDir(taskId), "node_modules"),
-    );
-
     const userMessage = createContextMessage({
       agentName: name,
       now,
       sessionId,
       textParts: [
         getSystemInfoText(),
-        !nodeModulesStatus &&
-          dedent`
-            <dependencies>
-            Dependencies have not yet been installed for this task. If you need to run scripts that require dependencies, you can install them by running \`${PNPM_COMMAND.name} install\` using the \`${agentTools.BashTool.name}\` tool.
-            </dependencies>
-          `,
         await (async () => {
           const taskState = await getTaskState(taskDir(taskId));
           if (
@@ -268,15 +224,6 @@ export const mainAgent = setupAgent({
           });
         })(),
         taskLayout,
-        packageJsonContent &&
-          dedent`
-            <package_json>
-            This is the package.json file from the task root as of the start of the conversation.
-            \`\`\`json
-            ${packageJsonContent}
-            \`\`\`
-            </package_json>
-          `,
       ],
     });
 

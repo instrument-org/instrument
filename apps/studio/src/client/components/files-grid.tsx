@@ -1,9 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
-import {
-  isRootScaffoldingFile,
-  isUnknownTopLevelDirFile,
-} from "@/client/lib/task-file-groups";
 import { cn } from "@/client/lib/utils";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
@@ -27,29 +23,8 @@ interface FilesGridProps {
   prioritizeUserFiles?: boolean;
 }
 
-type SupportingSectionKey =
-  | "agentRetrieved"
-  | "other"
-  | "scripts"
-  | "skills"
-  | "temporary";
-
 const DEFAULT_INITIAL_VISIBLE_COUNT = 6;
 const EMPTY_FOLDERS: SessionMessageDataPart.FolderAttachmentDataPart[] = [];
-const DEFAULT_EXPANDED_SECTIONS: Record<SupportingSectionKey, boolean> = {
-  agentRetrieved: false,
-  other: false,
-  scripts: false,
-  skills: false,
-  temporary: false,
-};
-const EXPANDED_SECTIONS: Record<SupportingSectionKey, boolean> = {
-  agentRetrieved: true,
-  other: true,
-  scripts: true,
-  skills: true,
-  temporary: true,
-};
 
 export function FilesGrid({
   alignEnd = false,
@@ -84,67 +59,31 @@ export function FilesGrid({
   };
 
   const [isExpanded, setIsExpanded] = useState(false);
-  const [expandedSections, setExpandedSections] = useState(
-    DEFAULT_EXPANDED_SECTIONS,
-  );
 
+  // Only `output/` (deliverables), `attachments/` (user inputs), and
+  // `downloads/` (agent-fetched files) surface to the user. Everything else --
+  // the agent's `work/` project -- is hidden.
   const [outputFiles, nonOutputFiles] = fork(files, (file) =>
     isFileInTaskFolder(file, TASK_FOLDER_NAMES.output),
   );
-  const [userProvidedFiles, nonUserProvidedFiles] = fork(
-    nonOutputFiles,
-    (file) => isFileInTaskFolder(file, TASK_FOLDER_NAMES.userProvided),
+  const [attachmentFiles, nonAttachmentFiles] = fork(nonOutputFiles, (file) =>
+    isFileInTaskFolder(file, TASK_FOLDER_NAMES.attachments),
   );
-  const [supportingFilesByKey, regularFiles] =
-    splitSupportingFiles(nonUserProvidedFiles);
+  const [downloadFiles] = fork(nonAttachmentFiles, (file) =>
+    isFileInTaskFolder(file, TASK_FOLDER_NAMES.downloads),
+  );
 
   const sortedOutputFiles = sortByRichPreview(outputFiles);
-  const sortedRegularFiles = sortByRichPreview(regularFiles);
-  const sortedUserProvidedFiles = sortByRichPreview(userProvidedFiles);
+  const sortedAttachmentFiles = sortByRichPreview(attachmentFiles);
+  const sortedDownloadFiles = sortByRichPreview(downloadFiles);
 
   const mainFiles = prioritizeUserFiles
-    ? [...sortedUserProvidedFiles, ...sortedOutputFiles, ...sortedRegularFiles]
-    : [...sortedOutputFiles, ...sortedRegularFiles, ...sortedUserProvidedFiles];
+    ? [...sortedAttachmentFiles, ...sortedOutputFiles, ...sortedDownloadFiles]
+    : [...sortedOutputFiles, ...sortedAttachmentFiles, ...sortedDownloadFiles];
 
   const visibleMainFiles = mainFiles.slice(0, initialVisibleCount);
-  const supportingSections = [
-    {
-      files: supportingFilesByKey.scripts,
-      key: "scripts" as const,
-      title: "Scripts",
-    },
-    {
-      files: supportingFilesByKey.skills,
-      key: "skills" as const,
-      title: "Skills",
-    },
-    {
-      files: supportingFilesByKey.temporary,
-      key: "temporary" as const,
-      title: "Temporary",
-    },
-    {
-      files: supportingFilesByKey.agentRetrieved,
-      key: "agentRetrieved" as const,
-      title: "Agent Retrieved",
-    },
-    {
-      files: supportingFilesByKey.other,
-      key: "other" as const,
-      title: "Other Files",
-    },
-  ];
-  const supportingFileCount = supportingSections.reduce((count, section) => {
-    return count + section.files.length;
-  }, 0);
-
-  const hasMoreFiles =
-    mainFiles.length > initialVisibleCount || supportingFileCount > 0;
-
-  const expandedFiles = mainFiles.slice(initialVisibleCount);
-
-  const hiddenFileCount = expandedFiles.length + supportingFileCount;
-
+  const hasMoreFiles = mainFiles.length > initialVisibleCount;
+  const hiddenFileCount = mainFiles.length - initialVisibleCount;
   const mainFilesToShow = isExpanded ? mainFiles : visibleMainFiles;
 
   const mediaPreviewFiles = compact
@@ -252,61 +191,22 @@ export function FilesGrid({
           <Button
             onClick={() => {
               setIsExpanded(true);
-              const nonEmptySections = supportingSections.filter(
-                (s) => s.files.length > 0,
-              );
-              if (outputFiles.length === 0 || nonEmptySections.length === 1) {
-                setExpandedSections(EXPANDED_SECTIONS);
-              }
             }}
             size="sm"
             type="button"
             variant="outline-muted"
           >
-            {expandedFiles.length > 0 ? (
-              <span className="text-xs">+{hiddenFileCount} more</span>
-            ) : (
-              <span className="text-xs">
-                Show {hiddenFileCount} supporting file
-                {hiddenFileCount === 1 ? "" : "s"}
-              </span>
-            )}
+            <span className="text-xs">+{hiddenFileCount} more</span>
             <CaretDownIcon className="size-3.5 text-muted-foreground" />
           </Button>
         </div>
       )}
 
-      {isExpanded &&
-        supportingSections.map((section) => {
-          if (section.files.length === 0) {
-            return null;
-          }
-
-          return (
-            <CategorizedFileSection
-              alignEnd={alignEnd}
-              files={section.files}
-              isExpanded={expandedSections[section.key]}
-              key={section.key}
-              onFileClick={handleFileClick}
-              onToggle={() => {
-                setExpandedSections((prev) => ({
-                  ...prev,
-                  [section.key]: !prev[section.key],
-                }));
-              }}
-              selectedArtifactFile={selectedArtifactFile}
-              title={section.title}
-            />
-          );
-        })}
-
-      {isExpanded && (
+      {isExpanded && hasMoreFiles && (
         <div className={cn("flex", alignEnd ? "justify-end" : "justify-start")}>
           <Button
             onClick={() => {
               setIsExpanded(false);
-              setExpandedSections(DEFAULT_EXPANDED_SECTIONS);
             }}
             size="sm"
             type="button"
@@ -315,67 +215,6 @@ export function FilesGrid({
             <span className="text-xs">Show less</span>
             <CaretUpIcon className="size-3.5 text-muted-foreground" />
           </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CategorizedFileSection({
-  alignEnd,
-  files,
-  isExpanded,
-  onFileClick,
-  onToggle,
-  selectedArtifactFile,
-  title,
-}: {
-  alignEnd: boolean;
-  files: TaskFileViewerFile[];
-  isExpanded: boolean;
-  onFileClick: (file: TaskFileViewerFile) => void;
-  onToggle: () => void;
-  selectedArtifactFile: ArtifactPanel | null;
-  title: string;
-}) {
-  return (
-    <div className="flex flex-col gap-2 rounded-md border border-border/50 bg-muted/30 p-2">
-      <button
-        className="flex w-full items-center gap-1.5 text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-        onClick={onToggle}
-        type="button"
-      >
-        {isExpanded ? (
-          <CaretUpIcon className="size-3" />
-        ) : (
-          <CaretDownIcon className="size-3" />
-        )}
-        <span>
-          {title} ({files.length})
-        </span>
-      </button>
-
-      {isExpanded && (
-        <div
-          className={cn(
-            "flex flex-wrap items-start gap-2",
-            alignEnd && "justify-end",
-          )}
-        >
-          {files.map((file) => (
-            <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
-              <FilePreviewListItem
-                file={file}
-                isSelected={isArtifactPanelFileSelected(
-                  file,
-                  selectedArtifactFile,
-                )}
-                onClick={() => {
-                  onFileClick(file);
-                }}
-              />
-            </div>
-          ))}
         </div>
       )}
     </div>
@@ -419,54 +258,4 @@ function sortByRichPreview(files: TaskFileViewerFile[]) {
   const [media, rest] = fork(files, hasMediaPreview);
   const [rowCard, other] = fork(rest, hasRowCardPreview);
   return [...media, ...rowCard, ...other];
-}
-
-function splitSupportingFiles(files: TaskFileViewerFile[]) {
-  const supportingFilesByKey: Record<
-    SupportingSectionKey,
-    TaskFileViewerFile[]
-  > = {
-    agentRetrieved: [],
-    other: [],
-    scripts: [],
-    skills: [],
-    temporary: [],
-  };
-
-  let remainingFiles = files;
-  const matchingOrder: {
-    key: SupportingSectionKey;
-    matches: (file: TaskFileViewerFile) => boolean;
-  }[] = [
-    {
-      key: "scripts",
-      matches: (f) => isFileInTaskFolder(f, TASK_FOLDER_NAMES.scripts),
-    },
-    {
-      key: "skills",
-      matches: (f) => isFileInTaskFolder(f, TASK_FOLDER_NAMES.skills),
-    },
-    {
-      key: "temporary",
-      matches: (f) => isFileInTaskFolder(f, TASK_FOLDER_NAMES.tmp),
-    },
-    {
-      key: "agentRetrieved",
-      matches: (f) => isFileInTaskFolder(f, TASK_FOLDER_NAMES.agentRetrieved),
-    },
-    {
-      key: "other",
-      matches: (f) =>
-        isUnknownTopLevelDirFile(f.filePath) ||
-        isRootScaffoldingFile(f.filePath),
-    },
-  ];
-
-  for (const { key, matches } of matchingOrder) {
-    const [matchedFiles, unmatchedFiles] = fork(remainingFiles, matches);
-    supportingFilesByKey[key] = matchedFiles;
-    remainingFiles = unmatchedFiles;
-  }
-
-  return [supportingFilesByKey, remainingFiles] as const;
 }

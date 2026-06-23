@@ -18,12 +18,14 @@ export const INTERNAL_IGNORE_PATTERNS = [
   ".git/**",
   "node_modules",
   "node_modules/**",
+  // The private dir holds the db, settings, screenshots, tool-output, and the
+  // browser session/home -- all hidden from the agent file index.
   TASK_FOLDER_NAMES.private,
   `${TASK_FOLDER_NAMES.private}/**`,
-  TASK_FOLDER_NAMES.state,
-  `${TASK_FOLDER_NAMES.state}/**`,
-  TASK_FOLDER_NAMES.tmp,
-  `${TASK_FOLDER_NAMES.tmp}/**`,
+  // Legacy `.state` runtime dir (screenshots/bash-output). Not migrated -- the
+  // db references its paths -- so keep it hidden from the index for old tasks.
+  ".state",
+  ".state/**",
   // Generated lockfile (rewritten by every pnpm install, incl. inside loaded
   // skills). Never read or hand-edited; bare name matches at any depth. We do
   // not ignore pnpm-workspace.yaml: it is real, occasionally agent-edited config

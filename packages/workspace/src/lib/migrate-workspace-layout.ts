@@ -6,17 +6,36 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
-  STORE_DB_FILE_NAME,
+  TASK_DB_FILE_NAME,
+  TASK_FOLDER_NAMES,
   TASK_STATE_FILE_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
 
-// Legacy on-disk names this migration moves away from. Kept as literals here
-// (not constants) since the live code no longer references them.
+// Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
-const LEGACY_STORE_DB_FILE_NAME = "sessions.db";
+const LEGACY_DB_FILE_NAME = "sessions.db";
 const LEGACY_STATE_FILE_NAME = "project-state.json";
 const LEGACY_SETTINGS_FILE_NAME = "instrument.json";
+const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
+
+// `.state` is intentionally not migrated: the task db stores direct path
+// references to screenshots/bash-output under `.state/`, so moving the files
+// would orphan them. It stays in place, still ignored by the file index.
+
+// Root entries moved wholesale (rename) into `work/`. Anything absent is skipped.
+const WORK_ENTRY_NAMES = [
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "tsconfig.json",
+  "AGENTS.md",
+  TASK_FOLDER_NAMES.skills,
+  "src",
+  "scripts",
+  "tmp",
+  "node_modules",
+];
 
 // SQLite keeps sidecar files next to the db; they must travel with it. Empty
 // suffix is the db file itself. Harmless if a given sidecar is absent.
@@ -31,24 +50,41 @@ export interface WorkspaceLayoutMigration {
   movedTaskCount: number;
 }
 
-// Idempotent boot migration from the phase-1 on-disk layout
-// (projects/<id>/.instrument/{sessions.db,project-state.json}) to the task
-// layout (tasks/<id>/.instrument/{store.db,state.json}).
+// Idempotent boot migration to the current task layout
+// (tasks/<id>/{.instrument/{task.db,settings.json},work/,attachments/,output/}).
 //
-// Keyed purely on the presence of a legacy projects/ dir, never a version
-// number, so it re-runs if one ever reappears. Synchronous and rename-only:
-// it runs once at boot before the workspace serves tasks, while no db handle
-// is open.
+// Two independent passes: move a legacy projects/ dir to tasks/, then normalize
+// every task already under tasks/ to the current layout. Keyed purely on the
+// presence of legacy on-disk shapes, never a version number, so each piece
+// re-runs if one ever reappears. Synchronous and rename-only: it runs once at
+// boot before the workspace serves tasks, while no db handle is open.
 export function migrateWorkspaceLayout({
   rootDir,
 }: {
   rootDir: string;
 }): WorkspaceLayoutMigration {
   const migration = migrateLegacyProjectsDir(rootDir);
-  // Normalize settings files for every task — including ones already under
-  // tasks/ — independent of whether a legacy projects/ dir existed.
-  normalizeTaskSettingsFiles(path.join(rootDir, TASKS_DIR_NAME));
+  // Normalize every task under tasks/ -- including ones already there --
+  // independent of whether a legacy projects/ dir existed.
+  normalizeTasks(path.join(rootDir, TASKS_DIR_NAME));
   return migration;
+}
+
+// Moves every top-level entry of source into destination (per-entry, so a
+// pre-existing destination is preserved), then removes source if it ends empty.
+function mergeDirInto(source: string, destination: string) {
+  if (!fs.existsSync(source)) {
+    return;
+  }
+  for (const entry of fs.readdirSync(source)) {
+    moveIfMissingTarget(
+      path.join(source, entry),
+      path.join(destination, entry),
+    );
+  }
+  if (fs.readdirSync(source).length === 0) {
+    fs.rmdirSync(source);
+  }
 }
 
 function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
@@ -83,41 +119,18 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
       continue;
     }
 
-    // Rename per-task private files in place first, so a run interrupted after
-    // this point (folder already moved) still leaves a consistent task.
-    migrateTaskPrivateFiles(source);
-
     fs.renameSync(source, destination);
     migration.movedTaskCount += 1;
   }
 
   // Drop the legacy dir once every task folder has moved. Stray non-directory
-  // entries (e.g. a macOS .DS_Store) keep it around — harmless, but the
+  // entries (e.g. a macOS .DS_Store) keep it around -- harmless, but the
   // (fast, rename-only) migration then re-runs every boot until they're gone.
   if (fs.readdirSync(legacyDir).length === 0) {
     fs.rmdirSync(legacyDir);
   }
 
   return migration;
-}
-
-function migrateTaskPrivateFiles(taskFolder: string) {
-  const privateDir = path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME);
-  if (!fs.existsSync(privateDir)) {
-    return;
-  }
-
-  for (const suffix of DB_FILE_SUFFIXES) {
-    moveIfMissingTarget(
-      path.join(privateDir, LEGACY_STORE_DB_FILE_NAME + suffix),
-      path.join(privateDir, STORE_DB_FILE_NAME + suffix),
-    );
-  }
-
-  moveIfMissingTarget(
-    path.join(privateDir, LEGACY_STATE_FILE_NAME),
-    path.join(privateDir, TASK_STATE_FILE_NAME),
-  );
 }
 
 function moveIfMissingTarget(source: string, destination: string) {
@@ -127,11 +140,39 @@ function moveIfMissingTarget(source: string, destination: string) {
   }
 }
 
-// Moves each task's settings file from the task root to the private dir.
-// Handles both the legacy `instrument.json` name and the intermediate
-// root-level `settings.json` name. Idempotent and independent of the
-// projects/ migration.
-function normalizeTaskSettingsFiles(tasksDir: string) {
+// Folds legacy user-input dirs (user-provided/, agent-retrieved/) into a single
+// attachments/ dir.
+function normalizeTaskAttachments(taskFolder: string) {
+  const attachmentsDir = path.join(taskFolder, TASK_FOLDER_NAMES.attachments);
+  for (const legacyName of LEGACY_ATTACHMENT_DIR_NAMES) {
+    mergeDirInto(path.join(taskFolder, legacyName), attachmentsDir);
+  }
+}
+
+// Renames per-task private files: sessions.db -> task.db (with sidecars) and
+// the legacy state file -> state.json.
+function normalizeTaskPrivateFiles(taskFolder: string) {
+  const privateDir = path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME);
+  if (!fs.existsSync(privateDir)) {
+    return;
+  }
+
+  for (const suffix of DB_FILE_SUFFIXES) {
+    moveIfMissingTarget(
+      path.join(privateDir, LEGACY_DB_FILE_NAME + suffix),
+      path.join(privateDir, TASK_DB_FILE_NAME + suffix),
+    );
+  }
+
+  moveIfMissingTarget(
+    path.join(privateDir, LEGACY_STATE_FILE_NAME),
+    path.join(privateDir, TASK_STATE_FILE_NAME),
+  );
+}
+
+// Normalizes every task folder to the current layout. Each step is idempotent
+// and no-ops on a task already in the current shape.
+function normalizeTasks(tasksDir: string) {
   if (!fs.existsSync(tasksDir)) {
     return;
   }
@@ -140,13 +181,28 @@ function normalizeTaskSettingsFiles(tasksDir: string) {
       continue;
     }
     const taskFolder = path.join(tasksDir, entry.name);
-    const privateDir = path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME);
-    const settingsDestination = path.join(privateDir, TASK_SETTINGS_FILE_NAME);
-    for (const filename of [
-      TASK_SETTINGS_FILE_NAME,
-      LEGACY_SETTINGS_FILE_NAME,
-    ]) {
-      moveIfMissingTarget(path.join(taskFolder, filename), settingsDestination);
-    }
+    normalizeTaskPrivateFiles(taskFolder);
+    normalizeTaskSettingsFile(taskFolder);
+    normalizeTaskWorkLayout(taskFolder);
+    normalizeTaskAttachments(taskFolder);
+  }
+}
+
+// Moves the settings file from the task root into the private dir, whether it
+// is named `instrument.json` or `settings.json`.
+function normalizeTaskSettingsFile(taskFolder: string) {
+  const privateDir = path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME);
+  const settingsDestination = path.join(privateDir, TASK_SETTINGS_FILE_NAME);
+  for (const filename of [TASK_SETTINGS_FILE_NAME, LEGACY_SETTINGS_FILE_NAME]) {
+    moveIfMissingTarget(path.join(taskFolder, filename), settingsDestination);
+  }
+}
+
+// Moves the runnable package and agent working dirs from the task root into
+// work/. No-ops for tasks already in the current layout (no such root entries).
+function normalizeTaskWorkLayout(taskFolder: string) {
+  const workDir = path.join(taskFolder, TASK_FOLDER_NAMES.work);
+  for (const name of WORK_ENTRY_NAMES) {
+    moveIfMissingTarget(path.join(taskFolder, name), path.join(workDir, name));
   }
 }

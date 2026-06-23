@@ -9,7 +9,7 @@ import { type TaskId } from "../schemas/task-id";
 import { encodeBrowserTargetId } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getCurrentDate } from "./get-current-date";
-import { getAgentBrowserStateDir, taskDir } from "./task-dir-utils";
+import { getScreenshotsDir, taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
 // Tail of stderr/stdout to attach as `error` on a failed observation. Sized
@@ -150,11 +150,12 @@ async function captureBrowserScreenshot({
     // Content hash: keys no-op dedupe and disambiguates filenames.
     const hash = createHash("sha1").update(buffer).digest("hex").slice(0, 12);
 
-    // Descriptive filename so `ls -lt .state/agent-browser` is self-explanatory:
-    // timestamp + host + title + hash, unique enough to be multi-agent safe.
-    // The `.state/agent-browser/` dir is also surfaced to the agent in the
-    // agent-browser skill (separate `skills` repo); keep that in sync if renamed.
-    const dir = getAgentBrowserStateDir(taskDir(id));
+    // Descriptive filename so `ls -lt .instrument/screenshots` is
+    // self-explanatory: timestamp + host + title + hash, unique enough to be
+    // multi-agent safe. The `.instrument/screenshots/` dir is also surfaced to
+    // the agent in the agent-browser skill (separate `skills` repo); keep that in
+    // sync if renamed.
+    const dir = getScreenshotsDir(taskDir(id));
     await fs.mkdir(dir, { recursive: true });
     const fileName = buildScreenshotFileName({
       hash,
@@ -164,8 +165,8 @@ async function captureBrowserScreenshot({
     const fullPath = absolutePathJoin(dir, fileName);
     await fs.writeFile(fullPath, buffer);
     const relativePath = path.posix.join(
-      TASK_FOLDER_NAMES.state,
-      TASK_FOLDER_NAMES.agentBrowserState,
+      TASK_FOLDER_NAMES.private,
+      TASK_FOLDER_NAMES.screenshots,
       fileName,
     );
 

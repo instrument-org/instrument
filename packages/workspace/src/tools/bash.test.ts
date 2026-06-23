@@ -143,13 +143,13 @@ describe("BashTool", () => {
           durationMs: 30,
           output: longOutput,
           spillFilePath: RelativePathSchema.parse(
-            ".state/bash-output/part-123.log",
+            ".instrument/tool-output/part-123.log",
           ),
         },
         toolCallId: "1",
       });
       const value = (result as { value: string }).value;
-      expect(value).toContain(".state/bash-output/part-123.log");
+      expect(value).toContain(".instrument/tool-output/part-123.log");
     });
 
     it("does not truncate output that fits within limits", () => {

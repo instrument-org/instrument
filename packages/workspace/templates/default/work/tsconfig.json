@@ -16,6 +16,6 @@
     "strict": true,
     "target": "ES2022"
   },
-  "exclude": [".instrument", ".state", "node_modules", "tmp"],
+  "exclude": [".state", "node_modules"],
   "include": ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"]
 }

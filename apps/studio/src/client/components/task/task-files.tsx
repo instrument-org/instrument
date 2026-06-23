@@ -7,7 +7,6 @@ import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import {
   hasVisibleTaskFiles,
-  isUnknownTopLevelDirFile,
   shouldFilterTaskFile,
 } from "@/client/lib/task-file-groups";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
@@ -102,10 +101,7 @@ export function TaskFiles({
     const hiddenFiles: TaskFileViewerFile[] = [];
 
     for (const f of files) {
-      if (
-        shouldFilterTaskFile(f.filePath) ||
-        isUnknownTopLevelDirFile(f.filePath)
-      ) {
+      if (shouldFilterTaskFile(f.filePath)) {
         hiddenFiles.push(toViewerFile(f));
       } else {
         visibleFiles.push(toViewerFile(f));
@@ -154,7 +150,7 @@ export function TaskFiles({
             activeFilePath={activeFilePath}
             defaultOpen={
               node.kind === "dir" &&
-              (node.name === TASK_FOLDER_NAMES.userProvided ||
+              (node.name === TASK_FOLDER_NAMES.attachments ||
                 node.name === TASK_FOLDER_NAMES.output)
             }
             key={i}
@@ -341,7 +337,7 @@ function directorySectionLabel(dirName: string) {
   if (dirName === TASK_FOLDER_NAMES.output) {
     return `Made by ${APP_NAME}`;
   }
-  if (dirName === TASK_FOLDER_NAMES.userProvided) {
+  if (dirName === TASK_FOLDER_NAMES.attachments) {
     return "Attached files";
   }
   return dirName;
@@ -444,8 +440,8 @@ function FilesItemMenu({ children }: { children: React.ReactNode }) {
 }
 
 const DIR_RANK: Record<string, number> = {
+  [TASK_FOLDER_NAMES.attachments]: 1,
   [TASK_FOLDER_NAMES.output]: 0,
-  [TASK_FOLDER_NAMES.userProvided]: 1,
 };
 
 function CollapsibleTreeSection({
@@ -548,7 +544,7 @@ function TreeNode({
   const isTopSpecialSection =
     treeDepth === 0 &&
     (node.name === TASK_FOLDER_NAMES.output ||
-      node.name === TASK_FOLDER_NAMES.userProvided);
+      node.name === TASK_FOLDER_NAMES.attachments);
 
   return (
     <SidebarMenuItem>

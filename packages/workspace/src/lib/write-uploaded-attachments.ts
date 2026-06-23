@@ -21,6 +21,7 @@ import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { getMimeType } from "./get-mime-type";
 import { sanitizeFilename } from "./sanitize-filename";
+import { getTaskAttachmentsDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-state-store";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
@@ -218,7 +219,7 @@ function prepareUploadedFiles({
   files: FileUpload.Type[];
 }) {
   return safeTry(async function* () {
-    const inputDir = absolutePathJoin(dir, TASK_FOLDER_NAMES.userProvided);
+    const inputDir = getTaskAttachmentsDir(dir);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -241,7 +242,7 @@ function prepareUploadedFiles({
       }
 
       const relativePath = RelativePathSchema.parse(
-        `${TASK_FOLDER_NAMES.userProvided}/${uniqueFilename}`,
+        `${TASK_FOLDER_NAMES.attachments}/${uniqueFilename}`,
       );
 
       preparedFiles.push({

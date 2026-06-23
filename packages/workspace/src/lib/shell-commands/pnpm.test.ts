@@ -1,5 +1,5 @@
 import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
@@ -24,6 +24,22 @@ const mockCtx: CommandContext = {
 describe("createPnpmCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
   const command = createPnpmCommand(taskId);
+
+  // The agent runs pnpm from `work/`; seed a manifest at the cwd so the manifest
+  // guard passes. The dedicated guard test below uses a fresh, empty fs.
+  beforeAll(async () => {
+    await mockCtx.fs.writeFile("/package.json", "{}");
+  });
+
+  it("errors when run from a directory without a package manifest", async () => {
+    const result = await command.execute(["add", "lodash"], {
+      ...mockCtx,
+      fs: new InMemoryFs(),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Your project lives in `work/`");
+  });
 
   it.each([{ subcommand: "dev" }, { subcommand: "start" }])(
     "errors when trying to run pnpm $subcommand",

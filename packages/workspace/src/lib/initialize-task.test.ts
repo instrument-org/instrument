@@ -47,13 +47,13 @@ describe("initializeTask", () => {
         ".gitignore",
         ".instrument/",
         ".instrument/settings.json",
+        "attachments/",
         "output/",
-        "package.json",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "scripts/",
-        "tmp/",
-        "tsconfig.json",
+        "work/",
+        "work/package.json",
+        "work/pnpm-lock.yaml",
+        "work/pnpm-workspace.yaml",
+        "work/tsconfig.json",
       ]
     `);
     await expect(
@@ -71,10 +71,13 @@ describe("initializeTask", () => {
       }"
     `);
     await expect(
-      fs.readFile(path.join(taskDir(taskId), "package.json"), "utf8"),
+      fs.readFile(path.join(taskDir(taskId), "work", "package.json"), "utf8"),
     ).resolves.toContain('"name": "@instrument-org/task"');
     await expect(
-      fs.readFile(path.join(taskDir(taskId), "pnpm-workspace.yaml"), "utf8"),
+      fs.readFile(
+        path.join(taskDir(taskId), "work", "pnpm-workspace.yaml"),
+        "utf8",
+      ),
     ).resolves.not.toContain("allowBuilds");
     await expect(
       fs.access(path.join(taskDir(taskId), TASK_FOLDER_NAMES.private)),

@@ -6,21 +6,19 @@ export const REGISTRY_FOLDER_NAMES = {
 import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 
 export const TASK_FOLDER_NAMES = {
-  agentBrowserState: "agent-browser",
-  agentRetrieved: "agent-retrieved",
+  attachments: "attachments",
   browserSession: "browser-session",
+  downloads: "downloads",
   output: "output",
   private: TASK_PRIVATE_FOLDER_NAME,
-  scripts: "scripts",
+  screenshots: "screenshots",
   skills: "skills",
-  src: "src",
-  state: ".state",
-  tmp: "tmp",
-  userProvided: "user-provided",
+  toolOutput: "tool-output",
+  work: "work",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
 // Per-task SQLite store in the task's `.instrument/` private dir.
-export const STORE_DB_FILE_NAME = "store.db";
+export const TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
 
 export const TASK_STATUSES = [

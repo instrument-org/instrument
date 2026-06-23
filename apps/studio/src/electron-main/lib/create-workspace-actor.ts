@@ -48,10 +48,8 @@ export function createWorkspaceActor({
 }) {
   const rootDir = getWorkspaceFolder();
 
-  // Migrate the on-disk layout (legacy projects/ -> tasks/, sessions.db ->
-  // store.db, project-state.json -> state.json) before the workspace reads any
-  // tasks. Idempotent and keyed on the presence of a projects/ dir; a failure
-  // must not block boot.
+  // Normalize the on-disk layout of any legacy tasks before the workspace reads
+  // them. Idempotent; a failure must not block boot.
   try {
     const migration = migrateWorkspaceLayout({ rootDir });
     if (migration.movedTaskCount > 0) {

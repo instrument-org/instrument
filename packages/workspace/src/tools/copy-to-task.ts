@@ -13,7 +13,7 @@ import { glob, resolveGlobPattern } from "../lib/glob";
 import { pathExists } from "../lib/path-exists";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { sanitizeFilename } from "../lib/sanitize-filename";
-import { taskDir } from "../lib/task-dir-utils";
+import { getTaskAttachmentsDir, taskDir } from "../lib/task-dir-utils";
 import {
   type AbsolutePath,
   type RelativePath,
@@ -48,7 +48,7 @@ const INPUT_PARAMS = {
 const TruncationReasonSchema = z.enum(["file_count_limit", "total_size_limit"]);
 
 async function getUniqueFilename(
-  retrievedDir: AbsolutePath,
+  attachmentsDir: AbsolutePath,
   filename: string,
 ): Promise<string> {
   const ext = path.extname(filename);
@@ -58,7 +58,7 @@ async function getUniqueFilename(
   let counter = 1;
 
   while (true) {
-    const filePath = absolutePathJoin(retrievedDir, candidate);
+    const filePath = absolutePathJoin(attachmentsDir, candidate);
     const exists = await pathExists(filePath);
     if (!exists) {
       return candidate;
@@ -180,11 +180,8 @@ export const CopyToTask = setupTool({
       );
     }
 
-    const retrievedDir = absolutePathJoin(
-      taskDir(taskId),
-      TASK_FOLDER_NAMES.agentRetrieved,
-    );
-    await fs.mkdir(retrievedDir, { recursive: true });
+    const attachmentsDir = getTaskAttachmentsDir(taskDir(taskId));
+    await fs.mkdir(attachmentsDir, { recursive: true });
 
     const copiedFiles: {
       destinationPath: RelativePath;
@@ -236,11 +233,11 @@ export const CopyToTask = setupTool({
       const originalFilename = path.basename(sourceAbsolutePath);
       const sanitizedFilename = sanitizeFilename(originalFilename);
       const uniqueFilename = await getUniqueFilename(
-        retrievedDir,
+        attachmentsDir,
         sanitizedFilename,
       );
 
-      const destinationRelative = `./${TASK_FOLDER_NAMES.agentRetrieved}/${uniqueFilename}`;
+      const destinationRelative = `./${TASK_FOLDER_NAMES.attachments}/${uniqueFilename}`;
       const destinationAbsolute = absolutePathJoin(
         taskDir(taskId),
         destinationRelative,

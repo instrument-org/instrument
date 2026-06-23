@@ -8,6 +8,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { normalizedPathJoin, normalizePath } from "./normalize-path";
+import { getTaskWorkDir } from "./task-dir-utils";
 
 export async function copySkill({
   dir,
@@ -20,13 +21,17 @@ export async function copySkill({
   skillDir: AbsolutePath;
   skillName: string;
 }): Promise<Result<AbsolutePath, TypedError.Conflict>> {
-  const destDir = absolutePathJoin(dir, TASK_FOLDER_NAMES.skills, skillName);
+  const destDir = absolutePathJoin(
+    getTaskWorkDir(dir),
+    TASK_FOLDER_NAMES.skills,
+    skillName,
+  );
 
   try {
     await fs.access(destDir);
     return err(
       new TypedError.Conflict(
-        `Skill "${skillName}" is already loaded. Read ${normalizedPathJoin(TASK_FOLDER_NAMES.skills, skillName, "SKILL.md")} if you haven't yet -- do not read other files in that folder unless the skill instructs you to.`,
+        `Skill "${skillName}" is already loaded. Read ${normalizedPathJoin(TASK_FOLDER_NAMES.work, TASK_FOLDER_NAMES.skills, skillName, "SKILL.md")} if you haven't yet -- do not read other files in that folder unless the skill instructs you to.`,
       ),
     );
   } catch (error) {

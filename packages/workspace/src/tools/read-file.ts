@@ -218,7 +218,7 @@ export const ReadFile = setupTool({
     const pathExample =
       agentName === "retrieval"
         ? "/path/to/some/file.txt"
-        : `./${TASK_FOLDER_NAMES.userProvided}/upload.txt`;
+        : `./${TASK_FOLDER_NAMES.attachments}/upload.txt`;
 
     return dedent`
       Reads a file from the ${agentName === "retrieval" ? "attached folders" : "app directory"}. You can access any file directly by using this tool.

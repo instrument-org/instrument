@@ -20,7 +20,7 @@ describe("getTaskFileIndex", () => {
     dir = TaskDirSchema.parse(taskDirPath);
 
     await fs.mkdir(path.join(taskDirPath, "output"), { recursive: true });
-    await fs.mkdir(path.join(taskDirPath, "tmp"), { recursive: true });
+    await fs.mkdir(path.join(taskDirPath, ".instrument"), { recursive: true });
     await fs.mkdir(path.join(taskDirPath, "node_modules", "pkg"), {
       recursive: true,
     });
@@ -32,7 +32,10 @@ describe("getTaskFileIndex", () => {
     await fs.writeFile(path.join(taskDirPath, "output", "chart.png"), "png");
     await fs.writeFile(path.join(taskDirPath, "notes.md"), "hello");
     await fs.writeFile(path.join(taskDirPath, "ignored.txt"), "ignored");
-    await fs.writeFile(path.join(taskDirPath, "tmp", "scratch.txt"), "tmp");
+    await fs.writeFile(
+      path.join(taskDirPath, ".instrument", "scratch.txt"),
+      "private",
+    );
     await fs.writeFile(
       path.join(taskDirPath, "node_modules", "pkg", "index.js"),
       "module",
@@ -64,8 +67,10 @@ describe("getTaskFileIndex", () => {
   it("excludes every internal folder and generated file from the index", async () => {
     const internalEntries: { file: string; subdir: string }[] = [
       { file: "secret.json", subdir: TASK_FOLDER_NAMES.private },
-      { file: "state.json", subdir: TASK_FOLDER_NAMES.state },
-      { file: "scratch.txt", subdir: TASK_FOLDER_NAMES.tmp },
+      {
+        file: "shot.png",
+        subdir: `${TASK_FOLDER_NAMES.private}/${TASK_FOLDER_NAMES.screenshots}`,
+      },
       { file: "dep.js", subdir: "node_modules" },
     ];
 

@@ -70,6 +70,8 @@ that invoke turbo).
 - `pnpm check-and-test:ci` — what CI runs (omits pedantic checks that don't affect correctness)
 - `pnpm turbo:fix:lint` — fix lint
 
+Format hook: each Edit/Write runs Prettier only; finishing (Stop) runs Prettier + a _subset_ `eslint --fix` (sorting/auto-fixable rules via `packages/eslint-config/format.ts`, not full lint or typed rules) over changed files. Don't hand-format or fix order-only/auto-fixable lint; expect files to change after you write them. Non-auto-fixable lint/type errors are not handled by the hook, run the checks above.
+
 Single test file: `cd packages/<name> && pnpm test run <file>` or
 `cd apps/studio && pnpm test run <file>`.
 

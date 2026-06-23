@@ -581,7 +581,7 @@ export function FileViewer({
               setMediaLoadError(true);
               setMediaErrorType("pdf");
             }}
-            src={url}
+            src={`${url}#navpanes=0`}
             title={filename}
           />
         ) : fileType === "video" ? (

@@ -9,6 +9,8 @@ import { TaskDirSchema } from "../schemas/paths";
 import { TypedError } from "./errors";
 import { extractTaskZip } from "./extract-task-zip";
 
+const TASK_SETTINGS_ZIP_PATH = `.instrument/${TASK_SETTINGS_FILE_NAME}`;
+
 async function createZipBlob(
   entries: { data: string; filename: string }[],
 ): Promise<Blob> {
@@ -39,7 +41,7 @@ describe("extractTaskZip", () => {
     tempDirs.push(outputDir);
 
     const zipBlob = await createZipBlob([
-      { data: "{}", filename: TASK_SETTINGS_FILE_NAME },
+      { data: "{}", filename: TASK_SETTINGS_ZIP_PATH },
       { data: "hello", filename: "notes/readme.txt" },
     ]);
 
@@ -62,7 +64,7 @@ describe("extractTaskZip", () => {
 
       const outsidePath = path.resolve(outputDir, filename);
       const zipBlob = await createZipBlob([
-        { data: "{}", filename: TASK_SETTINGS_FILE_NAME },
+        { data: "{}", filename: TASK_SETTINGS_ZIP_PATH },
         { data: "pwned", filename },
       ]);
 

@@ -48,12 +48,19 @@ export function SourceImagesChip({
     return null;
   }
 
-  const sourceImages =
+  // Once generation succeeds the output carries `modifiedAt` for cache-busting.
+  // While streaming we only have the input paths, so render those (no version)
+  // so the references show up on the right immediately.
+  const sourceImages: { filePath: string; modifiedAt?: number }[] =
     part.state === "output-available" && part.output.state === "success"
       ? // `sourceImages` was added after initial release; old persisted outputs lack it
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         (part.output.sourceImages ?? [])
-      : [];
+      : Array.isArray(part.input?.sourceImages)
+        ? part.input.sourceImages.flatMap((p) =>
+            typeof p === "string" && p.length > 0 ? [{ filePath: p }] : [],
+          )
+        : [];
 
   if (sourceImages.length === 0) {
     return null;
@@ -68,9 +75,15 @@ export function SourceImagesChip({
           version: file.modifiedAt,
         });
         return (
-          <img
+          <ImageWithFallback
             alt="Reference"
             className="-ml-0.5 size-4 rounded-full border border-border/50 object-cover first:ml-0"
+            fallback={
+              <span className="-ml-0.5 flex size-4 items-center justify-center rounded-full border border-border/50 bg-muted first:ml-0">
+                <ImagesIcon className="size-2.5 text-muted-foreground/50" />
+              </span>
+            }
+            filename={filenameFromFilePath(file.filePath)}
             key={index}
             src={src}
           />

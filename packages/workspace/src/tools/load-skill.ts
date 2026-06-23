@@ -217,9 +217,11 @@ export const LoadSkill = setupTool({
 
     let fileSection = "";
     if (output.files.length > 0) {
+      const skillRoot = `${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}/${output.name}`;
       const fileSectionText = [
         `The skill files below are copied into your task and are yours to edit.`,
         `Before writing anything new, read the relevant script(s) and run them with \`${TS_COMMAND.name}\` if they fit.`,
+        `Run a script by its full path from the task root (e.g. \`${TS_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${TASK_FOLDER_NAMES.attachments}/\` and \`${TASK_FOLDER_NAMES.output}/\` won't be where your relative paths point.`,
         `Only write a custom script if the existing ones cannot handle the task even with modification.`,
       ].join(" ");
 

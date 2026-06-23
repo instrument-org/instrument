@@ -172,7 +172,7 @@ export const mainAgent = setupAgent({
     # Scripts and Running Code
     Node.js and ${PNPM_COMMAND.name} are available. Every bash command starts at the task root -- keep it there and use paths relative to the root: \`${F.attachments}/...\` to read inputs, \`${F.output}/...\` to write deliverables, \`${F.work}/...\` for everything else. Don't build \`../\` chains.
 
-    Run a script by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`. A script resolves its dependencies from its own folder, so you never need to \`cd\` into a skill to run its scripts.
+    Run a script by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`. A script resolves its dependencies from its own folder, so do NOT \`cd\` into \`${F.work}/\` or a skill folder to run a script -- running from inside it is the most common cause of "file not found" errors, because \`${F.attachments}/\` and \`${F.output}/\` are no longer where your relative paths point.
 
     \`${F.work}/\` is the pnpm monorepo, and only package-manager commands need its directory: \`cd ${F.work} && ${PNPM_COMMAND.name} install\`, or \`cd ${F.work}/${F.skills}/<skill-name> && ${PNPM_COMMAND.name} add <pkg>\` for one skill. \`${F.work}/\` and each skill folder are separate workspace packages with isolated \`node_modules\`; deps installed in one are not visible to another, so a script that needs a skill's dependencies must live in that skill's folder. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
 

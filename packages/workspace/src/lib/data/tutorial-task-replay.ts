@@ -83,7 +83,6 @@ export const TUTORIAL_TASK_REPLAY = {
   ],
   task: {
     folderName: "how-to-use-instrument",
-    templateName: "basic",
     title: "How to use Instrument",
   },
 } as const;

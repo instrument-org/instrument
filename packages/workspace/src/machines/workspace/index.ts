@@ -20,7 +20,7 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import { REGISTRY_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
+import { TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { isTaskId } from "../../lib/is-task-id";
@@ -343,6 +343,7 @@ export const workspaceMachine = setup({
       browser: BrowserConfig;
       captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
+      defaultTaskTemplateDir: string;
       getAIProviderConfigs: GetProviderConfigs;
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
@@ -355,23 +356,21 @@ export const workspaceMachine = setup({
   },
 }).createMachine({
   context: ({ input, self, spawn }) => {
-    const registryDir = AbsolutePathSchema.parse(input.registryDir);
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
     const workspaceConfig: WorkspaceConfig = {
       appVersion: input.appVersion,
       browser: input.browser,
       captureEvent: input.captureEvent,
       captureException: input.captureException,
+      defaultTaskTemplateDir: AbsolutePathSchema.parse(
+        input.defaultTaskTemplateDir,
+      ),
       getAIProviderConfigs: input.getAIProviderConfigs,
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
-      templatesDir: absolutePathJoin(
-        registryDir,
-        REGISTRY_FOLDER_NAMES.templates,
-      ),
       trashItem: input.trashItem,
     };
     // Publish the single per-process config so code can read it via

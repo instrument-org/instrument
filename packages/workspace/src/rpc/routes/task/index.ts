@@ -40,8 +40,6 @@ import { taskAgentStatus } from "./agent-status";
 import { taskFiles } from "./files";
 import { taskState } from "./state";
 
-const DEFAULT_TEMPLATE_NAME = "basic";
-
 const byId = base
   .input(z.object({ id: TaskIdSchema }))
   .output(TaskSchema)
@@ -166,7 +164,6 @@ const create = base
         {
           initialManifest: { name: initialTaskName },
           taskId,
-          templateName: DEFAULT_TEMPLATE_NAME,
           workspaceConfig: context.workspaceConfig,
         },
         { signal },
@@ -271,7 +268,6 @@ const create = base
         files_count: files?.length ?? 0,
         modelId: model.canonicalId,
         providerId: model.params.provider,
-        template_name: DEFAULT_TEMPLATE_NAME,
       });
 
       return {

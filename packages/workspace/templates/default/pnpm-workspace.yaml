@@ -1,0 +1,6 @@
+minimumReleaseAge: 10080
+
+dlxCacheMaxAge: 259200 # 180 days in minutes, extended for pnpm dlx jiti
+packages:
+  - skills/*
+updateNotifier: false

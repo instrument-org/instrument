@@ -8,19 +8,17 @@ import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
-import { taskDir, templateExists } from "./task-dir-utils";
+import { taskDir } from "./task-dir-utils";
 import { updateTaskSettings } from "./task-settings";
 
 export async function initializeTask(
   {
     initialManifest,
     taskId,
-    templateName,
     workspaceConfig,
   }: {
     initialManifest: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
     taskId: TaskId;
-    templateName: string;
     workspaceConfig: WorkspaceConfig;
   },
   _options: { signal?: AbortSignal },
@@ -47,26 +45,9 @@ export async function initializeTask(
         ),
     );
 
-    const templateDir = absolutePathJoin(
-      workspaceConfig.templatesDir,
-      templateName,
-    );
-
-    const doesTemplateExist = await templateExists({
-      folderName: templateName,
-      workspaceConfig,
-    });
-
-    if (!doesTemplateExist) {
-      return errAsync(
-        new TypedError.NotFound(`Template does not exist: ${templateName}`),
-      );
-    }
-
     yield* copyTask({
       includePrivateFolder: false,
-      isTemplate: true,
-      sourceDir: templateDir,
+      sourceDir: workspaceConfig.defaultTaskTemplateDir,
       targetDir: taskDir(taskId),
     });
 

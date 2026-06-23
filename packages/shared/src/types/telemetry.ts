@@ -98,7 +98,6 @@ export interface AnalyticsEvents {
   "task.created": WithModelProperties<{
     eval_name?: string;
     files_count: number;
-    template_name: string;
   }>;
   "task.forked": never;
   "task.imported": never;

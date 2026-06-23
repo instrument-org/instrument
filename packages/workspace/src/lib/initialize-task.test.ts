@@ -45,12 +45,13 @@ describe("initializeTask", () => {
     expect(await listPaths(taskDir(taskId))).toMatchInlineSnapshot(`
       [
         ".gitignore",
+        ".instrument/",
+        ".instrument/settings.json",
         "output/",
         "package.json",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",
         "scripts/",
-        "settings.json",
         "tmp/",
         "tsconfig.json",
       ]
@@ -59,7 +60,10 @@ describe("initializeTask", () => {
       fs.readFile(path.join(taskDir(taskId), "instrument.json"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
     await expect(
-      fs.readFile(path.join(taskDir(taskId), "settings.json"), "utf8"),
+      fs.readFile(
+        path.join(taskDir(taskId), ".instrument", "settings.json"),
+        "utf8",
+      ),
     ).resolves.toMatchInlineSnapshot(`
       "{
         "name": "Test task",
@@ -74,7 +78,7 @@ describe("initializeTask", () => {
     ).resolves.not.toContain("allowBuilds");
     await expect(
       fs.access(path.join(taskDir(taskId), TASK_FOLDER_NAMES.private)),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    ).resolves.toBeUndefined();
   });
 });
 

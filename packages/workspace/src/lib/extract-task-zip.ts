@@ -3,6 +3,7 @@ import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { TASK_FOLDER_NAMES } from "../constants";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
@@ -13,6 +14,8 @@ import { normalizePath } from "./normalize-path";
 
 // Extracts a task zip into outputDir, verifying it contains task settings.
 // Shared by importTask (RPC) and the dump-session-transcript script.
+const TASK_SETTINGS_ZIP_PATH = `${TASK_FOLDER_NAMES.private}/${TASK_SETTINGS_FILE_NAME}`;
+
 export async function extractTaskZip({
   outputDir,
   zipBlob,
@@ -24,11 +27,11 @@ export async function extractTaskZip({
   const entries = await zipReader.getEntries();
 
   const hasSettings = entries.some(
-    (entry) => entry.filename === TASK_SETTINGS_FILE_NAME,
+    (entry) => normalizePath(entry.filename) === TASK_SETTINGS_ZIP_PATH,
   );
   if (!hasSettings) {
     throw new TypedError.NotFound(
-      `Zip file does not contain ${TASK_SETTINGS_FILE_NAME}`,
+      `Zip file does not contain ${TASK_SETTINGS_ZIP_PATH}`,
     );
   }
 

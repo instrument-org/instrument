@@ -439,7 +439,7 @@ function RouteComponent() {
                 </TooltipTrigger>
                 <TooltipContent>
                   Select a zip file exported from {APP_NAME} containing a
-                  {TASK_SETTINGS_FILE_NAME} file
+                  .instrument/{TASK_SETTINGS_FILE_NAME} file
                 </TooltipContent>
               </Tooltip>
               <input

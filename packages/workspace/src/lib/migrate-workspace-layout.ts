@@ -45,9 +45,9 @@ export function migrateWorkspaceLayout({
   rootDir: string;
 }): WorkspaceLayoutMigration {
   const migration = migrateLegacyProjectsDir(rootDir);
-  // Normalize task-root files for every task — including ones already under
+  // Normalize settings files for every task — including ones already under
   // tasks/ — independent of whether a legacy projects/ dir existed.
-  normalizeTaskRootFiles(path.join(rootDir, TASKS_DIR_NAME));
+  normalizeTaskSettingsFiles(path.join(rootDir, TASKS_DIR_NAME));
   return migration;
 }
 
@@ -108,21 +108,30 @@ function migrateTaskPrivateFiles(taskFolder: string) {
   }
 
   for (const suffix of DB_FILE_SUFFIXES) {
-    renameIfMissingTarget(
+    moveIfMissingTarget(
       path.join(privateDir, LEGACY_STORE_DB_FILE_NAME + suffix),
       path.join(privateDir, STORE_DB_FILE_NAME + suffix),
     );
   }
 
-  renameIfMissingTarget(
+  moveIfMissingTarget(
     path.join(privateDir, LEGACY_STATE_FILE_NAME),
     path.join(privateDir, TASK_STATE_FILE_NAME),
   );
 }
 
-// Renames each task's root settings file from the legacy `instrument.json` to
-// `settings.json`. Idempotent and independent of the projects/ migration.
-function normalizeTaskRootFiles(tasksDir: string) {
+function moveIfMissingTarget(source: string, destination: string) {
+  if (fs.existsSync(source) && !fs.existsSync(destination)) {
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.renameSync(source, destination);
+  }
+}
+
+// Moves each task's settings file from the task root to the private dir.
+// Handles both the legacy `instrument.json` name and the intermediate
+// root-level `settings.json` name. Idempotent and independent of the
+// projects/ migration.
+function normalizeTaskSettingsFiles(tasksDir: string) {
   if (!fs.existsSync(tasksDir)) {
     return;
   }
@@ -130,15 +139,14 @@ function normalizeTaskRootFiles(tasksDir: string) {
     if (!entry.isDirectory()) {
       continue;
     }
-    renameIfMissingTarget(
-      path.join(tasksDir, entry.name, LEGACY_SETTINGS_FILE_NAME),
-      path.join(tasksDir, entry.name, TASK_SETTINGS_FILE_NAME),
-    );
-  }
-}
-
-function renameIfMissingTarget(source: string, destination: string) {
-  if (fs.existsSync(source) && !fs.existsSync(destination)) {
-    fs.renameSync(source, destination);
+    const taskFolder = path.join(tasksDir, entry.name);
+    const privateDir = path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME);
+    const settingsDestination = path.join(privateDir, TASK_SETTINGS_FILE_NAME);
+    for (const filename of [
+      TASK_SETTINGS_FILE_NAME,
+      LEGACY_SETTINGS_FILE_NAME,
+    ]) {
+      moveIfMissingTarget(path.join(taskFolder, filename), settingsDestination);
+    }
   }
 }

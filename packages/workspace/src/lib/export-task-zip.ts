@@ -1,3 +1,4 @@
+import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { ZipWriter } from "@zip.js/zip.js";
 import { okAsync, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
@@ -16,6 +17,8 @@ interface ExportTaskZipOptions {
   dir: TaskDir;
   outputPath: string;
 }
+
+const TASK_SETTINGS_ZIP_PATH = `${TASK_FOLDER_NAMES.private}/${TASK_SETTINGS_FILE_NAME}`;
 
 export function exportTaskZip({ dir, outputPath }: ExportTaskZipOptions) {
   return safeTry(async function* () {
@@ -51,6 +54,7 @@ export function exportTaskZip({ dir, outputPath }: ExportTaskZipOptions) {
         path.join(TASK_FOLDER_NAMES.private, STORE_DB_FILE_NAME),
       );
     }
+    filesToInclude.add(TASK_SETTINGS_ZIP_PATH);
 
     yield* ResultAsync.fromPromise(
       (async () => {

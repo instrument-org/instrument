@@ -170,9 +170,13 @@ export const mainAgent = setupAgent({
     Write simple static text directly with \`${agentTools.WriteFile.name}\`. Use a script when the output needs computation, transformation, aggregation, or repeated/positioned structure. For research-backed deliverables, establish correct content and evidence first, then format; don't let formatting substitute for substance.
 
     # Scripts and Running Code
-    Node.js and ${PNPM_COMMAND.name} are available. \`${F.work}/\` is the pnpm monorepo -- run all ${PNPM_COMMAND.name} and script commands from inside it (\`cd ${F.work} && ${PNPM_COMMAND.name} install\`, \`cd ${F.work} && ${TS_COMMAND.name} scripts/build.ts\`); the task root has no package. From \`${F.work}/\`, read inputs from \`../${F.attachments}/\` and write deliverables to \`../${F.output}/\`. Write scripts in TypeScript or bash, run TypeScript with \`${TS_COMMAND.name}\`, add dependencies with ${PNPM_COMMAND.name} only when needed, and check with \`${TSC_COMMAND.name}\` when risk or complexity warrants it.
+    Node.js and ${PNPM_COMMAND.name} are available. Every bash command starts at the task root -- keep it there and use paths relative to the root: \`${F.attachments}/...\` to read inputs, \`${F.output}/...\` to write deliverables, \`${F.work}/...\` for everything else. Don't build \`../\` chains.
 
-    \`${F.work}/\` and each skill folder (\`${F.work}/${F.skills}/<skill-name>/\`) are separate workspace packages with isolated \`node_modules\`; dependencies installed in one are not visible to another. A script that uses a skill's dependencies must live in that skill's folder. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
+    Run a script by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`. A script resolves its dependencies from its own folder, so you never need to \`cd\` into a skill to run its scripts.
+
+    \`${F.work}/\` is the pnpm monorepo, and only package-manager commands need its directory: \`cd ${F.work} && ${PNPM_COMMAND.name} install\`, or \`cd ${F.work}/${F.skills}/<skill-name> && ${PNPM_COMMAND.name} add <pkg>\` for one skill. \`${F.work}/\` and each skill folder are separate workspace packages with isolated \`node_modules\`; deps installed in one are not visible to another, so a script that needs a skill's dependencies must live in that skill's folder. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
+
+    Write scripts in TypeScript or bash, run TypeScript with \`${TS_COMMAND.name}\`, add dependencies with ${PNPM_COMMAND.name} only when needed, and check with \`${TSC_COMMAND.name}\` when risk or complexity warrants it.
 
     # File Changes
     - File changes are detected from the task folder after your turn finishes.

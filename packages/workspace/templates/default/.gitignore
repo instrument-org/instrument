@@ -1,0 +1,17 @@
+# OS/editor files
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+
+# Dependencies
+node_modules/
+
+# Instrument
+.instrument/
+.state/
+tmp/

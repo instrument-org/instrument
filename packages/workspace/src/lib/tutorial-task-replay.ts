@@ -79,7 +79,6 @@ export async function startTutorialTaskReplay({
       {
         initialManifest: { name: task.title },
         taskId,
-        templateName: task.templateName,
         workspaceConfig,
       },
       { signal },

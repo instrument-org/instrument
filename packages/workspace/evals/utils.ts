@@ -35,6 +35,9 @@ export function buildReportWorkspaceConfig(
     captureException: () => {
       return;
     },
+    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "default-task-template"),
+    ),
     getAIProviderConfigs: () => [],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
@@ -42,9 +45,6 @@ export function buildReportWorkspaceConfig(
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
     tasksDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
-    ),
-    templatesDir: WorkspaceDirSchema.parse(
-      path.join(absoluteWorkspaceDir, "registry", "templates"),
     ),
     trashItem: () => Promise.resolve(),
   };

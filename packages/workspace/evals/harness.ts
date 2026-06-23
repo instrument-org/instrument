@@ -107,6 +107,10 @@ export async function runEvals(
         // eslint-disable-next-line no-console
         console.error("captureException", ...args);
       },
+      defaultTaskTemplateDir: path.resolve(
+        import.meta.dirname,
+        "../templates/default",
+      ),
       getAIProviderConfigs: () => providerConfigs,
       nodeExecEnv: {},
       pnpmBinPath: await execa({ reject: false })`which pnpm`.then(

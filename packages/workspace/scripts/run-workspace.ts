@@ -114,6 +114,10 @@ const actor = createActor(workspaceMachine, {
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
+    defaultTaskTemplateDir: path.resolve(
+      import.meta.dirname,
+      "../templates/default",
+    ),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
     nodeExecEnv: {},
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(

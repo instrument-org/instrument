@@ -8,7 +8,6 @@ import {
   TaskDirSchema,
 } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
-import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -45,23 +44,6 @@ export function sessionStorePath(dir: TaskDir): AbsolutePath {
 // is a pure path derivation off the workspace singleton — no carrier object.
 export function taskDir(id: TaskId): TaskDir {
   return TaskDirSchema.parse(path.join(getWorkspaceConfig().tasksDir, id));
-}
-
-export function templateExists({
-  folderName,
-  workspaceConfig,
-}: {
-  folderName: string;
-  workspaceConfig: WorkspaceConfig;
-}): Promise<boolean> {
-  const templateDir = absolutePathJoin(
-    workspaceConfig.templatesDir,
-    folderName,
-  );
-  return fs
-    .access(templateDir)
-    .then(() => true)
-    .catch(() => false);
 }
 
 function getStateDir(dir: TaskDir): AbsolutePath {

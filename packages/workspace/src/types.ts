@@ -107,13 +107,13 @@ export interface WorkspaceConfig {
   browser: BrowserConfig;
   captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
+  defaultTaskTemplateDir: AbsolutePath;
   getAIProviderConfigs: GetProviderConfigs;
   nodeExecEnv: Record<string, string>;
   pnpmBinPath: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
   tasksDir: AbsolutePath;
-  templatesDir: AbsolutePath;
   trashItem: (path: AbsolutePath) => Promise<void>;
 }
 type CdpMethod = keyof ProtocolMapping.Commands;

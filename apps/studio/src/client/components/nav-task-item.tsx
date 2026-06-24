@@ -230,7 +230,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                 {projects && projects.length > 0 && <DropdownMenuSeparator />}
                 <DropdownMenuItem
                   onSelect={() => {
-                    openCreateProject();
+                    openCreateProject(task.id);
                   }}
                 >
                   <PlusIcon className="text-muted-foreground" />

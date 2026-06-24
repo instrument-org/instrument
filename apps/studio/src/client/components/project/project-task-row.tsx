@@ -61,11 +61,11 @@ export function ProjectTaskRow({
         {task.title}
       </InternalLink>
       <TaskStatusIcon className="size-4 shrink-0" id={task.id} />
-      <span className="shrink-0 text-xs text-muted-foreground group-hover:hidden">
+      <span className="shrink-0 text-xs text-muted-foreground">
         {formatUpdated(task.updatedAt)}
       </span>
       <DropdownMenu>
-        <DropdownMenuTrigger className="hidden size-5 items-center justify-center rounded-md text-muted-foreground group-hover:flex hover:text-foreground data-[state=open]:flex">
+        <DropdownMenuTrigger className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground data-[state=open]:opacity-100">
           <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
           <span className="sr-only">More</span>
         </DropdownMenuTrigger>

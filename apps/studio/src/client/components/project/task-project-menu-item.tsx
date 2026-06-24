@@ -81,7 +81,7 @@ export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
         {projects && projects.length > 0 && <DropdownMenuSeparator />}
         <DropdownMenuItem
           onSelect={() => {
-            openCreateProject();
+            openCreateProject(taskId);
           }}
         >
           <PlusIcon className="size-4 text-muted-foreground" />

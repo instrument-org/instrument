@@ -24,6 +24,8 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+import { TaskProjectMenuItem } from "../project/task-project-menu-item";
+
 export function TaskActionsCell({
   id,
   onDelete,
@@ -129,6 +131,7 @@ export function TaskActionsCell({
             <ArrowUpRightIcon className="text-muted-foreground" />
             <span>Open in new tab</span>
           </DropdownMenuItem>
+          <TaskProjectMenuItem taskId={id} />
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

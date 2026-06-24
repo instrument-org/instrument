@@ -183,7 +183,7 @@ export function createPnpmCommand(taskId: TaskId) {
     }
 
     let installOutput = "";
-    if (!subcommand || !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
+    if (!isInformational && !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
       const installResult = await runPnpmCommand({
         args: ["install"],
         cwd,

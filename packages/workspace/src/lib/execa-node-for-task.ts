@@ -24,6 +24,7 @@ export function execaNodeForTask<
       ...getWorkspaceConfig().nodeExecEnv,
     },
     node: true,
+    nodeOptions: [],
     stdin: options?.input === undefined ? (options?.stdin ?? "ignore") : "pipe",
     // Ensures callers can use stderr and stdout without null check
   } as unknown as OptionsType & {

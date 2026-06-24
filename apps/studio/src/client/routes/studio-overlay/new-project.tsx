@@ -1,3 +1,4 @@
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
 import {
   DialogContent,
@@ -9,17 +10,45 @@ import {
 import { Field, FieldError, FieldLabel } from "@/client/components/ui/field";
 import { Input } from "@/client/components/ui/input";
 import { Textarea } from "@/client/components/ui/textarea";
+import { folderNameFromPath } from "@/client/lib/path-utils";
+import { useWindowFileDrop } from "@/client/lib/use-window-file-drop";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { StudioOverlayNewProjectSearchSchema } from "@/shared/studio-overlay";
+import { type StudioPath } from "@/shared/studio-path";
+import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
+import { PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/studio-overlay/new-project")({
   component: NewProjectModal,
+  validateSearch: StudioOverlayNewProjectSearchSchema,
 });
 
 function NewProjectModal() {
+  const { taskId } = Route.useSearch();
+  const [folders, setFolders] = useState<string[]>([]);
+
+  const addFolderPath = (path: string) => {
+    setFolders((prev) => (prev.includes(path) ? prev : [...prev, path]));
+  };
+
+  const { isDragging } = useWindowFileDrop({
+    onFilesDropped: () => {
+      toast.info("Only folders can be attached to a project");
+    },
+    onFoldersDropped: (dropped) => {
+      for (const folder of dropped) {
+        addFolderPath(folder.path);
+      }
+    },
+  });
+
   const { isPending, mutateAsync: createProject } = useMutation(
     rpcClient.workspace.project.create.mutationOptions({
       onError: (error) => {
@@ -30,6 +59,19 @@ function NewProjectModal() {
     }),
   );
 
+  const handlePickFolder = async () => {
+    const [error, result] = await safe(
+      rpcClient.utils.showFolderPicker.call({}),
+    );
+    if (error) {
+      toast.error("Failed to open folder picker");
+      return;
+    }
+    if (result) {
+      addFolderPath(result.path);
+    }
+  };
+
   const form = useForm({
     defaultValues: {
       description: "",
@@ -37,10 +79,23 @@ function NewProjectModal() {
       name: "",
     },
     onSubmit: async ({ value }) => {
-      await createProject({
+      const project = await createProject({
         description: value.description.trim() || undefined,
+        folders: folders.length > 0 ? folders : undefined,
         instructions: value.instructions.trim() || undefined,
         name: value.name.trim(),
+      });
+
+      if (taskId) {
+        await rpcClient.workspace.project.addTask.call({
+          projectId: project.id,
+          taskId: TaskIdSchema.parse(taskId),
+        });
+      }
+
+      void rpcClient.tabs.add.call({
+        appPath: `/projects/${project.id}` as StudioPath,
+        select: true,
       });
       void rpcClient.studioOverlay.resolve.call();
     },
@@ -49,7 +104,9 @@ function NewProjectModal() {
   return (
     <DialogContent className="max-w-lg">
       <DialogHeader>
-        <DialogTitle className="text-center">New project</DialogTitle>
+        <DialogTitle className="text-center font-serif text-2xl font-normal">
+          New project
+        </DialogTitle>
         <DialogDescription className="sr-only">
           Create a project to group tasks and share instructions across them.
         </DialogDescription>
@@ -138,6 +195,48 @@ function NewProjectModal() {
               </Field>
             )}
           </form.Field>
+
+          <div className="flex flex-col gap-2">
+            <button
+              className={cn(
+                "flex items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                isDragging && "border-ring bg-accent text-foreground",
+              )}
+              onClick={() => void handlePickFolder()}
+              type="button"
+            >
+              <span>
+                {isDragging ? "Drop folders to attach" : "Attach folders"}
+              </span>
+              <PlusIcon className="size-4" />
+            </button>
+            {folders.map((path) => (
+              <div
+                className="flex items-center gap-x-2 rounded-md border p-2"
+                key={path}
+              >
+                <MacFolderIcon className="size-5 shrink-0" />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm font-medium">
+                    {folderNameFromPath(path)}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {path}
+                  </span>
+                </div>
+                <button
+                  aria-label="Remove folder"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setFolders((prev) => prev.filter((f) => f !== path));
+                  }}
+                  type="button"
+                >
+                  <XIcon className="size-4" />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
         <DialogFooter>
           <Button

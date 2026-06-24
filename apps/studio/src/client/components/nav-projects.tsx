@@ -5,7 +5,6 @@ import {
 } from "@/client/components/ui/collapsible";
 import {
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
@@ -23,7 +22,6 @@ import { InternalLink } from "./internal-link";
 
 export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
   const [isOpen, setIsOpen] = useState(true);
-  const openCreate = openCreateProject;
 
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
@@ -37,28 +35,31 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
     <SidebarGroup className="px-3 group-data-[collapsible=icon]:hidden">
       {projects && projects.length > 0 ? (
         <Collapsible onOpenChange={setIsOpen} open={isOpen}>
-          <div className="group/projects relative">
+          <div className="group/projects flex h-8 items-center">
             <SidebarGroupLabel
               asChild
-              className="font-semibold text-sidebar-foreground/20 hover:text-sidebar-foreground/60"
+              className="h-8 flex-1 gap-1 font-semibold text-sidebar-foreground/20 hover:text-sidebar-foreground/60"
             >
               <CollapsibleTrigger>
+                <span>Projects</span>
                 <CaretRightIcon
                   className={cn(
-                    "mr-1 size-3 transition-transform",
+                    "size-3 shrink-0 transition-transform",
                     isOpen && "rotate-90",
                   )}
                 />
-                Projects
               </CollapsibleTrigger>
             </SidebarGroupLabel>
-            <SidebarGroupAction
+            <button
               aria-label="Add a project"
-              className="text-sidebar-foreground/40 opacity-0 group-hover/projects:opacity-100"
-              onClick={openCreate}
+              className="flex size-5 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/40 opacity-0 group-hover/projects:opacity-100 hover:text-sidebar-foreground"
+              onClick={() => {
+                openCreateProject();
+              }}
+              type="button"
             >
-              <PlusIcon />
-            </SidebarGroupAction>
+              <PlusIcon className="size-4" />
+            </button>
           </div>
           <CollapsibleContent animated>
             <SidebarMenu className="gap-0.5">
@@ -88,7 +89,9 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
           <SidebarMenuItem className="group/add">
             <SidebarMenuButton
               className="h-9 gap-2 text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              onClick={openCreate}
+              onClick={() => {
+                openCreateProject();
+              }}
             >
               <BagIcon className="size-4 shrink-0" />
               <span className="flex-1 text-left">Add a project</span>

@@ -70,7 +70,7 @@ describe("createBashDescription", () => {
         tsx - Execute a TypeScript or JavaScript file. In -e: relative paths resolve from cwd; avoid absolute paths like /tmp/file — they hit the real root, not the task root.
         tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the local config.
         uv - Python package and environment manager. Also provides \`python\`, \`python3\`, and \`pip\`, backed by a per-task virtualenv in work/.venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
-        python - Run Python via the per-task virtualenv (work/.venv). Shares packages installed with \`pip\`. For multi-line code, write a \`.py\` file and run it rather than \`python -c\` -- the shell does not preserve leading indentation inside inline quoted strings.
+        python - Run Python via the per-task virtualenv (work/.venv). Shares packages installed with \`pip\`. Use the \`pip\` command to install packages: \`python -m pip\` is not available.
         pip - Install Python packages into the per-task virtualenv (work/.venv) via uv. Use like pip, e.g. \`pip install <package>\`."
     `);
   });

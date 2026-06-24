@@ -23,4 +23,18 @@ describe("ffmpegSubprocessEnv", () => {
       expect(env.PATH?.endsWith(process.env.PATH)).toBe(true);
     }
   });
+
+  it("preserves an existing PATH after the binary dirs", () => {
+    const env = ffmpegSubprocessEnv(
+      ["/venv/bin", "/usr/bin"].join(path.delimiter),
+    );
+    const parts = env.PATH?.split(path.delimiter) ?? [];
+
+    expect(parts).toStrictEqual([
+      path.dirname(FFMPEG_PATH),
+      path.dirname(FFPROBE_PATH),
+      "/venv/bin",
+      "/usr/bin",
+    ]);
+  });
 });

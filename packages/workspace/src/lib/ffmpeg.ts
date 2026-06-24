@@ -29,7 +29,9 @@ export const FFPROBE_PATH = unpackAsarPath(ffprobePath ?? "ffprobe");
  * Prepends their dirs to PATH and sets the conventional FFMPEG_PATH/FFPROBE_PATH
  * vars that libraries like fluent-ffmpeg respect.
  */
-export function ffmpegSubprocessEnv(): Record<string, string> {
+export function ffmpegSubprocessEnv(
+  basePath = process.env.PATH,
+): Record<string, string> {
   const env: Record<string, string> = {
     FFMPEG_PATH,
     FFPROBE_PATH,
@@ -38,9 +40,7 @@ export function ffmpegSubprocessEnv(): Record<string, string> {
     .filter((p) => path.isAbsolute(p))
     .map((p) => path.dirname(p));
   if (dirs.length > 0) {
-    env.PATH = [...dirs, ...(process.env.PATH ? [process.env.PATH] : [])].join(
-      path.delimiter,
-    );
+    env.PATH = [...dirs, ...(basePath ? [basePath] : [])].join(path.delimiter);
   }
   return env;
 }

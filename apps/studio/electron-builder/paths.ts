@@ -30,6 +30,25 @@ export function resolvePackagedRipgrep(
 }
 
 /**
+ * Locate the packaged uv binary within the unpacked tree, or `undefined` if it
+ * is missing. Vendored into `resources/uv/` by scripts/download-uv.ts and
+ * unpacked via `asarUnpack: ["resources/**"]`.
+ */
+export function resolvePackagedUv(
+  appOutDir: string,
+  platformName: ElectronPlatform,
+) {
+  const candidate = path.join(
+    resolveUnpackedDir(appOutDir, platformName),
+    "resources",
+    "uv",
+    platformName === "win32" ? "uv.exe" : "uv",
+  );
+
+  return existsSync(candidate) ? candidate : undefined;
+}
+
+/**
  * Resolve the packaged `app.asar.unpacked` directory for a given build. macOS
  * nests it inside the `.app` bundle; Windows/Linux place it under `resources/`.
  */

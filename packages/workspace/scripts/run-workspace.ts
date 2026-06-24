@@ -130,6 +130,10 @@ const actor = createActor(workspaceMachine, {
     // shimClientDir: path.resolve("../shim-client/dist"),
     shimClientDir: "dev-server",
     trashItem: () => Promise.reject(new Error("Not implemented")),
+    uvBinPath: await execa({ reject: false })`which uv`.then(
+      (result) => result.stdout.trim() || "uv",
+    ),
+    uvDataDir: path.resolve("../../../workspace.local/uv-data"),
   },
   inspect(event) {
     switch (event.type) {

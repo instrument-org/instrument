@@ -16,6 +16,22 @@ export function getPNPMBinPath(): string {
   return getNodeModulePath("pnpm", "bin", "pnpm.cjs");
 }
 
+// The uv binary is vendored into `resources/uv/` (see scripts/download-uv.ts),
+// which electron-builder bundles and unpacks via `asarUnpack: ["resources/**"]`,
+// so it is deep-signed alongside the app. Resolve it from the unpacked tree in
+// prod and from the repo `resources/` dir in dev. Mirrors getNodeModulePath.
+export function getUvBinPath(): string {
+  const binaryName = process.platform === "win32" ? "uv.exe" : "uv";
+  const appPath = app.getAppPath();
+  const uvPath = path.join(appPath, "resources", "uv", binaryName);
+
+  if (app.isPackaged && appPath.endsWith(".asar")) {
+    return uvPath.replace(/app\.asar([/\\])/, "app.asar.unpacked$1");
+  }
+
+  return uvPath;
+}
+
 // Added to PATH so that child processes (the users's apps) can access the binaries
 // as if they were installed globally. We don't use these ourselves due to issues
 // with orphaned processes on Windows.

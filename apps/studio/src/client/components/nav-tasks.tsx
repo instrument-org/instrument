@@ -5,10 +5,7 @@ import {
 } from "@/client/components/ui/sidebar";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
-import { CaretRightIcon } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,23 +13,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { InternalLink } from "./internal-link";
 import { NavTaskItem } from "./nav-task-item";
 
-const FAVORITES_LIMIT = 5;
 const TASK_ITEM_HEIGHT = 36;
 const TASK_ITEM_GAP = 2;
 const TASK_ROW_HEIGHT = TASK_ITEM_HEIGHT + TASK_ITEM_GAP;
 
 export function NavTasks({
-  favoriteTaskIds,
-  isFavorites,
   matches,
-  sortFavoritesBy = "activity",
+  pinnedTaskIds,
   tasks,
   title,
 }: {
-  favoriteTaskIds: Set<string>;
-  isFavorites: boolean;
   matches: MakeRouteMatchUnion[];
-  sortFavoritesBy?: "activity" | "added";
+  pinnedTaskIds: Set<TaskId>;
   tasks: Task[];
   title: string;
 }) {
@@ -45,36 +37,18 @@ export function NavTasks({
     });
   };
 
-  const { mutate: removeFavorite } = useMutation(
-    rpcClient.favorites.remove.mutationOptions(),
-  );
-  const handleRemoveFavorite = (id: TaskId) => {
-    removeFavorite({ id });
-  };
-
   const tasksMatch = matches.find((match) => match.routeId === "/_app/tasks/");
-
   const isTasksPage = tasksMatch !== undefined;
   const currentFilter = tasksMatch?.search.filter ?? "all";
+  const isActive = isTasksPage && currentFilter === "all";
 
-  const isActive = isTasksPage
-    ? isFavorites
-      ? currentFilter === "favorites"
-      : currentFilter === "all"
-    : false;
-
-  const visibleFavorites = isFavorites
-    ? sortFavoritesBy === "activity"
-      ? tasks.slice(0, FAVORITES_LIMIT)
-      : tasks.slice(-FAVORITES_LIMIT)
-    : tasks;
-
-  const hasMoreFavorites = isFavorites && tasks.length > FAVORITES_LIMIT;
-
-  const isTaskActive = (id: string) =>
-    matches.some(
-      (match) => match.routeId === "/_app/tasks/$id/" && match.params.id === id,
-    );
+  // Pinned tasks float to the top of the list while keeping their relative
+  // (most-recently-updated-first) order within each group.
+  const orderedTasks = useMemo(() => {
+    const pinned = tasks.filter((task) => pinnedTaskIds.has(task.id));
+    const rest = tasks.filter((task) => !pinnedTaskIds.has(task.id));
+    return [...pinned, ...rest];
+  }, [tasks, pinnedTaskIds]);
 
   return (
     <SidebarGroup className="px-3 group-data-[collapsible=icon]:hidden">
@@ -85,64 +59,31 @@ export function NavTasks({
           isActive && "text-sidebar-foreground/60",
         )}
       >
-        <InternalLink
-          openInCurrentTab
-          search={{ filter: isFavorites ? "favorites" : "all" }}
-          to="/tasks"
-        >
+        <InternalLink openInCurrentTab search={{ filter: "all" }} to="/tasks">
           {title}
         </InternalLink>
       </SidebarGroupLabel>
       <SidebarMenu className="gap-0.5">
-        {isFavorites ? (
-          <>
-            {visibleFavorites.map((task) => (
-              <NavTaskItem
-                isActive={isTaskActive(task.id)}
-                isFavorited={favoriteTaskIds.has(task.id)}
-                isFavorites
-                key={task.id}
-                onOpenInNewTab={handleOpenInNewTab}
-                onRemoveFavorite={handleRemoveFavorite}
-                task={task}
-              />
-            ))}
-            {hasMoreFavorites && (
-              <li className="px-2 pt-1.5 pb-1">
-                <InternalLink
-                  className="flex items-center gap-0.5 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground/70"
-                  openInCurrentTab
-                  search={{ filter: "favorites" }}
-                  to="/tasks"
-                >
-                  View all favorites
-                  <CaretRightIcon className="size-3" />
-                </InternalLink>
-              </li>
-            )}
-          </>
-        ) : (
-          <TasksList
-            favoriteTaskIds={favoriteTaskIds}
-            matches={matches}
-            onOpenInNewTab={handleOpenInNewTab}
-            tasks={tasks}
-          />
-        )}
+        <TasksList
+          matches={matches}
+          onOpenInNewTab={handleOpenInNewTab}
+          pinnedTaskIds={pinnedTaskIds}
+          tasks={orderedTasks}
+        />
       </SidebarMenu>
     </SidebarGroup>
   );
 }
 
 function TasksList({
-  favoriteTaskIds,
   matches,
   onOpenInNewTab,
+  pinnedTaskIds,
   tasks,
 }: {
-  favoriteTaskIds: Set<string>;
   matches: MakeRouteMatchUnion[];
   onOpenInNewTab: (id: TaskId) => void;
+  pinnedTaskIds: Set<TaskId>;
   tasks: Task[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -189,9 +130,9 @@ function TasksList({
           (match) =>
             match.routeId === "/_app/tasks/$id/" && match.params.id === task.id,
         ),
-        isFavorited: favoriteTaskIds.has(task.id),
+        isPinned: pinnedTaskIds.has(task.id),
       })),
-    [tasks, matches, favoriteTaskIds],
+    [tasks, matches, pinnedTaskIds],
   );
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -221,8 +162,7 @@ function TasksList({
           >
             <NavTaskItem
               isActive={state.isActive}
-              isFavorited={state.isFavorited}
-              isFavorites={false}
+              isPinned={state.isPinned}
               onOpenInNewTab={onOpenInNewTab}
               task={task}
             />

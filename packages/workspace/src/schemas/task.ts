@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ProjectIdSchema } from "./project-id";
 import { TaskIdSchema } from "./task-id";
 
 // The loaded representation of a task: id + metadata read from disk. This is
@@ -7,6 +8,9 @@ import { TaskIdSchema } from "./task-id";
 export const TaskSchema = z.object({
   createdAt: z.date(),
   id: TaskIdSchema,
+  // The project this task is bucketed into, if any (a stable ProjectId, never a
+  // folder path). Absent for unfiled tasks.
+  projectId: ProjectIdSchema.optional(),
   title: z.string(),
   updatedAt: z.date(),
 });

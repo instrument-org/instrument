@@ -19,7 +19,7 @@ import {
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   PencilSimpleLineIcon,
-  StarIcon,
+  PushPinIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -29,19 +29,15 @@ import { TaskStatusIcon } from "./session-status-icon";
 
 interface NavTaskItemProps {
   isActive: boolean;
-  isFavorited: boolean;
-  isFavorites: boolean;
+  isPinned: boolean;
   onOpenInNewTab: (id: TaskId) => void;
-  onRemoveFavorite?: (id: TaskId) => void;
   task: Task;
 }
 
 export const NavTaskItem = memo(function NavTaskItem({
   isActive,
-  isFavorited,
-  isFavorites,
+  isPinned,
   onOpenInNewTab,
-  onRemoveFavorite,
   task,
 }: NavTaskItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -53,8 +49,11 @@ export const NavTaskItem = memo(function NavTaskItem({
     rpcClient.workspace.task.update.mutationOptions(),
   );
 
-  const { mutateAsync: addFavorite } = useMutation(
-    rpcClient.favorites.add.mutationOptions(),
+  const { mutateAsync: addPin } = useMutation(
+    rpcClient.workspace.pin.add.mutationOptions(),
+  );
+  const { mutateAsync: removePin } = useMutation(
+    rpcClient.workspace.pin.remove.mutationOptions(),
   );
 
   if (!isEditing && editValue !== task.title) {
@@ -113,8 +112,8 @@ export const NavTaskItem = memo(function NavTaskItem({
     }
   };
 
-  const handleAddFavorite = async () => {
-    await addFavorite({ id: task.id });
+  const handleTogglePin = async () => {
+    await (isPinned ? removePin({ id: task.id }) : addPin({ id: task.id }));
   };
 
   return (
@@ -152,7 +151,13 @@ export const NavTaskItem = memo(function NavTaskItem({
               params={{ id: task.id }}
               to="/tasks/$id"
             >
-              <span>{task.title}</span>
+              {isPinned && (
+                <PushPinIcon
+                  className="size-3.5 shrink-0 text-sidebar-foreground/40"
+                  weight="fill"
+                />
+              )}
+              <span className="truncate">{task.title}</span>
             </InternalLink>
           </SidebarMenuButton>
 
@@ -170,23 +175,17 @@ export const NavTaskItem = memo(function NavTaskItem({
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-50" side="bottom">
-            {(isFavorites || !isFavorited) && (
-              <DropdownMenuItem
-                onClick={() => {
-                  if (isFavorites && onRemoveFavorite) {
-                    onRemoveFavorite(task.id);
-                  } else {
-                    void handleAddFavorite();
-                  }
-                }}
-              >
-                <StarIcon
-                  className="text-muted-foreground"
-                  weight={isFavorites ? "fill" : undefined}
-                />
-                <span>{isFavorites ? "Remove favorite" : "Favorite"}</span>
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuItem
+              onClick={() => {
+                void handleTogglePin();
+              }}
+            >
+              <PushPinIcon
+                className="text-muted-foreground"
+                weight={isPinned ? "fill" : undefined}
+              />
+              <span>{isPinned ? "Unpin" : "Pin"}</span>
+            </DropdownMenuItem>
             <InternalLink
               openInCurrentTab
               params={{ id: task.id }}

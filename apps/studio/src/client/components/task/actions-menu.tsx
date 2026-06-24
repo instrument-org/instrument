@@ -16,7 +16,7 @@ import {
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   PencilSimpleLineIcon,
-  StarIcon,
+  PushPinIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -41,17 +41,17 @@ export function TaskActionsMenu({
   const navigate = useNavigate();
   const isDeveloperMode = useDeveloperMode();
 
-  const { data: favoriteTaskIds } = useQuery(
-    rpcClient.favorites.live.listTaskIds.experimental_liveOptions(),
+  const { data: pinnedTaskIds } = useQuery(
+    rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
-  const isFavorite = favoriteTaskIds?.includes(id) ?? false;
+  const isPinned = pinnedTaskIds?.includes(id) ?? false;
 
-  const { mutateAsync: removeFavorite } = useMutation(
-    rpcClient.favorites.remove.mutationOptions(),
+  const { mutateAsync: removePin } = useMutation(
+    rpcClient.workspace.pin.remove.mutationOptions(),
   );
 
-  const { mutateAsync: addFavorite } = useMutation(
-    rpcClient.favorites.add.mutationOptions(),
+  const { mutateAsync: addPin } = useMutation(
+    rpcClient.workspace.pin.add.mutationOptions(),
   );
 
   const copyFolderPathMutation = useMutation(
@@ -92,18 +92,18 @@ export function TaskActionsMenu({
       <DropdownMenuContent align="end" side="bottom">
         <DropdownMenuItem
           onSelect={() => {
-            if (isFavorite) {
-              void removeFavorite({ id });
+            if (isPinned) {
+              void removePin({ id });
             } else {
-              void addFavorite({ id });
+              void addPin({ id });
             }
           }}
         >
-          <StarIcon
+          <PushPinIcon
             className="text-muted-foreground"
-            weight={isFavorite ? "fill" : undefined}
+            weight={isPinned ? "fill" : undefined}
           />
-          <span>{isFavorite ? "Remove favorite" : "Favorite"}</span>
+          <span>{isPinned ? "Unpin" : "Pin"}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {

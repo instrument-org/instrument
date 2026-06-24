@@ -13,6 +13,7 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
+import { getProjectInstructions } from "../lib/project";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
@@ -23,6 +24,7 @@ import {
   beginTurnChangeTracking,
   consumeTurnChanges,
 } from "../lib/task-file-watcher";
+import { getTaskSettings } from "../lib/task-settings";
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
@@ -239,6 +241,23 @@ export const mainAgent = setupAgent({
       sessionId,
       textParts: [
         getSystemInfoText(),
+        await (async () => {
+          const settings = await getTaskSettings(taskDir(taskId));
+          if (!settings?.projectId) {
+            return null;
+          }
+          const instructions = await getProjectInstructions(settings.projectId);
+          if (!instructions) {
+            return null;
+          }
+          return dedent`
+            # Project Instructions
+            This task belongs to a project. Follow these project-specific
+            instructions (from the project's AGENTS.md):
+
+            ${instructions}
+          `.trim();
+        })(),
         await (async () => {
           const taskState = await getTaskState(taskDir(taskId));
           if (

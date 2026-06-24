@@ -1,6 +1,7 @@
 import { BrandIcon } from "@/client/components/brand-icon";
 import { type TabIconName } from "@instrument-org/shared/icons";
 import {
+  BagIcon,
   BugIcon,
   CreditCardIcon,
   FileTextIcon,
@@ -18,6 +19,7 @@ export const IconMap: Record<TabIconName, Icon | typeof BrandIcon> = {
   "flask-conical": FlaskIcon,
   globe: GlobeIcon,
   "our-app": BrandIcon,
+  project: BagIcon,
   "table-properties": TableIcon,
   terminal: TerminalIcon,
 } as const;

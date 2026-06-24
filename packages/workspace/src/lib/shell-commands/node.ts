@@ -32,7 +32,7 @@ function execNode(
       ...getWorkspaceConfig().nodeExecEnv,
       ...env,
       // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
-      ...ffmpegSubprocessEnv(),
+      ...ffmpegSubprocessEnv(env?.PATH),
     },
     reject: false,
     ...(stdin ? { input: stdin } : { stdin: "ignore" }),

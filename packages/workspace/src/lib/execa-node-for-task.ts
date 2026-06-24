@@ -20,7 +20,7 @@ export function execaNodeForTask<
     cwd: cwd ?? taskDir(taskId),
     env: {
       ...options?.env,
-      ...ffmpegSubprocessEnv(),
+      ...ffmpegSubprocessEnv(options?.env?.PATH),
       ...getWorkspaceConfig().nodeExecEnv,
     },
     node: true,

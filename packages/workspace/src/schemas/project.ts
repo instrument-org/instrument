@@ -6,6 +6,7 @@ import { ProjectIdSchema } from "./project-id";
 // name is the display name, so it is intentionally NOT stored here.
 export const ProjectSettingsSchema = z.object({
   createdAt: z.coerce.date(),
+  description: z.string().optional(),
   id: ProjectIdSchema,
 });
 
@@ -15,6 +16,7 @@ export type ProjectSettings = z.output<typeof ProjectSettingsSchema>;
 // instructions read from the project's AGENTS.md.
 export const ProjectSchema = z.object({
   createdAt: z.date(),
+  description: z.string(),
   id: ProjectIdSchema,
   instructions: z.string(),
   name: z.string(),

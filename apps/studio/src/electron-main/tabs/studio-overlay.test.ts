@@ -26,6 +26,7 @@ vi.mock("@/electron-main/lib/urls", () => ({
 interface FakeView {
   setBackgroundColor: ReturnType<typeof vi.fn>;
   setBounds: ReturnType<typeof vi.fn>;
+  setVisible: ReturnType<typeof vi.fn>;
   webContents: FakeWebContents;
 }
 
@@ -94,6 +95,7 @@ vi.mock("electron", () => ({
     const view: FakeView = {
       setBackgroundColor: vi.fn(),
       setBounds: vi.fn(),
+      setVisible: vi.fn(),
       webContents: {
         close: vi.fn(),
         focus: vi.fn(),
@@ -172,9 +174,13 @@ describe("createStudioOverlayController", () => {
 
     controller.dismiss();
     await expect(first).resolves.toEqual({ completed: false });
-    // Dismiss unmounts the view but keeps it warm: removed from the window,
-    // parked on idle over IPC, and never closed so reopening is instant.
-    expect(removeChildView).toHaveBeenCalledTimes(1);
+    const view = createdViews[0];
+    // Dismiss keeps the view warm and attached: it is hidden and sunk to the
+    // bottom of the z-stack (never removed), parked on idle over IPC, and never
+    // closed so reopening is instant.
+    expect(removeChildView).not.toHaveBeenCalled();
+    expect(view?.setVisible).toHaveBeenLastCalledWith(false);
+    expect(addChildView).toHaveBeenLastCalledWith(view, 0);
     expect(webContents?.close).not.toHaveBeenCalled();
     expect(webContents?.send).toHaveBeenLastCalledWith(
       "studio-overlay:navigate",
@@ -194,16 +200,17 @@ describe("createStudioOverlayController", () => {
       ["studio-overlay:navigate", "/studio-overlay-idle", 1],
       ["studio-overlay:navigate", "/studio-overlay/settings", 2],
     ]);
-    // Reopen should not re-add the view while the warm renderer is still parked
-    // on idle; it reveals only after the renderer acks the target route.
-    expect(addChildView).toHaveBeenCalledTimes(1);
+    // Reopen should not raise the view back to the top while the warm renderer
+    // is still parked on idle; it re-reveals only after the renderer acks the
+    // target route. Until then the last stacking op is the hide-time sink.
+    expect(addChildView).toHaveBeenLastCalledWith(view, 0);
     emitIpcFromWebContents(
       webContents,
       "studio-overlay:route-ready",
       "/studio-overlay/settings",
       2,
     );
-    expect(addChildView).toHaveBeenCalledTimes(2);
+    expect(addChildView).toHaveBeenLastCalledWith(view);
 
     controller.dismiss();
     await expect(second).resolves.toEqual({ completed: false });
@@ -229,9 +236,9 @@ describe("createStudioOverlayController", () => {
     );
 
     // No second WebContentsView is constructed; the warm one is reused and
-    // re-added to the window.
+    // raised back to the top of the z-stack on reopen.
     expect(createdViews).toHaveLength(1);
-    expect(addChildView).toHaveBeenCalledTimes(2);
+    expect(addChildView).toHaveBeenLastCalledWith(createdViews[0]);
     expect(controller.activeKind()).toBe("settings");
 
     controller.dismiss();

@@ -40,6 +40,7 @@ import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/comp
 import { Route as AppDebugBrowserViewsRouteImport } from './routes/_app/debug/browser-views'
 import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_authenticated/subscribe'
 import { Route as AppTasksIdIndexRouteImport } from './routes/_app/tasks/$id/index'
+import { Route as AppProjectsIdIndexRouteImport } from './routes/_app/projects/$id/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
 import { Route as AppDebugComponentsUpdateStatusRouteImport } from './routes/_app/debug/components/update-status'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
@@ -214,6 +215,11 @@ const AppTasksIdIndexRoute = AppTasksIdIndexRouteImport.update({
   path: '/tasks/$id/',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppProjectsIdIndexRoute = AppProjectsIdIndexRouteImport.update({
+  id: '/projects/$id/',
+  path: '/projects/$id/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppDebugComponentsIndexRoute = AppDebugComponentsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -343,6 +349,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
+  '/projects/$id': typeof AppProjectsIdIndexRoute
   '/tasks/$id': typeof AppTasksIdIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
@@ -384,6 +391,7 @@ export interface FileRoutesByTo {
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
+  '/projects/$id': typeof AppProjectsIdIndexRoute
   '/tasks/$id': typeof AppTasksIdIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
@@ -433,6 +441,7 @@ export interface FileRoutesById {
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
+  '/_app/projects/$id/': typeof AppProjectsIdIndexRoute
   '/_app/tasks/$id/': typeof AppTasksIdIndexRoute
   '/_app/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/_app/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
@@ -481,6 +490,7 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/update-status'
     | '/debug/components/'
+    | '/projects/$id'
     | '/tasks/$id'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
@@ -522,6 +532,7 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/update-status'
     | '/debug/components'
+    | '/projects/$id'
     | '/tasks/$id'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
@@ -570,6 +581,7 @@ export interface FileRouteTypes {
     | '/_app/debug/components/spinner'
     | '/_app/debug/components/update-status'
     | '/_app/debug/components/'
+    | '/_app/projects/$id/'
     | '/_app/tasks/$id/'
     | '/_app/debug/components/onboarding/complete'
     | '/_app/debug/components/onboarding/login'
@@ -806,6 +818,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIdIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/projects/$id/': {
+      id: '/_app/projects/$id/'
+      path: '/projects/$id'
+      fullPath: '/projects/$id'
+      preLoaderRoute: typeof AppProjectsIdIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/debug/components/': {
       id: '/_app/debug/components/'
       path: '/'
@@ -1012,6 +1031,7 @@ interface AppRouteRouteChildren {
   AppTutorialTaskRoute: typeof AppTutorialTaskRoute
   AppEvalsIndexRoute: typeof AppEvalsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
+  AppProjectsIdIndexRoute: typeof AppProjectsIdIndexRoute
   AppTasksIdIndexRoute: typeof AppTasksIdIndexRoute
 }
 
@@ -1023,6 +1043,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppTutorialTaskRoute: AppTutorialTaskRoute,
   AppEvalsIndexRoute: AppEvalsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
+  AppProjectsIdIndexRoute: AppProjectsIdIndexRoute,
   AppTasksIdIndexRoute: AppTasksIdIndexRoute,
 }
 

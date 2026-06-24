@@ -33,6 +33,7 @@ const byId = base
 const create = base
   .input(
     z.object({
+      description: z.string().optional(),
       instructions: z.string().optional(),
       name: z.string(),
     }),
@@ -51,6 +52,7 @@ const create = base
 const update = base
   .input(
     z.object({
+      description: z.string().optional(),
       id: ProjectIdSchema,
       instructions: z.string().optional(),
       name: z.string().optional(),

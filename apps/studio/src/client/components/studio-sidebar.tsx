@@ -1,4 +1,5 @@
 import { NavPrimary } from "@/client/components/nav-primary";
+import { NavProjects } from "@/client/components/nav-projects";
 import { NavSupport } from "@/client/components/nav-support";
 import { NavTasks } from "@/client/components/nav-tasks";
 import { NavUser } from "@/client/components/nav-user";
@@ -53,6 +54,7 @@ export function StudioSidebar({
       <ServerExceptionsAlert />
       <NavPrimary items={primaryNavItems} />
       <SidebarContent>
+        <NavProjects matches={matches} />
         {tasksData?.tasks && tasksData.tasks.length > 0 && (
           <NavTasks
             matches={matches}

@@ -14,6 +14,8 @@ export * from "./lib/is-task-id";
 export { isToolPart } from "./lib/is-tool-part";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export { FileUpload } from "./schemas/file-upload";
+export type { Project } from "./schemas/project";
+export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
 export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export { type SessionMessagePart } from "./schemas/session/message-part";

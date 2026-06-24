@@ -351,6 +351,8 @@ export const workspaceMachine = setup({
       rootDir: string;
       shimClientDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
+      uvBinPath: string;
+      uvDataDir: string;
     },
     output: {} as { error?: unknown },
   },
@@ -372,6 +374,8 @@ export const workspaceMachine = setup({
       rootDir,
       tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,
+      uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
+      uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
     };
     // Publish the single per-process config so code can read it via
     // getWorkspaceConfig() instead of threading it through every TaskId.

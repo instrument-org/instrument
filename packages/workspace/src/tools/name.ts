@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const TOOL_NAMES = {
+export const TOOL_NAMES = {
   agent: "agent",
   bash: "bash",
   choose: "choose",

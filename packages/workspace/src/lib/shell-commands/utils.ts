@@ -5,6 +5,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { normalizePath } from "../normalize-path";
 import { taskDir } from "../task-dir-utils";
+import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
@@ -91,7 +92,13 @@ export function resolveCommandContext(
   },
 ) {
   return {
-    env: Object.fromEntries(ctx.env),
+    // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
+    // ffmpeg, uv, python, pip) all resolve `uv`/`python` on PATH and share the
+    // task venv. uvSubprocessEnv wins (PATH/VIRTUAL_ENV) over the bash env.
+    env: {
+      ...Object.fromEntries(ctx.env),
+      ...uvSubprocessEnv({ taskId }),
+    },
     taskCwd: absolutePathJoin(
       taskDir(taskId),
       ctx.fs.resolvePath(ctx.cwd, "."),

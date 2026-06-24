@@ -47,6 +47,10 @@ export function buildReportWorkspaceConfig(
       path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
     ),
     trashItem: () => Promise.resolve(),
+    uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
+    uvDataDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "uv-data"),
+    ),
   };
 }
 

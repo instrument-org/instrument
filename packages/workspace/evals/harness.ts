@@ -120,6 +120,10 @@ export async function runEvals(
       rootDir: workspaceRootDir,
       shimClientDir: "dev-server",
       trashItem: () => Promise.reject(new Error("Not implemented")),
+      uvBinPath: await execa({ reject: false })`which uv`.then(
+        (result) => result.stdout.trim() || "uv",
+      ),
+      uvDataDir: path.join(workspaceRootDir, "uv-data"),
     },
   });
 

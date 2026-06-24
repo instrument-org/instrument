@@ -106,6 +106,8 @@ export function createMockTaskConfig(
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
     tasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.tasks),
     trashItem: () => Promise.resolve(),
+    uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
+    uvDataDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/uv-data`),
   };
 
   // Register this model's provider config and mirror production, where the

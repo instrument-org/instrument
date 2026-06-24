@@ -10,9 +10,11 @@ import {
   type StatementNode,
   type TransformPlugin,
 } from "just-bash";
+import { dedent } from "radashi";
 
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import { TOOL_NAMES } from "../tools/name";
 import { type UpsertContextItem } from "./capture-browser-screenshot";
 import {
   AGENT_BROWSER_COMMAND,
@@ -25,6 +27,12 @@ import {
 } from "./shell-commands/ffprobe";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import {
+  createPip3Command,
+  createPipCommand,
+  PIP3_COMMAND,
+  PIP_COMMAND,
+} from "./shell-commands/pip";
+import {
   createNpxCommand,
   createPnpmCommand,
   createPnpxCommand,
@@ -34,8 +42,15 @@ import {
   PNPX_COMMAND,
   PNX_COMMAND,
 } from "./shell-commands/pnpm";
+import {
+  createPython3Command,
+  createPythonCommand,
+  PYTHON3_COMMAND,
+  PYTHON_COMMAND,
+} from "./shell-commands/python";
 import { createTsCommand, TS_COMMAND } from "./shell-commands/ts";
 import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
+import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import { createWhichCommand } from "./shell-commands/which";
 import { taskDir } from "./task-dir-utils";
 
@@ -222,6 +237,38 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     listInDescription: true,
     name: TSC_COMMAND.name,
   },
+  {
+    description: UV_COMMAND.description,
+    factory: createUvCommand,
+    listInDescription: true,
+    name: UV_COMMAND.name,
+  },
+  {
+    description: PYTHON_COMMAND.description,
+    factory: createPythonCommand,
+    listInDescription: true,
+    name: PYTHON_COMMAND.name,
+  },
+  {
+    description: PYTHON3_COMMAND.description,
+    factory: createPython3Command,
+    // Alias of python; omitted from the description to avoid redundancy.
+    listInDescription: false,
+    name: PYTHON3_COMMAND.name,
+  },
+  {
+    description: PIP_COMMAND.description,
+    factory: createPipCommand,
+    listInDescription: true,
+    name: PIP_COMMAND.name,
+  },
+  {
+    description: PIP3_COMMAND.description,
+    factory: createPip3Command,
+    // Alias of pip; omitted from the description to avoid redundancy.
+    listInDescription: false,
+    name: PIP3_COMMAND.name,
+  },
 ];
 
 export function createBashDescription() {
@@ -244,41 +291,61 @@ export function createBashDescription() {
     ),
   ];
 
-  return [
-    "Execute bash commands in the task directory.",
-    "",
-    "IMPORTANT: This is a unix-like (POSIX) shell, regardless of the host OS.",
-    "",
-    "IMPORTANT: This is a sandboxed environment. python and other runtimes",
-    "are NOT available as system binaries. Do NOT attempt to run them directly.",
-    "Use the specialized `tsx` command below to execute TypeScript/JavaScript files.",
-    "If a system command is unavailable, do not keep probing for equivalent binaries",
-    "when a short TypeScript script using Node.js built-in APIs can perform the operation.",
-    "A missing command does not mean the task is impossible.",
-    "",
-    "IMPORTANT: `npm` is NOT available. Use `pnpm` for all package management.",
-    "",
-    "IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root, so `cd .` is always a no-op. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (`cd subdir && ...`) within a single call.",
-    "",
-    "IMPORTANT: Backgrounding is NOT supported. Each call must complete within `timeoutMs`.",
-    "",
-    "IMPORTANT: Prefer specialized tools over shell equivalents:",
-    "  - Use the `read_file` tool instead of `cat`/`head`/`tail`.",
-    "  - Use the `edit_file`/`write_file` tools instead of `sed`/`awk`/redirects for editing.",
-    `  - For audio, video, or image inspection, prefer \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\` over \`file\`.`,
-    "",
-    "TIP: Before using an unfamiliar command, run `<command> --help` to check its argument syntax.",
-    "",
-    "TIP: Heredoc pipes/redirects go on the `<<EOF` line, not after `EOF`: `cmd <<'EOF' | jq` (not `cmd <<'EOF'` ... `EOF` ... `| jq`).",
-    "",
-    `Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}`,
-    "",
-    "IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. `which`/`command -v`/`type` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside tsx/node scripts, so a script may shell out to `ffmpeg`/`ffprobe` directly.",
-    "",
-    "Specialized commands:",
-    ...described,
-    ...customLines,
-  ].join("\n");
+  const specializedCommands = [...described, ...customLines].join("\n");
+
+  return dedent`
+    Execute bash commands in the task directory.
+
+    IMPORTANT: This is a unix-like (POSIX) shell, regardless of the host OS.
+
+    IMPORTANT: Python is available via the specialized
+    \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\`
+    commands below (backed by a per-task virtualenv in work/.venv), and
+    TypeScript/JavaScript via the specialized \`${TS_COMMAND.name}\` command. If a
+    system command is unavailable, don't keep probing for equivalent binaries
+    -- a short script can usually do the job, and a missing command does not
+    mean the task is impossible.
+
+    IMPORTANT: \`npm\` is NOT available. Use \`${PNPM_COMMAND.name}\` for all
+    package management.
+
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from the
+    task root, so \`cd .\` is always a no-op. Shell state (env vars, exported
+    functions, cwd) does NOT carry across calls; to run somewhere else, prefix
+    your command (\`cd subdir && ...\`) within a single call.
+
+    IMPORTANT: Backgrounding is NOT supported. Each call must complete within
+    \`timeoutMs\`.
+
+    IMPORTANT: Prefer specialized tools over shell equivalents:
+      - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
+      - Use the \`${TOOL_NAMES.editFile}\`/\`${TOOL_NAMES.writeFile}\` tools instead
+        of \`sed\`/\`awk\`/redirects for editing.
+      - For audio, video, or image inspection, prefer
+        \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\`
+        over \`file\`.
+
+    TIP: Before using an unfamiliar command, run \`<command> --help\` to check
+    its argument syntax.
+
+    TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`:
+    \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
+
+    Available commands (this is the complete set of unix builtins; if a
+    command is not listed here it is NOT available, so use one of these or a
+    specialized command below instead of assuming): ${namedOnly.join(", ")}
+
+    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name},
+    ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an
+    absolute path. \`which\`/\`command -v\`/\`type\` may report a path like
+    /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it.
+    These binaries are also on PATH inside ${TS_COMMAND.name}/${NODE_COMMAND.name}
+    scripts, so a script may shell out to
+    \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
+
+    Specialized commands:
+    ${specializedCommands}
+  `.trim();
 }
 
 export function createBashEnv({

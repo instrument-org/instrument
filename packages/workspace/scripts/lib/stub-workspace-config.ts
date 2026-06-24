@@ -38,5 +38,7 @@ export function createStubWorkspaceConfig({
     rootDir: WorkspaceDirSchema.parse(absoluteRootDir),
     tasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     trashItem: () => Promise.resolve(),
+    uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
+    uvDataDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "uv-data")),
   };
 }

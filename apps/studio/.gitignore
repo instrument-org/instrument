@@ -12,6 +12,9 @@ node_modules/
 out/
 dist/
 
+# Vendored uv binary (downloaded by scripts/download-uv.ts)
+resources/uv/
+
 # Turbo
 .turbo
 

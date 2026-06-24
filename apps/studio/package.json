@@ -21,11 +21,11 @@
     "build:install-app-deps": "electron-builder install-app-deps",
     "build:mac:dev": "pnpm run build:install-app-deps && pnpm run build:dev && electron-builder --mac",
     "build:mac:local": "op run --no-masking --env-file=./.env.build --env-file=./.env.production -- pnpm run build:vite && electron-builder --mac",
-    "build:mac:unsigned": "pnpm run build:vite && electron-builder --mac --config.mac.identity=null --dir",
+    "build:mac:unsigned": "TARGET_PLATFORM=darwin pnpm run build:vite && electron-builder --mac --config.mac.identity=null --dir",
     "build:test": "electron-vite build --mode test",
     "build:unpack": "pnpm run build:vite && electron-builder --dir",
-    "build:vite": "pnpm run build:install-app-deps && pnpm run build",
-    "build:win:unsigned": "pnpm run build:vite && electron-builder --win --config.win.signAndEditExecutable=false --dir",
+    "build:vite": "pnpm run build:install-app-deps && pnpm run uv:download && pnpm run build",
+    "build:win:unsigned": "TARGET_PLATFORM=win32 pnpm run build:vite && electron-builder --win --config.win.signAndEditExecutable=false --dir",
     "build:windows:dev": "pnpm run build:install-app-deps && pnpm run build:dev && electron-builder --win",
     "check:lint": "eslint . --max-warnings 0 --cache",
     "check:types": "tsgo --noEmit",
@@ -35,7 +35,7 @@
     "fix:lint": "eslint . --max-warnings 0 --fix",
     "icons:check": "node scripts/generate-icons.ts --check",
     "icons:generate": "node scripts/generate-icons.ts",
-    "postinstall": "install-electron",
+    "postinstall": "install-electron && node scripts/download-uv.ts",
     "routes:generate": "tsr generate",
     "smoke-test": "vitest run --config vitest.smoke.config.ts",
     "start": "electron-vite preview",
@@ -48,7 +48,8 @@
     "test": "vitest",
     "turbo:check": "turbo run check:types check:lint",
     "turbo:check-and-test": "turbo run check:types check:lint test:ci",
-    "turbo:test": "turbo run test test:ci"
+    "turbo:test": "turbo run test test:ci",
+    "uv:download": "node scripts/download-uv.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

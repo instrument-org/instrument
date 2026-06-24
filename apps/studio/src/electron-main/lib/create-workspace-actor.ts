@@ -18,7 +18,7 @@ import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
-import { getPNPMBinPath } from "./setup-bin-directory";
+import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
 const REGISTRY_DIR_NAME = "registry";
 const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
@@ -102,6 +102,8 @@ export function createWorkspaceActor({
             )
           : "dev-server",
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
+      uvBinPath: getUvBinPath(),
+      uvDataDir: path.join(app.getPath("userData"), "uv"),
     },
     inspect(event) {
       if (!is.dev) {

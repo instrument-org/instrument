@@ -23,7 +23,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { AddToProjectSubmenu } from "../project/add-to-project-submenu";
+import { TaskProjectMenuItem } from "../project/task-project-menu-item";
 import { TaskOpenInSubmenu } from "./open-in-submenu";
 
 export function TaskActionsMenu({
@@ -122,7 +122,7 @@ export function TaskActionsMenu({
           <PencilSimpleLineIcon className="size-4" />
           <span>Rename</span>
         </DropdownMenuItem>
-        <AddToProjectSubmenu taskId={id} />
+        <TaskProjectMenuItem taskId={id} />
 
         {isDeveloperMode && (
           <>

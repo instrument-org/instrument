@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
+import { TaskProjectBreadcrumb } from "../project/task-project-breadcrumb";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +44,9 @@ export function TaskToolbar({
       <div className="@container w-full bg-background p-3">
         <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
           <div className="flex min-w-0 flex-1 items-center gap-x-1 overflow-hidden">
+            {task.projectId && (
+              <TaskProjectBreadcrumb projectId={task.projectId} />
+            )}
             <TaskChatMenu
               onChatClick={() => {
                 onSidebarChange("chat");

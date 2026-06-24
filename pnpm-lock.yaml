@@ -948,8 +948,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       just-bash:
-        specifier: github:mutewinter/just-bash#67c3a237efc96265ea315755382f5ab6b8afdf96&path:packages/just-bash
-        version: https://codeload.github.com/mutewinter/just-bash/tar.gz/67c3a237efc96265ea315755382f5ab6b8afdf96#path:packages/just-bash
+        specifier: github:mutewinter/just-bash#196e605&path:packages/just-bash
+        version: https://codeload.github.com/mutewinter/just-bash/tar.gz/196e605a87ae4b75b3bc82c8dd83b5b12f3ebd7e#path:packages/just-bash
       mime-types:
         specifier: ^3.0.2
         version: 3.0.2
@@ -6678,8 +6678,8 @@ packages:
     resolution: {integrity: sha512-ZZow9HBI5O6EPgSJLUb8n2NKgmVWTwCvHGwFuJlMjvLFqlGG6pjirPhtdsseaLZjSibD8eegzmYpUZwoIlj2cQ==}
     engines: {node: '>=4.0'}
 
-  just-bash@https://codeload.github.com/mutewinter/just-bash/tar.gz/67c3a237efc96265ea315755382f5ab6b8afdf96#path:packages/just-bash:
-    resolution: {path: packages/just-bash, tarball: https://codeload.github.com/mutewinter/just-bash/tar.gz/67c3a237efc96265ea315755382f5ab6b8afdf96}
+  just-bash@https://codeload.github.com/mutewinter/just-bash/tar.gz/196e605a87ae4b75b3bc82c8dd83b5b12f3ebd7e#path:packages/just-bash:
+    resolution: {path: packages/just-bash, tarball: https://codeload.github.com/mutewinter/just-bash/tar.gz/196e605a87ae4b75b3bc82c8dd83b5b12f3ebd7e}
     version: 3.0.2
     hasBin: true
 
@@ -15490,7 +15490,7 @@ snapshots:
       object.assign: 4.1.7
       object.values: 1.2.1
 
-  just-bash@https://codeload.github.com/mutewinter/just-bash/tar.gz/67c3a237efc96265ea315755382f5ab6b8afdf96#path:packages/just-bash:
+  just-bash@https://codeload.github.com/mutewinter/just-bash/tar.gz/196e605a87ae4b75b3bc82c8dd83b5b12f3ebd7e#path:packages/just-bash:
     dependencies:
       diff: 8.0.3
       fast-xml-parser: 5.8.0

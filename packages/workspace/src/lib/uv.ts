@@ -62,6 +62,7 @@ export function uvSubprocessEnv({
 
   return {
     PATH: pathDirs.join(path.delimiter),
+    TERM: "dumb",
     UV_CACHE_DIR: path.join(uvDataDir, "cache"),
     UV_NO_CONFIG: "1",
     UV_PYTHON_DOWNLOADS: "automatic",

@@ -145,11 +145,7 @@ export function createStudioOverlayController({
       return;
     }
     tryCaptureError("addChildView failed showing studio overlay", () => {
-      // Raised to the top so it composites above the selected tab (idempotent).
-      // The view is never removed from the tree (see `hideAndPark`); we only
-      // restack and toggle visibility so it stays GPU-composited and never
-      // shows a stale frame on reopen.
-      view.setVisible(true);
+      // Added last so it composites above the selected tab (idempotent).
       baseWindow.contentView.addChildView(view);
     });
     view.webContents?.focus();
@@ -265,20 +261,11 @@ export function createStudioOverlayController({
     return seq;
   }
 
-  /**
-   * Hide the overlay and park its renderer on the idle route. The view stays
-   * attached to the window (not removed): hiding it via `setVisible(false)` and
-   * sinking it to the bottom of the z-stack keeps the renderer composited and
-   * painting, so reopening raises a warm, up-to-date surface instead of
-   * re-adding a removed view that briefly flashes its previous frame.
-   */
+  /** Remove the view from the window and park its renderer on the idle route. */
   function hideAndPark(view: WebContentsView) {
     clearPendingReveal();
-    tryCaptureError("hiding studio overlay failed", () => {
-      view.setVisible(false);
-      // Sink below the tabs/shield so the (transparent) idle view can never
-      // intercept clicks meant for the sidebar or tab bar while hidden.
-      baseWindow.contentView.addChildView(view, 0);
+    tryCaptureError("removeChildView failed closing studio overlay", () => {
+      baseWindow.contentView.removeChildView(view);
     });
     if (booted) {
       const seq = ++navSeq;
@@ -419,7 +406,6 @@ export function createStudioOverlayController({
       const view = ensureWarmView();
       openOverlay(IDLE_LOCATION);
       tryCaptureError("addChildView failed showing studio overlay", () => {
-        view.setVisible(true);
         baseWindow.contentView.addChildView(view);
       });
       view.webContents?.focus();

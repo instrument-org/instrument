@@ -1,7 +1,7 @@
 import { InternalLink } from "@/client/components/internal-link";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
-import { BriefcaseIcon } from "@phosphor-icons/react";
+import { BagIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
 // The "<project> /" prefix shown before a task's title when it is filed under a
@@ -23,7 +23,7 @@ export function TaskProjectBreadcrumb({ projectId }: { projectId: ProjectId }) {
         params={{ id: projectId }}
         to="/projects/$id"
       >
-        <BriefcaseIcon className="size-4 shrink-0" />
+        <BagIcon className="size-4 shrink-0" />
         <span className="truncate">{project.name}</span>
       </InternalLink>
       <span className="shrink-0 text-muted-foreground/50">/</span>

@@ -14,7 +14,7 @@ import {
 import { openCreateProject } from "@/client/lib/open-create-project";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { BriefcaseIcon, CaretRightIcon, PlusIcon } from "@phosphor-icons/react";
+import { BagIcon, CaretRightIcon, PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useState } from "react";
@@ -74,7 +74,7 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
                       params={{ id: project.id }}
                       to="/projects/$id"
                     >
-                      <BriefcaseIcon className="size-4 shrink-0" />
+                      <BagIcon className="size-4 shrink-0" />
                       <span className="truncate">{project.name}</span>
                     </InternalLink>
                   </SidebarMenuButton>
@@ -90,7 +90,7 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
               className="h-9 gap-2 text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               onClick={openCreate}
             >
-              <BriefcaseIcon className="size-4 shrink-0" />
+              <BagIcon className="size-4 shrink-0" />
               <span className="flex-1 text-left">Add a project</span>
               <PlusIcon className="size-4 shrink-0 group-hover/add:text-sidebar-foreground" />
             </SidebarMenuButton>

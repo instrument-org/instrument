@@ -6,7 +6,6 @@ import { memo, useEffect, useRef, useState } from "react";
 
 import { CopyButton } from "./copy-button";
 import { RelativeTime } from "./relative-time";
-import { SessionMarkdown } from "./session-markdown";
 import {
   Collapsible,
   CollapsibleContent,
@@ -71,7 +70,9 @@ export const UserMessage = memo(function UserMessage({
             )}
             ref={contentRef}
           >
-            <SessionMarkdown markdown={messageText} />
+            <div className="text-sm break-words whitespace-pre-wrap">
+              {messageText}
+            </div>
           </div>
 
           {!isExpanded && isOverflowing && (

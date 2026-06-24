@@ -1,0 +1,138 @@
+import { InternalLink } from "@/client/components/internal-link";
+import { TaskStatusIcon } from "@/client/components/session-status-icon";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import { rpcClient } from "@/client/rpc/client";
+import { type Task } from "@instrument-org/workspace/client";
+import {
+  BagIcon,
+  CopyIcon,
+  DotsThreeOutlineVerticalIcon,
+  PencilSimpleLineIcon,
+  PushPinIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
+import { useMutation } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { format, formatDistanceToNow } from "date-fns";
+
+export function ProjectTaskRow({
+  isPinned,
+  onDelete,
+  onRename,
+  task,
+}: {
+  isPinned: boolean;
+  onDelete: (task: Task) => void;
+  onRename: (task: Task) => void;
+  task: Task;
+}) {
+  const navigate = useNavigate();
+
+  const { mutateAsync: addPin } = useMutation(
+    rpcClient.workspace.pin.add.mutationOptions(),
+  );
+  const { mutateAsync: removePin } = useMutation(
+    rpcClient.workspace.pin.remove.mutationOptions(),
+  );
+  const { mutateAsync: removeFromProject } = useMutation(
+    rpcClient.workspace.project.removeTask.mutationOptions(),
+  );
+
+  return (
+    <div className="group flex h-9 items-center gap-x-2 rounded-md px-3 hover:bg-muted">
+      {isPinned && (
+        <PushPinIcon
+          className="size-3.5 shrink-0 text-muted-foreground/50"
+          weight="fill"
+        />
+      )}
+      <InternalLink
+        className="min-w-0 flex-1 truncate text-sm font-medium"
+        openInCurrentTab
+        params={{ id: task.id }}
+        to="/tasks/$id"
+      >
+        {task.title}
+      </InternalLink>
+      <TaskStatusIcon className="size-4 shrink-0" id={task.id} />
+      <span className="shrink-0 text-xs text-muted-foreground group-hover:hidden">
+        {formatUpdated(task.updatedAt)}
+      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="hidden size-5 items-center justify-center rounded-md text-muted-foreground group-hover:flex hover:text-foreground data-[state=open]:flex">
+          <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
+          <span className="sr-only">More</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem
+            onSelect={() => {
+              void (isPinned
+                ? removePin({ id: task.id })
+                : addPin({ id: task.id }));
+            }}
+          >
+            <PushPinIcon
+              className="text-muted-foreground"
+              weight={isPinned ? "fill" : undefined}
+            />
+            <span>{isPinned ? "Unpin" : "Pin"}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              void navigate({
+                params: { id: task.id },
+                search: { showDuplicate: true },
+                to: "/tasks/$id",
+              });
+            }}
+          >
+            <CopyIcon className="text-muted-foreground" />
+            <span>Duplicate</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              onRename(task);
+            }}
+          >
+            <PencilSimpleLineIcon className="text-muted-foreground" />
+            <span>Rename</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              void removeFromProject({ taskId: task.id });
+            }}
+          >
+            <BagIcon className="text-muted-foreground" />
+            <span>Remove from project</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => {
+              onDelete(task);
+            }}
+            variant="destructive"
+          >
+            <TrashIcon className="size-4" />
+            <span>Delete</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function formatUpdated(date: Date) {
+  const diff = Date.now() - date.getTime();
+  if (diff < 7 * 24 * 60 * 60 * 1000) {
+    return formatDistanceToNow(date, { addSuffix: true })
+      .replace("less than ", "")
+      .replace("about ", "");
+  }
+  return format(date, "MMM d");
+}

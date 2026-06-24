@@ -1,23 +1,17 @@
-import type { RowSelectionState } from "@tanstack/react-table";
-
-import { InternalLink } from "@/client/components/internal-link";
+import { ProjectInstructions } from "@/client/components/project/project-instructions";
+import { ProjectTaskRow } from "@/client/components/project/project-task-row";
+import { PromptInput } from "@/client/components/prompt-input";
 import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
-import { TasksDataTable } from "@/client/components/tasks-data-table";
-import { createColumns } from "@/client/components/tasks-data-table/columns";
-import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
-import { useTabActions } from "@/client/hooks/use-tab-actions";
+import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import {
-  ProjectIdSchema,
-  type Task,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { APP_NAME } from "@instrument-org/shared";
+import { ProjectIdSchema, type Task } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /* eslint-disable perfectionist/sort-objects */
@@ -27,23 +21,24 @@ export const Route = createFileRoute("/_app/projects/$id/")({
   },
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Project" }, createIconMeta("table-properties")],
+    meta: [{ title: "Project" }, createIconMeta("project")],
   }),
 });
 /* eslint-enable perfectionist/sort-objects */
 
 function RouteComponent() {
   const { id } = Route.useParams();
-  const { addTab } = useTabActions();
+  const navigate = useNavigate();
+  const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
+    useDefaultModelURI();
+  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
-  const [page, setPage] = useState(1);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [taskToDelete, setTaskToDelete] = useState<null | Task>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<null | Task>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<null | Task>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const { data: project, isLoading } = useQuery(
+  const { data: projectData, isLoading: projectLoading } = useQuery(
     rpcClient.workspace.project.byId.queryOptions({ input: { id } }),
   );
 
@@ -62,122 +57,125 @@ function RouteComponent() {
     rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
   const pinnedTaskIdSet = useMemo(
-    () => new Set<TaskId>(pinnedTaskIds),
+    () => new Set(pinnedTaskIds),
     [pinnedTaskIds],
   );
 
-  const stopSessionMutation = useMutation(
-    rpcClient.workspace.session.stop.mutationOptions(),
+  const createTaskMutation = useMutation(
+    rpcClient.workspace.task.create.mutationOptions(),
   );
 
-  const handleStop = useCallback(
-    (taskId: TaskId) => {
-      stopSessionMutation.mutate(
-        { id: taskId },
-        {
-          onError: () => {
-            toast.error("Failed to stop session");
-          },
-        },
-      );
-    },
-    [stopSessionMutation],
-  );
-
-  const handleOpenInNewTab = useCallback(
-    (taskId: TaskId) => {
-      void addTab(
-        { params: { id: taskId }, to: "/tasks/$id" },
-        { select: true },
-      );
-    },
-    [addTab],
-  );
-
-  const handleDelete = useCallback(
-    (taskId: TaskId) => {
-      const task = memberTasks.find((t) => t.id === taskId);
-      if (task) {
-        setTaskToDelete(task);
-        setDeleteDialogOpen(true);
-      }
-    },
-    [memberTasks],
-  );
-
-  const handleSettings = useCallback(
-    (taskId: TaskId) => {
-      const task = memberTasks.find((t) => t.id === taskId);
-      if (task) {
-        setTaskToEdit(task);
-        setSettingsDialogOpen(true);
-      }
-    },
-    [memberTasks],
-  );
-
-  const columns = useMemo(
-    () =>
-      createColumns({
-        onDelete: handleDelete,
-        onOpenInNewTab: handleOpenInNewTab,
-        onSettings: handleSettings,
-        onStop: handleStop,
-        pinnedTaskIds: pinnedTaskIdSet,
-      }),
-    [
-      handleDelete,
-      handleOpenInNewTab,
-      handleSettings,
-      handleStop,
-      pinnedTaskIdSet,
-    ],
-  );
-
-  if (isLoading) {
+  if (projectLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center py-12">
+      <div className="flex h-full items-center justify-center">
         <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
   }
 
-  if (!project) {
+  if (!projectData) {
     return (
-      <div className="flex flex-1 items-center justify-center py-12 text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Project not found.
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-6 lg:px-8">
-      <div className="flex items-start justify-between gap-x-4">
-        <div className="flex min-w-0 flex-col gap-y-1">
-          <h1 className="truncate text-2xl font-bold tracking-tight">
-            {project.name}
-          </h1>
-          {project.description && (
-            <p className="text-sm text-muted-foreground">
-              {project.description}
-            </p>
-          )}
+    <div className="flex h-full min-h-0">
+      <div className="min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex max-w-2xl flex-col gap-y-6 px-6 py-10">
+          <div className="flex flex-col gap-y-1">
+            <h1 className="text-2xl font-bold tracking-tight">
+              {projectData.name}
+            </h1>
+            {projectData.description && (
+              <p className="text-sm text-muted-foreground">
+                {projectData.description}
+              </p>
+            )}
+          </div>
+
+          <PromptInput
+            atomKey={`$$project:${id}$$`}
+            autoResizeMaxHeight={240}
+            isLoading={createTaskMutation.isPending}
+            modelURI={selectedModelURI}
+            onModelChange={setSelectedModelURI}
+            onSubmit={({ files, folders, modelURI, prompt }) => {
+              saveSelectedModelURI(modelURI);
+              createTaskMutation.mutate(
+                { files, folders, modelURI, projectId: id, prompt },
+                {
+                  onError: (error) => {
+                    toast.error(
+                      `There was an error starting your task: ${error.message}`,
+                    );
+                  },
+                  onSuccess: ({ id: taskId, sessionId }) => {
+                    promptInputRef.current?.clear();
+                    void navigate({
+                      params: { id: taskId },
+                      search: { selectedSessionId: sessionId },
+                      to: "/tasks/$id",
+                    });
+                  },
+                },
+              );
+            }}
+            placeholder={`Talk to ${APP_NAME}`}
+            ref={promptInputRef}
+          />
+
+          <div className="flex flex-col gap-y-1">
+            <div className="px-3 py-1 text-xs font-medium text-muted-foreground/60">
+              Tasks
+            </div>
+            {memberTasks.length === 0 ? (
+              <p className="px-3 py-6 text-sm text-muted-foreground">
+                No tasks in this project yet. Start one above.
+              </p>
+            ) : (
+              memberTasks.map((task) => (
+                <ProjectTaskRow
+                  isPinned={pinnedTaskIdSet.has(task.id)}
+                  key={task.id}
+                  onDelete={(t) => {
+                    setTaskToDelete(t);
+                    setDeleteDialogOpen(true);
+                  }}
+                  onRename={(t) => {
+                    setTaskToEdit(t);
+                    setSettingsDialogOpen(true);
+                  }}
+                  task={task}
+                />
+              ))
+            )}
+          </div>
         </div>
-        <Button asChild size="sm">
-          <InternalLink to="/new-tab">New task</InternalLink>
-        </Button>
       </div>
 
-      <div className="mt-8">
-        <TasksDataTable
-          columns={columns}
-          data={memberTasks}
-          onPageChange={setPage}
-          onRowSelectionChange={setRowSelection}
-          page={page}
-          rowSelection={rowSelection}
+      <aside className="w-80 shrink-0 overflow-y-auto border-l p-6">
+        <ProjectInstructions
+          instructions={projectData.instructions}
+          key={projectData.id}
+          projectId={projectData.id}
         />
-      </div>
+      </aside>
+
+      {taskToEdit && (
+        <TaskSettingsDialog
+          onOpenChange={(open) => {
+            setSettingsDialogOpen(open);
+            if (!open) {
+              setTaskToEdit(null);
+            }
+          }}
+          open={settingsDialogOpen}
+          task={taskToEdit}
+        />
+      )}
 
       {taskToDelete && (
         <TaskDeleteDialog
@@ -190,19 +188,6 @@ function RouteComponent() {
           }}
           open={deleteDialogOpen}
           task={taskToDelete}
-        />
-      )}
-
-      {taskToEdit && (
-        <TaskSettingsDialog
-          onOpenChange={(open) => {
-            setSettingsDialogOpen(open);
-            if (!open) {
-              setTaskToEdit(null);
-            }
-          }}
-          open={settingsDialogOpen}
-          task={taskToEdit}
         />
       )}
     </div>

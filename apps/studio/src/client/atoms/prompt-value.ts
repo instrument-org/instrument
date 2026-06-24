@@ -8,7 +8,11 @@ import { debounce } from "radashi";
 
 import { rpcClient } from "../rpc/client";
 
-export type PromptValueAtomKey = "$$new-tab$$" | "$$template$$" | TaskId;
+export type PromptValueAtomKey =
+  | "$$new-tab$$"
+  | "$$template$$"
+  | `$$project:${string}$$`
+  | TaskId;
 
 export const promptInputRefAtom = atom<HTMLTextAreaElement | null>(null);
 
@@ -67,8 +71,20 @@ const createTaskPromptStorage = (id: TaskId) => {
   };
 };
 
+// Sentinel keys (new-tab, template, per-project) get ephemeral in-memory drafts;
+// only real tasks back their draft with task-state storage.
+function isEphemeralKey(
+  key: PromptValueAtomKey,
+): key is "$$new-tab$$" | "$$template$$" | `$$project:${string}$$` {
+  return (
+    key === "$$new-tab$$" ||
+    key === "$$template$$" ||
+    key.startsWith("$$project:")
+  );
+}
+
 export const promptValueAtomFamily = atomFamily((key: PromptValueAtomKey) => {
-  if (key === "$$new-tab$$" || key === "$$template$$") {
+  if (isEphemeralKey(key)) {
     return atom("");
   }
 

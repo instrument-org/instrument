@@ -25,6 +25,28 @@ import {
   setProjectFolder,
 } from "./workspace-store";
 
+export async function addFolderToProject(
+  id: ProjectId,
+  path: string,
+): Promise<
+  Result<
+    Project,
+    | TypedError.Conflict
+    | TypedError.FileSystem
+    | TypedError.NotFound
+    | TypedError.Parse
+  >
+> {
+  const project = await getProject(id);
+  if (project.isErr()) {
+    return err(project.error);
+  }
+  const folders = project.value.folders.includes(path)
+    ? project.value.folders
+    : [...project.value.folders, path];
+  return updateProject(id, { folders });
+}
+
 export async function createProject({
   description,
   instructions,
@@ -82,6 +104,7 @@ export async function createProject({
   return ok({
     createdAt,
     description: description ?? "",
+    folders: [],
     id,
     instructions: instructions ?? "",
     name: folderName,
@@ -159,13 +182,40 @@ export async function listProjects(): Promise<Project[]> {
   );
 }
 
+export async function removeFolderFromProject(
+  id: ProjectId,
+  path: string,
+): Promise<
+  Result<
+    Project,
+    | TypedError.Conflict
+    | TypedError.FileSystem
+    | TypedError.NotFound
+    | TypedError.Parse
+  >
+> {
+  const project = await getProject(id);
+  if (project.isErr()) {
+    return err(project.error);
+  }
+  return updateProject(id, {
+    folders: project.value.folders.filter((folder) => folder !== path),
+  });
+}
+
 export async function updateProject(
   id: ProjectId,
   {
     description,
+    folders,
     instructions,
     name,
-  }: { description?: string; instructions?: string; name?: string },
+  }: {
+    description?: string;
+    folders?: string[];
+    instructions?: string;
+    name?: string;
+  },
 ): Promise<
   Result<
     Project,
@@ -218,19 +268,26 @@ export async function updateProject(
     }
   }
 
-  if (description !== undefined) {
+  if (description !== undefined || folders !== undefined) {
     const settings = await readProjectSettings(folderName);
     if (settings.isErr()) {
       return err(settings.error);
     }
+    const nextSettings = { ...settings.value };
+    if (description !== undefined) {
+      nextSettings.description = description;
+    }
+    if (folders !== undefined) {
+      nextSettings.folders = folders;
+    }
     try {
       await fs.writeFile(
         projectSettingsPath(folderName),
-        JSON.stringify({ ...settings.value, description }, null, 2),
+        JSON.stringify(nextSettings, null, 2),
       );
     } catch (error) {
       return err(
-        new TypedError.FileSystem(`Failed to write project description`, {
+        new TypedError.FileSystem(`Failed to write project settings`, {
           cause: error,
         }),
       );
@@ -303,6 +360,7 @@ async function readProject(
   return ok({
     createdAt: settings.value.createdAt,
     description: settings.value.description ?? "",
+    folders: settings.value.folders ?? [],
     id: settings.value.id,
     instructions,
     name: folderName,

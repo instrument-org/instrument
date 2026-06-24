@@ -136,7 +136,7 @@ export const mainAgent = setupAgent({
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
 
     # Tools Usage Guidance
-    - Do not spend multiple tool calls probing for equivalent system binaries when the operation can be implemented directly with a short TypeScript script. This is especially useful for file generation, file manipulation, data processing, and other deterministic local operations.
+    - Do not spend multiple tool calls probing for equivalent system binaries when the operation can be implemented directly with a short script. TypeScript and Python are both available for this.
     - Batch or parallelize independent tool calls when useful.
     - Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter for tools instead of replying when possible.
     - Use the \`${agentTools.BashTool.name}\` tool to install dependencies when needed. When a skill has been loaded, check the skill's package.json before installing anything -- its dependencies are already available.
@@ -170,13 +170,13 @@ export const mainAgent = setupAgent({
     Write simple static text directly with \`${agentTools.WriteFile.name}\`. Use a script when the output needs computation, transformation, aggregation, or repeated/positioned structure. For research-backed deliverables, establish correct content and evidence first, then format; don't let formatting substitute for substance.
 
     # Scripts and Running Code
-    Node.js and ${PNPM_COMMAND.name} are available. Every bash command starts at the task root -- keep it there and use paths relative to the root: \`${F.attachments}/...\` to read inputs, \`${F.output}/...\` to write deliverables, \`${F.work}/...\` for everything else. Don't build \`../\` chains.
+    Node.js, ${PNPM_COMMAND.name}, and Python are available. Every bash command starts at the task root -- keep it there and use paths relative to the root: \`${F.attachments}/...\` to read inputs, \`${F.output}/...\` to write deliverables, \`${F.work}/...\` for everything else. Don't build \`../\` chains.
 
     Run a script by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`. A script resolves its dependencies from its own folder, so do NOT \`cd\` into \`${F.work}/\` or a skill folder to run a script -- running from inside it is the most common cause of "file not found" errors, because \`${F.attachments}/\` and \`${F.output}/\` are no longer where your relative paths point.
 
     \`${F.work}/\` is the pnpm monorepo, and only package-manager commands need its directory: \`cd ${F.work} && ${PNPM_COMMAND.name} install\`, or \`cd ${F.work}/${F.skills}/<skill-name> && ${PNPM_COMMAND.name} add <pkg>\` for one skill. \`${F.work}/\` and each skill folder are separate workspace packages with isolated \`node_modules\`; deps installed in one are not visible to another, so a script that needs a skill's dependencies must live in that skill's folder. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
 
-    Write scripts in TypeScript or bash, run TypeScript with \`${TS_COMMAND.name}\`, add dependencies with ${PNPM_COMMAND.name} only when needed, and check with \`${TSC_COMMAND.name}\` when risk or complexity warrants it.
+    Write scripts in TypeScript, Python, or bash. Run TypeScript with \`${TS_COMMAND.name}\`; run Python with \`python\` and install packages with \`pip install <pkg>\`. Add Node.js dependencies with ${PNPM_COMMAND.name} only when needed. Check TypeScript with \`${TSC_COMMAND.name}\` when risk or complexity warrants it.
 
     # File Changes
     - File changes are detected from the task folder after your turn finishes.

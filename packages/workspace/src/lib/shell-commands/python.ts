@@ -12,7 +12,7 @@ import { ensureTaskVenv } from "./uv";
 // share the environment `pip` (uv pip) installs into.
 export const PYTHON_COMMAND = {
   description:
-    "Run Python via the per-task virtualenv (work/.venv). Shares packages installed with `pip`. For multi-line code, write a `.py` file and run it rather than `python -c` -- the shell does not preserve leading indentation inside inline quoted strings.",
+    "Run Python via the per-task virtualenv (work/.venv). Shares packages installed with `pip`. Use the `pip` command to install packages: `python -m pip` is not available.",
   name: "python",
 } as const;
 
@@ -31,6 +31,18 @@ export function createPythonCommand(taskId: TaskId) {
 
 function createPythonCommandNamed(taskId: TaskId, name: string) {
   return defineCommand(name, async (args, ctx) => {
+    // Catch `python -m pip` before hitting the interpreter; the venv has no
+    // seeded pip module, so it would fail with "No module named pip". Direct
+    // the agent to the `pip` command instead.
+    if (args[0] === "-m" && args[1] === "pip") {
+      return {
+        exitCode: 1,
+        stderr: "",
+        stdout:
+          "`python -m pip` is not available (pip is not seeded in the venv). Use the `pip` command instead, e.g. `pip install <package>`.\n",
+      };
+    }
+
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     const venvError = await ensureTaskVenv({ ctx, env, taskCwd, taskId });

@@ -28,6 +28,26 @@ export function createPipCommand(taskId: TaskId) {
 
 function createPipCommandNamed(taskId: TaskId, name: string) {
   return defineCommand(name, async (args, ctx) => {
+    // `uv pip --version` is not a valid uv subcommand; intercept and return a
+    // pip-compatible version string so agents that probe with `pip --version`
+    // get a useful response rather than a confusing uv usage error.
+    if (args[0] === "--version" || args[0] === "-V") {
+      const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+      const uvResult = await runUv({
+        args: ["--version"],
+        ctx,
+        env,
+        taskCwd,
+        taskId,
+      });
+      const uvVersion = uvResult.stdout.trim();
+      return {
+        exitCode: 0,
+        stderr: "",
+        stdout: `pip (via uv; ${uvVersion}) from work/.venv\n`,
+      };
+    }
+
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     const venvError = await ensureTaskVenv({ ctx, env, taskCwd, taskId });

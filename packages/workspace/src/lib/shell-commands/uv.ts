@@ -23,6 +23,17 @@ export function createUvCommand(taskId: TaskId) {
     }
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+
+    // `uv pip` requires the venv to exist (VIRTUAL_ENV points at work/.venv).
+    // Ensure it here so `uv pip install` works even before any `python`/`pip`
+    // call has run, matching the behavior of the `pip` custom command.
+    if (args[0] === "pip") {
+      const venvError = await ensureTaskVenv({ ctx, env, taskCwd, taskId });
+      if (venvError !== undefined) {
+        return { exitCode: 1, stderr: "", stdout: venvError };
+      }
+    }
+
     const result = await runUv({
       args: resolvePathArgs(args, taskId, ctx),
       ctx,

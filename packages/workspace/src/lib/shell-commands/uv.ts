@@ -6,7 +6,12 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
-import { getUvBinPath, taskVenvDir, taskVenvPython } from "../uv";
+import {
+  getUvBinPath,
+  MANAGED_PYTHON_VERSION,
+  taskVenvDir,
+  taskVenvPython,
+} from "../uv";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
 export const UV_COMMAND = {
@@ -83,7 +88,7 @@ export async function ensureTaskVenv({
   }
 
   const creation = runUv({
-    args: ["venv", taskVenvDir(taskId)],
+    args: ["venv", "--python", MANAGED_PYTHON_VERSION, taskVenvDir(taskId)],
     ctx,
     env,
     taskCwd,

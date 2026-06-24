@@ -18,7 +18,7 @@ import {
   ArrowUpRightIcon,
   DotsThreeOutlineVerticalIcon,
   PencilSimpleLineIcon,
-  StarIcon,
+  PushPinIcon,
   StopCircleIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
@@ -43,17 +43,17 @@ export function TaskActionsCell({
     actor.tags.includes("agent.alive"),
   );
 
-  const { data: favoriteTaskIds } = useQuery(
-    rpcClient.favorites.live.listTaskIds.experimental_liveOptions(),
+  const { data: pinnedTaskIds } = useQuery(
+    rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
-  const isFavorite = favoriteTaskIds?.includes(id);
+  const isPinned = pinnedTaskIds?.includes(id);
 
-  const { mutateAsync: removeFavorite } = useMutation(
-    rpcClient.favorites.remove.mutationOptions(),
+  const { mutateAsync: removePin } = useMutation(
+    rpcClient.workspace.pin.remove.mutationOptions(),
   );
 
-  const { mutateAsync: addFavorite } = useMutation(
-    rpcClient.favorites.add.mutationOptions(),
+  const { mutateAsync: addPin } = useMutation(
+    rpcClient.workspace.pin.add.mutationOptions(),
   );
 
   return (
@@ -100,18 +100,18 @@ export function TaskActionsCell({
         <DropdownMenuContent align="end">
           <DropdownMenuItem
             onSelect={() => {
-              if (isFavorite) {
-                void removeFavorite({ id });
+              if (isPinned) {
+                void removePin({ id });
               } else {
-                void addFavorite({ id });
+                void addPin({ id });
               }
             }}
           >
-            <StarIcon
+            <PushPinIcon
               className="text-muted-foreground"
-              weight={isFavorite ? "fill" : undefined}
+              weight={isPinned ? "fill" : undefined}
             />
-            <span>{isFavorite ? "Remove favorite" : "Favorite"}</span>
+            <span>{isPinned ? "Unpin" : "Pin"}</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {

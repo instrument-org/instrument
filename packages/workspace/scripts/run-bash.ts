@@ -101,6 +101,7 @@ setWorkspaceConfig({
       ({ stdout }) => stdout.trim() || "/usr/bin/pnpm",
     ),
   ),
+  projectsDir: AbsolutePathSchema.parse(path.join(rootDir, "projects")),
   registryDir: WorkspaceDirSchema.parse(path.join(rootDir, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),
   tasksDir: AbsolutePathSchema.parse(tasksDir),

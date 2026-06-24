@@ -24,8 +24,6 @@ export interface AnalyticsEvents {
   "external_link.clicked": {
     external_url: string;
   };
-  "favorite.added": never;
-  "favorite.removed": never;
   "framework.not_supported": {
     framework: string;
   };
@@ -64,6 +62,12 @@ export interface AnalyticsEvents {
     had_results: boolean;
     query: string;
   };
+  "pin.added": never;
+  "pin.removed": never;
+  "project.created": never;
+  "project.removed": never;
+  "project.task_added": never;
+  "project.task_removed": never;
   "provider.created": {
     provider_type: AIProviderType;
   };

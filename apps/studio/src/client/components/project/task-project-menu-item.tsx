@@ -8,11 +8,14 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
-import { BriefcaseIcon, CheckIcon, PlusIcon } from "@phosphor-icons/react";
+import { BriefcaseIcon, PlusIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export function AddToProjectSubmenu({ taskId }: { taskId: TaskId }) {
+// Renders the task's project affordance in a dropdown menu: a "Remove from
+// project" item when the task is already filed, otherwise an "Add to project"
+// submenu listing projects plus a "New project" entry.
+export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
   const openCreate = useOpenCreateProject();
 
   const { data: projects } = useQuery(
@@ -46,6 +49,19 @@ export function AddToProjectSubmenu({ taskId }: { taskId: TaskId }) {
     }),
   );
 
+  if (currentProjectId) {
+    return (
+      <DropdownMenuItem
+        onSelect={() => {
+          void removeTask({ taskId });
+        }}
+      >
+        <BriefcaseIcon className="size-4 text-muted-foreground" />
+        Remove from project
+      </DropdownMenuItem>
+    );
+  }
+
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
@@ -53,25 +69,17 @@ export function AddToProjectSubmenu({ taskId }: { taskId: TaskId }) {
         Add to project
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="min-w-48">
-        {projects?.map((project) => {
-          const isCurrent = project.id === currentProjectId;
-          return (
-            <DropdownMenuItem
-              key={project.id}
-              onSelect={() => {
-                if (isCurrent) {
-                  void removeTask({ taskId });
-                } else {
-                  void addTask({ projectId: project.id, taskId });
-                }
-              }}
-            >
-              <BriefcaseIcon className="size-4 text-muted-foreground" />
-              <span className="flex-1 truncate">{project.name}</span>
-              {isCurrent && <CheckIcon className="size-4" />}
-            </DropdownMenuItem>
-          );
-        })}
+        {projects?.map((project) => (
+          <DropdownMenuItem
+            key={project.id}
+            onSelect={() => {
+              void addTask({ projectId: project.id, taskId });
+            }}
+          >
+            <BriefcaseIcon className="size-4 text-muted-foreground" />
+            <span className="flex-1 truncate">{project.name}</span>
+          </DropdownMenuItem>
+        ))}
         {projects && projects.length > 0 && <DropdownMenuSeparator />}
         <DropdownMenuItem
           onSelect={() => {

@@ -12,17 +12,21 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
+import { openCreateProject } from "@/client/lib/open-create-project";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import {
   ArrowUpRightIcon,
+  BriefcaseIcon,
+  CaretLeftIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   PencilSimpleLineIcon,
+  PlusIcon,
   PushPinIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { TaskStatusIcon } from "./session-status-icon";
@@ -41,6 +45,10 @@ export const NavTaskItem = memo(function NavTaskItem({
   task,
 }: NavTaskItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // The sidebar lives in its own WebContentsView, so a flyout submenu for
+  // "Add to project" would be clipped. Instead the menu drills in: swap the
+  // popover contents to the project list (vertical, stays in bounds).
+  const [menuView, setMenuView] = useState<"projects" | "root">("root");
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +62,16 @@ export const NavTaskItem = memo(function NavTaskItem({
   );
   const { mutateAsync: removePin } = useMutation(
     rpcClient.workspace.pin.remove.mutationOptions(),
+  );
+
+  const { data: projects } = useQuery(
+    rpcClient.workspace.project.live.list.experimental_liveOptions(),
+  );
+  const { mutateAsync: addTaskToProject } = useMutation(
+    rpcClient.workspace.project.addTask.mutationOptions(),
+  );
+  const { mutateAsync: removeTaskFromProject } = useMutation(
+    rpcClient.workspace.project.removeTask.mutationOptions(),
   );
 
   if (!isEditing && editValue !== task.title) {
@@ -135,7 +153,15 @@ export const NavTaskItem = memo(function NavTaskItem({
           />
         </div>
       ) : (
-        <DropdownMenu onOpenChange={setIsMenuOpen} open={isMenuOpen}>
+        <DropdownMenu
+          onOpenChange={(open) => {
+            setIsMenuOpen(open);
+            if (!open) {
+              setMenuView("root");
+            }
+          }}
+          open={isMenuOpen}
+        >
           <SidebarMenuButton
             asChild
             className="h-9 gap-1 text-sidebar-foreground/60 group-hover:bg-sidebar-accent group-hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground"
@@ -175,57 +201,113 @@ export const NavTaskItem = memo(function NavTaskItem({
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-50" side="bottom">
-            <DropdownMenuItem
-              onClick={() => {
-                void handleTogglePin();
-              }}
-            >
-              <PushPinIcon
-                className="text-muted-foreground"
-                weight={isPinned ? "fill" : undefined}
-              />
-              <span>{isPinned ? "Unpin" : "Pin"}</span>
-            </DropdownMenuItem>
-            <InternalLink
-              openInCurrentTab
-              params={{ id: task.id }}
-              search={{ showDuplicate: true }}
-              to="/tasks/$id"
-            >
-              <DropdownMenuItem>
-                <CopyIcon className="text-muted-foreground" />
-                <span>Duplicate</span>
-              </DropdownMenuItem>
-            </InternalLink>
-            <DropdownMenuItem onClick={handleStartEdit}>
-              <PencilSimpleLineIcon className="text-muted-foreground" />
-              <span>Rename</span>
-            </DropdownMenuItem>
-            {/* "Add to project" intentionally omitted here: its flyout submenu
-                is clipped by the sidebar's own WebContentsView. Available from
-                the task toolbar, tasks table, and project page until the
-                sidebar is unified with the main view. */}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                onOpenInNewTab(task.id);
-              }}
-            >
-              <ArrowUpRightIcon className="text-muted-foreground" />
-              <span>Open in new tab</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <InternalLink
-              openInCurrentTab
-              params={{ id: task.id }}
-              search={{ showDelete: true }}
-              to="/tasks/$id"
-            >
-              <DropdownMenuItem variant="destructive">
-                <TrashIcon className="size-4" />
-                <span>Delete</span>
-              </DropdownMenuItem>
-            </InternalLink>
+            {menuView === "projects" ? (
+              <>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setMenuView("root");
+                  }}
+                >
+                  <CaretLeftIcon className="text-muted-foreground" />
+                  <span>Back</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {projects?.map((project) => (
+                  <DropdownMenuItem
+                    key={project.id}
+                    onSelect={() => {
+                      void addTaskToProject({
+                        projectId: project.id,
+                        taskId: task.id,
+                      });
+                    }}
+                  >
+                    <BriefcaseIcon className="text-muted-foreground" />
+                    <span className="truncate">{project.name}</span>
+                  </DropdownMenuItem>
+                ))}
+                {projects && projects.length > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  onSelect={() => {
+                    openCreateProject();
+                  }}
+                >
+                  <PlusIcon className="text-muted-foreground" />
+                  <span>New project</span>
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem
+                  onClick={() => {
+                    void handleTogglePin();
+                  }}
+                >
+                  <PushPinIcon
+                    className="text-muted-foreground"
+                    weight={isPinned ? "fill" : undefined}
+                  />
+                  <span>{isPinned ? "Unpin" : "Pin"}</span>
+                </DropdownMenuItem>
+                <InternalLink
+                  openInCurrentTab
+                  params={{ id: task.id }}
+                  search={{ showDuplicate: true }}
+                  to="/tasks/$id"
+                >
+                  <DropdownMenuItem>
+                    <CopyIcon className="text-muted-foreground" />
+                    <span>Duplicate</span>
+                  </DropdownMenuItem>
+                </InternalLink>
+                <DropdownMenuItem onClick={handleStartEdit}>
+                  <PencilSimpleLineIcon className="text-muted-foreground" />
+                  <span>Rename</span>
+                </DropdownMenuItem>
+                {task.projectId ? (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      void removeTaskFromProject({ taskId: task.id });
+                    }}
+                  >
+                    <BriefcaseIcon className="text-muted-foreground" />
+                    <span>Remove from project</span>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setMenuView("projects");
+                    }}
+                  >
+                    <BriefcaseIcon className="text-muted-foreground" />
+                    <span>Add to project</span>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    onOpenInNewTab(task.id);
+                  }}
+                >
+                  <ArrowUpRightIcon className="text-muted-foreground" />
+                  <span>Open in new tab</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <InternalLink
+                  openInCurrentTab
+                  params={{ id: task.id }}
+                  search={{ showDelete: true }}
+                  to="/tasks/$id"
+                >
+                  <DropdownMenuItem variant="destructive">
+                    <TrashIcon className="size-4" />
+                    <span>Delete</span>
+                  </DropdownMenuItem>
+                </InternalLink>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}

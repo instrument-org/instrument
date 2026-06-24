@@ -47,6 +47,40 @@ const TARGET_TRIPLES: Record<NodePlatform, Record<NodeArch, string>> = {
   },
 };
 
+// cspell:ignore bsdtar MSYS
+// Extract the downloaded archive into `extractDir`. On Windows runners the `tar`
+// on PATH is often MSYS/Git GNU tar, which can't read zips and parses the
+// `D:\...` drive-letter path as a remote host ("Cannot connect to D:"). Use
+// PowerShell's built-in Expand-Archive there. Elsewhere `tar` is bsdtar
+// (macOS/Linux), which autodetects .tar.gz and .zip; run it from `extractDir`
+// with a relative archive name so a drive-letter path never reaches tar.
+function extractArchive({
+  archivePath,
+  asset,
+  ext,
+  extractDir,
+}: {
+  archivePath: string;
+  asset: string;
+  ext: string;
+  extractDir: string;
+}) {
+  if (ext === "zip" && process.platform === "win32") {
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `Expand-Archive -LiteralPath '${archivePath}' -DestinationPath '${extractDir}' -Force`,
+      ],
+      { stdio: "inherit" },
+    );
+    return;
+  }
+  execFileSync("tar", ["-xf", asset], { cwd: extractDir, stdio: "inherit" });
+}
+
 async function fetchBuffer(url: string): Promise<Buffer> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -113,12 +147,7 @@ async function main() {
   try {
     const archivePath = path.join(extractDir, asset);
     writeFileSync(archivePath, archive);
-    // cspell:ignore bsdtar
-    // `tar` (bsdtar) ships on macOS, Linux, and Windows 10+ and autodetects
-    // both .tar.gz and .zip, so we avoid an unzip dependency.
-    execFileSync("tar", ["-xf", archivePath, "-C", extractDir], {
-      stdio: "inherit",
-    });
+    extractArchive({ archivePath, asset, ext, extractDir });
 
     const uvBinary = findUvBinary(extractDir, binaryName);
     mkdirSync(RESOURCES_UV_DIR, { recursive: true });

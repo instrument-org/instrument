@@ -25,6 +25,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { memo, useEffect, useRef, useState } from "react";
 
+import { AddToProjectSubmenu } from "./project/add-to-project-submenu";
 import { TaskStatusIcon } from "./session-status-icon";
 
 interface NavTaskItemProps {
@@ -201,6 +202,7 @@ export const NavTaskItem = memo(function NavTaskItem({
               <PencilSimpleLineIcon className="text-muted-foreground" />
               <span>Rename</span>
             </DropdownMenuItem>
+            <AddToProjectSubmenu taskId={task.id} />
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {

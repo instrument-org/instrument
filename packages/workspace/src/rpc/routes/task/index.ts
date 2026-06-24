@@ -29,6 +29,7 @@ import {
 } from "../../../lib/usage-summary";
 import { FileUpload } from "../../../schemas/file-upload";
 import { AbsolutePathSchema } from "../../../schemas/paths";
+import { ProjectIdSchema } from "../../../schemas/project-id";
 import { StoreId } from "../../../schemas/store-id";
 import { SubdomainPartSchema } from "../../../schemas/subdomain-part";
 import { TaskSchema } from "../../../schemas/task";
@@ -123,6 +124,7 @@ const create = base
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
       preferredFolderName: SubdomainPartSchema.optional(),
+      projectId: ProjectIdSchema.nullish(),
       prompt: z.string(),
     }),
   )
@@ -136,7 +138,15 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, modelURI, name, preferredFolderName, prompt },
+      input: {
+        files,
+        folders,
+        modelURI,
+        name,
+        preferredFolderName,
+        projectId,
+        prompt,
+      },
       signal,
     }) => {
       const modelResult = await fetchModel({
@@ -163,7 +173,10 @@ const create = base
 
       const result = await initializeTask(
         {
-          initialSettings: { name: initialTaskName },
+          initialSettings: {
+            name: initialTaskName,
+            projectId: projectId ?? undefined,
+          },
           taskId,
           workspaceConfig: context.workspaceConfig,
         },

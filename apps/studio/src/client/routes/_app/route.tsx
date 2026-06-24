@@ -1,5 +1,6 @@
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { taskFileViewerAtom } from "@/client/atoms/task-file-viewer";
+import { CreateProjectDialog } from "@/client/components/project/create-project-dialog";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInvalidateRouterOnUserChange } from "@/client/hooks/use-invalidate-router-on-user-change";
@@ -75,6 +76,7 @@ function RouteComponent() {
       <Suspense fallback={null}>
         <StudioCommandMenu />
       </Suspense>
+      <CreateProjectDialog />
       {isTaskFileViewerOpen && (
         <Suspense fallback={null}>
           <LazyTaskFileViewerModal />

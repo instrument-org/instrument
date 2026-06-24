@@ -36,6 +36,7 @@ const create = base
   .input(
     z.object({
       description: z.string().optional(),
+      folders: z.array(z.string()).optional(),
       instructions: z.string().optional(),
       name: z.string(),
     }),

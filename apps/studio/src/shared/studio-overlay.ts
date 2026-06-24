@@ -55,6 +55,12 @@ const StudioOverlaySettingsPropsSchema = z.object({
   tab: z.enum(SETTINGS_TABS).optional(),
 });
 
+const StudioOverlayNewProjectPropsSchema = z.object({
+  // When opened from a task's "Add to project > New project", the task to file
+  // into the project once it's created.
+  taskId: z.string().optional(),
+});
+
 export const StudioOverlayRequestSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("crash"),
@@ -65,6 +71,7 @@ export const StudioOverlayRequestSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("new-project"),
+    props: StudioOverlayNewProjectPropsSchema.optional(),
   }),
   z.object({
     kind: z.literal("welcome"),
@@ -98,6 +105,11 @@ export const StudioOverlayLoginSearchSchema = z.object({
   reason: z.literal("provider-required").optional(),
 });
 
+/** Search params for the `/studio-overlay/new-project` route. */
+export const StudioOverlayNewProjectSearchSchema = z.object({
+  taskId: z.string().optional(),
+});
+
 /**
  * Search params for the Providers settings route, shared by the standalone
  * window route and the modal child route.
@@ -129,7 +141,11 @@ export function studioOverlayRequestToLocation(request: StudioOverlayRequest): {
       return { path: "/studio-overlay/login", search };
     }
     case "new-project": {
-      return { path: "/studio-overlay/new-project", search: {} };
+      const search: Record<string, string> = {};
+      if (request.props?.taskId) {
+        search.taskId = request.props.taskId;
+      }
+      return { path: "/studio-overlay/new-project", search };
     }
     case "settings": {
       const tab = request.props?.tab ?? "General";

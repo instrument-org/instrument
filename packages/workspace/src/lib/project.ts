@@ -49,10 +49,12 @@ export async function addFolderToProject(
 
 export async function createProject({
   description,
+  folders,
   instructions,
   name,
 }: {
   description?: string;
+  folders?: string[];
   instructions?: string;
   name: string;
 }): Promise<
@@ -85,7 +87,12 @@ export async function createProject({
     await fs.writeFile(
       projectSettingsPath(folderName),
       JSON.stringify(
-        { createdAt, description: description ?? "", id },
+        {
+          createdAt,
+          description: description ?? "",
+          folders: folders ?? [],
+          id,
+        },
         null,
         2,
       ),
@@ -104,7 +111,7 @@ export async function createProject({
   return ok({
     createdAt,
     description: description ?? "",
-    folders: [],
+    folders: folders ?? [],
     id,
     instructions: instructions ?? "",
     name: folderName,

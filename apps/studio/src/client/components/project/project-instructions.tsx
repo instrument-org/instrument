@@ -35,7 +35,7 @@ export function ProjectInstructions({
         Add details about this project for Instrument to remember for each task.
       </p>
       <Textarea
-        className="min-h-48 resize-none text-sm"
+        className="min-h-64 resize-none rounded-lg bg-muted/30 text-sm leading-relaxed"
         onChange={(e) => {
           setValue(e.target.value);
           save(e.target.value);

@@ -19,7 +19,8 @@ const userMessage2 = builder.userMessage(
 - setup Vitest for comprehensive unit testing
 - add Playwright for end-to-end testing coverage
 - configure CI/CD pipeline with automated deployments
-- setup pre-commit hooks for linting and formatting`,
+- setup pre-commit hooks for linting and formatting
+- lint all JavaScript and TypeScript files`,
 );
 
 const assistantMessage2 = builder.assistantMessage(

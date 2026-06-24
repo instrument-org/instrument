@@ -716,6 +716,10 @@ export class TabsManager {
       tryCaptureError("addChildView failed revealing loaded tab", () => {
         this.baseWindow.contentView.addChildView(tab.webView);
       });
+      // Revealing re-tops the tab; a tab that finishes loading after the
+      // app-wide overlay opened would otherwise land above it (visible only
+      // over the sidebar strip). Re-assert the overlay above the revealed tab.
+      this.studioOverlay.reassertTopmost();
     };
 
     webContents.once("did-stop-loading", reveal);

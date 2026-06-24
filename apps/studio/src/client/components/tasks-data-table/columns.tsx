@@ -5,7 +5,7 @@ import { InternalLink } from "@/client/components/internal-link";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
-import { ArrowsDownUpIcon, StarIcon } from "@phosphor-icons/react";
+import { ArrowsDownUpIcon, PushPinIcon } from "@phosphor-icons/react";
 import { format, formatDistanceToNow } from "date-fns";
 
 import { TaskActionsCell } from "./actions";
@@ -13,17 +13,17 @@ import { ModelPreview } from "./model-preview";
 import { SessionStatusPreview } from "./session-status-preview";
 
 export function createColumns({
-  favoriteTaskIds,
   onDelete,
   onOpenInNewTab,
   onSettings,
   onStop,
+  pinnedTaskIds,
 }: {
-  favoriteTaskIds: Set<string>;
   onDelete: (id: TaskId) => void;
   onOpenInNewTab: (id: TaskId) => void;
   onSettings: (id: TaskId) => void;
   onStop: (id: TaskId) => void;
+  pinnedTaskIds: Set<TaskId>;
 }): ColumnDef<Task>[] {
   return [
     {
@@ -78,12 +78,12 @@ export function createColumns({
       accessorKey: "title",
       cell: ({ row }) => {
         const task = row.original;
-        const isFavorite = favoriteTaskIds.has(task.id);
+        const isPinned = pinnedTaskIds.has(task.id);
         return (
           <div className="flex min-w-0 items-center gap-x-2">
-            {isFavorite && (
-              <StarIcon
-                className="size-4 shrink-0 fill-warning-500 text-warning-500"
+            {isPinned && (
+              <PushPinIcon
+                className="size-4 shrink-0 text-muted-foreground"
                 weight="fill"
               />
             )}

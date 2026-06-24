@@ -20,6 +20,8 @@ export const publisher = new EventPublisher<{
     id: TaskId;
     part: SessionMessagePart.Type;
   };
+  "pin.updated": null;
+  "project.updated": null;
   "replay.changed": {
     id: TaskId;
     isActive: boolean;

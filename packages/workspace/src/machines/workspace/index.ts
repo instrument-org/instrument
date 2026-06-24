@@ -20,7 +20,7 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import { TASKS_DIR_NAME } from "../../constants";
+import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { isTaskId } from "../../lib/is-task-id";
@@ -370,6 +370,7 @@ export const workspaceMachine = setup({
       getAIProviderConfigs: input.getAIProviderConfigs,
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
+      projectsDir: absolutePathJoin(rootDir, PROJECTS_DIR_NAME),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),

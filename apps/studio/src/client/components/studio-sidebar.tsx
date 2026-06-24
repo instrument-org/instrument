@@ -35,47 +35,29 @@ export function StudioSidebar({
     [matches],
   );
 
-  const { data: favorites } = useQuery(
-    rpcClient.favorites.live.listTasks.experimental_liveOptions(),
+  const { data: pinnedTaskIds } = useQuery(
+    rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
 
   const { data: tasksData } = useQuery(
     rpcClient.workspace.task.live.list.experimental_liveOptions(),
   );
 
-  const favoriteTaskIds = useMemo(
-    () => new Set(favorites?.map((r) => r.id) ?? []),
-    [favorites],
+  const pinnedTaskIdSet = useMemo(
+    () => new Set(pinnedTaskIds ?? []),
+    [pinnedTaskIds],
   );
-
-  const filteredTasks = useMemo(() => {
-    if (!tasksData?.tasks || !favorites?.length) {
-      return tasksData?.tasks ?? [];
-    }
-
-    return tasksData.tasks.filter((task) => !favoriteTaskIds.has(task.id));
-  }, [tasksData, favorites, favoriteTaskIds]);
 
   return (
     <Sidebar collapsible="none" side="left" {...props}>
       <ServerExceptionsAlert />
       <NavPrimary items={primaryNavItems} />
       <SidebarContent>
-        {favorites && favorites.length > 0 && (
+        {tasksData?.tasks && tasksData.tasks.length > 0 && (
           <NavTasks
-            favoriteTaskIds={favoriteTaskIds}
-            isFavorites
             matches={matches}
-            tasks={favorites}
-            title="Favorites"
-          />
-        )}
-        {filteredTasks.length > 0 && (
-          <NavTasks
-            favoriteTaskIds={favoriteTaskIds}
-            isFavorites={false}
-            matches={matches}
-            tasks={filteredTasks}
+            pinnedTaskIds={pinnedTaskIdSet}
+            tasks={tasksData.tasks}
             title="Tasks"
           />
         )}

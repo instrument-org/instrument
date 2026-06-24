@@ -32,6 +32,9 @@ export function createStubWorkspaceConfig({
     getAIProviderConfigs: () => [],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
+    projectsDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "projects"),
+    ),
     registryDir: WorkspaceDirSchema.parse(
       path.join(absoluteRootDir, "registry"),
     ),

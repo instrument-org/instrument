@@ -91,7 +91,7 @@ function RouteComponent() {
       <div className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-2xl flex-col gap-y-6 px-6 py-10">
           <div className="flex flex-col gap-y-1">
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="font-serif text-3xl font-normal tracking-tight">
               {projectData.name}
             </h1>
             {projectData.description && (
@@ -161,7 +161,7 @@ function RouteComponent() {
         </div>
       </div>
 
-      <aside className="flex w-80 shrink-0 flex-col gap-y-6 overflow-y-auto border-l p-6">
+      <aside className="flex w-100 shrink-0 flex-col gap-y-8 overflow-y-auto border-l border-border p-6">
         <ProjectInstructions
           instructions={projectData.instructions}
           key={projectData.id}

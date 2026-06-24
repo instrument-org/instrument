@@ -147,9 +147,8 @@ describe("project lib", () => {
     const removed = await removeFolderFromProject(created.id, "/tmp/a");
     expect(removed._unsafeUnwrap().folders).toEqual(["/tmp/b"]);
 
-    expect((await getProject(created.id))._unsafeUnwrap().folders).toEqual([
-      "/tmp/b",
-    ]);
+    const fetched = await getProject(created.id);
+    expect(fetched._unsafeUnwrap().folders).toEqual(["/tmp/b"]);
   });
 
   it("updates instructions in place", async () => {

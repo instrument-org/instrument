@@ -46,6 +46,10 @@ describe("uvSubprocessEnv", () => {
     expect(env.VIRTUAL_ENV).toBe(taskVenvDir(taskId));
   });
 
+  it("redirects HOME to a writable app-managed dir for model caches", () => {
+    expect(env.HOME).toBe(path.join("/tmp/workspace/uv-data", "home"));
+  });
+
   it("prepends the uv binary dir and venv bin dir to PATH", () => {
     const dirs = (env.PATH ?? "").split(path.delimiter);
     expect(dirs[0]).toBe(path.dirname("/tmp/uv"));

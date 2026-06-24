@@ -18,6 +18,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as StudioOverlayWelcomeRouteImport } from './routes/studio-overlay/welcome'
 import { Route as StudioOverlaySettingsRouteImport } from './routes/studio-overlay/settings'
+import { Route as StudioOverlayNewProjectRouteImport } from './routes/studio-overlay/new-project'
 import { Route as StudioOverlayLoginRouteImport } from './routes/studio-overlay/login'
 import { Route as StudioOverlayCrashRouteImport } from './routes/studio-overlay/crash'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
@@ -99,6 +100,11 @@ const StudioOverlayWelcomeRoute = StudioOverlayWelcomeRouteImport.update({
 const StudioOverlaySettingsRoute = StudioOverlaySettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => StudioOverlayRoute,
+} as any)
+const StudioOverlayNewProjectRoute = StudioOverlayNewProjectRouteImport.update({
+  id: '/new-project',
+  path: '/new-project',
   getParentRoute: () => StudioOverlayRoute,
 } as any)
 const StudioOverlayLoginRoute = StudioOverlayLoginRouteImport.update({
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
+  '/studio-overlay/new-project': typeof StudioOverlayNewProjectRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsRouteWithChildren
   '/studio-overlay/welcome': typeof StudioOverlayWelcomeRoute
   '/onboarding/': typeof OnboardingIndexRoute
@@ -369,6 +376,7 @@ export interface FileRoutesByTo {
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
+  '/studio-overlay/new-project': typeof StudioOverlayNewProjectRoute
   '/studio-overlay/welcome': typeof StudioOverlayWelcomeRoute
   '/onboarding': typeof OnboardingIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
@@ -416,6 +424,7 @@ export interface FileRoutesById {
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
+  '/studio-overlay/new-project': typeof StudioOverlayNewProjectRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsRouteWithChildren
   '/studio-overlay/welcome': typeof StudioOverlayWelcomeRoute
   '/onboarding/': typeof OnboardingIndexRoute
@@ -465,6 +474,7 @@ export interface FileRouteTypes {
     | '/onboarding/theme'
     | '/studio-overlay/crash'
     | '/studio-overlay/login'
+    | '/studio-overlay/new-project'
     | '/studio-overlay/settings'
     | '/studio-overlay/welcome'
     | '/onboarding/'
@@ -510,6 +520,7 @@ export interface FileRouteTypes {
     | '/onboarding/theme'
     | '/studio-overlay/crash'
     | '/studio-overlay/login'
+    | '/studio-overlay/new-project'
     | '/studio-overlay/welcome'
     | '/onboarding'
     | '/subscribe'
@@ -556,6 +567,7 @@ export interface FileRouteTypes {
     | '/onboarding/theme'
     | '/studio-overlay/crash'
     | '/studio-overlay/login'
+    | '/studio-overlay/new-project'
     | '/studio-overlay/settings'
     | '/studio-overlay/welcome'
     | '/onboarding/'
@@ -662,6 +674,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/studio-overlay/settings'
       preLoaderRoute: typeof StudioOverlaySettingsRouteImport
+      parentRoute: typeof StudioOverlayRoute
+    }
+    '/studio-overlay/new-project': {
+      id: '/studio-overlay/new-project'
+      path: '/new-project'
+      fullPath: '/studio-overlay/new-project'
+      preLoaderRoute: typeof StudioOverlayNewProjectRouteImport
       parentRoute: typeof StudioOverlayRoute
     }
     '/studio-overlay/login': {
@@ -1089,6 +1108,7 @@ const StudioOverlaySettingsRouteWithChildren =
 interface StudioOverlayRouteChildren {
   StudioOverlayCrashRoute: typeof StudioOverlayCrashRoute
   StudioOverlayLoginRoute: typeof StudioOverlayLoginRoute
+  StudioOverlayNewProjectRoute: typeof StudioOverlayNewProjectRoute
   StudioOverlaySettingsRoute: typeof StudioOverlaySettingsRouteWithChildren
   StudioOverlayWelcomeRoute: typeof StudioOverlayWelcomeRoute
 }
@@ -1096,6 +1116,7 @@ interface StudioOverlayRouteChildren {
 const StudioOverlayRouteChildren: StudioOverlayRouteChildren = {
   StudioOverlayCrashRoute: StudioOverlayCrashRoute,
   StudioOverlayLoginRoute: StudioOverlayLoginRoute,
+  StudioOverlayNewProjectRoute: StudioOverlayNewProjectRoute,
   StudioOverlaySettingsRoute: StudioOverlaySettingsRouteWithChildren,
   StudioOverlayWelcomeRoute: StudioOverlayWelcomeRoute,
 }

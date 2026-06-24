@@ -1,3 +1,4 @@
+import { useOpenCreateProject } from "@/client/atoms/create-project";
 import {
   Collapsible,
   CollapsibleContent,
@@ -19,11 +20,10 @@ import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { InternalLink } from "./internal-link";
-import { CreateProjectDialog } from "./project/create-project-dialog";
 
 export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
   const [isOpen, setIsOpen] = useState(true);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const openCreate = useOpenCreateProject();
 
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
@@ -32,10 +32,6 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
   const activeProjectId = matches.find(
     (match) => match.routeId === "/_app/projects/$id/",
   )?.params.id;
-
-  const openCreate = () => {
-    setIsCreateOpen(true);
-  };
 
   return (
     <SidebarGroup className="px-3 group-data-[collapsible=icon]:hidden">
@@ -107,8 +103,6 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
           </SidebarMenuItem>
         </SidebarMenu>
       )}
-
-      <CreateProjectDialog onOpenChange={setIsCreateOpen} open={isCreateOpen} />
     </SidebarGroup>
   );
 }

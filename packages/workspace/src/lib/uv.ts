@@ -11,6 +11,15 @@ import { getWorkspaceConfig } from "./workspace-config";
 // task and stays isolated from other tasks.
 const VENV_DIR_NAME = ".venv";
 
+// cspell:ignore numba torch scipy unbuildable
+// Pin the managed interpreter to a stable version. Without this, uv
+// (`only-managed` + `automatic` downloads) provisions the newest CPython it can
+// fetch, which is too new for much of the scientific/ML ecosystem (numba, torch,
+// scipy wheels lag a release or two). On a too-new interpreter uv's resolver
+// silently backtracks to ancient, unbuildable deps. 3.12 matches the floor our
+// skills declare (`requires-python = ">=3.11"`, pyright `3.11`).
+export const MANAGED_PYTHON_VERSION = "3.12";
+
 const isWindows = process.platform === "win32";
 
 export function getUvBinPath(): AbsolutePath {

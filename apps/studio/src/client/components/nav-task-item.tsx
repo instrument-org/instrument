@@ -17,7 +17,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import {
   ArrowUpRightIcon,
-  BriefcaseIcon,
+  BagIcon,
   CaretLeftIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
@@ -223,7 +223,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                       });
                     }}
                   >
-                    <BriefcaseIcon className="text-muted-foreground" />
+                    <BagIcon className="text-muted-foreground" />
                     <span className="truncate">{project.name}</span>
                   </DropdownMenuItem>
                 ))}
@@ -271,7 +271,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                       void removeTaskFromProject({ taskId: task.id });
                     }}
                   >
-                    <BriefcaseIcon className="text-muted-foreground" />
+                    <BagIcon className="text-muted-foreground" />
                     <span>Remove from project</span>
                   </DropdownMenuItem>
                 ) : (
@@ -281,7 +281,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                       setMenuView("projects");
                     }}
                   >
-                    <BriefcaseIcon className="text-muted-foreground" />
+                    <BagIcon className="text-muted-foreground" />
                     <span>Add to project</span>
                   </DropdownMenuItem>
                 )}

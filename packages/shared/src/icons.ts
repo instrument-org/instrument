@@ -6,6 +6,7 @@ const TAB_ICONS = [
   "flask-conical",
   "globe",
   "our-app",
+  "project",
   "table-properties",
   "terminal",
   "bug",

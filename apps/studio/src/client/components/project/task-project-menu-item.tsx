@@ -8,7 +8,7 @@ import {
 import { openCreateProject } from "@/client/lib/open-create-project";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
-import { BriefcaseIcon, PlusIcon } from "@phosphor-icons/react";
+import { BagIcon, PlusIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -54,7 +54,7 @@ export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
           void removeTask({ taskId });
         }}
       >
-        <BriefcaseIcon className="size-4 text-muted-foreground" />
+        <BagIcon className="size-4 text-muted-foreground" />
         Remove from project
       </DropdownMenuItem>
     );
@@ -63,7 +63,7 @@ export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
-        <BriefcaseIcon className="size-4 text-muted-foreground" />
+        <BagIcon className="size-4 text-muted-foreground" />
         Add to project
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="min-w-48">
@@ -74,7 +74,7 @@ export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
               void addTask({ projectId: project.id, taskId });
             }}
           >
-            <BriefcaseIcon className="size-4 text-muted-foreground" />
+            <BagIcon className="size-4 text-muted-foreground" />
             <span className="flex-1 truncate">{project.name}</span>
           </DropdownMenuItem>
         ))}

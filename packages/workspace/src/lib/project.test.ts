@@ -10,11 +10,13 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
+  addFolderToProject,
   createProject,
   deleteProject,
   getProject,
   getProjectInstructions,
   listProjects,
+  removeFolderFromProject,
   updateProject,
 } from "./project";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -125,6 +127,29 @@ describe("project lib", () => {
 
     const fetched = await getProject(created.id);
     expect(fetched._unsafeUnwrap().description).toBe("Now a blog.");
+  });
+
+  it("adds and removes attached folders", async () => {
+    const createResult = await createProject({ name: "Folders" });
+    const created = createResult._unsafeUnwrap();
+    expect(created.folders).toEqual([]);
+
+    const added = await addFolderToProject(created.id, "/tmp/a");
+    expect(added._unsafeUnwrap().folders).toEqual(["/tmp/a"]);
+
+    // Adding the same path again is a no-op (deduped).
+    const again = await addFolderToProject(created.id, "/tmp/a");
+    expect(again._unsafeUnwrap().folders).toEqual(["/tmp/a"]);
+
+    const more = await addFolderToProject(created.id, "/tmp/b");
+    expect(more._unsafeUnwrap().folders).toEqual(["/tmp/a", "/tmp/b"]);
+
+    const removed = await removeFolderFromProject(created.id, "/tmp/a");
+    expect(removed._unsafeUnwrap().folders).toEqual(["/tmp/b"]);
+
+    expect((await getProject(created.id))._unsafeUnwrap().folders).toEqual([
+      "/tmp/b",
+    ]);
   });
 
   it("updates instructions in place", async () => {

@@ -1,3 +1,4 @@
+import { ProjectFolders } from "@/client/components/project/project-folders";
 import { ProjectInstructions } from "@/client/components/project/project-instructions";
 import { ProjectTaskRow } from "@/client/components/project/project-task-row";
 import { PromptInput } from "@/client/components/prompt-input";
@@ -38,8 +39,12 @@ function RouteComponent() {
   const [taskToDelete, setTaskToDelete] = useState<null | Task>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const { data: projectData, isLoading: projectLoading } = useQuery(
-    rpcClient.workspace.project.byId.queryOptions({ input: { id } }),
+  const { data: projects, isLoading: projectLoading } = useQuery(
+    rpcClient.workspace.project.live.list.experimental_liveOptions(),
+  );
+  const projectData = useMemo(
+    () => projects?.find((project) => project.id === id),
+    [projects, id],
   );
 
   const { data: tasksData } = useQuery(
@@ -156,10 +161,14 @@ function RouteComponent() {
         </div>
       </div>
 
-      <aside className="w-80 shrink-0 overflow-y-auto border-l p-6">
+      <aside className="flex w-80 shrink-0 flex-col gap-y-6 overflow-y-auto border-l p-6">
         <ProjectInstructions
           instructions={projectData.instructions}
           key={projectData.id}
+          projectId={projectData.id}
+        />
+        <ProjectFolders
+          folders={projectData.folders}
           projectId={projectData.id}
         />
       </aside>

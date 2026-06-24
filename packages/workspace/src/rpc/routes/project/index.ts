@@ -2,10 +2,12 @@ import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import {
+  addFolderToProject,
   createProject,
   deleteProject,
   getProject,
   listProjects,
+  removeFolderFromProject,
   updateProject,
 } from "../../../lib/project";
 import { updateTaskSettings } from "../../../lib/task-settings";
@@ -53,6 +55,7 @@ const update = base
   .input(
     z.object({
       description: z.string().optional(),
+      folders: z.array(z.string()).optional(),
       id: ProjectIdSchema,
       instructions: z.string().optional(),
       name: z.string().optional(),
@@ -108,6 +111,30 @@ const removeTask = base
     context.workspaceConfig.captureEvent("project.task_removed");
   });
 
+const addFolder = base
+  .input(z.object({ id: ProjectIdSchema, path: z.string() }))
+  .output(ProjectSchema)
+  .handler(async ({ errors, input }) => {
+    const result = await addFolderToProject(input.id, input.path);
+    if (result.isErr()) {
+      throw toORPCError(result.error, errors);
+    }
+    publisher.publish("project.updated", null);
+    return result.value;
+  });
+
+const removeFolder = base
+  .input(z.object({ id: ProjectIdSchema, path: z.string() }))
+  .output(ProjectSchema)
+  .handler(async ({ errors, input }) => {
+    const result = await removeFolderFromProject(input.id, input.path);
+    if (result.isErr()) {
+      throw toORPCError(result.error, errors);
+    }
+    publisher.publish("project.updated", null);
+    return result.value;
+  });
+
 const live = {
   list: base
     .output(eventIterator(ProjectSchema.array()))
@@ -123,12 +150,14 @@ const live = {
 };
 
 export const project = {
+  addFolder,
   addTask,
   byId,
   create,
   list,
   live,
   remove,
+  removeFolder,
   removeTask,
   update,
 };

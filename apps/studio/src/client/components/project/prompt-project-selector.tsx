@@ -11,7 +11,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
 import {
-  BriefcaseIcon,
+  BagIcon,
   CheckIcon,
   PlusIcon,
   XIcon,
@@ -41,7 +41,7 @@ export function PromptProjectSelector({
             className="group/chip flex h-8 items-center gap-1.5 rounded-md bg-muted px-2 text-sm text-muted-foreground hover:text-foreground"
             role="button"
           >
-            <BriefcaseIcon className="size-4 shrink-0" />
+            <BagIcon className="size-4 shrink-0" />
             <span className="max-w-32 truncate">{selected.name}</span>
             <button
               aria-label="Remove from project"
@@ -63,7 +63,7 @@ export function PromptProjectSelector({
             size="sm"
             variant="ghost"
           >
-            <BriefcaseIcon className="size-5" weight="regular" />
+            <BagIcon className="size-5" weight="regular" />
           </Button>
         )}
       </DropdownMenuTrigger>
@@ -77,7 +77,7 @@ export function PromptProjectSelector({
                 onChange(isCurrent ? null : project.id);
               }}
             >
-              <BriefcaseIcon className="size-4 text-muted-foreground" />
+              <BagIcon className="size-4 text-muted-foreground" />
               <span
                 className={cn("flex-1 truncate", isCurrent && "font-medium")}
               >

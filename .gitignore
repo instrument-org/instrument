@@ -39,3 +39,6 @@ node_modules/
 
 # Cursor (per-user plugin prefs)
 .cursor/settings.json
+
+# Agent git worktrees (nested checkouts created by the worktree bootstrap hook)
+.claude/worktrees/

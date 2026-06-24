@@ -83,11 +83,18 @@ function RouteComponent() {
           isLoading={createTaskMutation.isPending}
           modelURI={selectedModelURI}
           onModelChange={setSelectedModelURI}
-          onSubmit={({ files, folders, modelURI, openInNewTab, prompt }) => {
+          onSubmit={({
+            files,
+            folders,
+            modelURI,
+            openInNewTab,
+            projectId,
+            prompt,
+          }) => {
             saveSelectedModelURI(modelURI);
 
             createTaskMutation.mutate(
-              { files, folders, modelURI, prompt },
+              { files, folders, modelURI, projectId, prompt },
               {
                 onError: (error) => {
                   toast.error(
@@ -118,6 +125,7 @@ function RouteComponent() {
           }}
           placeholder={`Talk to ${APP_NAME}`}
           ref={promptInputRef}
+          showProjectSelector
         />
       </div>
     </div>

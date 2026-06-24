@@ -25,6 +25,7 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import {
   type FileUpload,
+  type ProjectId,
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
@@ -57,6 +58,7 @@ import {
   type PromptValueAtomKey,
 } from "../atoms/prompt-value";
 import { rpcClient } from "../rpc/client";
+import { PromptProjectSelector } from "./project/prompt-project-selector";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
 
@@ -107,11 +109,13 @@ interface PromptInputProps {
     folders?: { path: string }[];
     modelURI: AIGatewayModelURI.Type;
     openInNewTab?: boolean;
+    projectId?: null | ProjectId;
     prompt: string;
   }) => void;
   placeholder?: string;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
+  showProjectSelector?: boolean;
 }
 
 interface PromptInputRef {
@@ -137,9 +141,13 @@ export const PromptInput = ({
   placeholder,
   ref,
   selectedSessionId,
+  showProjectSelector = false,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
+    null,
+  );
   const openFilePreview = useSetAtom(openFilePreviewAtom);
   const textareaRef = useRef<HTMLDivElement>(null);
   const textareaInnerRef = useRef<HTMLTextAreaElement>(null);
@@ -180,6 +188,7 @@ export const PromptInput = ({
     clear: () => {
       setValue("");
       setAttachedItems([]);
+      setSelectedProjectId(null);
       resetTextareaHeight();
     },
     focus: () => {
@@ -430,6 +439,7 @@ export const PromptInput = ({
       folders: attachedFolders.length > 0 ? attachedFolders : undefined,
       modelURI,
       openInNewTab,
+      projectId: selectedProjectId,
       prompt,
     });
   };
@@ -628,6 +638,14 @@ export const PromptInput = ({
               id={id}
               model={selectedModel}
               selectedSessionId={selectedSessionId}
+            />
+          )}
+
+          {showProjectSelector && (
+            <PromptProjectSelector
+              disabled={disabled || isLoading}
+              onChange={setSelectedProjectId}
+              value={selectedProjectId}
             />
           )}
 

@@ -14,6 +14,7 @@ import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
+import { getProject } from "../../../lib/project";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {
@@ -199,9 +200,26 @@ const create = base
         throw toORPCError(sessionResult.error, errors);
       }
 
+      // Snapshot the project's attached folders onto the task's first message,
+      // exactly like a manually attached folder (deduped against any the user
+      // already attached). Later changes to the project don't affect this task.
+      let mergedFolders = folders ?? [];
+      if (projectId) {
+        const project = await getProject(projectId);
+        if (project.isOk() && project.value.folders.length > 0) {
+          const seen = new Set(mergedFolders.map((folder) => folder.path));
+          mergedFolders = [
+            ...mergedFolders,
+            ...project.value.folders
+              .filter((path) => !seen.has(path))
+              .map((path) => ({ path })),
+          ];
+        }
+      }
+
       const messageResult = await newMessage({
         files,
-        folders,
+        folders: mergedFolders.length > 0 ? mergedFolders : undefined,
         model,
         modelURI,
         prompt,

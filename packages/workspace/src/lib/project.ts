@@ -6,7 +6,11 @@ import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 
 import { PROJECT_INSTRUCTIONS_FILE_NAME } from "../constants";
-import { type Project, ProjectSettingsSchema } from "../schemas/project";
+import {
+  type Project,
+  type ProjectSettings,
+  ProjectSettingsSchema,
+} from "../schemas/project";
 import { newProjectId, type ProjectId } from "../schemas/project-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
@@ -22,9 +26,11 @@ import {
 } from "./workspace-store";
 
 export async function createProject({
+  description,
   instructions,
   name,
 }: {
+  description?: string;
   instructions?: string;
   name: string;
 }): Promise<
@@ -56,7 +62,11 @@ export async function createProject({
     );
     await fs.writeFile(
       projectSettingsPath(folderName),
-      JSON.stringify({ createdAt, id }, null, 2),
+      JSON.stringify(
+        { createdAt, description: description ?? "", id },
+        null,
+        2,
+      ),
     );
     await fs.writeFile(projectInstructionsPath(folderName), instructions ?? "");
   } catch (error) {
@@ -71,6 +81,7 @@ export async function createProject({
 
   return ok({
     createdAt,
+    description: description ?? "",
     id,
     instructions: instructions ?? "",
     name: folderName,
@@ -150,7 +161,11 @@ export async function listProjects(): Promise<Project[]> {
 
 export async function updateProject(
   id: ProjectId,
-  { instructions, name }: { instructions?: string; name?: string },
+  {
+    description,
+    instructions,
+    name,
+  }: { description?: string; instructions?: string; name?: string },
 ): Promise<
   Result<
     Project,
@@ -203,6 +218,25 @@ export async function updateProject(
     }
   }
 
+  if (description !== undefined) {
+    const settings = await readProjectSettings(folderName);
+    if (settings.isErr()) {
+      return err(settings.error);
+    }
+    try {
+      await fs.writeFile(
+        projectSettingsPath(folderName),
+        JSON.stringify({ ...settings.value, description }, null, 2),
+      );
+    } catch (error) {
+      return err(
+        new TypedError.FileSystem(`Failed to write project description`, {
+          cause: error,
+        }),
+      );
+    }
+  }
+
   if (instructions !== undefined) {
     try {
       await fs.writeFile(projectInstructionsPath(folderName), instructions);
@@ -251,6 +285,33 @@ function projectSettingsPath(folderName: string) {
 async function readProject(
   folderName: string,
 ): Promise<Result<Project, TypedError.NotFound | TypedError.Parse>> {
+  const settings = await readProjectSettings(folderName);
+  if (settings.isErr()) {
+    return err(settings.error);
+  }
+
+  let instructions = "";
+  try {
+    instructions = await fs.readFile(
+      projectInstructionsPath(folderName),
+      "utf8",
+    );
+  } catch {
+    // No AGENTS.md yet; instructions are empty.
+  }
+
+  return ok({
+    createdAt: settings.value.createdAt,
+    description: settings.value.description ?? "",
+    id: settings.value.id,
+    instructions,
+    name: folderName,
+  });
+}
+
+async function readProjectSettings(
+  folderName: string,
+): Promise<Result<ProjectSettings, TypedError.NotFound | TypedError.Parse>> {
   let settingsRaw: string;
   try {
     settingsRaw = await fs.readFile(projectSettingsPath(folderName), "utf8");
@@ -282,22 +343,7 @@ async function readProject(
     );
   }
 
-  let instructions = "";
-  try {
-    instructions = await fs.readFile(
-      projectInstructionsPath(folderName),
-      "utf8",
-    );
-  } catch {
-    // No AGENTS.md yet; instructions are empty.
-  }
-
-  return ok({
-    createdAt: settings.data.createdAt,
-    id: settings.data.id,
-    instructions,
-    name: folderName,
-  });
+  return ok(settings.data);
 }
 
 // Resolves a ProjectId to its current folder name, trusting the workspace-store

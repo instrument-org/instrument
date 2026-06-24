@@ -110,6 +110,23 @@ describe("project lib", () => {
     expect(fetched._unsafeUnwrap().name).toBe("After");
   });
 
+  it("round-trips a description through create and update", async () => {
+    const createResult = await createProject({
+      description: "Marketing site work.",
+      name: "Site",
+    });
+    const created = createResult._unsafeUnwrap();
+    expect(created.description).toBe("Marketing site work.");
+
+    const updated = await updateProject(created.id, {
+      description: "Now a blog.",
+    });
+    expect(updated._unsafeUnwrap().description).toBe("Now a blog.");
+
+    const fetched = await getProject(created.id);
+    expect(fetched._unsafeUnwrap().description).toBe("Now a blog.");
+  });
+
   it("updates instructions in place", async () => {
     const createResult = await createProject({ name: "Docs" });
     const created = createResult._unsafeUnwrap();

@@ -586,7 +586,6 @@ export function FileViewer({
           />
         ) : fileType === "video" ? (
           <video
-            autoPlay
             className="size-full object-contain"
             controls
             key={url}
@@ -599,7 +598,6 @@ export function FileViewer({
         ) : fileType === "audio" ? (
           <div className="flex size-full items-center justify-center p-8">
             <audio
-              autoPlay
               className="w-full"
               controls
               key={url}

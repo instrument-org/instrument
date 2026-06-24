@@ -25,7 +25,6 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { memo, useEffect, useRef, useState } from "react";
 
-import { TaskProjectMenuItem } from "./project/task-project-menu-item";
 import { TaskStatusIcon } from "./session-status-icon";
 
 interface NavTaskItemProps {
@@ -202,7 +201,10 @@ export const NavTaskItem = memo(function NavTaskItem({
               <PencilSimpleLineIcon className="text-muted-foreground" />
               <span>Rename</span>
             </DropdownMenuItem>
-            <TaskProjectMenuItem taskId={task.id} />
+            {/* "Add to project" intentionally omitted here: its flyout submenu
+                is clipped by the sidebar's own WebContentsView. Available from
+                the task toolbar, tasks table, and project page until the
+                sidebar is unified with the main view. */}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {

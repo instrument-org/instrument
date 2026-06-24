@@ -1,4 +1,3 @@
-import { useOpenCreateProject } from "@/client/atoms/create-project";
 import {
   Collapsible,
   CollapsibleContent,
@@ -12,6 +11,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
+import { openCreateProject } from "@/client/lib/open-create-project";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { BriefcaseIcon, CaretRightIcon, PlusIcon } from "@phosphor-icons/react";
@@ -23,7 +23,7 @@ import { InternalLink } from "./internal-link";
 
 export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
   const [isOpen, setIsOpen] = useState(true);
-  const openCreate = useOpenCreateProject();
+  const openCreate = openCreateProject;
 
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
@@ -85,21 +85,15 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
         </Collapsible>
       ) : (
         <SidebarMenu>
-          <SidebarMenuItem className="group/add relative">
+          <SidebarMenuItem className="group/add">
             <SidebarMenuButton
               className="h-9 gap-2 text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               onClick={openCreate}
             >
               <BriefcaseIcon className="size-4 shrink-0" />
-              <span>Add a project</span>
+              <span className="flex-1 text-left">Add a project</span>
+              <PlusIcon className="size-4 shrink-0 group-hover/add:text-sidebar-foreground" />
             </SidebarMenuButton>
-            <SidebarGroupAction
-              aria-label="Add a project"
-              className="text-sidebar-foreground/40 group-hover/add:text-sidebar-foreground"
-              onClick={openCreate}
-            >
-              <PlusIcon />
-            </SidebarGroupAction>
           </SidebarMenuItem>
         </SidebarMenu>
       )}

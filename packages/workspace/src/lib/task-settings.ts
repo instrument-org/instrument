@@ -60,14 +60,18 @@ export function updateTaskSettings(
       // File doesn't exist or is invalid, use defaults
     }
 
+    const merged = { ...existing, ...validatedUpdates };
+    // A `null` projectId is the clear sentinel: drop the key entirely rather
+    // than persisting `null`.
+    if (validatedUpdates.projectId === null) {
+      delete merged.projectId;
+    }
+
     yield* ResultAsync.fromPromise(
       fs
         .mkdir(getTaskPrivateDir(dir), { recursive: true })
         .then(() =>
-          fs.writeFile(
-            settingsPath,
-            JSON.stringify({ ...existing, ...validatedUpdates }, null, 2),
-          ),
+          fs.writeFile(settingsPath, JSON.stringify(merged, null, 2)),
         ),
       (error) =>
         new TypedError.FileSystem(

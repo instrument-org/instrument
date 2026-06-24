@@ -9,7 +9,7 @@ import {
 import path from "node:path";
 
 import { env } from "../scripts/lib/env";
-import { TASKS_DIR_NAME } from "../src/constants";
+import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { type WorkspaceConfig } from "../src/types";
@@ -41,6 +41,9 @@ export function buildReportWorkspaceConfig(
     getAIProviderConfigs: () => [],
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
+    projectsDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, PROJECTS_DIR_NAME),
+    ),
     registryDir: WorkspaceDirSchema.parse(resolveRegistryDir()),
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
     tasksDir: WorkspaceDirSchema.parse(

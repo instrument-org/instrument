@@ -3,7 +3,6 @@ import { workspaceRouter } from "@instrument-org/workspace/electron";
 import { auth } from "./auth";
 import { debug } from "./debug";
 import { evals } from "./evals";
-import { favorites } from "./favorites";
 import { features } from "./features";
 import { gateway } from "./gateway";
 import { onboarding } from "./onboarding";
@@ -25,7 +24,6 @@ export const router = {
   auth,
   debug,
   evals,
-  favorites,
   features,
   gateway,
   onboarding,

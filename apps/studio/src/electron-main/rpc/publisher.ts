@@ -17,7 +17,6 @@ interface PublisherEvents {
     success: true;
   };
   "debug.browser-view-manager.updated": null;
-  "favorites.updated": null;
   "features.updated": null;
   "preferences.updated": null;
   "provider-config.updated": null;

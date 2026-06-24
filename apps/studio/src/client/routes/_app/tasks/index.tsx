@@ -44,7 +44,7 @@ import { z } from "zod";
 
 const tasksSearchSchema = z.object({
   filter: z
-    .enum(["all", "evals", "active", "favorites"])
+    .enum(["all", "evals", "active", "pinned"])
     .optional()
     .default("all"),
   page: z.coerce.number().int().positive().optional().default(1),
@@ -98,13 +98,13 @@ function RouteComponent() {
     }),
   });
 
-  const { data: favoriteTaskIds } = useQuery(
-    rpcClient.favorites.live.listTaskIds.experimental_liveOptions(),
+  const { data: pinnedTaskIds } = useQuery(
+    rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
 
-  const favoriteTaskIdSet = useMemo(
-    () => new Set<TaskId>(favoriteTaskIds),
-    [favoriteTaskIds],
+  const pinnedTaskIdSet = useMemo(
+    () => new Set<TaskId>(pinnedTaskIds),
+    [pinnedTaskIds],
   );
 
   const activeTaskIds = useMemo(() => {
@@ -131,14 +131,14 @@ function RouteComponent() {
       case "evals": {
         return tasks.filter((p) => p.id.startsWith(EVAL_SUBDOMAIN_PREFIX));
       }
-      case "favorites": {
-        return tasks.filter((p) => favoriteTaskIdSet.has(p.id));
+      case "pinned": {
+        return tasks.filter((p) => pinnedTaskIdSet.has(p.id));
       }
       default: {
         return tasks;
       }
     }
-  }, [activeTaskIds, favoriteTaskIdSet, filterTab, tasks]);
+  }, [activeTaskIds, pinnedTaskIdSet, filterTab, tasks]);
 
   const selectedTasks = useMemo(() => {
     return Object.keys(rowSelection)
@@ -334,14 +334,14 @@ function RouteComponent() {
   const columns = useMemo(
     () =>
       createColumns({
-        favoriteTaskIds: favoriteTaskIdSet,
         onDelete: handleDelete,
         onOpenInNewTab: handleOpenInNewTab,
         onSettings: handleSettings,
         onStop: handleStop,
+        pinnedTaskIds: pinnedTaskIdSet,
       }),
     [
-      favoriteTaskIdSet,
+      pinnedTaskIdSet,
       handleDelete,
       handleOpenInNewTab,
       handleSettings,
@@ -412,15 +412,13 @@ function RouteComponent() {
                     {activeTaskIds.size}
                   </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="favorites">
-                  Favorites
+                <TabsTrigger value="pinned">
+                  Pinned
                   <Badge
                     className="ml-2 px-1.5"
-                    variant={
-                      filterTab === "favorites" ? "default" : "secondary"
-                    }
+                    variant={filterTab === "pinned" ? "default" : "secondary"}
                   >
-                    {favoriteTaskIdSet.size}
+                    {pinnedTaskIdSet.size}
                   </Badge>
                 </TabsTrigger>
               </TabsList>

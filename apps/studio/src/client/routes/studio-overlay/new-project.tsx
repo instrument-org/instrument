@@ -1,43 +1,25 @@
-import { createProjectDialogOpenAtom } from "@/client/atoms/create-project";
-import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { rpcClient } from "@/client/rpc/client";
-import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { toast } from "sonner";
-
-import { Button } from "../ui/button";
+import { Button } from "@/client/components/ui/button";
 import {
-  Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../ui/dialog";
-import { Field, FieldError, FieldLabel } from "../ui/field";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
+} from "@/client/components/ui/dialog";
+import { Field, FieldError, FieldLabel } from "@/client/components/ui/field";
+import { Input } from "@/client/components/ui/input";
+import { Textarea } from "@/client/components/ui/textarea";
+import { rpcClient } from "@/client/rpc/client";
+import { useForm } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { toast } from "sonner";
 
-// Mounted once in the _app layout; driven by the shared atom.
-export function CreateProjectDialog() {
-  const [open, setOpen] = useAtom(createProjectDialogOpenAtom);
-  return (
-    <Dialog onOpenChange={setOpen} open={open}>
-      <DialogContent>
-        {open && <CreateProjectForm onOpenChange={setOpen} />}
-      </DialogContent>
-    </Dialog>
-  );
-}
+export const Route = createFileRoute("/studio-overlay/new-project")({
+  component: NewProjectModal,
+});
 
-function CreateProjectForm({
-  onOpenChange,
-}: {
-  onOpenChange: (open: boolean) => void;
-}) {
-  const { navigateTab } = useTabActions();
-
+function NewProjectModal() {
   const { isPending, mutateAsync: createProject } = useMutation(
     rpcClient.workspace.project.create.mutationOptions({
       onError: (error) => {
@@ -55,18 +37,17 @@ function CreateProjectForm({
       name: "",
     },
     onSubmit: async ({ value }) => {
-      const project = await createProject({
+      await createProject({
         description: value.description.trim() || undefined,
         instructions: value.instructions.trim() || undefined,
         name: value.name.trim(),
       });
-      onOpenChange(false);
-      void navigateTab({ params: { id: project.id }, to: "/projects/$id" });
+      void rpcClient.studioOverlay.resolve.call();
     },
   });
 
   return (
-    <>
+    <DialogContent className="max-w-lg">
       <DialogHeader>
         <DialogTitle className="text-center">New project</DialogTitle>
         <DialogDescription className="sr-only">
@@ -160,8 +141,9 @@ function CreateProjectForm({
         </div>
         <DialogFooter>
           <Button
+            disabled={isPending}
             onClick={() => {
-              onOpenChange(false);
+              void rpcClient.studioOverlay.dismiss.call();
             }}
             type="button"
             variant="outline"
@@ -185,6 +167,6 @@ function CreateProjectForm({
           </form.Subscribe>
         </DialogFooter>
       </form>
-    </>
+    </DialogContent>
   );
 }

@@ -8,7 +8,12 @@ import { z } from "zod";
  * hand-rolled switch. Everything else (request props, result, behavior policy)
  * stays keyed by `kind` so adding a kind is additive.
  */
-export type StudioOverlayKind = "crash" | "login" | "settings" | "welcome";
+export type StudioOverlayKind =
+  | "crash"
+  | "login"
+  | "new-project"
+  | "settings"
+  | "welcome";
 
 /**
  * Whether the user may dismiss a kind (Escape, click-outside, Cmd+W).
@@ -18,6 +23,7 @@ export const STUDIO_OVERLAY_DISMISSIBLE = {
   // Debug-only kind that throws on render to exercise the error fallback.
   crash: true,
   login: true,
+  "new-project": true,
   settings: true,
   welcome: false,
 } as const satisfies Record<StudioOverlayKind, boolean>;
@@ -56,6 +62,9 @@ export const StudioOverlayRequestSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("login"),
     props: StudioOverlayLoginPropsSchema.optional(),
+  }),
+  z.object({
+    kind: z.literal("new-project"),
   }),
   z.object({
     kind: z.literal("welcome"),
@@ -118,6 +127,9 @@ export function studioOverlayRequestToLocation(request: StudioOverlayRequest): {
         search.reason = request.props.reason;
       }
       return { path: "/studio-overlay/login", search };
+    }
+    case "new-project": {
+      return { path: "/studio-overlay/new-project", search: {} };
     }
     case "settings": {
       const tab = request.props?.tab ?? "General";

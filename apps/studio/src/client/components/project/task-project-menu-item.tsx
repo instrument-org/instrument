@@ -1,4 +1,3 @@
-import { useOpenCreateProject } from "@/client/atoms/create-project";
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -6,6 +5,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { openCreateProject } from "@/client/lib/open-create-project";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { BriefcaseIcon, PlusIcon } from "@phosphor-icons/react";
@@ -16,8 +16,6 @@ import { toast } from "sonner";
 // project" item when the task is already filed, otherwise an "Add to project"
 // submenu listing projects plus a "New project" entry.
 export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
-  const openCreate = useOpenCreateProject();
-
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
@@ -83,7 +81,7 @@ export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
         {projects && projects.length > 0 && <DropdownMenuSeparator />}
         <DropdownMenuItem
           onSelect={() => {
-            openCreate();
+            openCreateProject();
           }}
         >
           <PlusIcon className="size-4 text-muted-foreground" />

@@ -70,8 +70,6 @@ that invoke turbo).
 - `pnpm check-and-test:ci` — what CI runs (omits pedantic checks that don't affect correctness)
 - `pnpm turbo:fix:lint` — fix lint
 
-Format hook: each Edit/Write runs Prettier only; finishing (Stop) runs Prettier + a _subset_ `eslint --fix` (sorting/auto-fixable rules via `packages/eslint-config/format.ts`, not full lint or typed rules) over changed files. Don't hand-format or fix order-only/auto-fixable lint; expect files to change after you write them. Non-auto-fixable lint/type errors are not handled by the hook, run the checks above.
-
 Single test file: `cd packages/<name> && pnpm test run <file>` or
 `cd apps/studio && pnpm test run <file>`.
 
@@ -115,4 +113,5 @@ are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, shim + Studio startup, CDP port 48160, Xvfb, pnpm checks.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
 - `.agents/skills/studio-dev-logs/SKILL.md` — Read NDJSON logs written to `apps/studio/.logs/` on each dev boot.
+- `.agents/skills/run-bash/SKILL.md` — Test bash commands in the agent's just-bash sandbox without booting Studio.
 - `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, neverthrow + Zod tool conventions.

@@ -176,7 +176,7 @@ export function createPnpmCommand(taskId: TaskId) {
         exitCode: 1,
         stderr: dedent`
           No package manifest found here. Your project lives in \`${TASK_FOLDER_NAMES.work}/\`.
-          Run package commands from there, e.g. \`cd ${TASK_FOLDER_NAMES.work} && ${PNPM_COMMAND.name} ${args.join(" ")}\`.
+          Run package commands from there, e.g. \`cd ${TASK_FOLDER_NAMES.work} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
         `,
         stdout: "",
       };

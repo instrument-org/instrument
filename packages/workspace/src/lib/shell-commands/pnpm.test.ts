@@ -41,6 +41,16 @@ describe("createPnpmCommand", () => {
     expect(result.stderr).toContain("Your project lives in `work/`");
   });
 
+  it("strips global flags from the manifest guard suggestion", async () => {
+    const result = await command.execute(["add", "--global", "lodash"], {
+      ...mockCtx,
+      fs: new InMemoryFs(),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("`cd work && pnpm add lodash`");
+  });
+
   it.each([{ subcommand: "dev" }, { subcommand: "start" }])(
     "errors when trying to run pnpm $subcommand",
     async ({ subcommand }) => {

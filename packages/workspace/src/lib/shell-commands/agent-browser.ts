@@ -83,6 +83,50 @@ const STRIPPED_VALUE_FLAGS = new Set([
 // agent doesn't accidentally spawn a browser view just by running --help.
 const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
 
+// cspell:ignore networkidle scrollintoview
+const WORKSPACE_HELP = dedent`
+  agent-browser - Control the task's managed in-app browser.
+
+  IMPORTANT: Load the \`agent-browser\` skill before using this command. It is
+  the source of truth for workflow details and command examples.
+  The workspace manages the browser session, CDP connection, profile, state,
+  screenshots, downloads, and lifecycle.
+
+  Core workflow:
+    1. agent-browser open <url>
+    2. agent-browser snapshot -i
+    3. Act on @refs from the snapshot
+    4. Re-run snapshot -i after navigation or DOM changes
+
+  Reading page content:
+    agent-browser wait --load networkidle
+    agent-browser get text body > page.txt
+
+  Use snapshot -i --urls when following links. Never fabricate deep URLs from
+  memory; discover them from search, root pages, provided URLs, or page links.
+
+  Common commands:
+    open <url>                  Navigate to a URL
+    snapshot -i [--urls]        Get interactive refs, optionally with link URLs
+    click @ref                  Click an element, scrolling into view first
+    fill @ref <text>            Clear and fill an element
+    type @ref <text>            Type without clearing
+    press <key>                 Press a key
+    hover | focus | select      Interact with controls by @ref
+    check | uncheck             Toggle checkboxes by @ref
+    scrollintoview @ref         Bring an element into view before screenshots
+    wait @ref | wait --url ...  Wait for elements, URL patterns, text, or load
+    get text body               Read visible page copy
+    get text|html|value|attr    Read targeted element details
+    get url | get title         Read page metadata
+    screenshot [path|@ref]      Capture the page or an element
+    is visible|enabled|checked  Check element state
+    find role|text|label ...    Use semantic locators as an alternative to refs
+
+  Do not pass connection, provider, profile, session, or state flags.
+  These are blocked because the workspace owns the in-app browser context.
+`.trim();
+
 // Idle ms after which the agent-browser daemon self-terminates. Tuned to
 // outlast a single agent-loop tool-call gap (a few seconds) but reap soon
 // after the agent moves on. The view itself stays warm; only the daemon dies.
@@ -110,6 +154,15 @@ export function createAgentBrowserCommand({
     }
 
     const id = taskId;
+
+    const isWorkspaceHelp = args.some((a) => a === "--help" || a === "-h");
+    if (isWorkspaceHelp) {
+      return {
+        exitCode: 0,
+        stderr: "",
+        stdout: WORKSPACE_HELP,
+      };
+    }
 
     // Match both --flag and --flag=value forms.
     const blockedArg = args.find((a) => {

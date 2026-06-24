@@ -1,4 +1,3 @@
-import { useOpenCreateProject } from "@/client/atoms/create-project";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -7,6 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { openCreateProject } from "@/client/lib/open-create-project";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
@@ -27,8 +27,6 @@ export function PromptProjectSelector({
   onChange: (projectId: null | ProjectId) => void;
   value: null | ProjectId;
 }) {
-  const openCreate = useOpenCreateProject();
-
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
@@ -92,7 +90,7 @@ export function PromptProjectSelector({
         {projects && projects.length > 0 && <DropdownMenuSeparator />}
         <DropdownMenuItem
           onSelect={() => {
-            openCreate();
+            openCreateProject();
           }}
         >
           <PlusIcon className="size-4 text-muted-foreground" />

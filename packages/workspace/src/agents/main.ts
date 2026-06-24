@@ -125,14 +125,24 @@ export const mainAgent = setupAgent({
     - For TypeScript/JavaScript changes, you can run \`${TSC_COMMAND.name} --noEmit\` via the \`${agentTools.BashTool.name}\` tool to check for type errors before finishing. For files inside a skill folder, \`cd ${F.work}/${F.skills}/<skill-name> && ${TSC_COMMAND.name} --noEmit\`.
 
     # Task Folder
-    The task folder is your isolated workspace; users may also edit its files directly. Everything lives in one of these top-level folders:
-    - \`${F.work}/\` -- your project: a pnpm monorepo where you run code, install dependencies, and load skills. Put everything that isn't a finished deliverable or a user input here -- source, scripts, scratch, and intermediate files. Hidden from the user.
+    The task folder is your isolated workspace; users may also edit its files directly.
+    Everything lives in one of these top-level folders:
+    - \`${F.work}/\` -- your project: a pnpm monorepo where you run code, install
+      dependencies, and load skills. Put everything that isn't a finished deliverable
+      or a user input here -- source, scripts, scratch, and intermediate files.
+      Hidden from the user.
     - \`${F.attachments}/\` -- the user's inputs: uploads, plus files copied in from attached folders. Read from here.
     - \`${F.output}/\` -- finished deliverables, shown to the user inline with previews. Write final results here.
-    - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
+    - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here;
+      visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
-    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Use relative paths within the task folder; never absolute paths.
-    - Attached folders are external and reachable only by the ${RETRIEVAL_AGENT_NAME} agent. Ask it to report findings without copying when you only need information; when files must be processed in the task, ask it to find and copy them in the same call.
+    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`,
+    everything else in \`${F.work}/\`. Use relative paths within the task folder;
+    never absolute paths.
+    - Attached folders are external and reachable only by the ${RETRIEVAL_AGENT_NAME}
+      agent. Ask it to report findings without copying when you only need information;
+      when files must be processed in the task, ask it to find and copy them in the
+      same call.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
 
     # Tools Usage Guidance
@@ -152,7 +162,9 @@ export const mainAgent = setupAgent({
     - Modifying part of an existing text file: \`${agentTools.EditFile.name}\`.
     - Copying, moving, renaming, deleting, or making directories: \`${agentTools.BashTool.name}\` (\`cp\`, \`mv\`, \`rm\`, \`mkdir\`).
     - Downloading a file from a URL: \`${agentTools.BashTool.name}\` with \`curl -L -o <path> <url>\`. Only write a script when you need to transform or paginate the response.
-    - Surfacing a file from \`${F.work}/\` (or anywhere else on disk) to the user: copy or move it into \`${F.output}/\` with \`${agentTools.BashTool.name}\` (e.g. \`cp ${F.work}/foo.html ${F.output}/foo.html\`).
+    - Surfacing a file from \`${F.work}/\` to the user: copy or move it into
+      \`${F.output}/\` with \`${agentTools.BashTool.name}\` (e.g.
+      \`cp ${F.work}/foo.html ${F.output}/foo.html\`).
     - CRITICAL: Do NOT use \`${agentTools.WriteFile.name}\` to re-emit content you have already produced or read from disk. That wastes tokens and risks corrupting bytes (line endings, whitespace, base64-ish or minified content). Use \`cp\`/\`mv\` instead.
 
     ## Web Search
@@ -170,13 +182,34 @@ export const mainAgent = setupAgent({
     Write simple static text directly with \`${agentTools.WriteFile.name}\`. Use a script when the output needs computation, transformation, aggregation, or repeated/positioned structure. For research-backed deliverables, establish correct content and evidence first, then format; don't let formatting substitute for substance.
 
     # Scripts and Running Code
-    Node.js, ${PNPM_COMMAND.name}, and Python are available. Every bash command starts at the task root -- keep it there and use paths relative to the root: \`${F.attachments}/...\` to read inputs, \`${F.output}/...\` to write deliverables, \`${F.work}/...\` for everything else. Don't build \`../\` chains.
+    Node.js, ${PNPM_COMMAND.name}, and Python are available. Every bash command starts
+    at the task root -- keep it there and use paths relative to the root:
+    \`${F.attachments}/...\` to read inputs, \`${F.output}/...\` to write deliverables,
+    \`${F.work}/...\` for everything else. Don't build \`../\` chains.
+    The same path rules apply inside scripts: read inputs from \`${F.attachments}/\`,
+    write deliverables to \`${F.output}/\`, keep intermediate files in \`${F.work}/\`,
+    and do not access parent directories or absolute host paths.
 
-    Run a script by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`. A script resolves its dependencies from its own folder, so do NOT \`cd\` into \`${F.work}/\` or a skill folder to run a script -- running from inside it is the most common cause of "file not found" errors, because \`${F.attachments}/\` and \`${F.output}/\` are no longer where your relative paths point.
+    Run a script by its full path from the task root, e.g.
+    \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`.
+    A script resolves its dependencies from its own folder, so do NOT \`cd\` into
+    \`${F.work}/\` or a skill folder to run a script -- running from inside it is the
+    most common cause of "file not found" errors, because \`${F.attachments}/\` and
+    \`${F.output}/\` are no longer where your relative paths point.
 
-    \`${F.work}/\` is the pnpm monorepo, and only package-manager commands need its directory: \`cd ${F.work} && ${PNPM_COMMAND.name} install\`, or \`cd ${F.work}/${F.skills}/<skill-name> && ${PNPM_COMMAND.name} add <pkg>\` for one skill. \`${F.work}/\` and each skill folder are separate workspace packages with isolated \`node_modules\`; deps installed in one are not visible to another, so a script that needs a skill's dependencies must live in that skill's folder. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
+    \`${F.work}/\` is the pnpm monorepo, and only package-manager commands need its
+    directory: \`cd ${F.work} && ${PNPM_COMMAND.name} install\`, or
+    \`cd ${F.work}/${F.skills}/<skill-name> && ${PNPM_COMMAND.name} add <pkg>\` for one skill.
+    \`${F.work}/\` and each skill folder are separate workspace packages with isolated
+    \`node_modules\`; deps installed in one are not visible to another, so a script
+    that needs a skill's dependencies must live in that skill's folder. Skill files
+    are yours to edit -- treat them as a starting point, not read-only templates.
 
-    Write scripts in TypeScript, Python, or bash. Run TypeScript with \`${TS_COMMAND.name}\`; run Python with \`python\` and install packages with \`pip install <pkg>\`. Add Node.js dependencies with ${PNPM_COMMAND.name} only when needed. Check TypeScript with \`${TSC_COMMAND.name}\` when risk or complexity warrants it.
+    Write scripts in TypeScript, Python, or bash. Run TypeScript with
+    \`${TS_COMMAND.name}\`; run Python with \`python\` and install packages with
+    \`pip install <pkg>\`. Add Node.js dependencies with ${PNPM_COMMAND.name} only
+    when needed. Check TypeScript with \`${TSC_COMMAND.name}\` when risk or
+    complexity warrants it.
 
     # File Changes
     - File changes are detected from the task folder after your turn finishes.

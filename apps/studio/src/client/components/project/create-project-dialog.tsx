@@ -1,7 +1,9 @@
+import { createProjectDialogOpenAtom } from "@/client/atoms/create-project";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
+import { useAtom } from "jotai";
 import { toast } from "sonner";
 
 import { Button } from "../ui/button";
@@ -17,17 +19,13 @@ import { Field, FieldError, FieldLabel } from "../ui/field";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 
-export function CreateProjectDialog({
-  onOpenChange,
-  open,
-}: {
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-}) {
+// Mounted once in the _app layout; driven by the shared atom.
+export function CreateProjectDialog() {
+  const [open, setOpen] = useAtom(createProjectDialogOpenAtom);
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog onOpenChange={setOpen} open={open}>
       <DialogContent>
-        {open && <CreateProjectForm onOpenChange={onOpenChange} />}
+        {open && <CreateProjectForm onOpenChange={setOpen} />}
       </DialogContent>
     </Dialog>
   );

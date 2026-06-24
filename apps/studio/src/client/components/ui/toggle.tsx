@@ -4,7 +4,7 @@ import * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const toggleSharedChrome =
-  "inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[color,box-shadow,background-color] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
+  "inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[color,outline,background-color] outline-none focus-visible:border-ring focus-visible:[outline-style:solid] focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
 const toolbarSurface = tv({
   base: "rounded-lg border-0 shadow-none",

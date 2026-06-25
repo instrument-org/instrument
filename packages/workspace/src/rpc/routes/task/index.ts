@@ -165,8 +165,7 @@ const create = base
 
       const model = modelResult.value;
 
-      // Validate the project up front so we never write an orphan projectId
-      // into task settings (and so we can reuse it for folder attachment).
+      // Validate project early to avoid orphan projectId; also needed for folder attachment below.
       let project: Project | undefined;
       if (projectId) {
         const projectResult = await getProject(projectId);
@@ -212,9 +211,7 @@ const create = base
         throw toORPCError(sessionResult.error, errors);
       }
 
-      // Snapshot the project's attached folders onto the task's first message,
-      // exactly like a manually attached folder (deduped against any the user
-      // already attached). Later changes to the project don't affect this task.
+      // Snapshot project folders onto the first message (deduped). Later project changes don't apply.
       let mergedFolders = folders ?? [];
       if (project && project.folders.length > 0) {
         const seen = new Set(mergedFolders.map((folder) => folder.path));

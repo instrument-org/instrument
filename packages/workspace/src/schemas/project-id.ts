@@ -9,10 +9,8 @@ const PREFIX = "prj_";
 // cspell:ignore HJKMNP
 const ULID_REGEX = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
 
-// A project's stable identity. Unlike a TaskId, this is NOT the on-disk folder
-// name (projects are foldered by their human-readable name); it lives inside the
-// project's `.instrument/settings.json` and is what tasks reference, so a folder
-// rename never breaks associations.
+// Stable identity stored in .instrument/settings.json — NOT the folder name,
+// so a folder rename never breaks task associations.
 export const ProjectIdSchema = z
   .string()
   .startsWith(PREFIX)

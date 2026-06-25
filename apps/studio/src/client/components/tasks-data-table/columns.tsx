@@ -84,7 +84,7 @@ export function createColumns({
         return (
           <Button
             asChild
-            className="min-w-0 w-full justify-start"
+            className="min-w-0 w-full justify-start font-normal"
             variant="ghost"
           >
             <InternalLink
@@ -131,7 +131,7 @@ export function createColumns({
           return <span className="text-sm text-muted-foreground">—</span>;
         }
         return (
-          <Button asChild size="sm" variant="ghost">
+          <Button asChild className="font-normal" size="sm" variant="ghost">
             <InternalLink
               openInCurrentTab
               params={{ id: project.id }}

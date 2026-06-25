@@ -49,7 +49,7 @@ export const Route = createFileRoute("/_app/projects/$id/")({
     const [error, project] = await safe(
       rpcClient.workspace.project.byId.call({ id: params.id }),
     );
-    if (error || !project) {
+    if (error) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({ replace: true, to: "/new-tab" });
     }

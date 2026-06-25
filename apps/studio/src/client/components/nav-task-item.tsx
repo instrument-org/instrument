@@ -12,7 +12,7 @@ import {
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
-import { openCreateProject } from "@/client/lib/open-create-project";
+import { openCreateProject } from "@/client/lib/project-overlays";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import {

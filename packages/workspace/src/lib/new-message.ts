@@ -9,6 +9,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectExternalFileChanges } from "./external-file-changes";
 import { taskDir } from "./task-dir-utils";
@@ -85,6 +86,20 @@ export async function newMessage({
     getWorkspaceConfig().captureException(externalChanges.error);
   } else if (externalChanges.value) {
     parts.push(externalChanges.value);
+  }
+
+  // Surface attached folders the user removed since this session's last turn so
+  // the agent stops relying on them. Derived from a per-session baseline diff.
+  const folderChanges = await detectAttachedFolderChanges({
+    messageId,
+    sessionId,
+    taskId,
+  });
+  if (folderChanges.isErr()) {
+    // Awareness of folder removals is best-effort; never block sending.
+    getWorkspaceConfig().captureException(folderChanges.error);
+  } else if (folderChanges.value) {
+    parts.push(folderChanges.value);
   }
 
   const message: SessionMessage.UserWithParts = {

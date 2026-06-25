@@ -39,7 +39,7 @@ interface ChatStreamProps {
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onStartNewChat: () => void;
+  onStartNewTask: () => void;
   task: Task;
 }
 
@@ -52,7 +52,7 @@ export function ChatStream({
   onContinue,
   onModelChange,
   onRetry,
-  onStartNewChat,
+  onStartNewTask,
   task,
 }: ChatStreamProps) {
   const assetBaseUrl = getAssetBaseUrl(task.id);
@@ -88,11 +88,11 @@ export function ChatStream({
         onContinue={onContinue}
         onModelChange={onModelChange}
         onRetry={onRetry}
-        onStartNewChat={onStartNewChat}
+        onStartNewTask={onStartNewTask}
         task={task}
       />
     ),
-    [isDeveloperMode, onContinue, onModelChange, onRetry, onStartNewChat, task],
+    [isDeveloperMode, onContinue, onModelChange, onRetry, onStartNewTask, task],
   );
 
   const isToolStreaming = useCallback(
@@ -305,7 +305,7 @@ export function ChatStream({
             onContinue={onContinue}
             onModelChange={onModelChange}
             onRetry={onRetry}
-            onStartNewChat={onStartNewChat}
+            onStartNewTask={onStartNewTask}
           />,
         );
       }
@@ -354,7 +354,7 @@ export function ChatStream({
     onContinue,
     onModelChange,
     onRetry,
-    onStartNewChat,
+    onStartNewTask,
   ]);
 
   const shouldShowContinueButton = useMemo(() => {

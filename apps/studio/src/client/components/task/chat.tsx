@@ -144,32 +144,15 @@ export function TaskChat({
     });
   };
 
-  const createEmptySessionMutation = useMutation(
-    rpcClient.workspace.session.create.mutationOptions(),
-  );
-
-  const handleNewSession = () => {
-    createEmptySessionMutation.mutate(
-      { id },
-      {
-        onError: (error) => {
-          toast.error("Failed to create new chat", {
-            description: error.message,
-          });
-        },
-        onSuccess: (result) => {
-          void navigate({
-            params: { id },
-            replace: true,
-            search: (prev) => ({
-              ...prev,
-              selectedSessionId: result.id,
-            }),
-            to: "/tasks/$id",
-          });
-        },
-      },
-    );
+  const handleStartNewTask = () => {
+    if (task.projectId) {
+      void navigate({
+        params: { id: task.projectId },
+        to: "/projects/$id",
+      });
+    } else {
+      void navigate({ to: "/new-tab" });
+    }
   };
 
   const promptTextarea = useAtomValue(promptInputRefAtom);
@@ -270,12 +253,15 @@ export function TaskChat({
                   <div className="flex gap-2">
                     <Tooltip delayDuration={0}>
                       <TooltipTrigger asChild>
-                        <Button onClick={handleNewSession} variant="secondary">
-                          Start new chat
+                        <Button
+                          onClick={handleStartNewTask}
+                          variant="secondary"
+                        >
+                          Start new task
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Starts a fresh chat in this task</p>
+                        <p>Starts a new task</p>
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip delayDuration={0}>
@@ -299,7 +285,7 @@ export function TaskChat({
                 onContinue={handleContinue}
                 onModelChange={setSelectedModelURI}
                 onRetry={handleRetry}
-                onStartNewChat={handleNewSession}
+                onStartNewTask={handleStartNewTask}
                 task={task}
               />
             )

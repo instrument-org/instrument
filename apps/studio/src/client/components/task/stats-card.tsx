@@ -1,4 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { type Task, TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
@@ -30,7 +31,7 @@ export function TaskStatsCard({ task }: { task: Task }) {
       ? `${messageCount} ${messageCount === 1 ? "message" : "messages"}`
       : null,
     outputFileCount
-      ? `${outputFileCount} ${outputFileCount === 1 ? "file" : "files"}`
+      ? `${outputFileCount} ${outputFileCount === 1 ? "file" : "files"} made by ${APP_NAME}`
       : null,
   ].filter(Boolean);
 

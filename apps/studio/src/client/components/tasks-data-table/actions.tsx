@@ -1,4 +1,4 @@
-import type { TaskId } from "@instrument-org/workspace/client";
+import type { ProjectId, TaskId } from "@instrument-org/workspace/client";
 
 import { Button } from "@/client/components/ui/button";
 import {
@@ -32,12 +32,14 @@ export function TaskActionsCell({
   onOpenInNewTab,
   onSettings,
   onStop,
+  projectId,
 }: {
   id: TaskId;
   onDelete: (id: TaskId) => void;
   onOpenInNewTab: (id: TaskId) => void;
   onSettings: (id: TaskId) => void;
   onStop: (id: TaskId) => void;
+  projectId: null | ProjectId | undefined;
 }) {
   const { data: taskAgentStatus } = useTaskAgentStatus({ id });
   const sessionActors = taskAgentStatus?.sessionActors ?? [];
@@ -128,7 +130,7 @@ export function TaskActionsCell({
             <ArrowUpRightIcon className="text-muted-foreground" />
             <span>Open in new tab</span>
           </DropdownMenuItem>
-          <TaskProjectMenuItem taskId={id} />
+          <TaskProjectMenuItem currentProjectId={projectId} taskId={id} />
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

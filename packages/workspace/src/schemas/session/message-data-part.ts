@@ -5,6 +5,7 @@ import { RelativePathSchema } from "../paths";
 
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
+    "attachedFolderChanges",
     "attachments",
     "browserStatus",
     "externalFileChanges",
@@ -42,6 +43,16 @@ export namespace SessionMessageDataPart {
 
   export type ExternalFileChangesDataPart = z.output<
     typeof ExternalFileChangesDataPartSchema
+  >;
+
+  // Attached folders the user removed between turns, attached to the user
+  // message that triggers the next turn so the model stops relying on them.
+  const AttachedFolderChangesDataPartSchema = z.object({
+    removed: z.array(z.object({ name: z.string(), path: z.string() })),
+  });
+
+  export type AttachedFolderChangesDataPart = z.output<
+    typeof AttachedFolderChangesDataPartSchema
   >;
 
   const FileAttachmentDataPartSchema = z.object({
@@ -89,6 +100,8 @@ export namespace SessionMessageDataPart {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const DataPartsSchema = z.object({
+    [NameSchema.enum.attachedFolderChanges]:
+      AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,

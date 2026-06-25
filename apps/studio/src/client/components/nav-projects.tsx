@@ -1,3 +1,4 @@
+import { projectsSectionOpenAtom } from "@/client/atoms/projects-section";
 import {
   Collapsible,
   CollapsibleContent,
@@ -35,12 +36,12 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
-import { useState } from "react";
+import { useAtom } from "jotai";
 
 import { InternalLink } from "./internal-link";
 
 export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useAtom(projectsSectionOpenAtom);
 
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),

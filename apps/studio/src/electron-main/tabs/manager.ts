@@ -12,7 +12,10 @@ import {
   type TabState,
 } from "@/shared/tabs";
 import { TabIconsSchema } from "@instrument-org/shared/icons";
-import { TaskIdSchema } from "@instrument-org/workspace/electron";
+import {
+  ProjectIdSchema,
+  TaskIdSchema,
+} from "@instrument-org/workspace/electron";
 import { type BaseWindow, nativeTheme, WebContentsView } from "electron";
 import { type LogFunctions } from "electron-log";
 import Store from "electron-store";
@@ -29,10 +32,14 @@ import {
 
 const REVEAL_TAB_FALLBACK_DELAY_MS = 2000;
 
+// Captures the first segment after /projects, if any (group 1 undefined for a
+// bare /projects). Used to spare a real /projects/<ProjectId> from the rewrite.
+const LEGACY_PROJECTS_PATH_RE = /^\/projects(?:\/([^/?#]+))?/;
+
 interface TabStore {
-  // Run-once marker for the legacy /projects -> /tasks path rewrite below. The
-  // migration runs the first time this store is read and never again, so a real
-  // /projects/<ProjectId> tab created later is never touched.
+  // Run-once marker for the legacy /projects -> /tasks path rewrite below. Runs
+  // the first time this store is read and never again; paired with the
+  // ProjectId guard so a real /projects/<ProjectId> tab is never rewritten.
   legacyProjectPathsMigrated?: boolean;
   root?: TabState;
 }
@@ -372,12 +379,12 @@ export class TabsManager {
     // Migrate persisted legacy /projects(/<id>) pathnames to the renamed /tasks
     // route. The persisted tab store is the only source of a /projects path, so
     // normalizing here (before any filtering) means the renderer never needs to
-    // know about /projects -- no client-side redirect route required. Gated
-    // behind a run-once marker: /projects/<ProjectId> is now a live route, and
-    // no such tab can exist before this one-time rewrite has already run.
+    // know about /projects -- no client-side redirect route required. Gated by a
+    // run-once marker, and the per-tab rewrite leaves a real /projects/<ProjectId>
+    // tab alone so the migration can never clobber a live project route.
     if (!this.store.get("legacyProjectPathsMigrated")) {
       for (const tab of data.tabs) {
-        tab.pathname = tab.pathname.replace(/^\/projects\b/, "/tasks");
+        tab.pathname = migrateLegacyProjectsPath(tab.pathname);
       }
       this.store.set("legacyProjectPathsMigrated", true);
     }
@@ -874,4 +881,18 @@ export class TabsManager {
   private visibleTabs() {
     return this.tabs.filter((tab) => !tab.tabBarHidden);
   }
+}
+
+// Rewrites a persisted legacy /projects(/<TaskId>) pathname to the renamed
+// /tasks route. A real projects-feature path is /projects/<ProjectId>
+// (prj_<ULID>) and must be left alone; ProjectIds are structurally distinct from
+// TaskIds, so the rewrite is skipped whenever the first segment is a ProjectId.
+// There is no /projects index route, so a bare /projects is unambiguously the
+// legacy tasks list and is rewritten.
+function migrateLegacyProjectsPath(pathname: string): string {
+  const firstSegment = LEGACY_PROJECTS_PATH_RE.exec(pathname)?.[1];
+  if (firstSegment && ProjectIdSchema.safeParse(firstSegment).success) {
+    return pathname;
+  }
+  return pathname.replace(/^\/projects\b/, "/tasks");
 }

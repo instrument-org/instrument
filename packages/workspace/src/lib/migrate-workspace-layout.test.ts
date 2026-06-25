@@ -31,6 +31,17 @@ function writeLegacyTask(id: string, files: Record<string, string> = {}): void {
   }
 }
 
+// A real projects-feature folder: human-named, with a ProjectId in its settings.
+function writeProjectFolder(name: string, projectId: string): void {
+  const privateDir = path.join(rootDir, "projects", name, ".instrument");
+  fs.mkdirSync(privateDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(privateDir, "settings.json"),
+    JSON.stringify({ createdAt: new Date(0).toISOString(), id: projectId }),
+  );
+  fs.writeFileSync(path.join(rootDir, "projects", name, "AGENTS.md"), "do x");
+}
+
 const MARKER = [".instrument", ".legacy-projects-migrated"];
 
 describe("migrateWorkspaceLayout", () => {
@@ -171,6 +182,34 @@ describe("migrateWorkspaceLayout", () => {
     expect(result.movedTaskCount).toBe(0);
     expect(exists("tasks", "def")).toBe(false);
     expect(read("projects", "def", ".instrument", "sessions.db")).toBe("db2");
+  });
+
+  it("never moves a real project folder, even with the marker absent", () => {
+    // cspell:ignore prj_01ARZ3NDEKTSV4RRFFQ69G5FAV
+    // The regression: a populated projects/ with no marker yet. The content
+    // guard must keep the real project in place regardless of the marker.
+    writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+
+    const result = migrateWorkspaceLayout({ rootDir });
+
+    expect(result.movedTaskCount).toBe(0);
+    expect(result.conflictedTaskIds).toEqual([]);
+    expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
+    expect(exists("tasks", "My Project")).toBe(false);
+    expect(exists(...MARKER)).toBe(true);
+  });
+
+  it("drains legacy tasks but leaves project folders in projects/", () => {
+    writeLegacyTask("legacy-task", { "sessions.db": "db" });
+    writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+
+    const result = migrateWorkspaceLayout({ rootDir });
+
+    expect(result.movedTaskCount).toBe(1);
+    expect(read("tasks", "legacy-task", ".instrument", "task.db")).toBe("db");
+    // The real project is untouched; projects/ is retained because it remains.
+    expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
+    expect(exists("tasks", "My Project")).toBe(false);
   });
 
   it("folds the runnable package and agent dirs into work/", () => {

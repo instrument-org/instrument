@@ -12,6 +12,7 @@ import {
   ProjectSettingsSchema,
 } from "../schemas/project";
 import { newProjectId, type ProjectId } from "../schemas/project-id";
+import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { getTasks } from "./get-tasks";
@@ -39,6 +40,33 @@ export async function addFolderToProject(
     ? project.value.folders
     : [...project.value.folders, path];
   return updateProject(id, { folders });
+}
+
+// Clears task references to projects whose folder no longer exists. In-app
+// deletes already sweep referencing tasks (see deleteProject); this covers a
+// project deleted from disk while the app was closed, which would otherwise
+// leave a dangling projectId. Best-effort: a single failed clear is captured
+// and the sweep continues. Each cleared task publishes `task.updated`.
+export async function clearOrphanedProjectRefs(): Promise<TaskId[]> {
+  const config = getWorkspaceConfig();
+  const projects = await listProjects();
+  const existingIds = new Set(projects.map((p) => p.id));
+  const { tasks } = await getTasks(config);
+
+  const clearedTaskIds: TaskId[] = [];
+  for (const task of tasks) {
+    if (!task.projectId || existingIds.has(task.projectId)) {
+      continue;
+    }
+    const cleared = await updateTaskSettings(task.id, { projectId: null });
+    if (cleared.isErr()) {
+      config.captureException(cleared.error, { scopes: ["workspace"] });
+      continue;
+    }
+    clearedTaskIds.push(task.id);
+  }
+
+  return clearedTaskIds;
 }
 
 export async function createProject({

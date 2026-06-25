@@ -6,11 +6,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../constants";
 import { WorkspaceDirSchema } from "../schemas/paths";
 import { ProjectSettingsSchema } from "../schemas/project";
+import { newProjectId } from "../schemas/project-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
   addFolderToProject,
+  clearOrphanedProjectRefs,
   createProject,
   deleteProject,
   getProject,
@@ -19,6 +21,8 @@ import {
   removeFolderFromProject,
   updateProject,
 } from "./project";
+import { taskDir } from "./task-dir-utils";
+import { getTaskSettings, updateTaskSettings } from "./task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { disposeWorkspaceStoreStorage } from "./workspace-store-storage";
 
@@ -156,6 +160,33 @@ describe("project lib", () => {
     const created = createResult._unsafeUnwrap();
     await updateProject(created.id, { instructions: "New rules." });
     expect(await getProjectInstructions(created.id)).toBe("New rules.");
+  });
+
+  it("clears task refs to projects deleted from disk, keeps live ones", async () => {
+    const keptResult = await createProject({ name: "Kept" });
+    const kept = keptResult._unsafeUnwrap();
+    const missingProjectId = newProjectId();
+
+    const liveTaskId = TaskIdSchema.parse("live-task");
+    const orphanTaskId = TaskIdSchema.parse("orphan-task");
+    const liveWrite = await updateTaskSettings(liveTaskId, {
+      name: "Live",
+      projectId: kept.id,
+    });
+    liveWrite._unsafeUnwrap();
+    const orphanWrite = await updateTaskSettings(orphanTaskId, {
+      name: "Orphan",
+      projectId: missingProjectId,
+    });
+    orphanWrite._unsafeUnwrap();
+
+    const cleared = await clearOrphanedProjectRefs();
+    expect(cleared).toEqual([orphanTaskId]);
+
+    const orphanSettings = await getTaskSettings(taskDir(orphanTaskId));
+    expect(orphanSettings?.projectId).toBeUndefined();
+    const liveSettings = await getTaskSettings(taskDir(liveTaskId));
+    expect(liveSettings?.projectId).toBe(kept.id);
   });
 
   it("deletes a project and makes it unresolvable by id", async () => {

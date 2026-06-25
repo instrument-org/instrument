@@ -3,6 +3,7 @@ import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
   migrateWorkspaceLayout,
   workspaceMachine,
@@ -174,6 +175,25 @@ export function createWorkspaceActor({
   }
 
   const workspaceConfig = snapshot.context.config;
+
+  // Reconcile task -> project references against disk. A project folder can be
+  // deleted outside the app (or while it is closed), leaving tasks pointing at
+  // a project that no longer exists; in-app deletes already sweep, but disk
+  // deletes do not. Best-effort and async; must not block boot.
+  void clearOrphanedProjectRefs()
+    .then((clearedTaskIds) => {
+      if (clearedTaskIds.length > 0) {
+        logger.info(
+          `Cleared ${clearedTaskIds.length} task(s) referencing a deleted project`,
+        );
+      }
+    })
+    .catch((error: unknown) => {
+      captureServerException(
+        error instanceof Error ? error : new Error(String(error)),
+        { scopes: ["studio"] },
+      );
+    });
 
   // Warn before stopping in-flight agents. Fails open so a count error never
   // blocks quitting.

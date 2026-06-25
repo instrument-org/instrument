@@ -35,7 +35,7 @@ interface MessageErrorProps {
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onStartNewChat?: () => void;
+  onStartNewTask?: () => void;
 }
 
 export function MessageError({
@@ -46,7 +46,7 @@ export function MessageError({
   onContinue,
   onModelChange,
   onRetry,
-  onStartNewChat,
+  onStartNewTask,
 }: MessageErrorProps) {
   const error = message.metadata.error;
   const showActions = isLastMessage && !isAgentRunning;
@@ -180,20 +180,20 @@ export function MessageError({
         <CollapsibleContent>
           <CollapsiblePartMainContent
             footer={
-              showActions && onStartNewChat && !platformError ? (
+              showActions && onStartNewTask && !platformError ? (
                 <div className="mt-2 flex gap-2">
                   <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>
                       <Button
-                        onClick={onStartNewChat}
+                        onClick={onStartNewTask}
                         size="sm"
                         variant="outline"
                       >
-                        Start new chat
+                        Start new task
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Starts a fresh chat in this task</p>
+                      <p>Starts a new task</p>
                     </TooltipContent>
                   </Tooltip>
                   <Button

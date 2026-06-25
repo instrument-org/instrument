@@ -9,7 +9,6 @@ import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
-import { TaskProjectBreadcrumb } from "../project/task-project-breadcrumb";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { TaskActionsMenu } from "./actions-menu";
-import { TaskChatMenu } from "./chat-menu";
 import { TaskDebugDialog } from "./debug-dialog";
+import { TaskBreadcrumb } from "./task-breadcrumb";
 import { TaskUsageSummary } from "./usage-summary";
 
 export function TaskToolbar({
@@ -44,16 +43,12 @@ export function TaskToolbar({
       <div className="@container w-full bg-background p-3">
         <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
           <div className="flex min-w-0 flex-1 items-center gap-x-1 overflow-hidden">
-            {task.projectId && (
-              <TaskProjectBreadcrumb projectId={task.projectId} />
-            )}
-            <TaskChatMenu
+            <TaskBreadcrumb
               onChatClick={() => {
                 onSidebarChange("chat");
               }}
-              selectedSessionId={selectedSessionId}
               sidebar={sidebar}
-              taskTitle={task.title}
+              task={task}
             />
 
             <Toggle

@@ -9,7 +9,11 @@ import {
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type ProjectId,
+  type StoreId,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import {
   ArrowCounterClockwiseIcon,
   BugIcon,
@@ -31,12 +35,14 @@ export function TaskActionsMenu({
   onDebugClick,
   onReplayClick,
   onSettingsClick,
+  projectId,
   selectedSessionId,
 }: {
   id: TaskId;
   onDebugClick: () => void;
   onReplayClick: () => void;
   onSettingsClick: () => void;
+  projectId: null | ProjectId | undefined;
   selectedSessionId?: StoreId.Session;
 }) {
   const navigate = useNavigate();
@@ -119,7 +125,7 @@ export function TaskActionsMenu({
           <PencilSimpleLineIcon className="size-4" />
           <span>Rename</span>
         </DropdownMenuItem>
-        <TaskProjectMenuItem taskId={id} />
+        <TaskProjectMenuItem currentProjectId={projectId} taskId={id} />
 
         {isDeveloperMode && (
           <>

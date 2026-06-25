@@ -20,6 +20,7 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useMediaQuery } from "@/client/hooks/use-media-query";
+import { useTabActions } from "@/client/hooks/use-tab-actions";
 import {
   openDeleteProject,
   openEditProject,
@@ -35,7 +36,7 @@ import {
   PencilSimpleLineIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -64,6 +65,7 @@ export const Route = createFileRoute("/_app/projects/$id/")({
 function RouteComponent() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const { addTab } = useTabActions();
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
@@ -87,9 +89,13 @@ function RouteComponent() {
     [projects, id],
   );
 
+  // keepPreviousData holds the last snapshot while the live query re-subscribes
+  // (its data otherwise blinks to undefined during the mutation storm when a task
+  // or the project is deleted, flashing the empty state).
   const { data: tasksData } = useQuery(
     rpcClient.workspace.task.live.list.experimental_liveOptions({
       input: { direction: "desc", sortBy: "updatedAt" },
+      placeholderData: keepPreviousData,
     }),
   );
 
@@ -210,12 +216,14 @@ function RouteComponent() {
           </div>
 
           <PromptInput
+            allowOpenInNewTab
             atomKey={`$$project:${id}$$`}
+            autoFocus
             autoResizeMaxHeight={240}
             isLoading={createTaskMutation.isPending}
             modelURI={selectedModelURI}
             onModelChange={setSelectedModelURI}
-            onSubmit={({ files, folders, modelURI, prompt }) => {
+            onSubmit={({ files, folders, modelURI, openInNewTab, prompt }) => {
               saveSelectedModelURI(modelURI);
               createTaskMutation.mutate(
                 { files, folders, modelURI, projectId: id, prompt },
@@ -227,11 +235,22 @@ function RouteComponent() {
                   },
                   onSuccess: ({ id: taskId, sessionId }) => {
                     promptInputRef.current?.clear();
-                    void navigate({
-                      params: { id: taskId },
-                      search: { selectedSessionId: sessionId },
-                      to: "/tasks/$id",
-                    });
+                    if (openInNewTab) {
+                      void addTab(
+                        {
+                          params: { id: taskId },
+                          search: { selectedSessionId: sessionId },
+                          to: "/tasks/$id",
+                        },
+                        { select: false },
+                      );
+                    } else {
+                      void navigate({
+                        params: { id: taskId },
+                        search: { selectedSessionId: sessionId },
+                        to: "/tasks/$id",
+                      });
+                    }
                   },
                 },
               );

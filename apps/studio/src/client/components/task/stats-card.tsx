@@ -1,11 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type Task } from "@instrument-org/workspace/client";
-import {
-  CalendarIcon,
-  ChatTextIcon,
-  ClockIcon,
-  FileTextIcon,
-} from "@phosphor-icons/react";
+import { type Task, TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -16,48 +10,35 @@ export function TaskStatsCard({ task }: { task: Task }) {
     }),
   );
 
-  const { data: files } = useQuery({
-    ...rpcClient.workspace.task.files.list.queryOptions({
+  const { data: files } = useQuery(
+    rpcClient.workspace.task.files.list.queryOptions({
       input: { taskId: task.id },
     }),
-  });
-  const fileCount = files?.length;
+  );
+  const outputFileCount = files?.filter((file) =>
+    file.filePath.startsWith(`${TASK_FOLDER_NAMES.output}/`),
+  ).length;
+
+  const updated = formatDistanceToNow(task.updatedAt, { addSuffix: true })
+    .replace("less than ", "")
+    .replace("about ", "");
+
+  const meta = [
+    `Created ${format(task.createdAt, "MMM d, yyyy")}`,
+    `Updated ${updated}`,
+    messageCount !== undefined && messageCount > 0
+      ? `${messageCount} ${messageCount === 1 ? "message" : "messages"}`
+      : null,
+    outputFileCount
+      ? `${outputFileCount} ${outputFileCount === 1 ? "file" : "files"}`
+      : null,
+  ].filter(Boolean);
 
   return (
-    <div className="flex items-center gap-3 overflow-hidden rounded-lg border bg-muted/50 p-4">
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="truncate font-medium text-foreground">{task.title}</div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <CalendarIcon className="size-3" />
-            <span>Created {format(task.createdAt, "MMM d, yyyy")}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <ClockIcon className="size-3" />
-            <span>
-              Updated{" "}
-              {formatDistanceToNow(task.updatedAt, { addSuffix: true })
-                .replace("less than ", "")
-                .replace("about ", "")}
-            </span>
-          </div>
-          {messageCount !== undefined && messageCount > 0 && (
-            <div className="flex items-center gap-1">
-              <ChatTextIcon className="size-3" />
-              <span>
-                {messageCount} {messageCount === 1 ? "message" : "messages"}
-              </span>
-            </div>
-          )}
-          {fileCount !== undefined && fileCount > 0 && (
-            <div className="flex items-center gap-1">
-              <FileTextIcon className="size-3" />
-              <span>
-                {fileCount} {fileCount === 1 ? "file" : "files"}
-              </span>
-            </div>
-          )}
-        </div>
+    <div className="overflow-hidden rounded-lg border bg-muted/50 px-4 py-3">
+      <div className="truncate font-medium text-foreground">{task.title}</div>
+      <div className="mt-1 truncate text-xs text-muted-foreground">
+        {meta.join(" · ")}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
 import {
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -161,7 +162,14 @@ function ProjectModalForm({
   });
 
   return (
-    <DialogContent className="max-w-lg">
+    <DialogContent className="max-w-lg" showCloseButton={false}>
+      <div className="absolute top-3 right-3 z-10">
+        <DialogClose asChild>
+          <Button aria-label="Close" type="button" variant="outline">
+            <XIcon className="size-4" />
+          </Button>
+        </DialogClose>
+      </div>
       <DialogHeader>
         <DialogTitle className="text-center font-serif text-2xl font-normal">
           {isEditing ? "Edit project" : "New project"}
@@ -260,7 +268,7 @@ function ProjectModalForm({
           )}
 
           {!isEditing && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 overflow-hidden">
               <button
                 className={cn(
                   "flex items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
@@ -276,7 +284,7 @@ function ProjectModalForm({
               </button>
               {folders.map((path) => (
                 <div
-                  className="flex items-center gap-x-2 rounded-md border p-2"
+                  className="flex min-w-0 items-center gap-x-2 overflow-hidden rounded-md border p-2"
                   key={path}
                 >
                   <MacFolderIcon className="size-5 shrink-0" />

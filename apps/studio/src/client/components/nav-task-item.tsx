@@ -99,7 +99,7 @@ export const NavTaskItem = memo(function NavTaskItem({
         >
           <SidebarMenuButton
             asChild
-            className="h-9 gap-1 text-sidebar-foreground/60 group-hover:bg-sidebar-accent group-hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground"
+            className="h-9 text-sidebar-foreground/60 group-hover:bg-sidebar-accent group-hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground"
             isActive={isActive}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -113,7 +113,7 @@ export const NavTaskItem = memo(function NavTaskItem({
               to="/tasks/$id"
             >
               {isPinned && (
-                <PushPinIcon className="size-3.5 shrink-0 text-sidebar-foreground/40" />
+                <PushPinIcon className="size-3.5 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
               )}
               <span className="truncate">{task.title}</span>
             </InternalLink>

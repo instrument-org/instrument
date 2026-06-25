@@ -82,6 +82,14 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
   }
 
   switch (part.type) {
+    case "data-attachedFolderChanges": {
+      const foldersList = part.data.removed
+        .map(
+          (folder) => `<folder name="${folder.name}" path="${folder.path}" />`,
+        )
+        .join("\n");
+      return `<data-attachedFolderChanges>\n${indent(foldersList)}\n</data-attachedFolderChanges>`;
+    }
     case "data-attachments": {
       const filesList = part.data.files
         .map((file) => {

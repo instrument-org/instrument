@@ -5,7 +5,7 @@ import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
 // isolated, so a renderer-local dialog would be clipped to its own view.
 export function openCreateProject(taskId?: TaskId) {
   void rpcClient.studioOverlay.show.call({
-    kind: "project-modal",
+    kind: "project",
     props: taskId ? { taskId } : undefined,
   });
 }
@@ -19,7 +19,7 @@ export function openDeleteProject(projectId: ProjectId) {
 
 export function openEditProject(projectId: ProjectId) {
   void rpcClient.studioOverlay.show.call({
-    kind: "project-modal",
+    kind: "project",
     props: { projectId },
   });
 }

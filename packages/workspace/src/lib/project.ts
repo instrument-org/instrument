@@ -18,12 +18,6 @@ import { getTasks } from "./get-tasks";
 import { validateProjectName } from "./project-folder-name";
 import { updateTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
-import {
-  getProjectIndex,
-  type ProjectIndex,
-  removeProjectFolder,
-  setProjectFolder,
-} from "./workspace-store";
 
 export async function addFolderToProject(
   id: ProjectId,
@@ -104,8 +98,6 @@ export async function createProject({
     );
   }
 
-  await setProjectFolder(id, folderName);
-
   return ok({
     createdAt,
     description: description ?? "",
@@ -121,7 +113,6 @@ export async function deleteProject(
 ): Promise<Result<undefined, TypedError.FileSystem | TypedError.Parse>> {
   const folder = await resolveProjectFolder(id);
   if (!folder) {
-    await removeProjectFolder(id);
     return ok(undefined);
   }
 
@@ -136,8 +127,6 @@ export async function deleteProject(
       }),
     );
   }
-
-  await removeProjectFolder(id);
 
   const { tasks } = await getTasks(config);
   for (const task of tasks) {
@@ -265,7 +254,6 @@ export async function updateProject(
         );
       }
       folderName = nextName;
-      await setProjectFolder(id, nextName);
     }
   }
 
@@ -417,27 +405,18 @@ async function readProjectSettings(
   return ok(settings.data);
 }
 
-// Resolves a ProjectId to its current folder name, trusting the workspace-store
-// index first and self-healing from a disk scan when it is stale (e.g. the
-// folder was renamed outside the app).
+// Resolves a ProjectId to its current folder name by scanning `projects/`.
+// The folder + settings.json is the source of truth, so the id stays stable
+// even when the folder is renamed (inside or outside the app).
 async function resolveProjectFolder(
   id: ProjectId,
 ): Promise<string | undefined> {
-  const index: ProjectIndex = await getProjectIndex().unwrapOr({});
-  const fromIndex = index[id];
-  if (fromIndex) {
-    const result = await readProject(fromIndex);
-    if (result.isOk() && result.value.id === id) {
-      return fromIndex;
+  const folders = await listProjectFolders();
+  for (const folder of folders) {
+    const settings = await readProjectSettings(folder);
+    if (settings.isOk() && settings.value.id === id) {
+      return folder;
     }
   }
-
-  const projects = await listProjects();
-  const match = projects.find((project) => project.id === id);
-  if (match) {
-    await setProjectFolder(id, match.name);
-    return match.name;
-  }
-
   return undefined;
 }

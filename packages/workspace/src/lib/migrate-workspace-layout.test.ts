@@ -31,6 +31,17 @@ function writeLegacyTask(id: string, files: Record<string, string> = {}): void {
   }
 }
 
+// A real projects-feature folder: human-named, with a ProjectId in its settings.
+function writeProjectFolder(name: string, projectId: string): void {
+  const privateDir = path.join(rootDir, "projects", name, ".instrument");
+  fs.mkdirSync(privateDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(privateDir, "settings.json"),
+    JSON.stringify({ createdAt: new Date(0).toISOString(), id: projectId }),
+  );
+  fs.writeFileSync(path.join(rootDir, "projects", name, "AGENTS.md"), "do x");
+}
+
 describe("migrateWorkspaceLayout", () => {
   it("no-ops when there is no legacy projects/ dir", () => {
     const result = migrateWorkspaceLayout({ rootDir });
@@ -156,17 +167,47 @@ describe("migrateWorkspaceLayout", () => {
     );
   });
 
-  it("re-migrates a projects/ dir that reappears later", () => {
+  it("runs the legacy projects/ move at most once (marker gated)", () => {
     writeLegacyTask("abc", { "sessions.db": "db" });
     migrateWorkspaceLayout({ rootDir });
 
+    // projects/ now belongs to the projects feature. A folder appearing there
+    // later must NOT be drained into tasks/, even if it looks task-shaped.
     writeLegacyTask("def", { "sessions.db": "db2" });
     const result = migrateWorkspaceLayout({ rootDir });
 
-    expect(result.migrated).toBe(true);
+    expect(result.migrated).toBe(false);
+    expect(result.movedTaskCount).toBe(0);
+    expect(exists("tasks", "def")).toBe(false);
+    expect(read("projects", "def", ".instrument", "sessions.db")).toBe("db2");
+  });
+
+  it("never moves a real project folder, and records completion", () => {
+    // cspell:ignore prj_01ARZ3NDEKTSV4RRFFQ69G5FAV
+    writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+
+    const result = migrateWorkspaceLayout({ rootDir });
+
+    // The project folder stays put; nothing is treated as a legacy task.
+    expect(result.movedTaskCount).toBe(0);
+    expect(result.conflictedTaskIds).toEqual([]);
+    expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
+    expect(exists("tasks", "My Project")).toBe(false);
+    // Marker written so the pass never re-runs against the live projects/ dir.
+    expect(exists(".instrument", "migrations.json")).toBe(true);
+  });
+
+  it("drains legacy tasks but leaves project folders in projects/", () => {
+    writeLegacyTask("legacy-task", { "sessions.db": "db" });
+    writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+
+    const result = migrateWorkspaceLayout({ rootDir });
+
     expect(result.movedTaskCount).toBe(1);
-    expect(read("tasks", "def", ".instrument", "task.db")).toBe("db2");
-    expect(exists("projects")).toBe(false);
+    expect(read("tasks", "legacy-task", ".instrument", "task.db")).toBe("db");
+    // The real project is untouched; projects/ is retained because it remains.
+    expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
+    expect(exists("tasks", "My Project")).toBe(false);
   });
 
   it("folds the runnable package and agent dirs into work/", () => {

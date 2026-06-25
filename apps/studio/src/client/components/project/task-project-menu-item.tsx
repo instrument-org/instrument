@@ -8,7 +8,7 @@ import {
 import { openCreateProject } from "@/client/lib/open-create-project";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
-import { BagIcon, PlusIcon } from "@phosphor-icons/react";
+import { BagIcon, PlusIcon, XCircleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -83,7 +83,7 @@ export function TaskProjectMenuItem({
             void removeTask({ taskId });
           }}
         >
-          <BagIcon className="size-4 text-muted-foreground" />
+          <XCircleIcon className="size-4 text-muted-foreground" />
           Remove from project
         </DropdownMenuItem>
       )}

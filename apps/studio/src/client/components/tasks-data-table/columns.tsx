@@ -201,6 +201,7 @@ export function createColumns({
             onOpenInNewTab={onOpenInNewTab}
             onSettings={onSettings}
             onStop={onStop}
+            projectId={task.projectId}
           />
         );
       },

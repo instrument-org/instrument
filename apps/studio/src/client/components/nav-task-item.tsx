@@ -6,12 +6,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { Input } from "@/client/components/ui/input";
 import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
+import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { openCreateProject } from "@/client/lib/open-create-project";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
@@ -27,8 +27,9 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useState } from "react";
 
+import { InlineRenameInput } from "./inline-rename-input";
 import { TaskStatusIcon } from "./session-status-icon";
 
 interface NavTaskItemProps {
@@ -49,13 +50,17 @@ export const NavTaskItem = memo(function NavTaskItem({
   // "Add to project" would be clipped. Instead the menu drills in: swap the
   // popover contents to the project list (vertical, stays in bounds).
   const [menuView, setMenuView] = useState<"projects" | "root">("root");
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(task.title);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const { isPending: isRenameLoading, mutateAsync: renameTask } = useMutation(
+  const { mutateAsync: renameTask } = useMutation(
     rpcClient.workspace.task.update.mutationOptions(),
   );
+
+  const rename = useInlineRename({
+    onSave: async (next) => {
+      await renameTask({ id: task.id, name: next });
+    },
+    value: task.title,
+  });
 
   const { mutateAsync: addPin } = useMutation(
     rpcClient.workspace.pin.add.mutationOptions(),
@@ -74,84 +79,14 @@ export const NavTaskItem = memo(function NavTaskItem({
     rpcClient.workspace.project.removeTask.mutationOptions(),
   );
 
-  if (!isEditing && editValue !== task.title) {
-    setEditValue(task.title);
-  }
-
-  const handleStartEdit = () => {
-    setEditValue(task.title);
-    setIsEditing(true);
-  };
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditValue(task.title);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editValue.trim()) {
-      return;
-    }
-
-    if (editValue.trim() === task.title) {
-      setIsEditing(false);
-      return;
-    }
-
-    try {
-      await renameTask({
-        id: task.id,
-        name: editValue.trim(),
-      });
-      // wait for client update to avoid flicker
-      await new Promise((resolve) => {
-        setTimeout(resolve, 250);
-      });
-      setIsEditing(false);
-    } catch {
-      setEditValue(task.title);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      void handleSaveEdit();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      handleCancelEdit();
-    }
-  };
-
   const handleTogglePin = async () => {
     await (isPinned ? removePin({ id: task.id }) : addPin({ id: task.id }));
   };
 
   return (
     <SidebarMenuItem className="group" key={task.id}>
-      {isEditing ? (
-        <div className="flex h-9 items-center gap-2 px-2">
-          <Input
-            className="-ml-1 h-7 pl-1 text-sm"
-            disabled={isRenameLoading}
-            onBlur={() => {
-              void handleSaveEdit();
-            }}
-            onChange={(e) => {
-              setEditValue(e.target.value);
-            }}
-            onKeyDown={handleKeyDown}
-            ref={inputRef}
-            value={editValue}
-          />
-        </div>
+      {rename.isEditing ? (
+        <InlineRenameInput inputProps={rename.inputProps} />
       ) : (
         <DropdownMenu
           onOpenChange={(open) => {
@@ -172,16 +107,13 @@ export const NavTaskItem = memo(function NavTaskItem({
             }}
           >
             <InternalLink
-              onDoubleClick={handleStartEdit}
+              onDoubleClick={rename.start}
               openInCurrentTab
               params={{ id: task.id }}
               to="/tasks/$id"
             >
               {isPinned && (
-                <PushPinIcon
-                  className="size-3.5 shrink-0 text-sidebar-foreground/40"
-                  weight="fill"
-                />
+                <PushPinIcon className="size-3.5 shrink-0 text-sidebar-foreground/40" />
               )}
               <span className="truncate">{task.title}</span>
             </InternalLink>
@@ -248,10 +180,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                     void handleTogglePin();
                   }}
                 >
-                  <PushPinIcon
-                    className="text-muted-foreground"
-                    weight={isPinned ? "fill" : undefined}
-                  />
+                  <PushPinIcon className="text-muted-foreground" />
                   <span>{isPinned ? "Unpin" : "Pin"}</span>
                 </DropdownMenuItem>
                 <InternalLink
@@ -265,7 +194,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                     <span>Duplicate</span>
                   </DropdownMenuItem>
                 </InternalLink>
-                <DropdownMenuItem onClick={handleStartEdit}>
+                <DropdownMenuItem onClick={rename.start}>
                   <PencilSimpleLineIcon className="text-muted-foreground" />
                   <span>Rename</span>
                 </DropdownMenuItem>

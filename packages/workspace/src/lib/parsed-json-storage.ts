@@ -4,9 +4,7 @@ import { z } from "zod";
 import { TypedError } from "./errors";
 import { type WrappedStorage } from "./wrap-storage";
 
-// Plain-JSON codec for unstorage-backed KV values. The session store still wraps
-// values in superjson; this is the no-superjson successor (see FP-1148). Dates
-// should round-trip via `z.coerce.date()` on the value schema.
+// Plain-JSON codec (no superjson). Dates round-trip via `z.coerce.date()`.
 export function getParsedJsonStorageItem<T>(
   key: string,
   schema: z.ZodType<T>,

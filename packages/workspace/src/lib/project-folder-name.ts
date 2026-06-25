@@ -2,10 +2,8 @@ import { err, ok, type Result } from "neverthrow";
 
 import { TypedError } from "./errors";
 
-// Because a project's folder name IS its display name, names must be valid
-// directory names across macOS, Windows, and Linux. We VALIDATE (reject) rather
-// than silently transform, so what the user types is exactly what lands on disk.
-// Rejects the Windows/cross-OS illegal set plus ASCII control characters.
+// Folder name = display name, so we reject invalid chars rather than transform:
+// what the user types lands on disk verbatim. Cross-OS illegal set + controls.
 // eslint-disable-next-line no-control-regex, prefer-regex-literals
 const ILLEGAL_CHARS = new RegExp('[<>:"/\\\\|?*\\u0000-\\u001f]');
 const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;

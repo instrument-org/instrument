@@ -13,17 +13,13 @@ import { TypedError } from "./errors";
 import { getWorkspaceConfig } from "./workspace-config";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
 
-// The workspace store is a single, long-lived KV store at the workspace root's
-// `.instrument/` private dir. Unlike the per-task session store there is exactly
-// one per workspace, so we cache a single instance (keyed by its resolved path
-// so tests pointing the singleton at a tmp dir get a fresh store).
+// Singleton KV store at <workspace>/.instrument/; keyed by path so tests
+// using a tmp dir get a fresh instance.
 let CACHED_STORAGE: undefined | WrappedStorage;
 let CACHED_PATH: string | undefined;
 let CACHED_DATABASE: Database<Connector<DatabaseSync>> | undefined;
 
-// Closes the underlying SQLite handle and clears the cache. Primarily for tests
-// that create throwaway workspaces; unstorage's db0 driver does not close the
-// database on dispose, so we do it explicitly.
+// For tests: db0's unstorage driver doesn't close SQLite on dispose.
 export function disposeWorkspaceStoreStorage() {
   return ResultAsync.fromPromise(
     (async () => {

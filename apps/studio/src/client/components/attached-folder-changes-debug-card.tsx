@@ -5,8 +5,6 @@ import {
 
 import { ModelContextDebugCard } from "./model-context-debug-card";
 
-// Developer-mode-only peek at the attached folders the agent was told were
-// removed for this message. Intentionally minimal; not user-facing.
 export function AttachedFolderChangesDebugCard({
   className,
   data,

@@ -80,8 +80,7 @@ const remove = base
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
-    // deleteProject unfiles member tasks via updateTaskSettings, which already
-    // emits per-task `task.updated` to refresh task-derived views.
+    // deleteProject calls updateTaskSettings per task, which emits task.updated.
     publisher.publish("project.updated", null);
     context.workspaceConfig.captureEvent("project.removed");
   });
@@ -90,7 +89,6 @@ const addTask = base
   .input(z.object({ projectId: ProjectIdSchema, taskId: TaskIdSchema }))
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
-    // Don't file a task into a project that doesn't exist.
     const projectResult = await getProject(input.projectId);
     if (projectResult.isErr()) {
       throw toORPCError(projectResult.error, errors);
@@ -141,9 +139,8 @@ const removeFolder = base
     return result.value;
   });
 
-// Re-reads project state from disk for all live.list subscribers. Used to pick
-// up out-of-band edits (e.g. AGENTS.md changed on disk) when the page regains
-// focus, since nothing else publishes project.updated for external writes.
+// Triggers live.list to re-read disk; for AGENTS.md edits made outside the app
+// (no project.updated fires for external writes).
 const refresh = base.output(z.void()).handler(() => {
   publisher.publish("project.updated", null);
 });

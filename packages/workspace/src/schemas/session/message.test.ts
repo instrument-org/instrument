@@ -266,7 +266,15 @@ describe("SessionMessage.toModelMessages", () => {
         {
           "content": [
             {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
               "text": "Use the latest data.",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
               "type": "text",
             },
             {
@@ -325,7 +333,15 @@ describe("SessionMessage.toModelMessages", () => {
         {
           "content": [
             {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
               "text": "Continue in the browser.",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
               "type": "text",
             },
             {
@@ -382,7 +398,15 @@ describe("SessionMessage.toModelMessages", () => {
         {
           "content": [
             {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
               "text": "Continue where you left off.",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
               "type": "text",
             },
             {
@@ -465,7 +489,15 @@ describe("SessionMessage.toModelMessages", () => {
         {
           "content": [
             {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
               "text": "First message.",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
               "type": "text",
             },
             {

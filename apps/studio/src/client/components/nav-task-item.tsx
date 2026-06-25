@@ -213,21 +213,25 @@ export const NavTaskItem = memo(function NavTaskItem({
                   <span>Back</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {projects?.map((project) => (
-                  <DropdownMenuItem
-                    key={project.id}
-                    onSelect={() => {
-                      void addTaskToProject({
-                        projectId: project.id,
-                        taskId: task.id,
-                      });
-                    }}
-                  >
-                    <BagIcon className="text-muted-foreground" />
-                    <span className="truncate">{project.name}</span>
-                  </DropdownMenuItem>
-                ))}
-                {projects && projects.length > 0 && <DropdownMenuSeparator />}
+                {projects
+                  ?.filter((project) => project.id !== task.projectId)
+                  .map((project) => (
+                    <DropdownMenuItem
+                      key={project.id}
+                      onSelect={() => {
+                        void addTaskToProject({
+                          projectId: project.id,
+                          taskId: task.id,
+                        });
+                      }}
+                    >
+                      <BagIcon className="text-muted-foreground" />
+                      <span className="truncate">{project.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                {projects?.some((project) => project.id !== task.projectId) && (
+                  <DropdownMenuSeparator />
+                )}
                 <DropdownMenuItem
                   onSelect={() => {
                     openCreateProject(task.id);
@@ -266,14 +270,25 @@ export const NavTaskItem = memo(function NavTaskItem({
                   <span>Rename</span>
                 </DropdownMenuItem>
                 {task.projectId ? (
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      void removeTaskFromProject({ taskId: task.id });
-                    }}
-                  >
-                    <BagIcon className="text-muted-foreground" />
-                    <span>Remove from project</span>
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setMenuView("projects");
+                      }}
+                    >
+                      <BagIcon className="text-muted-foreground" />
+                      <span>Move to project</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        void removeTaskFromProject({ taskId: task.id });
+                      }}
+                    >
+                      <BagIcon className="text-muted-foreground" />
+                      <span>Remove from project</span>
+                    </DropdownMenuItem>
+                  </>
                 ) : (
                   <DropdownMenuItem
                     onSelect={(e) => {

@@ -122,6 +122,28 @@ function RouteComponent() {
     rpcClient.workspace.task.create.mutationOptions(),
   );
 
+  // Project instructions/details are file-backed; nothing publishes an update
+  // for edits made to those files outside the app. The live.list query is a
+  // perpetual subscription (always "fetching"), so refetchOnWindowFocus is a
+  // no-op; instead nudge the existing subscription to re-read disk on focus.
+  // TanStack's focusManager only watches visibilitychange, which Electron does
+  // not fire when the OS window regains focus (the view is never marked hidden),
+  // so we listen for window focus too and re-read disk.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      void safe(rpcClient.workspace.project.refresh.call());
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
   // If the project we're viewing is deleted (here or from the sidebar), leave
   // this now-dead page rather than showing "Project not found".
   const hadProjectRef = useRef(false);

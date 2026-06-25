@@ -69,11 +69,9 @@ export async function createProject({
   }
   const folderName = validated.value;
 
-  const existing = await listProjectFolders();
-  if (existing.some((f) => f.toLowerCase() === folderName.toLowerCase())) {
-    return err(
-      new TypedError.Conflict(`A project named "${folderName}" already exists`),
-    );
+  const conflict = await findNameConflict(folderName);
+  if (conflict.isErr()) {
+    return err(conflict.error);
   }
 
   const id = newProjectId();
@@ -247,13 +245,9 @@ export async function updateProject(
     const nextName = validated.value;
 
     if (nextName.toLowerCase() !== currentFolder.toLowerCase()) {
-      const existing = await listProjectFolders();
-      if (existing.some((f) => f.toLowerCase() === nextName.toLowerCase())) {
-        return err(
-          new TypedError.Conflict(
-            `A project named "${nextName}" already exists`,
-          ),
-        );
+      const conflict = await findNameConflict(nextName);
+      if (conflict.isErr()) {
+        return err(conflict.error);
       }
     }
 
@@ -314,6 +308,18 @@ export async function updateProject(
   }
 
   return readProject(folderName);
+}
+
+async function findNameConflict(
+  folderName: string,
+): Promise<Result<undefined, TypedError.Conflict>> {
+  const existing = await listProjectFolders();
+  if (existing.some((f) => f.toLowerCase() === folderName.toLowerCase())) {
+    return err(
+      new TypedError.Conflict(`A project named "${folderName}" already exists`),
+    );
+  }
+  return ok(undefined);
 }
 
 async function listProjectFolders(): Promise<string[]> {

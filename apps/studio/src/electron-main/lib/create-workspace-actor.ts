@@ -56,8 +56,9 @@ export function createWorkspaceActor({
       logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
     }
     if (migration.conflictedTaskIds.length > 0) {
-      // A legacy task was abandoned because tasks/<id> already exists, so
-      // projects/ lingers and this re-runs every boot. Surface it.
+      // A legacy task was abandoned because tasks/<id> already exists. The
+      // marker means this won't retry, so the leftover copy lingers in
+      // projects/ -- surface it.
       logger.warn(
         "Workspace layout migration left legacy task copies in projects/ (id already exists under tasks/)",
         { conflictedTaskIds: migration.conflictedTaskIds },

@@ -253,7 +253,7 @@ export const mainAgent = setupAgent({
           return dedent`
             # Project Instructions
             This task belongs to a project. Follow these project-specific
-            instructions (from the project's AGENTS.md):
+            instructions:
 
             ${instructions}
           `.trim();

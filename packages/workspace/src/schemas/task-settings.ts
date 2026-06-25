@@ -5,7 +5,6 @@ import { ProjectIdSchema } from "./project-id";
 export const TaskSettingsSchema = z.object({
   createdWithAppVersion: z.string().optional(),
   name: z.string().default("Untitled task"),
-  // The project this task belongs to, if any.
   projectId: ProjectIdSchema.optional(),
 });
 

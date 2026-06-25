@@ -141,7 +141,6 @@ export async function deleteProject(
 
   await removeProjectFolder(id);
 
-  // Unfile any tasks that pointed at this project.
   const { tasks } = await getTasks(config);
   for (const task of tasks) {
     if (task.projectId === id) {
@@ -162,8 +161,6 @@ export async function getProject(
   return readProject(folder);
 }
 
-// Convenience for the agent run: the instructions to inject, or undefined when
-// the task has no (resolvable) project.
 export async function getProjectInstructions(
   id: ProjectId,
 ): Promise<string | undefined> {

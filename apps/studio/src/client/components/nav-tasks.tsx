@@ -42,8 +42,7 @@ export function NavTasks({
   const currentFilter = tasksMatch?.search.filter ?? "all";
   const isActive = isTasksPage && currentFilter === "all";
 
-  // Pinned tasks float to the top of the list while keeping their relative
-  // (most-recently-updated-first) order within each group.
+  // Pinned float to top; order within each group is most-recently-updated.
   const orderedTasks = useMemo(() => {
     const pinned = tasks.filter((task) => pinnedTaskIds.has(task.id));
     const rest = tasks.filter((task) => !pinnedTaskIds.has(task.id));

@@ -88,8 +88,7 @@ export async function newMessage({
     parts.push(externalChanges.value);
   }
 
-  // Surface attached folders the user removed since this session's last turn so
-  // the agent stops relying on them. Derived from a per-session baseline diff.
+  // Notify agent of folders removed since last turn (per-session baseline diff).
   const folderChanges = await detectAttachedFolderChanges({
     messageId,
     sessionId,

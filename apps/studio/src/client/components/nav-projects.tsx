@@ -150,7 +150,7 @@ function NavProjectItem({
       <DropdownMenu onOpenChange={setIsMenuOpen} open={isMenuOpen}>
         <SidebarMenuButton
           asChild
-          className="h-9 text-black/60 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:text-sidebar-foreground dark:text-white/60"
+          className="h-9 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:text-sidebar-foreground"
           isActive={project.id === activeProjectId}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -163,7 +163,7 @@ function NavProjectItem({
             params={{ id: project.id }}
             to="/projects/$id"
           >
-            <BagIcon className="size-4 shrink-0" />
+            <BagIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
             <span className="truncate">{project.name}</span>
           </InternalLink>
         </SidebarMenuButton>

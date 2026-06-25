@@ -1,4 +1,4 @@
-import type { Task, TaskId } from "@instrument-org/workspace/client";
+import type { Project, Task, TaskId } from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { InternalLink } from "@/client/components/internal-link";
@@ -18,12 +18,14 @@ export function createColumns({
   onSettings,
   onStop,
   pinnedTaskIds,
+  projects,
 }: {
   onDelete: (id: TaskId) => void;
   onOpenInNewTab: (id: TaskId) => void;
   onSettings: (id: TaskId) => void;
   onStop: (id: TaskId) => void;
   pinnedTaskIds: Set<TaskId>;
+  projects: Map<string, Project>;
 }): ColumnDef<Task>[] {
   return [
     {
@@ -115,6 +117,28 @@ export function createColumns({
       },
       maxSize: 400,
       minSize: 200,
+    },
+    {
+      accessorKey: "projectId",
+      cell: ({ row }) => {
+        const task = row.original;
+        const project = task.projectId ? projects.get(task.projectId) : null;
+        if (!project) {
+          return <span className="text-sm text-muted-foreground">—</span>;
+        }
+        return (
+          <InternalLink
+            className="text-sm"
+            openInCurrentTab
+            params={{ id: project.id }}
+            to="/projects/$id"
+          >
+            {project.name}
+          </InternalLink>
+        );
+      },
+      header: "Project",
+      size: 160,
     },
     {
       accessorKey: "model",

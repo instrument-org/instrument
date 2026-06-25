@@ -6,10 +6,7 @@ export type InlineRenameInputProps = ReturnType<
   typeof useInlineRename
 >["inputProps"];
 
-// Shared inline-rename state machine for sidebar rows (tasks, projects). The row
-// renders the current value normally and swaps to an <Input> while `isEditing`.
-// Enter / blur saves, Escape cancels. After a successful save we wait briefly for
-// the live query to push the new value so the row doesn't flicker old → new.
+// Waits after save for live query to update before closing, preventing old→new flicker.
 export function useInlineRename({
   onSave,
   value,

@@ -173,9 +173,7 @@ describe("migrateWorkspaceLayout", () => {
     writeLegacyTask("abc", { "sessions.db": "db" });
     migrateWorkspaceLayout({ rootDir });
 
-    // projects/ now belongs to the projects feature. A folder appearing there
-    // later must NOT be drained into tasks/ -- the marker stops the pass even
-    // re-scanning projects/.
+    // projects/ is now the live feature dir; marker must block a re-run.
     writeLegacyTask("def", { "sessions.db": "db2" });
     const result = migrateWorkspaceLayout({ rootDir });
 
@@ -207,7 +205,6 @@ describe("migrateWorkspaceLayout", () => {
 
     expect(result.movedTaskCount).toBe(1);
     expect(read("tasks", "legacy-task", ".instrument", "task.db")).toBe("db");
-    // The real project is untouched; projects/ is retained because it remains.
     expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
     expect(exists("tasks", "My Project")).toBe(false);
   });

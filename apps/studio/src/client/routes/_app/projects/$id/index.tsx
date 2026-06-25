@@ -144,8 +144,6 @@ function RouteComponent() {
     };
   }, []);
 
-  // If the project we're viewing is deleted (here or from the sidebar), leave
-  // this now-dead page rather than showing "Project not found".
   const hadProjectRef = useRef(false);
   const leftRef = useRef(false);
   useEffect(() => {

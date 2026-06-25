@@ -42,11 +42,7 @@ const WORK_ENTRY_NAMES = [
 // suffix is the db file itself. Harmless if a given sidecar is absent.
 const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 
-// Sentinel dropped in the workspace root's .instrument/ once the legacy
-// projects/ -> tasks/ move has run. projects/ is now the live home of the
-// projects feature, so that pass must run at most once -- its existence means
-// "done", and a missing file means "not yet". Empty-by-design; only presence
-// matters.
+// Presence = legacy projects/ already drained. Empty-by-design; only existence matters.
 const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
 
 export interface WorkspaceLayoutMigration {
@@ -56,24 +52,12 @@ export interface WorkspaceLayoutMigration {
   movedTaskCount: number;
 }
 
-// Boot migration to the current task layout
-// (tasks/<id>/{.instrument/{task.db,settings.json},work/,attachments/,output/}).
-//
-// Two independent passes:
-//   1. Move a legacy projects/ dir (the old name for tasks/) into tasks/.
-//      projects/ is now the live home of the projects feature, and this move is
-//      blind (it relocates whatever folders it finds), so it is protected two
-//      ways that fail independently: a sentinel marker runs it at most once
-//      (normally on first boot, before any project exists), and a per-folder
-//      content guard (isProjectFolder) skips any real project even if the pass
-//      ever runs against a populated projects/. The guard is the load-bearing
-//      one -- it survives a lost/changed marker; the marker is the optimization.
-//   2. Normalize every task already under tasks/ to the current layout. Keyed
-//      purely on per-task legacy shapes (collision-free with the projects
-//      feature), so it stays idempotent and re-runs every boot.
-//
-// Synchronous and rename-only: it runs at boot before the workspace serves
-// tasks, while no db handle is open.
+// Boot migration: two passes.
+// 1. Move legacy projects/ (old name for tasks/) into tasks/. Guard: sentinel
+//    runs the pass at most once; isProjectFolder skips any real project folder
+//    (load-bearing — survives a lost marker).
+// 2. Normalize tasks under tasks/ to current layout. Idempotent; runs every boot.
+// Synchronous and rename-only; no db handle open.
 export function migrateWorkspaceLayout({
   rootDir,
 }: {
@@ -92,11 +76,8 @@ export function migrateWorkspaceLayout({
   return migration;
 }
 
-// True when a projects/ entry is a real projects-feature folder -- its
-// .instrument/settings.json carries a ProjectId -- rather than a legacy task. A
-// ProjectId (prj_<ULID>) is structurally distinct from a TaskId, so this never
-// misclassifies a legacy task as a project. This is what keeps the (otherwise
-// content-blind) move from ever relocating real project data.
+// A real project has a ProjectId (prj_<ULID>) in its settings; structurally
+// distinct from a TaskId, so legacy tasks are never misclassified.
 function isProjectFolder(folderPath: string): boolean {
   const settingsPath = path.join(
     folderPath,
@@ -171,10 +152,6 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
 
     const source = path.join(legacyDir, entry.name);
 
-    // A real projects-feature folder, not a legacy task: identified positively
-    // by a ProjectId in its settings and left exactly where it is. This is the
-    // primary safeguard -- it holds even if the run-once marker is missing,
-    // renamed, or never written.
     if (isProjectFolder(source)) {
       continue;
     }
@@ -193,9 +170,7 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
     migration.movedTaskCount += 1;
   }
 
-  // Drop the legacy dir once every task folder has moved. A preserved project
-  // folder (or a stray .DS_Store) keeps it around -- correct, since projects/ is
-  // the live home of the projects feature.
+  // Drop legacy dir once empty. A project folder or .DS_Store keeps it around.
   if (fs.readdirSync(legacyDir).length === 0) {
     fs.rmdirSync(legacyDir);
   }

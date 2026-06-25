@@ -7,7 +7,12 @@ const toggleSharedChrome =
   "inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[color,outline,background-color] outline-none focus-visible:border-ring focus-visible:[outline-style:solid] focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
 const toolbarSurface = tv({
-  base: "rounded-lg border-0 shadow-none",
+  // Inset the focus ring (negative outline-offset) so it is painted inside the
+  // button box. The toolbar buttons live inside several overflow-hidden flex
+  // rows, and an ancestor's overflow:hidden clips an outward outline (the
+  // clipped rectangle seen after dismissing a header dropdown). An inset ring
+  // cannot be clipped and still follows the rounded corners.
+  base: "rounded-lg border-0 shadow-none focus-visible:-outline-offset-[3px]",
   variants: {
     pressed: {
       false:

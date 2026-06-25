@@ -271,7 +271,7 @@ function ProjectModalForm({
             <div className="flex flex-col gap-2 overflow-hidden">
               <button
                 className={cn(
-                  "flex items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  "flex items-center justify-between rounded-xl border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
                   isDragging && "border-ring bg-accent text-foreground",
                 )}
                 onClick={() => void handlePickFolder()}

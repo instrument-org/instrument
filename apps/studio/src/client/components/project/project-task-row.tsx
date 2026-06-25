@@ -1,3 +1,4 @@
+import { InlineRenameInput } from "@/client/components/inline-rename-input";
 import { InternalLink } from "@/client/components/internal-link";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import {
@@ -14,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
@@ -33,16 +35,24 @@ import { useState } from "react";
 export function ProjectTaskRow({
   isPinned,
   onDelete,
-  onRename,
   task,
 }: {
   isPinned: boolean;
   onDelete: (task: Task) => void;
-  onRename: (task: Task) => void;
   task: Task;
 }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const { mutateAsync: renameTask } = useMutation(
+    rpcClient.workspace.task.update.mutationOptions(),
+  );
+  const rename = useInlineRename({
+    onSave: async (next) => {
+      await renameTask({ id: task.id, name: next });
+    },
+    value: task.title,
+  });
 
   const { mutateAsync: addPin } = useMutation(
     rpcClient.workspace.pin.add.mutationOptions(),
@@ -54,6 +64,10 @@ export function ProjectTaskRow({
     rpcClient.workspace.project.removeTask.mutationOptions(),
   );
 
+  if (rename.isEditing) {
+    return <InlineRenameInput inputProps={rename.inputProps} />;
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -63,6 +77,7 @@ export function ProjectTaskRow({
           )}
           <InternalLink
             className="min-w-0 flex-1 truncate text-sm text-muted-foreground group-hover:text-foreground"
+            onDoubleClick={rename.start}
             openInCurrentTab
             params={{ id: task.id }}
             to="/tasks/$id"
@@ -115,11 +130,7 @@ export function ProjectTaskRow({
                   <CopyIcon className="text-muted-foreground" />
                   <span>Duplicate</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    onRename(task);
-                  }}
-                >
+                <DropdownMenuItem onSelect={rename.start}>
                   <PencilSimpleLineIcon className="text-muted-foreground" />
                   <span>Rename</span>
                 </DropdownMenuItem>
@@ -169,11 +180,7 @@ export function ProjectTaskRow({
           <CopyIcon className="text-muted-foreground" />
           <span>Duplicate</span>
         </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => {
-            onRename(task);
-          }}
-        >
+        <ContextMenuItem onSelect={rename.start}>
           <PencilSimpleLineIcon className="text-muted-foreground" />
           <span>Rename</span>
         </ContextMenuItem>

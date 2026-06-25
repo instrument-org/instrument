@@ -31,26 +31,19 @@ function writeLegacyTask(id: string, files: Record<string, string> = {}): void {
   }
 }
 
-// A real projects-feature folder: human-named, with a ProjectId in its settings.
-function writeProjectFolder(name: string, projectId: string): void {
-  const privateDir = path.join(rootDir, "projects", name, ".instrument");
-  fs.mkdirSync(privateDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(privateDir, "settings.json"),
-    JSON.stringify({ createdAt: new Date(0).toISOString(), id: projectId }),
-  );
-  fs.writeFileSync(path.join(rootDir, "projects", name, "AGENTS.md"), "do x");
-}
+const MARKER = [".instrument", ".legacy-projects-migrated"];
 
 describe("migrateWorkspaceLayout", () => {
-  it("no-ops when there is no legacy projects/ dir", () => {
+  it("no-ops when there is no legacy projects/ dir, but still records the marker", () => {
     const result = migrateWorkspaceLayout({ rootDir });
     expect(result).toEqual({
       conflictedTaskIds: [],
-      migrated: false,
       movedTaskCount: 0,
     });
     expect(exists("tasks")).toBe(false);
+    // Fresh install: the marker is dropped on first boot so a later project in
+    // projects/ is never seen by a re-run.
+    expect(exists(...MARKER)).toBe(true);
   });
 
   it("moves tasks and renames db + state files", () => {
@@ -67,9 +60,9 @@ describe("migrateWorkspaceLayout", () => {
 
     const result = migrateWorkspaceLayout({ rootDir });
 
-    expect(result.migrated).toBe(true);
     expect(result.movedTaskCount).toBe(1);
     expect(result.conflictedTaskIds).toEqual([]);
+    expect(exists(...MARKER)).toBe(true);
 
     // legacy dir gone
     expect(exists("projects")).toBe(false);
@@ -99,9 +92,8 @@ describe("migrateWorkspaceLayout", () => {
     fs.mkdirSync(taskDir, { recursive: true });
     fs.writeFileSync(path.join(taskDir, "instrument.json"), `{"name":"Abc"}`);
 
-    const result = migrateWorkspaceLayout({ rootDir });
+    migrateWorkspaceLayout({ rootDir });
 
-    expect(result.migrated).toBe(false);
     expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
       `{"name":"Abc"}`,
     );
@@ -113,9 +105,8 @@ describe("migrateWorkspaceLayout", () => {
     fs.mkdirSync(taskDir, { recursive: true });
     fs.writeFileSync(path.join(taskDir, "settings.json"), `{"name":"Abc"}`);
 
-    const result = migrateWorkspaceLayout({ rootDir });
+    migrateWorkspaceLayout({ rootDir });
 
-    expect(result.migrated).toBe(false);
     expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
       `{"name":"Abc"}`,
     );
@@ -142,8 +133,8 @@ describe("migrateWorkspaceLayout", () => {
     const first = migrateWorkspaceLayout({ rootDir });
     const second = migrateWorkspaceLayout({ rootDir });
 
-    expect(first.migrated).toBe(true);
-    expect(second.migrated).toBe(false);
+    expect(first.movedTaskCount).toBe(1);
+    expect(second.movedTaskCount).toBe(0);
     expect(read("tasks", "abc", ".instrument", "task.db")).toBe("db");
   });
 
@@ -172,42 +163,14 @@ describe("migrateWorkspaceLayout", () => {
     migrateWorkspaceLayout({ rootDir });
 
     // projects/ now belongs to the projects feature. A folder appearing there
-    // later must NOT be drained into tasks/, even if it looks task-shaped.
+    // later must NOT be drained into tasks/ -- the marker stops the pass even
+    // re-scanning projects/.
     writeLegacyTask("def", { "sessions.db": "db2" });
     const result = migrateWorkspaceLayout({ rootDir });
 
-    expect(result.migrated).toBe(false);
     expect(result.movedTaskCount).toBe(0);
     expect(exists("tasks", "def")).toBe(false);
     expect(read("projects", "def", ".instrument", "sessions.db")).toBe("db2");
-  });
-
-  it("never moves a real project folder, and records completion", () => {
-    // cspell:ignore prj_01ARZ3NDEKTSV4RRFFQ69G5FAV
-    writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
-
-    const result = migrateWorkspaceLayout({ rootDir });
-
-    // The project folder stays put; nothing is treated as a legacy task.
-    expect(result.movedTaskCount).toBe(0);
-    expect(result.conflictedTaskIds).toEqual([]);
-    expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
-    expect(exists("tasks", "My Project")).toBe(false);
-    // Marker written so the pass never re-runs against the live projects/ dir.
-    expect(exists(".instrument", "migrations.json")).toBe(true);
-  });
-
-  it("drains legacy tasks but leaves project folders in projects/", () => {
-    writeLegacyTask("legacy-task", { "sessions.db": "db" });
-    writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
-
-    const result = migrateWorkspaceLayout({ rootDir });
-
-    expect(result.movedTaskCount).toBe(1);
-    expect(read("tasks", "legacy-task", ".instrument", "task.db")).toBe("db");
-    // The real project is untouched; projects/ is retained because it remains.
-    expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
-    expect(exists("tasks", "My Project")).toBe(false);
   });
 
   it("folds the runnable package and agent dirs into work/", () => {

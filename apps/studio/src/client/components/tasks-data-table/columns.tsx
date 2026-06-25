@@ -86,18 +86,24 @@ export function createColumns({
             {isPinned && (
               <PushPinIcon className="size-4 shrink-0 text-muted-foreground" />
             )}
-            <InternalLink
-              className="flex min-w-0 flex-1 items-center gap-x-2"
-              openInCurrentTab
-              params={{ id: task.id }}
-              to="/tasks/$id"
+            <Button
+              asChild
+              className="min-w-0 flex-1 justify-start"
+              variant="ghost"
             >
-              <span className="truncate font-medium">{task.title}</span>
-              <TaskStatusIcon
-                className="ml-auto size-4 shrink-0"
-                id={task.id}
-              />
-            </InternalLink>
+              <InternalLink
+                className="flex min-w-0 items-center gap-x-2"
+                openInCurrentTab
+                params={{ id: task.id }}
+                to="/tasks/$id"
+              >
+                <span className="truncate font-medium">{task.title}</span>
+                <TaskStatusIcon
+                  className="ml-auto size-4 shrink-0"
+                  id={task.id}
+                />
+              </InternalLink>
+            </Button>
           </div>
         );
       },
@@ -127,14 +133,15 @@ export function createColumns({
           return <span className="text-sm text-muted-foreground">—</span>;
         }
         return (
-          <InternalLink
-            className="text-sm"
-            openInCurrentTab
-            params={{ id: project.id }}
-            to="/projects/$id"
-          >
-            {project.name}
-          </InternalLink>
+          <Button asChild size="sm" variant="ghost">
+            <InternalLink
+              openInCurrentTab
+              params={{ id: project.id }}
+              to="/projects/$id"
+            >
+              {project.name}
+            </InternalLink>
+          </Button>
         );
       },
       header: "Project",

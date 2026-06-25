@@ -18,12 +18,12 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
 import {
-  BagIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   PencilSimpleLineIcon,
   PushPinIcon,
   TrashIcon,
+  XCircleIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -128,7 +128,7 @@ export function ProjectTaskRow({
                     void removeFromProject({ taskId: task.id });
                   }}
                 >
-                  <BagIcon className="text-muted-foreground" />
+                  <XCircleIcon className="text-muted-foreground" />
                   <span>Remove from project</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -182,7 +182,7 @@ export function ProjectTaskRow({
             void removeFromProject({ taskId: task.id });
           }}
         >
-          <BagIcon className="text-muted-foreground" />
+          <XCircleIcon className="text-muted-foreground" />
           <span>Remove from project</span>
         </ContextMenuItem>
         <ContextMenuSeparator />

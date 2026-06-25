@@ -8,8 +8,8 @@ import { WorkspaceDirSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { absolutePathJoin } from "./absolute-path-join";
-import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { addPin, getPins, removePin } from "./pins";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { disposeWorkspaceStoreStorage } from "./workspace-store-storage";
 
 const taskA = TaskIdSchema.parse("task-a");

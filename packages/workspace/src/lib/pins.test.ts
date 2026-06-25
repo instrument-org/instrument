@@ -5,19 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { PROJECTS_DIR_NAME } from "../constants";
 import { WorkspaceDirSchema } from "../schemas/paths";
-import { newProjectId } from "../schemas/project-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import {
-  addPin,
-  getPins,
-  getProjectIndex,
-  removePin,
-  removeProjectFolder,
-  setProjectFolder,
-} from "./workspace-store";
+import { addPin, getPins, removePin } from "./pins";
 import { disposeWorkspaceStoreStorage } from "./workspace-store-storage";
 
 const taskA = TaskIdSchema.parse("task-a");
@@ -27,11 +19,6 @@ let root: string;
 
 async function pins() {
   const result = await getPins();
-  return result._unsafeUnwrap();
-}
-
-async function projectIndex() {
-  const result = await getProjectIndex();
   return result._unsafeUnwrap();
 }
 
@@ -51,7 +38,7 @@ afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
-describe("workspace-store pins", () => {
+describe("pins", () => {
   it("defaults to an empty list", async () => {
     expect(await pins()).toEqual([]);
   });
@@ -70,20 +57,5 @@ describe("workspace-store pins", () => {
     await addPin(taskB);
     await disposeWorkspaceStoreStorage();
     expect(await pins()).toEqual([taskB]);
-  });
-});
-
-describe("workspace-store project index", () => {
-  it("defaults to an empty map", async () => {
-    expect(await projectIndex()).toEqual({});
-  });
-
-  it("sets and removes folder mappings", async () => {
-    const projectId = newProjectId();
-    await setProjectFolder(projectId, "My Project");
-    expect(await projectIndex()).toEqual({ [projectId]: "My Project" });
-
-    await removeProjectFolder(projectId);
-    expect(await projectIndex()).toEqual({});
   });
 });

@@ -27,20 +27,25 @@ export function ProjectInstructions({
   );
 
   return (
-    <div className="flex flex-col gap-y-2">
-      <h2 className="text-sm font-semibold">Instructions</h2>
-      <p className="text-xs text-muted-foreground">
-        Add details about this project for Instrument to remember for each task.
-      </p>
-      <Textarea
-        className="min-h-64 resize-none rounded-lg bg-muted/30 text-sm leading-relaxed"
-        onChange={(e) => {
-          setValue(e.target.value);
-          save(e.target.value);
-        }}
-        placeholder="Instructions for every task in this project..."
-        value={value}
-      />
+    <div className="overflow-hidden rounded-lg bg-card shadow-xs">
+      <div className="flex flex-col px-3 pt-2">
+        <h2 className="text-xs font-medium">Instructions</h2>
+        <p className="text-xs text-muted-foreground">
+          Add details about this project for Instrument to remember for each
+          task.
+        </p>
+      </div>
+      <div className="p-2">
+        <Textarea
+          className="min-h-64 resize-none rounded-md border-0 bg-muted/50 text-sm leading-relaxed shadow-none"
+          onChange={(e) => {
+            setValue(e.target.value);
+            save(e.target.value);
+          }}
+          placeholder="Instructions for every task in this project..."
+          value={value}
+        />
+      </div>
     </div>
   );
 }

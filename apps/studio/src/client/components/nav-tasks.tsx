@@ -51,7 +51,7 @@ export function NavTasks({
   }, [tasks, pinnedTaskIds]);
 
   return (
-    <SidebarGroup className="px-3 group-data-[collapsible=icon]:hidden">
+    <SidebarGroup className="px-3 py-2 group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel
         asChild
         className={cn(

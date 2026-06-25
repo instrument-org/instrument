@@ -240,6 +240,8 @@ export namespace SessionMessage {
       const parts = [...filteredParts];
 
       if (message.role === "user") {
+        const injectedParts: { text: string; type: "text" }[] = [];
+
         const attachmentsPart = message.parts.find(
           (part) => part.type === "data-attachments",
         );
@@ -260,7 +262,7 @@ export namespace SessionMessage {
               </uploaded_files>
             `;
 
-            parts.push({ text: attachmentText, type: "text" });
+            injectedParts.push({ text: attachmentText, type: "text" });
           }
 
           if (
@@ -274,7 +276,7 @@ export namespace SessionMessage {
               intro: `The user attached these external folders with this message. They are now available to the task via the ${RETRIEVAL_AGENT_NAME} agent. Assume they are directly relevant to the user's request.`,
             });
 
-            parts.push({ text: folderAttachmentText, type: "text" });
+            injectedParts.push({ text: folderAttachmentText, type: "text" });
           }
         }
 
@@ -284,7 +286,7 @@ export namespace SessionMessage {
         if (browserStatusPart) {
           const note = browserStatusModelNote(browserStatusPart.data);
           if (note !== previousBrowserStatusNote) {
-            parts.push({ text: note, type: "text" });
+            injectedParts.push({ text: note, type: "text" });
           }
           previousBrowserStatusNote = note;
         }
@@ -299,7 +301,7 @@ export namespace SessionMessage {
         if (externalChangesPart) {
           const note = externalFileChangesModelNote(externalChangesPart.data);
           if (note) {
-            parts.push({ text: note, type: "text" });
+            injectedParts.push({ text: note, type: "text" });
           }
         }
 
@@ -313,8 +315,29 @@ export namespace SessionMessage {
         if (folderChangesPart) {
           const note = attachedFolderRemovalsModelNote(folderChangesPart.data);
           if (note) {
-            parts.push({ text: note, type: "text" });
+            injectedParts.push({ text: note, type: "text" });
           }
+        }
+
+        // When the harness appends synthetic context (uploaded files, attached
+        // folders, browser status, external changes) to a user turn, fence the
+        // user's own words in <user_message> tags so the model can tell the
+        // human's input apart from harness-injected metadata. Keyed on whether
+        // anything was injected, not on a specific source, so new injection
+        // sources are covered automatically. Skip when nothing was injected or
+        // there is no model-visible user content (e.g. attachments with no
+        // typed text).
+        if (injectedParts.length > 0) {
+          const hasVisibleUserContent = filteredParts.some(
+            (part) =>
+              (part.type === "text" && part.text.trim().length > 0) ||
+              part.type === "file",
+          );
+          if (hasVisibleUserContent) {
+            parts.unshift({ text: "<user_message>", type: "text" });
+            parts.push({ text: "</user_message>", type: "text" });
+          }
+          parts.push(...injectedParts);
         }
       }
 

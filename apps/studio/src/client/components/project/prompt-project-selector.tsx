@@ -30,28 +30,15 @@ export function PromptProjectSelector({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {selected ? (
-          <div
-            className="group/chip flex h-8 items-center gap-1.5 rounded-md bg-muted px-2 text-sm text-muted-foreground hover:text-foreground"
-            role="button"
-          >
-            <BagIcon className="size-4 shrink-0" />
-            <span className="max-w-32 truncate">{selected.name}</span>
-            <button
-              aria-label="Remove from project"
-              className="-mr-0.5 rounded-sm opacity-60 hover:opacity-100"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onChange(null);
-              }}
-              type="button"
-            >
-              <XIcon className="size-3.5" />
-            </button>
-          </div>
-        ) : (
+      {selected ? (
+        <SelectedChip
+          name={selected.name}
+          onRemove={() => {
+            onChange(null);
+          }}
+        />
+      ) : (
+        <DropdownMenuTrigger asChild>
           <Button
             className="size-8 p-0"
             disabled={disabled}
@@ -60,9 +47,14 @@ export function PromptProjectSelector({
           >
             <BagIcon className="size-5" weight="regular" />
           </Button>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+        </DropdownMenuTrigger>
+      )}
+      <DropdownMenuContent
+        align="end"
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+        }}
+      >
         {projects?.map((project) => {
           const isCurrent = project.id === value;
           return (
@@ -93,5 +85,36 @@ export function PromptProjectSelector({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function SelectedChip({
+  name,
+  onRemove,
+}: {
+  name: string;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="group/chip flex h-8 items-center gap-1.5 rounded-md bg-muted px-2 text-sm text-muted-foreground select-none hover:text-foreground">
+      <DropdownMenuTrigger asChild>
+        <button className="flex min-w-0 items-center gap-1.5" type="button">
+          <BagIcon className="size-4 shrink-0" />
+          <span className="max-w-32 truncate">{name}</span>
+        </button>
+      </DropdownMenuTrigger>
+      <span className="grid grid-cols-[0fr] transition-[grid-template-columns] duration-150 ease-out group-hover/chip:grid-cols-[1fr]">
+        <span className="flex items-center overflow-hidden">
+          <button
+            aria-label="Remove from project"
+            className="-mr-0.5 flex translate-x-1 items-center rounded-sm opacity-0 transition-[opacity,transform] duration-150 ease-out group-hover/chip:translate-x-0 group-hover/chip:opacity-60 hover:!opacity-100"
+            onClick={onRemove}
+            type="button"
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        </span>
+      </span>
+    </div>
   );
 }

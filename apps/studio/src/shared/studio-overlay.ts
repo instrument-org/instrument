@@ -16,7 +16,7 @@ export type StudioOverlayKind =
   | "crash"
   | "delete-project"
   | "login"
-  | "project-modal"
+  | "project"
   | "settings"
   | "welcome";
 
@@ -29,7 +29,7 @@ export const STUDIO_OVERLAY_DISMISSIBLE = {
   crash: true,
   "delete-project": true,
   login: true,
-  "project-modal": true,
+  project: true,
   settings: true,
   welcome: false,
 } as const satisfies Record<StudioOverlayKind, boolean>;
@@ -87,7 +87,7 @@ export const StudioOverlayRequestSchema = z.discriminatedUnion("kind", [
     props: StudioOverlayDeleteProjectPropsSchema,
   }),
   z.object({
-    kind: z.literal("project-modal"),
+    kind: z.literal("project"),
     props: StudioOverlayNewProjectPropsSchema.optional(),
   }),
   z.object({
@@ -122,7 +122,7 @@ export const StudioOverlayLoginSearchSchema = z.object({
   reason: z.literal("provider-required").optional(),
 });
 
-/** Search params for the `/studio-overlay/project-modal` route. */
+/** Search params for the `/studio-overlay/project` route. */
 export const StudioOverlayNewProjectSearchSchema = z.object({
   projectId: ProjectIdSchema.optional(),
   taskId: TaskIdSchema.optional(),
@@ -169,7 +169,7 @@ export function studioOverlayRequestToLocation(request: StudioOverlayRequest): {
       }
       return { path: "/studio-overlay/login", search };
     }
-    case "project-modal": {
+    case "project": {
       const search: Record<string, string> = {};
       if (request.props?.projectId) {
         search.projectId = request.props.projectId;
@@ -177,7 +177,7 @@ export function studioOverlayRequestToLocation(request: StudioOverlayRequest): {
       if (request.props?.taskId) {
         search.taskId = request.props.taskId;
       }
-      return { path: "/studio-overlay/project-modal", search };
+      return { path: "/studio-overlay/project", search };
     }
     case "settings": {
       const tab = request.props?.tab ?? "General";

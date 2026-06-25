@@ -31,7 +31,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/studio-overlay/project-modal")({
+export const Route = createFileRoute("/studio-overlay/project")({
   component: NewProjectModal,
   validateSearch: StudioOverlayNewProjectSearchSchema,
 });

@@ -123,18 +123,10 @@ function ProjectModalForm({
   });
 
   const { isPending: isCreating, mutateAsync: createProject } = useMutation(
-    rpcClient.workspace.project.create.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to create project", { description: error.message });
-      },
-    }),
+    rpcClient.workspace.project.create.mutationOptions(),
   );
   const { isPending: isUpdating, mutateAsync: updateProject } = useMutation(
-    rpcClient.workspace.project.update.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to save project", { description: error.message });
-      },
-    }),
+    rpcClient.workspace.project.update.mutationOptions(),
   );
   const isPending = isCreating || isUpdating;
 
@@ -157,36 +149,47 @@ function ProjectModalForm({
       instructions: "",
       name: editProject?.name ?? "",
     },
-    onSubmit: async ({ value }) => {
-      if (editProject) {
-        await updateProject({
-          description: value.description.trim(),
-          id: editProject.id,
-          name: value.name.trim(),
-        });
-        void rpcClient.studioOverlay.resolve.call();
-        return;
-      }
+    validators: {
+      onSubmitAsync: async ({ value }) => {
+        try {
+          if (editProject) {
+            await updateProject({
+              description: value.description.trim(),
+              id: editProject.id,
+              name: value.name.trim(),
+            });
+            void rpcClient.studioOverlay.resolve.call();
+            return;
+          }
 
-      const project = await createProject({
-        description: value.description.trim() || undefined,
-        folders: folders.length > 0 ? folders : undefined,
-        instructions: value.instructions.trim() || undefined,
-        name: value.name.trim(),
-      });
+          const project = await createProject({
+            description: value.description.trim() || undefined,
+            folders: folders.length > 0 ? folders : undefined,
+            instructions: value.instructions.trim() || undefined,
+            name: value.name.trim(),
+          });
 
-      if (taskId) {
-        await rpcClient.workspace.project.addTask.call({
-          projectId: project.id,
-          taskId: TaskIdSchema.parse(taskId),
-        });
-      }
+          if (taskId) {
+            await rpcClient.workspace.project.addTask.call({
+              projectId: project.id,
+              taskId: TaskIdSchema.parse(taskId),
+            });
+          }
 
-      void rpcClient.tabs.add.call({
-        appPath: `/projects/${project.id}` as StudioPath,
-        select: true,
-      });
-      void rpcClient.studioOverlay.resolve.call();
+          void rpcClient.tabs.add.call({
+            appPath: `/projects/${project.id}` as StudioPath,
+            select: true,
+          });
+          void rpcClient.studioOverlay.resolve.call();
+          return;
+        } catch (error) {
+          return error instanceof Error
+            ? error.message
+            : isEditing
+              ? "Failed to save project."
+              : "Failed to create project.";
+        }
+      },
     },
   });
 
@@ -215,7 +218,7 @@ function ProjectModalForm({
           void form.handleSubmit();
         }}
       >
-        <div className="grid gap-4 py-4">
+        <div className="grid grid-cols-1 gap-4 py-4">
           <form.Field
             name="name"
             validators={{
@@ -297,11 +300,11 @@ function ProjectModalForm({
           )}
 
           {!isEditing && (
-            <div className="flex flex-col gap-2 overflow-hidden">
-              <button
+            <div className="flex flex-col gap-2">
+              <Button
                 className={cn(
-                  "flex items-center justify-between rounded-xl border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                  isDragging && "border-ring bg-accent text-foreground",
+                  "w-full justify-between",
+                  isDragging && "bg-accent text-foreground",
                 )}
                 onClick={() => void handlePickFolder()}
                 type="button"
@@ -310,7 +313,7 @@ function ProjectModalForm({
                   {isDragging ? "Drop folders to attach" : "Attach folders"}
                 </span>
                 <PlusIcon className="size-4" />
-              </button>
+              </Button>
               {folders.map((path) => (
                 <div
                   className="flex min-w-0 items-center gap-x-2 overflow-hidden rounded-md border p-2"
@@ -340,6 +343,13 @@ function ProjectModalForm({
             </div>
           )}
         </div>
+        <form.Subscribe selector={(state) => state.errorMap.onSubmit}>
+          {(submitError) =>
+            submitError ? (
+              <FieldError className="pb-2" errors={[submitError]} />
+            ) : null
+          }
+        </form.Subscribe>
         <DialogFooter>
           <Button
             disabled={isPending}

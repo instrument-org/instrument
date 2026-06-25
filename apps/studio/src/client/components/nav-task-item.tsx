@@ -25,6 +25,7 @@ import {
   PlusIcon,
   PushPinIcon,
   TrashIcon,
+  XCircleIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { memo, useState } from "react";
@@ -113,7 +114,7 @@ export const NavTaskItem = memo(function NavTaskItem({
               to="/tasks/$id"
             >
               {isPinned && (
-                <PushPinIcon className="size-3.5 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
+                <PushPinIcon className="!size-3.5 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
               )}
               <span className="truncate">{task.title}</span>
             </InternalLink>
@@ -132,7 +133,7 @@ export const NavTaskItem = memo(function NavTaskItem({
             </SidebarMenuAction>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end" className="w-50" side="bottom">
+          <DropdownMenuContent align="end" className="w-52" side="bottom">
             {menuView === "projects" ? (
               <>
                 <DropdownMenuItem
@@ -214,7 +215,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                         void removeTaskFromProject({ taskId: task.id });
                       }}
                     >
-                      <BagIcon className="text-muted-foreground" />
+                      <XCircleIcon className="text-muted-foreground" />
                       <span>Remove from project</span>
                     </DropdownMenuItem>
                   </>

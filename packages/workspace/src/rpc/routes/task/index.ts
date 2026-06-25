@@ -30,6 +30,7 @@ import {
 } from "../../../lib/usage-summary";
 import { FileUpload } from "../../../schemas/file-upload";
 import { AbsolutePathSchema } from "../../../schemas/paths";
+import { type Project } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
 import { StoreId } from "../../../schemas/store-id";
 import { SubdomainPartSchema } from "../../../schemas/subdomain-part";
@@ -164,6 +165,17 @@ const create = base
 
       const model = modelResult.value;
 
+      // Validate the project up front so we never write an orphan projectId
+      // into task settings (and so we can reuse it for folder attachment).
+      let project: Project | undefined;
+      if (projectId) {
+        const projectResult = await getProject(projectId);
+        if (projectResult.isErr()) {
+          throw toORPCError(projectResult.error, errors);
+        }
+        project = projectResult.value;
+      }
+
       const taskId = await newTaskId({
         preferredFolderName,
         prompt,
@@ -204,17 +216,14 @@ const create = base
       // exactly like a manually attached folder (deduped against any the user
       // already attached). Later changes to the project don't affect this task.
       let mergedFolders = folders ?? [];
-      if (projectId) {
-        const project = await getProject(projectId);
-        if (project.isOk() && project.value.folders.length > 0) {
-          const seen = new Set(mergedFolders.map((folder) => folder.path));
-          mergedFolders = [
-            ...mergedFolders,
-            ...project.value.folders
-              .filter((path) => !seen.has(path))
-              .map((path) => ({ path })),
-          ];
-        }
+      if (project && project.folders.length > 0) {
+        const seen = new Set(mergedFolders.map((folder) => folder.path));
+        mergedFolders = [
+          ...mergedFolders,
+          ...project.folders
+            .filter((path) => !seen.has(path))
+            .map((path) => ({ path })),
+        ];
       }
 
       const messageResult = await newMessage({

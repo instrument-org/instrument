@@ -28,35 +28,14 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 
 ## App-wide modals (studio overlay)
 
-The window is composed of **multiple independent `WebContentsView`s** — the
-sidebar is its own view, and each task tab is its own view. A React/Radix dialog
-mounted in one renderer (e.g. the sidebar) **cannot** be opened from another
-renderer, and its portal is **clipped to that view's bounds** (it can't float
-over the rest of the app). So "render a `<Dialog>` somewhere in the tree" is the
-wrong tool for any modal that must appear app-wide or be triggered from more
-than one surface.
+Each renderer (`WebContentsView`) clips its own portals — a `<Dialog>` in the sidebar can't float over the main view. For app-wide modals, use the **studio overlay**: a dedicated view that floats over the whole window.
 
-For those, use the **studio overlay**: a dedicated overlay `WebContentsView`
-that floats over the whole window, driven from the main process.
+- **Open**: `rpcClient.studioOverlay.show.call({ kind, props? })` from any renderer.
+- **Add a kind**: edit `src/shared/studio-overlay.ts` (`StudioOverlayKind` union, `STUDIO_OVERLAY_DISMISSIBLE`, `StudioOverlayRequestSchema`, `studioOverlayRequestToLocation`) + add `src/client/routes/studio-overlay/<kind>.tsx` rendering a `DialogContent`. Controller is data-driven; no other changes needed.
+- **Close**: `rpcClient.studioOverlay.resolve.call()` (success) or `rpcClient.studioOverlay.dismiss.call()` (cancel). Have the caller react to the `show()` result — the overlay can't navigate a tab's router.
+- **Example**: `kind: "new-project"` → `routes/studio-overlay/new-project.tsx`, opened via `openCreateProject()` in `src/client/lib/open-create-project.ts`.
 
-- Open from any renderer: `rpcClient.studioOverlay.show.call({ kind, props? })`.
-- Add a kind by editing `src/shared/studio-overlay.ts` (the `StudioOverlayKind`
-  union, `STUDIO_OVERLAY_DISMISSIBLE`, `StudioOverlayRequestSchema`, and
-  `studioOverlayRequestToLocation`) and adding a child route under
-  `src/client/routes/studio-overlay/<kind>.tsx` that renders a `DialogContent`.
-  The controller (`src/electron-main/tabs/studio-overlay.ts`) is data-driven, so
-  this is additive.
-- Inside the overlay route, finish with `rpcClient.studioOverlay.resolve.call()`
-  (success) or `rpcClient.studioOverlay.dismiss.call()` (cancel). The overlay is
-  a separate view, so it can't navigate a tab's router; have the _caller_ react
-  to the resolved `show()` result instead.
-- Example: the New Project modal is `kind: "new-project"`
-  (`routes/studio-overlay/new-project.tsx`), opened via
-  `openCreateProject()` in `src/client/lib/open-create-project.ts`.
-
-Corollary: a Radix **flyout** (dropdown submenu, popover) triggered from the
-sidebar is also clipped to the sidebar view. Avoid sideways-opening submenus
-there until the sidebar is unified with the main view.
+Sidebar flyouts (dropdowns, popovers) are also clipped to the sidebar view; avoid sideways-opening submenus there.
 
 ## Where things are
 

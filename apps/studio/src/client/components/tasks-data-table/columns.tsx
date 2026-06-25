@@ -84,7 +84,7 @@ export function createColumns({
         return (
           <Button
             asChild
-            className="min-w-0 w-full justify-start font-normal"
+            className="w-full min-w-0 justify-start font-normal"
             variant="ghost"
           >
             <InternalLink

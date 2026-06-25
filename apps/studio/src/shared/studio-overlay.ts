@@ -1,8 +1,8 @@
+import { type StudioPath } from "@/shared/studio-path";
 import {
   ProjectIdSchema,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
-import { type StudioPath } from "@/shared/studio-path";
 import { z } from "zod";
 
 /**

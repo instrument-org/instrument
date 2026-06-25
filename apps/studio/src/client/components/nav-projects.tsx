@@ -19,6 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
+import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import {
   openCreateProject,
   openDeleteProject,
@@ -26,6 +27,7 @@ import {
 } from "@/client/lib/open-create-project";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { type Project } from "@instrument-org/workspace/client";
 import {
   BagIcon,
   CaretRightIcon,
@@ -34,10 +36,12 @@ import {
   PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useAtom } from "jotai";
+import { useState } from "react";
 
+import { InlineRenameInput } from "./inline-rename-input";
 import { InternalLink } from "./internal-link";
 
 export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
@@ -58,13 +62,13 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
           <div className="group/projects flex h-8 items-center">
             <SidebarGroupLabel
               asChild
-              className="h-8 flex-1 gap-1 font-semibold text-sidebar-foreground/20 hover:text-sidebar-foreground/60"
+              className="h-8 flex-1 gap-1 font-semibold text-sidebar-foreground/40 hover:text-sidebar-foreground/60"
             >
               <CollapsibleTrigger>
                 <span>Projects</span>
                 <CaretRightIcon
                   className={cn(
-                    "size-3 shrink-0 transition-transform",
+                    "!size-3 shrink-0 transition-transform",
                     isOpen && "rotate-90",
                   )}
                 />
@@ -84,50 +88,11 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
           <CollapsibleContent animated>
             <SidebarMenu className="gap-0.5">
               {projects.map((project) => (
-                <SidebarMenuItem className="group/project" key={project.id}>
-                  <SidebarMenuButton
-                    asChild
-                    className="h-9 gap-2 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground"
-                    isActive={project.id === activeProjectId}
-                  >
-                    <InternalLink
-                      openInCurrentTab
-                      params={{ id: project.id }}
-                      to="/projects/$id"
-                    >
-                      <BagIcon className="size-4 shrink-0" />
-                      <span className="truncate">{project.name}</span>
-                    </InternalLink>
-                  </SidebarMenuButton>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction showOnHover>
-                        <DotsThreeOutlineVerticalIcon weight="fill" />
-                        <span className="sr-only">Project actions</span>
-                      </SidebarMenuAction>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" side="bottom">
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          openEditProject(project.id);
-                        }}
-                      >
-                        <PencilSimpleLineIcon className="text-muted-foreground" />
-                        <span>Edit project</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          openDeleteProject(project.id);
-                        }}
-                        variant="destructive"
-                      >
-                        <TrashIcon className="size-4" />
-                        <span>Delete project</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </SidebarMenuItem>
+                <NavProjectItem
+                  activeProjectId={activeProjectId}
+                  key={project.id}
+                  project={project}
+                />
               ))}
             </SidebarMenu>
           </CollapsibleContent>
@@ -149,5 +114,90 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
         </SidebarMenu>
       )}
     </SidebarGroup>
+  );
+}
+
+function NavProjectItem({
+  activeProjectId,
+  project,
+}: {
+  activeProjectId: string | undefined;
+  project: Project;
+}) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const { mutateAsync: renameProject } = useMutation(
+    rpcClient.workspace.project.update.mutationOptions(),
+  );
+
+  const rename = useInlineRename({
+    onSave: async (next) => {
+      await renameProject({ id: project.id, name: next });
+    },
+    value: project.name,
+  });
+
+  if (rename.isEditing) {
+    return (
+      <SidebarMenuItem className="group/project">
+        <InlineRenameInput inputProps={rename.inputProps} />
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <SidebarMenuItem className="group/project">
+      <DropdownMenu onOpenChange={setIsMenuOpen} open={isMenuOpen}>
+        <SidebarMenuButton
+          asChild
+          className="h-9 text-black/60 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:text-sidebar-foreground dark:text-white/60"
+          isActive={project.id === activeProjectId}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setIsMenuOpen(true);
+          }}
+        >
+          <InternalLink
+            onDoubleClick={rename.start}
+            openInCurrentTab
+            params={{ id: project.id }}
+            to="/projects/$id"
+          >
+            <BagIcon className="size-4 shrink-0" />
+            <span className="truncate">{project.name}</span>
+          </InternalLink>
+        </SidebarMenuButton>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuAction showOnHover>
+            <DotsThreeOutlineVerticalIcon weight="fill" />
+            <span className="sr-only">Project actions</span>
+          </SidebarMenuAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="bottom">
+          <DropdownMenuItem onClick={rename.start}>
+            <PencilSimpleLineIcon className="text-muted-foreground" />
+            <span>Rename</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              openEditProject(project.id);
+            }}
+          >
+            <PencilSimpleLineIcon className="text-muted-foreground" />
+            <span>Edit project</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => {
+              openDeleteProject(project.id);
+            }}
+            variant="destructive"
+          >
+            <TrashIcon className="size-4" />
+            <span>Delete project</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
   );
 }

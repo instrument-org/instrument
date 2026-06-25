@@ -3,7 +3,6 @@ import { ProjectInstructions } from "@/client/components/project/project-instruc
 import { ProjectTaskRow } from "@/client/components/project/project-task-row";
 import { PromptInput } from "@/client/components/prompt-input";
 import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
-import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import {
   Collapsible,
@@ -76,8 +75,6 @@ function RouteComponent() {
   // so the viewport width is the page width and a plain media query is accurate.
   const isWide = useMediaQuery("(min-width: 1024px)");
 
-  const [taskToEdit, setTaskToEdit] = useState<null | Task>(null);
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<null | Task>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -311,10 +308,6 @@ function RouteComponent() {
                     setTaskToDelete(t);
                     setDeleteDialogOpen(true);
                   }}
-                  onRename={(t) => {
-                    setTaskToEdit(t);
-                    setSettingsDialogOpen(true);
-                  }}
                   task={task}
                 />
               ))
@@ -327,19 +320,6 @@ function RouteComponent() {
         <aside className="flex w-120 shrink-0 flex-col gap-y-2 overflow-y-auto p-4">
           {details}
         </aside>
-      )}
-
-      {taskToEdit && (
-        <TaskSettingsDialog
-          onOpenChange={(open) => {
-            setSettingsDialogOpen(open);
-            if (!open) {
-              setTaskToEdit(null);
-            }
-          }}
-          open={settingsDialogOpen}
-          task={taskToEdit}
-        />
       )}
 
       {taskToDelete && (

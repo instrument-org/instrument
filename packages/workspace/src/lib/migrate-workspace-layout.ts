@@ -11,6 +11,7 @@ import {
   TASK_STATE_FILE_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
+import { ProjectIdSchema } from "../schemas/project-id";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
@@ -59,11 +60,14 @@ export interface WorkspaceLayoutMigration {
 // (tasks/<id>/{.instrument/{task.db,settings.json},work/,attachments/,output/}).
 //
 // Two independent passes:
-//   1. Move a legacy projects/ dir (the old name for tasks/) into tasks/. Runs
-//      at most once, gated behind a sentinel marker: projects/ is now the live
-//      home of the projects feature. The marker is dropped on the first boot --
-//      before any real project can exist -- so a re-run can never see, let alone
-//      move, real project data.
+//   1. Move a legacy projects/ dir (the old name for tasks/) into tasks/.
+//      projects/ is now the live home of the projects feature, and this move is
+//      blind (it relocates whatever folders it finds), so it is protected two
+//      ways that fail independently: a sentinel marker runs it at most once
+//      (normally on first boot, before any project exists), and a per-folder
+//      content guard (isProjectFolder) skips any real project even if the pass
+//      ever runs against a populated projects/. The guard is the load-bearing
+//      one -- it survives a lost/changed marker; the marker is the optimization.
 //   2. Normalize every task already under tasks/ to the current layout. Keyed
 //      purely on per-task legacy shapes (collision-free with the projects
 //      feature), so it stays idempotent and re-runs every boot.
@@ -86,6 +90,29 @@ export function migrateWorkspaceLayout({
 
   normalizeTasks(path.join(rootDir, TASKS_DIR_NAME));
   return migration;
+}
+
+// True when a projects/ entry is a real projects-feature folder -- its
+// .instrument/settings.json carries a ProjectId -- rather than a legacy task. A
+// ProjectId (prj_<ULID>) is structurally distinct from a TaskId, so this never
+// misclassifies a legacy task as a project. This is what keeps the (otherwise
+// content-blind) move from ever relocating real project data.
+function isProjectFolder(folderPath: string): boolean {
+  const settingsPath = path.join(
+    folderPath,
+    TASK_PRIVATE_FOLDER_NAME,
+    TASK_SETTINGS_FILE_NAME,
+  );
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+  } catch {
+    return false;
+  }
+  if (typeof parsed !== "object" || parsed === null || !("id" in parsed)) {
+    return false;
+  }
+  return ProjectIdSchema.safeParse(parsed.id).success;
 }
 
 function legacyProjectsMarkerPath(rootDir: string): string {
@@ -143,6 +170,15 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
     }
 
     const source = path.join(legacyDir, entry.name);
+
+    // A real projects-feature folder, not a legacy task: identified positively
+    // by a ProjectId in its settings and left exactly where it is. This is the
+    // primary safeguard -- it holds even if the run-once marker is missing,
+    // renamed, or never written.
+    if (isProjectFolder(source)) {
+      continue;
+    }
+
     const destination = path.join(tasksDir, entry.name);
 
     if (fs.existsSync(destination)) {
@@ -157,9 +193,9 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
     migration.movedTaskCount += 1;
   }
 
-  // Drop the legacy dir once every task folder has moved. Stray non-directory
-  // entries (e.g. a macOS .DS_Store) keep it around -- harmless, since the
-  // marker stops this pass re-running anyway.
+  // Drop the legacy dir once every task folder has moved. A preserved project
+  // folder (or a stray .DS_Store) keeps it around -- correct, since projects/ is
+  // the live home of the projects feature.
   if (fs.readdirSync(legacyDir).length === 0) {
     fs.rmdirSync(legacyDir);
   }

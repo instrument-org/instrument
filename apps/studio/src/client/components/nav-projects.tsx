@@ -82,7 +82,7 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
               }}
               type="button"
             >
-              <PlusIcon className="size-4" />
+              <PlusIcon className="!size-3" />
             </button>
           </div>
           <CollapsibleContent animated>

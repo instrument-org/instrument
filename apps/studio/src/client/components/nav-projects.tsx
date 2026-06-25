@@ -4,16 +4,35 @@ import {
   CollapsibleTrigger,
 } from "@/client/components/ui/collapsible";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
-import { openCreateProject } from "@/client/lib/open-create-project";
+import {
+  openCreateProject,
+  openDeleteProject,
+  openEditProject,
+} from "@/client/lib/open-create-project";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { BagIcon, CaretRightIcon, PlusIcon } from "@phosphor-icons/react";
+import {
+  BagIcon,
+  CaretRightIcon,
+  DotsThreeOutlineVerticalIcon,
+  PencilSimpleLineIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useState } from "react";
@@ -64,7 +83,7 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
           <CollapsibleContent animated>
             <SidebarMenu className="gap-0.5">
               {projects.map((project) => (
-                <SidebarMenuItem key={project.id}>
+                <SidebarMenuItem className="group/project" key={project.id}>
                   <SidebarMenuButton
                     asChild
                     className="h-9 gap-2 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground"
@@ -79,6 +98,34 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
                       <span className="truncate">{project.name}</span>
                     </InternalLink>
                   </SidebarMenuButton>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <SidebarMenuAction showOnHover>
+                        <DotsThreeOutlineVerticalIcon weight="fill" />
+                        <span className="sr-only">Project actions</span>
+                      </SidebarMenuAction>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="bottom">
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          openEditProject(project.id);
+                        }}
+                      >
+                        <PencilSimpleLineIcon className="text-muted-foreground" />
+                        <span>Edit project</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          openDeleteProject(project.id);
+                        }}
+                        variant="destructive"
+                      >
+                        <TrashIcon className="size-4" />
+                        <span>Delete project</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

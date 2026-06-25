@@ -20,6 +20,7 @@ import { Route as StudioOverlayWelcomeRouteImport } from './routes/studio-overla
 import { Route as StudioOverlaySettingsRouteImport } from './routes/studio-overlay/settings'
 import { Route as StudioOverlayNewProjectRouteImport } from './routes/studio-overlay/new-project'
 import { Route as StudioOverlayLoginRouteImport } from './routes/studio-overlay/login'
+import { Route as StudioOverlayDeleteProjectRouteImport } from './routes/studio-overlay/delete-project'
 import { Route as StudioOverlayCrashRouteImport } from './routes/studio-overlay/crash'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
@@ -112,6 +113,12 @@ const StudioOverlayLoginRoute = StudioOverlayLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => StudioOverlayRoute,
 } as any)
+const StudioOverlayDeleteProjectRoute =
+  StudioOverlayDeleteProjectRouteImport.update({
+    id: '/delete-project',
+    path: '/delete-project',
+    getParentRoute: () => StudioOverlayRoute,
+  } as any)
 const StudioOverlayCrashRoute = StudioOverlayCrashRouteImport.update({
   id: '/crash',
   path: '/crash',
@@ -329,6 +336,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
+  '/studio-overlay/delete-project': typeof StudioOverlayDeleteProjectRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
   '/studio-overlay/new-project': typeof StudioOverlayNewProjectRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsRouteWithChildren
@@ -375,6 +383,7 @@ export interface FileRoutesByTo {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
+  '/studio-overlay/delete-project': typeof StudioOverlayDeleteProjectRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
   '/studio-overlay/new-project': typeof StudioOverlayNewProjectRoute
   '/studio-overlay/welcome': typeof StudioOverlayWelcomeRoute
@@ -423,6 +432,7 @@ export interface FileRoutesById {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/studio-overlay/crash': typeof StudioOverlayCrashRoute
+  '/studio-overlay/delete-project': typeof StudioOverlayDeleteProjectRoute
   '/studio-overlay/login': typeof StudioOverlayLoginRoute
   '/studio-overlay/new-project': typeof StudioOverlayNewProjectRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsRouteWithChildren
@@ -473,6 +483,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/studio-overlay/crash'
+    | '/studio-overlay/delete-project'
     | '/studio-overlay/login'
     | '/studio-overlay/new-project'
     | '/studio-overlay/settings'
@@ -519,6 +530,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/studio-overlay/crash'
+    | '/studio-overlay/delete-project'
     | '/studio-overlay/login'
     | '/studio-overlay/new-project'
     | '/studio-overlay/welcome'
@@ -566,6 +578,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/studio-overlay/crash'
+    | '/studio-overlay/delete-project'
     | '/studio-overlay/login'
     | '/studio-overlay/new-project'
     | '/studio-overlay/settings'
@@ -688,6 +701,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/studio-overlay/login'
       preLoaderRoute: typeof StudioOverlayLoginRouteImport
+      parentRoute: typeof StudioOverlayRoute
+    }
+    '/studio-overlay/delete-project': {
+      id: '/studio-overlay/delete-project'
+      path: '/delete-project'
+      fullPath: '/studio-overlay/delete-project'
+      preLoaderRoute: typeof StudioOverlayDeleteProjectRouteImport
       parentRoute: typeof StudioOverlayRoute
     }
     '/studio-overlay/crash': {
@@ -1107,6 +1127,7 @@ const StudioOverlaySettingsRouteWithChildren =
 
 interface StudioOverlayRouteChildren {
   StudioOverlayCrashRoute: typeof StudioOverlayCrashRoute
+  StudioOverlayDeleteProjectRoute: typeof StudioOverlayDeleteProjectRoute
   StudioOverlayLoginRoute: typeof StudioOverlayLoginRoute
   StudioOverlayNewProjectRoute: typeof StudioOverlayNewProjectRoute
   StudioOverlaySettingsRoute: typeof StudioOverlaySettingsRouteWithChildren
@@ -1115,6 +1136,7 @@ interface StudioOverlayRouteChildren {
 
 const StudioOverlayRouteChildren: StudioOverlayRouteChildren = {
   StudioOverlayCrashRoute: StudioOverlayCrashRoute,
+  StudioOverlayDeleteProjectRoute: StudioOverlayDeleteProjectRoute,
   StudioOverlayLoginRoute: StudioOverlayLoginRoute,
   StudioOverlayNewProjectRoute: StudioOverlayNewProjectRoute,
   StudioOverlaySettingsRoute: StudioOverlaySettingsRouteWithChildren,

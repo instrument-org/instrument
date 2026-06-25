@@ -8,16 +8,6 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { rpcClient } from "../rpc/client";
 import { useTaskAgentStatus } from "./use-task-agent-status";
 
-export function getSessionTags({
-  sessionActors,
-  sessionId,
-}: {
-  sessionActors: { sessionId: string; tags: SessionTag[] }[];
-  sessionId: string;
-}) {
-  return sessionActors.find((a) => a.sessionId === sessionId)?.tags ?? [];
-}
-
 /**
  * Derives agent status for a specific session within a task app.
  * Replay status is queried automatically by id.
@@ -57,6 +47,16 @@ export function useAgentSessionStatus({
     isAgentAlive: isReplayActiveForSession || isSessionAlive(tags),
     isAgentRunning: isReplayActiveForSession || isSessionRunning(tags),
   };
+}
+
+function getSessionTags({
+  sessionActors,
+  sessionId,
+}: {
+  sessionActors: { sessionId: string; tags: SessionTag[] }[];
+  sessionId: string;
+}) {
+  return sessionActors.find((a) => a.sessionId === sessionId)?.tags ?? [];
 }
 
 function isSessionAlive(tags: SessionTag[]) {

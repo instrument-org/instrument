@@ -109,10 +109,7 @@ export function TaskActionsCell({
               }
             }}
           >
-            <PushPinIcon
-              className="text-muted-foreground"
-              weight={isPinned ? "fill" : undefined}
-            />
+            <PushPinIcon className="text-muted-foreground" />
             <span>{isPinned ? "Unpin" : "Pin"}</span>
           </DropdownMenuItem>
           <DropdownMenuItem

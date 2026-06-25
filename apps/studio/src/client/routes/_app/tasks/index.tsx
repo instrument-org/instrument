@@ -32,6 +32,7 @@ import {
 } from "@instrument-org/shared";
 import {
   isTaskId,
+  type Project,
   type Task,
   type TaskId,
 } from "@instrument-org/workspace/client";
@@ -101,6 +102,18 @@ function RouteComponent() {
   const { data: pinnedTaskIds } = useQuery(
     rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
+
+  const { data: projectsData } = useQuery(
+    rpcClient.workspace.project.live.list.experimental_liveOptions(),
+  );
+
+  const projectsMap = useMemo(() => {
+    const map = new Map<string, Project>();
+    for (const project of projectsData?.projects ?? []) {
+      map.set(project.id, project);
+    }
+    return map;
+  }, [projectsData?.projects]);
 
   const pinnedTaskIdSet = useMemo(
     () => new Set<TaskId>(pinnedTaskIds),
@@ -339,9 +352,11 @@ function RouteComponent() {
         onSettings: handleSettings,
         onStop: handleStop,
         pinnedTaskIds: pinnedTaskIdSet,
+        projects: projectsMap,
       }),
     [
       pinnedTaskIdSet,
+      projectsMap,
       handleDelete,
       handleOpenInNewTab,
       handleSettings,

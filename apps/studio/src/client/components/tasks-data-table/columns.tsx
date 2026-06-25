@@ -5,7 +5,7 @@ import { InternalLink } from "@/client/components/internal-link";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
-import { ArrowsDownUpIcon, PushPinIcon } from "@phosphor-icons/react";
+import { ArrowsDownUpIcon, BagIcon, PushPinIcon } from "@phosphor-icons/react";
 import { format, formatDistanceToNow } from "date-fns";
 
 import { TaskActionsCell } from "./actions";
@@ -82,29 +82,27 @@ export function createColumns({
         const task = row.original;
         const isPinned = pinnedTaskIds.has(task.id);
         return (
-          <div className="flex min-w-0 items-center gap-x-2">
-            {isPinned && (
-              <PushPinIcon className="size-4 shrink-0 text-muted-foreground" />
-            )}
-            <Button
-              asChild
-              className="min-w-0 flex-1 justify-start"
-              variant="ghost"
+          <Button
+            asChild
+            className="min-w-0 w-full justify-start"
+            variant="ghost"
+          >
+            <InternalLink
+              className="flex min-w-0 items-center gap-x-2"
+              openInCurrentTab
+              params={{ id: task.id }}
+              to="/tasks/$id"
             >
-              <InternalLink
-                className="flex min-w-0 items-center gap-x-2"
-                openInCurrentTab
-                params={{ id: task.id }}
-                to="/tasks/$id"
-              >
-                <span className="truncate font-medium">{task.title}</span>
-                <TaskStatusIcon
-                  className="ml-auto size-4 shrink-0"
-                  id={task.id}
-                />
-              </InternalLink>
-            </Button>
-          </div>
+              {isPinned && (
+                <PushPinIcon className="size-4 shrink-0 text-muted-foreground" />
+              )}
+              <span className="truncate">{task.title}</span>
+              <TaskStatusIcon
+                className="ml-auto size-4 shrink-0"
+                id={task.id}
+              />
+            </InternalLink>
+          </Button>
         );
       },
       header: ({ column }) => {
@@ -139,6 +137,7 @@ export function createColumns({
               params={{ id: project.id }}
               to="/projects/$id"
             >
+              <BagIcon className="size-4 shrink-0" />
               {project.name}
             </InternalLink>
           </Button>

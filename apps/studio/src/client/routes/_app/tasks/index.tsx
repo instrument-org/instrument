@@ -103,17 +103,17 @@ function RouteComponent() {
     rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
 
-  const { data: projectsData } = useQuery(
+  const { data: projectsList } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
 
   const projectsMap = useMemo(() => {
     const map = new Map<string, Project>();
-    for (const project of projectsData?.projects ?? []) {
+    for (const project of projectsList ?? []) {
       map.set(project.id, project);
     }
     return map;
-  }, [projectsData?.projects]);
+  }, [projectsList]);
 
   const pinnedTaskIdSet = useMemo(
     () => new Set<TaskId>(pinnedTaskIds),

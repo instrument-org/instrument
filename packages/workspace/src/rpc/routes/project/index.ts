@@ -141,6 +141,13 @@ const removeFolder = base
     return result.value;
   });
 
+// Re-reads project state from disk for all live.list subscribers. Used to pick
+// up out-of-band edits (e.g. AGENTS.md changed on disk) when the page regains
+// focus, since nothing else publishes project.updated for external writes.
+const refresh = base.output(z.void()).handler(() => {
+  publisher.publish("project.updated", null);
+});
+
 const live = {
   list: base
     .output(eventIterator(ProjectSchema.array()))
@@ -162,6 +169,7 @@ export const project = {
   create,
   list,
   live,
+  refresh,
   remove,
   removeFolder,
   removeTask,

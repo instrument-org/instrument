@@ -13,6 +13,18 @@ export function ProjectInstructions({
   projectId: ProjectId;
 }) {
   const [value, setValue] = useState(instructions);
+  const [seenInstructions, setSeenInstructions] = useState(instructions);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Adopt instructions refreshed from disk, but never while the user is editing
+  // (that would clobber their cursor and in-flight text). On-disk edits land on
+  // the next focus after blur.
+  if (instructions !== seenInstructions) {
+    setSeenInstructions(instructions);
+    if (!isFocused) {
+      setValue(instructions);
+    }
+  }
 
   const { mutate } = useMutation(
     rpcClient.workspace.project.update.mutationOptions(),
@@ -38,9 +50,15 @@ export function ProjectInstructions({
       <div className="p-2">
         <Textarea
           className="min-h-64 resize-none rounded-md border-0 bg-muted/50 text-sm leading-relaxed shadow-none"
+          onBlur={() => {
+            setIsFocused(false);
+          }}
           onChange={(e) => {
             setValue(e.target.value);
             save(e.target.value);
+          }}
+          onFocus={() => {
+            setIsFocused(true);
           }}
           placeholder="Instructions for every task in this project..."
           value={value}

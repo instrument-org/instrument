@@ -24,7 +24,7 @@ import {
   openCreateProject,
   openDeleteProject,
   openEditProject,
-} from "@/client/lib/open-create-project";
+} from "@/client/lib/project-overlays";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Project } from "@instrument-org/workspace/client";

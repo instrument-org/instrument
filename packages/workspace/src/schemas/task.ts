@@ -8,8 +8,6 @@ import { TaskIdSchema } from "./task-id";
 export const TaskSchema = z.object({
   createdAt: z.date(),
   id: TaskIdSchema,
-  // The project this task is bucketed into, if any (a stable ProjectId, never a
-  // folder path). Absent for unfiled tasks.
   projectId: ProjectIdSchema.optional(),
   title: z.string(),
   updatedAt: z.date(),

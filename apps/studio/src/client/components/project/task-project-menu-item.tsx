@@ -12,10 +12,6 @@ import { BagIcon, PlusIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// Renders a task's project affordance in a dropdown menu. When unfiled: an "Add
-// to project" submenu (all projects + New project). When filed: a "Move to
-// project" submenu (only the *other* projects + New project) plus a "Remove from
-// project" item.
 export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),

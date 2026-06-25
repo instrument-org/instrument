@@ -56,7 +56,7 @@ describe("workspace-store pins", () => {
     expect(await pins()).toEqual([]);
   });
 
-  it("adds, dedups, and removes pins", async () => {
+  it("adds, dedupes, and removes pins", async () => {
     await addPin(taskA);
     await addPin(taskA);
     await addPin(taskB);

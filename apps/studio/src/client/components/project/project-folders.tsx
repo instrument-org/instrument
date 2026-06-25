@@ -21,8 +21,6 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// The project's attached folders (right column, beneath Instructions). Folders
-// here are auto-attached to every task created in the project.
 export function ProjectFolders({
   folders,
   projectId,

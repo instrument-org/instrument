@@ -7,15 +7,12 @@ import { ProjectIdSchema } from "./project-id";
 export const ProjectSettingsSchema = z.object({
   createdAt: z.coerce.date(),
   description: z.string().optional(),
-  // Absolute folder paths auto-attached to every task created in the project.
   folders: z.array(z.string()).optional(),
   id: ProjectIdSchema,
 });
 
 export type ProjectSettings = z.output<typeof ProjectSettingsSchema>;
 
-// The loaded representation a client fetches: identity + folder-derived name +
-// instructions read from the project's AGENTS.md.
 export const ProjectSchema = z.object({
   createdAt: z.date(),
   description: z.string(),

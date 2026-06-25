@@ -5,8 +5,6 @@ import { useMutation } from "@tanstack/react-query";
 import { debounce } from "radashi";
 import { useMemo, useState } from "react";
 
-// The project's agent instructions (its AGENTS.md), editable in the project
-// page's right column. Autosaves as you type so edits feel live.
 export function ProjectInstructions({
   instructions,
   projectId,

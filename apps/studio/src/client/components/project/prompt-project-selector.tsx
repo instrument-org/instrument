@@ -10,12 +10,7 @@ import { openCreateProject } from "@/client/lib/open-create-project";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
-import {
-  BagIcon,
-  CheckIcon,
-  PlusIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { BagIcon, CheckIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
 export function PromptProjectSelector({

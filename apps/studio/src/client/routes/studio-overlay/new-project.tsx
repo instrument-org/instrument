@@ -38,7 +38,6 @@ export const Route = createFileRoute("/studio-overlay/new-project")({
 function NewProjectModal() {
   const { projectId, taskId } = Route.useSearch();
 
-  // Edit mode loads the project to pre-fill the form.
   const { data: editProject, isLoading } = useQuery(
     rpcClient.workspace.project.byId.queryOptions({
       input: projectId ? { id: ProjectIdSchema.parse(projectId) } : skipToken,

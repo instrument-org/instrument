@@ -8,7 +8,7 @@ import {
   getPins,
   removePin,
   setPins,
-} from "../../../lib/workspace-store";
+} from "../../../lib/pins";
 import { type Task, TaskSchema } from "../../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
 import { type WorkspaceConfig } from "../../../types";

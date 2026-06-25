@@ -23,7 +23,7 @@ import { useTabActions } from "@/client/hooks/use-tab-actions";
 import {
   openDeleteProject,
   openEditProject,
-} from "@/client/lib/open-create-project";
+} from "@/client/lib/project-overlays";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";

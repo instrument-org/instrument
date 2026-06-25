@@ -5,7 +5,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { openCreateProject } from "@/client/lib/open-create-project";
+import { openCreateProject } from "@/client/lib/project-overlays";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
 import { BagIcon, PlusIcon, XCircleIcon } from "@phosphor-icons/react";

@@ -10,6 +10,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type AgentName, RETRIEVAL_AGENT_NAME } from "../../agents/types";
+import { attachedFolderRemovalsModelNote } from "../../lib/attached-folder-changes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
 import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
@@ -297,6 +298,20 @@ export namespace SessionMessage {
         );
         if (externalChangesPart) {
           const note = externalFileChangesModelNote(externalChangesPart.data);
+          if (note) {
+            parts.push({ text: note, type: "text" });
+          }
+        }
+
+        const folderChangesPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-attachedFolderChanges";
+          } => part.type === "data-attachedFolderChanges",
+        );
+        if (folderChangesPart) {
+          const note = attachedFolderRemovalsModelNote(folderChangesPart.data);
           if (note) {
             parts.push({ text: note, type: "text" });
           }

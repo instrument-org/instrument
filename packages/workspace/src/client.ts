@@ -4,6 +4,7 @@ export {
   TASK_FOLDER_NAMES,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
+export { attachedFolderRemovalsModelNote } from "./lib/attached-folder-changes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
 export { externalFileChangesModelNote } from "./lib/external-file-changes-model-text";
 export { formatBytes } from "./lib/format-bytes";

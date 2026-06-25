@@ -11,7 +11,7 @@ export function NotFoundRouteComponent() {
   return <NotFoundComponent message={`Could not find page: ${pathname}`} />;
 }
 
-function NotFoundComponent({
+export function NotFoundComponent({
   message,
   title = "Not Found",
 }: {

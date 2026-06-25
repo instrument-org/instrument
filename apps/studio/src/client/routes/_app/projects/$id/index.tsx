@@ -46,12 +46,15 @@ export const Route = createFileRoute("/_app/projects/$id/")({
     parse: (rawParams) => ({ id: ProjectIdSchema.parse(rawParams.id) }),
   },
   loader: async ({ params }) => {
-    const [error, project] = await safe(
+    const [error, , isDefined] = await safe(
       rpcClient.workspace.project.byId.call({ id: params.id }),
     );
     if (error) {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
-      throw redirect({ replace: true, to: "/new-tab" });
+      if (isDefined && error.code === "NOT_FOUND") {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw redirect({ replace: true, to: "/new-tab" });
+      }
+      // Allow route to load on transient/workspace-not-ready errors
     }
   },
   component: RouteComponent,
@@ -87,7 +90,11 @@ function RouteComponent() {
   const [taskToDelete, setTaskToDelete] = useState<null | Task>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const { data: projects, isLoading: projectLoading } = useQuery(
+  const {
+    data: projects,
+    error: projectError,
+    isLoading: projectLoading,
+  } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions({
       placeholderData: keepPreviousData,
     }),
@@ -164,6 +171,14 @@ function RouteComponent() {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-6 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (projectError) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-muted-foreground">{projectError.message}</p>
       </div>
     );
   }

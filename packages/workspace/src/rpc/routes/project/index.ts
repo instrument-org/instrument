@@ -56,7 +56,6 @@ const update = base
   .input(
     z.object({
       description: z.string().optional(),
-      folders: z.array(z.string()).optional(),
       id: ProjectIdSchema,
       instructions: z.string().optional(),
       name: z.string().optional(),

@@ -125,6 +125,7 @@ export function TaskToolbar({
                   onSettingsClick={() => {
                     setSettingsDialogOpen(true);
                   }}
+                  projectId={task.projectId}
                   selectedSessionId={selectedSessionId}
                 />
               </div>

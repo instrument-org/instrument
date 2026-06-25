@@ -7,22 +7,21 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { openCreateProject } from "@/client/lib/open-create-project";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
 import { BagIcon, PlusIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export function TaskProjectMenuItem({ taskId }: { taskId: TaskId }) {
+export function TaskProjectMenuItem({
+  currentProjectId,
+  taskId,
+}: {
+  currentProjectId: null | ProjectId | undefined;
+  taskId: TaskId;
+}) {
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
-
-  const { data: tasksData } = useQuery(
-    rpcClient.workspace.task.live.list.experimental_liveOptions(),
-  );
-  const currentProjectId = tasksData?.tasks.find(
-    (task) => task.id === taskId,
-  )?.projectId;
 
   const { mutateAsync: addTask } = useMutation(
     rpcClient.workspace.project.addTask.mutationOptions({

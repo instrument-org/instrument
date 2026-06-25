@@ -97,9 +97,10 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
         }
 
         void context.queryClient.invalidateQueries({
-          queryKey: rpcClient.workspace.task.state.get.queryOptions({
-            input: { id: params.id },
-          }).queryKey,
+          queryKey:
+            rpcClient.workspace.task.state.live.get.experimental_liveKey({
+              input: { id: params.id },
+            }),
         });
       })
       .catch(() => {
@@ -205,7 +206,7 @@ function RouteComponent() {
     error: taskStateError,
     isLoading: isTaskStateLoading,
   } = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
+    rpcClient.workspace.task.state.live.get.experimental_liveOptions({
       input: { id },
       placeholderData: keepPreviousData,
     }),

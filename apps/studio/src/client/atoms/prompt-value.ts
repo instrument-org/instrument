@@ -10,7 +10,6 @@ import { rpcClient } from "../rpc/client";
 
 export type PromptValueAtomKey =
   | "$$new-tab$$"
-  | "$$template$$"
   | `$$project:${string}$$`
   | TaskId;
 
@@ -71,16 +70,12 @@ const createTaskPromptStorage = (id: TaskId) => {
   };
 };
 
-// Sentinel keys (new-tab, template, per-project) get ephemeral in-memory drafts;
+// Sentinel keys (new-tab, per-project) get ephemeral in-memory drafts;
 // only real tasks back their draft with task-state storage.
 function isEphemeralKey(
   key: PromptValueAtomKey,
-): key is "$$new-tab$$" | "$$template$$" | `$$project:${string}$$` {
-  return (
-    key === "$$new-tab$$" ||
-    key === "$$template$$" ||
-    key.startsWith("$$project:")
-  );
+): key is "$$new-tab$$" | `$$project:${string}$$` {
+  return key === "$$new-tab$$" || key.startsWith("$$project:");
 }
 
 export const promptValueAtomFamily = atomFamily((key: PromptValueAtomKey) => {

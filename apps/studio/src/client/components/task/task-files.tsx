@@ -1,7 +1,6 @@
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
-import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
@@ -9,7 +8,7 @@ import {
   hasVisibleTaskFiles,
   shouldFilterTaskFile,
 } from "@/client/lib/task-file-groups";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -18,7 +17,6 @@ import {
   TASK_FOLDER_NAMES,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { safe } from "@orpc/client";
 import {
   CaretRightIcon,
   ChatTextIcon,
@@ -40,15 +38,11 @@ import {
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "../ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import {
@@ -196,34 +190,6 @@ export function TaskFiles({
   );
 }
 
-function AttachedFolderMenuItems({
-  onAddToChat,
-  onReveal,
-  variant,
-}: {
-  onAddToChat: () => void;
-  onReveal: () => void;
-  variant: "context" | "dropdown";
-}) {
-  const Item = variant === "context" ? ContextMenuItem : DropdownMenuItem;
-  const Separator =
-    variant === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
-
-  return (
-    <>
-      <Item onClick={onAddToChat}>
-        <ChatTextIcon className="size-4" />
-        <span>Add to chat</span>
-      </Item>
-      <Separator />
-      <Item onClick={onReveal}>
-        <RevealInFolderIcon className="size-4" />
-        <span>{getRevealInFolderLabel()}</span>
-      </Item>
-    </>
-  );
-}
-
 function AttachedFolderRow({
   folder,
   taskId,
@@ -233,71 +199,36 @@ function AttachedFolderRow({
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
 
-  const revealMutation = useMutation(
-    rpcClient.utils.showFileInFolder.mutationOptions({
+  const { mutate: removeFolder } = useMutation(
+    rpcClient.workspace.task.state.removeFolder.mutationOptions({
       onError: (error) => {
-        toast.error(`Failed to ${getRevealInFolderLabel().toLowerCase()}`, {
-          description: error.message,
-        });
+        toast.error("Failed to remove folder", { description: error.message });
       },
     }),
   );
 
-  const handleClick = async () => {
-    const [error] = await safe(
-      rpcClient.utils.openFolder.call({ folderPath: folder.path }),
-    );
-    if (error) {
-      toast.error("Failed to open folder", { description: error.message });
-    }
-  };
-
-  const handleAddToChat = () => {
-    appendToPrompt({
-      key: taskId,
-      update: `the attached folder "${folder.name}"`,
-    });
-  };
-
-  const handleReveal = () => {
-    revealMutation.mutate({ filepath: folder.path });
-  };
-
   return (
     <SidebarMenuItem>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <SidebarMenuButton
-            className="h-auto min-h-14 items-stretch gap-2.5 px-3 py-2 text-xs hover:bg-muted/50"
-            isActive={false}
-            onClick={() => void handleClick()}
-          >
-            <ExplorerFolderThumbnail />
-            <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">
-              <span className="truncate font-medium text-foreground/90">
-                {folder.name}
-              </span>
-              <span className="truncate text-muted-foreground">
-                Folder · {explorerStubRelativeDate()}
-              </span>
-            </div>
-          </SidebarMenuButton>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <AttachedFolderMenuItems
-            onAddToChat={handleAddToChat}
-            onReveal={handleReveal}
-            variant="context"
-          />
-        </ContextMenuContent>
-      </ContextMenu>
-      <FilesItemMenu>
-        <AttachedFolderMenuItems
-          onAddToChat={handleAddToChat}
-          onReveal={handleReveal}
-          variant="dropdown"
-        />
-      </FilesItemMenu>
+      <FolderAttachmentRow
+        additionalMenuItems={[
+          {
+            icon: <ChatTextIcon className="size-4" />,
+            label: "Add to chat",
+            onSelect: () => {
+              appendToPrompt({
+                key: taskId,
+                update: `the attached folder "${folder.name}"`,
+              });
+            },
+          },
+        ]}
+        name={folder.name}
+        onRemove={() => {
+          removeFolder({ folderId: folder.id, id: taskId });
+        }}
+        path={folder.path}
+        removeLabel="Remove from task"
+      />
     </SidebarMenuItem>
   );
 }
@@ -341,14 +272,6 @@ function directorySectionLabel(dirName: string) {
     return "Attached files";
   }
   return dirName;
-}
-
-function ExplorerFolderThumbnail() {
-  return (
-    <div className="flex h-10 w-8 shrink-0 items-center justify-center">
-      <MacFolderIcon className="size-8 shrink-0" />
-    </div>
-  );
 }
 
 function explorerStubRelativeDate() {

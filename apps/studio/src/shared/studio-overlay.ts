@@ -1,3 +1,7 @@
+import {
+  ProjectIdSchema,
+  TaskIdSchema,
+} from "@instrument-org/workspace/client";
 import { type StudioPath } from "@/shared/studio-path";
 import { z } from "zod";
 
@@ -60,14 +64,14 @@ const StudioOverlaySettingsPropsSchema = z.object({
 const StudioOverlayNewProjectPropsSchema = z.object({
   // When set, the modal edits this existing project (name + description) instead
   // of creating a new one.
-  projectId: z.string().optional(),
+  projectId: ProjectIdSchema.optional(),
   // When opened from a task's "Add to project > New project", the task to file
   // into the project once it's created.
-  taskId: z.string().optional(),
+  taskId: TaskIdSchema.optional(),
 });
 
 const StudioOverlayDeleteProjectPropsSchema = z.object({
-  projectId: z.string(),
+  projectId: ProjectIdSchema,
 });
 
 export const StudioOverlayRequestSchema = z.discriminatedUnion("kind", [
@@ -120,13 +124,13 @@ export const StudioOverlayLoginSearchSchema = z.object({
 
 /** Search params for the `/studio-overlay/new-project` route. */
 export const StudioOverlayNewProjectSearchSchema = z.object({
-  projectId: z.string().optional(),
-  taskId: z.string().optional(),
+  projectId: ProjectIdSchema.optional(),
+  taskId: TaskIdSchema.optional(),
 });
 
 /** Search params for the `/studio-overlay/delete-project` route. */
 export const StudioOverlayDeleteProjectSearchSchema = z.object({
-  projectId: z.string(),
+  projectId: ProjectIdSchema,
 });
 
 /**

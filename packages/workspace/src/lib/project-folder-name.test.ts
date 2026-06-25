@@ -1,3 +1,4 @@
+// cspell:ignore émojis
 import { describe, expect, it } from "vitest";
 
 import { validateProjectName } from "./project-folder-name";

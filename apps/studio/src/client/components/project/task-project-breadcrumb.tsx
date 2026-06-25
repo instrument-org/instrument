@@ -4,8 +4,6 @@ import { type ProjectId } from "@instrument-org/workspace/client";
 import { BagIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
-// The "<project> /" prefix shown before a task's title when it is filed under a
-// project. Links to the project page.
 export function TaskProjectBreadcrumb({ projectId }: { projectId: ProjectId }) {
   const { data: project } = useQuery(
     rpcClient.workspace.project.byId.queryOptions({ input: { id: projectId } }),

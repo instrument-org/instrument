@@ -69,7 +69,6 @@ export function getWorkspaceStoreStorage() {
       }),
     });
 
-    // Perform a read to ensure the store is usable before caching it.
     return ResultAsync.fromPromise(
       storage.getItem(`__canary__`),
       (error) =>

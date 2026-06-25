@@ -67,7 +67,14 @@ export function setProjectFolder(id: ProjectId, folderName: string) {
   );
 }
 
-export function setProjectIndex(index: ProjectIndex) {
+function defaultOnMissing<T>(fallback: T) {
+  return (error: TypedError.Type) =>
+    error.type === "workspace-not-found-error"
+      ? okAsync(fallback)
+      : errAsync(error);
+}
+
+function setProjectIndex(index: ProjectIndex) {
   return getWorkspaceStoreStorage().andThen((storage) =>
     setParsedJsonStorageItem(
       PROJECT_INDEX_KEY,
@@ -76,12 +83,4 @@ export function setProjectIndex(index: ProjectIndex) {
       storage,
     ),
   );
-}
-
-// Reads default to empty when the key has never been written.
-function defaultOnMissing<T>(fallback: T) {
-  return (error: TypedError.Type) =>
-    error.type === "workspace-not-found-error"
-      ? okAsync(fallback)
-      : errAsync(error);
 }

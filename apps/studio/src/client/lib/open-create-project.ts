@@ -15,7 +15,6 @@ export function openCreateProject(taskId?: TaskId) {
   });
 }
 
-// Opens an app-wide confirmation to delete a project (tasks are kept, unfiled).
 export function openDeleteProject(projectId: ProjectId) {
   void rpcClient.studioOverlay.show.call({
     kind: "delete-project",
@@ -23,7 +22,6 @@ export function openDeleteProject(projectId: ProjectId) {
   });
 }
 
-// Opens the same modal in edit mode (name + description) for an existing project.
 export function openEditProject(projectId: ProjectId) {
   void rpcClient.studioOverlay.show.call({
     kind: "new-project",

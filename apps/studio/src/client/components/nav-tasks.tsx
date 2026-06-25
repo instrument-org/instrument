@@ -55,7 +55,7 @@ export function NavTasks({
       <SidebarGroupLabel
         asChild
         className={cn(
-          "font-semibold text-sidebar-foreground/20",
+          "font-semibold text-sidebar-foreground/40",
           isActive && "text-sidebar-foreground/60",
         )}
       >

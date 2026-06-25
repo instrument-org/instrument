@@ -44,7 +44,7 @@ export function StudioSidebar({
         <Button
           asChild
           className="w-full justify-center gap-2 font-medium"
-          variant="outline"
+          variant="default"
         >
           <InternalLink openInCurrentTab to="/new-tab">
             <NotePencilIcon className="size-4" />

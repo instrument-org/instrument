@@ -1,4 +1,4 @@
-import { errAsync, ok, safeTry } from "neverthrow";
+import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
 import { type TaskId } from "../schemas/task-id";
@@ -28,15 +28,6 @@ export async function duplicateTask(
       workspaceConfig,
     });
 
-    const taskExists = await pathExists(taskDir(taskId));
-    if (taskExists) {
-      return errAsync(
-        new TypedError.Conflict(
-          `Task directory already exists: ${taskDir(taskId)}`,
-        ),
-      );
-    }
-
     const sourceExists = await pathExists(taskDir(sourceId));
     if (!sourceExists) {
       return errAsync(
@@ -45,6 +36,31 @@ export async function duplicateTask(
         ),
       );
     }
+
+    // Ensure the parent tasks dir exists (idempotent), then create the task
+    // dir non-recursively so it acts as an atomic existence guard. With
+    // deterministic date+slug names, two concurrent duplicates can both pass a
+    // separate access check, so we rely on mkdir failing with EEXIST instead.
+    yield* ResultAsync.fromPromise(
+      fs.mkdir(workspaceConfig.tasksDir, { recursive: true }),
+      (error) =>
+        new TypedError.FileSystem(
+          error instanceof Error ? error.message : "Unknown error",
+          { cause: error },
+        ),
+    );
+    yield* ResultAsync.fromPromise(
+      fs.mkdir(taskDir(taskId), { recursive: false }),
+      (error) =>
+        error instanceof Error && "code" in error && error.code === "EEXIST"
+          ? new TypedError.Conflict(
+              `Task directory already exists: ${taskDir(taskId)}`,
+            )
+          : new TypedError.FileSystem(
+              error instanceof Error ? error.message : "Unknown error",
+              { cause: error },
+            ),
+    );
 
     yield* copyTask({
       includePrivateFolder: false,

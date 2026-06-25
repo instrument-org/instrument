@@ -120,7 +120,7 @@ export async function createProject({
 
 export async function deleteProject(
   id: ProjectId,
-): Promise<Result<undefined, TypedError.FileSystem>> {
+): Promise<Result<undefined, TypedError.FileSystem | TypedError.Parse>> {
   const folder = await resolveProjectFolder(id);
   if (!folder) {
     await removeProjectFolder(id);
@@ -144,7 +144,10 @@ export async function deleteProject(
   const { tasks } = await getTasks(config);
   for (const task of tasks) {
     if (task.projectId === id) {
-      await updateTaskSettings(task.id, { projectId: null });
+      const cleared = await updateTaskSettings(task.id, { projectId: null });
+      if (cleared.isErr()) {
+        return err(cleared.error);
+      }
     }
   }
 

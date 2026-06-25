@@ -1,3 +1,4 @@
+import { NotFoundComponent } from "@/client/components/not-found";
 import { ProjectFolders } from "@/client/components/project/project-folders";
 import { ProjectInstructions } from "@/client/components/project/project-instructions";
 import { ProjectTaskRow } from "@/client/components/project/project-task-row";
@@ -163,11 +164,7 @@ function RouteComponent() {
   }
 
   if (!projectData) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Project not found.
-      </div>
-    );
+    return <NotFoundComponent title="Project not found" />;
   }
 
   const details = (

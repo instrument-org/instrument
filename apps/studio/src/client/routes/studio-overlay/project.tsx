@@ -23,7 +23,7 @@ import {
   ProjectIdSchema,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
-import { safe } from "@orpc/client";
+import { isDefinedError, type ORPCError, safe } from "@orpc/client";
 import { PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useForm } from "@tanstack/react-form";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
@@ -107,6 +107,18 @@ function ProjectModalForm({
   const isEditing = editProject !== undefined;
   const [folders, setFolders] = useState<string[]>([]);
 
+  // Name validation runs server-side (rules vary per OS); attribute those
+  // failures to the Name field, everything else stays form-level.
+  const toSubmitError = (error: Error | ORPCError<string, unknown>) => {
+    if (isDefinedError(error) && error.code === "PARSE_ERROR") {
+      return { fields: { name: error.message } };
+    }
+    return (
+      error.message ||
+      (isEditing ? "Failed to save project." : "Failed to create project.")
+    );
+  };
+
   const addFolderPath = (path: string) => {
     setFolders((prev) => (prev.includes(path) ? prev : [...prev, path]));
   };
@@ -151,44 +163,46 @@ function ProjectModalForm({
     },
     validators: {
       onSubmitAsync: async ({ value }) => {
-        try {
-          if (editProject) {
-            await updateProject({
+        if (editProject) {
+          const [error] = await safe(
+            updateProject({
               description: value.description.trim(),
               id: editProject.id,
               name: value.name.trim(),
-            });
-            void rpcClient.studioOverlay.resolve.call();
-            return;
+            }),
+          );
+          if (error) {
+            return toSubmitError(error);
           }
+          void rpcClient.studioOverlay.resolve.call();
+          return;
+        }
 
-          const project = await createProject({
+        const [error, project] = await safe(
+          createProject({
             description: value.description.trim() || undefined,
             folders: folders.length > 0 ? folders : undefined,
             instructions: value.instructions.trim() || undefined,
             name: value.name.trim(),
-          });
-
-          if (taskId) {
-            await rpcClient.workspace.project.addTask.call({
-              projectId: project.id,
-              taskId: TaskIdSchema.parse(taskId),
-            });
-          }
-
-          void rpcClient.tabs.add.call({
-            appPath: `/projects/${project.id}` as StudioPath,
-            select: true,
-          });
-          void rpcClient.studioOverlay.resolve.call();
-          return;
-        } catch (error) {
-          return error instanceof Error
-            ? error.message
-            : isEditing
-              ? "Failed to save project."
-              : "Failed to create project.";
+          }),
+        );
+        if (error) {
+          return toSubmitError(error);
         }
+
+        if (taskId) {
+          await rpcClient.workspace.project.addTask.call({
+            projectId: project.id,
+            taskId: TaskIdSchema.parse(taskId),
+          });
+        }
+
+        void rpcClient.tabs.add.call({
+          appPath: `/projects/${project.id}` as StudioPath,
+          select: true,
+        });
+        void rpcClient.studioOverlay.resolve.call();
+        return;
       },
     },
   });
@@ -345,7 +359,7 @@ function ProjectModalForm({
         </div>
         <form.Subscribe selector={(state) => state.errorMap.onSubmit}>
           {(submitError) =>
-            submitError ? (
+            typeof submitError === "string" ? (
               <FieldError className="pb-2" errors={[submitError]} />
             ) : null
           }

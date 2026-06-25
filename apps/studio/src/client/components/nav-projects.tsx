@@ -107,8 +107,8 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
               }}
             >
               <BagIcon className="size-4 shrink-0" />
-              <span className="flex-1 text-left">Add a project</span>
-              <PlusIcon className="size-4 shrink-0 group-hover/add:text-sidebar-foreground" />
+              <span className="flex-1 font-medium">Add a project</span>
+              <PlusIcon className="size-3! shrink-0 group-hover/add:text-sidebar-foreground" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

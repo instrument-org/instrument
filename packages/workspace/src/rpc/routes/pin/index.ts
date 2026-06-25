@@ -12,7 +12,7 @@ import {
 import { type Task, TaskSchema } from "../../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
 import { type WorkspaceConfig } from "../../../types";
-import { base } from "../../base";
+import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 
 // Resolves the pinned ids to tasks, dropping (and persisting away) any that no
@@ -42,8 +42,11 @@ async function resolvePinnedTasks(
 const add = base
   .input(z.object({ id: TaskIdSchema }))
   .output(z.void())
-  .handler(async ({ context, input }) => {
-    await addPin(input.id);
+  .handler(async ({ context, errors, input }) => {
+    const result = await addPin(input.id);
+    if (result.isErr()) {
+      throw toORPCError(result.error, errors);
+    }
     publisher.publish("pin.updated", null);
     context.workspaceConfig.captureEvent("pin.added");
   });
@@ -51,8 +54,11 @@ const add = base
 const remove = base
   .input(z.object({ id: TaskIdSchema }))
   .output(z.void())
-  .handler(async ({ context, input }) => {
-    await removePin(input.id);
+  .handler(async ({ context, errors, input }) => {
+    const result = await removePin(input.id);
+    if (result.isErr()) {
+      throw toORPCError(result.error, errors);
+    }
     publisher.publish("pin.updated", null);
     context.workspaceConfig.captureEvent("pin.removed");
   });

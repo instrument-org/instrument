@@ -90,6 +90,11 @@ const addTask = base
   .input(z.object({ projectId: ProjectIdSchema, taskId: TaskIdSchema }))
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
+    // Don't file a task into a project that doesn't exist.
+    const projectResult = await getProject(input.projectId);
+    if (projectResult.isErr()) {
+      throw toORPCError(projectResult.error, errors);
+    }
     const result = await updateTaskSettings(input.taskId, {
       projectId: input.projectId,
     });

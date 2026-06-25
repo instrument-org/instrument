@@ -10,6 +10,7 @@ import { z } from "zod";
  */
 export type StudioOverlayKind =
   | "crash"
+  | "delete-project"
   | "login"
   | "new-project"
   | "settings"
@@ -22,6 +23,7 @@ export type StudioOverlayKind =
 export const STUDIO_OVERLAY_DISMISSIBLE = {
   // Debug-only kind that throws on render to exercise the error fallback.
   crash: true,
+  "delete-project": true,
   login: true,
   "new-project": true,
   settings: true,
@@ -56,9 +58,16 @@ const StudioOverlaySettingsPropsSchema = z.object({
 });
 
 const StudioOverlayNewProjectPropsSchema = z.object({
+  // When set, the modal edits this existing project (name + description) instead
+  // of creating a new one.
+  projectId: z.string().optional(),
   // When opened from a task's "Add to project > New project", the task to file
   // into the project once it's created.
   taskId: z.string().optional(),
+});
+
+const StudioOverlayDeleteProjectPropsSchema = z.object({
+  projectId: z.string(),
 });
 
 export const StudioOverlayRequestSchema = z.discriminatedUnion("kind", [
@@ -68,6 +77,10 @@ export const StudioOverlayRequestSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("login"),
     props: StudioOverlayLoginPropsSchema.optional(),
+  }),
+  z.object({
+    kind: z.literal("delete-project"),
+    props: StudioOverlayDeleteProjectPropsSchema,
   }),
   z.object({
     kind: z.literal("new-project"),
@@ -107,7 +120,13 @@ export const StudioOverlayLoginSearchSchema = z.object({
 
 /** Search params for the `/studio-overlay/new-project` route. */
 export const StudioOverlayNewProjectSearchSchema = z.object({
+  projectId: z.string().optional(),
   taskId: z.string().optional(),
+});
+
+/** Search params for the `/studio-overlay/delete-project` route. */
+export const StudioOverlayDeleteProjectSearchSchema = z.object({
+  projectId: z.string(),
 });
 
 /**
@@ -130,6 +149,12 @@ export function studioOverlayRequestToLocation(request: StudioOverlayRequest): {
     case "crash": {
       return { path: "/studio-overlay/crash", search: {} };
     }
+    case "delete-project": {
+      return {
+        path: "/studio-overlay/delete-project",
+        search: { projectId: request.props.projectId },
+      };
+    }
     case "login": {
       const search: Record<string, string> = {};
       if (request.props?.hideManualProvider) {
@@ -142,6 +167,9 @@ export function studioOverlayRequestToLocation(request: StudioOverlayRequest): {
     }
     case "new-project": {
       const search: Record<string, string> = {};
+      if (request.props?.projectId) {
+        search.projectId = request.props.projectId;
+      }
       if (request.props?.taskId) {
         search.taskId = request.props.taskId;
       }

@@ -403,7 +403,9 @@ function CollapsibleTreeSection({
             labelClassName,
           )}
         >
-          {Icon && <Icon className="size-3.5 shrink-0 text-muted-foreground" />}
+          {Icon && (
+            <Icon className="size-3.5! shrink-0 text-muted-foreground" />
+          )}
           <span className="min-w-0 flex-1 truncate text-left">{label}</span>
           <CaretRightIcon className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-90" />
         </SidebarMenuButton>

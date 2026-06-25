@@ -80,7 +80,7 @@ function RouteComponent() {
                 onContinue={createEventHandler("Continue")}
                 onModelChange={createEventHandler("Model Change")}
                 onRetry={createEventHandler("Retry")}
-                onStartNewChat={createEventHandler("Start New Chat")}
+                onStartNewTask={createEventHandler("Start New Task")}
                 task={mockTask as never}
               />
             ) : (

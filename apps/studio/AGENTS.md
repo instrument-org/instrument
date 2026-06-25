@@ -33,7 +33,7 @@ Each renderer (`WebContentsView`) clips its own portals — a `<Dialog>` in the 
 - **Open**: `rpcClient.studioOverlay.show.call({ kind, props? })` from any renderer.
 - **Add a kind**: edit `src/shared/studio-overlay.ts` (`StudioOverlayKind` union, `STUDIO_OVERLAY_DISMISSIBLE`, `StudioOverlayRequestSchema`, `studioOverlayRequestToLocation`) + add `src/client/routes/studio-overlay/<kind>.tsx` rendering a `DialogContent`. Controller is data-driven; no other changes needed.
 - **Close**: `rpcClient.studioOverlay.resolve.call()` (success) or `rpcClient.studioOverlay.dismiss.call()` (cancel). Have the caller react to the `show()` result — the overlay can't navigate a tab's router.
-- **Example**: `kind: "new-project"` → `routes/studio-overlay/new-project.tsx`, opened via `openCreateProject()` in `src/client/lib/open-create-project.ts`.
+- **Example**: `kind: "new-project"` → `routes/studio-overlay/new-project.tsx`, opened via `openCreateProject()` in `src/client/lib/project-overlays.ts`.
 
 Sidebar flyouts (dropdowns, popovers) are also clipped to the sidebar view; avoid sideways-opening submenus there.
 

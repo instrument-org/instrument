@@ -6,7 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { openCreateProject } from "@/client/lib/open-create-project";
+import { openCreateProject } from "@/client/lib/project-overlays";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";

@@ -9,6 +9,7 @@ import {
 } from "@/client/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/client/components/ui/field";
 import { Input } from "@/client/components/ui/input";
+import { Spinner } from "@/client/components/ui/spinner";
 import { Textarea } from "@/client/components/ui/textarea";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { useWindowFileDrop } from "@/client/lib/use-window-file-drop";
@@ -16,11 +17,15 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { StudioOverlayNewProjectSearchSchema } from "@/shared/studio-overlay";
 import { type StudioPath } from "@/shared/studio-path";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import {
+  type Project,
+  ProjectIdSchema,
+  TaskIdSchema,
+} from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -31,7 +36,46 @@ export const Route = createFileRoute("/studio-overlay/new-project")({
 });
 
 function NewProjectModal() {
-  const { taskId } = Route.useSearch();
+  const { projectId, taskId } = Route.useSearch();
+
+  // Edit mode loads the project to pre-fill the form.
+  const { data: editProject, isLoading } = useQuery(
+    rpcClient.workspace.project.byId.queryOptions({
+      input: projectId ? { id: ProjectIdSchema.parse(projectId) } : skipToken,
+    }),
+  );
+
+  if (projectId && isLoading) {
+    return (
+      <DialogContent className="max-w-lg">
+        <DialogTitle className="sr-only">Edit project</DialogTitle>
+        <DialogDescription className="sr-only">
+          Loading project
+        </DialogDescription>
+        <div className="flex items-center justify-center py-12">
+          <Spinner className="size-6 text-muted-foreground" />
+        </div>
+      </DialogContent>
+    );
+  }
+
+  return (
+    <ProjectModalForm
+      editProject={projectId ? editProject : undefined}
+      key={editProject?.id ?? "new"}
+      taskId={taskId}
+    />
+  );
+}
+
+function ProjectModalForm({
+  editProject,
+  taskId,
+}: {
+  editProject?: Project;
+  taskId?: string;
+}) {
+  const isEditing = editProject !== undefined;
   const [folders, setFolders] = useState<string[]>([]);
 
   const addFolderPath = (path: string) => {
@@ -49,15 +93,21 @@ function NewProjectModal() {
     },
   });
 
-  const { isPending, mutateAsync: createProject } = useMutation(
+  const { isPending: isCreating, mutateAsync: createProject } = useMutation(
     rpcClient.workspace.project.create.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to create project", {
-          description: error.message,
-        });
+        toast.error("Failed to create project", { description: error.message });
       },
     }),
   );
+  const { isPending: isUpdating, mutateAsync: updateProject } = useMutation(
+    rpcClient.workspace.project.update.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to save project", { description: error.message });
+      },
+    }),
+  );
+  const isPending = isCreating || isUpdating;
 
   const handlePickFolder = async () => {
     const [error, result] = await safe(
@@ -74,11 +124,21 @@ function NewProjectModal() {
 
   const form = useForm({
     defaultValues: {
-      description: "",
+      description: editProject?.description ?? "",
       instructions: "",
-      name: "",
+      name: editProject?.name ?? "",
     },
     onSubmit: async ({ value }) => {
+      if (editProject) {
+        await updateProject({
+          description: value.description.trim(),
+          id: editProject.id,
+          name: value.name.trim(),
+        });
+        void rpcClient.studioOverlay.resolve.call();
+        return;
+      }
+
       const project = await createProject({
         description: value.description.trim() || undefined,
         folders: folders.length > 0 ? folders : undefined,
@@ -105,10 +165,12 @@ function NewProjectModal() {
     <DialogContent className="max-w-lg">
       <DialogHeader>
         <DialogTitle className="text-center font-serif text-2xl font-normal">
-          New project
+          {isEditing ? "Edit project" : "New project"}
         </DialogTitle>
         <DialogDescription className="sr-only">
-          Create a project to group tasks and share instructions across them.
+          {isEditing
+            ? "Edit this project's name and description."
+            : "Create a project to group tasks and share instructions across them."}
         </DialogDescription>
       </DialogHeader>
       <form
@@ -173,70 +235,74 @@ function NewProjectModal() {
             )}
           </form.Field>
 
-          <form.Field name="instructions">
-            {(field) => (
-              <Field>
-                <FieldLabel htmlFor={field.name}>Instructions</FieldLabel>
-                <p className="text-xs text-muted-foreground">
-                  Add details about this project for Instrument to remember for
-                  each task.
-                </p>
-                <Textarea
-                  className="min-h-24"
-                  disabled={isPending}
-                  id={field.name}
-                  name={field.name}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => {
-                    field.handleChange(e.target.value);
-                  }}
-                  value={field.state.value}
-                />
-              </Field>
-            )}
-          </form.Field>
-
-          <div className="flex flex-col gap-2">
-            <button
-              className={cn(
-                "flex items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                isDragging && "border-ring bg-accent text-foreground",
+          {!isEditing && (
+            <form.Field name="instructions">
+              {(field) => (
+                <Field>
+                  <FieldLabel htmlFor={field.name}>Instructions</FieldLabel>
+                  <p className="text-xs text-muted-foreground">
+                    Add details about this project for Instrument to remember
+                    for each task.
+                  </p>
+                  <Textarea
+                    className="min-h-24"
+                    disabled={isPending}
+                    id={field.name}
+                    name={field.name}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => {
+                      field.handleChange(e.target.value);
+                    }}
+                    value={field.state.value}
+                  />
+                </Field>
               )}
-              onClick={() => void handlePickFolder()}
-              type="button"
-            >
-              <span>
-                {isDragging ? "Drop folders to attach" : "Attach folders"}
-              </span>
-              <PlusIcon className="size-4" />
-            </button>
-            {folders.map((path) => (
-              <div
-                className="flex items-center gap-x-2 rounded-md border p-2"
-                key={path}
+            </form.Field>
+          )}
+
+          {!isEditing && (
+            <div className="flex flex-col gap-2">
+              <button
+                className={cn(
+                  "flex items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  isDragging && "border-ring bg-accent text-foreground",
+                )}
+                onClick={() => void handlePickFolder()}
+                type="button"
               >
-                <MacFolderIcon className="size-5 shrink-0" />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-medium">
-                    {folderNameFromPath(path)}
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {path}
-                  </span>
-                </div>
-                <button
-                  aria-label="Remove folder"
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setFolders((prev) => prev.filter((f) => f !== path));
-                  }}
-                  type="button"
+                <span>
+                  {isDragging ? "Drop folders to attach" : "Attach folders"}
+                </span>
+                <PlusIcon className="size-4" />
+              </button>
+              {folders.map((path) => (
+                <div
+                  className="flex items-center gap-x-2 rounded-md border p-2"
+                  key={path}
                 >
-                  <XIcon className="size-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+                  <MacFolderIcon className="size-5 shrink-0" />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-medium">
+                      {folderNameFromPath(path)}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {path}
+                    </span>
+                  </div>
+                  <button
+                    aria-label="Remove folder"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setFolders((prev) => prev.filter((f) => f !== path));
+                    }}
+                    type="button"
+                  >
+                    <XIcon className="size-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button
@@ -260,7 +326,7 @@ function NewProjectModal() {
                 disabled={!canSubmit || isSubmitting || isPending}
                 type="submit"
               >
-                Create
+                {isEditing ? "Save" : "Create"}
               </Button>
             )}
           </form.Subscribe>

@@ -4,15 +4,32 @@ import { ProjectTaskRow } from "@/client/components/project/project-task-row";
 import { PromptInput } from "@/client/components/prompt-input";
 import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
+import { Button } from "@/client/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
+import {
+  openDeleteProject,
+  openEditProject,
+} from "@/client/lib/open-create-project";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { ProjectIdSchema, type Task } from "@instrument-org/workspace/client";
+import {
+  DotsThreeOutlineVerticalIcon,
+  PencilSimpleLineIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /* eslint-disable perfectionist/sort-objects */
@@ -70,6 +87,21 @@ function RouteComponent() {
     rpcClient.workspace.task.create.mutationOptions(),
   );
 
+  // If the project we're viewing is deleted (here or from the sidebar), leave
+  // this now-dead page rather than showing "Project not found".
+  const hadProjectRef = useRef(false);
+  const leftRef = useRef(false);
+  useEffect(() => {
+    if (projectData) {
+      hadProjectRef.current = true;
+      return;
+    }
+    if (hadProjectRef.current && !projectLoading && !leftRef.current) {
+      leftRef.current = true;
+      void navigate({ to: "/new-tab" });
+    }
+  }, [projectData, projectLoading, navigate]);
+
   if (projectLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -90,15 +122,48 @@ function RouteComponent() {
     <div className="flex h-full min-h-0">
       <div className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-2xl flex-col gap-y-6 px-6 py-10">
-          <div className="flex flex-col gap-y-1">
-            <h1 className="font-serif text-3xl font-normal tracking-tight">
-              {projectData.name}
-            </h1>
-            {projectData.description && (
-              <p className="text-sm text-muted-foreground">
-                {projectData.description}
-              </p>
-            )}
+          <div className="flex items-start justify-between gap-x-4">
+            <div className="flex min-w-0 flex-col gap-y-1">
+              <h1 className="font-serif text-3xl font-normal tracking-tight">
+                {projectData.name}
+              </h1>
+              {projectData.description && (
+                <p className="text-sm text-muted-foreground">
+                  {projectData.description}
+                </p>
+              )}
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon-sm" variant="ghost">
+                  <DotsThreeOutlineVerticalIcon
+                    className="size-4"
+                    weight="fill"
+                  />
+                  <span className="sr-only">Project actions</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    openEditProject(id);
+                  }}
+                >
+                  <PencilSimpleLineIcon className="text-muted-foreground" />
+                  <span>Edit project</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    openDeleteProject(id);
+                  }}
+                  variant="destructive"
+                >
+                  <TrashIcon className="size-4" />
+                  <span>Delete project</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <PromptInput

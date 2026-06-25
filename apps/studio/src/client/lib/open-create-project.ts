@@ -10,7 +10,7 @@ import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
 // filed into the project once it's created (shuttled via the overlay's search).
 export function openCreateProject(taskId?: TaskId) {
   void rpcClient.studioOverlay.show.call({
-    kind: "new-project",
+    kind: "project-modal",
     props: taskId ? { taskId } : undefined,
   });
 }
@@ -24,7 +24,7 @@ export function openDeleteProject(projectId: ProjectId) {
 
 export function openEditProject(projectId: ProjectId) {
   void rpcClient.studioOverlay.show.call({
-    kind: "new-project",
+    kind: "project-modal",
     props: { projectId },
   });
 }

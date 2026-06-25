@@ -11,7 +11,6 @@ import {
   TASK_STATE_FILE_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
-import { ProjectIdSchema } from "../schemas/project-id";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
@@ -42,20 +41,17 @@ const WORK_ENTRY_NAMES = [
 // suffix is the db file itself. Harmless if a given sidecar is absent.
 const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 
-// One-time migrations are recorded in the workspace root's migration-state file
-// so they never re-run. Required for the legacy projects/ -> tasks/ move:
-// projects/ is now the live home of the projects feature, so that pass must run
-// at most once -- otherwise it would drain real project folders into tasks/ on
-// every boot.
-const MIGRATION_STATE_FILE_NAME = "migrations.json";
-const LEGACY_PROJECTS_DIR_MIGRATION = "legacy-projects-dir";
+// Sentinel dropped in the workspace root's .instrument/ once the legacy
+// projects/ -> tasks/ move has run. projects/ is now the live home of the
+// projects feature, so that pass must run at most once -- its existence means
+// "done", and a missing file means "not yet". Empty-by-design; only presence
+// matters.
+const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
 
 export interface WorkspaceLayoutMigration {
   // Task folder ids left in place because a task with the same id already
   // existed under tasks/ (never clobbered).
   conflictedTaskIds: string[];
-  // True when a legacy projects/ dir was found and processed.
-  migrated: boolean;
   movedTaskCount: number;
 }
 
@@ -63,10 +59,11 @@ export interface WorkspaceLayoutMigration {
 // (tasks/<id>/{.instrument/{task.db,settings.json},work/,attachments/,output/}).
 //
 // Two independent passes:
-//   1. Move a legacy projects/ dir (the old name for tasks/) into tasks/. Gated
-//      behind a persisted run-once marker, NOT the on-disk shape -- projects/ is
-//      now the permanent home of the projects feature, so re-deriving "should I
-//      migrate" from its presence would drain real project folders into tasks/.
+//   1. Move a legacy projects/ dir (the old name for tasks/) into tasks/. Runs
+//      at most once, gated behind a sentinel marker: projects/ is now the live
+//      home of the projects feature. The marker is dropped on the first boot --
+//      before any real project can exist -- so a re-run can never see, let alone
+//      move, real project data.
 //   2. Normalize every task already under tasks/ to the current layout. Keyed
 //      purely on per-task legacy shapes (collision-free with the projects
 //      feature), so it stays idempotent and re-runs every boot.
@@ -78,43 +75,35 @@ export function migrateWorkspaceLayout({
 }: {
   rootDir: string;
 }): WorkspaceLayoutMigration {
-  const completed = readCompletedMigrations(rootDir);
-
   let migration: WorkspaceLayoutMigration = {
     conflictedTaskIds: [],
-    migrated: false,
     movedTaskCount: 0,
   };
-  if (!completed.has(LEGACY_PROJECTS_DIR_MIGRATION)) {
+  if (!legacyProjectsMigrationDone(rootDir)) {
     migration = migrateLegacyProjectsDir(rootDir);
-    completed.add(LEGACY_PROJECTS_DIR_MIGRATION);
-    writeCompletedMigrations(rootDir, completed);
+    markLegacyProjectsMigrationDone(rootDir);
   }
 
   normalizeTasks(path.join(rootDir, TASKS_DIR_NAME));
   return migration;
 }
 
-// True when a projects/ entry is a real projects-feature folder -- its
-// .instrument/settings.json carries a ProjectId -- rather than a legacy task. A
-// ProjectId (prj_<ULID>) is structurally distinct from a TaskId, so this can
-// never misclassify a legacy task as a project.
-function isProjectFolder(folderPath: string): boolean {
-  const settingsPath = path.join(
-    folderPath,
+function legacyProjectsMarkerPath(rootDir: string): string {
+  return path.join(
+    rootDir,
     TASK_PRIVATE_FOLDER_NAME,
-    TASK_SETTINGS_FILE_NAME,
+    LEGACY_PROJECTS_MIGRATED_MARKER_NAME,
   );
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-  } catch {
-    return false;
-  }
-  if (typeof parsed !== "object" || parsed === null || !("id" in parsed)) {
-    return false;
-  }
-  return ProjectIdSchema.safeParse(parsed.id).success;
+}
+
+function legacyProjectsMigrationDone(rootDir: string): boolean {
+  return fs.existsSync(legacyProjectsMarkerPath(rootDir));
+}
+
+function markLegacyProjectsMigrationDone(rootDir: string) {
+  const marker = legacyProjectsMarkerPath(rootDir);
+  fs.mkdirSync(path.dirname(marker), { recursive: true });
+  fs.writeFileSync(marker, "");
 }
 
 // Moves every top-level entry of source into destination (per-entry, so a
@@ -138,14 +127,12 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
   const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
   const migration: WorkspaceLayoutMigration = {
     conflictedTaskIds: [],
-    migrated: false,
     movedTaskCount: 0,
   };
 
   if (!fs.existsSync(legacyDir)) {
     return migration;
   }
-  migration.migrated = true;
 
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
   fs.mkdirSync(tasksDir, { recursive: true });
@@ -156,15 +143,6 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
     }
 
     const source = path.join(legacyDir, entry.name);
-
-    // A real projects-feature folder, not a legacy task. Identified positively
-    // by a ProjectId in its settings; left in place, never moved into tasks/.
-    // (Belt-and-suspenders alongside the run-once marker: even if this pass ever
-    // runs against a populated projects/ dir, project data is never relocated.)
-    if (isProjectFolder(source)) {
-      continue;
-    }
-
     const destination = path.join(tasksDir, entry.name);
 
     if (fs.existsSync(destination)) {
@@ -180,22 +158,13 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
   }
 
   // Drop the legacy dir once every task folder has moved. Stray non-directory
-  // entries (e.g. a macOS .DS_Store) or a preserved project folder keep it
-  // around -- harmless, since the run-once marker stops this pass re-running and
-  // projects/ is now the live home of the projects feature anyway.
+  // entries (e.g. a macOS .DS_Store) keep it around -- harmless, since the
+  // marker stops this pass re-running anyway.
   if (fs.readdirSync(legacyDir).length === 0) {
     fs.rmdirSync(legacyDir);
   }
 
   return migration;
-}
-
-function migrationStatePath(rootDir: string): string {
-  return path.join(
-    rootDir,
-    TASK_PRIVATE_FOLDER_NAME,
-    MIGRATION_STATE_FILE_NAME,
-  );
 }
 
 function moveIfMissingTarget(source: string, destination: string) {
@@ -270,37 +239,4 @@ function normalizeTaskWorkLayout(taskFolder: string) {
   for (const name of WORK_ENTRY_NAMES) {
     moveIfMissingTarget(path.join(taskFolder, name), path.join(workDir, name));
   }
-}
-
-// One-time migrations already applied; empty when the marker is missing or
-// unreadable (treated as "nothing migrated yet").
-function readCompletedMigrations(rootDir: string): Set<string> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fs.readFileSync(migrationStatePath(rootDir), "utf8"));
-  } catch {
-    return new Set();
-  }
-  if (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "completed" in parsed &&
-    Array.isArray(parsed.completed)
-  ) {
-    return new Set(
-      parsed.completed.filter(
-        (value): value is string => typeof value === "string",
-      ),
-    );
-  }
-  return new Set();
-}
-
-function writeCompletedMigrations(rootDir: string, completed: Set<string>) {
-  const file = migrationStatePath(rootDir);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(
-    file,
-    JSON.stringify({ completed: [...completed] }, null, 2),
-  );
 }

@@ -1,4 +1,3 @@
-import { NotFoundComponent } from "@/client/components/not-found";
 import { ProjectFolders } from "@/client/components/project/project-folders";
 import { ProjectInstructions } from "@/client/components/project/project-instructions";
 import { ProjectTaskRow } from "@/client/components/project/project-task-row";
@@ -37,7 +36,7 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -45,6 +44,15 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_app/projects/$id/")({
   params: {
     parse: (rawParams) => ({ id: ProjectIdSchema.parse(rawParams.id) }),
+  },
+  loader: async ({ params }) => {
+    const [error, project] = await safe(
+      rpcClient.workspace.project.byId.call({ id: params.id }),
+    );
+    if (error || !project) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ replace: true, to: "/new-tab" });
+    }
   },
   component: RouteComponent,
   head: async ({ params }) => {
@@ -80,7 +88,9 @@ function RouteComponent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const { data: projects, isLoading: projectLoading } = useQuery(
-    rpcClient.workspace.project.live.list.experimental_liveOptions(),
+    rpcClient.workspace.project.live.list.experimental_liveOptions({
+      placeholderData: keepPreviousData,
+    }),
   );
   const projectData = useMemo(
     () => projects?.find((project) => project.id === id),
@@ -142,18 +152,13 @@ function RouteComponent() {
     };
   }, []);
 
-  const hadProjectRef = useRef(false);
   const leftRef = useRef(false);
   useEffect(() => {
-    if (projectData) {
-      hadProjectRef.current = true;
-      return;
-    }
-    if (hadProjectRef.current && !projectLoading && !leftRef.current) {
+    if (projects !== undefined && !projectData && !leftRef.current) {
       leftRef.current = true;
       void navigate({ to: "/new-tab" });
     }
-  }, [projectData, projectLoading, navigate]);
+  }, [projects, projectData, navigate]);
 
   if (projectLoading) {
     return (
@@ -164,7 +169,7 @@ function RouteComponent() {
   }
 
   if (!projectData) {
-    return <NotFoundComponent title="Project not found" />;
+    return null;
   }
 
   const details = (

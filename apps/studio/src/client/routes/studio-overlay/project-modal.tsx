@@ -59,6 +59,35 @@ function NewProjectModal() {
     );
   }
 
+  if (projectId && !editProject) {
+    return (
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-center font-serif text-2xl font-normal">
+            Project not found
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            This project could not be loaded.
+          </DialogDescription>
+        </DialogHeader>
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          This project could not be loaded. It may have been deleted.
+        </p>
+        <DialogFooter>
+          <Button
+            onClick={() => {
+              void rpcClient.studioOverlay.dismiss.call();
+            }}
+            type="button"
+            variant="outline"
+          >
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    );
+  }
+
   return (
     <ProjectModalForm
       editProject={projectId ? editProject : undefined}

@@ -158,7 +158,7 @@ describe("project lib", () => {
     expect(await getProjectInstructions(created.id)).toBe("New rules.");
   });
 
-  it("deletes a project and clears it from the index", async () => {
+  it("deletes a project and makes it unresolvable by id", async () => {
     const createResult = await createProject({ name: "Temp" });
     const created = createResult._unsafeUnwrap();
 

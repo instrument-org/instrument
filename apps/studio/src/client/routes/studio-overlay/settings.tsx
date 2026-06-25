@@ -42,7 +42,7 @@ function SettingsModal() {
   return (
     <DialogContent
       aria-describedby={undefined}
-      className="h-175 max-h-[90vh] w-225 max-w-[min(900px,90vw)] gap-0 overflow-hidden rounded-2xl p-0 outline-none focus:outline-none focus-visible:outline-none sm:max-w-[min(900px,90vw)]"
+      className="h-175 max-h-[90vh] w-225 max-w-[min(900px,90vw)] gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none sm:max-w-[min(900px,90vw)]"
       onOpenAutoFocus={(event) => {
         event.preventDefault();
       }}

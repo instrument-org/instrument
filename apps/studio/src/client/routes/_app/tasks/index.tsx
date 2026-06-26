@@ -25,11 +25,7 @@ import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
 import { createIconMeta } from "@/shared/tabs";
-import {
-  APP_NAME,
-  EVAL_SUBDOMAIN_PREFIX,
-  TASK_SETTINGS_FILE_NAME,
-} from "@instrument-org/shared";
+import { APP_NAME, TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import {
   isTaskId,
   type Project,
@@ -44,10 +40,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const tasksSearchSchema = z.object({
-  filter: z
-    .enum(["all", "evals", "active", "pinned"])
-    .optional()
-    .default("all"),
+  filter: z.enum(["all", "active", "pinned"]).optional().default("all"),
   page: z.coerce.number().int().positive().optional().default(1),
 });
 
@@ -132,17 +125,10 @@ function RouteComponent() {
     );
   }, [agentStatuses]);
 
-  const evalsCount = tasks.filter((p) =>
-    p.id.startsWith(EVAL_SUBDOMAIN_PREFIX),
-  ).length;
-
   const filteredTasks = useMemo(() => {
     switch (filterTab) {
       case "active": {
         return tasks.filter((p) => activeTaskIds.has(p.id));
-      }
-      case "evals": {
-        return tasks.filter((p) => p.id.startsWith(EVAL_SUBDOMAIN_PREFIX));
       }
       case "pinned": {
         return tasks.filter((p) => pinnedTaskIdSet.has(p.id));
@@ -407,15 +393,6 @@ function RouteComponent() {
                     variant={filterTab === "all" ? "default" : "secondary"}
                   >
                     {tasks.length}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="evals">
-                  Evals
-                  <Badge
-                    className="ml-2 px-1.5"
-                    variant={filterTab === "evals" ? "default" : "secondary"}
-                  >
-                    {evalsCount}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="active">

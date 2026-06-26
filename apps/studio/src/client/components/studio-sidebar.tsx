@@ -4,7 +4,6 @@ import { NavSupport } from "@/client/components/nav-support";
 import { NavTasks } from "@/client/components/nav-tasks";
 import { NavUser } from "@/client/components/nav-user";
 import { ServerExceptionsAlert } from "@/client/components/server-exceptions-alert";
-import { useTheme } from "@/client/components/theme-provider";
 import { Button } from "@/client/components/ui/button";
 import {
   Sidebar,
@@ -22,8 +21,6 @@ export function StudioSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   const selectedTab = useSelectedTab();
-
-  const { resolvedTheme } = useTheme();
 
   const matches = useMatchesForPathname(selectedTab?.pathname ?? "");
 
@@ -47,7 +44,7 @@ export function StudioSidebar({
         <Button
           asChild
           className="w-full justify-center gap-2 font-medium"
-          variant={resolvedTheme === "dark" ? "secondary" : "default"}
+          variant="default"
         >
           <InternalLink openInCurrentTab to="/new-tab">
             <NotePencilIcon className="size-4" weight="bold" />

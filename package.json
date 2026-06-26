@@ -19,7 +19,7 @@
     "check:actions": "node scripts/check-actions.ts",
     "check:electron-node-version": "node scripts/check-electron-node-version.ts",
     "check:format": "prettier --check .",
-    "check:lint": "eslint . --max-warnings 0 --cache",
+    "check:lint": "eslint . --max-warnings 0",
     "check:md": "markdownlint-cli2 \"**/*.md\" \".github/**/*.md\"",
     "check:packages:dedupe": "pnpm dedupe --check",
     "check:packages:install": "pnpm install --frozen-lockfile",

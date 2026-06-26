@@ -57,8 +57,6 @@ export default tseslint.config(
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
-        // Performance optimizations
-        EXPERIMENTAL_useProjectService: true,
       },
     },
     rules: {

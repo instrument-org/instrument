@@ -12,7 +12,7 @@
   "scripts": {
     "build": "vite build --configLoader runner && vite build --configLoader runner --config vite.shim.config.ts",
     "check:build": "pnpm run build",
-    "check:lint": "eslint . --max-warnings 0 --cache",
+    "check:lint": "eslint . --max-warnings 0",
     "check:types": "tsgo --noEmit",
     "dev": "vite --configLoader runner --port 48350",
     "fix:lint": "eslint . --max-warnings 0 --fix",

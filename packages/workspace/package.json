@@ -19,7 +19,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "check:lint": "eslint . --max-warnings 0 --cache",
+    "check:lint": "eslint . --max-warnings 0",
     "check:types": "tsgo --noEmit",
     "eval": "NODE_ENV=test NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx evals/cli.ts",
     "fix:lint": "eslint . --max-warnings 0 --fix",

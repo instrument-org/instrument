@@ -27,7 +27,7 @@
     "build:vite": "pnpm run build:install-app-deps && pnpm run uv:download && pnpm run build",
     "build:win:unsigned": "TARGET_PLATFORM=win32 pnpm run build:vite && electron-builder --win --config.win.signAndEditExecutable=false --dir",
     "build:windows:dev": "pnpm run build:install-app-deps && pnpm run build:dev && electron-builder --win",
-    "check:lint": "eslint . --max-warnings 0 --cache",
+    "check:lint": "eslint . --max-warnings 0",
     "check:types": "tsgo --noEmit",
     "cleanup:releases": "node scripts/cleanup-releases.ts",
     "dev": "NODE_OPTIONS='--enable-source-maps' electron-vite dev --sourcemap",

@@ -49,7 +49,7 @@ export function ProjectInstructions({
       </div>
       <div className="p-2">
         <Textarea
-          className="min-h-64 resize-none rounded-md border-0 bg-muted/50 text-sm leading-relaxed shadow-none"
+          className="max-h-64 min-h-64 resize-none overflow-y-auto rounded-md border-0 bg-muted/50 text-sm leading-relaxed shadow-none"
           onBlur={() => {
             setIsFocused(false);
           }}

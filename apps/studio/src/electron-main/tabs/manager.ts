@@ -1,83 +1,39 @@
-import { createContextMenu } from "@/electron-main/lib/context-menu";
-import { logger } from "@/electron-main/lib/electron-logger";
-import { openExternal } from "@/electron-main/lib/open-external";
-import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { type StudioPath } from "@/shared/studio-path";
-import {
-  META_TAGS,
-  SingleTabOnlyRoutes,
-  type Tab,
-  type TabState,
-} from "@/shared/tabs";
-import { TabIconsSchema } from "@instrument-org/shared/icons";
-import {
-  ProjectIdSchema,
-  TaskIdSchema,
-} from "@instrument-org/workspace/electron";
-import { type BaseWindow, nativeTheme, WebContentsView } from "electron";
-import { type LogFunctions } from "electron-log";
-import Store from "electron-store";
-import path from "node:path";
+import { type Tab, type TabState } from "@/shared/tabs";
+import { type BaseWindow, type WebContentsView } from "electron";
 
-import { captureServerException } from "../lib/capture-server-exception";
 import { tryCaptureError } from "../lib/try-capture-error";
-import { unsafe_studioURL } from "../lib/urls";
-import { getPreferencesStore } from "../stores/preferences";
+import { getMainWindow } from "../windows/main/instance";
 import {
   createStudioOverlayController,
   type StudioOverlayController,
 } from "./studio-overlay";
 
-const REVEAL_TAB_FALLBACK_DELAY_MS = 2000;
+const ZOOM_STEP = 0.5;
+// Agent browser views must stay in the window hierarchy for CDP input/capture,
+// but each tab now renders the whole window (AppShell), so a visible agent view
+// would cover it. Park them offscreen until the in-tab viewport lands (S3).
+const OFFSCREEN_AGENT_BOUNDS = { height: 800, width: 1280, x: -20_000, y: 0 };
 
-// Group 1 = first /projects segment (undefined for bare /projects).
-const LEGACY_PROJECTS_PATH_RE = /^\/projects(?:\/([^/?#]+))?/;
-
-interface TabStore {
-  // Run-once; paired with the ProjectId guard in migrateLegacyProjectsPath.
-  legacyProjectPathsMigrated?: boolean;
-  root?: TabState;
-}
-
-interface TabWithView extends Tab {
-  /**
-   * When true, this view is owned externally (browser-view/manager) and must
-   * always stay in the window hierarchy so Chromium keeps it composited.
-   * "Closing" such a tab only sets tabBarHidden=true; it is never removed from
-   * this.tabs or the window.
-   */
-  keepMounted?: true;
-  webView: WebContentsView;
-}
-
+/**
+ * In the unified app the main window's own web contents renders the entire
+ * tabbed UI (see `AppShell`), with tabs kept alive as React subtrees. Tab state
+ * is owned by the renderer, so this manager no longer creates a WebContentsView
+ * per tab. It now only:
+ *  - owns the studio overlay (app-wide modals),
+ *  - page-zooms the window web contents, and
+ *  - keeps agent browser views composited (offscreen) so CDP keeps working.
+ *
+ * The remaining tab-shaped methods are no-op stubs kept so existing menu/RPC
+ * call sites compile; those paths will be re-pointed at the renderer over IPC.
+ */
 export class TabsManager {
   public baseWindow: BaseWindow;
   public studioOverlay: StudioOverlayController;
-  private logger: LogFunctions;
-  private recentlyClosed: Tab[] = [];
-  private selectedTabId: null | string = null;
-  private shield: WebContentsView;
-  private sidebarWidth = 0;
-  private store: Store<TabStore>;
-  private tabs: TabWithView[];
-  private unsubscribeSidebar?: () => void;
-  private unsubscribeTheme?: () => void;
 
-  public constructor({
-    baseWindow,
-    initialSidebarWidth,
-  }: {
-    baseWindow: BaseWindow;
-    initialSidebarWidth: number;
-  }) {
-    this.sidebarWidth = initialSidebarWidth;
-    this.tabs = [];
-    this.logger = logger.scope("tabs");
+  public constructor({ baseWindow }: { baseWindow: BaseWindow }) {
     this.baseWindow = baseWindow;
-    this.store = new Store<TabStore>({ name: "tabs" });
-
     this.studioOverlay = createStudioOverlayController({
       baseWindow,
       onActiveChange: (isActive) => {
@@ -87,49 +43,13 @@ export class TabsManager {
         this.focusCurrentTab();
       },
     });
-
-    // WebContentsView that sits above all keepMounted (z=0) views and below all
-    // regular tab views (appended to top). Blocks keepMounted agent browser
-    // views from flickering into view when tabs are closed. Must be a
-    // WebContentsView (not a plain View) so Chromium GPU-composites it.
-    this.shield = new WebContentsView();
-    // Load a minimal data: URL so the renderer paints immediately. setBackgroundColor
-    // alone is insufficient -- Chromium won't GPU-composite a WebContentsView that
-    // has never painted a frame. Using data: avoids a network round-trip and a
-    // shared renderer process with the app.
-    this.loadShieldColor();
-    this.baseWindow.contentView.addChildView(this.shield, 1);
-    this.shield.setBounds(this.computeTabBounds());
-
-    this.unsubscribeSidebar = publisher.subscribe(
-      "sidebar.updated",
-      ({ width }) => {
-        this.sidebarWidth = width;
-        this.updateCurrentTabBounds();
-        this.focusCurrentTab();
-      },
-    );
-
-    nativeTheme.on("updated", this.loadShieldColor);
-    const unsubscribeTheme = getPreferencesStore().onDidChange(
-      "theme",
-      this.loadShieldColor,
-    );
-    this.unsubscribeTheme = () => {
-      nativeTheme.off("updated", this.loadShieldColor);
-      unsubscribeTheme();
-    };
   }
 
-  public addTab({
-    iconName,
-    keepMounted,
-    params = {},
-    select,
-    title,
-    urlPath = "/",
-    webView,
-  }: {
+  /**
+   * Only agent browser views (passed as `webView`) are mounted here, kept
+   * offscreen. App tabs are owned by the renderer and ignored.
+   */
+  public addTab(options: {
     iconName?: Tab["iconName"];
     keepMounted?: true;
     params?: Record<string, string>;
@@ -138,749 +58,124 @@ export class TabsManager {
     urlPath?: StudioPath;
     webView?: WebContentsView;
   }) {
-    // When borrowing an external view, default to opening in the background so
-    // the agent's work isn't interrupted.
-    const shouldSelect = select ?? (webView ? false : true);
-
-    const searchParams = new URLSearchParams(params);
-    const queryString = searchParams.toString();
-    const pathWithParams = urlPath + (queryString ? `?${queryString}` : "");
-
-    if (!webView && this.selectOnAddNewTab({ urlPath: pathWithParams })) {
+    const { webView } = options;
+    if (!webView) {
       return;
     }
-
-    const id = crypto.randomUUID();
-    const view = webView ?? this.createTabView({ id, urlPath: pathWithParams });
-
-    if (webView) {
-      view.setBounds(this.computeTabBounds());
-      tryCaptureError("addChildView failed mounting keepMounted tab", () => {
-        this.sinkBehindShield(view);
-      });
-
-      // Prevent background browser views from stealing within-app focus when
-      // renderer JS calls element.focus() or autofocus elements fire. Only
-      // redirect when our window is already key -- NativeWindowMac::Focus uses
-      // activateIgnoringOtherApps:NO so makeKeyAndOrderFront is a no-op when
-      // another app is active anyway, but skipping entirely is cleaner.
-      view.webContents?.on("focus", () => {
-        if (this.selectedTabId !== id && this.baseWindow.isFocused()) {
-          this.focusCurrentTab();
-        }
-      });
-
-      // Keep the tab title in sync with whatever the agent navigates to.
-      view.webContents?.on("page-title-updated", (_event, newTitle) => {
-        const live = this.tabs.find((t) => t.id === id);
-        if (live && newTitle.trim()) {
-          live.title = newTitle.trim();
-          this.afterUpdate();
-        }
-      });
-
-      // If the externally-owned view is destroyed, remove it from the tab list
-      // directly without going through closeTab -- the view is already gone so
-      // we must not attempt any addChildView/removeChildView calls on it.
-      view.webContents?.on("destroyed", () => {
-        const tabIndex = this.tabs.findIndex((t) => t.id === id);
-        if (tabIndex === -1) {
-          return;
-        }
-        const live = this.tabs[tabIndex];
-        if (!live) {
-          return;
-        }
-        const visibleSnapshot = this.visibleTabs();
-        const visibleIndex = visibleSnapshot.findIndex((t) => t.id === id);
-        this.tabs = this.tabs.filter((t) => t.id !== id);
-        this.selectNeighborByVisibleIndex(live, visibleIndex, visibleSnapshot);
-        if (this.visibleTabs().length === 0) {
-          this.addTab({});
-        } else {
-          this.afterUpdate();
-        }
-      });
-    }
-
-    const newTab: TabWithView = {
-      iconName,
-      id,
-      keepMounted,
-      pathname: pathWithParams,
-      pinned: false,
-      title,
-      webView: view,
-    };
-
-    this.tabs.push(newTab);
-    if (shouldSelect) {
-      this.selectTabView(newTab);
-    }
-    this.afterUpdate();
-  }
-
-  public closeAllTabs() {
-    for (const tab of this.tabs) {
-      this.closeTabView(tab);
-    }
-
-    this.tabs = [];
-    this.selectedTabId = null;
-    this.afterUpdate();
-  }
-
-  public closeTab({ id }: { id: string }) {
-    const tabIndex = this.tabs.findIndex((tab) => tab.id === id);
-    const tab = this.tabs[tabIndex];
-
-    if (tab === undefined) {
-      this.logger.error(`Closing tab: Tab ${id} not found`);
-      return;
-    }
-
-    // Prevent closing pinned tabs
-    if (tab.pinned) {
-      this.logger.warn(`Cannot close pinned tab: ${id}`);
-      return;
-    }
-
-    // Background views must stay in the window for Chromium to keep them
-    // composited. Just mark them dismissed so the client hides them from the
-    // tab bar; everything else (resize, title sync, lifecycle) continues as-is.
-    if (tab.keepMounted) {
-      // Capture snapshot + index BEFORE setting tabBarHidden so the closing
-      // tab is still present in visibleTabs() for neighbor resolution.
-      const visibleSnapshot = this.visibleTabs();
-      const visibleIndex = visibleSnapshot.findIndex((t) => t.id === id);
-      tab.tabBarHidden = true;
-      // Push back to z=0 below the shield immediately, regardless of whether
-      // it was selected, so it can never paint above the shield.
-      tryCaptureError(
-        "addChildView failed pushing keepMounted tab behind shield",
-        () => {
-          this.sinkBehindShield(tab.webView);
-        },
-      );
-      this.selectNeighborByVisibleIndex(tab, visibleIndex, visibleSnapshot);
-      if (this.visibleTabs().length === 0) {
-        this.addTab({});
-      } else {
-        this.afterUpdate();
-      }
-      return;
-    }
-
-    const { webView: _webView, ...closedTabData } = tab;
-    this.recentlyClosed.push(closedTabData);
-
-    // Capture snapshot + index BEFORE filtering so the closing tab is still
-    // present and neighbor indices are correct.
-    const visibleSnapshot = this.visibleTabs();
-    const visibleIndex = visibleSnapshot.findIndex((t) => t.id === id);
-
-    // Select/create the replacement tab BEFORE removing the closing view so
-    // there is never a frame where no regular tab covers the shield.
-    this.tabs = this.tabs.filter((t) => t.id !== id);
-    this.selectNeighborByVisibleIndex(tab, visibleIndex, visibleSnapshot);
-
-    if (this.visibleTabs().length === 0) {
-      this.addTab({});
-    } else {
-      this.afterUpdate();
-    }
-
-    this.closeTabView(tab);
-  }
-
-  public focusCurrentTab() {
-    // Don't yank focus away from an active app-wide modal overlay.
-    if (this.overlayHandles()) {
-      return;
-    }
-    const tab = this.getCurrentTab();
-    if (tab) {
-      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-      tab.webView.webContents?.focus();
-    }
-  }
-
-  public getCurrentTab(): null | TabWithView {
-    return this.tabs.find((tab) => tab.id === this.selectedTabId) ?? null;
-  }
-
-  public getState(): TabState {
-    return {
-      selectedTabId: this.selectedTabId,
-      tabs: this.tabs.map(
-        ({ keepMounted: _k, webView: _webView, ...tab }) => tab,
-      ),
-    };
-  }
-
-  public getTabs() {
-    return this.tabs;
-  }
-
-  public goBack() {
-    // While the app-wide modal is open, back/forward target the modal's own
-    // history (not the tab beneath it) so the user can't navigate the tab away.
-    if (
-      this.overlayHandles(() => {
-        this.studioOverlay.goBack();
-      })
-    ) {
-      return;
-    }
-    const tab = this.getCurrentTab();
-    if (tab) {
-      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-      tab.webView.webContents?.navigationHistory.goBack();
-      tab.webView.webContents?.focus();
-    }
-  }
-
-  public goForward() {
-    if (
-      this.overlayHandles(() => {
-        this.studioOverlay.goForward();
-      })
-    ) {
-      return;
-    }
-    const tab = this.getCurrentTab();
-    if (tab) {
-      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-      tab.webView.webContents?.navigationHistory.goForward();
-      tab.webView.webContents?.focus();
-    }
-  }
-
-  public async initialize({
-    initialParams,
-    initialPath,
-  }: {
-    initialParams?: Record<string, string>;
-    initialPath?: StudioPath;
-  } = {}) {
-    if (initialPath) {
-      this.addTab({ params: initialParams, urlPath: initialPath });
-      return;
-    }
-
-    const data = this.store.get("root") ?? {
-      selectedTabId: null,
-      tabs: [],
-    };
-
-    // Rewrite before filtering so the renderer never needs to handle /projects.
-    if (!this.store.get("legacyProjectPathsMigrated")) {
-      for (const tab of data.tabs) {
-        tab.pathname = migrateLegacyProjectsPath(tab.pathname);
-      }
-      this.store.set("legacyProjectPathsMigrated", true);
-    }
-
-    this.selectedTabId = data.selectedTabId;
-
-    const tabs = await Promise.all(
-      data.tabs
-        .filter((tab) => !tab.pinned)
-        .map((tab) => {
-          const view = this.createTabView({
-            id: tab.id,
-            // Unsafe, but cannot be verified. Client will handle possible 404s
-            urlPath: tab.pathname as StudioPath,
-          });
-          return {
-            ...tab,
-            iconName: tab.iconName || undefined,
-            pinned: tab.pinned || false,
-            webView: view,
-          };
-        }),
-    );
-
-    this.tabs = tabs;
-
-    const selectedTab = this.tabs.find((tab) => tab.id === this.selectedTabId);
-
-    if (selectedTab) {
-      this.selectTabView(selectedTab);
-    } else if (this.tabs[0]) {
-      this.selectTabView(this.tabs[0]);
-    } else {
-      this.addTab({});
-    }
-
-    this.afterUpdate();
-  }
-
-  public reopenClosedTab() {
-    // The modal overlay covers the tabs; this command would act beneath it.
-    if (this.overlayHandles()) {
-      return;
-    }
-    const closedTab = this.recentlyClosed.pop();
-    if (!closedTab) {
-      return;
-    }
-
-    this.addTab({
-      urlPath: closedTab.pathname as StudioPath,
+    tryCaptureError("addChildView failed mounting agent browser view", () => {
+      this.baseWindow.contentView.addChildView(webView);
+      webView.setBounds(OFFSCREEN_AGENT_BOUNDS);
     });
   }
 
-  public reorderTabs(ids: string[]) {
-    // Separate pinned and non-pinned tabs
-    const pinnedTabs = this.tabs.filter((tab) => tab.pinned);
-    const nonPinnedTabs = this.tabs.filter((tab) => !tab.pinned);
+  public closeAllTabs() {
+    // Tabs are renderer-owned; nothing to close here.
+  }
 
-    // Only reorder non-pinned tabs
-    const reorderedNonPinned = ids
-      .filter((id) => !this.tabs.find((tab) => tab.id === id)?.pinned)
-      .map((id) => nonPinnedTabs.find((tab) => tab.id === id))
-      .filter((tab) => tab !== undefined);
+  public closeTab(_input: { id: string }) {
+    // Renderer-owned.
+  }
 
-    // Keep pinned tabs first, then reordered non-pinned tabs
-    this.tabs = [...pinnedTabs, ...reorderedNonPinned];
-    this.afterUpdate();
+  public focusCurrentTab() {
+    if (this.studioOverlay.isActive()) {
+      return;
+    }
+    getMainWindow()?.webContents.focus();
+  }
+
+  public getCurrentTab(): null {
+    return null;
+  }
+
+  public getState(): TabState {
+    return { selectedTabId: null, tabs: [] };
+  }
+
+  public getTabs(): Tab[] {
+    return [];
+  }
+
+  public goBack() {
+    if (this.studioOverlay.isActive()) {
+      this.studioOverlay.goBack();
+    }
+    // Otherwise per-tab history is handled in the renderer (each tab's router).
+  }
+
+  public goForward() {
+    if (this.studioOverlay.isActive()) {
+      this.studioOverlay.goForward();
+    }
+  }
+
+  public async initialize(_options?: {
+    initialParams?: Record<string, string>;
+    initialPath?: StudioPath;
+  }) {
+    // Tabs are created by the renderer (AppShell); nothing to restore here.
+  }
+
+  public reopenClosedTab() {
+    // Renderer-owned.
+  }
+
+  public reorderTabs(_ids: string[]) {
+    // Renderer-owned.
   }
 
   public resetZoom() {
-    if (
-      this.overlayHandles(() => {
-        this.studioOverlay.resetZoom();
-      })
-    ) {
+    if (this.studioOverlay.isActive()) {
+      this.studioOverlay.resetZoom();
       return;
     }
-    const tab = this.getCurrentTab();
-    // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-    tab?.webView.webContents?.setZoomLevel(0);
+    getMainWindow()?.webContents.setZoomLevel(0);
   }
 
   public selectNextTab() {
-    if (this.overlayHandles()) {
-      return;
-    }
-    const visible = this.visibleTabs();
-    if (visible.length <= 1) {
-      return;
-    }
-    const currentIndex = visible.findIndex((t) => t.id === this.selectedTabId);
-    const nextIndex = (currentIndex + 1) % visible.length;
-    const tab = visible[nextIndex];
-    if (tab) {
-      this.selectTabView(tab);
-      this.afterUpdate();
-    }
+    // Renderer-owned.
   }
 
   public selectPreviousTab() {
-    if (this.overlayHandles()) {
-      return;
-    }
-    const visible = this.visibleTabs();
-    if (visible.length <= 1) {
-      return;
-    }
-    const currentIndex = visible.findIndex((t) => t.id === this.selectedTabId);
-    const prevIndex = (currentIndex - 1 + visible.length) % visible.length;
-    const tab = visible[prevIndex];
-    if (tab) {
-      this.selectTabView(tab);
-      this.afterUpdate();
-    }
+    // Renderer-owned.
   }
 
-  public selectTab({ id }: { id: string }) {
-    const tab = this.tabs.find((t) => t.id === id);
-    if (tab) {
-      this.selectTabView(tab);
-      this.afterUpdate();
-    }
+  public selectTab(_input: { id: string }) {
+    // Renderer-owned.
   }
 
-  public selectTabByIndex({ index }: { index: number }) {
-    if (this.overlayHandles()) {
-      return;
-    }
-    const visible = this.visibleTabs();
-    if (index >= 0 && index < visible.length) {
-      const tab = visible[index];
-      if (tab) {
-        this.selectTabView(tab);
-        this.afterUpdate();
-      }
-    }
+  public selectTabByIndex(_input: { index: number }) {
+    // Renderer-owned.
   }
 
   public teardown() {
     this.studioOverlay.teardown();
-
-    for (const tab of this.tabs) {
-      this.closeTabView(tab);
-    }
-
-    this.baseWindow.contentView.removeChildView(this.shield);
-    this.unsubscribeSidebar?.();
-    this.unsubscribeTheme?.();
   }
 
   public updateCurrentTabBounds() {
-    const currentTab = this.getCurrentTab();
-    if (currentTab) {
-      this.updateTabBounds(currentTab);
-    }
-    this.shield.setBounds(this.computeTabBounds());
-    // keepMounted tabs stay in the window even when not selected,
-    // so they must be resized alongside the active tab.
-    for (const tab of this.tabs) {
-      if (tab.keepMounted && tab.id !== this.selectedTabId) {
-        this.updateTabBounds(tab);
-      }
-    }
-    // The app-wide modal overlay tracks the full window, not the tab bounds.
+    // The app-wide overlay still tracks the full window on resize.
     this.studioOverlay.resize();
   }
 
   public zoomIn() {
-    if (
-      this.overlayHandles(() => {
-        this.studioOverlay.zoomIn();
-      })
-    ) {
+    if (this.studioOverlay.isActive()) {
+      this.studioOverlay.zoomIn();
       return;
     }
-    const tab = this.getCurrentTab();
-    if (tab) {
-      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-      const zoomLevel = tab.webView.webContents?.getZoomLevel() ?? 0;
-      tab.webView.webContents?.setZoomLevel(zoomLevel + 0.5);
-    }
+    this.stepWindowZoom(ZOOM_STEP);
   }
 
   public zoomOut() {
-    if (
-      this.overlayHandles(() => {
-        this.studioOverlay.zoomOut();
-      })
-    ) {
+    if (this.studioOverlay.isActive()) {
+      this.studioOverlay.zoomOut();
       return;
     }
-    const tab = this.getCurrentTab();
-    if (tab) {
-      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-      const zoomLevel = tab.webView.webContents?.getZoomLevel() ?? 0;
-      tab.webView.webContents?.setZoomLevel(zoomLevel - 0.5);
-    }
+    this.stepWindowZoom(-ZOOM_STEP);
   }
 
-  private afterUpdate() {
-    this.store.set("root", this.getPersistedState());
-    this.emitStateChange(this.getState());
-  }
-
-  private closeTabView(tab: TabWithView) {
-    tryCaptureError("removeChildView failed closing tab", () => {
-      this.baseWindow.contentView.removeChildView(tab.webView);
-    });
-    tab.webView.webContents?.close();
-  }
-
-  private computeTabBounds() {
-    // Using getContentBounds due to this being a frameless window. getBounds()
-    // returns the incorrect bounds on Windows when in maximized state.
-    const windowBounds = this.baseWindow.getContentBounds();
-    return {
-      height: windowBounds.height - TOOLBAR_HEIGHT,
-      width: windowBounds.width - this.sidebarWidth,
-      x: this.sidebarWidth,
-      y: TOOLBAR_HEIGHT,
-    };
-  }
-
-  private createTabView({ id, urlPath }: { id: string; urlPath: string }) {
-    const url = unsafe_studioURL(urlPath);
-    const newContentView = new WebContentsView({
-      webPreferences: {
-        additionalArguments: [`--tabId=${id}`],
-        preload: path.join(import.meta.dirname, "../preload/index.mjs"),
-        sandbox: false,
-      },
-    });
-
-    createContextMenu({ windowOrWebContentsView: newContentView });
-
-    newContentView.setBackgroundColor(getBackgroundColor());
-
-    // Set initial bounds respecting sidebar width
-    newContentView.setBounds(this.computeTabBounds());
-
-    // webContents is always defined at construction time, before any destruction event
-    const { webContents } = newContentView;
+  private stepWindowZoom(delta: number) {
+    const webContents = getMainWindow()?.webContents;
     if (webContents) {
-      webContents.setWindowOpenHandler((details) => {
-        void openExternal(details.url);
-        return { action: "deny" };
-      });
-
-      webContents.on("did-navigate-in-page", (_, newUrl) => {
-        const tab = this.tabs.find((t) => t.id === id);
-        const pathname = newUrl.split("#")[1];
-        if (tab && pathname) {
-          tab.pathname = pathname;
-          this.afterUpdate();
-        }
-      });
-
-      webContents.on("page-title-updated", (_event, title) => {
-        const tab = this.tabs.find((t) => t.id === id);
-
-        if (!tab) {
-          return;
-        }
-
-        if (title.trim()) {
-          tab.title = title.trim();
-        }
-
-        void this.updateMetaTags(tab).then(() => {
-          this.afterUpdate();
-        });
-      });
-
-      void webContents.loadURL(url);
-    }
-
-    return newContentView;
-  }
-
-  private emitStateChange(value: TabState) {
-    publisher.publish("tabs.updated", value);
-  }
-
-  /** Written to disk -- excludes keepMounted views whose lifecycle is external. */
-  private getPersistedState(): TabState {
-    const persistedTabs = this.tabs.filter((tab) => !tab.keepMounted);
-    const selectedIsPersisted = persistedTabs.some(
-      (tab) => tab.id === this.selectedTabId,
-    );
-    return {
-      selectedTabId: selectedIsPersisted ? this.selectedTabId : null,
-      tabs: persistedTabs.map(
-        ({ keepMounted: _k, webView: _webView, ...tab }) => tab,
-      ),
-    };
-  }
-
-  /**
-   * Selects the best neighbor from `visibleSnapshot` (captured before the tab
-   * was removed/hidden) using `visibleIndex` as the closing tab's position.
-   * Prefers the tab to the right; falls back to the left.
-   */
-  private loadShieldColor = () => {
-    const color = getBackgroundColor();
-    // Encode '#' for use inside a data: URL attribute value.
-    const encoded = color.replace("#", "%23");
-    void this.shield.webContents?.loadURL(
-      `data:text/html,<body bgcolor=${encoded} style='margin:0'>`,
-    );
-  };
-
-  /**
-   * Tab commands defer to the app-wide modal overlay while it owns the
-   * foreground. Returns true (and the caller should bail) when the overlay is
-   * active. Pass `retarget` to drive the equivalent action on the overlay (e.g.
-   * back/forward/zoom); omit it to simply no-op the tab command.
-   */
-  private overlayHandles(retarget?: () => void): boolean {
-    if (!this.studioOverlay.isActive()) {
-      return false;
-    }
-    retarget?.();
-    return true;
-  }
-
-  private revealTabWhenReady(tab: TabWithView) {
-    const webContents = tab.webView.webContents;
-    if (!webContents) {
-      return;
-    }
-
-    let fallback: ReturnType<typeof setTimeout> | undefined;
-    const reveal = () => {
-      webContents.off("did-stop-loading", reveal);
-      if (fallback) {
-        clearTimeout(fallback);
-        fallback = undefined;
-      }
-
-      if (this.selectedTabId !== tab.id || webContents.isDestroyed()) {
-        return;
-      }
-
-      tryCaptureError("addChildView failed revealing loaded tab", () => {
-        this.baseWindow.contentView.addChildView(tab.webView);
-      });
-      // Revealing re-tops the tab; a tab that finishes loading after the
-      // app-wide overlay opened would otherwise land above it (visible only
-      // over the sidebar strip). Re-assert the overlay above the revealed tab.
-      this.studioOverlay.reassertTopmost();
-    };
-
-    webContents.once("did-stop-loading", reveal);
-    fallback = setTimeout(reveal, REVEAL_TAB_FALLBACK_DELAY_MS);
-    if (!webContents.isLoading()) {
-      reveal();
+      webContents.setZoomLevel(webContents.getZoomLevel() + delta);
     }
   }
-
-  private selectNeighborByVisibleIndex(
-    tab: Tab,
-    visibleIndex: number,
-    visibleSnapshot: TabWithView[],
-  ) {
-    const isSelected = this.selectedTabId === tab.id;
-    if (!isSelected) {
-      return;
-    }
-
-    const nextTab =
-      visibleSnapshot[visibleIndex + 1] ?? visibleSnapshot[visibleIndex - 1];
-    if (nextTab) {
-      this.selectTabView(nextTab);
-    }
-  }
-
-  private selectOnAddNewTab({ urlPath }: { urlPath: string }) {
-    if (!SingleTabOnlyRoutes.test(urlPath)) {
-      return false;
-    }
-
-    const existingTab = this.tabs.find((tab) => {
-      const tabPathName = tab.pathname.split("?")[0];
-      return urlPath === tabPathName;
-    });
-
-    if (existingTab) {
-      this.selectTabView(existingTab);
-      this.afterUpdate();
-      return true;
-    }
-
-    return false;
-  }
-
-  private selectTabView(tab: TabWithView) {
-    if (tab.webView.webContents?.isDestroyed()) {
-      this.logger.warn(
-        `selectTabView: skipping destroyed view for tab ${tab.id}`,
-      );
-      return;
-    }
-
-    this.updateTabBounds(tab);
-
-    const shouldShieldUntilReady =
-      !tab.keepMounted && tab.webView.webContents?.isLoading() === true;
-
-    const currentTab = this.getCurrentTab();
-    tryCaptureError("addChildView failed selecting tab", () => {
-      // Add the incoming tab to the top of the z-stack BEFORE removing the
-      // outgoing one so there is never a frame where neither is present.
-      this.baseWindow.contentView.addChildView(tab.webView);
-
-      if (currentTab && currentTab.id !== tab.id) {
-        if (currentTab.keepMounted) {
-          this.sinkBehindShield(currentTab.webView);
-        } else {
-          this.baseWindow.contentView.removeChildView(currentTab.webView);
-        }
-      }
-
-      if (shouldShieldUntilReady) {
-        this.baseWindow.contentView.addChildView(this.shield);
-      }
-    });
-
-    this.selectedTabId = tab.id;
-    // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-    tab.webView.webContents?.focus();
-    if (shouldShieldUntilReady) {
-      this.revealTabWhenReady(tab);
-    }
-    // A newly selected tab is added at the top of the z-stack, so re-assert the
-    // app-wide modal overlay above it if one is open.
-    this.studioOverlay.reassertTopmost();
-  }
-
-  /** Pushes `view` to z=0 then re-asserts the shield at z=1, atomically. */
-  private sinkBehindShield(view: WebContentsView) {
-    this.baseWindow.contentView.addChildView(view, 0);
-    this.baseWindow.contentView.addChildView(this.shield, 1);
-  }
-
-  private async updateMetaTags(tab: TabWithView) {
-    const metaTagQueries = {
-      iconName: META_TAGS.iconName,
-      taskId: META_TAGS.taskId,
-    } as const;
-
-    type MetaTagsResult = {
-      [K in keyof typeof metaTagQueries]: string | undefined;
-    };
-
-    const queries = Object.entries(metaTagQueries)
-      .map(
-        ([key, name]) => `${JSON.stringify(key)}: (() => {
-        const el = document.querySelector('meta[name="${name}"]');
-        return el ? el.getAttribute('content') : undefined;
-      })()`,
-      )
-      .join(",\n        ");
-
-    const script = `
-      (() => {
-        return {
-          ${queries}
-        };
-      })()
-    `;
-
-    try {
-      const metaTags = (await tab.webView.webContents?.executeJavaScript(
-        script,
-      )) as MetaTagsResult;
-      const iconNameResult = TabIconsSchema.safeParse(metaTags.iconName);
-      tab.iconName = iconNameResult.success ? iconNameResult.data : undefined;
-      const taskIdResult = TaskIdSchema.safeParse(metaTags.taskId);
-      tab.taskId = taskIdResult.success ? taskIdResult.data : undefined;
-    } catch (error) {
-      captureServerException(
-        new Error("Failed to update meta tags", { cause: error }),
-        { scopes: ["studio"] },
-      );
-    }
-  }
-
-  private updateTabBounds(tab: TabWithView) {
-    tab.webView.setBounds(this.computeTabBounds());
-  }
-
-  /** Tabs visible in the tab bar -- not cosmetically closed via tabBarHidden. */
-  private visibleTabs() {
-    return this.tabs.filter((tab) => !tab.tabBarHidden);
-  }
-}
-
-// Rewrites persisted legacy /projects(/<TaskId>) to /tasks. Skips a real
-// /projects/<ProjectId> path because ProjectId is structurally distinct from TaskId.
-function migrateLegacyProjectsPath(pathname: string): string {
-  const firstSegment = LEGACY_PROJECTS_PATH_RE.exec(pathname)?.[1];
-  if (firstSegment && ProjectIdSchema.safeParse(firstSegment).success) {
-    return pathname;
-  }
-  return pathname.replace(/^\/projects\b/, "/tasks");
 }

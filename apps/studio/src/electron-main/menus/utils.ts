@@ -48,10 +48,8 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
             const mainWindow = getMainWindow();
             const tabsManager = getTabsManager();
 
+            // The whole tabbed app is one web contents now, so this reloads it.
             mainWindow?.webContents.reload();
-
-            const currentTab = tabsManager?.getCurrentTab();
-            currentTab?.webView.webContents?.reload();
 
             // The app-wide modal overlay is its own webContents outside the tab
             // tree, so include it when reloading all views.
@@ -74,9 +72,7 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
             },
             {
               click: () => {
-                const tabsManager = getTabsManager();
-                const currentTab = tabsManager?.getCurrentTab();
-                currentTab?.webView.webContents?.openDevTools({
+                getMainWindow()?.webContents.openDevTools({
                   mode: "right",
                   title: "DevTools - Current Tab",
                 });

@@ -1,39 +1,21 @@
 import { Button } from "@/client/components/ui/button";
-import { logger } from "@/client/lib/logger";
-import { rpcClient } from "@/client/rpc/client";
 import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useCanGoBack, useRouter } from "@tanstack/react-router";
 
 export function NavControls() {
-  const { mutateAsync: navigateBack } = useMutation(
-    rpcClient.tabs.navigateBack.mutationOptions(),
-  );
-
-  const { mutateAsync: navigateForward } = useMutation(
-    rpcClient.tabs.navigateForward.mutationOptions(),
-  );
-
-  const handleBack = async () => {
-    try {
-      await navigateBack({});
-    } catch (error) {
-      logger.error("Error navigating back", { error });
-    }
-  };
-
-  const handleForward = async () => {
-    try {
-      await navigateForward({});
-    } catch (error) {
-      logger.error("Error navigating forward", { error });
-    }
-  };
+  // Each tab has its own router/history, and NavControls renders inside that
+  // tab's RouterProvider, so back/forward act on this tab's stack directly.
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
 
   return (
     <div className="flex items-center gap-1 pr-1">
       <Button
         className="size-6 text-foreground/80"
-        onClick={handleBack}
+        disabled={!canGoBack}
+        onClick={() => {
+          router.history.back();
+        }}
         size="icon"
         title="Go back"
         variant="ghost"
@@ -42,7 +24,9 @@ export function NavControls() {
       </Button>
       <Button
         className="size-6 text-foreground/80"
-        onClick={handleForward}
+        onClick={() => {
+          router.history.forward();
+        }}
         size="icon"
         title="Go forward"
         variant="ghost"

@@ -15,6 +15,7 @@ import {
   SidebarProvider,
 } from "@/client/components/ui/sidebar";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { rpcClient } from "@/client/rpc/client";
 import { type StudioPath } from "@/shared/studio-path";
 import {
   BugIcon,
@@ -24,6 +25,7 @@ import {
   HardDrivesIcon,
   XIcon,
 } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/studio-overlay/settings")({
@@ -109,6 +111,10 @@ function SettingsModal() {
 
 function useNavItems(): NavItem[] {
   const isDeveloperMode = useDeveloperMode();
+  const { data: invalidFolders } = useQuery(
+    rpcClient.workspace.storage.invalidFolders.list.queryOptions(),
+  );
+  const hasUnrecognizedFolders = (invalidFolders?.length ?? 0) > 0;
 
   return [
     {
@@ -121,11 +127,15 @@ function useNavItems(): NavItem[] {
       path: "/studio-overlay/settings/providers",
       title: "Providers",
     },
-    {
-      icon: HardDrivesIcon,
-      path: "/studio-overlay/settings/storage",
-      title: "Storage",
-    },
+    ...(hasUnrecognizedFolders
+      ? [
+          {
+            icon: HardDrivesIcon,
+            path: "/studio-overlay/settings/storage" as const,
+            title: "Storage",
+          },
+        ]
+      : []),
     ...(isDeveloperMode
       ? [
           {

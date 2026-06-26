@@ -77,7 +77,6 @@ export function ProjectTaskRow({
           )}
           <InternalLink
             className="min-w-0 flex-1 truncate text-sm text-muted-foreground group-hover:text-foreground"
-            onDoubleClick={rename.start}
             openInCurrentTab
             params={{ id: task.id }}
             to="/tasks/$id"

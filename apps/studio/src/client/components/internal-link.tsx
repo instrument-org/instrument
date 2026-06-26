@@ -1,6 +1,6 @@
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { Link, type LinkProps, useNavigate } from "@tanstack/react-router";
-import { type MouseEvent, useEffect, useRef } from "react";
+import { type MouseEvent } from "react";
 
 export function InternalLink(
   props: LinkProps & {
@@ -30,15 +30,6 @@ export function InternalLink(
     ...rest
   } = props;
   const navigate = useNavigate();
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const handleMouseDown = (e: MouseEvent<HTMLAnchorElement>) => {
     // Prevent default for middle clicks to avoid opening in system browser
@@ -73,11 +64,6 @@ export function InternalLink(
 
   const handleDoubleClick = (e: MouseEvent<HTMLAnchorElement>) => {
     if (onDoubleClick) {
-      // Cancel any pending navigation from the click
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
       onDoubleClick(e);
     }
   };
@@ -85,25 +71,10 @@ export function InternalLink(
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
 
-    // Handle left clicks and ctrl/cmd + left click
     if (e.button === 0) {
-      // If we have a double-click handler, delay navigation slightly to detect double-click
-      if (onDoubleClick) {
-        const shouldOpenNewTab = e.ctrlKey || e.metaKey || openInNewTab;
-        const selectTab = openInNewTab || !shouldOpenNewTab;
-
-        if (clickTimeoutRef.current) {
-          clearTimeout(clickTimeoutRef.current);
-        }
-        clickTimeoutRef.current = setTimeout(() => {
-          performNavigation(shouldOpenNewTab, selectTab);
-          clickTimeoutRef.current = null;
-        }, 200);
-      } else {
-        const shouldOpenNewTab = e.ctrlKey || e.metaKey || openInNewTab;
-        const selectTab = openInNewTab || !shouldOpenNewTab;
-        performNavigation(shouldOpenNewTab, selectTab);
-      }
+      const shouldOpenNewTab = e.ctrlKey || e.metaKey || openInNewTab;
+      const selectTab = openInNewTab || !shouldOpenNewTab;
+      performNavigation(shouldOpenNewTab, selectTab);
     }
 
     if (onClick) {

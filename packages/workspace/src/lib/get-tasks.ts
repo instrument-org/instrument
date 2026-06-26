@@ -64,11 +64,11 @@ export async function getTasks(
     const taskResult = await readTask({ dir });
     if (taskResult.isOk()) {
       tasks.push(taskResult.value);
-    } else {
-      workspaceConfig.captureException(taskResult.error, {
-        scopes: ["workspace"],
-      });
     }
+    // Folders whose name isn't a valid task id are skipped silently. They are a
+    // recoverable, user-visible condition (surfaced via listInvalidTaskFolders
+    // and the Storage settings tab), not a bug -- previously every scan reported
+    // one telemetry exception per folder, flooding error reporting.
   }
 
   const sortedTasks = sort(

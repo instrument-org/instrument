@@ -18,7 +18,7 @@ export function validateSubdomainPart(
       code: "custom",
       fatal: true,
       input: subdomainPart,
-      message: "Subdomain part must have content",
+      message: "Folder name can't be empty",
     });
   }
 
@@ -27,7 +27,7 @@ export function validateSubdomainPart(
       code: "custom",
       fatal: true,
       input: subdomainPart,
-      message: "Subdomain part must not exceed 63 characters",
+      message: "Folder name must be 63 characters or fewer",
     });
   }
 
@@ -37,7 +37,7 @@ export function validateSubdomainPart(
       fatal: true,
       input: subdomainPart,
       message:
-        "Subdomain can only contain lowercase letters, numbers, and hyphens",
+        "Folder name can only contain lowercase letters, numbers, and hyphens",
     });
   }
 }

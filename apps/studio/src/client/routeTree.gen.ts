@@ -32,6 +32,7 @@ import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authen
 import { Route as StudioOverlaySettingsIndexRouteImport } from './routes/studio-overlay/settings/index'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
+import { Route as StudioOverlaySettingsStorageRouteImport } from './routes/studio-overlay/settings/storage'
 import { Route as StudioOverlaySettingsProvidersRouteImport } from './routes/studio-overlay/settings/providers'
 import { Route as StudioOverlaySettingsFeaturesRouteImport } from './routes/studio-overlay/settings/features'
 import { Route as StudioOverlaySettingsDebugRouteImport } from './routes/studio-overlay/settings/debug'
@@ -174,6 +175,12 @@ const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
+const StudioOverlaySettingsStorageRoute =
+  StudioOverlaySettingsStorageRouteImport.update({
+    id: '/storage',
+    path: '/storage',
+    getParentRoute: () => StudioOverlaySettingsRoute,
+  } as any)
 const StudioOverlaySettingsProvidersRoute =
   StudioOverlaySettingsProvidersRouteImport.update({
     id: '/providers',
@@ -351,6 +358,7 @@ export interface FileRoutesByFullPath {
   '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
+  '/studio-overlay/settings/storage': typeof StudioOverlaySettingsStorageRoute
   '/debug/': typeof AppDebugIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
@@ -396,6 +404,7 @@ export interface FileRoutesByTo {
   '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
+  '/studio-overlay/settings/storage': typeof StudioOverlaySettingsStorageRoute
   '/debug': typeof AppDebugIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsIndexRoute
@@ -447,6 +456,7 @@ export interface FileRoutesById {
   '/studio-overlay/settings/debug': typeof StudioOverlaySettingsDebugRoute
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
+  '/studio-overlay/settings/storage': typeof StudioOverlaySettingsStorageRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/debug'
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
+    | '/studio-overlay/settings/storage'
     | '/debug/'
     | '/tasks'
     | '/studio-overlay/settings/'
@@ -543,6 +554,7 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/debug'
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
+    | '/studio-overlay/settings/storage'
     | '/debug'
     | '/tasks'
     | '/studio-overlay/settings'
@@ -593,6 +605,7 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/debug'
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
+    | '/studio-overlay/settings/storage'
     | '/_app/debug/'
     | '/_app/tasks/'
     | '/studio-overlay/settings/'
@@ -787,6 +800,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/debug/'
       preLoaderRoute: typeof AppDebugIndexRouteImport
       parentRoute: typeof AppDebugRouteRoute
+    }
+    '/studio-overlay/settings/storage': {
+      id: '/studio-overlay/settings/storage'
+      path: '/storage'
+      fullPath: '/studio-overlay/settings/storage'
+      preLoaderRoute: typeof StudioOverlaySettingsStorageRouteImport
+      parentRoute: typeof StudioOverlaySettingsRoute
     }
     '/studio-overlay/settings/providers': {
       id: '/studio-overlay/settings/providers'
@@ -1111,6 +1131,7 @@ interface StudioOverlaySettingsRouteChildren {
   StudioOverlaySettingsDebugRoute: typeof StudioOverlaySettingsDebugRoute
   StudioOverlaySettingsFeaturesRoute: typeof StudioOverlaySettingsFeaturesRoute
   StudioOverlaySettingsProvidersRoute: typeof StudioOverlaySettingsProvidersRoute
+  StudioOverlaySettingsStorageRoute: typeof StudioOverlaySettingsStorageRoute
   StudioOverlaySettingsIndexRoute: typeof StudioOverlaySettingsIndexRoute
 }
 
@@ -1118,6 +1139,7 @@ const StudioOverlaySettingsRouteChildren: StudioOverlaySettingsRouteChildren = {
   StudioOverlaySettingsDebugRoute: StudioOverlaySettingsDebugRoute,
   StudioOverlaySettingsFeaturesRoute: StudioOverlaySettingsFeaturesRoute,
   StudioOverlaySettingsProvidersRoute: StudioOverlaySettingsProvidersRoute,
+  StudioOverlaySettingsStorageRoute: StudioOverlaySettingsStorageRoute,
   StudioOverlaySettingsIndexRoute: StudioOverlaySettingsIndexRoute,
 }
 

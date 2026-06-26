@@ -4,6 +4,7 @@ import {
 } from "@instrument-org/shared";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
+import nodePath from "node:path";
 
 import { PROJECT_INSTRUCTIONS_FILE_NAME } from "../constants";
 import {
@@ -19,6 +20,11 @@ import { getTasks } from "./get-tasks";
 import { validateProjectName } from "./project-folder-name";
 import { updateTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
+
+export interface InvalidProjectFolder {
+  name: string;
+  reason: string;
+}
 
 export async function addFolderToProject(
   id: ProjectId,
@@ -190,6 +196,30 @@ export async function getProjectInstructions(
   return instructions.length > 0 ? instructions : undefined;
 }
 
+// Folders under projects/ that can't be loaded as a project because their
+// .instrument/settings.json is missing or unreadable. listProjects skips these
+// silently; we surface them here so the user can discover and clean them up
+// (e.g. after deleting a project's settings on disk).
+export async function listInvalidProjectFolders(): Promise<
+  InvalidProjectFolder[]
+> {
+  const folders = await listProjectFolders();
+  const invalid: InvalidProjectFolder[] = [];
+  for (const folder of folders) {
+    const settings = await readProjectSettings(folder);
+    if (settings.isErr()) {
+      invalid.push({
+        name: folder,
+        reason:
+          settings.error instanceof TypedError.NotFound
+            ? "Missing project settings (.instrument/settings.json)"
+            : "Unreadable project settings",
+      });
+    }
+  }
+  return invalid;
+}
+
 export async function listProjects(): Promise<Project[]> {
   const folders = await listProjectFolders();
   const projects: Project[] = [];
@@ -230,6 +260,40 @@ export async function resolveProjectDir(
 ): Promise<string | undefined> {
   const folder = await resolveProjectFolder(id);
   return folder ? projectDir(folder) : undefined;
+}
+
+// Sends an unloadable project folder to the OS trash. Refuses any folder that
+// still reads as a healthy project, and any name that isn't a direct child of
+// projects/, so it can't trash a real project or traverse out of the workspace.
+export async function trashInvalidProjectFolder(
+  name: string,
+): Promise<Result<undefined, TypedError.FileSystem | TypedError.Parse>> {
+  if (
+    name === "" ||
+    name === "." ||
+    name === ".." ||
+    name !== nodePath.basename(name)
+  ) {
+    return err(new TypedError.Parse("Invalid folder name"));
+  }
+
+  const settings = await readProjectSettings(name);
+  if (settings.isOk()) {
+    return err(
+      new TypedError.Parse("Refusing to trash a valid project this way"),
+    );
+  }
+
+  try {
+    await getWorkspaceConfig().trashItem(projectDir(name));
+  } catch (error) {
+    return err(
+      new TypedError.FileSystem(`Failed to trash project folder "${name}"`, {
+        cause: error,
+      }),
+    );
+  }
+  return ok(undefined);
 }
 
 export async function updateProject(

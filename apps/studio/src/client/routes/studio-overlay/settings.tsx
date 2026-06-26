@@ -21,6 +21,7 @@ import {
   CpuIcon,
   FadersHorizontalIcon,
   FlagIcon,
+  HardDrivesIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
@@ -108,6 +109,7 @@ function SettingsModal() {
 
 function useNavItems(): NavItem[] {
   const isDeveloperMode = useDeveloperMode();
+
   return [
     {
       icon: FadersHorizontalIcon,
@@ -118,6 +120,11 @@ function useNavItems(): NavItem[] {
       icon: CpuIcon,
       path: "/studio-overlay/settings/providers",
       title: "Providers",
+    },
+    {
+      icon: HardDrivesIcon,
+      path: "/studio-overlay/settings/storage",
+      title: "Storage",
     },
     ...(isDeveloperMode
       ? [

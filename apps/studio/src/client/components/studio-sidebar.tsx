@@ -47,7 +47,7 @@ export function StudioSidebar({
           variant="default"
         >
           <InternalLink openInCurrentTab to="/new-tab">
-            <NotePencilIcon className="size-4" weight="regular" />
+            <NotePencilIcon className="size-4" weight="bold" />
             New task
           </InternalLink>
         </Button>

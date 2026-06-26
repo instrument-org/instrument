@@ -8,7 +8,7 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 
-export interface InvalidTaskFolder {
+interface InvalidTaskFolder {
   name: string;
   reason: string;
 }

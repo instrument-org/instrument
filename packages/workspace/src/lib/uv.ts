@@ -70,14 +70,21 @@ export function uvSubprocessEnv({
   ];
 
   return {
+    // Redirect heavy model/data caches to an app-managed, writable dir shared
+    // across tasks so big downloads land once and persist. just-bash sets
+    // HOME=/ (read-only), so libraries that cache under `~` would otherwise
+    // fail with EROFS on first download. We target each library's own cache
+    // var instead of overriding HOME: XDG_CACHE_HOME covers XDG-compliant libs
+    // (Whisper's `~/.cache/whisper`, and HuggingFace's fallback when HF_HOME is
+    // unset); HF_HOME and U2NET_HOME cover HuggingFace and rembg's `~/.u2net`,
+    // which use their own vars. HOME itself stays the real host home (like
+    // run-pnpm.ts) so `os.homedir()`/`Path.home()` match the tsx/node hatches
+    // and stay writable, rather than resolving to a fake isolated dir.
+    ...(process.env.HOME ? { HOME: process.env.HOME } : {}),
+    HF_HOME: path.join(uvDataDir, "huggingface"),
     PATH: pathDirs.join(path.delimiter),
-    // just-bash sets HOME=/ (read-only), so libraries that cache under `~`
-    // (HuggingFace `~/.cache/huggingface`, Whisper `~/.cache/whisper`, rembg
-    // `~/.u2net`) fail with EROFS on first model download. Point HOME at an
-    // app-managed, writable dir shared across tasks so those caches land once
-    // and persist. uv itself is unaffected (it uses the explicit UV_* dirs).
-    HOME: path.join(uvDataDir, "home"),
     TERM: "dumb",
+    U2NET_HOME: path.join(uvDataDir, "u2net"),
     UV_CACHE_DIR: path.join(uvDataDir, "cache"),
     UV_NO_CONFIG: "1",
     UV_PYTHON_DOWNLOADS: "automatic",
@@ -85,5 +92,6 @@ export function uvSubprocessEnv({
     UV_PYTHON_PREFERENCE: "only-managed",
     UV_TOOL_DIR: path.join(uvDataDir, "tools"),
     VIRTUAL_ENV: venvDir,
+    XDG_CACHE_HOME: path.join(uvDataDir, "cache-home"),
   };
 }

@@ -46,8 +46,16 @@ describe("uvSubprocessEnv", () => {
     expect(env.VIRTUAL_ENV).toBe(taskVenvDir(taskId));
   });
 
-  it("redirects HOME to a writable app-managed dir for model caches", () => {
-    expect(env.HOME).toBe(path.join("/tmp/workspace/uv-data", "home"));
+  it("redirects model/data caches to app-managed dirs without overriding HOME", () => {
+    expect(env.XDG_CACHE_HOME).toBe(
+      path.join("/tmp/workspace/uv-data", "cache-home"),
+    );
+    expect(env.HF_HOME).toBe(
+      path.join("/tmp/workspace/uv-data", "huggingface"),
+    );
+    expect(env.U2NET_HOME).toBe(path.join("/tmp/workspace/uv-data", "u2net"));
+    // HOME stays the real host home (or unset), never the isolated dir.
+    expect(env.HOME).not.toBe(path.join("/tmp/workspace/uv-data", "home"));
   });
 
   it("prepends the uv binary dir and venv bin dir to PATH", () => {

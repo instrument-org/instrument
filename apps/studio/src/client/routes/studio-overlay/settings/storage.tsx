@@ -22,8 +22,8 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   DotsThreeOutlineVerticalIcon,
+  FolderIcon,
   TrashIcon,
-  WarningIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -55,7 +55,7 @@ function FolderGroup({
         {folders.map((folder) => (
           <div className="flex items-center gap-3 p-3" key={folder.path}>
             <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="truncate font-mono text-sm">{folder.name}</div>
+              <div className="truncate text-sm">{folder.name}</div>
               <p className="text-xs text-muted-foreground">{folder.reason}</p>
             </div>
             <DropdownMenu>
@@ -102,7 +102,7 @@ function SettingsStoragePage() {
       <div>
         <h3 className="text-base font-semibold">Storage</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Where {APP_NAME} keeps your tasks and projects on disk.
+          Where {APP_NAME} keeps your projects and tasks on your computer
         </p>
       </div>
       <WorkspaceLocation />
@@ -164,12 +164,13 @@ function UnrecognizedFolders() {
     <section className="space-y-4">
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <WarningIcon className="text-amber-500 size-4" weight="fill" />
-          <h4 className="text-sm font-medium">Unrecognized folders</h4>
+          <FolderIcon className="size-4" />
+          <h4 className="text-sm font-medium">Broken projects and tasks</h4>
         </div>
         <p className="text-sm text-muted-foreground">
-          {APP_NAME} can&apos;t open these as a task or project. Take a look at
-          one to see what&apos;s inside, or move it to the trash.
+          These projects and tasks are included in your workspace, but{" "}
+          {APP_NAME} can&apos;t show them because of problems in the folders.
+          You can reveal them on your computer, or delete them to tidy up.
         </p>
       </div>
       {projects.length > 0 && (

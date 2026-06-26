@@ -5,10 +5,6 @@
   "[yaml]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "eslint.options": {
-    "cache": true,
-    "cacheLocation": ".eslintcache"
-  },
   "eslint.probe": [
     "javascript",
     "javascriptreact",

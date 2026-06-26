@@ -4,7 +4,6 @@ import { OUR_MODELS, type OUR_PROVIDER_CONFIG } from "../constants";
 
 export const AIProviderTypeSchema = z.enum([
   "anthropic",
-  "anyscale",
   "cerebras",
   "deepinfra",
   "deepseek",

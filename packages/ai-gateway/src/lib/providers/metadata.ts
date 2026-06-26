@@ -21,23 +21,12 @@ const PROVIDER_METADATA = {
       keyFormat: "sk-ant-",
       keyURL: addRef("https://console.anthropic.com/settings/keys"),
     },
-    description: "Claude Haiku, Sonnet, and Opus",
+    description: "Claude models from Anthropic",
     name: "Anthropic",
     quirks: { supportsMultipartToolResults: true },
     tags: ["webSearch"],
     type: "anthropic",
     url: addRef("https://anthropic.com"),
-  },
-  anyscale: {
-    api: {
-      defaultBaseURL: "https://api.endpoints.anyscale.com/v1",
-      keyURL: addRef("https://docs.anyscale.com/auth/api-keys"),
-    },
-    description:
-      "Scalable AI infrastructure built on Ray for distributed computing",
-    name: "Anyscale",
-    type: "anyscale",
-    url: addRef("https://www.anyscale.com"),
   },
   cerebras: {
     api: {
@@ -216,9 +205,9 @@ const PROVIDER_METADATA = {
     api: {
       defaultBaseURL: "https://api.openai.com",
       keyFormat: "sk-",
-      keyURL: addRef("https://platform.openai.com/account/api-keys"),
+      keyURL: addRef("https://platform.openai.com/api-keys"),
     },
-    description: "GPT-5 and other OpenAI models",
+    description: "GPT and reasoning models from OpenAI",
     name: "OpenAI",
     quirks: { supportsMultipartToolResults: true },
     tags: ["imageGeneration", "webSearch"],
@@ -308,7 +297,7 @@ const PROVIDER_METADATA = {
       defaultBaseURL: "https://api.z.ai/api/coding/paas/v4",
       keyURL: addRef("https://docs.z.ai"),
     },
-    description: "GLM Coding Plan with GLM-4.5 and GLM-4.6 models",
+    description: "GLM Coding Plan for AI-assisted development",
     name: "Z.ai GLM Coding Plan",
     type: "z-ai",
     url: addRef("https://z.ai"),

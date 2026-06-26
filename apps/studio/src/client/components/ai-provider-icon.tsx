@@ -2,7 +2,6 @@ import type { ComponentType } from "react";
 
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { BrandIconGlyph } from "@/client/components/brand-icon";
-import { Anyscale } from "@/client/components/icons/anyscale";
 import { Cerebras } from "@/client/components/icons/cerebras";
 import { DeepInfra } from "@/client/components/icons/deepinfra";
 import { DeepSeek } from "@/client/components/icons/deepseek";
@@ -42,7 +41,6 @@ const PROVIDER_ICON_MAP: Record<
   ComponentType<{ className?: string }> | null
 > = {
   anthropic: SiAnthropic,
-  anyscale: Anyscale,
   cerebras: Cerebras,
   deepinfra: DeepInfra,
   deepseek: DeepSeek,

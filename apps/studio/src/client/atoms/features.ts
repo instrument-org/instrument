@@ -6,6 +6,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { atomWithRefresh } from "jotai/utils";
 
 const defaultFeatures: Features = {
+  bash_summary_chip: false,
   context_ring: false,
 };
 

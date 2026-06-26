@@ -1,8 +1,10 @@
+import { featuresAtom } from "@/client/atoms/features";
 import {
   getToolNameByType,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
+import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
@@ -18,7 +20,7 @@ import {
   CollapsibleTrigger,
 } from "../ui/collapsible";
 import { Spinner } from "../ui/spinner";
-import { BrowserChip, type BrowserInfo } from "./tool-bash";
+import { BashCommandChip, BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
@@ -35,6 +37,7 @@ export function ToolCallSummary({
   isDeadDevMode?: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
+  const features = useAtomValue(featuresAtom);
   const { isAgentRunning, isCurrentTool, isStreaming } = useToolCallSession();
   const [isManuallyOpen, setIsManuallyOpen] = useState(false);
   // Debounce both edges of "current" so a run of tool calls doesn't flicker
@@ -129,8 +132,17 @@ export function ToolCallSummary({
         {deadLabel ?? label}
       </span>
 
-      {browserInfo && (
+      {browserInfo ? (
         <BrowserChip info={browserInfo} isEmphasized={isEmphasized} />
+      ) : (
+        features.bash_summary_chip &&
+        part.type === "tool-bash" &&
+        part.state === "output-available" && (
+          <BashCommandChip
+            commands={part.output.commands}
+            isEmphasized={isEmphasized}
+          />
+        )
       )}
       <WebSearchChip isEmphasized={isEmphasized} part={part} />
       <SourceImagesChip

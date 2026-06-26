@@ -1,45 +1,30 @@
-import { errAsync, okAsync } from "neverthrow";
-import { z } from "zod";
+import { type Task } from "../schemas/task";
+import { type TaskId } from "../schemas/task-id";
+import { getCurrentDate } from "./get-current-date";
+import { getTasks } from "./get-tasks";
+import { updateTaskSettings } from "./task-settings";
+import { getWorkspaceConfig } from "./workspace-config";
 
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { type TypedError } from "./errors";
-import {
-  getParsedJsonStorageItem,
-  setParsedJsonStorageItem,
-} from "./parsed-json-storage";
-import { getWorkspaceStoreStorage } from "./workspace-store-storage";
-
-const PINS_KEY = "pins";
-
-const PinsSchema = z.array(TaskIdSchema);
+// Pin state lives in each task's settings.json as `pinnedAt`, so it travels
+// with the folder on rename and can't be inherited by a reused folder name.
 
 export function addPin(id: TaskId) {
-  return getPins().andThen((pins) =>
-    pins.includes(id) ? okAsync(undefined) : setPins([...pins, id]),
+  return updateTaskSettings(id, { pinnedAt: getCurrentDate() });
+}
+
+export async function getPinnedTasks(): Promise<Task[]> {
+  const { tasks } = await getTasks(getWorkspaceConfig());
+  const pinned = tasks.filter((task) => task.pinnedAt !== undefined);
+  return pinned.toSorted(
+    (a, b) => (a.pinnedAt?.getTime() ?? 0) - (b.pinnedAt?.getTime() ?? 0),
   );
 }
 
-export function getPins() {
-  return getWorkspaceStoreStorage().andThen((storage) =>
-    getParsedJsonStorageItem(PINS_KEY, PinsSchema, storage).orElse(
-      defaultOnMissing<TaskId[]>([]),
-    ),
-  );
+export async function getPins(): Promise<TaskId[]> {
+  const pinned = await getPinnedTasks();
+  return pinned.map((task) => task.id);
 }
 
 export function removePin(id: TaskId) {
-  return getPins().andThen((pins) => setPins(pins.filter((p) => p !== id)));
-}
-
-export function setPins(ids: TaskId[]) {
-  return getWorkspaceStoreStorage().andThen((storage) =>
-    setParsedJsonStorageItem(PINS_KEY, ids, PinsSchema, storage),
-  );
-}
-
-function defaultOnMissing<T>(fallback: T) {
-  return (error: TypedError.Type) =>
-    error.type === "workspace-not-found-error"
-      ? okAsync(fallback)
-      : errAsync(error);
+  return updateTaskSettings(id, { pinnedAt: null });
 }

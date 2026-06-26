@@ -26,7 +26,6 @@ import {
 import { taskDir } from "./task-dir-utils";
 import { getTaskSettings, updateTaskSettings } from "./task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import { disposeWorkspaceStoreStorage } from "./workspace-store-storage";
 
 let root: string;
 
@@ -53,7 +52,6 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await disposeWorkspaceStoreStorage();
   await fs.rm(root, { force: true, recursive: true });
 });
 

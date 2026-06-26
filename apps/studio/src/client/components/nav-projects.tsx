@@ -1,4 +1,5 @@
 import { projectsSectionOpenAtom } from "@/client/atoms/projects-section";
+import { ProjectDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
 import {
   Collapsible,
   CollapsibleContent,
@@ -196,6 +197,7 @@ function NavProjectItem({
             <PencilSimpleLineIcon className="text-muted-foreground" />
             <span>Edit project</span>
           </DropdownMenuItem>
+          <ProjectDevDiskMenuItems projectId={project.id} />
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => {

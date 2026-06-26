@@ -10,19 +10,21 @@ import {
   SidebarContent,
   SidebarFooter,
 } from "@/client/components/ui/sidebar";
-import { useSelectedTab } from "@/client/hooks/use-selected-tab";
 import { useMatchesForPathname } from "@/client/lib/get-route-matches";
 import { rpcClient } from "@/client/rpc/client";
 import { NotePencilIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 export function StudioSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  const selectedTab = useSelectedTab();
+  // Each tab renders its own sidebar inside its own router; highlight based on
+  // this tab's current location rather than the globally selected tab.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const matches = useMatchesForPathname(selectedTab?.pathname ?? "");
+  const matches = useMatchesForPathname(pathname);
 
   const { data: pinnedTaskIds } = useQuery(
     rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),

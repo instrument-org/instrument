@@ -1,64 +1,26 @@
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type StudioPath } from "@/shared/studio-path";
+import { noop } from "radashi";
 import { z } from "zod";
 
 const StudioPathSchema = z.custom<StudioPath>(
   (value) => typeof value === "string" && value.startsWith("/"),
 );
 
+// Tabs are owned by the renderer (AppShell) in the unified app, so app-tab
+// mutations no longer have a main-process WebContentsView to act on. These
+// handlers remain for overlay/menu callers and will be re-pointed at the
+// renderer over IPC; for now the app-tab mutations are no-ops.
 const add = base
   .input(
-    z.object({
-      appPath: StudioPathSchema,
-      select: z.boolean().optional(),
-    }),
+    z.object({ appPath: StudioPathSchema, select: z.boolean().optional() }),
   )
-  .handler(({ context, input }) => {
-    context.tabsManager?.addTab({
-      select: input.select,
-      urlPath: input.appPath,
-    });
-  });
+  .handler(noop);
 
 const navigate = base
   .input(z.object({ appPath: StudioPathSchema }))
-  .handler(({ context: { tabsManager }, input }) => {
-    if (!tabsManager) {
-      return;
-    }
-
-    const tabs = tabsManager.getTabs();
-    const inputPathWithoutQuery = input.appPath.split("?")[0];
-
-    const exactMatch = tabs.find((tab) => tab.pathname === input.appPath);
-    if (exactMatch) {
-      tabsManager.selectTab({ id: exactMatch.id });
-      // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-      exactMatch.webView.webContents?.focus();
-      return;
-    }
-
-    const basePathMatch = tabs.find((tab) => {
-      const tabPathWithoutQuery = tab.pathname.split("?")[0];
-      return tabPathWithoutQuery === inputPathWithoutQuery;
-    });
-
-    if (basePathMatch) {
-      basePathMatch.webView.webContents?.send("navigate", input.appPath);
-      tabsManager.selectTab({ id: basePathMatch.id });
-      basePathMatch.webView.webContents?.focus();
-      return;
-    }
-
-    const currentTab = tabsManager.getCurrentTab();
-    if (!currentTab) {
-      return;
-    }
-
-    currentTab.webView.webContents?.send("navigate", input.appPath);
-    currentTab.webView.webContents?.focus();
-  });
+  .handler(noop);
 
 const navigateBack = base.handler(({ context }) => {
   context.tabsManager?.goBack();
@@ -68,28 +30,17 @@ const navigateForward = base.handler(({ context }) => {
   context.tabsManager?.goForward();
 });
 
-const close = base
-  .input(z.object({ id: z.string() }))
-  .handler(({ context, input }) => {
-    context.tabsManager?.closeTab({ id: input.id });
-  });
+const close = base.input(z.object({ id: z.string() })).handler(noop);
 
 const reorder = base
   .input(z.object({ tabIds: z.array(z.string()) }))
-  .handler(({ context, input }) => {
-    context.tabsManager?.reorderTabs(input.tabIds);
-  });
+  .handler(noop);
 
-const select = base
-  .input(z.object({ id: z.string() }))
-  .handler(({ context, input }) => {
-    context.tabsManager?.selectTab({ id: input.id });
-  });
+const select = base.input(z.object({ id: z.string() })).handler(noop);
 
 const live = {
   state: base.handler(async function* ({ context, signal }) {
-    const currentState = context.tabsManager?.getState();
-    yield currentState;
+    yield context.tabsManager?.getState();
 
     for await (const payload of publisher.subscribe("tabs.updated", {
       signal,

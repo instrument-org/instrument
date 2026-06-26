@@ -5,7 +5,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const buttonVariants = tv({
-  base: "inline-flex shrink-0 items-center justify-center gap-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  base: "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   defaultVariants: {
     size: "default",
     variant: "default",
@@ -21,11 +21,12 @@ export const buttonVariants = tv({
       xs: "h-6 gap-1.5 rounded-lg px-2.5 text-xs has-[>svg]:px-2",
     },
     variant: {
-      brand: "bg-brand-600 text-brand-foreground shadow-xs hover:bg-brand-700",
+      brand:
+        "bg-brand-600 button-sheen text-brand-foreground shadow-xs hover:bg-brand-700",
       default:
-        "bg-card text-card-foreground shadow-sm hover:bg-secondary dark:bg-gray-200 dark:text-gray-900 dark:hover:bg-gray-300",
+        "bg-card button-sheen text-card-foreground shadow-sm hover:bg-secondary dark:bg-gray-700 dark:text-foreground dark:shadow-sm dark:hover:bg-gray-600",
       destructive:
-        "bg-destructive text-white hover:bg-destructive/90 focus-visible:outline-destructive/20 dark:bg-destructive/60 dark:focus-visible:outline-destructive/40",
+        "bg-destructive button-sheen text-white hover:bg-destructive/90 focus-visible:outline-destructive/20 dark:bg-destructive/60 dark:focus-visible:outline-destructive/40",
       ghost:
         "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
       "ghost-destructive":
@@ -39,7 +40,7 @@ export const buttonVariants = tv({
       "outline-muted":
         "border bg-background shadow-xs hover:bg-muted dark:border-input",
       secondary:
-        "border border-transparent bg-secondary text-secondary-foreground shadow-xs hover:bg-muted hover:text-secondary-foreground dark:hover:bg-muted",
+        "border border-transparent bg-secondary button-sheen text-secondary-foreground shadow-xs hover:bg-muted hover:text-secondary-foreground dark:hover:bg-muted",
     },
   },
 });

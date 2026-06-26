@@ -40,8 +40,11 @@ export function useTrashTask({
       if (navigateOnDelete) {
         await navigate({ replace: true, to: "/new-tab" });
       } else {
-        const taskTabs = tabs.filter((tab) =>
-          tab.pathname.includes(`/tasks/${taskId}`),
+        const taskPath = `/tasks/${taskId}`;
+        const taskTabs = tabs.filter(
+          (tab) =>
+            tab.pathname === taskPath ||
+            tab.pathname.startsWith(`${taskPath}/`),
         );
 
         for (const tab of taskTabs) {

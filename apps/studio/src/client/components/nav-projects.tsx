@@ -56,7 +56,7 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
   )?.params.id;
 
   return (
-    <SidebarGroup className="px-3 py-2 group-data-[collapsible=icon]:hidden">
+    <SidebarGroup className="px-3 pt-2 pb-0 group-data-[collapsible=icon]:hidden">
       {projects && projects.length > 0 ? (
         <Collapsible onOpenChange={setIsOpen} open={isOpen}>
           <div className="group/projects flex h-8 items-center">

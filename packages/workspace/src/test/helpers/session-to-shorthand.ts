@@ -132,6 +132,21 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-fileChanges>\n${indent(filesList)}\n</data-fileChanges>`;
     }
+    case "data-projectChanges": {
+      const projectName = ` projectName="${part.data.projectName}"`;
+      const instructions = part.data.instructionsChanged
+        ? ` instructionsChanged`
+        : "";
+      const added =
+        part.data.foldersAdded.length > 0
+          ? ` added="${part.data.foldersAdded.map((folder) => folder.name).join(",")}"`
+          : "";
+      const removed =
+        part.data.foldersRemoved.length > 0
+          ? ` removed="${part.data.foldersRemoved.map((folder) => folder.name).join(",")}"`
+          : "";
+      return `<data-projectChanges${projectName}${instructions}${added}${removed} />`;
+    }
     case "data-projectContext": {
       const projectName = ` projectName="${part.data.projectName}"`;
       const instructions = part.data.instructions ? ` instructions` : "";

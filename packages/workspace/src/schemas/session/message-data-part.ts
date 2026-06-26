@@ -11,6 +11,7 @@ export namespace SessionMessageDataPart {
     "browserStatus",
     "externalFileChanges",
     "fileChanges",
+    "projectChanges",
     "projectContext",
   ]);
 
@@ -94,6 +95,25 @@ export namespace SessionMessageDataPart {
     typeof ProjectContextDataPartSchema
   >;
 
+  // Drift detected between the frozen project snapshot and the live project when
+  // a user message is sent (no live watching: a single read at send time).
+  // Instructions ride along here; added/removed folders are also written to the
+  // task's attached folders so they become standing context. `instructions` is
+  // the new value when `instructionsChanged` is true (omitted when it was
+  // cleared), so the latest such part is the effective project instructions.
+  const ProjectChangesDataPartSchema = z.object({
+    foldersAdded: z.array(z.object({ name: z.string(), path: z.string() })),
+    foldersRemoved: z.array(z.object({ name: z.string(), path: z.string() })),
+    instructions: z.string().optional(),
+    instructionsChanged: z.boolean(),
+    projectId: ProjectIdSchema,
+    projectName: z.string(),
+  });
+
+  export type ProjectChangesDataPart = z.output<
+    typeof ProjectChangesDataPartSchema
+  >;
+
   const BrowserTargetSchema = z.object({
     title: z.string().optional(),
     url: z.string(),
@@ -122,6 +142,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
+    [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;

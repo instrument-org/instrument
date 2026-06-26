@@ -86,7 +86,10 @@ export const NavTaskItem = memo(function NavTaskItem({
   };
 
   return (
-    <SidebarMenuItem className="group" key={task.id}>
+    <SidebarMenuItem
+      className="group [&:has([data-task-status]>*)_[data-sidebar=menu-button]]:pr-8"
+      key={task.id}
+    >
       {rename.isEditing ? (
         <InlineRenameInput inputProps={rename.inputProps} />
       ) : (
@@ -132,7 +135,10 @@ export const NavTaskItem = memo(function NavTaskItem({
           </SidebarMenuButton>
 
           {!isMenuOpen && (
-            <div className="pointer-events-none absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md group-hover:hidden">
+            <div
+              className="pointer-events-none absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md group-hover:hidden"
+              data-task-status
+            >
               <TaskStatusIcon className="mt-1 size-4 shrink-0" id={task.id} />
             </div>
           )}

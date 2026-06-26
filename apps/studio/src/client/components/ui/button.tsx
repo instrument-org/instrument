@@ -40,7 +40,7 @@ export const buttonVariants = tv({
       "outline-muted":
         "border bg-background shadow-xs hover:bg-muted dark:border-input",
       secondary:
-        "border border-transparent bg-secondary button-sheen text-secondary-foreground shadow-xs hover:bg-muted hover:text-secondary-foreground dark:hover:bg-muted",
+        "bg-secondary button-sheen text-secondary-foreground shadow-xs hover:bg-muted hover:text-secondary-foreground dark:bg-gray-800 dark:hover:bg-gray-700",
     },
   },
 });

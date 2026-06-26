@@ -39,6 +39,10 @@ export function ProjectFolders({
       return;
     }
     if (result) {
+      if (folders.includes(result.path)) {
+        toast.info("That folder is already attached to this project");
+        return;
+      }
       await addFolder({ id: projectId, path: result.path });
     }
   };

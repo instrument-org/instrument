@@ -102,6 +102,26 @@ export function ChatStream({
     [isAgentRunning, lastMessageId],
   );
 
+  // When a run emits several tool calls at once they are all active, but only
+  // the first visible still-active one is the "current" call. Upcoming calls
+  // stay collapsed so the run reveals top-to-bottom instead of all expanding at
+  // once.
+  const currentToolId = useMemo(() => {
+    if (!isAgentRunning) {
+      return undefined;
+    }
+    return lastRegularMessage?.parts.find(
+      (part) =>
+        isToolPart(part) &&
+        isActiveToolPart(part) &&
+        isVisibleAssistantPart({
+          isDeveloperMode,
+          isStreaming: true,
+          part,
+        }),
+    )?.metadata.id;
+  }, [isAgentRunning, isDeveloperMode, lastRegularMessage]);
+
   const hasActiveLoadingState = useMemo(() => {
     if (!isAgentRunning || !lastAssistantMessage) {
       return false;
@@ -155,6 +175,7 @@ export function ChatStream({
   const renderCtx: RenderPartContext = useMemo(
     () => ({
       assetBaseUrl,
+      currentToolId,
       hideUserMessages,
       isAgentRunning,
       isDeveloperMode,
@@ -166,6 +187,7 @@ export function ChatStream({
     }),
     [
       assetBaseUrl,
+      currentToolId,
       hideUserMessages,
       isAgentRunning,
       isDeveloperMode,

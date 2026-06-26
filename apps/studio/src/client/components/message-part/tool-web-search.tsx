@@ -53,6 +53,8 @@ export function ToolWebSearch({
       ? "Searching the web"
       : getToolLabel("web_search");
   const query = typeof part.input.query === "string" ? part.input.query : "";
+  const showSources =
+    successOutput !== null && !isStreaming && successOutput.sources.length > 0;
 
   return (
     <ToolCard>
@@ -79,7 +81,7 @@ export function ToolWebSearch({
         <ToolCardSection maxHeight="max-h-[28rem]">
           <SessionMarkdown className="w-full" markdown={successOutput.text} />
 
-          {successOutput.sources.length > 0 && (
+          {showSources && (
             <div className="mt-4 space-y-2 border-t border-border pt-3">
               {successOutput.sources.map((source, index) => (
                 <SourceLink key={index} title={source.title} url={source.url} />

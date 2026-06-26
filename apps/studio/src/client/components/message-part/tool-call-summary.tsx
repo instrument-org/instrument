@@ -35,32 +35,30 @@ export function ToolCallSummary({
   isDeadDevMode?: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
-  const { isAgentRunning, isStreaming } = useToolCallSession();
+  const { isAgentRunning, isCurrentTool, isStreaming } = useToolCallSession();
   const [isManuallyOpen, setIsManuallyOpen] = useState(false);
-  // Debounce both edges of isStreaming to avoid flickering open/closed for
-  // tool calls that stream very briefly.
-  // - Opening is delayed: only open after streaming has been true for 300ms.
-  // - Closing is delayed: stay open for 600ms after streaming ends.
-  const [isStreamingDebounced, setIsStreamingDebounced] = useState(false);
+  // Debounce both edges of "current" so a run of tool calls doesn't flicker
+  // open/closed as the current call hands off to the next one.
+  // - Opening waits 500ms, so a call that is only briefly current (e.g. a
+  //   transient gap where no part is active) never pops open.
+  // - Closing waits 400ms to absorb those same transient toggles, kept shorter
+  //   than the open delay so two cards are never expanded at once during a
+  //   hand-off.
+  const [isAutoOpen, setIsAutoOpen] = useState(false);
 
   useEffect(() => {
-    if (isStreaming) {
-      const timer = setTimeout(() => {
-        setIsStreamingDebounced(true);
-      }, 500);
-      return () => {
-        clearTimeout(timer);
-      };
-    }
-    const timer = setTimeout(() => {
-      setIsStreamingDebounced(false);
-    }, 1200);
+    const timer = setTimeout(
+      () => {
+        setIsAutoOpen(isCurrentTool);
+      },
+      isCurrentTool ? 500 : 400,
+    );
     return () => {
       clearTimeout(timer);
     };
-  }, [isStreaming]);
+  }, [isCurrentTool]);
 
-  const isCollapsibleOpen = isManuallyOpen || isStreamingDebounced;
+  const isCollapsibleOpen = isManuallyOpen || isAutoOpen;
   const isEmphasized = isCollapsibleOpen && !isStreaming && !isAgentRunning;
 
   const toolName = getToolNameByType(part.type);

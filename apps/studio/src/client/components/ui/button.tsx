@@ -25,7 +25,7 @@ export const buttonVariants = tv({
       default:
         "bg-card text-card-foreground shadow-sm hover:bg-secondary dark:bg-gray-200 dark:text-gray-900 dark:hover:bg-gray-300",
       destructive:
-        "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+        "bg-destructive text-white hover:bg-destructive/90 focus-visible:outline-destructive/20 dark:bg-destructive/60 dark:focus-visible:outline-destructive/40",
       ghost:
         "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
       "ghost-destructive":

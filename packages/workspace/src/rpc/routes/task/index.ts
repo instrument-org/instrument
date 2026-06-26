@@ -14,6 +14,7 @@ import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
+import { removePin } from "../../../lib/pins";
 import { getProject, getProjectInstructions } from "../../../lib/project";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
@@ -447,6 +448,12 @@ const trash = base
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
+
+    const unpinResult = await removePin(id);
+    if (unpinResult.isErr()) {
+      context.workspaceConfig.captureException(unpinResult.error);
+    }
+
     publisher.publish("task.removed", {
       id,
     });

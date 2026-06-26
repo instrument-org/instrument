@@ -171,6 +171,10 @@ const showOverlayIdle = devOnly.input(z.void()).handler(({ context }) => {
   context.tabsManager?.studioOverlay.showIdle();
 });
 
+const showOverlayNotFound = devOnly.input(z.void()).handler(({ context }) => {
+  context.tabsManager?.studioOverlay.showNotFound();
+});
+
 const openAuthTestPage = devOnly.input(z.void()).handler(() => {
   const port = app.isPackaged
     ? PORTS.authCallback.prod
@@ -221,6 +225,7 @@ export const debug = {
   relaunchWithNewUserFolder,
   sessionMarkdown,
   showOverlayIdle,
+  showOverlayNotFound,
   systemInfo,
   throwError,
   trigger,

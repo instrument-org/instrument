@@ -93,6 +93,10 @@ export function DevPanel() {
     rpcClient.debug.showOverlayIdle.mutationOptions(),
   );
 
+  const { mutate: showOverlayNotFound } = useMutation(
+    rpcClient.debug.showOverlayNotFound.mutationOptions(),
+  );
+
   const { mutate: openAuthTestPage } = useMutation(
     rpcClient.debug.openAuthTestPage.mutationOptions(),
   );
@@ -441,6 +445,14 @@ export function DevPanel() {
                     }}
                   >
                     Simulate overlay error
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      showOverlayNotFound();
+                    }}
+                  >
+                    Simulate overlay 404
                   </MenubarItem>
                   <MenubarItem
                     className="font-mono text-xs"

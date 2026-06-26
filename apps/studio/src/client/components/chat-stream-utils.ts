@@ -103,6 +103,7 @@ export function isVisibleAssistantPart({
   return (
     part.type !== "step-start" &&
     part.type !== "data-attachments" &&
+    part.type !== "data-projectContext" &&
     part.type !== "data-browserStatus" &&
     part.type !== "data-externalFileChanges" &&
     part.type !== "source-document" &&
@@ -143,7 +144,11 @@ function isRenderableInlinePart({
     return isDeveloperMode;
   }
 
-  if (part.type === "step-start" || part.type === "data-attachments") {
+  if (
+    part.type === "step-start" ||
+    part.type === "data-attachments" ||
+    part.type === "data-projectContext"
+  ) {
     return false;
   }
 

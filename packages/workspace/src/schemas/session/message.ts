@@ -265,14 +265,16 @@ export namespace SessionMessage {
             injectedParts.push({ text: attachmentText, type: "text" });
           }
 
-          if (
-            attachmentsPart.data.folders &&
-            attachmentsPart.data.folders.length > 0
-          ) {
+          // Project folders ride along in the attachments part but are surfaced
+          // to the model as standing project context (see the main agent's
+          // context message), so exclude them here to avoid re-announcing them as
+          // folders the user attached with this message.
+          const userAttachedFolders = (
+            attachmentsPart.data.folders ?? []
+          ).filter((folder) => folder.source !== "project");
+          if (userAttachedFolders.length > 0) {
             const folderAttachmentText = buildAttachedFoldersText({
-              folderNames: attachmentsPart.data.folders.map(
-                (folder) => folder.name,
-              ),
+              folderNames: userAttachedFolders.map((folder) => folder.name),
               intro: `The user attached these external folders with this message. They are now available to the task via the ${RETRIEVAL_AGENT_NAME} agent. Assume they are directly relevant to the user's request.`,
             });
 

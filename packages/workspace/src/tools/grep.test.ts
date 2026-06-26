@@ -449,6 +449,7 @@ describe("Grep", () => {
         id: FolderAttachment.IdSchema.parse("test-folder-id"),
         name: "Test Folder",
         path: TaskDirSchema.parse(fixturesPath),
+        source: "user",
       },
     };
 

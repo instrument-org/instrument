@@ -3,6 +3,7 @@ import {
   type WorkspaceActorRef,
   type WorkspaceConfig,
 } from "@instrument-org/workspace/electron";
+import { ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
@@ -19,14 +20,24 @@ import { router } from "./routes";
 // Increased from the default of 10.
 EventEmitter.defaultMaxListeners = 100;
 
+// NOT_FOUND is a defined error code that every consumer is expected to handle as
+// control flow (e.g. a task whose project was deleted on disk keeps querying
+// `project.byId`). Capturing it floods telemetry with non-actionable noise, so
+// we still rethrow it to the client but skip the exception capture.
+function isHandledNotFound(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === "NOT_FOUND";
+}
+
 const handler = new RPCHandler<InitialRPCContext>(router, {
   clientInterceptors: [
     createErrorClientInterceptor({
       onAsyncIteratorError: (e, options) => {
-        captureServerException(e, {
-          rpc_path: options.path,
-          scopes: ["rpc"],
-        });
+        if (!isHandledNotFound(e)) {
+          captureServerException(e, {
+            rpc_path: options.path,
+            scopes: ["rpc"],
+          });
+        }
         throw e;
       },
       onError: (e, options) => {
@@ -35,10 +46,12 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
         if (options.signal?.aborted && options.signal.reason === e) {
           throw e;
         }
-        captureServerException(e, {
-          rpc_path: options.path,
-          scopes: ["rpc"],
-        });
+        if (!isHandledNotFound(e)) {
+          captureServerException(e, {
+            rpc_path: options.path,
+            scopes: ["rpc"],
+          });
+        }
         throw e;
       },
     }),

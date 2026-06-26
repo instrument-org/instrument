@@ -24,6 +24,35 @@ type BrowserCommandObservation = Extract<
   { kind: "agent-browser-command" }
 >;
 
+const MAX_BASH_COMMAND_CHIPS = 3;
+
+export function BashCommandChip({
+  commands,
+  isEmphasized,
+}: {
+  commands: string[];
+  isEmphasized: boolean;
+}) {
+  if (commands.length === 0) {
+    return null;
+  }
+  const visible = commands.slice(0, MAX_BASH_COMMAND_CHIPS);
+  const extra = commands.length - visible.length;
+  return (
+    <ToolChip
+      className="max-w-[10rem] gap-1 px-1.5"
+      isEmphasized={isEmphasized}
+    >
+      <span className="truncate font-mono text-xs text-foreground/50">
+        {visible.join(", ")}
+      </span>
+      {extra > 0 && (
+        <span className="shrink-0 text-xs text-foreground/30">+{extra}</span>
+      )}
+    </ToolChip>
+  );
+}
+
 export function BrowserChip({
   info,
   isEmphasized,

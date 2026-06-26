@@ -114,10 +114,12 @@ export function ToolCallSummary({
           Dev
         </span>
       ) : isStreaming ? (
-        <Spinner className="size-3 shrink-0 text-foreground/60" />
+        <span className="flex size-5 shrink-0 items-center justify-center">
+          <Spinner className="size-3 text-foreground/60" />
+        </span>
       ) : (
         Icon && (
-          <span className="flex shrink-0 items-center rounded-lg bg-black/5 p-1 dark:bg-white/5">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
             <Icon className="size-3 text-foreground/70" />
           </span>
         )

@@ -332,7 +332,7 @@ function RouteComponent() {
       </div>
 
       {isWide && (
-        <aside className="flex w-120 shrink-0 flex-col gap-y-2 overflow-y-auto p-4">
+        <aside className="flex min-h-0 w-120 shrink-0 flex-col gap-y-2 overflow-y-auto p-4">
           {details}
         </aside>
       )}

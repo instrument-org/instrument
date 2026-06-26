@@ -39,7 +39,7 @@ export function ProjectInstructions({
   );
 
   return (
-    <div className="overflow-hidden rounded-lg bg-card shadow-xs">
+    <div className="shrink-0 overflow-hidden rounded-lg bg-card shadow-xs">
       <div className="flex flex-col px-3 pt-2">
         <h2 className="text-xs font-medium">Instructions</h2>
         <p className="text-xs text-muted-foreground">
@@ -47,9 +47,9 @@ export function ProjectInstructions({
           task.
         </p>
       </div>
-      <div className="p-2">
+      <div className="max-h-64 overflow-y-auto p-2">
         <Textarea
-          className="max-h-64 min-h-64 resize-none overflow-y-auto rounded-md border-0 bg-muted/50 text-sm leading-relaxed shadow-none"
+          className="min-h-40 resize-none rounded-md border-0 bg-muted/50 text-sm leading-relaxed shadow-none"
           onBlur={() => {
             setIsFocused(false);
           }}

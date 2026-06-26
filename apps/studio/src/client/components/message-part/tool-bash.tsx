@@ -1,7 +1,7 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
-import { getToolLabel } from "../../lib/tool-display";
+import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { Favicon } from "../favicon";
 import { AgentBrowserPlayer } from "../tool-part/agent-browser-player";
@@ -111,13 +111,14 @@ export function ToolBash({
   const isFailed = isError || hasExitError;
   const contextItems = part.metadata.contextItems ?? [];
   const browserObservations: BrowserCommandObservation[] = contextItems;
+  const label = isStreaming
+    ? getToolStreamingLabel("bash")
+    : getToolLabel("bash");
 
   return (
     <ToolCard>
       <ToolCardHeader>
-        <p className="text-xs font-medium text-muted-foreground">
-          {getToolLabel("bash")}
-        </p>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
       </ToolCardHeader>
 
       <ToolCardSection

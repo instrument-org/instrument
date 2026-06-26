@@ -44,6 +44,8 @@ export interface StudioOverlayController {
   show: (request: StudioOverlayRequest) => Promise<StudioOverlayResult>;
   /** Debug only: mount the view visibly on the idle route to test escape. */
   showIdle: () => void;
+  /** Debug only: navigate to a missing route to exercise the 404 fallback. */
+  showNotFound: () => void;
   /** Remove and destroy the overlay without resolving (window teardown). */
   teardown: () => void;
   zoomIn: () => void;
@@ -80,6 +82,9 @@ function withActiveWebContents(
 
 /** Where the warm view parks while hidden: a route that renders nothing. */
 const IDLE_LOCATION = "/studio-overlay-idle" satisfies StudioPath;
+// Debug only: a path under the overlay tree with no matching route, so opening
+// it renders the root notFoundComponent inside the overlay view.
+const NOT_FOUND_LOCATION = "/studio-overlay/__not-found__";
 const ROUTE_READY_CHANNEL = "studio-overlay:route-ready";
 const ROUTE_READY_FALLBACK_MS = 1000;
 
@@ -412,6 +417,30 @@ export function createStudioOverlayController({
       setActive({
         kind: "crash",
         location: IDLE_LOCATION,
+        resolve: noop,
+        settled: false,
+        view,
+      });
+    },
+    showNotFound: () => {
+      // Force the overlay onto a missing route so the root notFoundComponent
+      // renders inside the overlay view. `kind` is a dismissible sentinel so
+      // dismiss() (Escape, click-outside, Cmd+W) still works.
+      if (active && !active.settled) {
+        const previous = active;
+        previous.settled = true;
+        previous.resolve({ completed: false });
+      }
+      const view = ensureWarmView();
+      view.setBounds(computeBounds());
+      openOverlay(NOT_FOUND_LOCATION);
+      tryCaptureError("addChildView failed showing studio overlay", () => {
+        baseWindow.contentView.addChildView(view);
+      });
+      view.webContents?.focus();
+      setActive({
+        kind: "crash",
+        location: NOT_FOUND_LOCATION,
         resolve: noop,
         settled: false,
         view,

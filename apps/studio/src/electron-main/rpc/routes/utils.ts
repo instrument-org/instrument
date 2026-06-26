@@ -13,6 +13,7 @@ import {
 } from "@/electron-main/lib/server-exceptions";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
   OpenTaskInTypeSchema,
   SupportedEditorSchema,
@@ -507,9 +508,17 @@ const copyFileToClipboard = base
 const showFolderPicker = base
   .output(z.object({ path: z.string() }).nullable())
   .handler(async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ["openDirectory", "createDirectory"],
-    });
+    // Pass the parent window so macOS presents a window-modal sheet, which keeps
+    // the open-panel service warm across opens. Without a parent it falls back to
+    // app-modal and cold-starts the panel every time (~2-3s).
+    const parentWindow = getMainWindow();
+    const result = await (parentWindow
+      ? dialog.showOpenDialog(parentWindow, {
+          properties: ["openDirectory", "createDirectory"],
+        })
+      : dialog.showOpenDialog({
+          properties: ["openDirectory", "createDirectory"],
+        }));
     if (result.canceled || result.filePaths.length === 0) {
       return null;
     }

@@ -21,7 +21,7 @@ import { validateProjectName } from "./project-folder-name";
 import { updateTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
 
-export interface InvalidProjectFolder {
+interface InvalidProjectFolder {
   name: string;
   reason: string;
 }

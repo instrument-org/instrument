@@ -63,7 +63,7 @@ function NewProjectModal() {
     return (
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-center font-serif text-2xl font-normal">
+          <DialogTitle className="text-center font-serif text-2xl font-medium">
             Project not found
           </DialogTitle>
           <DialogDescription className="sr-only">
@@ -217,7 +217,7 @@ function ProjectModalForm({
         </DialogClose>
       </div>
       <DialogHeader>
-        <DialogTitle className="text-center font-serif text-2xl font-normal">
+        <DialogTitle className="text-center font-serif text-2xl font-medium">
           {isEditing ? "Edit project" : "New project"}
         </DialogTitle>
         <DialogDescription className="sr-only">
@@ -292,11 +292,13 @@ function ProjectModalForm({
             <form.Field name="instructions">
               {(field) => (
                 <Field>
-                  <FieldLabel htmlFor={field.name}>Instructions</FieldLabel>
-                  <p className="text-xs text-muted-foreground">
-                    Add details about this project for Instrument to remember
-                    for each task.
-                  </p>
+                  <div className="flex flex-col gap-0.5">
+                    <FieldLabel htmlFor={field.name}>Instructions</FieldLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Add details about this project for Instrument to remember
+                      for each task
+                    </p>
+                  </div>
                   <Textarea
                     className="max-h-40 min-h-24 overflow-y-auto"
                     disabled={isPending}

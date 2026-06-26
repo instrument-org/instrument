@@ -14,7 +14,7 @@ import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
-import { getProject } from "../../../lib/project";
+import { getProject, getProjectInstructions } from "../../../lib/project";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {
@@ -29,6 +29,7 @@ import {
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
 import { FileUpload } from "../../../schemas/file-upload";
+import { type FolderAttachment } from "../../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../../schemas/paths";
 import { type Project } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
@@ -211,23 +212,44 @@ const create = base
         throw toORPCError(sessionResult.error, errors);
       }
 
-      // Snapshot project folders onto the first message (deduped). Later project changes don't apply.
-      let mergedFolders = folders ?? [];
+      // Merge the project's folders onto the first message (deduped against any
+      // the user attached). Each folder carries its source so later consumers
+      // tell project from user folders without re-deriving from paths.
+      const userFolders = (folders ?? []).map((folder) => ({
+        path: folder.path,
+        source: "user" as const,
+      }));
+      let mergedFolders: {
+        path: string;
+        source: FolderAttachment.Source;
+      }[] = userFolders;
       if (project && project.folders.length > 0) {
-        const seen = new Set(mergedFolders.map((folder) => folder.path));
+        const seen = new Set(userFolders.map((folder) => folder.path));
         mergedFolders = [
-          ...mergedFolders,
+          ...userFolders,
           ...project.folders
             .filter((path) => !seen.has(path))
-            .map((path) => ({ path })),
+            .map((path) => ({ path, source: "project" as const })),
         ];
       }
+
+      // Frozen snapshot of the project's identity and instructions for this task.
+      // Captured at creation so later project edits/deletion don't affect it; the
+      // agent and UI read this instead of the live project.
+      const projectContext = project
+        ? {
+            instructions: await getProjectInstructions(project.id),
+            projectId: project.id,
+            projectName: project.name,
+          }
+        : undefined;
 
       const messageResult = await newMessage({
         files,
         folders: mergedFolders.length > 0 ? mergedFolders : undefined,
         model,
         modelURI,
+        projectContext,
         prompt,
         sessionId: sessionResult.value.id,
         taskId,

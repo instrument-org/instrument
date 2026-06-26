@@ -104,6 +104,10 @@ export function renderChatPart({
     return null;
   }
 
+  if (part.type === "data-projectContext") {
+    return null;
+  }
+
   if (part.type === "data-attachedFolderChanges") {
     if (!ctx.isDeveloperMode) {
       return null;

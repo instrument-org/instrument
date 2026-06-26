@@ -42,7 +42,7 @@ export async function writeUploadedAttachments({
 }: {
   dir: TaskDir;
   files?: FileUpload.Type[];
-  folders?: { path: string }[];
+  folders?: { path: string; source?: FolderAttachment.Source }[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
 }) {
@@ -127,6 +127,7 @@ export async function writeUploadedAttachments({
           id: FolderAttachment.IdSchema.parse(ulid()),
           name: uniqueName,
           path: AbsolutePathSchema.parse(folder.path),
+          source: folder.source ?? "user",
         };
 
         newFolders[uniqueName] = folderAttachment;

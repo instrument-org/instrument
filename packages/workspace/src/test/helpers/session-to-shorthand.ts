@@ -132,6 +132,11 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-fileChanges>\n${indent(filesList)}\n</data-fileChanges>`;
     }
+    case "data-projectContext": {
+      const projectName = ` projectName="${part.data.projectName}"`;
+      const instructions = part.data.instructions ? ` instructions` : "";
+      return `<data-projectContext${projectName}${instructions} />`;
+    }
     case "file": {
       const filename = part.filename ? ` filename="${part.filename}"` : "";
       const mediaType = ` mediaType="${part.mediaType}"`;

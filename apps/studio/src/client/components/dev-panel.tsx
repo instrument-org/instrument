@@ -48,6 +48,7 @@ import {
   MonitorIcon,
   MoonIcon,
   NavigationArrowIcon,
+  NotePencilIcon,
   SunIcon,
   XIcon,
 } from "@phosphor-icons/react";
@@ -378,6 +379,15 @@ export function DevPanel() {
                   >
                     <ChartBarIcon className="size-3" />
                     Analytics
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      setDevToolsPanel("agentation");
+                    }}
+                  >
+                    <NotePencilIcon className="size-3" />
+                    Agentation
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

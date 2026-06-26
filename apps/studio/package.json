@@ -146,6 +146,7 @@
     "@typescript/native-preview": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "@xstate/react": "^6.0.0",
+    "agentation": "^3.0.2",
     "babel-plugin-react-compiler": "^1.0.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

@@ -1,3 +1,4 @@
+import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { taskFileViewerAtom } from "@/client/atoms/task-file-viewer";
 import { Toaster } from "@/client/components/ui/sonner";
@@ -49,8 +50,17 @@ const DevPanel = lazy(() =>
   })),
 );
 
+const Agentation = import.meta.env.DEV
+  ? lazy(() =>
+      import("agentation").then((m) => ({
+        default: m.Agentation,
+      })),
+    )
+  : null;
+
 function RouteComponent() {
   const isDeveloperMode = useDeveloperMode();
+  const activePanel = useAtomValue(devToolsPanelAtom);
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   const isTaskFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
 
@@ -69,6 +79,12 @@ function RouteComponent() {
       {isDeveloperMode && (
         <Suspense fallback={null}>
           <DevPanel />
+        </Suspense>
+      )}
+
+      {Agentation && isDeveloperMode && activePanel === "agentation" && (
+        <Suspense fallback={null}>
+          <Agentation />
         </Suspense>
       )}
 

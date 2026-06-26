@@ -56,7 +56,11 @@ export async function createMainWindow({
     trafficLightPosition: { x: 12, y: 12 },
     ...(process.platform === "linux" && icon ? { icon } : {}),
     backgroundColor: getMainWindowBackgroundColor(),
-    frame: false,
+    // On macOS keep the native NSWindow frame (titleBarStyle hiddenInset already
+    // gives the chromeless look); a frameless window can't host modal sheets, so
+    // native dialogs would fall back to the slow app-modal path. frame:false is
+    // only needed for the custom title bar on Windows/Linux.
+    frame: process.platform === "darwin" ? true : false,
     titleBarOverlay: getTitleBarOverlay(),
     webPreferences: {
       additionalArguments: ["--windowType=shell"],

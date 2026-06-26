@@ -294,7 +294,7 @@ function renderOrphanedToolMessage(
 // using the same builders as the agent so the transcript stays truthful. Sourced
 // from the raw session parts because data parts are stripped from the model
 // messages the rest of the transcript renders from. Skipped when full context
-// messages are included, since the real blocks are already shown there.
+// messages are included, since the real blocks are already rendered there.
 function renderProjectContext(
   session: Session.WithMessagesAndParts,
   includeContextMessages: boolean,
@@ -342,13 +342,7 @@ function renderProjectContext(
     return [];
   }
 
-  return [
-    "## Project Context",
-    "",
-    "_Standing project context injected for the agent, shown verbatim for debugging:_",
-    "",
-    fenceText(blocks.join("\n\n"), "xml"),
-  ];
+  return ["## Project Context", "", fenceText(blocks.join("\n\n"), "xml")];
 }
 
 function renderSystemMessage(message: SystemModelMessage): string[] {

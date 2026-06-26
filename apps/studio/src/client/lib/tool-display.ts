@@ -10,10 +10,10 @@ import {
   EyeIcon,
   FileMagnifyingGlassIcon,
   FolderSimplePlusIcon,
-  GlobeIcon,
   type Icon,
   ImageIcon,
   ListMagnifyingGlassIcon,
+  MagnifyingGlassIcon,
   QuestionIcon,
   TerminalIcon,
   TreeStructureIcon,
@@ -112,7 +112,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   load_skill: BookOpenIcon,
   read_file: EyeIcon,
   unavailable: WrenchIcon,
-  web_search: GlobeIcon,
+  web_search: MagnifyingGlassIcon,
   write_file: CodeIcon,
 };
 

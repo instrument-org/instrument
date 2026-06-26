@@ -101,6 +101,11 @@ export const componentPages = [
     label: "Alerts",
     to: "/debug/components/alerts",
   },
+  {
+    id: "form-elements",
+    label: "Form Elements",
+    to: "/debug/components/form-elements",
+  },
 ] as const;
 
 export const onboardingScreens = [

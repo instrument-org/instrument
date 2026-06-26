@@ -43,11 +43,9 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+N",
         click: () => {
-          const currentTab = getTabsManager()?.getCurrentTab();
-          if (currentTab) {
-            currentTab.webView.webContents?.send("navigate", "/new-tab");
-            currentTab.webView.webContents?.focus();
-          }
+          // TODO(unified): route "New Task" to the active tab's renderer router
+          // over IPC. For now just focus the window.
+          getMainWindow()?.webContents.focus();
         },
         enabled: !isLocked,
         label: "New Task",
@@ -95,13 +93,12 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+K",
         click: () => {
-          const tabsManager = getTabsManager();
-          const currentTab = tabsManager?.getCurrentTab();
-          if (currentTab?.webView.webContents) {
+          const webContents = getMainWindow()?.webContents;
+          if (webContents) {
             publisher.publish("app.toggle-command-menu", {
-              webContentsId: currentTab.webView.webContents.id,
+              webContentsId: webContents.id,
             });
-            tabsManager?.focusCurrentTab();
+            getTabsManager()?.focusCurrentTab();
           }
         },
         label: "Show Command Menu",
@@ -134,10 +131,10 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             tabsManager.studioOverlay.reload();
             return;
           }
-          const currentTab = tabsManager?.getCurrentTab();
-          if (currentTab?.webView.webContents) {
+          const webContents = getMainWindow()?.webContents;
+          if (webContents) {
             publisher.publish("app.reload", {
-              webContentsId: currentTab.webView.webContents.id,
+              webContentsId: webContents.id,
             });
           }
         },

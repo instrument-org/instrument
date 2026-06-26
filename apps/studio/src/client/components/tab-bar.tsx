@@ -1,12 +1,12 @@
 import { Tab } from "@/client/components/tab";
 import { useSelectedTabId } from "@/client/hooks/use-selected-tab-id";
-import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useTabs } from "@/client/hooks/use-tabs";
+import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { PlusIcon } from "@phosphor-icons/react";
 import { AnimatePresence, motion, Reorder } from "motion/react";
 
 export default function TabBar() {
-  const { addTab, closeTab, reorderTabs, selectTab } = useTabActions();
+  const { addTab, closeTab, reorderTabs, selectTab } = useTabsController();
   const selectedTabId = useSelectedTabId();
   const allTabs = useTabs();
   const tabs = allTabs.filter((tab) => !tab.tabBarHidden);
@@ -24,7 +24,7 @@ export default function TabBar() {
             .map((tab) => tab.id);
 
           if (nonPinnedTabIds.length > 0) {
-            void reorderTabs({ tabIds: nonPinnedTabIds });
+            reorderTabs({ ids: nonPinnedTabIds });
           }
         }}
         values={tabs}
@@ -36,10 +36,10 @@ export default function TabBar() {
               item={item}
               key={item.id}
               onClick={() => {
-                void selectTab({ id: item.id });
+                selectTab({ id: item.id });
               }}
               onRemove={() => {
-                void closeTab({ id: item.id });
+                closeTab({ id: item.id });
               }}
               showSeparator={tabs[index + 1]?.id !== selectedTabId}
             />
@@ -49,7 +49,7 @@ export default function TabBar() {
           <motion.button
             className="group inline-flex shrink-0 items-center justify-center rounded-xl px-3 py-2 transition-colors [-webkit-app-region:no-drag] hover:bg-muted/60"
             onClick={() => {
-              void addTab({ to: "/new-tab" });
+              addTab({ pathname: "/new-tab" });
             }}
             type="button"
             whileTap={{ scale: 0.97 }}

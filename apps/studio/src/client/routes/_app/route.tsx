@@ -1,12 +1,18 @@
 import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { taskFileViewerAtom } from "@/client/atoms/task-file-viewer";
+import { StudioSidebar } from "@/client/components/studio-sidebar";
+import { StudioToolbar } from "@/client/components/studio-toolbar";
+import { SidebarProvider } from "@/client/components/ui/sidebar";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInvalidateRouterOnUserChange } from "@/client/hooks/use-invalidate-router-on-user-change";
+import { rpcClient } from "@/client/rpc/client";
+import { SIDEBAR_WIDTH } from "@/shared/constants";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { lazy, Suspense } from "react";
+import { Activity, lazy, Suspense } from "react";
 
 const StudioCommandMenu = lazy(() =>
   import("@/client/components/studio-command-menu").then((module) => ({
@@ -63,12 +69,39 @@ function RouteComponent() {
   const activePanel = useAtomValue(devToolsPanelAtom);
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   const isTaskFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
+  const { data: sidebarState } = useQuery(
+    rpcClient.sidebar.live.state.experimental_liveOptions({}),
+  );
+  const isSidebarOpen = sidebarState?.isOpen ?? true;
 
   useInvalidateRouterOnUserChange();
 
   return (
-    <div className="relative flex h-dvh flex-col" data-testid="app-page">
-      <Outlet />
+    <div
+      className="flex h-dvh w-full flex-col overflow-hidden select-none"
+      data-testid="app-page"
+    >
+      <StudioToolbar />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <Activity mode={isSidebarOpen ? "visible" : "hidden"}>
+          <div
+            className="flex h-full flex-col overflow-hidden border-r border-border"
+            style={
+              {
+                "--sidebar-width": `${SIDEBAR_WIDTH}px`,
+                width: `${SIDEBAR_WIDTH}px`,
+              } as React.CSSProperties
+            }
+          >
+            <SidebarProvider className="min-h-0 flex-1">
+              <StudioSidebar className="h-full" />
+            </SidebarProvider>
+          </div>
+        </Activity>
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <Outlet />
+        </div>
+      </div>
 
       {isDeveloperMode && (
         <Suspense fallback={null}>

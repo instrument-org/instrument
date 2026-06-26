@@ -7,7 +7,6 @@ import {
 } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getSidebarWidth } from "@/electron-main/stores/app-state";
 import {
   getWindowState,
   isWindowBoundsVisible,
@@ -157,11 +156,8 @@ export async function createMainWindow({
     showWindow(window);
   });
 
-  const initialSidebarWidth = getSidebarWidth();
-
   const tabsManager = createTabsManager({
     baseWindow: mainWindow,
-    initialSidebarWidth,
   });
 
   void mainWindow.loadURL(studioURL("/shell"));

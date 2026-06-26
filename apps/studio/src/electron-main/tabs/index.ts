@@ -3,14 +3,8 @@ import { type BaseWindow } from "electron";
 
 let tabsManager: TabsManager | undefined;
 
-export function createTabsManager({
-  baseWindow,
-  initialSidebarWidth,
-}: {
-  baseWindow: BaseWindow;
-  initialSidebarWidth: number;
-}) {
-  tabsManager = new TabsManager({ baseWindow, initialSidebarWidth });
+export function createTabsManager({ baseWindow }: { baseWindow: BaseWindow }) {
+  tabsManager = new TabsManager({ baseWindow });
 
   return tabsManager;
 }

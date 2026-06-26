@@ -20,7 +20,11 @@ import {
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { DotsThreeOutlineVerticalIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  DotsThreeOutlineVerticalIcon,
+  TrashIcon,
+  WarningIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -158,11 +162,16 @@ function UnrecognizedFolders() {
 
   return (
     <section className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        These folders live in your workspace but {APP_NAME} can&apos;t open them
-        as a task or project. Reveal one to take a look, or move it to the trash
-        to tidy up. Nothing is deleted permanently.
-      </p>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <WarningIcon className="text-amber-500 size-4" weight="fill" />
+          <h4 className="text-sm font-medium">Unrecognized folders</h4>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {APP_NAME} can&apos;t open these as a task or project. Take a look at
+          one to see what&apos;s inside, or move it to the trash.
+        </p>
+      </div>
       {projects.length > 0 && (
         <FolderGroup
           folders={projects}
@@ -199,8 +208,7 @@ function UnrecognizedFolders() {
                 : ""}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This moves the folder to your system trash, where you can still
-              recover it. {APP_NAME} will no longer try to read it.
+              Moves the folder to your system trash. You can still recover it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

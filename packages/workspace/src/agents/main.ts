@@ -7,13 +7,16 @@ import {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
+import {
+  buildProjectContextText,
+  projectFoldersIntro,
+} from "../lib/build-project-context-text";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
 import { getCurrentDate } from "../lib/get-current-date";
 import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
-import { getProjectInstructions } from "../lib/project";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
@@ -24,11 +27,13 @@ import {
   beginTurnChangeTracking,
   consumeTurnChanges,
 } from "../lib/task-file-watcher";
-import { getTaskSettings } from "../lib/task-settings";
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
+import { type FolderAttachment } from "../schemas/folder-attachment";
+import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { getToolByType, TOOLS } from "../tools/all";
 import { setupAgent } from "./create-agent";
 import {
@@ -39,6 +44,44 @@ import {
   shouldContinueWithToolCalls,
 } from "./shared";
 import { RETRIEVAL_AGENT_NAME } from "./types";
+
+async function buildAttachedFolderContext({
+  folders,
+  intro,
+}: {
+  folders: FolderAttachment.Type[];
+  intro: string;
+}): Promise<null | string> {
+  if (folders.length === 0) {
+    return null;
+  }
+  const folderNames = await Promise.all(
+    folders.map(async (folder) => {
+      const exists = await pathExists(folder.path);
+      return exists ? folder.name : `${folder.name} (no longer exists)`;
+    }),
+  );
+  return buildAttachedFoldersText({ folderNames, intro });
+}
+
+async function getProjectContextSnapshot({
+  sessionId,
+  taskId,
+}: {
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}): Promise<SessionMessageDataPart.ProjectContextDataPart | undefined> {
+  const messagesResult = await Store.getMessagesWithParts({
+    sessionId,
+    taskId,
+  });
+  if (messagesResult.isErr()) {
+    return undefined;
+  }
+  return messagesResult.value
+    .flatMap((message) => message.parts)
+    .find((part) => part.type === "data-projectContext")?.data;
+}
 
 export const mainAgent = setupAgent({
   agentTools: pick(TOOLS, [
@@ -235,50 +278,48 @@ export const mainAgent = setupAgent({
 
     const taskLayout = await getTaskLayoutContext(taskDir(taskId));
 
+    // Project context is snapshotted onto the first message at creation; read it
+    // from there (not the live project) so it stays fixed if the project is
+    // later edited or deleted.
+    const projectContext = await getProjectContextSnapshot({
+      sessionId,
+      taskId,
+    });
+    const projectName = projectContext?.projectName;
+    const projectInstructions = projectContext?.instructions?.trim();
+
+    // Project folders are stored in task state alongside user-attached folders.
+    // Split them by their source so each set is framed accordingly: project
+    // folders as standing project context, the rest as folders the user attached.
+    const taskState = await getTaskState(taskDir(taskId));
+    const attachedFolders = Object.values(taskState.attachedFolders ?? {});
+    const projectFolders = attachedFolders.filter(
+      (folder) => folder.source === "project",
+    );
+    const userAttachedFolders = attachedFolders.filter(
+      (folder) => folder.source !== "project",
+    );
+
     const userMessage = createContextMessage({
       agentName: name,
       now,
       sessionId,
       textParts: [
         getSystemInfoText(),
-        await (async () => {
-          const settings = await getTaskSettings(taskDir(taskId));
-          if (!settings?.projectId) {
-            return null;
-          }
-          const instructions = await getProjectInstructions(settings.projectId);
-          if (!instructions) {
-            return null;
-          }
-          return dedent`
-            # Project Instructions
-            This task belongs to a project. Follow these project-specific
-            instructions:
-
-            ${instructions}
-          `.trim();
-        })(),
-        await (async () => {
-          const taskState = await getTaskState(taskDir(taskId));
-          if (
-            !taskState.attachedFolders ||
-            Object.keys(taskState.attachedFolders).length === 0
-          ) {
-            return null;
-          }
-
-          const folderNames = await Promise.all(
-            Object.values(taskState.attachedFolders).map(async (folder) => {
-              const exists = await pathExists(folder.path);
-              return exists ? folder.name : `${folder.name} (no longer exists)`;
-            }),
-          );
-
-          return buildAttachedFoldersText({
-            folderNames,
-            intro: "The user has attached these folders to this task.",
-          });
-        })(),
+        projectInstructions && projectName
+          ? buildProjectContextText({
+              instructions: projectInstructions,
+              name: projectName,
+            })
+          : null,
+        await buildAttachedFolderContext({
+          folders: projectFolders,
+          intro: projectName ? projectFoldersIntro(projectName) : "",
+        }),
+        await buildAttachedFolderContext({
+          folders: userAttachedFolders,
+          intro: "The user has attached these folders to this task.",
+        }),
         taskLayout,
       ],
     });

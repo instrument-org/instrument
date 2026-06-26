@@ -25,6 +25,7 @@ import {
 import { ContextMessages } from "./context-messages";
 import { MessageError } from "./message-error";
 import { type RenderStream } from "./message-part/tool-agent";
+import { ProjectContextNote } from "./project-context-note";
 import { ReasoningMessage } from "./reasoning-message";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -197,6 +198,7 @@ export function ChatStream({
 
       // Attachments are hoisted into per-message chrome below.
       const fileAttachments: SessionMessagePart.Type[] = [];
+      let projectContextPart: SessionMessagePart.DataPart | undefined;
       const seenSourceIds = new Set<string>();
 
       for (const [partIndex, part] of message.parts.entries()) {
@@ -217,6 +219,11 @@ export function ChatStream({
 
         if (message.role === "user" && part.type === "data-attachments") {
           fileAttachments.push(part);
+          continue;
+        }
+
+        if (message.role === "user" && part.type === "data-projectContext") {
+          projectContextPart = part;
           continue;
         }
 
@@ -273,22 +280,49 @@ export function ChatStream({
         );
       }
 
-      if (
-        !hideUserMessages &&
-        message.role === "user" &&
-        fileAttachments.length > 0
-      ) {
+      if (!hideUserMessages && message.role === "user") {
         const fileAttachmentsPart = fileAttachments.find(
           (part) => part.type === "data-attachments",
         );
-        if (fileAttachmentsPart?.type === "data-attachments") {
+        const attachmentsData =
+          fileAttachmentsPart?.type === "data-attachments"
+            ? fileAttachmentsPart.data
+            : undefined;
+
+        // Folders auto-included from the project are split out by their source
+        // and shown in a slim "from project" note instead of the hand-attached
+        // card.
+        const projectData =
+          projectContextPart?.type === "data-projectContext"
+            ? projectContextPart.data
+            : undefined;
+        const allFolders = attachmentsData?.folders ?? [];
+        const userFolders = allFolders.filter(
+          (folder) => folder.source !== "project",
+        );
+        const projectFolders = allFolders.filter(
+          (folder) => folder.source === "project",
+        );
+        const files = attachmentsData?.files ?? [];
+
+        if (files.length > 0 || userFolders.length > 0) {
           messageElements.unshift(
             <AttachmentsCard
               assetBaseUrl={assetBaseUrl}
-              files={fileAttachmentsPart.data.files}
-              folders={fileAttachmentsPart.data.folders}
+              files={files}
+              folders={userFolders}
               key={`attachments-${message.id}`}
               taskId={task.id}
+            />,
+          );
+        }
+
+        if (projectData) {
+          messageElements.unshift(
+            <ProjectContextNote
+              data={projectData}
+              folders={projectFolders}
+              key={`project-context-${message.id}`}
             />,
           );
         }

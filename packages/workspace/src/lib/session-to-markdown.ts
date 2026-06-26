@@ -14,6 +14,11 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
+import { buildAttachedFoldersText } from "./build-attached-folders-text";
+import {
+  buildProjectContextText,
+  projectFoldersIntro,
+} from "./build-project-context-text";
 import { isToolPart } from "./is-tool-part";
 import { Store } from "./store";
 
@@ -284,6 +289,68 @@ function renderOrphanedToolMessage(
   return lines;
 }
 
+// Reproduces, verbatim, the standing project-context blocks the agent receives
+// for a task started from a project (instructions + folder-handling guidance),
+// using the same builders as the agent so the transcript stays truthful. Sourced
+// from the raw session parts because data parts are stripped from the model
+// messages the rest of the transcript renders from. Skipped when full context
+// messages are included, since the real blocks are already shown there.
+function renderProjectContext(
+  session: Session.WithMessagesAndParts,
+  includeContextMessages: boolean,
+): string[] {
+  if (includeContextMessages) {
+    return [];
+  }
+
+  const allParts = session.messages.flatMap((message) => message.parts);
+
+  const projectPart = allParts.find(
+    (part) => part.type === "data-projectContext",
+  );
+  if (!projectPart) {
+    return [];
+  }
+
+  const projectFolders = allParts
+    .filter((part) => part.type === "data-attachments")
+    .flatMap((part) => part.data.folders ?? [])
+    .filter((folder) => folder.source === "project");
+
+  const blocks: string[] = [];
+
+  const instructions = projectPart.data.instructions?.trim();
+  if (instructions) {
+    blocks.push(
+      buildProjectContextText({
+        instructions,
+        name: projectPart.data.projectName,
+      }),
+    );
+  }
+
+  if (projectFolders.length > 0) {
+    blocks.push(
+      buildAttachedFoldersText({
+        folderNames: projectFolders.map((folder) => folder.name),
+        intro: projectFoldersIntro(projectPart.data.projectName),
+      }),
+    );
+  }
+
+  if (blocks.length === 0) {
+    return [];
+  }
+
+  return [
+    "## Project Context",
+    "",
+    "_Standing project context injected for the agent, shown verbatim for debugging:_",
+    "",
+    fenceText(blocks.join("\n\n"), "xml"),
+  ];
+}
+
 function renderSystemMessage(message: SystemModelMessage): string[] {
   const indented = message.content
     .split("\n")
@@ -410,6 +477,14 @@ async function sessionToMarkdown(
   const taskSessionIds = buildTaskSessionIdMap(rootSession);
 
   const parts: string[] = [`# Session: ${rootSession.title}`, ""];
+
+  const projectContextLines = renderProjectContext(
+    rootSession,
+    includeContextMessages,
+  );
+  if (projectContextLines.length > 0) {
+    parts.push(...projectContextLines, "");
+  }
 
   let turn = 0;
   const toolCounter = { count: 0 };

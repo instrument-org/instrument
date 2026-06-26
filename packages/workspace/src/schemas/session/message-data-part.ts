@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
+import { ProjectIdSchema } from "../project-id";
 
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
@@ -10,6 +11,7 @@ export namespace SessionMessageDataPart {
     "browserStatus",
     "externalFileChanges",
     "fileChanges",
+    "projectContext",
   ]);
 
   export type Name = z.output<typeof NameSchema>;
@@ -78,6 +80,20 @@ export namespace SessionMessageDataPart {
     typeof FileAttachmentsDataPartSchema
   >;
 
+  // Project identity and instructions snapshotted onto the first message when a
+  // task is created from a project. Frozen at creation, so later project edits
+  // or deletion don't change the task. Project folders are not listed here; each
+  // attachment carries its own `source` so consumers tell them apart.
+  const ProjectContextDataPartSchema = z.object({
+    instructions: z.string().optional(),
+    projectId: ProjectIdSchema,
+    projectName: z.string(),
+  });
+
+  export type ProjectContextDataPart = z.output<
+    typeof ProjectContextDataPartSchema
+  >;
+
   const BrowserTargetSchema = z.object({
     title: z.string().optional(),
     url: z.string(),
@@ -106,6 +122,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
+    [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;
 }

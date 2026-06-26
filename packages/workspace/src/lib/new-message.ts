@@ -5,7 +5,9 @@ import {
 import { ok } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
+import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessage } from "../schemas/session/message";
+import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -22,14 +24,16 @@ export async function newMessage({
   folders,
   model,
   modelURI,
+  projectContext,
   prompt,
   sessionId,
   taskId,
 }: {
   files?: FileUpload.Type[];
-  folders?: { path: string }[];
+  folders?: { path: string; source?: FolderAttachment.Source }[];
   model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
+  projectContext?: SessionMessageDataPart.ProjectContextDataPart;
   prompt: string;
   sessionId: StoreId.Session;
   taskId: TaskId;
@@ -64,6 +68,19 @@ export async function newMessage({
     }
 
     parts.push(uploadResult.value.part);
+  }
+
+  if (projectContext) {
+    parts.push({
+      data: projectContext,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-projectContext",
+    });
   }
 
   const browserStatusPart = await createBrowserStatusPart({

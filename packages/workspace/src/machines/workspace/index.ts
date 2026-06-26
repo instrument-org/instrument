@@ -23,7 +23,6 @@ import { type AgentName } from "../../agents/types";
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
-import { isTaskId } from "../../lib/is-task-id";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
@@ -179,8 +178,7 @@ export const workspaceMachine = setup({
         sessionTaskId,
         refs,
       ] of context.sessionRefsByTaskId.entries()) {
-        const shouldRemove =
-          sessionTaskId === id || (isTaskId(id) && sessionTaskId.endsWith(id));
+        const shouldRemove = sessionTaskId === id;
 
         if (shouldRemove) {
           continue;
@@ -544,12 +542,7 @@ export const workspaceMachine = setup({
       }),
       guard: ({ context, event }) => {
         const id = event.value.taskId;
-        return !context.tasksBeingTrashed.some(
-          (trashingTaskId) =>
-            id === trashingTaskId ||
-            // Includes any id nested under the task being trashed
-            id.endsWith(trashingTaskId),
-        );
+        return !context.tasksBeingTrashed.includes(id);
       },
     },
     "internal.updateHeartbeat": {
@@ -567,18 +560,12 @@ export const workspaceMachine = setup({
           tasksBeingTrashed: [...context.tasksBeingTrashed, event.value.id],
         });
 
-        // Track every taskBrowser whose id matches the trashed
-        // task (the task itself, plus any id nested under it).
+        // Reap the trashed task's taskBrowser, if one exists.
         const matchingTaskIds: TaskId[] = [];
-        for (const [browserTaskId, ref] of context.taskBrowserRefs.entries()) {
-          const matches =
-            browserTaskId === event.value.id ||
-            (typeof event.value.id === "string" &&
-              browserTaskId.endsWith(event.value.id));
-          if (matches) {
-            matchingTaskIds.push(browserTaskId);
-            ref.send({ type: "forceReap" });
-          }
+        const browserRef = context.taskBrowserRefs.get(event.value.id);
+        if (browserRef) {
+          matchingTaskIds.push(event.value.id);
+          browserRef.send({ type: "forceReap" });
         }
 
         if (event.value.onBrowserReaped) {
@@ -726,12 +713,7 @@ export const workspaceMachine = setup({
       }),
       guard: ({ context, event }) => {
         const id = event.value.taskId;
-        return !context.tasksBeingTrashed.some(
-          (trashingTaskId) =>
-            id === trashingTaskId ||
-            // Includes any id nested under the task being trashed
-            id.endsWith(trashingTaskId),
-        );
+        return !context.tasksBeingTrashed.includes(id);
       },
     },
     stopRuntime: {
@@ -749,7 +731,7 @@ export const workspaceMachine = setup({
           });
           if (includeChildren) {
             for (const [runtimeTaskId] of context.runtimeRefs.entries()) {
-              if (runtimeTaskId.includes(id)) {
+              if (runtimeTaskId === id) {
                 enqueue({
                   params: { id: runtimeTaskId },
                   type: "stopRuntime",

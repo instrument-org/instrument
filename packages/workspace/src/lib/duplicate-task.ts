@@ -97,6 +97,7 @@ export async function duplicateTask(
     yield* updateTaskSettings(taskId, {
       createdWithAppVersion: sourceSettings?.createdWithAppVersion,
       name: duplicateName,
+      projectId: sourceSettings?.projectId,
     });
 
     return ok({ taskId });

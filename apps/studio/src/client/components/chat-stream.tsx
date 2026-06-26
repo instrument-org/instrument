@@ -108,7 +108,7 @@ export function ChatStream({
   // once.
   const currentToolId = useMemo(() => {
     if (!isAgentRunning) {
-      return undefined;
+      return;
     }
     return lastRegularMessage?.parts.find(
       (part) =>

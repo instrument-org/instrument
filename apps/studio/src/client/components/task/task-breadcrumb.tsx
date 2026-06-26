@@ -33,18 +33,34 @@ export function TaskBreadcrumb({
     >
       {projectId && project && (
         <>
+          {/*
+            Two self-contained project chips toggled by the toolbar's container
+            width, so each lays out cleanly on its own rather than degrading by
+            hiding sub-parts. Wide: icon + name + separator (name truncates
+            first via shrink-[9999]). Narrow: icon only, with breathing room
+            before the task title.
+          */}
+          <span className="hidden min-w-0 shrink-[9999] items-center gap-x-1 @min-[520px]:flex">
+            <InternalLink
+              className="flex min-w-0 items-center gap-x-1"
+              openInCurrentTab
+              params={{ id: projectId }}
+              to="/projects/$id"
+            >
+              <BagIcon className="size-4 shrink-0" />
+              <span className="min-w-0 truncate">{project.name}</span>
+            </InternalLink>
+            <span className="shrink-0 text-gray-400">/</span>
+          </span>
+
           <InternalLink
-            // High shrink priority so the project name truncates before the
-            // task title; the task only gives up space once this collapses.
-            className="flex min-w-0 shrink-[9999] items-center gap-x-1 truncate"
+            className="mr-1 flex shrink-0 items-center @min-[520px]:hidden"
             openInCurrentTab
             params={{ id: projectId }}
             to="/projects/$id"
           >
             <BagIcon className="size-4 shrink-0" />
-            <span className="truncate">{project.name}</span>
           </InternalLink>
-          <span className="shrink-0 text-gray-400">/</span>
         </>
       )}
       <button

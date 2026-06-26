@@ -52,7 +52,7 @@ export function StudioSidebar({
           </InternalLink>
         </Button>
       </div>
-      <SidebarContent>
+      <SidebarContent className="gap-0">
         <NavProjects matches={matches} />
         {tasksData?.tasks && tasksData.tasks.length > 0 && (
           <NavTasks

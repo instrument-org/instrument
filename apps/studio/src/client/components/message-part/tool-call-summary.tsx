@@ -5,7 +5,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import {
@@ -26,6 +26,11 @@ import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
 
+// Auto-expand only long-running tools; short browser/tool calls stay collapsed.
+const AUTO_OPEN_DELAY_MS = 1500;
+const AUTO_CLOSE_DELAY_MS = 800;
+const AUTO_MIN_OPEN_MS = 1200;
+
 export function ToolCallSummary({
   assetBaseUrl,
   children,
@@ -40,21 +45,29 @@ export function ToolCallSummary({
   const features = useAtomValue(featuresAtom);
   const { isAgentRunning, isCurrentTool, isStreaming } = useToolCallSession();
   const [isManuallyOpen, setIsManuallyOpen] = useState(false);
-  // Debounce both edges of "current" so a run of tool calls doesn't flicker
-  // open/closed as the current call hands off to the next one.
-  // - Opening waits 500ms, so a call that is only briefly current (e.g. a
-  //   transient gap where no part is active) never pops open.
-  // - Closing waits 400ms to absorb those same transient toggles, kept shorter
-  //   than the open delay so two cards are never expanded at once during a
-  //   hand-off.
   const [isAutoOpen, setIsAutoOpen] = useState(false);
+  const autoOpenedAtRef = useRef<null | number>(null);
+  const isAutoOpenRef = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(
       () => {
-        setIsAutoOpen(isCurrentTool);
+        if (isCurrentTool) {
+          autoOpenedAtRef.current = Date.now();
+          isAutoOpenRef.current = true;
+          setIsAutoOpen(true);
+          return;
+        }
+
+        autoOpenedAtRef.current = null;
+        isAutoOpenRef.current = false;
+        setIsAutoOpen(false);
       },
-      isCurrentTool ? 500 : 400,
+      getAutoOpenDelay({
+        isAutoOpen: isAutoOpenRef.current,
+        isCurrentTool,
+        openedAt: autoOpenedAtRef.current,
+      }),
     );
     return () => {
       clearTimeout(timer);
@@ -161,6 +174,29 @@ export function ToolCallSummary({
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
       <CollapsibleContent animated>{children}</CollapsibleContent>
     </Collapsible>
+  );
+}
+
+function getAutoOpenDelay({
+  isAutoOpen,
+  isCurrentTool,
+  openedAt,
+}: {
+  isAutoOpen: boolean;
+  isCurrentTool: boolean;
+  openedAt: null | number;
+}) {
+  if (isCurrentTool) {
+    return AUTO_OPEN_DELAY_MS;
+  }
+
+  if (!isAutoOpen || !openedAt) {
+    return 0;
+  }
+
+  return Math.max(
+    AUTO_CLOSE_DELAY_MS,
+    AUTO_MIN_OPEN_MS - (Date.now() - openedAt),
   );
 }
 

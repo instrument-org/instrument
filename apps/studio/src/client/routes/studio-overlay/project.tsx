@@ -298,7 +298,7 @@ function ProjectModalForm({
                     for each task.
                   </p>
                   <Textarea
-                    className="min-h-24"
+                    className="max-h-40 min-h-24 overflow-y-auto"
                     disabled={isPending}
                     id={field.name}
                     name={field.name}

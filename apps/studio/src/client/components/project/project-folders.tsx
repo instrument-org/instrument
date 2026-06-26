@@ -48,7 +48,7 @@ export function ProjectFolders({
   };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg bg-card/60 pb-1">
+    <div className="flex shrink-0 flex-col overflow-hidden rounded-lg bg-card/60 pb-1">
       <div className="flex items-center justify-between px-3 py-2">
         <h2 className="text-xs font-medium">Attached folders</h2>
         <Button

@@ -41,10 +41,10 @@ export function ProjectInstructions({
   return (
     <div className="shrink-0 overflow-hidden rounded-lg bg-card shadow-xs">
       <div className="flex flex-col px-3 pt-2">
-        <h2 className="text-xs font-medium">Instructions</h2>
-        <p className="text-xs text-muted-foreground">
+        <h2 className="text-xs leading-none font-medium">Instructions</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
           Add details about this project for Instrument to remember for each
-          task.
+          task
         </p>
       </div>
       <div className="p-2">

@@ -65,6 +65,7 @@ export interface AnalyticsEvents {
   "pin.added": never;
   "pin.removed": never;
   "project.created": never;
+  "project.invalid_folder_trashed": never;
   "project.removed": never;
   "project.task_added": never;
   "project.task_removed": never;
@@ -105,6 +106,7 @@ export interface AnalyticsEvents {
   }>;
   "task.forked": never;
   "task.imported": never;
+  "task.invalid_folder_trashed": never;
   "task.opened_in": {
     app_name: string;
   };

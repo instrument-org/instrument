@@ -32,7 +32,7 @@ export const TaskIdSchema = z
         code: "custom",
         fatal: true,
         input: val,
-        message: "Task ids cannot contain dots",
+        message: "Folder name can't contain dots",
       });
     }
 

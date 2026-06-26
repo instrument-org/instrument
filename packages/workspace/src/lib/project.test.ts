@@ -17,8 +17,10 @@ import {
   deleteProject,
   getProject,
   getProjectInstructions,
+  listInvalidProjectFolders,
   listProjects,
   removeFolderFromProject,
+  trashInvalidProjectFolder,
   updateProject,
 } from "./project";
 import { taskDir } from "./task-dir-utils";
@@ -199,5 +201,53 @@ describe("project lib", () => {
 
     const fetched = await getProject(created.id);
     expect(fetched.isErr()).toBe(true);
+  });
+});
+
+describe("invalid project folders", () => {
+  const settingsPath = (name: string) =>
+    path.join(root, PROJECTS_DIR_NAME, name, ".instrument", "settings.json");
+
+  it("surfaces a project folder whose settings were deleted on disk", async () => {
+    const createResult = await createProject({ name: "Broken" });
+    const created = createResult._unsafeUnwrap();
+    await fs.rm(settingsPath("Broken"));
+
+    // No longer loads as a project...
+    const projects = await listProjects();
+    expect(projects.map((p) => p.id)).not.toContain(created.id);
+    // ...but is discoverable as an invalid folder.
+    const invalid = await listInvalidProjectFolders();
+    expect(invalid.map((f) => f.name)).toContain("Broken");
+  });
+
+  it("ignores healthy project folders", async () => {
+    await createProject({ name: "Healthy" });
+    expect(await listInvalidProjectFolders()).toEqual([]);
+  });
+
+  it("trashes an unloadable project folder", async () => {
+    await createProject({ name: "Broken" });
+    await fs.rm(settingsPath("Broken"));
+
+    const result = await trashInvalidProjectFolder("Broken");
+    expect(result.isOk()).toBe(true);
+    expect(
+      await pathPresent(path.join(root, PROJECTS_DIR_NAME, "Broken")),
+    ).toBe(false);
+  });
+
+  it("refuses to trash a healthy project", async () => {
+    await createProject({ name: "Healthy" });
+    const result = await trashInvalidProjectFolder("Healthy");
+    expect(result.isErr()).toBe(true);
+    expect(
+      await pathPresent(path.join(root, PROJECTS_DIR_NAME, "Healthy")),
+    ).toBe(true);
+  });
+
+  it("refuses path traversal outside the projects dir", async () => {
+    const result = await trashInvalidProjectFolder("../escape");
+    expect(result.isErr()).toBe(true);
   });
 });

@@ -24,7 +24,6 @@ import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import {
   openCreateProject,
   openDeleteProject,
-  openEditProject,
 } from "@/client/lib/project-overlays";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -188,14 +187,6 @@ function NavProjectItem({
           <DropdownMenuItem onClick={rename.start}>
             <PencilSimpleLineIcon className="text-muted-foreground" />
             <span>Rename</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => {
-              openEditProject(project.id);
-            }}
-          >
-            <PencilSimpleLineIcon className="text-muted-foreground" />
-            <span>Edit project</span>
           </DropdownMenuItem>
           <ProjectDevDiskMenuItems projectId={project.id} />
           <DropdownMenuSeparator />

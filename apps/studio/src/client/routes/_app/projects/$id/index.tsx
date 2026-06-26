@@ -49,13 +49,11 @@ export const Route = createFileRoute("/_app/projects/$id/")({
     const [error, , isDefined] = await safe(
       rpcClient.workspace.project.byId.call({ id: params.id }),
     );
-    if (error) {
-      if (isDefined && error.code === "NOT_FOUND") {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw redirect({ replace: true, to: "/new-tab" });
-      }
-      // Allow route to load on transient/workspace-not-ready errors
+    if (error && isDefined && error.code === "NOT_FOUND") {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ replace: true, to: "/new-tab" });
     }
+    // Allow route to load on transient/workspace-not-ready errors
   },
   component: RouteComponent,
   head: async ({ params }) => {

@@ -75,6 +75,7 @@ export function ProjectTaskRow({
           {isPinned && (
             <PushPinIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
           )}
+          <TaskStatusIcon className="size-3.5 shrink-0" id={task.id} />
           <InternalLink
             className="min-w-0 flex-1 truncate rounded-sm text-sm text-muted-foreground outline-none group-hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
             openInCurrentTab
@@ -83,20 +84,14 @@ export function ProjectTaskRow({
           >
             {task.title}
           </InternalLink>
-          <TaskStatusIcon className="size-4 shrink-0" id={task.id} />
-          <div className="group/meta relative flex h-5 shrink-0 items-center justify-end">
-            <span
-              className={cn(
-                "text-xs text-muted-foreground group-hover:opacity-0 group-has-[:focus-visible]/meta:opacity-0",
-                menuOpen && "opacity-0",
-              )}
-            >
+          <div className="group/meta -mr-6 flex shrink-0 items-center gap-x-1">
+            <span className="text-xs text-muted-foreground">
               {formatUpdated(task.updatedAt)}
             </span>
             <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
               <DropdownMenuTrigger
                 className={cn(
-                  "absolute right-0 flex size-5 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors outline-none group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+                  "flex size-5 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors outline-none group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
                   menuOpen && "bg-accent text-foreground opacity-100",
                 )}
               >

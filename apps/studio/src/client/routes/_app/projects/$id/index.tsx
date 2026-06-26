@@ -313,8 +313,8 @@ function RouteComponent() {
               Tasks
             </div>
             {memberTasks.length === 0 ? (
-              <p className="px-3 py-6 text-sm text-muted-foreground">
-                No tasks in this project yet. Start one above.
+              <p className="px-3 py-1 text-sm text-muted-foreground">
+                No tasks in this project yet.
               </p>
             ) : (
               orderedMemberTasks.map((task) => (

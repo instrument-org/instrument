@@ -26,9 +26,6 @@ export const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
 // Per-task SQLite store in the task's `.instrument/` private dir.
 export const TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
-// Workspace-wide KV store (pins + derived project index) in the workspace
-// root's `.instrument/` private dir.
-export const WORKSPACE_DB_FILE_NAME = "workspace.db";
 
 export const TASK_STATUSES = [
   "error",

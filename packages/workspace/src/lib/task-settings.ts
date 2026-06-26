@@ -66,6 +66,10 @@ export function updateTaskSettings(
     if (validatedUpdates.projectId === null) {
       delete merged.projectId;
     }
+    // Same for pinnedAt: `null` unpins by removing the key.
+    if (validatedUpdates.pinnedAt === null) {
+      delete merged.pinnedAt;
+    }
 
     yield* ResultAsync.fromPromise(
       fs

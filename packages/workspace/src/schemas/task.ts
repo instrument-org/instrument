@@ -8,6 +8,8 @@ import { TaskIdSchema } from "./task-id";
 export const TaskSchema = z.object({
   createdAt: z.date(),
   id: TaskIdSchema,
+  // Set when the task is pinned; the timestamp is when it was pinned.
+  pinnedAt: z.date().optional(),
   projectId: ProjectIdSchema.optional(),
   title: z.string(),
   updatedAt: z.date(),

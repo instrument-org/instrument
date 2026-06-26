@@ -27,40 +27,44 @@ export function TaskBreadcrumb({
   return (
     <div
       className={toolbarClassName({
-        className: "h-8 min-w-0 max-w-80 shrink justify-start gap-x-1 px-2",
+        className:
+          "h-8 min-w-0 max-w-80 shrink justify-start gap-x-1 overflow-hidden px-2",
         pressed: sidebar === "chat",
       })}
     >
       {projectId && project && (
         <>
           {/*
-            Two self-contained project chips toggled by the toolbar's container
-            width, so each lays out cleanly on its own rather than degrading by
-            hiding sub-parts. Wide: icon + name + separator (name truncates
-            first via shrink-[9999]). Narrow: icon only, with breathing room
-            before the task title.
+            Project icon as its own shrink-0 chip: it can never be squeezed away
+            or overlapped, however tight the breadcrumb gets.
           */}
-          <span className="hidden min-w-0 shrink-[9999] items-center gap-x-1 @min-[520px]:flex">
-            <InternalLink
-              className="flex min-w-0 items-center gap-x-1"
-              openInCurrentTab
-              params={{ id: projectId }}
-              to="/projects/$id"
-            >
-              <BagIcon className="size-4 shrink-0" />
-              <span className="min-w-0 truncate">{project.name}</span>
-            </InternalLink>
-            <span className="shrink-0 text-gray-400">/</span>
-          </span>
-
           <InternalLink
-            className="mr-1 flex shrink-0 items-center @min-[520px]:hidden"
+            className="flex shrink-0 items-center"
             openInCurrentTab
             params={{ id: projectId }}
             to="/projects/$id"
           >
-            <BagIcon className="size-4 shrink-0" />
+            <BagIcon className="size-4" />
           </InternalLink>
+          {/*
+            Project name. min-w-0 must be on the link itself, not just the inner
+            span: nested-flex truncation needs min-w-0 on every ancestor, or the
+            link stays stuck at its content width and the task title truncates
+            instead. shrink-[9999] makes the name truncate before the task.
+          */}
+          <InternalLink
+            className="flex min-w-0 shrink-[9999] items-center"
+            openInCurrentTab
+            params={{ id: projectId }}
+            to="/projects/$id"
+          >
+            <span className="min-w-0 truncate">{project.name}</span>
+          </InternalLink>
+          {/*
+            Separator stays with the task title — a standalone shrink-0 element
+            so it remains visible even after the project name fully collapses.
+          */}
+          <span className="shrink-0 text-gray-400">/</span>
         </>
       )}
       <button

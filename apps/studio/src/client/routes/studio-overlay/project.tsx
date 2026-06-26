@@ -297,19 +297,17 @@ function ProjectModalForm({
                     Add details about this project for Instrument to remember
                     for each task.
                   </p>
-                  <div className="max-h-40 overflow-y-auto">
-                    <Textarea
-                      className="min-h-24"
-                      disabled={isPending}
-                      id={field.name}
-                      name={field.name}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => {
-                        field.handleChange(e.target.value);
-                      }}
-                      value={field.state.value}
-                    />
-                  </div>
+                  <Textarea
+                    className="max-h-40 min-h-24 overflow-y-auto"
+                    disabled={isPending}
+                    id={field.name}
+                    name={field.name}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => {
+                      field.handleChange(e.target.value);
+                    }}
+                    value={field.state.value}
+                  />
                 </Field>
               )}
             </form.Field>

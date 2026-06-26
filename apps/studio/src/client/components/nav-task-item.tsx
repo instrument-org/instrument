@@ -108,7 +108,15 @@ export const NavTaskItem = memo(function NavTaskItem({
             }}
           >
             <InternalLink
-              onDoubleClick={rename.start}
+              onDoubleClick={(e) => {
+                if (!isActive) {
+                  return;
+                }
+                if (!(e.target as Element).closest("[data-task-title]")) {
+                  return;
+                }
+                rename.start();
+              }}
               openInCurrentTab
               params={{ id: task.id }}
               to="/tasks/$id"
@@ -116,7 +124,9 @@ export const NavTaskItem = memo(function NavTaskItem({
               {isPinned && (
                 <PushPinIcon className="!size-3.5 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
               )}
-              <span className="truncate">{task.title}</span>
+              <span className="truncate" data-task-title>
+                {task.title}
+              </span>
             </InternalLink>
           </SidebarMenuButton>
 

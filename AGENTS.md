@@ -14,7 +14,7 @@ pnpm monorepo for the Instrument desktop app platform.
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC,
   telemetry, types, tool names, and on-disk layout.
-- On disk, tasks live under `tasks/<id>/` with `.instrument/{store.db,state.json}`.
+- On disk, tasks live under `tasks/<id>/` with `.instrument/{task.db,state.json}`.
 
 ## Registry Submodule
 

@@ -34,7 +34,9 @@ export function TaskBreadcrumb({
       {projectId && project && (
         <>
           <InternalLink
-            className="flex min-w-0 items-center gap-x-1 truncate"
+            // High shrink priority so the project name truncates before the
+            // task title; the task only gives up space once this collapses.
+            className="flex min-w-0 shrink-[9999] items-center gap-x-1 truncate"
             openInCurrentTab
             params={{ id: projectId }}
             to="/projects/$id"
@@ -46,7 +48,7 @@ export function TaskBreadcrumb({
         </>
       )}
       <button
-        className="flex min-w-0 flex-1 items-center gap-x-2 truncate text-left"
+        className="flex min-w-0 items-center gap-x-2 truncate text-left"
         onClick={sidebar === "files" ? onChatClick : undefined}
         type="button"
       >

@@ -26,7 +26,6 @@ export const MANUAL_DOWNLOAD_URL = `${APP_URL}/download`;
 export const AI_GATEWAY_API_KEY_NOT_NEEDED = "NOT_NEEDED";
 export const CONTACT_EMAIL = `hello@${APP_DOMAIN}`;
 export const TASK_SETTINGS_FILE_NAME = `settings.json`;
-export const EVAL_SUBDOMAIN_PREFIX = "eval-";
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
 export const TASK_PRIVATE_FOLDER_NAME = `.instrument`;
 

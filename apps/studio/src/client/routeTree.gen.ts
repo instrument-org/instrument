@@ -31,7 +31,6 @@ import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
 import { Route as StudioOverlaySettingsIndexRouteImport } from './routes/studio-overlay/settings/index'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
-import { Route as AppEvalsIndexRouteImport } from './routes/_app/evals/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
 import { Route as StudioOverlaySettingsProvidersRouteImport } from './routes/studio-overlay/settings/providers'
 import { Route as StudioOverlaySettingsFeaturesRouteImport } from './routes/studio-overlay/settings/features'
@@ -168,11 +167,6 @@ const StudioOverlaySettingsIndexRoute =
 const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
   id: '/tasks/',
   path: '/tasks/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppEvalsIndexRoute = AppEvalsIndexRouteImport.update({
-  id: '/evals/',
-  path: '/evals/',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
@@ -358,7 +352,6 @@ export interface FileRoutesByFullPath {
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/debug/': typeof AppDebugIndexRoute
-  '/evals': typeof AppEvalsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
@@ -404,7 +397,6 @@ export interface FileRoutesByTo {
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/debug': typeof AppDebugIndexRoute
-  '/evals': typeof AppEvalsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/studio-overlay/settings': typeof StudioOverlaySettingsIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
@@ -456,7 +448,6 @@ export interface FileRoutesById {
   '/studio-overlay/settings/features': typeof StudioOverlaySettingsFeaturesRoute
   '/studio-overlay/settings/providers': typeof StudioOverlaySettingsProvidersRoute
   '/_app/debug/': typeof AppDebugIndexRoute
-  '/_app/evals/': typeof AppEvalsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/studio-overlay/settings/': typeof StudioOverlaySettingsIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
@@ -508,7 +499,6 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
     | '/debug/'
-    | '/evals'
     | '/tasks'
     | '/studio-overlay/settings/'
     | '/debug/browser-view/$targetId'
@@ -554,7 +544,6 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
     | '/debug'
-    | '/evals'
     | '/tasks'
     | '/studio-overlay/settings'
     | '/debug/browser-view/$targetId'
@@ -605,7 +594,6 @@ export interface FileRouteTypes {
     | '/studio-overlay/settings/features'
     | '/studio-overlay/settings/providers'
     | '/_app/debug/'
-    | '/_app/evals/'
     | '/_app/tasks/'
     | '/studio-overlay/settings/'
     | '/_app/debug/browser-view/$targetId'
@@ -791,13 +779,6 @@ declare module '@tanstack/react-router' {
       path: '/tasks'
       fullPath: '/tasks'
       preLoaderRoute: typeof AppTasksIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/evals/': {
-      id: '/_app/evals/'
-      path: '/evals'
-      fullPath: '/evals'
-      preLoaderRoute: typeof AppEvalsIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/debug/': {
@@ -1090,7 +1071,6 @@ interface AppRouteRouteChildren {
   AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppTutorialTaskRoute: typeof AppTutorialTaskRoute
-  AppEvalsIndexRoute: typeof AppEvalsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
   AppProjectsIdIndexRoute: typeof AppProjectsIdIndexRoute
   AppTasksIdIndexRoute: typeof AppTasksIdIndexRoute
@@ -1102,7 +1082,6 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTutorialTaskRoute: AppTutorialTaskRoute,
-  AppEvalsIndexRoute: AppEvalsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
   AppProjectsIdIndexRoute: AppProjectsIdIndexRoute,
   AppTasksIdIndexRoute: AppTasksIdIndexRoute,

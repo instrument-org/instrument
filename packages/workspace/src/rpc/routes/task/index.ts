@@ -34,7 +34,6 @@ import { AbsolutePathSchema } from "../../../schemas/paths";
 import { type Project } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
 import { StoreId } from "../../../schemas/store-id";
-import { SubdomainPartSchema } from "../../../schemas/subdomain-part";
 import { TaskSchema } from "../../../schemas/task";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskSettingsUpdateSchema } from "../../../schemas/task-settings";
@@ -126,7 +125,6 @@ const create = base
       folders: z.array(z.object({ path: z.string() })).optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
-      preferredFolderName: SubdomainPartSchema.optional(),
       projectId: ProjectIdSchema.nullish(),
       prompt: z.string(),
     }),
@@ -141,15 +139,7 @@ const create = base
     async ({
       context,
       errors,
-      input: {
-        files,
-        folders,
-        modelURI,
-        name,
-        preferredFolderName,
-        projectId,
-        prompt,
-      },
+      input: { files, folders, modelURI, name, projectId, prompt },
       signal,
     }) => {
       const modelResult = await fetchModel({
@@ -177,7 +167,6 @@ const create = base
       }
 
       const taskId = await newTaskId({
-        preferredFolderName,
         prompt,
         workspaceConfig: context.workspaceConfig,
       });

@@ -159,10 +159,6 @@ export async function runEvals(
           folders: evalCase.folders,
           modelURI: uri,
           name: evalCase.name,
-          preferredFolderName:
-            MODELS.length > 1
-              ? `${modelPrefix}-${evalCase.name}`
-              : evalCase.name,
           prompt: evalCase.prompt,
         },
         { context },

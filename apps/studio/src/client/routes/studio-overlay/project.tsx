@@ -324,6 +324,7 @@ function ProjectModalForm({
                 )}
                 onClick={() => void handlePickFolder()}
                 type="button"
+                variant="secondary"
               >
                 <span>
                   {isDragging ? "Drop folders to attach" : "Attach folders"}

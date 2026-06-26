@@ -362,6 +362,18 @@ html:has(meta[name="opaque-background"]) body {
     0px 4px 6px -2px rgb(10 13 18 / 0.05);
 }
 
+/* Very subtle top-to-bottom sheen layered over a button's background color:
+ * lightens the top edge and darkens the bottom edge a touch, giving a soft
+ * physical depth. Works in both themes since it's a translucent overlay, and
+ * the variant's own background-color (including :hover) still shows through. */
+@utility button-sheen {
+  background-image: linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 0.03),
+    rgb(0 0 0 / 0)
+  );
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50 scrollbar-thin scrollbar-color;

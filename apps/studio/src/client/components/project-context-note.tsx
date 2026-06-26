@@ -36,7 +36,7 @@ export function ProjectContextNote({
     <div className="flex w-full justify-end">
       <div className="flex max-w-[80%] items-center gap-x-1.5 px-2 py-1 text-xs text-muted-foreground/70">
         <BagIcon className="size-3.5 shrink-0" />
-        <span className="truncate">Added {added.join(" and ")} from</span>
+        <span className="truncate">Included {added.join(" and ")} from</span>
         {project ? (
           <InternalLink
             className="shrink-0 font-medium text-muted-foreground hover:text-foreground hover:underline"

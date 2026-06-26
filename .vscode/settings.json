@@ -37,6 +37,9 @@
     "yaml"
   ],
   "eslint.workingDirectories": [{ "mode": "auto" }],
+  "files.exclude": {
+    ".claude/worktrees": true
+  },
   "files.readonlyInclude": {
     "**/routeTree.gen.ts": true
   },
@@ -48,7 +51,8 @@
     "**/dist": true,
     "**/node_modules": true,
     "**/out": true,
-    "**/routeTree.gen.ts": true
+    "**/routeTree.gen.ts": true,
+    ".claude/worktrees/**": true
   },
   // Can't use useIgnoreFiles because "files to include" still includes those
   // results due to: https://github.com/microsoft/vscode/issues/26574
@@ -65,7 +69,8 @@
     "**/coverage": true,
     "**/dist": true,
     "**/node_modules": true,
-    "**/out": true
+    "**/out": true,
+    ".claude/worktrees": true
   },
   "tailwindCSS.classFunctions": ["cn", "tv"],
   "tailwindCSS.lint.suggestCanonicalClasses": "ignore", // Handled by better-tailwindcss in ESLint

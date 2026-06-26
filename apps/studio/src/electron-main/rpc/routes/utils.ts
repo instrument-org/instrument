@@ -18,9 +18,11 @@ import {
   SupportedEditorSchema,
 } from "@/shared/schemas/editors";
 import {
+  ProjectIdSchema,
   readTaskFile,
   RelativeTaskPathSchema,
   resolvePathWithinTaskDir,
+  resolveProjectDir,
   taskDir,
   TaskIdSchema,
   workspaceRouter,
@@ -429,6 +431,44 @@ const copyTaskPathToClipboard = base
     clipboard.writeText(taskDir(taskId));
   });
 
+const copyProjectPathToClipboard = base
+  .errors({
+    PROJECT_NOT_FOUND: { message: "Project not found" },
+  })
+  .input(
+    z.object({
+      id: ProjectIdSchema,
+    }),
+  )
+  .handler(async ({ errors, input }) => {
+    const dir = await resolveProjectDir(input.id);
+    if (!dir) {
+      throw errors.PROJECT_NOT_FOUND();
+    }
+    clipboard.writeText(dir);
+  });
+
+const showProjectInFolder = base
+  .errors({
+    PROJECT_NOT_FOUND: { message: "Project not found" },
+  })
+  .input(
+    z.object({
+      id: ProjectIdSchema,
+    }),
+  )
+  .handler(async ({ errors, input }) => {
+    const dir = await resolveProjectDir(input.id);
+    if (!dir) {
+      throw errors.PROJECT_NOT_FOUND();
+    }
+    const errorMessage = await shell.openPath(dir);
+    if (errorMessage) {
+      captureServerException(errorMessage);
+      shell.showItemInFolder(dir);
+    }
+  });
+
 const copyFileToClipboard = base
   .errors({
     FILE_NOT_FOUND: { message: "File not found" },
@@ -480,6 +520,7 @@ const showFolderPicker = base
 export const utils = {
   clearExceptions,
   copyFileToClipboard,
+  copyProjectPathToClipboard,
   copyTaskPathToClipboard,
   exportZip,
   getSupportedEditors,
@@ -489,5 +530,6 @@ export const utils = {
   openTaskIn,
   showFileInFolder,
   showFolderPicker,
+  showProjectInFolder,
   showTaskFileInFolder,
 };

@@ -225,6 +225,13 @@ export async function removeFolderFromProject(
   });
 }
 
+export async function resolveProjectDir(
+  id: ProjectId,
+): Promise<string | undefined> {
+  const folder = await resolveProjectFolder(id);
+  return folder ? projectDir(folder) : undefined;
+}
+
 export async function updateProject(
   id: ProjectId,
   {

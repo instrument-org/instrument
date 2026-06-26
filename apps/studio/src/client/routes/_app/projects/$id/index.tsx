@@ -1,3 +1,4 @@
+import { ProjectDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
 import { ProjectFolders } from "@/client/components/project/project-folders";
 import { ProjectInstructions } from "@/client/components/project/project-instructions";
 import { ProjectTaskRow } from "@/client/components/project/project-task-row";
@@ -233,6 +234,7 @@ function RouteComponent() {
                   <PencilSimpleLineIcon className="text-muted-foreground" />
                   <span>Edit project</span>
                 </DropdownMenuItem>
+                <ProjectDevDiskMenuItems projectId={id} />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => {

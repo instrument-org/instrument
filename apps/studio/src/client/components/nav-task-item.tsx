@@ -1,3 +1,4 @@
+import { TaskDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
 import { InternalLink } from "@/client/components/internal-link";
 import {
   DropdownMenu,
@@ -249,6 +250,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                   <ArrowUpRightIcon className="text-muted-foreground" />
                   <span>Open in new tab</span>
                 </DropdownMenuItem>
+                <TaskDevDiskMenuItems taskId={task.id} />
                 <DropdownMenuSeparator />
                 <InternalLink
                   openInCurrentTab

@@ -11,6 +11,7 @@ import {
   buildProjectContextText,
   projectFoldersIntro,
 } from "../lib/build-project-context-text";
+import { getEffectiveProjectContext } from "../lib/effective-project-context";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
 import { getCurrentDate } from "../lib/get-current-date";
@@ -78,9 +79,12 @@ async function getProjectContextSnapshot({
   if (messagesResult.isErr()) {
     return undefined;
   }
-  return messagesResult.value
-    .flatMap((message) => message.parts)
-    .find((part) => part.type === "data-projectContext")?.data;
+  // Fold the frozen snapshot with later `data-projectChanges` parts so the
+  // standing context reflects the project's current instructions, not the value
+  // captured at task creation.
+  return getEffectiveProjectContext(
+    messagesResult.value.flatMap((message) => message.parts),
+  );
 }
 
 export const mainAgent = setupAgent({

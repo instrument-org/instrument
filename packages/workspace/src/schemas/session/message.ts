@@ -16,6 +16,7 @@ import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text"
 import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
+import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { injectContextItemsIntoOutput } from "../../lib/tool-output-context-items";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -316,6 +317,20 @@ export namespace SessionMessage {
         );
         if (folderChangesPart) {
           const note = attachedFolderRemovalsModelNote(folderChangesPart.data);
+          if (note) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+        }
+
+        const projectChangesPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-projectChanges";
+          } => part.type === "data-projectChanges",
+        );
+        if (projectChangesPart) {
+          const note = projectChangesModelNote(projectChangesPart.data);
           if (note) {
             injectedParts.push({ text: note, type: "text" });
           }

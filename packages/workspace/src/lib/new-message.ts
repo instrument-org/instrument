@@ -13,6 +13,7 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { createBrowserStatusPart } from "./create-browser-status-part";
+import { detectProjectChanges } from "./detect-project-changes";
 import { detectExternalFileChanges } from "./external-file-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-state-store";
@@ -116,6 +117,21 @@ export async function newMessage({
     getWorkspaceConfig().captureException(folderChanges.error);
   } else if (folderChanges.value) {
     parts.push(folderChanges.value);
+  }
+
+  // Notify agent when the live project's instructions or folders drift from the
+  // task's frozen snapshot. Also writes folder additions/removals into task
+  // state so they become standing context.
+  const projectChanges = await detectProjectChanges({
+    messageId,
+    sessionId,
+    taskId,
+  });
+  if (projectChanges.isErr()) {
+    // Awareness of project drift is best-effort; never block sending.
+    getWorkspaceConfig().captureException(projectChanges.error);
+  } else if (projectChanges.value) {
+    parts.push(projectChanges.value);
   }
 
   const message: SessionMessage.UserWithParts = {

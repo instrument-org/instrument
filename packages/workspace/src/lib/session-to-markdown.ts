@@ -19,6 +19,7 @@ import {
   buildProjectContextText,
   projectFoldersIntro,
 } from "./build-project-context-text";
+import { getEffectiveProjectContext } from "./effective-project-context";
 import { isToolPart } from "./is-tool-part";
 import { Store } from "./store";
 
@@ -312,14 +313,32 @@ function renderProjectContext(
     return [];
   }
 
-  const projectFolders = allParts
-    .filter((part) => part.type === "data-attachments")
-    .flatMap((part) => part.data.folders ?? [])
-    .filter((folder) => folder.source === "project");
+  // Fold project-folder names from the creation snapshot with later
+  // `data-projectChanges` additions/removals so the list matches what the agent
+  // currently sees, keyed by path so removals drop the right entry.
+  const folderNamesByPath = new Map<string, string>();
+  for (const part of allParts) {
+    if (part.type === "data-attachments") {
+      for (const folder of part.data.folders ?? []) {
+        if (folder.source === "project") {
+          folderNamesByPath.set(folder.path, folder.name);
+        }
+      }
+    } else if (part.type === "data-projectChanges") {
+      for (const folder of part.data.foldersRemoved) {
+        folderNamesByPath.delete(folder.path);
+      }
+      for (const folder of part.data.foldersAdded) {
+        folderNamesByPath.set(folder.path, folder.name);
+      }
+    }
+  }
+  const projectFolderNames = [...folderNamesByPath.values()];
 
   const blocks: string[] = [];
 
-  const instructions = projectPart.data.instructions?.trim();
+  const effective = getEffectiveProjectContext(allParts);
+  const instructions = effective?.instructions?.trim();
   if (instructions) {
     blocks.push(
       buildProjectContextText({
@@ -329,10 +348,10 @@ function renderProjectContext(
     );
   }
 
-  if (projectFolders.length > 0) {
+  if (projectFolderNames.length > 0) {
     blocks.push(
       buildAttachedFoldersText({
-        folderNames: projectFolders.map((folder) => folder.name),
+        folderNames: projectFolderNames,
         intro: projectFoldersIntro(projectPart.data.projectName),
       }),
     );

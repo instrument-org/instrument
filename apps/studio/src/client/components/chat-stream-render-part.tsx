@@ -13,6 +13,7 @@ import { FileChangesCard } from "./file-changes-card";
 import { type RenderStream } from "./message-part/tool-agent";
 import { ToolCall } from "./message-part/tool-call";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
+import { ProjectChangesNote } from "./project-changes-note";
 import { ReasoningMessage } from "./reasoning-message";
 import { ContextMessage } from "./session-context-message";
 import { UnknownPart } from "./unknown-part";
@@ -107,6 +108,10 @@ export function renderChatPart({
 
   if (part.type === "data-projectContext") {
     return null;
+  }
+
+  if (part.type === "data-projectChanges") {
+    return <ProjectChangesNote data={part.data} key={part.metadata.id} />;
   }
 
   if (part.type === "data-attachedFolderChanges") {

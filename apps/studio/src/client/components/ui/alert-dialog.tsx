@@ -133,7 +133,7 @@ function AlertDialogTitle({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
   return (
     <AlertDialogPrimitive.Title
-      className={cn("text-lg font-semibold", className)}
+      className={cn("text-lg font-medium", className)}
       data-slot="alert-dialog-title"
       {...props}
     />

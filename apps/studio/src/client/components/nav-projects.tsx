@@ -158,13 +158,23 @@ function NavProjectItem({
           }}
         >
           <InternalLink
-            onDoubleClick={rename.start}
+            onDoubleClick={(e) => {
+              if (project.id !== activeProjectId) {
+                return;
+              }
+              if (!(e.target as Element).closest("[data-project-title]")) {
+                return;
+              }
+              rename.start();
+            }}
             openInCurrentTab
             params={{ id: project.id }}
             to="/projects/$id"
           >
             <BagIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
-            <span className="truncate">{project.name}</span>
+            <span className="truncate" data-project-title>
+              {project.name}
+            </span>
           </InternalLink>
         </SidebarMenuButton>
         <DropdownMenuTrigger asChild>

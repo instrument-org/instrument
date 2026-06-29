@@ -1,12 +1,13 @@
 import { tabsAtom } from "@/client/atoms/tabs";
-import { TabProvider } from "@/client/components/tab-context";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
+import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import {
   addTab,
   closeTab,
   reopenClosed,
   selectAdjacent,
   selectByIndex,
+  setTabMeta,
   setTabPathname,
 } from "@/client/lib/tab-model";
 import { createTabRouter, sharedQueryClient } from "@/client/lib/tab-router";
@@ -148,14 +149,21 @@ function TabView({ isActive, tab }: { isActive: boolean; tab: Tab }) {
     // tab's router over the tab-command IPC.
     registerTabRouter(tab.id, router);
     // Mirror this tab's navigation back into the model so the tab bar reflects
-    // the current location.
+    // the current location, and pull the title/icon from the route's head meta.
     const unsubscribe = router.subscribe("onResolved", () => {
-      setTabs((model) =>
-        setTabPathname(model, {
+      const meta = readRouterTabMeta(router);
+      setTabs((model) => {
+        const withPathname = setTabPathname(model, {
           id: tab.id,
           pathname: router.state.location.href,
-        }),
-      );
+        });
+        return setTabMeta(withPathname, {
+          iconName: meta.iconName,
+          id: tab.id,
+          taskId: meta.taskId,
+          title: meta.title,
+        });
+      });
     });
     return () => {
       unsubscribe();
@@ -164,12 +172,10 @@ function TabView({ isActive, tab }: { isActive: boolean; tab: Tab }) {
   }, [router, setTabs, tab.id]);
 
   return (
-    <TabProvider value={tab.id}>
-      <Activity mode={isActive ? "visible" : "hidden"}>
-        <div className="absolute inset-0">
-          <RouterProvider router={router} />
-        </div>
-      </Activity>
-    </TabProvider>
+    <Activity mode={isActive ? "visible" : "hidden"}>
+      <div className="absolute inset-0">
+        <RouterProvider router={router} />
+      </div>
+    </Activity>
   );
 }

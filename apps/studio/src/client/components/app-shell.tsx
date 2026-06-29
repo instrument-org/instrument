@@ -17,13 +17,14 @@ import {
   unregisterTabRouter,
 } from "@/client/lib/tab-router-registry";
 import { saveTabsModel } from "@/client/lib/tab-storage";
+import { cn } from "@/client/lib/utils";
 import { type Tab } from "@/shared/tabs";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { useSetAtom, useStore } from "jotai";
 import { debounce } from "radashi";
-import { Activity, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 const IconContextValue: IconProps = {
   weight: "bold",
@@ -135,10 +136,13 @@ function freshId() {
 
 /**
  * One open tab: its own router (own memory history + route state) created once
- * for the component's lifetime and wrapped in <Activity>. Hidden tabs stay
- * mounted, so scroll/selection/per-tab history survive and switching is a DOM
- * show/hide -- no compositor reveal, no flicker. The per-tab router renders
- * `_app`, which renders that tab's full shell (toolbar + sidebar + content).
+ * for the component's lifetime. Every tab stays mounted and fully live -- it
+ * loads its data, runs its subscriptions, and keeps background agents updating --
+ * rather than being paused by `<Activity>`. Inactive tabs are hidden with CSS
+ * `visibility` (not `display:none`), which preserves scroll, keeps effects
+ * running, and avoids re-rendering from a zero state when first shown. Switching
+ * is a CSS toggle in one web contents, so there's no flicker. The per-tab router
+ * renders `_app`, which renders that tab's full shell (toolbar/sidebar/content).
  */
 function TabView({ isActive, tab }: { isActive: boolean; tab: Tab }) {
   const [router] = useState(() => createTabRouter({ pathname: tab.pathname }));
@@ -172,10 +176,8 @@ function TabView({ isActive, tab }: { isActive: boolean; tab: Tab }) {
   }, [router, setTabs, tab.id]);
 
   return (
-    <Activity mode={isActive ? "visible" : "hidden"}>
-      <div className="absolute inset-0">
-        <RouterProvider router={router} />
-      </div>
-    </Activity>
+    <div className={cn("absolute inset-0", isActive ? "visible" : "invisible")}>
+      <RouterProvider router={router} />
+    </div>
   );
 }

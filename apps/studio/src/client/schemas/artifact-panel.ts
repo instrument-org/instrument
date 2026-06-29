@@ -18,10 +18,15 @@ const filePathSchema = z
   )
   .transform(normalizeTaskFilePath);
 
-export const artifactPanelSchema = z.object({
-  filePath: filePathSchema,
-  modifiedAt: z.number(),
-  type: z.literal("file"),
-});
+export const artifactPanelSchema = z.discriminatedUnion("type", [
+  z.object({
+    filePath: filePathSchema,
+    modifiedAt: z.number(),
+    type: z.literal("file"),
+  }),
+  // The agent browser, hosted in the artifact panel area. The target is derived
+  // from the task id + selected session, so no extra fields are needed.
+  z.object({ type: z.literal("browser") }),
+]);
 
 export type ArtifactPanel = z.output<typeof artifactPanelSchema>;

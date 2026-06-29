@@ -1,18 +1,22 @@
 import {
+  type AgentBrowserCommand,
+  targetIdFromPartition,
+} from "@/shared/agent-browser";
+import {
   type AbsolutePath,
   type BrowserConfig,
   type BrowserTarget,
   type BrowserTargetId,
+  decodeBrowserTargetId,
   encodeBrowserTargetId,
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/electron";
-import { session } from "electron";
+import { session, type WebContents } from "electron";
 import fs from "node:fs";
 import { noop } from "radashi";
 
-import { getTabsManager } from "../tabs";
-import { createBrowserView } from "./browser-view";
+import { getMainWindow } from "../windows/main/instance";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { sendCommand } from "./dispatch-command";
 import {
@@ -29,7 +33,16 @@ import {
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
 
+// How long createTarget waits for the renderer to mount the guest `<webview>`
+// and Electron to fire `did-attach-webview`. The shell renderer is alive
+// whenever the agent runs, so attach normally completes in well under a second;
+// the timeout only fires if no renderer is available to host the guest.
+const ATTACH_TIMEOUT_MS = 15_000;
+
 export interface BrowserViewManager {
+  // Register the `<webview>` attach lifecycle on the main window's webContents.
+  // Called once the window exists; the manager itself is created earlier.
+  bindHost: (host: WebContents) => void;
   browser: BrowserConfig;
   // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
   // convention; do not mutate the returned map from outside the manager.
@@ -37,11 +50,25 @@ export interface BrowserViewManager {
   teardown: () => void;
 }
 
+interface PendingAttach {
+  reject: (error: Error) => void;
+  resolve: () => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+let managerInstance: BrowserViewManager | undefined;
+
 export function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
+  // FIFO of target ids accepted in `will-attach-webview`, drained in
+  // `did-attach-webview` (Electron pairs the two events in order).
+  const pendingAttachQueue: BrowserTargetId[] = [];
+  // createTarget waiters, resolved once the guest attaches (or rejected on
+  // timeout / attach rejection).
+  const attachWaiters = new Map<BrowserTargetId, PendingAttach[]>();
 
   function ensureDebuggerAttached(entry: BrowserEntry) {
-    const wc = entry.view.webContents;
+    const wc = entry.webContents;
     if (!wc || wc.isDestroyed()) {
       return;
     }
@@ -69,6 +96,128 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
   }
 
+  function settleWaiters(targetId: BrowserTargetId, error?: Error) {
+    const waiters = attachWaiters.get(targetId);
+    if (!waiters) {
+      return;
+    }
+    attachWaiters.delete(targetId);
+    for (const waiter of waiters) {
+      clearTimeout(waiter.timer);
+      if (error) {
+        waiter.reject(error);
+      } else {
+        waiter.resolve();
+      }
+    }
+  }
+
+  function bindGuest(entry: BrowserEntry, guest: WebContents) {
+    entry.webContents = guest;
+
+    // Block all popup windows. Agent-controlled guests must never spawn new
+    // windows via window.open / target=_blank / link[target].
+    guest.setWindowOpenHandler(() => ({ action: "deny" }));
+    // Mute: the page may be agent-driven and not visible to the user.
+    guest.setAudioMuted(true);
+    // Keep producing frames while only in paint-host mode, so CDP capture and
+    // Input.dispatch keep working when no tab is showing the guest.
+    guest.setBackgroundThrottling(false);
+
+    attachDownloadHandler({
+      entries,
+      session: guest.session,
+      targetId: entry.targetId,
+    });
+
+    guest.on(
+      "did-fail-load",
+      (_event, errorCode, errorDescription, validatedURL) => {
+        log.error(
+          `did-fail-load targetId=${entry.targetId} url=${validatedURL} errorCode=${errorCode} errorDescription=${errorDescription}`,
+        );
+      },
+    );
+
+    guest.on("destroyed", () => {
+      handleDetach(entries, entry.targetId);
+      notifyDebugChange();
+    });
+    guest.on("render-process-gone", () => {
+      destroyEntry(entries, entry.targetId);
+      notifyDebugChange();
+    });
+
+    entry.disposers.add(() => {
+      stopScreencast(entry);
+    });
+    entry.disposers.add(() => {
+      const wc = entry.webContents;
+      if (wc && !wc.isDestroyed() && wc.debugger.isAttached()) {
+        try {
+          wc.debugger.detach();
+        } catch {
+          // Already detached
+        }
+      }
+    });
+
+    // Materialize the main RenderFrame; without an initial navigation CDP
+    // commands like Page.enable hang and Page.navigate has no frame. The
+    // element already loads about:blank, but driving it here gives us a
+    // deterministic did-finish-load to resolve the handshake on.
+    guest.once("did-finish-load", () => {
+      ensureDebuggerAttached(entry);
+      attachDevHooks(entry);
+      settleWaiters(entry.targetId);
+    });
+    void guest.loadURL("about:blank");
+
+    notifyDebugChange();
+  }
+
+  function bindHost(host: WebContents) {
+    host.on("will-attach-webview", (event, webPreferences, params) => {
+      const rawTargetId = targetIdFromPartition(params.partition);
+      if (!rawTargetId) {
+        // Not one of ours; leave other webviews alone.
+        return;
+      }
+      const decoded = decodeBrowserTargetId(rawTargetId);
+      const entry = decoded && entries.get(rawTargetId as BrowserTargetId);
+      if (!decoded || !entry) {
+        // No page state recorded for this id: reject the attachment.
+        log.warn(
+          `rejected agent-browser webview attach (no entry) targetId=${rawTargetId}`,
+        );
+        event.preventDefault();
+        return;
+      }
+
+      // The trick that preserves per-task isolation: override the guest session
+      // with our path-based profile. When both `session` and `partition` are
+      // set, Electron prefers `session`.
+      webPreferences.session = sessionForEntry(entry);
+      webPreferences.contextIsolation = true;
+      webPreferences.nodeIntegration = false;
+      webPreferences.sandbox = true;
+
+      pendingAttachQueue.push(entry.targetId);
+    });
+
+    host.on("did-attach-webview", (_event, guest) => {
+      const targetId = pendingAttachQueue.shift();
+      if (!targetId) {
+        return;
+      }
+      const entry = entries.get(targetId);
+      if (!entry) {
+        return;
+      }
+      bindGuest(entry, guest);
+    });
+  }
+
   function createTarget(
     id: TaskId,
     sessionId: StoreId.Session,
@@ -76,144 +225,60 @@ export function createBrowserViewManager(): BrowserViewManager {
   ): Promise<{ targetId: BrowserTargetId }> {
     const targetId = encodeBrowserTargetId(id, sessionId);
 
-    // Idempotent: a single (id, sessionId) pair owns at most one view.
-    // Sub-agents and repeat agent-browser invocations for the same session
-    // hit this fast path and reuse the existing WebContentsView.
     const existing = entries.get(targetId);
     if (existing) {
-      return Promise.resolve({ targetId });
+      // Idempotent: a single (id, sessionId) pair owns at most one guest.
+      // Already bound -> reuse it; mount still in flight -> wait on it.
+      if (existing.webContents && !existing.webContents.isDestroyed()) {
+        return Promise.resolve({ targetId });
+      }
+      return waitForAttach(targetId).then(() => ({ targetId }));
     }
 
-    // session.fromPath requires the directory to exist (Chromium opens the
-    // profile in-place). The workspace's .private dir is created lazily, so
-    // ensure it exists before handing the path to Electron.
-    fs.mkdirSync(partitionDir, { recursive: true });
-    const ses = session.fromPath(partitionDir, { cache: true });
-
-    const { destroyView, view } = createBrowserView({
-      id,
-      session: ses,
-    });
-
-    const wc = view.webContents;
-    if (!wc) {
-      throw new Error("WebContentsView constructed without webContents");
-    }
-
-    // Block all popup windows. Agent-controlled views are headless and must
-    // never open new BrowserWindows or WebContentsViews via window.open /
-    // target=_blank / link[target] / etc.
-    wc.setWindowOpenHandler(() => ({ action: "deny" }));
-
-    // Mute audio because the page may be controlled by the agent and not
-    // visible to the user. In the future, when the user has control of the
-    // page, we can unmute it.
-    wc.setAudioMuted(true);
-
-    // Prevent Chromium from throttling/pausing the renderer when the view is
-    // occluded (sunk behind the shield). On Linux this can cause the compositor
-    // to stop producing frames, which in turn re-triggers input suppression
-    // even after --allow-pre-commit-input is set.
-    wc.setBackgroundThrottling(false);
-
-    attachDownloadHandler({ entries, session: ses, targetId });
-
-    wc.on(
-      "did-fail-load",
-      (_event, errorCode, errorDescription, validatedURL) => {
-        log.error(
-          `did-fail-load targetId=${targetId} url=${validatedURL} errorCode=${errorCode} errorDescription=${errorDescription}`,
-        );
-      },
-    );
-
-    const entry = createEntry({
-      id,
-      partitionDir,
-      sessionId,
-      targetId,
-      view,
-    });
-
+    const entry = createEntry({ id, partitionDir, sessionId, targetId });
+    // Tell the renderer to drop the pooled `<webview>` on any teardown reason,
+    // even if the guest never attached (so an in-flight mount is cleaned up).
     entry.disposers.add(() => {
-      stopScreencast(entry);
+      sendPoolCommand({ targetId: String(targetId), type: "unmount" });
     });
-    entry.disposers.add(() => {
-      const currentWc = entry.view.webContents;
-      if (
-        currentWc &&
-        !currentWc.isDestroyed() &&
-        currentWc.debugger.isAttached()
-      ) {
-        try {
-          currentWc.debugger.detach();
-        } catch {
-          // Already detached
-        }
-      }
-    });
-    entry.disposers.add(() => {
-      destroyView();
-    });
-    // Fire destruction listeners as part of the disposer chain so any reason
-    // for entry removal naturally signals out (explicit close, detach,
-    // render-process-gone, etc.). Drained immediately afterwards so each
-    // listener fires at most once.
-    entry.disposers.add(() => {
-      for (const listener of entry.destructionListeners) {
-        try {
-          listener();
-        } catch (error) {
-          log.warn(
-            `destruction listener threw targetId=${entry.targetId} err=${String(error)}`,
-          );
-        }
-      }
-      entry.destructionListeners.clear();
-    });
-
     entries.set(targetId, entry);
     notifyDebugChange();
 
-    // Register the view as a background tab immediately so Chromium starts
-    // compositing it before any navigation. This is required for both
-    // Input.dispatchMouseEvent (CDP) and capturePage to work -- Chromium drops
-    // input events and refuses surface copies for views that are not in the
-    // window hierarchy. closeDetachesOnly means the tab manager never destroys
-    // the view; lifecycle stays owned here.
-    try {
-      getTabsManager()?.addTab({
-        iconName: "globe",
-        keepMounted: true,
-        title: `Browser: ${String(entry.id)}`,
-        webView: entry.view,
-      });
-    } catch {
-      // Must not impact the manager.
-    }
+    // Ask the renderer to mount a guest `<webview>` for this target. The guest
+    // attaches via will/did-attach-webview, which binds it and resolves. The
+    // task page surfaces it (auto-opens the browser artifact panel) separately.
+    sendPoolCommand({ targetId: String(targetId), type: "mount" });
 
-    wc.on("destroyed", () => {
-      handleDetach(entries, targetId);
-      notifyDebugChange();
-    });
+    return waitForAttach(targetId).then(() => ({ targetId }));
+  }
 
-    // Renderer crash: today only `handleDetach` was called via the debugger
-    // detach event (and only sometimes, depending on how the renderer dies).
-    // Force a full entry teardown so the taskBrowser machine reaps.
-    wc.on("render-process-gone", () => {
-      destroyEntry(entries, targetId);
-      notifyDebugChange();
-    });
+  function waitForAttach(targetId: BrowserTargetId): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const waiters = attachWaiters.get(targetId);
+        if (waiters) {
+          attachWaiters.set(
+            targetId,
+            waiters.filter((w) => w.timer !== timer),
+          );
+        }
+        // Nothing mounted in time: drop the orphaned page-state entry so a
+        // retry can start clean.
+        const entry = entries.get(targetId);
+        if (entry && !entry.webContents) {
+          destroyEntry(entries, targetId);
+          notifyDebugChange();
+        }
+        reject(new Error(`agent browser attach timed out: ${targetId}`));
+      }, ATTACH_TIMEOUT_MS);
 
-    // Materialize the main RenderFrame; without an initial navigation
-    // CDP commands like Page.enable hang and Page.navigate has no frame.
-    return new Promise((resolve) => {
-      wc.once("did-finish-load", () => {
-        ensureDebuggerAttached(entry);
-        attachDevHooks(entry);
-        resolve({ targetId });
-      });
-      void wc.loadURL("about:blank");
+      const waiter: PendingAttach = { reject, resolve, timer };
+      const waiters = attachWaiters.get(targetId);
+      if (waiters) {
+        waiters.push(waiter);
+      } else {
+        attachWaiters.set(targetId, [waiter]);
+      }
     });
   }
 
@@ -225,7 +290,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         continue;
       }
 
-      const wc = entry.view.webContents;
+      const wc = entry.webContents;
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
       if (!wc || wc.isDestroyed()) {
         continue;
@@ -265,7 +330,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       if (!entry) {
         return;
       }
-      const wc = entry.view.webContents;
+      const wc = entry.webContents;
       if (!wc || wc.isDestroyed()) {
         return;
       }
@@ -354,7 +419,8 @@ export function createBrowserViewManager(): BrowserViewManager {
       }),
   };
 
-  return {
+  managerInstance = {
+    bindHost,
     browser,
     getDebugEntries: () => entries,
     teardown: () => {
@@ -364,4 +430,21 @@ export function createBrowserViewManager(): BrowserViewManager {
       notifyDebugChange();
     },
   };
+  return managerInstance;
+}
+
+export function getBrowserViewManager(): BrowserViewManager | undefined {
+  return managerInstance;
+}
+
+function sendPoolCommand(command: AgentBrowserCommand) {
+  getMainWindow()?.webContents.send("agent-browser-command", command);
+}
+
+// session.fromPath requires the directory to exist (Chromium opens the profile
+// in-place). The workspace's .private dir is created lazily, so ensure it
+// exists before handing the path to Electron.
+function sessionForEntry(entry: BrowserEntry) {
+  fs.mkdirSync(entry.partitionDir, { recursive: true });
+  return session.fromPath(entry.partitionDir, { cache: true });
 }

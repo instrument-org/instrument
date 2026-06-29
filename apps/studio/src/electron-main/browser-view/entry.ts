@@ -1,4 +1,4 @@
-import type { WebContentsView } from "electron";
+import type { WebContents } from "electron";
 
 import {
   type AbsolutePath,
@@ -26,7 +26,8 @@ export interface BrowserEntry {
   id: TaskId;
   // Chromium profile partition directory; threaded through so callers like
   // BrowserConfig.getTargetMeta can correlate the target back to its session
-  // dir without re-deriving it.
+  // dir without re-deriving it. Read in `will-attach-webview` to override the
+  // guest's session with `session.fromPath(partitionDir)`.
   partitionDir: AbsolutePath;
   // Maps download URL -> GUID from Page.downloadWillBegin, consumed by will-download.
   pendingDownloadGuids: Map<string, string>;
@@ -38,7 +39,10 @@ export interface BrowserEntry {
   // identifier in BrowserConfig. Independent of webContents.id (which becomes
   // undefined after destruction in Electron 41+, electron/electron#50249).
   targetId: BrowserTargetId;
-  view: WebContentsView;
+  // The guest `<webview>`'s WebContents, bound in `did-attach-webview`. Null
+  // between createTarget (which records the entry + asks the renderer to mount
+  // a guest) and the attach completing.
+  webContents: null | WebContents;
 }
 
 export function createEntry({
@@ -46,13 +50,11 @@ export function createEntry({
   partitionDir,
   sessionId,
   targetId,
-  view,
 }: {
   id: TaskId;
   partitionDir: AbsolutePath;
   sessionId: StoreId.Session;
   targetId: BrowserTargetId;
-  view: WebContentsView;
 }): BrowserEntry {
   return {
     authorizedDownloadPath: null,
@@ -67,7 +69,7 @@ export function createEntry({
     screencastSessionId: 0,
     sessionId,
     targetId,
-    view,
+    webContents: null,
   };
 }
 
@@ -80,6 +82,7 @@ export function destroyEntry(
     return;
   }
   drainDisposers(entry);
+  fireDestruction(entry);
   entries.delete(targetId);
 }
 
@@ -99,6 +102,7 @@ export function handleDetach(
   entry.eventListeners.clear();
 
   drainDisposers(entry);
+  fireDestruction(entry);
   entries.delete(targetId);
 }
 
@@ -146,4 +150,21 @@ function drainDisposers(entry: BrowserEntry) {
     }
   }
   entry.disposers.clear();
+}
+
+// Notify listeners that the entry is gone (any reason: explicit close, detach,
+// renderer crash, or a handshake that timed out before the guest attached).
+// Fired after disposers so cleanup runs first; drained so each fires at most
+// once. Centralized here so it runs even for entries that never bound a guest.
+function fireDestruction(entry: BrowserEntry) {
+  for (const listener of entry.destructionListeners) {
+    try {
+      listener();
+    } catch (error) {
+      log.warn(
+        `destruction listener threw targetId=${entry.targetId} err=${String(error)}`,
+      );
+    }
+  }
+  entry.destructionListeners.clear();
 }

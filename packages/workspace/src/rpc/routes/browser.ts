@@ -7,6 +7,16 @@ import { base } from "../base";
 
 const PresenceSchema = z.object({ active: z.literal(true) });
 
+// Live target ids (`id/sessionId`) for a task, so the UI can tell when a
+// browser is active for a session and offer to open its live view.
+const listTargetIds = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(z.array(z.string()))
+  .handler(async ({ context, input }) => {
+    const targets = await context.workspaceConfig.browser.listTargets(input.id);
+    return targets.map((target) => String(target.id));
+  });
+
 const presence = base
   .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(PresenceSchema))
@@ -41,6 +51,7 @@ const presence = base
   });
 
 export const browser = {
+  listTargetIds,
   live: {
     presence,
   },

@@ -244,7 +244,7 @@ function isArtifactPanelFileSelected(
   artifactPanel: ArtifactPanel | null,
 ) {
   return (
-    artifactPanel != null &&
+    artifactPanel?.type === "file" &&
     file.filePath === artifactPanel.filePath &&
     file.modifiedAt === artifactPanel.modifiedAt
   );

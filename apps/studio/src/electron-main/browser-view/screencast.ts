@@ -32,7 +32,7 @@ export function startScreencast({
       return;
     }
     // electron/electron#50249: webContents is undefined after destruction in Electron 41+
-    const wc = entry.view.webContents;
+    const wc = entry.webContents;
     if (!wc || wc.isDestroyed()) {
       stopScreencast(entry);
       return;
@@ -45,7 +45,7 @@ export function startScreencast({
         if (entry.screencastSessionId !== screencastSessionId) {
           return;
         }
-        const current = entry.view.webContents;
+        const current = entry.webContents;
         if (!current || current.isDestroyed()) {
           return;
         }

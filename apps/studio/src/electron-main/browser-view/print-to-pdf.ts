@@ -12,7 +12,7 @@ export async function handlePrintToPDF(
 ): Promise<Protocol.Page.PrintToPDFResponse> {
   const p = (params ?? {}) as Protocol.Page.PrintToPDFRequest;
   try {
-    const data = await entry.view.webContents?.printToPDF({
+    const data = await entry.webContents?.printToPDF({
       landscape: p.landscape === true,
       preferCSSPageSize: p.preferCSSPageSize === true,
       printBackground: p.printBackground !== false,

@@ -98,7 +98,7 @@ export async function sendCommand({
   }
 
   try {
-    const wc = entry.view.webContents;
+    const wc = entry.webContents;
     if (!wc) {
       throw new Error("webContents unavailable");
     }
@@ -187,7 +187,7 @@ async function rescaleFullPageScreenshotClip(
   if (p.captureBeyondViewport !== true || !p.clip) {
     return null;
   }
-  const wc = entry.view.webContents;
+  const wc = entry.webContents;
   if (!wc || wc.isDestroyed() || !wc.debugger.isAttached()) {
     return null;
   }

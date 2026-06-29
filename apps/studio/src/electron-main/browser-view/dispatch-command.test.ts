@@ -2,7 +2,7 @@ import type {
   AbsolutePath,
   BrowserTargetId,
 } from "@instrument-org/workspace/electron";
-import type { WebContentsView } from "electron";
+import type { WebContents } from "electron";
 
 import {
   encodeBrowserTargetId,
@@ -66,10 +66,10 @@ function makeEntry({
     partitionDir: "/tmp/partition" as AbsolutePath,
     sessionId: SESSION_ID,
     targetId,
-    // Cast to satisfy the WebContentsView type while exposing only the surface
-    // sendCommand actually touches (entry.view.webContents).
-    view: { webContents: wc } as unknown as WebContentsView,
   });
+  // Cast to the WebContents type while exposing only the surface sendCommand
+  // actually touches (entry.webContents).
+  entry.webContents = wc as unknown as null | WebContents;
   return entry;
 }
 
@@ -347,7 +347,7 @@ describe("sendCommand", () => {
         const entry = makeEntry();
         // capturePage is required by startScreencast's setInterval body.
         // It's never observed in this assertion but must exist.
-        Object.assign(entry.view.webContents ?? {}, {
+        Object.assign(entry.webContents ?? {}, {
           capturePage: vi.fn().mockResolvedValue({
             toJPEG: () => Buffer.from(""),
             toPNG: () => Buffer.from(""),

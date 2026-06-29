@@ -8,7 +8,7 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## Readability
 
-- Wrap long lines when it helps scan code, prompts, or docs.
+- Wrap long lines when it helps scan code, prompts, or docs. Not needed for Git commits.
 
 ## Product terminology
 

@@ -7,8 +7,12 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "env": [
         "ANALYZE_BUILD",
+        "BUILD_BRANCH",
+        "BUILD_DATE",
+        "BUILD_SHA",
         "CI",
         "DEV",
+        "INSTRUMENT_CHANNEL",
         "ELECTRON_RENDERER_URL",
         "ELECTRON_BUILDER_OUTPUT_DIR",
         "ELECTRON_DEV_USER_FOLDER_SUFFIX",
@@ -41,7 +45,11 @@
     "build:vite": {
       "dependsOn": ["@instrument-org/shim-client#build"],
       "env": [
+        "BUILD_BRANCH",
+        "BUILD_DATE",
+        "BUILD_SHA",
         "CI",
+        "INSTRUMENT_CHANNEL",
         "MAIN_VITE_APP_API_BASE_URL",
         "MAIN_VITE_GOOGLE_CLIENT_ID",
         "MAIN_VITE_GOOGLE_CLIENT_SECRET",

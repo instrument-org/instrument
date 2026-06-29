@@ -1,7 +1,8 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { BUILD_CHANNEL, IS_CANARY } from "@/shared/channel";
 import {
-  APP_UPDATER_CACHE_DIR_NAME,
+  appUpdaterCacheDirName,
   RELEASES_BUCKET_URL,
 } from "@instrument-org/shared";
 import { app } from "electron";
@@ -91,7 +92,10 @@ export class StudioAppUpdater {
   public constructor({ confirmQuit }: { confirmQuit?: ConfirmQuit } = {}) {
     this.#confirmQuit = confirmQuit;
     autoUpdater.logger = logger.scope("appUpdater:autoUpdater");
-    autoUpdater.autoDownload = true;
+    // Canary never auto-downloads or auto-installs: a broken nightly must not
+    // surprise the team mid-work. Updates are surfaced as a manual download.
+    autoUpdater.autoDownload = !IS_CANARY;
+    autoUpdater.autoInstallOnAppQuit = !IS_CANARY;
     autoUpdater.disableWebInstaller = true;
     autoUpdater.forceDevUpdateConfig =
       process.env.FORCE_DEV_AUTO_UPDATE === "true";
@@ -185,6 +189,18 @@ export class StudioAppUpdater {
     });
   }
 
+  // With auto-download disabled (canary), the renderer triggers the download
+  // explicitly once an update is available. download-progress / update-downloaded
+  // events drive the rest of the flow as usual.
+  public async downloadUpdate() {
+    if (!autoUpdater.isUpdaterActive()) {
+      return;
+    }
+    return await autoUpdater.downloadUpdate().catch((error: unknown) => {
+      scopedLogger.error("Error downloading update:", error);
+    });
+  }
+
   public pollForUpdates() {
     void this.checkForUpdates();
     setLastUpdateCheck();
@@ -258,7 +274,7 @@ export class StudioAppUpdater {
     autoUpdater.setFeedURL({
       channel: getChannel(),
       provider: "generic",
-      updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
+      updaterCacheDirName: appUpdaterCacheDirName(BUILD_CHANNEL),
       url: RELEASES_BUCKET_URL,
     });
   }
@@ -296,6 +312,12 @@ export class StudioAppUpdater {
 }
 
 function getChannel() {
+  // The canary app is a distinct build pinned to its own feed, independent of
+  // the user-facing releaseChannel preference (which is stable-only).
+  if (IS_CANARY) {
+    return "canary";
+  }
+
   // beta and alpha channels are not supported on macOS x64/intel due to lack of support
   // from electron-builder.
   // https://github.com/electron-userland/electron-builder/issues/5592

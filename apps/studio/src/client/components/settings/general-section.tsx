@@ -10,6 +10,7 @@ import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { IS_CANARY } from "@/shared/channel";
 import {
   APP_NAME,
   APP_REPO_URL,
@@ -65,6 +66,10 @@ function About() {
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
 
+  const downloadUpdateMutation = useMutation(
+    rpcClient.preferences.downloadUpdate.mutationOptions(),
+  );
+
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
@@ -114,7 +119,7 @@ function About() {
         return (
           <div className="text-xs text-muted-foreground">
             Version {updateState.updateInfo?.version ?? ""} is available.
-            Downloading...
+            {!IS_CANARY && " Downloading..."}
           </div>
         );
       }
@@ -211,19 +216,36 @@ function About() {
 
   const getActionButton = () => {
     switch (updateState?.type) {
-      case "available":
+      case "available": {
+        // Canary disables auto-download, so the update sits in "available"
+        // until the user explicitly pulls it.
+        if (IS_CANARY) {
+          return (
+            <Button
+              disabled={downloadUpdateMutation.isPending}
+              onClick={() => {
+                downloadUpdateMutation.mutate(undefined);
+              }}
+            >
+              {downloadUpdateMutation.isPending
+                ? "Starting..."
+                : "Download update"}
+            </Button>
+          );
+        }
+        return <Button disabled>Preparing...</Button>;
+      }
+      case "canceled": {
+        return <Button onClick={handleCheckForUpdates}>Try again</Button>;
+      }
       case "checking":
       case "downloading": {
         return (
           <Button disabled>
             {updateState.type === "checking" && "Checking..."}
             {updateState.type === "downloading" && "Downloading..."}
-            {updateState.type === "available" && "Preparing..."}
           </Button>
         );
-      }
-      case "canceled": {
-        return <Button onClick={handleCheckForUpdates}>Try again</Button>;
       }
       case "downloaded": {
         return <Button onClick={handleInstallUpdate}>Install now</Button>;
@@ -278,6 +300,19 @@ function About() {
                   ? "Loading..."
                   : appVersion?.version || "Unknown"}
               </div>
+              {appVersion?.sha ? (
+                <div className="text-xs text-muted-foreground">
+                  {appVersion.channel === "canary" ? "Canary" : "Stable"}
+                  {appVersion.branch ? ` · ${appVersion.branch}` : ""} ·{" "}
+                  <ExternalLink
+                    addReferral={false}
+                    className="underline"
+                    href={`${APP_REPO_URL}/commit/${appVersion.sha}`}
+                  >
+                    {appVersion.sha.slice(0, 7)}
+                  </ExternalLink>
+                </div>
+              ) : null}
               {getUpdateStatusContent()}
             </div>
             <div className="shrink-0">{getActionButton()}</div>

@@ -14,6 +14,18 @@ import { analyzer } from "vite-bundle-analyzer";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
 
+// Build-time constants baked into every process (main/preload/renderer) so the
+// running app knows its channel and which commit it came from. Driven by the
+// canary workflow; defaults keep local/stable builds clean.
+const buildDefine = {
+  __BUILD_BRANCH__: JSON.stringify(process.env.BUILD_BRANCH ?? ""),
+  __BUILD_DATE__: JSON.stringify(process.env.BUILD_DATE ?? ""),
+  __BUILD_SHA__: JSON.stringify(process.env.BUILD_SHA ?? ""),
+  __INSTRUMENT_CHANNEL__: JSON.stringify(
+    process.env.INSTRUMENT_CHANNEL === "canary" ? "canary" : "stable",
+  ),
+};
+
 const monorepoNamespace = "@instrument-org";
 // Not including "components" it will be bundled by default in the client
 const monorepoPackages = ["workspace", "shared", "ai-gateway"];
@@ -168,6 +180,7 @@ export default defineConfig(({ command }) => {
         watch: {}, // Enable hot reloading
       },
       define: {
+        ...buildDefine,
         __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
         __FFMPEG_STATIC_PATH__: JSON.stringify(ffmpegStaticValue),
         __FFPROBE_STATIC_PATH__: JSON.stringify(ffprobeStaticValue),
@@ -188,6 +201,7 @@ export default defineConfig(({ command }) => {
         sourcemap: isProduction,
         watch: {}, // Enable hot reloading
       },
+      define: buildDefine,
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("preload"),
@@ -204,6 +218,7 @@ export default defineConfig(({ command }) => {
         sourcemap: isProduction,
         watch: {}, // Enable hot reloading
       },
+      define: buildDefine,
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("renderer"),

@@ -1,6 +1,7 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
+import { parallel } from "radashi";
 import { z } from "zod";
 
 import { createSession } from "../../../lib/create-session";
@@ -14,7 +15,7 @@ import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
-import { getProject, getProjectInstructions } from "../../../lib/project";
+import { getProject, normalizeProjectInstructions } from "../../../lib/project";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {
@@ -73,9 +74,17 @@ const byIds = base
       .array(),
   )
   .handler(async ({ context, errors, input }) => {
+    const taskResults = await parallel(
+      { limit: 12 },
+      input.ids,
+      async (id) => ({
+        id,
+        result: await getTask(id, context.workspaceConfig),
+      }),
+    );
+
     const results = [];
-    for (const id of input.ids) {
-      const result = await getTask(id, context.workspaceConfig);
+    for (const { id, result } of taskResults) {
       if (result.isErr()) {
         if (result.error.type === "workspace-not-found-error") {
           results.push({
@@ -227,7 +236,9 @@ const create = base
       // agent and UI read this instead of the live project.
       const projectContext = project
         ? {
-            instructions: await getProjectInstructions(project.id),
+            // project already carries instructions from getProject above; reuse
+            // them instead of getProjectInstructions, which re-scans projects/.
+            instructions: normalizeProjectInstructions(project.instructions),
             projectId: project.id,
             projectName: project.name,
           }

@@ -107,6 +107,7 @@
     "spawnable",
     "squircle",
     "Subdeps",
+    "syscalls",
     "textnodes",
     "togetherai",
     "togglefullscreen",

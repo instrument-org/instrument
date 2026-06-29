@@ -5,6 +5,7 @@ import {
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import nodePath from "node:path";
+import { parallel } from "radashi";
 
 import { PROJECT_INSTRUCTIONS_FILE_NAME } from "../constants";
 import {
@@ -192,8 +193,7 @@ export async function getProjectInstructions(
   if (project.isErr()) {
     return undefined;
   }
-  const instructions = project.value.instructions.trim();
-  return instructions.length > 0 ? instructions : undefined;
+  return normalizeProjectInstructions(project.value.instructions);
 }
 
 // Folders under projects/ that can't be loaded as a project because their
@@ -222,16 +222,24 @@ export async function listInvalidProjectFolders(): Promise<
 
 export async function listProjects(): Promise<Project[]> {
   const folders = await listProjectFolders();
-  const projects: Project[] = [];
-  for (const folder of folders) {
-    const result = await readProject(folder);
-    if (result.isOk()) {
-      projects.push(result.value);
-    }
-  }
+  const results = await parallel({ limit: 12 }, folders, (folder) =>
+    readProject(folder),
+  );
+  const projects = results
+    .filter((result) => result.isOk())
+    .map((result) => result.value);
   return projects.toSorted(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
   );
+}
+
+// Trims project instructions and treats whitespace-only as absent. Exposed so
+// callers holding a loaded Project can normalize without a second disk scan.
+export function normalizeProjectInstructions(
+  instructions: string,
+): string | undefined {
+  const trimmed = instructions.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 export async function removeFolderFromProject(

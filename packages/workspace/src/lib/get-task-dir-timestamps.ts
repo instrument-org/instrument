@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 
 import { type TaskDir } from "../schemas/paths";
 import { getCurrentDate } from "./get-current-date";
-import { pathExists } from "./path-exists";
 import { getTaskPrivateDir, sessionStorePath } from "./task-dir-utils";
 
 export async function getTaskDirTimestamps(dir: TaskDir) {
@@ -13,13 +12,13 @@ export async function getTaskDirTimestamps(dir: TaskDir) {
 
   for (const path of paths) {
     try {
-      if (await pathExists(path)) {
-        const stats = await fs.stat(path);
-        return {
-          createdAt: stats.birthtime,
-          updatedAt: stats.mtime,
-        };
-      }
+      // Stat directly and let a missing path throw, rather than a separate
+      // access() existence probe -- that doubled the syscalls per task.
+      const stats = await fs.stat(path);
+      return {
+        createdAt: stats.birthtime,
+        updatedAt: stats.mtime,
+      };
     } catch {
       continue;
     }

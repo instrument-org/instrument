@@ -2,7 +2,7 @@ import { glob } from "glob";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { assign, sort } from "radashi";
+import { assign, parallel, sort } from "radashi";
 
 import {
   type AbsolutePath,
@@ -53,23 +53,24 @@ export async function getTasks(
     },
     options,
   );
-  const tasks: Task[] = [];
   const sortByFn =
     sortBy === "createdAt"
       ? (task: Task) => task.createdAt.getTime()
       : (task: Task) => task.updatedAt.getTime();
 
   const taskDirs = await taskDirsInRootDir(workspaceConfig.tasksDir);
-  for (const dir of taskDirs) {
-    const taskResult = await readTask({ dir });
-    if (taskResult.isOk()) {
-      tasks.push(taskResult.value);
-    }
-    // Folders whose name isn't a valid task id are skipped silently. They are a
-    // recoverable, user-visible condition (surfaced via listInvalidTaskFolders
-    // and the Storage settings tab), not a bug -- previously every scan reported
-    // one telemetry exception per folder, flooding error reporting.
-  }
+  // Read tasks concurrently; each readTask is several independent fs ops and a
+  // workspace can hold many tasks, so a serial loop dominates list latency.
+  const taskResults = await parallel({ limit: 12 }, taskDirs, (dir) =>
+    readTask({ dir }),
+  );
+  // Folders whose name isn't a valid task id are skipped silently. They are a
+  // recoverable, user-visible condition (surfaced via listInvalidTaskFolders
+  // and the Storage settings tab), not a bug -- previously every scan reported
+  // one telemetry exception per folder, flooding error reporting.
+  const tasks = taskResults
+    .filter((result) => result.isOk())
+    .map((result) => result.value);
 
   const sortedTasks = sort(
     tasks,
@@ -98,10 +99,13 @@ async function readTask({ dir }: { dir: TaskDir }) {
   }
 
   const id = taskIdResult.data;
-  const settings = await getTaskSettings(dir);
+  const [settings, timestamps] = await Promise.all([
+    getTaskSettings(dir),
+    getTaskDirTimestamps(dir),
+  ]);
 
   const task: Task = {
-    ...(await getTaskDirTimestamps(dir)),
+    ...timestamps,
     id,
     pinnedAt: settings?.pinnedAt,
     projectId: settings?.projectId,

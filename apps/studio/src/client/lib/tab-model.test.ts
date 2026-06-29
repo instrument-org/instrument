@@ -38,11 +38,11 @@ describe("addTab", () => {
     expect(next.tabs).toHaveLength(2);
   });
 
-  it("collapses single-tab routes onto the existing tab", () => {
+  it("allows multiple tabs of the same route (no single-tab collapse)", () => {
     const start = model([tab({ id: "a", pathname: "/tasks/123" })], "a");
     const next = addTab(start, { id: "b", pathname: "/tasks/123" });
-    expect(next.tabs).toHaveLength(1);
-    expect(next.selectedId).toBe("a");
+    expect(next.tabs.map((t) => t.id)).toEqual(["a", "b"]);
+    expect(next.selectedId).toBe("b");
   });
 
   it("allows distinct single-tab routes to coexist", () => {
@@ -159,7 +159,7 @@ describe("navigate", () => {
     expect(next.tabs[0]?.pathname).toBe("/evals");
   });
 
-  it("collapses onto an existing single-tab route tab", () => {
+  it("navigates the selected tab even if another tab has that route", () => {
     const start = model(
       [
         tab({ id: "a", pathname: "/tasks/1" }),
@@ -168,8 +168,8 @@ describe("navigate", () => {
       "b",
     );
     const next = navigate(start, { pathname: "/tasks/1" });
-    expect(next.selectedId).toBe("a");
-    expect(next.tabs[1]?.pathname).toBe("/new-tab");
+    expect(next.selectedId).toBe("b");
+    expect(next.tabs[1]?.pathname).toBe("/tasks/1");
   });
 });
 

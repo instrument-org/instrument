@@ -27,6 +27,9 @@ declare namespace NodeJS {
       ANALYZE_BUILD: string | undefined;
       APPLE_NOTARIZATION_ENABLED: string | undefined;
       ARCH: string | undefined;
+      BUILD_BRANCH: string | undefined;
+      BUILD_DATE: string | undefined;
+      BUILD_SHA: string | undefined;
       BUILDER_PUBLISH_S3_ENDPOINT: string | undefined;
       CI: string | undefined;
       ELECTRON_BUILDER_OUTPUT_DIR: string | undefined;
@@ -38,6 +41,7 @@ declare namespace NodeJS {
       FORCE_DEV_AUTO_UPDATE: string | undefined;
       GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace
+      INSTRUMENT_CHANNEL: string | undefined;
       NODE_ENV: string | undefined;
       PATH: string | undefined;
       SIGNTOOL_PATH: string | undefined;

@@ -1,5 +1,9 @@
-import { APP_NAME, APP_PROTOCOL, SUPPORT_URL } from "@instrument-org/shared";
+import { BUILD_CHANNEL } from "@/shared/channel";
+import { APP_NAME, appProtocol, SUPPORT_URL } from "@instrument-org/shared";
 import { html, raw } from "hono/html";
+
+// Reopen the running app via its channel-specific scheme (canary differs).
+const protocolScheme = appProtocol(BUILD_CHANNEL);
 
 // Light mode: dark text on warm gradient. Dark mode: white text on dark gradient.
 const defaultBtn = [
@@ -69,7 +73,7 @@ export function renderAuthPage({
         </p>
         <div class="flex gap-3">
           ${contactUsButton}
-          ${button("default", `${APP_PROTOCOL}://`, `Open ${APP_NAME}`)}
+          ${button("default", `${protocolScheme}://`, `Open ${APP_NAME}`)}
         </div>`;
     }
     return html` <h1
@@ -81,7 +85,7 @@ export function renderAuthPage({
         Taking you back to ${APP_NAME}. You can close this tab.
       </p>
       <div class="flex gap-3">
-        ${button("default", `${APP_PROTOCOL}://home`, `Open ${APP_NAME}`)}
+        ${button("default", `${protocolScheme}://home`, `Open ${APP_NAME}`)}
       </div>`;
   };
 

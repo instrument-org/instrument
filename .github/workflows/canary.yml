@@ -1,0 +1,185 @@
+name: Canary
+
+# Nightly (and on-demand) internal builds of the Canary app: distinct icon /
+# bundle id, staging API, published to the shared releases bucket under the
+# `canary` channel. Canary does NOT auto-update; testers pull updates manually.
+on:
+  schedule:
+    # 09:00 UTC nightly. Adjust as needed.
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs: {}
+
+concurrency:
+  group: canary
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    name: Compute canary version
+    runs-on: ubuntu-latest
+    outputs:
+      build_date: ${{ steps.version.outputs.build_date }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: version
+        name: Derive version
+        run: |
+          BASE=$(node -p "require('./apps/studio/package.json').version")
+          # Drop any existing prerelease suffix, then append a monotonic,
+          # numeric-only canary identifier so electron-updater semver-orders
+          # nightlies correctly.
+          BASE=${BASE%%-*}
+          TS=$(date -u +%Y%m%d%H%M%S)
+          echo "version=${BASE}-canary.${TS}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.os }} ${{ matrix.arch }}
+    needs: setup
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: "write"
+
+    env:
+      INSTRUMENT_CHANNEL: canary
+      # Build-time vite env (channel build + staging API + commit metadata).
+      MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
+      MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
+      MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL_STAGING }}
+      VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
+      VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
+      BUILD_SHA: ${{ github.sha }}
+      BUILD_BRANCH: ${{ github.ref_name }}
+      BUILD_DATE: ${{ needs.setup.outputs.build_date }}
+      # Publish target (same bucket as stable; canary channel keeps it isolated).
+      BUILDER_PUBLISH_S3_ENDPOINT: ${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos
+            arch: arm64
+            runner: macos-26
+          - os: windows-latest
+            arch: x64
+            runner: windows-latest
+          - os: ubuntu
+            arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-binary-caches
+      - uses: ./.github/actions/prepare
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Stamp canary version
+        shell: bash
+        working-directory: apps/studio
+        run: npm version "${{ needs.setup.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - if: matrix.os == 'ubuntu'
+        name: Build Linux (vite)
+        run: pnpm turbo run build:vite --filter=@instrument-org/studio
+
+      - if: matrix.os == 'ubuntu'
+        name: Package & publish Linux
+        run: pnpm --filter @instrument-org/studio exec electron-builder --linux AppImage --${{ matrix.arch }} --publish always
+
+      - if: matrix.os == 'macos'
+        name: setup-signing
+        run: |
+          mkdir -p ~/.private_keys
+          echo '${{ secrets.APPLE_API_KEY_DATA }}' > ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+
+      - if: matrix.os == 'macos'
+        name: Build Mac (vite)
+        run: pnpm turbo run build:vite --filter=@instrument-org/studio
+
+      - if: matrix.os == 'macos'
+        name: Package & publish Mac
+        run: pnpm --filter @instrument-org/studio exec electron-builder --mac --${{ matrix.arch }} --publish always
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY: ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+          APPLE_NOTARIZATION_ENABLED: ${{ vars.APPLE_NOTARIZATION_ENABLED }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          ARCH: ${{ matrix.arch }}
+
+      - if: matrix.os == 'macos'
+        name: Cleanup Signing
+        run: |
+          rm ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+
+      - if: matrix.os == 'windows-latest'
+        uses: KamaranL/add-signtool-action@d0027a4cf430f8dfdb15fba53410d0c76b7566f4 # v1
+        id: signtool
+
+      - if: matrix.os == 'windows-latest'
+        id: auth-google-cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          create_credentials_file: true
+
+      - if: matrix.os == 'windows-latest'
+        name: Install GCP KMS CNG Provider
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = 'cng-v1.2'
+          $zipUrl  = "https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/$version/kmscng-1.2-windows-amd64.zip"
+          $zipPath = Join-Path $env:RUNNER_TEMP "kmscng-$version.zip"
+          $outDir  = Join-Path $env:RUNNER_TEMP "kmscng-$version"
+
+          Invoke-WebRequest $zipUrl -OutFile $zipPath
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          Expand-Archive -Path $zipPath -DestinationPath $outDir -Force
+
+          $msi = Get-ChildItem -Path $outDir -Recurse -Filter "kmscng.msi" | Select-Object -First 1
+          if (-not $msi) { throw "kmscng.msi not found in archive." }
+
+          Start-Process msiexec.exe -Wait -ArgumentList "/i `"$($msi.FullName)`" /qn"
+
+          certutil -csp "Google Cloud KMS Provider" -csptest
+
+      - if: matrix.os == 'windows-latest'
+        name: Write EV Cert Chain File
+        shell: pwsh
+        run: |
+          Set-Content -Path "${{ env.WIN_CERT_PATH }}" -Value '${{ env.WIN_EV_CERT_PEM }}' -Encoding ascii
+        env:
+          WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
+          WIN_EV_CERT_PEM: ${{ secrets.WIN_EV_CERT_PEM }}
+
+      - if: matrix.os == 'windows-latest'
+        name: Build Windows (vite)
+        run: pnpm turbo run build:vite --filter=@instrument-org/studio
+
+      - if: matrix.os == 'windows-latest'
+        name: Package & publish Windows
+        run: pnpm --filter @instrument-org/studio exec electron-builder --win --${{ matrix.arch }} --publish always
+        env:
+          WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
+          WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
+
+      - if: matrix.os == 'windows-latest'
+        name: Verify Signatures
+        shell: pwsh
+        run: |
+          & "${{ env.SIGNTOOL_PATH }}" verify /pa /all "apps\studio\dist\*.exe"
+        env:
+          SIGNTOOL_PATH: signtool.exe

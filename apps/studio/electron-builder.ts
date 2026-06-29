@@ -1,9 +1,12 @@
 import {
   APP_DOMAIN,
   APP_EXECUTABLE,
-  APP_NAME,
-  APP_PROTOCOL,
-  APP_UPDATER_CACHE_DIR_NAME,
+  type AppChannel,
+  appId,
+  appMetadataName,
+  appProductName,
+  appProtocol,
+  appUpdaterCacheDirName,
 } from "@instrument-org/shared";
 import dotenv from "dotenv";
 import {
@@ -19,13 +22,30 @@ if (process.env.CI !== "true") {
   });
 }
 
+// Canary is a distinct, side-by-side app: own bundle id, name, icon, install
+// folder, updater cache, and update channel. Driven by INSTRUMENT_CHANNEL,
+// which the canary workflow sets at the job level.
+const channel: AppChannel =
+  process.env.INSTRUMENT_CHANNEL === "canary" ? "canary" : "stable";
+const isCanary = channel === "canary";
+
+// Icon paths are relative to `directories.buildResources` ("build"), except
+// linux which electron-builder resolves from the project root.
+const macIcon = isCanary ? "canary/icon.icon" : "icon.icon";
+const dmgIcon = isCanary ? "canary/icon.icns" : "icon.icns";
+const winIcon = isCanary ? "canary/icon.ico" : "icon.ico";
+const linuxIcon = isCanary ? "build/canary/icons" : "build/icons";
+
 const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   bucket: "instrument-releases",
+  // Canary publishes a separate `canary.yml` manifest into the same bucket; the
+  // distinct channel + bundle id keep it isolated from stable/beta artifacts.
+  channel: isCanary ? "canary" : undefined,
   // eslint-disable-next-line turbo/no-undeclared-env-vars
   endpoint: process.env.BUILDER_PUBLISH_S3_ENDPOINT,
   provider: "s3",
   region: "auto",
-  updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
+  updaterCacheDirName: appUpdaterCacheDirName(channel),
 };
 
 /**
@@ -33,7 +53,7 @@ const publishConfig: PlatformSpecificBuildOptions["publish"] = {
  */
 const config: Configuration = {
   afterPack: runAfterPack,
-  appId: "com.finalpoint.instrument",
+  appId: appId(channel),
   appImage: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
   },
@@ -45,7 +65,7 @@ const config: Configuration = {
   dmg: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     // DMG volume icons still use .icns even when the app bundle uses .icon (macOS 26+).
-    icon: "icon.icns",
+    icon: dmgIcon,
   },
   // cspell:ignore orgstudio
   // NSIS derives the Windows install folder (%LOCALAPPDATA%\Programs\<name>)
@@ -53,7 +73,7 @@ const config: Configuration = {
   // ugly "@instrument-orgstudio". Override the metadata name so the install
   // folder matches the product name ("Instrument") instead.
   extraMetadata: {
-    name: APP_NAME,
+    name: appMetadataName(channel),
   },
   extraResources: [
     {
@@ -97,13 +117,15 @@ const config: Configuration = {
     "!**/*.local/**",
     /* cspell:enable */
   ],
-  generateUpdatesFilesForAllChannels: true,
+  // Stable cascades prerelease channels; canary must emit ONLY canary.yml so it
+  // can never publish a latest.yml that pulls stable users onto a nightly.
+  generateUpdatesFilesForAllChannels: !isCanary,
   linux: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     category: "Utility",
     executableArgs: ["--ozone-platform=x11"],
     executableName: APP_EXECUTABLE,
-    icon: "build/icons",
+    icon: linuxIcon,
     maintainer: APP_DOMAIN,
     target: ["AppImage", "deb", "rpm", "tar.gz"],
   },
@@ -117,14 +139,17 @@ const config: Configuration = {
     gatekeeperAssess: false,
     hardenedRuntime: true,
     // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.
-    icon: "icon.icon",
+    icon: macIcon,
     // eslint-disable-next-line turbo/no-undeclared-env-vars
     notarize: process.env.APPLE_NOTARIZATION_ENABLED === "true",
     publish: {
       ...publishConfig,
-      channel:
-        // eslint-disable-next-line turbo/no-undeclared-env-vars
-        process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
+      channel: isCanary
+        ? "canary"
+        : // eslint-disable-next-line turbo/no-undeclared-env-vars
+          process.env.ARCH === "x64"
+          ? "${channel}-${arch}"
+          : undefined,
     },
     target: ["dmg", "zip"],
   },
@@ -135,16 +160,17 @@ const config: Configuration = {
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
   },
-  productName: APP_NAME,
+  productName: appProductName(channel),
   protocols: [
     {
       // Required for Linux deep linking
-      name: APP_NAME,
-      schemes: [APP_PROTOCOL],
+      name: appProductName(channel),
+      schemes: [appProtocol(channel)],
     },
   ],
   publish: publishConfig,
   win: {
+    icon: winIcon,
     signtoolOptions: {
       publisherName: "Finalpoint, LLC",
       sign: "electron-builder/win-cloud-hsm-sign.js",

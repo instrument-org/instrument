@@ -17,8 +17,9 @@ import {
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
+import { BUILD_CHANNEL } from "@/shared/channel";
 import { is, optimizer } from "@electron-toolkit/utils";
-import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
+import { APP_NAME, appProtocol } from "@instrument-org/shared";
 import {
   app,
   BrowserWindow,
@@ -38,6 +39,9 @@ import { watchThemePreferenceAndApply } from "./lib/theme-utils";
 import { initializeRPC } from "./rpc/initialize";
 let appUpdater: StudioAppUpdater | undefined;
 
+// Channel-specific so canary registers `instrument-canary://` alongside stable.
+const APP_PROTOCOL_SCHEME = appProtocol(BUILD_CHANNEL);
+
 protocol.registerSchemesAsPrivileged([
   {
     privileges: {
@@ -45,11 +49,11 @@ protocol.registerSchemesAsPrivileged([
       standard: true,
       supportFetchAPI: true,
     },
-    scheme: APP_PROTOCOL,
+    scheme: APP_PROTOCOL_SCHEME,
   },
 ]);
 
-app.setAsDefaultProtocolClient(APP_PROTOCOL);
+app.setAsDefaultProtocolClient(APP_PROTOCOL_SCHEME);
 
 registerTelemetry(app);
 
@@ -64,7 +68,9 @@ if (gotTheLock) {
   app.on("second-instance", (_event, commandLine) => {
     focusForegroundWindow();
 
-    const url = commandLine.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
+    const url = commandLine.find((arg) =>
+      arg.startsWith(`${APP_PROTOCOL_SCHEME}://`),
+    );
     if (url) {
       handleDeepLink(url);
     }

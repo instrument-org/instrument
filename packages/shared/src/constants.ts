@@ -2,10 +2,8 @@ export const AI_GATEWAY_API_PATH = "/ai-gateway";
 export const APP_NAME = "Instrument";
 export const APP_NAME_SLUG = "instrument";
 export const APP_UPDATER_CACHE_DIR_NAME = `${APP_NAME_SLUG}-desktop-updater`;
-export const APP_PROTOCOL =
-  process.env.NODE_ENV === "development"
-    ? `${APP_NAME_SLUG}-local`
-    : APP_NAME_SLUG;
+// Stable's deep-link scheme. Canary registers its own (see `appProtocol`).
+export const APP_PROTOCOL = appProtocol("stable");
 export const APP_EXECUTABLE = "instrument";
 export const APP_CLIENT_NAME_STUDIO = `${APP_NAME_SLUG}-studio`;
 
@@ -28,6 +26,49 @@ export const CONTACT_EMAIL = `hello@${APP_DOMAIN}`;
 export const TASK_SETTINGS_FILE_NAME = `settings.json`;
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
 export const TASK_PRIVATE_FOLDER_NAME = `.instrument`;
+
+// Build channels. "stable" is the default app; "canary" is a distinct,
+// side-by-side application (own bundle id, name, icon, user-data folder)
+// built nightly from main for internal feature validation. The existing
+// "beta" feed is a runtime opt-in on the stable app, not a separate identity,
+// so it is not a build channel here.
+export type AppChannel = "canary" | "stable";
+
+const APP_NAME_CANARY = `${APP_NAME} Canary`;
+const APP_ID = "com.finalpoint.instrument";
+
+export function appId(channel: AppChannel) {
+  return channel === "canary" ? `${APP_ID}.canary` : APP_ID;
+}
+
+// NSIS derives the Windows install folder from package.json `name`; we override
+// it (see electron-builder `extraMetadata.name`) so the folder matches the
+// product name instead of the sanitized package name.
+export function appMetadataName(channel: AppChannel) {
+  return appProductName(channel);
+}
+
+// Product name drives the macOS bundle name, install folder, and Electron
+// `userData` path, giving canary a separate folder for free.
+export function appProductName(channel: AppChannel) {
+  return channel === "canary" ? APP_NAME_CANARY : APP_NAME;
+}
+
+// Deep-link scheme. Canary gets its own so it never collides with stable's
+// `instrument://` for single-instance handoff or deep links. OAuth is
+// unaffected: it round-trips through a localhost callback, not this scheme.
+export function appProtocol(channel: AppChannel) {
+  const base = channel === "canary" ? `${APP_NAME_SLUG}-canary` : APP_NAME_SLUG;
+  return process.env.NODE_ENV === "development" ? `${base}-local` : base;
+}
+
+// The updater cache dir must be canary-specific so a pending canary download
+// never collides with a stable install on the same machine.
+export function appUpdaterCacheDirName(channel: AppChannel) {
+  return channel === "canary"
+    ? `${APP_NAME_SLUG}-canary-desktop-updater`
+    : APP_UPDATER_CACHE_DIR_NAME;
+}
 
 // 47xxx-48xxx range: above WSL2/Hyper-V exclusion bands (~4k-10k) and below
 // the OS ephemeral range (49152+). Env suffixes (prod/dev/test) allow all

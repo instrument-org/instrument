@@ -23,10 +23,16 @@ const GLOBAL_DEFINES = {
   __AGENT_BROWSER_BIN_DIR__: path.dirname(
     workspacePkgRequire.resolve("agent-browser/bin/agent-browser.js"),
   ),
+  // Build channel + commit metadata (see src/shared/channel.ts and
+  // src/shared/build-info.ts). Default to a stable/empty build under test.
+  __BUILD_BRANCH__: "",
+  __BUILD_DATE__: "",
+  __BUILD_SHA__: "",
   __FFMPEG_STATIC_PATH__: workspacePkgRequire.resolve("ffmpeg-static"),
   __FFPROBE_STATIC_PATH__: workspacePkgRequire.resolve(
     "@derhuerst/ffprobe-static",
   ),
+  __INSTRUMENT_CHANNEL__: "stable",
 } as const;
 
 export default defineConfig({

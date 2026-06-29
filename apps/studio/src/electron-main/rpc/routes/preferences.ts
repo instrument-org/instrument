@@ -7,6 +7,7 @@ import {
   PreferencesStoreSchema,
   setLastUpdateCheck,
 } from "@/electron-main/stores/preferences";
+import { BUILD_INFO } from "@/shared/build-info";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import {
   TaskIdSchema,
@@ -85,8 +86,12 @@ const quitAndInstall = base.handler(({ context }) => {
   return context.appUpdater.quitAndInstall();
 });
 
+const downloadUpdate = base.handler(({ context }) => {
+  return context.appUpdater.downloadUpdate();
+});
+
 const getAppVersion = base.handler(() => {
-  return { version: app.getVersion() };
+  return { ...BUILD_INFO, version: app.getVersion() };
 });
 
 const ensureTaskDefaultModelURI = base
@@ -154,6 +159,7 @@ const live = {
 
 export const preferences = {
   checkForUpdates,
+  downloadUpdate,
   ensureTaskDefaultModelURI,
   get,
   getAppVersion,

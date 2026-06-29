@@ -1,4 +1,4 @@
-import { SingleTabOnlyRoutes, type Tab } from "@/shared/tabs";
+import { type Tab } from "@/shared/tabs";
 
 /**
  * Renderer-owned tab state and the pure transitions over it. This replaces the
@@ -32,14 +32,8 @@ export function addTab(
     title?: string;
   },
 ): TabsModel {
-  // Single-tab routes collapse onto the existing tab instead of duplicating.
-  if (isSingleTabRoute(pathname)) {
-    const existing = findByBasePath(model, pathname);
-    if (existing) {
-      return { ...model, selectedId: existing.id };
-    }
-  }
-
+  // Any route may have multiple tabs open at once (e.g. two tabs of the same
+  // project/task), like a browser. No single-tab collapsing.
   const tab: Tab = { iconName, id, pathname, pinned: false, title };
   return {
     ...model,
@@ -93,21 +87,11 @@ export function emptyTabsModel(): TabsModel {
   return { recentlyClosed: [], selectedId: null, tabs: [] };
 }
 
-/**
- * Reflect a client-side navigation of the selected tab. A navigation to a
- * single-tab route that already has a tab collapses onto it rather than
- * pointing two tabs at the same task.
- */
+/** Reflect a client-side navigation of the selected tab into the model. */
 export function navigate(
   model: TabsModel,
   { pathname }: { pathname: string },
 ): TabsModel {
-  if (isSingleTabRoute(pathname)) {
-    const existing = findByBasePath(model, pathname);
-    if (existing && existing.id !== model.selectedId) {
-      return { ...model, selectedId: existing.id };
-    }
-  }
   return {
     ...model,
     tabs: model.tabs.map((tab) =>
@@ -214,20 +198,6 @@ export function setTabPathname(
     ...model,
     tabs: model.tabs.map((tab) => (tab.id === id ? { ...tab, pathname } : tab)),
   };
-}
-
-function basePath(pathname: string) {
-  return pathname.split("?")[0];
-}
-
-function findByBasePath(model: TabsModel, pathname: string) {
-  const target = basePath(pathname);
-  return model.tabs.find((tab) => basePath(tab.pathname) === target);
-}
-
-/** Routes that may only ever have a single tab open (e.g. a specific task). */
-function isSingleTabRoute(pathname: string) {
-  return SingleTabOnlyRoutes.test(pathname);
 }
 
 /**

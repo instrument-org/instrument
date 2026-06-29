@@ -9,6 +9,7 @@ import {
   createStudioOverlayController,
   type StudioOverlayController,
 } from "./studio-overlay";
+import { sendTabCommand } from "./tab-command";
 
 const ZOOM_STEP = 0.5;
 // Agent browser views must stay in the window hierarchy for CDP input/capture,
@@ -46,8 +47,8 @@ export class TabsManager {
   }
 
   /**
-   * Only agent browser views (passed as `webView`) are mounted here, kept
-   * offscreen. App tabs are owned by the renderer and ignored.
+   * Agent browser views (passed as `webView`) are mounted here, kept offscreen.
+   * App-tab opens are forwarded to the renderer (which owns tab state).
    */
   public addTab(options: {
     iconName?: Tab["iconName"];
@@ -58,22 +59,27 @@ export class TabsManager {
     urlPath?: StudioPath;
     webView?: WebContentsView;
   }) {
-    const { webView } = options;
-    if (!webView) {
+    const { urlPath, webView } = options;
+    if (webView) {
+      tryCaptureError("addChildView failed mounting agent browser view", () => {
+        this.baseWindow.contentView.addChildView(webView);
+        webView.setBounds(OFFSCREEN_AGENT_BOUNDS);
+      });
       return;
     }
-    tryCaptureError("addChildView failed mounting agent browser view", () => {
-      this.baseWindow.contentView.addChildView(webView);
-      webView.setBounds(OFFSCREEN_AGENT_BOUNDS);
-    });
+    sendTabCommand({ appPath: urlPath ?? "/new-tab", newTab: true, type: "navigate" });
+  }
+
+  public closeActiveTab() {
+    sendTabCommand({ type: "close" });
   }
 
   public closeAllTabs() {
     // Tabs are renderer-owned; nothing to close here.
   }
 
-  public closeTab(_input: { id: string }) {
-    // Renderer-owned.
+  public closeTab(input: { id: string }) {
+    sendTabCommand({ id: input.id, type: "close" });
   }
 
   public focusCurrentTab() {
@@ -115,12 +121,16 @@ export class TabsManager {
     // Tabs are created by the renderer (AppShell); nothing to restore here.
   }
 
+  public navigateActiveTab(input: { appPath: string }) {
+    sendTabCommand({ appPath: input.appPath, type: "navigate" });
+  }
+
   public reopenClosedTab() {
-    // Renderer-owned.
+    sendTabCommand({ type: "reopen" });
   }
 
   public reorderTabs(_ids: string[]) {
-    // Renderer-owned.
+    // Renderer-owned (driven by the tab bar's drag).
   }
 
   public resetZoom() {
@@ -131,20 +141,24 @@ export class TabsManager {
     getMainWindow()?.webContents.setZoomLevel(0);
   }
 
+  public selectLastTab() {
+    sendTabCommand({ type: "selectLast" });
+  }
+
   public selectNextTab() {
-    // Renderer-owned.
+    sendTabCommand({ type: "selectNext" });
   }
 
   public selectPreviousTab() {
-    // Renderer-owned.
+    sendTabCommand({ type: "selectPrevious" });
   }
 
   public selectTab(_input: { id: string }) {
-    // Renderer-owned.
+    // Renderer-owned (driven by the tab bar).
   }
 
-  public selectTabByIndex(_input: { index: number }) {
-    // Renderer-owned.
+  public selectTabByIndex(input: { index: number }) {
+    sendTabCommand({ index: input.index, type: "selectByIndex" });
   }
 
   public teardown() {

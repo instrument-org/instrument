@@ -2,7 +2,6 @@ import type {
   AbsolutePath,
   BrowserTargetId,
 } from "@instrument-org/workspace/electron";
-import type { WebContentsView } from "electron";
 
 import {
   encodeBrowserTargetId,
@@ -29,7 +28,6 @@ function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
     partitionDir: "/tmp/partition" as AbsolutePath,
     sessionId: SESSION_ID,
     targetId,
-    view: {} as WebContentsView,
   });
 }
 

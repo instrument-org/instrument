@@ -18,7 +18,14 @@ describe("artifactPanelSchema", () => {
       modifiedAt: 1_234_567_890,
       type: "file",
     });
-    expect(result.success && result.data.filePath).toBe("src/index.ts");
+    expect(
+      result.success && result.data.type === "file" && result.data.filePath,
+    ).toBe("src/index.ts");
+  });
+
+  it("accepts the browser panel variant", () => {
+    const result = artifactPanelSchema.safeParse({ type: "browser" });
+    expect(result.success && result.data.type).toBe("browser");
   });
 
   it("preserves the file modification time used for chat item identity", () => {
@@ -27,7 +34,9 @@ describe("artifactPanelSchema", () => {
       modifiedAt: 1_234_567_890,
       type: "file",
     });
-    expect(result.success && result.data.modifiedAt).toBe(1_234_567_890);
+    expect(
+      result.success && result.data.type === "file" && result.data.modifiedAt,
+    ).toBe(1_234_567_890);
   });
 
   it.each([

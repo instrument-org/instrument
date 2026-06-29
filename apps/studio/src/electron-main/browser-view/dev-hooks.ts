@@ -17,7 +17,7 @@ export function attachDevHooks(entry: BrowserEntry) {
     return;
   }
 
-  const wc = entry.view.webContents;
+  const wc = entry.webContents;
   if (!wc || wc.isDestroyed()) {
     return;
   }

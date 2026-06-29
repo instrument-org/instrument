@@ -4,6 +4,7 @@ import ReactDOM, { type Root } from "react-dom/client";
 
 import { App } from "./app";
 import { AppShell } from "./components/app-shell";
+import { initAgentBrowserPool } from "./lib/agent-browser-pool";
 import { applyInitialTheme } from "./lib/initial-theme";
 
 declare global {
@@ -27,4 +28,10 @@ if (rootElement) {
   // single-router App.
   const isMainWindow = window.api.windowType === "shell";
   root.render(isMainWindow ? <AppShell /> : <App />);
+
+  if (isMainWindow) {
+    // Subscribe the agent-browser webview pool to main-process mount/unmount
+    // commands for the lifetime of the shell renderer.
+    initAgentBrowserPool();
+  }
 }

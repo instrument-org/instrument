@@ -4,6 +4,7 @@ import { DuplicateTaskModal } from "@/client/components/task/duplicate-modal";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskSidebarModeSchema } from "@/client/components/task/sidebar";
 import { TaskView } from "@/client/components/task/view";
+import { useAutoOpenBrowserArtifact } from "@/client/hooks/use-auto-open-browser-artifact";
 import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-artifact";
 import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
 import { rpcClient } from "@/client/rpc/client";
@@ -227,6 +228,13 @@ function RouteComponent() {
 
   // Focuses output artifacts produced by the active turn.
   useAutoOpenOutputArtifact({
+    artifactPanel,
+    id,
+    selectedSessionId,
+  });
+
+  // Opens the browser panel when the agent starts browsing.
+  useAutoOpenBrowserArtifact({
     artifactPanel,
     id,
     selectedSessionId,

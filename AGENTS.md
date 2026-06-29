@@ -100,6 +100,12 @@ are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
 - Run a specific test file: `cd packages/<name> && pnpm test run <path/to/file.test.ts>`.
 - Run all tests in a package: `cd packages/<name> && pnpm test run`.
 
+## Commits
+
+Scope-first style: `scope: description of what changed`. No conventional types
+(`feat:`/`fix:`/etc.) -- let the description imply the change. See
+`.agents/skills/instrument-commit-message/SKILL.md`.
+
 ## Additional guidance
 
 - `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.

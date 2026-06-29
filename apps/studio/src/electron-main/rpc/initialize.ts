@@ -10,6 +10,7 @@ import { EventEmitter } from "node:events";
 
 import { type BrowserViewManager } from "../browser-view/manager";
 import { captureServerException } from "../lib/capture-server-exception";
+import { isExpectedNetworkError } from "../lib/is-network-error";
 import { type StudioAppUpdater } from "../lib/update";
 import { type InitialRPCContext } from "./context";
 import { createErrorClientInterceptor } from "./error-interceptor";
@@ -28,11 +29,19 @@ function isHandledNotFound(error: unknown): boolean {
   return error instanceof ORPCError && error.code === "NOT_FOUND";
 }
 
+// Offline / unreachable-server failures (fetch failed, connection timeouts, DNS
+// errors) reflect the user's network rather than an app bug. Like NOT_FOUND we
+// still rethrow them to the client so the UI can show a retry, but skip the
+// exception capture so telemetry isn't flooded with non-actionable noise.
+function shouldSkipCapture(error: unknown): boolean {
+  return isHandledNotFound(error) || isExpectedNetworkError(error);
+}
+
 const handler = new RPCHandler<InitialRPCContext>(router, {
   clientInterceptors: [
     createErrorClientInterceptor({
       onAsyncIteratorError: (e, options) => {
-        if (!isHandledNotFound(e)) {
+        if (!shouldSkipCapture(e)) {
           captureServerException(e, {
             rpc_path: options.path,
             scopes: ["rpc"],
@@ -46,7 +55,7 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
         if (options.signal?.aborted && options.signal.reason === e) {
           throw e;
         }
-        if (!isHandledNotFound(e)) {
+        if (!shouldSkipCapture(e)) {
           captureServerException(e, {
             rpc_path: options.path,
             scopes: ["rpc"],

@@ -8,19 +8,23 @@ const StudioPathSchema = z.custom<StudioPath>(
   (value) => typeof value === "string" && value.startsWith("/"),
 );
 
-// Tabs are owned by the renderer (AppShell) in the unified app, so app-tab
-// mutations no longer have a main-process WebContentsView to act on. These
-// handlers remain for overlay/menu callers and will be re-pointed at the
-// renderer over IPC; for now the app-tab mutations are no-ops.
+// Tabs are owned by the renderer (AppShell) in the unified app. These handlers
+// forward to the renderer over IPC (via TabsManager) for overlay-initiated opens
+// (e.g. create-project, welcome -> tutorial). reorder/select are driven directly
+// by the in-app tab bar, so they stay no-ops here.
 const add = base
   .input(
     z.object({ appPath: StudioPathSchema, select: z.boolean().optional() }),
   )
-  .handler(noop);
+  .handler(({ context, input }) => {
+    context.tabsManager?.addTab({ urlPath: input.appPath });
+  });
 
 const navigate = base
   .input(z.object({ appPath: StudioPathSchema }))
-  .handler(noop);
+  .handler(({ context, input }) => {
+    context.tabsManager?.navigateActiveTab({ appPath: input.appPath });
+  });
 
 const navigateBack = base.handler(({ context }) => {
   context.tabsManager?.goBack();
@@ -30,7 +34,9 @@ const navigateForward = base.handler(({ context }) => {
   context.tabsManager?.goForward();
 });
 
-const close = base.input(z.object({ id: z.string() })).handler(noop);
+const close = base.input(z.object({ id: z.string() })).handler(({ context, input }) => {
+  context.tabsManager?.closeTab({ id: input.id });
+});
 
 const reorder = base
   .input(z.object({ tabIds: z.array(z.string()) }))

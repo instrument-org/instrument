@@ -43,9 +43,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+N",
         click: () => {
-          // TODO(unified): route "New Task" to the active tab's renderer router
-          // over IPC. For now just focus the window.
-          getMainWindow()?.webContents.focus();
+          getTabsManager()?.navigateActiveTab({ appPath: "/new-tab" });
         },
         enabled: !isLocked,
         label: "New Task",
@@ -66,10 +64,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             tabsManager.studioOverlay.dismiss();
             return;
           }
-          const selectedTabId = tabsManager?.getState().selectedTabId;
-          if (selectedTabId) {
-            tabsManager.closeTab({ id: selectedTabId });
-          }
+          tabsManager?.closeActiveTab();
         },
         // Disabled for a non-dismissible modal; rebuilt on open/close.
         enabled: canCloseOverlay,
@@ -324,11 +319,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+9",
         click: () => {
-          const tabsManager = getTabsManager();
-          const state = tabsManager?.getState();
-          if (state?.tabs.length) {
-            tabsManager?.selectTabByIndex({ index: state.tabs.length - 1 });
-          }
+          getTabsManager()?.selectLastTab();
         },
         enabled: !isLocked,
         label: "Switch to Last Tab",

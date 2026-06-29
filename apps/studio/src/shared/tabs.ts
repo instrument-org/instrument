@@ -12,6 +12,21 @@ export interface Tab {
   title?: string;
 }
 
+/**
+ * A tab operation sent from the main process (menus, overlay-initiated RPC) to
+ * the renderer that owns tab state (AppShell). `navigate` with `newTab` opens a
+ * new tab; without it, the active tab navigates. `close` without `id` closes the
+ * active tab.
+ */
+export type TabCommand =
+  | { appPath: string; newTab?: boolean; type: "navigate" }
+  | { id?: string; type: "close" }
+  | { index: number; type: "selectByIndex" }
+  | { type: "reopen" }
+  | { type: "selectLast" }
+  | { type: "selectNext" }
+  | { type: "selectPrevious" };
+
 export interface TabState {
   selectedTabId: null | string;
   tabs: Tab[];

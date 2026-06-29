@@ -1,9 +1,19 @@
+import { type AgentBrowserCommand } from "@/shared/agent-browser";
 import { type TabCommand } from "@/shared/tabs";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 const api: Window["api"] = {
   getFilePath: (file: File) => webUtils.getPathForFile(file),
+  onAgentBrowserCommand: (callback: (command: AgentBrowserCommand) => void) => {
+    const listener = (_event: unknown, command: AgentBrowserCommand) => {
+      callback(command);
+    };
+    ipcRenderer.on("agent-browser-command", listener);
+    return () => {
+      ipcRenderer.removeListener("agent-browser-command", listener);
+    };
+  },
   onNavigate: (callback: (url: string) => void) =>
     ipcRenderer.on("navigate", (_event, value: string) => {
       callback(value);

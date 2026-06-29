@@ -25,6 +25,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
+import { TaskBrowserPanel } from "./browser-panel";
 import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
 
 const PANEL_SIZES = {
@@ -63,6 +64,24 @@ export function TaskView({
   const openFileViewer = useSetAtom(openFileViewerAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
 
+  const filePanel = artifactPanel?.type === "file" ? artifactPanel : undefined;
+  const browserPanel = artifactPanel?.type === "browser";
+
+  // Whether the agent has a live browser for this session, used to show the
+  // guest vs a placeholder in the browser panel.
+  const liveTargetId = selectedSessionId
+    ? `${task.id}/${selectedSessionId}`
+    : undefined;
+  const { data: liveTargetIds } = useQuery(
+    rpcClient.workspace.browser.listTargetIds.queryOptions({
+      input: selectedSessionId ? { id: task.id } : skipToken,
+      refetchInterval: 2000,
+    }),
+  );
+  const browserActive = Boolean(
+    liveTargetId && liveTargetIds?.includes(liveTargetId),
+  );
+
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.status.experimental_liveOptions({
       input: selectedSessionId ? { sessionId: selectedSessionId } : skipToken,
@@ -85,9 +104,9 @@ export function TaskView({
 
   const { data: fileInfo } = useQuery(
     rpcClient.workspace.task.files.fileInfo.queryOptions({
-      input: artifactPanel
+      input: filePanel
         ? {
-            filePath: artifactPanel.filePath,
+            filePath: filePanel.filePath,
             taskId: task.id,
           }
         : skipToken,
@@ -96,7 +115,7 @@ export function TaskView({
   );
 
   const currentFileMetadata = files?.find(
-    (file) => file.filePath === artifactPanel?.filePath,
+    (file) => file.filePath === filePanel?.filePath,
   );
   const currentFile: null | TaskFileViewerFile =
     fileInfo && currentFileMetadata
@@ -177,8 +196,9 @@ export function TaskView({
           minSize={PANEL_SIZES.sidebarMin}
         >
           <TaskSidebar
-            activeFilePath={artifactPanel?.filePath ?? null}
+            activeFilePath={filePanel?.filePath ?? null}
             attachedFolders={attachedFolders}
+            browserOpen={browserPanel}
             chatProps={chatProps}
             files={files}
             onFileSelect={handleFileSelect}
@@ -199,7 +219,14 @@ export function TaskView({
               minSize={PANEL_SIZES.artifactMin}
             >
               <div className="flex h-full flex-1 animate-in flex-col p-2 duration-150 fade-in-0 slide-in-from-right-2">
-                {currentFile ? (
+                {browserPanel && selectedSessionId ? (
+                  <TaskBrowserPanel
+                    active={browserActive}
+                    onClose={handleArtifactPanelClose}
+                    sessionId={selectedSessionId}
+                    taskId={task.id}
+                  />
+                ) : currentFile ? (
                   <div className="flex h-full">
                     <FileViewer
                       file={currentFile}

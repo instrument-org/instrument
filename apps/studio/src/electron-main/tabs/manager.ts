@@ -1,9 +1,8 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type StudioPath } from "@/shared/studio-path";
 import { type Tab, type TabState } from "@/shared/tabs";
-import { type BaseWindow, type WebContentsView } from "electron";
+import { type BaseWindow } from "electron";
 
-import { tryCaptureError } from "../lib/try-capture-error";
 import { getMainWindow } from "../windows/main/instance";
 import {
   createStudioOverlayController,
@@ -12,10 +11,6 @@ import {
 import { sendTabCommand } from "./tab-command";
 
 const ZOOM_STEP = 0.5;
-// Agent browser views must stay in the window hierarchy for CDP input/capture,
-// but each tab now renders the whole window (AppShell), so a visible agent view
-// would cover it. Park them offscreen until the in-tab viewport lands (S3).
-const OFFSCREEN_AGENT_BOUNDS = { height: 800, width: 1280, x: -20_000, y: 0 };
 
 /**
  * In the unified app the main window's own web contents renders the entire
@@ -47,8 +42,9 @@ export class TabsManager {
   }
 
   /**
-   * Agent browser views (passed as `webView`) are mounted here, kept offscreen.
-   * App-tab opens are forwarded to the renderer (which owns tab state).
+   * Open an app tab. Forwarded to the renderer, which owns tab state. Agent
+   * browser guests are renderer `<webview>`s now, so there is no main-owned
+   * view to mount here.
    */
   public addTab(options: {
     iconName?: Tab["iconName"];
@@ -57,17 +53,12 @@ export class TabsManager {
     select?: boolean;
     title?: string;
     urlPath?: StudioPath;
-    webView?: WebContentsView;
   }) {
-    const { urlPath, webView } = options;
-    if (webView) {
-      tryCaptureError("addChildView failed mounting agent browser view", () => {
-        this.baseWindow.contentView.addChildView(webView);
-        webView.setBounds(OFFSCREEN_AGENT_BOUNDS);
-      });
-      return;
-    }
-    sendTabCommand({ appPath: urlPath ?? "/new-tab", newTab: true, type: "navigate" });
+    sendTabCommand({
+      appPath: options.urlPath ?? "/new-tab",
+      newTab: true,
+      type: "navigate",
+    });
   }
 
   public closeActiveTab() {

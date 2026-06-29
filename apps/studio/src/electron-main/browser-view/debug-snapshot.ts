@@ -69,7 +69,7 @@ function buildBrowserViewEntries(
   const out: BrowserViewDebugEntry[] = [];
 
   for (const [targetId, entry] of manager.getDebugEntries()) {
-    const wc = entry.view.webContents;
+    const wc = entry.webContents;
     const wcDestroyed = !wc || wc.isDestroyed();
 
     out.push({
@@ -246,19 +246,14 @@ const openAsTab = devOnly
     if (!entry || !context.tabsManager) {
       return;
     }
-    const targetId = String(input.targetId);
-    const wc = entry.view.webContents;
-    const title = (wc && !wc.isDestroyed() ? wc.getTitle() : null) || targetId;
-    const browserViewPath =
-      "/debug/browser-view/$targetId" satisfies StudioPath;
+    // Open the owning task's page for this session; the task page auto-opens the
+    // browser artifact panel. Cast: the query suffix isn't itself a StudioPath,
+    // but taskPath satisfies it so route staleness is caught at compile time.
+    const taskPath = "/tasks/$id" satisfies StudioPath;
     context.tabsManager.addTab({
-      iconName: "globe",
       keepMounted: true,
-      title,
-      // Cast: TanStack Router can't verify a template-literal fullPath, but
-      // browserViewPath satisfies StudioPath so staleness is caught at compile time.
-      urlPath: browserViewPath.replace("$targetId", targetId) as StudioPath,
-      webView: entry.view,
+      urlPath:
+        `${taskPath.replace("$id", String(entry.id))}?selectedSessionId=${String(entry.sessionId)}` as StudioPath,
     });
   });
 

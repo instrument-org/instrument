@@ -1,3 +1,4 @@
+import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { openExternal } from "@/electron-main/lib/open-external";
@@ -66,10 +67,17 @@ export async function createMainWindow({
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,
+      // Enables renderer-hosted `<webview>` guests for the agent-browser pool.
+      webviewTag: true,
     },
   });
 
   setMainWindow(mainWindow);
+
+  // Bind the agent-browser `<webview>` attach lifecycle to this window's
+  // webContents so the main process can grab guest WebContents (for CDP) as
+  // the renderer pool mounts them.
+  getBrowserViewManager()?.bindHost(mainWindow.webContents);
   // Keep the last normal, visible bounds so maximize/fullscreen/minimize and
   // bogus cross-display move events don't overwrite the restorable position.
   let lastVisibleBounds: WindowBounds = mainWindow.getBounds();

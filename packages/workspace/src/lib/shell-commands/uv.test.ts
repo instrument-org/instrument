@@ -15,7 +15,7 @@ import { createPipCommand } from "./pip";
 import { createPythonCommand } from "./python";
 import { createUvCommand } from "./uv";
 
-// cspell:ignore cowsay uvsmoke
+// cspell:ignore cowsay uvsmoke uvseed bs4 lxml openpyxl dateutil pytz dotenv tqdm numpy httpx pyyaml matplotlib
 
 const mockCtx: CommandContext = {
   cwd: "/",
@@ -89,4 +89,33 @@ describe.skipIf(!runSmoke)("uv python/pip integration", () => {
     expect(run.exitCode).toBe(0);
     expect(run.stdout).toContain("ok");
   }, 120_000);
+
+  it("seeds common packages into a freshly created venv", async () => {
+    const taskDir = path.join(
+      mkdtempSync(path.join(tmpdir(), "uv-seed-")),
+      "uvseed",
+    );
+    mkdirSync(path.join(taskDir, "work"), { recursive: true });
+    const taskId = createMockTaskConfigForDir(taskDir);
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      uvBinPath: AbsolutePathSchema.parse(uvBin),
+      uvDataDir: AbsolutePathSchema.parse(
+        mkdtempSync(path.join(tmpdir(), "uv-data-")),
+      ),
+    });
+
+    // First Python use creates the venv and seeds SEED_PACKAGES, so these
+    // import without any explicit `pip install`. Module names differ from
+    // distribution names (pyyaml -> yaml, beautifulsoup4 -> bs4, pillow -> PIL).
+    const run = await createPythonCommand(taskId).execute(
+      [
+        "-c",
+        "import requests, httpx, bs4, lxml, yaml, openpyxl, PIL, dateutil, pytz, dotenv, tqdm, numpy, pandas, matplotlib; print('seeded')",
+      ],
+      mockCtx,
+    );
+    expect(run.exitCode).toBe(0);
+    expect(run.stdout).toContain("seeded");
+  }, 180_000);
 });

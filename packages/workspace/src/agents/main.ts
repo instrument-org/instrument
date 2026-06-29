@@ -22,6 +22,7 @@ import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
+import { SEED_PACKAGES } from "../lib/shell-commands/uv";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import {
@@ -262,9 +263,11 @@ export const mainAgent = setupAgent({
 
     Write scripts in TypeScript, Python, or bash. Run TypeScript with
     \`${TS_COMMAND.name}\`; run Python with \`python\` and install packages with
-    \`pip install <pkg>\`. Add Node.js dependencies with ${PNPM_COMMAND.name} only
-    when needed. Check TypeScript with \`${TSC_COMMAND.name}\` when risk or
-    complexity warrants it.
+    \`pip install <pkg>\`. Python venvs come preloaded with common libraries
+    (${SEED_PACKAGES.join(", ")}), so you can import those without installing;
+    \`pip install <pkg>\` for anything else. Add Node.js dependencies with
+    ${PNPM_COMMAND.name} only when needed. Check TypeScript with
+    \`${TSC_COMMAND.name}\` when risk or complexity warrants it.
 
     # File Changes
     - File changes are detected from the task folder after your turn finishes.

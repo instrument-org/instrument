@@ -94,12 +94,50 @@ export async function ensureTaskVenv({
     taskCwd,
     taskId,
   })
-    .then((result) => (result.exitCode === 0 ? undefined : result.stdout))
+    .then(async (result) => {
+      if (result.exitCode !== 0) {
+        return result.stdout;
+      }
+      await seedTaskVenv({ ctx, env, taskCwd, taskId });
+      return;
+    })
     .finally(() => inFlightVenvCreation.delete(taskId));
 
   inFlightVenvCreation.set(taskId, creation);
   return creation;
 }
+
+// cspell:ignore dateutil pyyaml lxml openpyxl beautifulsoup dotenv httpx pytz numpy tqdm
+// Packages pre-installed into every task venv so the agent can run common small
+// scripts (HTTP, HTML/XML, dates, config, spreadsheets, images, tabular data,
+// charts) without an explicit `pip install` first. This mirrors the baseline
+// that code-interpreter sandboxes (OpenAI Code Interpreter, e2b, etc.) ship.
+//
+// Scope: moderate-or-smaller wheels only. We deliberately exclude the heavy
+// stacks (torch, tensorflow, transformers, opencv-python, scipy, scikit-learn,
+// spacy, nltk) -- the agent installs those on demand. numpy/pandas/matplotlib
+// are included because they're the most-reached-for "small script" libraries
+// and are not large.
+//
+// Cost: the wheels download once per machine into the shared UV_CACHE_DIR; every
+// later task seeds from that cache and uv clones/hardlinks the files into the
+// task venv, so per-task seeding is fast, offline, and cheap on disk.
+export const SEED_PACKAGES = [
+  "beautifulsoup4",
+  "httpx",
+  "lxml",
+  "matplotlib",
+  "numpy",
+  "openpyxl",
+  "pandas",
+  "pillow",
+  "python-dateutil",
+  "python-dotenv",
+  "pytz",
+  "pyyaml",
+  "requests",
+  "tqdm",
+] as const;
 
 /**
  * Run the bundled uv binary. `env` should already include the uv overlay (it is
@@ -146,4 +184,30 @@ function blockedSelfUpdate(args: string[]) {
     };
   }
   return;
+}
+
+/**
+ * Best-effort install of {@link SEED_PACKAGES} into a freshly created venv. A
+ * failure here (e.g. transient network on the very first task before the wheel
+ * cache is warm) must not block Python usage, so the uv result is ignored; the
+ * agent can still `pip install` whatever it needs.
+ */
+async function seedTaskVenv({
+  ctx,
+  env,
+  taskCwd,
+  taskId,
+}: {
+  ctx: CommandContext;
+  env: Record<string, string>;
+  taskCwd: AbsolutePath;
+  taskId: TaskId;
+}): Promise<void> {
+  await runUv({
+    args: ["pip", "install", ...SEED_PACKAGES],
+    ctx,
+    env,
+    taskCwd,
+    taskId,
+  });
 }

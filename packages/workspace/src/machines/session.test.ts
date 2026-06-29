@@ -1143,6 +1143,75 @@ describe("sessionMachine", () => {
     `);
   });
 
+  it("should continue when completion verification fails", async () => {
+    const verifyCompletion = vi
+      .fn()
+      .mockResolvedValueOnce({
+        feedback: "The requested output file was not created.",
+        status: "failed",
+      })
+      .mockResolvedValueOnce({ status: "passed" });
+    const agent = setupAgent({
+      agentTools: pick(TOOLS, ["WriteFile"]),
+      name: "main",
+    }).create(() => ({
+      getMessages: mainAgent.getMessages,
+      onFinish: mainAgent.onFinish,
+      onStart: mainAgent.onStart,
+      shouldContinue: mainAgent.shouldContinue,
+      verifyCompletion,
+    }));
+
+    const session = await createAndRunTestMachine({
+      agent,
+      chunkSets: [writeFileChunks, finishChunks, finishChunks],
+      maxStepCount: 4,
+    });
+
+    expect(verifyCompletion).toHaveBeenCalledTimes(2);
+    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+      "<session title="Test session" count="7">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="1" />
+          <tool tool="write_file" state="output-available" callId="test-call-2">
+            <input>
+              {
+                "filePath": "test.txt",
+                "content": "console.log('Hello, world!');"
+              }
+            </input>
+            <output>
+              {
+                "content": "console.log('Hello, world!');",
+                "filePath": "./test.txt",
+                "isNewFile": false
+              }
+            </output>
+          </tool>
+        </assistant>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="2" />
+          <text state="done">I'm done.</text>
+        </assistant>
+        <user>
+          <data-completionVerification attempt="1">The requested output file was not created.</data-completionVerification>
+        </user>
+        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+          <step-start step="3" />
+          <text state="done">I'm done.</text>
+          <data-fileChanges>
+            <file filename="test.txt" status="modified" />
+          </data-fileChanges>
+        </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
+      </session>"
+    `);
+  });
+
   it("should stop agents during llm request", async () => {
     const result = await createActorAndTask({
       chunkSets: [finishChunks],

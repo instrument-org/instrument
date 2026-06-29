@@ -112,6 +112,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
     }
+    case "data-completionVerification": {
+      return `<data-completionVerification attempt="${part.data.attempt}">${part.data.feedback}</data-completionVerification>`;
+    }
     case "data-externalFileChanges": {
       const filesList = part.data.files
         .map((file) => {

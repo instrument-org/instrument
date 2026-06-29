@@ -6,6 +6,7 @@ export {
 } from "./constants";
 export { attachedFolderRemovalsModelNote } from "./lib/attached-folder-changes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
+export { completionVerificationModelNote } from "./lib/completion-verification-model-text";
 export { externalFileChangesModelNote } from "./lib/external-file-changes-model-text";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";

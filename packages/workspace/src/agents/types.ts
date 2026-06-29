@@ -35,7 +35,25 @@ export interface Agent<T extends AgentTools> {
   shouldContinue: (options: {
     messages: SessionMessage.WithParts[];
   }) => Promise<boolean>;
+  verifyCompletion?: (options: {
+    messages: SessionMessage.WithParts[];
+    model: AIGatewayModel.Type;
+    parentMessageId: StoreId.Message;
+    sessionId: StoreId.Session;
+    signal: AbortSignal;
+    taskId: TaskId;
+    verificationAttempt: number;
+  }) => Promise<CompletionVerificationResult>;
 }
+
+export type CompletionVerificationResult =
+  | {
+      feedback: string;
+      status: "failed";
+    }
+  | {
+      status: "passed" | "skipped";
+    };
 
 export const RETRIEVAL_AGENT_NAME = "retrieval";
 // oxlint-disable-next-line no-unused-vars

@@ -73,6 +73,7 @@ function SessionStatusText({
       part.type !== "source-url" &&
       part.type !== "source-document" &&
       part.type !== "data-browserStatus" &&
+      part.type !== "data-completionVerification" &&
       part.type !== "data-externalFileChanges",
   );
   const latestPart = relevantParts.at(-1);

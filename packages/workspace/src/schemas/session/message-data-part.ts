@@ -9,6 +9,7 @@ export namespace SessionMessageDataPart {
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
+    "completionVerification",
     "externalFileChanges",
     "fileChanges",
     "maxSteps",
@@ -146,12 +147,23 @@ export namespace SessionMessageDataPart {
 
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
 
+  const CompletionVerificationDataPartSchema = z.object({
+    attempt: z.number(),
+    feedback: z.string(),
+  });
+
+  export type CompletionVerificationDataPart = z.output<
+    typeof CompletionVerificationDataPartSchema
+  >;
+
   // oxlint-disable-next-line no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.attachedFolderChanges]:
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.completionVerification]:
+      CompletionVerificationDataPartSchema,
     [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,

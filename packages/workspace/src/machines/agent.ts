@@ -12,7 +12,10 @@ import {
   setup,
 } from "xstate";
 
-import { type AnyAgent } from "../agents/types";
+import {
+  type AnyAgent,
+  type CompletionVerificationResult,
+} from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
@@ -23,6 +26,7 @@ import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
+import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -68,6 +72,8 @@ type AgentResult = Result<void, "agent-error:unknown">;
 
 type ParentActorRef = ActorRef<AnyMachineSnapshot, AgentParentEvent>;
 
+const MAX_COMPLETION_VERIFICATION_ATTEMPTS = 2;
+
 export const agentMachine = setup({
   actions: {
     assignEventError: createAssignEventError(),
@@ -112,6 +118,55 @@ export const agentMachine = setup({
         signal,
         taskId: input.taskId,
       });
+    }),
+
+    saveCompletionVerificationFeedback: fromPromise<
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+      void,
+      {
+        attempt: number;
+        feedback: string;
+        sessionId: StoreId.Session;
+        taskId: TaskId;
+      }
+    >(async ({ input, signal }) => {
+      const now = getCurrentDate();
+      const messageId = StoreId.newMessageId();
+      const data: SessionMessageDataPart.CompletionVerificationDataPart = {
+        attempt: input.attempt,
+        feedback: input.feedback,
+      };
+
+      const result = await Store.saveMessageWithParts(
+        {
+          id: messageId,
+          metadata: {
+            createdAt: now,
+            sessionId: input.sessionId,
+          },
+          parts: [
+            {
+              data,
+              metadata: {
+                createdAt: now,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: input.sessionId,
+              },
+              type: "data-completionVerification",
+            },
+          ],
+          role: "user",
+        },
+        input.taskId,
+        { signal },
+      );
+
+      if (result.isErr()) {
+        throw new Error(
+          `Failed to save completion verification feedback: ${JSON.stringify(result.error)}`,
+        );
+      }
     }),
 
     saveMaxStepsMessage: fromPromise<
@@ -193,6 +248,46 @@ export const agentMachine = setup({
         messages: messageResults.value,
       });
     }),
+
+    verifyCompletion: fromPromise<
+      CompletionVerificationResult,
+      {
+        agent: AnyAgent;
+        model: AIGatewayModel.Type;
+        parentMessageId: StoreId.Message;
+        sessionId: StoreId.Session;
+        taskId: TaskId;
+        verificationAttempt: number;
+      }
+    >(async ({ input, signal }) => {
+      if (!input.agent.verifyCompletion) {
+        return { status: "skipped" };
+      }
+
+      const messageResults = await Store.getMessagesWithParts(
+        {
+          sessionId: input.sessionId,
+          taskId: input.taskId,
+        },
+        { signal },
+      );
+
+      if (messageResults.isErr()) {
+        throw new Error(
+          `Error loading messages for completion verification: ${JSON.stringify(messageResults.error)}`,
+        );
+      }
+
+      return input.agent.verifyCompletion({
+        messages: messageResults.value,
+        model: input.model,
+        parentMessageId: input.parentMessageId,
+        sessionId: input.sessionId,
+        signal,
+        taskId: input.taskId,
+        verificationAttempt: input.verificationAttempt,
+      });
+    }),
   },
 
   delays: {
@@ -206,6 +301,8 @@ export const agentMachine = setup({
     context: {} as {
       agent: AnyAgent;
       baseLLMRetryDelayMs: number;
+      completionVerificationAttempt: number;
+      completionVerificationFeedback?: string;
       error?: unknown;
       llmRequestChunkTimeoutMs: number;
       maxRetryCount: number;
@@ -243,6 +340,8 @@ export const agentMachine = setup({
   context: ({ input }) => ({
     agent: input.agent,
     baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
+    completionVerificationAttempt: 0,
+    completionVerificationFeedback: undefined,
     llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
     maxRetryCount: 3,
     maxStepCount: input.maxStepCount || 1,
@@ -515,7 +614,7 @@ export const agentMachine = setup({
             },
             target: "MaybeStartingLLMRequest",
           },
-          { target: "Finishing" },
+          { target: "MaybeVerifyingCompletion" },
         ],
         onError: {
           actions: "assignEventError",
@@ -560,6 +659,21 @@ export const agentMachine = setup({
       ],
     },
 
+    MaybeVerifyingCompletion: {
+      always: [
+        {
+          guard: ({ context }) => {
+            return (
+              context.completionVerificationAttempt <
+              MAX_COMPLETION_VERIFICATION_ATTEMPTS
+            );
+          },
+          target: "VerifyingCompletion",
+        },
+        { target: "Finishing" },
+      ],
+    },
+
     MaybeWaitingForPendingToolCalls: {
       always: [
         {
@@ -579,6 +693,20 @@ export const agentMachine = setup({
         retryBackoff: {
           target: "LLMStreaming",
         },
+      },
+    },
+
+    SavingCompletionVerificationFeedback: {
+      invoke: {
+        input: ({ context }) => ({
+          attempt: context.completionVerificationAttempt,
+          feedback: context.completionVerificationFeedback ?? "",
+          sessionId: context.sessionId,
+          taskId: context.taskId,
+        }),
+        onDone: "MaybeStartingLLMRequest",
+        onError: { actions: "assignEventError", target: "Finishing" },
+        src: "saveCompletionVerificationFeedback",
       },
     },
 
@@ -605,6 +733,37 @@ export const agentMachine = setup({
         onDone: "MaybeStartingLLMRequest",
         onError: { actions: "assignEventError", target: "Finishing" },
         src: "onStart",
+      },
+    },
+
+    VerifyingCompletion: {
+      invoke: {
+        input: ({ context }) => ({
+          agent: context.agent,
+          model: context.model,
+          parentMessageId: context.parentMessageId,
+          sessionId: context.sessionId,
+          taskId: context.taskId,
+          verificationAttempt: context.completionVerificationAttempt + 1,
+        }),
+        onDone: [
+          {
+            actions: assign({
+              completionVerificationAttempt: ({ context }) =>
+                context.completionVerificationAttempt + 1,
+              completionVerificationFeedback: ({ event: { output } }) =>
+                output.status === "failed" ? output.feedback : undefined,
+            }),
+            guard: ({ event: { output } }) => output.status === "failed",
+            target: "SavingCompletionVerificationFeedback",
+          },
+          { target: "Finishing" },
+        ],
+        onError: {
+          actions: "assignEventError",
+          target: "Finishing",
+        },
+        src: "verifyCompletion",
       },
     },
 

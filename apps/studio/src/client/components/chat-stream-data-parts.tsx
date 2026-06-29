@@ -8,6 +8,7 @@ import {
 import { type ReactNode } from "react";
 
 import { type RenderPartContext } from "./chat-stream-render-part";
+import { CompletionVerificationDebugCard } from "./completion-verification-debug-card";
 import { FileChangesCard } from "./file-changes-card";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
@@ -26,6 +27,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "dev",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
+  "data-completionVerification": "dev",
   "data-externalFileChanges": "dev",
   "data-fileChanges": "always",
   "data-maxSteps": "dev",
@@ -80,6 +82,15 @@ export function renderDataPart({
           className="mt-2"
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
+        />
+      );
+    }
+    case "data-completionVerification": {
+      return (
+        <CompletionVerificationDebugCard
+          className="mt-2"
+          data={part.data}
+          key={part.metadata.id}
         />
       );
     }

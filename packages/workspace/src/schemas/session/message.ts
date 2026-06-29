@@ -13,6 +13,7 @@ import { type AgentName, RETRIEVAL_AGENT_NAME } from "../../agents/types";
 import { attachedFolderRemovalsModelNote } from "../../lib/attached-folder-changes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
+import { completionVerificationModelNote } from "../../lib/completion-verification-model-text";
 import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
@@ -307,6 +308,22 @@ export namespace SessionMessage {
             injectedParts.push({ text: note, type: "text" });
           }
           previousBrowserStatusNote = note;
+        }
+
+        const completionVerificationPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-completionVerification";
+          } => part.type === "data-completionVerification",
+        );
+        if (completionVerificationPart) {
+          injectedParts.push({
+            text: completionVerificationModelNote(
+              completionVerificationPart.data,
+            ),
+            type: "text",
+          });
         }
 
         const externalChangesPart = message.parts.find(

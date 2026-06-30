@@ -85,7 +85,7 @@ export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
               <PlusIcon className="!size-3" />
             </button>
           </div>
-          <CollapsibleContent>
+          <CollapsibleContent animated>
             <SidebarMenu className="gap-0.5">
               {projects.map((project) => (
                 <NavProjectItem

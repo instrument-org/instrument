@@ -1,5 +1,6 @@
 import { tabsAtom } from "@/client/atoms/tabs";
 import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
+import { AppChrome } from "@/client/components/app-chrome";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
@@ -13,7 +14,11 @@ import {
   setTabMeta,
   setTabPathname,
 } from "@/client/lib/tab-model";
-import { createTabRouter, sharedQueryClient } from "@/client/lib/tab-router";
+import {
+  createTabRouter,
+  sharedQueryClient,
+  type TabRouter,
+} from "@/client/lib/tab-router";
 import {
   getTabHistory,
   getTabRouter,
@@ -26,9 +31,12 @@ import { type Tab } from "@/shared/tabs";
 import { safe } from "@orpc/client";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { RouterProvider } from "@tanstack/react-router";
+import { RouterContextProvider, RouterProvider } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useState } from "react";
+
+import { ThemeProvider } from "./theme-provider";
+import { TooltipProvider } from "./ui/tooltip";
 
 const IconContextValue: IconProps = {
   weight: "bold",
@@ -37,15 +45,20 @@ const IconContextValue: IconProps = {
 const NEW_TAB_PATH = "/new-tab";
 
 /**
- * The whole main-window UI in a single web contents: every open tab kept mounted
- * via {@link TabView}, only the active one visible. Tab state is the renderer
- * {@link tabsAtom}, shared across all tabs since they share this JS context. The
- * chrome (toolbar/tab bar/sidebar) lives inside each tab's `_app`.
+ * The whole main-window UI in a single web contents. The chrome (toolbar, tab
+ * bar, sidebar) is rendered once by {@link AppChrome} and reads the active tab's
+ * router from context, so it never remounts when tabs switch. Each open tab is
+ * kept mounted via {@link TabView}; only the active one is visible. Tab state is
+ * the renderer {@link tabsAtom}, shared across all tabs in this JS context.
  */
 export function AppShell() {
   const { model } = useTabsController();
   const store = useStore();
   const zoom = useAtomValue(zoomAtom);
+  const routers = useTabRouters(model.tabs);
+  const activeRouter = model.selectedId
+    ? routers.get(model.selectedId)
+    : undefined;
 
   useMouseBackForward();
 
@@ -152,29 +165,48 @@ export function AppShell() {
 
   return (
     <QueryClientProvider client={sharedQueryClient}>
-      <IconContext.Provider value={IconContextValue}>
-        <div
-          className="relative overflow-hidden"
-          style={
-            {
-              "--app-zoom": zoom,
-              // `zoom` rescales the box, so divide the viewport sizing by the same
-              // factor to keep the shell covering exactly the real viewport.
-              height: "calc(100vh / var(--app-zoom))",
-              width: "calc(100vw / var(--app-zoom))",
-              zoom: "var(--app-zoom)",
-            } as React.CSSProperties
-          }
-        >
-          {model.tabs.map((tab) => (
-            <TabView
-              isActive={tab.id === model.selectedId}
-              key={tab.id}
-              tab={tab}
-            />
-          ))}
-        </div>
-      </IconContext.Provider>
+      <ThemeProvider>
+        {/* The one studio-overlay-free TooltipProvider for the unified shell. */}
+        {/* eslint-disable-next-line no-restricted-syntax */}
+        <TooltipProvider>
+          <IconContext.Provider value={IconContextValue}>
+            <div
+              className="relative overflow-hidden"
+              style={
+                {
+                  "--app-zoom": zoom,
+                  // `zoom` rescales the box, so divide the viewport sizing by the
+                  // same factor to keep the shell covering the real viewport.
+                  height: "calc(100vh / var(--app-zoom))",
+                  width: "calc(100vw / var(--app-zoom))",
+                  zoom: "var(--app-zoom)",
+                } as React.CSSProperties
+              }
+            >
+              {activeRouter ? (
+                <RouterContextProvider router={activeRouter}>
+                  <AppChrome>
+                    {model.tabs.map((tab) => {
+                      const router = routers.get(tab.id);
+                      if (!router) {
+                        return null;
+                      }
+                      return (
+                        <TabView
+                          isActive={tab.id === model.selectedId}
+                          key={tab.id}
+                          router={router}
+                          tab={tab}
+                        />
+                      );
+                    })}
+                  </AppChrome>
+                </RouterContextProvider>
+              ) : null}
+            </div>
+          </IconContext.Provider>
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
@@ -184,19 +216,22 @@ function freshId() {
 }
 
 /**
- * One open tab: its own router (own memory history + route state) created once
- * for the component's lifetime. Every tab stays mounted and fully live -- it
- * loads its data, runs its subscriptions, and keeps background agents updating --
- * rather than being paused by `<Activity>`. Inactive tabs are hidden with CSS
- * `visibility` (not `display:none`), which preserves scroll, keeps effects
- * running, and avoids re-rendering from a zero state when first shown. Switching
- * is a CSS toggle in one web contents, so there's no flicker. The per-tab router
- * renders `_app`, which renders that tab's full shell (toolbar/sidebar/content).
+ * One open tab: every tab stays mounted and fully live -- it loads its data,
+ * runs its subscriptions, and keeps background agents updating -- rather than
+ * being paused. Inactive tabs are hidden with CSS `visibility` (not
+ * `display:none`), which preserves scroll, keeps effects running, and avoids
+ * re-rendering from a zero state when first shown. Switching is a CSS toggle in
+ * one web contents, so there's no flicker.
  */
-function TabView({ isActive, tab }: { isActive: boolean; tab: Tab }) {
-  const [router] = useState(() =>
-    createTabRouter({ history: tab.history, pathname: tab.pathname }),
-  );
+function TabView({
+  isActive,
+  router,
+  tab,
+}: {
+  isActive: boolean;
+  router: TabRouter;
+  tab: Tab;
+}) {
   const setTabs = useSetAtom(tabsAtom);
 
   useEffect(() => {
@@ -243,4 +278,35 @@ function TabView({ isActive, tab }: { isActive: boolean; tab: Tab }) {
       </ActiveTabProvider>
     </div>
   );
+}
+
+/**
+ * Owns one router per open tab, keyed by tab id, for the lifetime of the window.
+ * Routers are created lazily on first appearance and pruned when their tab
+ * closes, so AppShell can hand the active tab's router to the chrome
+ * synchronously (no registry round-trip on first paint).
+ */
+function useTabRouters(tabs: Tab[]) {
+  const [routers] = useState(() => new Map<string, TabRouter>());
+
+  for (const tab of tabs) {
+    if (!routers.has(tab.id)) {
+      routers.set(
+        tab.id,
+        createTabRouter({ history: tab.history, pathname: tab.pathname }),
+      );
+    }
+  }
+
+  const liveIds = tabs.map((tab) => tab.id).join("\n");
+  useEffect(() => {
+    const live = new Set(liveIds.split("\n"));
+    for (const id of routers.keys()) {
+      if (!live.has(id)) {
+        routers.delete(id);
+      }
+    }
+  }, [liveIds, routers]);
+
+  return routers;
 }

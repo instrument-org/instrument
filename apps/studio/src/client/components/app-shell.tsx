@@ -1,4 +1,5 @@
 import { tabsAtom } from "@/client/atoms/tabs";
+import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import {
@@ -176,8 +177,20 @@ function TabView({ isActive, tab }: { isActive: boolean; tab: Tab }) {
   }, [router, setTabs, tab.id]);
 
   return (
-    <div className={cn("absolute inset-0", isActive ? "visible" : "invisible")}>
-      <RouterProvider router={router} />
+    <div
+      className={cn(
+        "absolute inset-0",
+        // `visibility: hidden` alone doesn't reliably tear down a promoted
+        // compositor layer (e.g. the artifact panel's slide-in transform), so a
+        // backgrounded tab can leave a stale layer painted over the active one.
+        // Zeroing opacity forces a transparent composite and guarantees it's
+        // gone, while keeping the tab mounted (scroll/effects/agents preserved).
+        isActive ? "visible" : "invisible opacity-0",
+      )}
+    >
+      <ActiveTabProvider isActive={isActive}>
+        <RouterProvider router={router} />
+      </ActiveTabProvider>
     </div>
   );
 }

@@ -78,7 +78,7 @@ function RouteComponent() {
 
   return (
     <div
-      className="flex h-dvh w-full flex-col overflow-hidden select-none"
+      className="flex h-dvh w-full flex-col overflow-hidden"
       data-testid="app-page"
     >
       <StudioToolbar />

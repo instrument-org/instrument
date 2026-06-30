@@ -1,5 +1,6 @@
 import { tabsAtom } from "@/client/atoms/tabs";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
+import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import {
@@ -41,6 +42,8 @@ const NEW_TAB_PATH = "/new-tab";
 export function AppShell() {
   const { model } = useTabsController();
   const store = useStore();
+
+  useMouseBackForward();
 
   // Apply tab commands from the main process (menus, overlay-initiated opens),
   // streamed over RPC. One subscription owns the whole tab command surface.

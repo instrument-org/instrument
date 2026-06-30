@@ -2,10 +2,9 @@ import { ShareExport } from "@/client/components/icons/share-export";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
-import { useBrowserArtifactToggle } from "@/client/hooks/use-browser-artifact-toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
-import { FileArchiveIcon, FolderIcon, GlobeIcon } from "@phosphor-icons/react";
+import { FileArchiveIcon, FolderIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
@@ -39,11 +38,6 @@ export function TaskToolbar({
 
   const isDeveloperMode = useDeveloperMode();
 
-  // The agent browser lives in the artifact panel; the toggle drives the
-  // `artifactPanel` search param (the agent also opens it automatically).
-  const { open: browserOpen, toggle: handleToggleBrowser } =
-    useBrowserArtifactToggle();
-
   return (
     <>
       <div className="@container w-full bg-background p-3">
@@ -70,20 +64,6 @@ export function TaskToolbar({
               <FolderIcon className="size-4 shrink-0" />
               <span className="hidden min-w-0 truncate @min-[380px]:inline">
                 Files
-              </span>
-            </Toggle>
-
-            <Toggle
-              aria-label="Show browser"
-              className="max-w-24 min-w-8 shrink overflow-hidden px-2"
-              onPressedChange={handleToggleBrowser}
-              pressed={browserOpen}
-              size="sm"
-              variant="toolbar"
-            >
-              <GlobeIcon className="size-4 shrink-0" />
-              <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                Browser
               </span>
             </Toggle>
           </div>

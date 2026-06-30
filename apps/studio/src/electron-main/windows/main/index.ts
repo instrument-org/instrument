@@ -199,10 +199,7 @@ export async function createMainWindow({
     },
   });
 
-  createContextMenu({
-    inspectMode: "detach",
-    windowOrWebContentsView: mainWindow,
-  });
+  createContextMenu({ windowOrWebContentsView: mainWindow });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     void openExternal(details.url);

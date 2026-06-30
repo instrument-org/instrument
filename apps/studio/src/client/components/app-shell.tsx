@@ -14,6 +14,7 @@ import {
 } from "@/client/lib/tab-model";
 import { createTabRouter, sharedQueryClient } from "@/client/lib/tab-router";
 import {
+  getTabHistory,
   getTabRouter,
   registerTabRouter,
   unregisterTabRouter,
@@ -62,6 +63,7 @@ export function AppShell() {
             if (id) {
               store.set(tabsAtom, (m) =>
                 closeTab(m, {
+                  history: getTabHistory(id),
                   id,
                   newTab: { id: freshId(), pathname: NEW_TAB_PATH },
                 }),
@@ -159,7 +161,9 @@ function freshId() {
  * renders `_app`, which renders that tab's full shell (toolbar/sidebar/content).
  */
 function TabView({ isActive, tab }: { isActive: boolean; tab: Tab }) {
-  const [router] = useState(() => createTabRouter({ pathname: tab.pathname }));
+  const [router] = useState(() =>
+    createTabRouter({ history: tab.history, pathname: tab.pathname }),
+  );
   const setTabs = useSetAtom(tabsAtom);
 
   useEffect(() => {

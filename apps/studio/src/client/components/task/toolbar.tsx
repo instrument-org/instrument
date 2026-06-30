@@ -2,10 +2,10 @@ import { ShareExport } from "@/client/components/icons/share-export";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
+import { useBrowserArtifactToggle } from "@/client/hooks/use-browser-artifact-toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { FileArchiveIcon, FolderIcon, GlobeIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
@@ -22,13 +22,11 @@ import { TaskBreadcrumb } from "./task-breadcrumb";
 import { TaskUsageSummary } from "./usage-summary";
 
 export function TaskToolbar({
-  browserOpen,
   onSidebarChange,
   selectedSessionId,
   sidebar,
   task,
 }: {
-  browserOpen: boolean;
   onSidebarChange: (sidebar: "chat" | "files") => void;
   selectedSessionId?: StoreId.Session;
   sidebar: "chat" | "files";
@@ -43,21 +41,8 @@ export function TaskToolbar({
 
   // The agent browser lives in the artifact panel; the toggle drives the
   // `artifactPanel` search param (the agent also opens it automatically).
-  const navigate = useNavigate();
-  const handleToggleBrowser = () => {
-    void navigate({
-      from: "/tasks/$id",
-      params: { id: task.id },
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel:
-          prev.artifactPanel?.type === "browser"
-            ? undefined
-            : { type: "browser" },
-      }),
-    });
-  };
+  const { open: browserOpen, toggle: handleToggleBrowser } =
+    useBrowserArtifactToggle();
 
   return (
     <>

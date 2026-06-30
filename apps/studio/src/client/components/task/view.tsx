@@ -198,7 +198,6 @@ export function TaskView({
           <TaskSidebar
             activeFilePath={filePanel?.filePath ?? null}
             attachedFolders={attachedFolders}
-            browserOpen={browserPanel}
             chatProps={chatProps}
             files={files}
             onFileSelect={handleFileSelect}

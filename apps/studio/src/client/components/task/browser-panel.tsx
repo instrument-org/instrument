@@ -75,9 +75,15 @@ export function TaskBrowserPanel({
     const observer = new ResizeObserver(measure);
     observer.observe(slot);
     window.addEventListener("resize", measure);
+    // The artifact panel slides in via a transform, which getBoundingClientRect
+    // folds into `rect.x`, so the first measure lands ~8px right of the settled
+    // position. ResizeObserver won't re-fire (size is unchanged), so re-measure
+    // once the entry animation finishes. animationend bubbles to window.
+    window.addEventListener("animationend", measure);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", measure);
+      window.removeEventListener("animationend", measure);
       setPaintHost(targetId);
     };
   }, [active, isActiveTab, targetId]);
@@ -108,7 +114,7 @@ export function TaskBrowserPanel({
   const webviewFor = () => getWebviewElement(targetId);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-md border bg-background">
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
       <div className="flex items-center gap-1 border-b p-1.5">
         <Button
           disabled={!nav.back}

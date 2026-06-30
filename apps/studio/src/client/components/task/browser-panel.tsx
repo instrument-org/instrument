@@ -1,6 +1,6 @@
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
-import { useSelectedTabId } from "@/client/hooks/use-selected-tab-id";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import {
   ensureWebview,
   getWebviewElement,
@@ -37,12 +37,14 @@ export function TaskBrowserPanel({
 }) {
   const targetId = `${taskId}/${sessionId}`;
   const slotRef = useRef<HTMLDivElement>(null);
-  const selectedId = useSelectedTabId();
+  const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
   const [nav, setNav] = useState({ back: false, forward: false });
 
-  // Position the guest over the slot while the panel's tab is active; fall back
-  // to paint-host otherwise (inactive tab, or panel closed/unmounted).
+  // Show the guest over the slot only while this is the foreground tab; park it
+  // in paint-host otherwise. Every tab stays mounted (hidden via CSS), so the
+  // guest's own DOM visibility can't tell us we've been backgrounded -- the
+  // active-tab signal is authoritative.
   useLayoutEffect(() => {
     const slot = slotRef.current;
     if (!slot || !active) {
@@ -50,10 +52,14 @@ export function TaskBrowserPanel({
     }
     ensureWebview(targetId);
 
+    if (!isActiveTab) {
+      setPaintHost(targetId);
+      return;
+    }
+
     const measure = () => {
-      const shown = getComputedStyle(slot).visibility === "visible";
       const rect = slot.getBoundingClientRect();
-      if (shown && rect.width > 0 && rect.height > 0) {
+      if (rect.width > 0 && rect.height > 0) {
         showOverSlot(targetId, {
           height: rect.height,
           width: rect.width,
@@ -74,7 +80,7 @@ export function TaskBrowserPanel({
       window.removeEventListener("resize", measure);
       setPaintHost(targetId);
     };
-  }, [active, selectedId, targetId]);
+  }, [active, isActiveTab, targetId]);
 
   // Mirror the guest's URL + nav availability into the controls (it navigates
   // from agent CDP commands too, not just user input).

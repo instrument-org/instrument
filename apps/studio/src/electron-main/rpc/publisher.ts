@@ -1,5 +1,5 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update";
-import { type TabState } from "@/shared/tabs";
+import { type TabCommand, type TabState } from "@/shared/tabs";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
@@ -43,4 +43,16 @@ interface PublisherEvents {
 
 export const publisher = new EventPublisher<PublisherEvents>({
   maxBufferedEvents: 1, // Keep no history as we only need to know the latest state
+});
+
+interface CommandEvents {
+  // Imperative tab operations from the main process (menus, overlay-initiated
+  // RPC) to the renderer that owns tab state (AppShell).
+  "tab.command": TabCommand;
+}
+
+// Commands must not be buffered: unlike state, a stale command replayed to a
+// fresh subscriber (e.g. after a renderer reload) would be wrongly re-applied.
+export const commandPublisher = new EventPublisher<CommandEvents>({
+  maxBufferedEvents: 0,
 });

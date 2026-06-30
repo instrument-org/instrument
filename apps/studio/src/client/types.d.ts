@@ -1,4 +1,3 @@
-import type { TabCommand } from "@/shared/tabs";
 import type { ElectronAPI } from "@electron-toolkit/preload";
 
 declare module "*.md" {
@@ -14,8 +13,6 @@ declare global {
       onStudioOverlayNavigate: (
         callback: (location: string, seq: number) => void,
       ) => void;
-      /** Subscribe to main-process tab commands; returns an unsubscribe fn. */
-      onTabCommand: (callback: (command: TabCommand) => void) => () => void;
       studioOverlayRouteReady: (location: string, seq: number) => void;
       tabId?: string;
       windowType?: "onboarding" | "shell" | "studio-overlay";

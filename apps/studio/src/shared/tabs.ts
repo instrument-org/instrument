@@ -3,6 +3,7 @@ import { type TabIconName } from "@instrument-org/shared/icons";
 import { type TaskId } from "@instrument-org/workspace/client";
 
 export interface Tab {
+  history?: TabHistory;
   iconName?: TabIconName;
   id: string;
   pathname: string;
@@ -28,6 +29,13 @@ export type TabCommand =
   | { type: "selectLast" }
   | { type: "selectNext" }
   | { type: "selectPrevious" };
+
+// A tab's memory-history stack, captured on close so reopening restores the
+// tab's back/forward history, not just its last location.
+export interface TabHistory {
+  entries: string[];
+  index: number;
+}
 
 export interface TabState {
   selectedTabId: null | string;

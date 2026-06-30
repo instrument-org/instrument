@@ -19,12 +19,14 @@ const MAX_RECENTLY_CLOSED = 10;
 export function addTab(
   model: TabsModel,
   {
+    history,
     iconName,
     id,
     pathname,
     select = true,
     title,
   }: {
+    history?: Tab["history"];
     iconName?: Tab["iconName"];
     id: string;
     pathname: string;
@@ -34,7 +36,7 @@ export function addTab(
 ): TabsModel {
   // Any route may have multiple tabs open at once (e.g. two tabs of the same
   // project/task), like a browser. No single-tab collapsing.
-  const tab: Tab = { iconName, id, pathname, pinned: false, title };
+  const tab: Tab = { history, iconName, id, pathname, pinned: false, title };
   return {
     ...model,
     selectedId: select ? id : model.selectedId,
@@ -45,9 +47,12 @@ export function addTab(
 export function closeTab(
   model: TabsModel,
   {
+    history,
     id,
     newTab,
   }: {
+    /** The closing tab's live history stack, restored if it's reopened. */
+    history?: Tab["history"];
     id: string;
     /** Used to seed a fresh tab when the last one is closed. */
     newTab: { id: string; pathname: string };
@@ -62,10 +67,10 @@ export function closeTab(
   const closingIndex = snapshot.findIndex((t) => t.id === id);
 
   const tabs = model.tabs.filter((t) => t.id !== id);
-  const recentlyClosed = [tab, ...model.recentlyClosed].slice(
-    0,
-    MAX_RECENTLY_CLOSED,
-  );
+  const recentlyClosed = [
+    history ? { ...tab, history } : tab,
+    ...model.recentlyClosed,
+  ].slice(0, MAX_RECENTLY_CLOSED);
 
   if (tabs.length === 0) {
     return {
@@ -111,6 +116,7 @@ export function reopenClosed(
   return addTab(
     { ...model, recentlyClosed: rest },
     {
+      history: restored.history,
       iconName: restored.iconName,
       id,
       pathname: restored.pathname,

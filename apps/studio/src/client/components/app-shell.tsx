@@ -17,14 +17,12 @@ import {
   registerTabRouter,
   unregisterTabRouter,
 } from "@/client/lib/tab-router-registry";
-import { saveTabsModel } from "@/client/lib/tab-storage";
 import { cn } from "@/client/lib/utils";
 import { type Tab } from "@/shared/tabs";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { useSetAtom, useStore } from "jotai";
-import { debounce } from "radashi";
 import { useEffect, useState } from "react";
 
 const IconContextValue: IconProps = {
@@ -100,18 +98,6 @@ export function AppShell() {
         }
       }
     });
-  }, [store]);
-
-  // Persist tabs (debounced) so they restore on the next launch.
-  useEffect(() => {
-    const persist = debounce({ delay: 300 }, () => {
-      saveTabsModel(store.get(tabsAtom));
-    });
-    const unsubscribe = store.sub(tabsAtom, persist);
-    return () => {
-      unsubscribe();
-      persist.cancel();
-    };
   }, [store]);
 
   return (

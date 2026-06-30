@@ -1,57 +1,47 @@
 import { type TabsModel } from "@/client/lib/tab-model";
-import { type Tab } from "@/shared/tabs";
-import { TabIconsSchema } from "@instrument-org/shared/icons";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { z } from "zod";
+import { createJSONStorage } from "jotai/utils";
+import { debounce } from "radashi";
 
-const STORAGE_KEY = "studio.tabs.v1";
+const json = createJSONStorage<TabsModel>(() => localStorage);
 
-const TabSchema = z.object({
-  iconName: TabIconsSchema.optional(),
-  id: z.string(),
-  pathname: z.string(),
-  pinned: z.boolean().optional(),
-  tabBarHidden: z.boolean().optional(),
-  taskId: TaskIdSchema.optional(),
-  title: z.string().optional(),
-}) satisfies z.ZodType<Tab>;
-
-const ModelSchema = z.object({
-  recentlyClosed: z.array(TabSchema),
-  selectedId: z.string().nullable(),
-  tabs: z.array(TabSchema),
-}) satisfies z.ZodType<TabsModel>;
+// Coalesce the burst of writes that navigation/selection produce; persistence is
+// best-effort, so a dropped final write on a fast quit is acceptable.
+const persist = debounce({ delay: 300 }, (key: string, value: TabsModel) => {
+  json.setItem(key, value);
+});
 
 /**
- * Tab state is persisted directly to localStorage (the main window's web
- * contents shares one origin, so it survives restarts) -- no main-process round
- * trip. Returns null when there's nothing valid to restore.
+ * localStorage backing for {@link tabsAtom} via jotai's `atomWithStorage`. The
+ * main window shares one origin, so this survives restarts with no main-process
+ * round trip. We don't mirror the full model as a schema -- the versioned key
+ * (`studio.tabs.v1`) handles breaking changes -- but a corrupt/stale blob must
+ * not brick the window (AppShell maps over `tabs`), so reads fall back to the
+ * initial model unless the basic shape holds.
  */
-export function loadTabsModel(): null | TabsModel {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return null;
+export const tabsStorage = {
+  getItem: (key: string, initialValue: TabsModel): TabsModel => {
+    const stored = json.getItem(key, initialValue);
+    if (!isTabsModel(stored)) {
+      return initialValue;
     }
-    const parsed = ModelSchema.safeParse(JSON.parse(raw));
-    if (!parsed.success || parsed.data.tabs.length === 0) {
-      return null;
-    }
-    const model = parsed.data;
     // Keep selection pointing at a tab that still exists.
-    const selectedId = model.tabs.some((tab) => tab.id === model.selectedId)
-      ? model.selectedId
-      : (model.tabs[0]?.id ?? null);
-    return { ...model, selectedId };
-  } catch {
-    return null;
-  }
-}
+    if (stored.tabs.some((tab) => tab.id === stored.selectedId)) {
+      return stored;
+    }
+    return { ...stored, selectedId: stored.tabs[0]?.id ?? null };
+  },
+  removeItem: (key: string) => {
+    json.removeItem(key);
+  },
+  setItem: (key: string, value: TabsModel) => {
+    persist(key, value);
+  },
+};
 
-export function saveTabsModel(model: TabsModel) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(model));
-  } catch {
-    // Ignore quota / serialization failures; persistence is best-effort.
+function isTabsModel(value: unknown): value is TabsModel {
+  if (typeof value !== "object" || value === null) {
+    return false;
   }
+  const tabs = (value as Record<string, unknown>).tabs;
+  return Array.isArray(tabs) && tabs.length > 0;
 }

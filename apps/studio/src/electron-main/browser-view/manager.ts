@@ -47,6 +47,10 @@ export interface BrowserViewManager {
   // Every recorded target id, including ones whose guest has not attached yet.
   // The renderer pool reconciles its `<webview>` guests to this set.
   getTargetIds: () => string[];
+  // If an agent-browser guest has focus, navigate its own history and return
+  // true. Lets keyboard back/forward target the focused guest instead of the
+  // tab (mouse buttons are handled by the guest's own app-command).
+  navigateFocusedGuest: (direction: "back" | "forward") => boolean;
   teardown: () => void;
 }
 
@@ -415,11 +419,23 @@ export function createBrowserViewManager(): BrowserViewManager {
       }),
   };
 
+  function navigateFocusedGuest(direction: "back" | "forward"): boolean {
+    for (const entry of entries.values()) {
+      const wc = entry.webContents;
+      if (wc && !wc.isDestroyed() && wc.isFocused()) {
+        navigateGuest(wc, direction);
+        return true;
+      }
+    }
+    return false;
+  }
+
   managerInstance = {
     bindHost,
     browser,
     getDebugEntries: () => entries,
     getTargetIds: () => [...entries.keys()].map(String),
+    navigateFocusedGuest,
     teardown: () => {
       for (const targetId of entries.keys()) {
         destroyEntry(entries, targetId);
@@ -432,6 +448,18 @@ export function createBrowserViewManager(): BrowserViewManager {
 
 export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
+}
+
+function navigateGuest(wc: WebContents, direction: "back" | "forward" | null) {
+  if (!direction || wc.isDestroyed()) {
+    return;
+  }
+  const history = wc.navigationHistory;
+  if (direction === "back" && history.canGoBack()) {
+    history.goBack();
+  } else if (direction === "forward" && history.canGoForward()) {
+    history.goForward();
+  }
 }
 
 // Single notify for any change to the entry set: refresh the debug snapshot and

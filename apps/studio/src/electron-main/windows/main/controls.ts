@@ -1,3 +1,4 @@
+import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { getStudioOverlay } from "@/electron-main/studio-overlay";
 import { sendTabCommand } from "@/electron-main/tabs/tab-command";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
@@ -21,7 +22,11 @@ export function goBack() {
     overlay.goBack();
     return;
   }
-  // Otherwise route the active tab's own history in the renderer.
+  // A focused agent-browser guest navigates its own history; otherwise route the
+  // active tab's own history in the renderer.
+  if (getBrowserViewManager()?.navigateFocusedGuest("back")) {
+    return;
+  }
   sendTabCommand({ type: "navigateBack" });
 }
 
@@ -29,6 +34,9 @@ export function goForward() {
   const overlay = getStudioOverlay();
   if (overlay?.isActive()) {
     overlay.goForward();
+    return;
+  }
+  if (getBrowserViewManager()?.navigateFocusedGuest("forward")) {
     return;
   }
   sendTabCommand({ type: "navigateForward" });

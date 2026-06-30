@@ -28,7 +28,10 @@ export type TabCommand =
   | { type: "reopen" }
   | { type: "selectLast" }
   | { type: "selectNext" }
-  | { type: "selectPrevious" };
+  | { type: "selectPrevious" }
+  | { type: "zoomIn" }
+  | { type: "zoomOut" }
+  | { type: "zoomReset" };
 
 // A tab's memory-history stack, captured on close so reopening restores the
 // tab's back/forward history, not just its last location.

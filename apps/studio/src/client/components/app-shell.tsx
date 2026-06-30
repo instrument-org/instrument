@@ -1,4 +1,5 @@
 import { tabsAtom } from "@/client/atoms/tabs";
+import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
@@ -25,7 +26,7 @@ import { type Tab } from "@/shared/tabs";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
-import { useSetAtom, useStore } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useState } from "react";
 
 const IconContextValue: IconProps = {
@@ -43,6 +44,7 @@ const NEW_TAB_PATH = "/new-tab";
 export function AppShell() {
   const { model } = useTabsController();
   const store = useStore();
+  const zoom = useAtomValue(zoomAtom);
 
   useMouseBackForward();
 
@@ -118,6 +120,18 @@ export function AppShell() {
             store.set(tabsAtom, (m) => selectAdjacent(m, { delta: -1 }));
             break;
           }
+          case "zoomIn": {
+            store.set(zoomAtom, (z) => clampZoom(z + ZOOM_STEP));
+            break;
+          }
+          case "zoomOut": {
+            store.set(zoomAtom, (z) => clampZoom(z - ZOOM_STEP));
+            break;
+          }
+          case "zoomReset": {
+            store.set(zoomAtom, 1);
+            break;
+          }
         }
       }
     }
@@ -132,7 +146,19 @@ export function AppShell() {
   return (
     <QueryClientProvider client={sharedQueryClient}>
       <IconContext.Provider value={IconContextValue}>
-        <div className="relative h-screen w-full overflow-hidden">
+        <div
+          className="relative overflow-hidden"
+          style={
+            {
+              "--app-zoom": zoom,
+              // `zoom` rescales the box, so divide the viewport sizing by the same
+              // factor to keep the shell covering exactly the real viewport.
+              height: "calc(100vh / var(--app-zoom))",
+              width: "calc(100vw / var(--app-zoom))",
+              zoom: "var(--app-zoom)",
+            } as React.CSSProperties
+          }
+        >
           {model.tabs.map((tab) => (
             <TabView
               isActive={tab.id === model.selectedId}

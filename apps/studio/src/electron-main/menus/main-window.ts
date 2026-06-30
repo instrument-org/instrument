@@ -168,8 +168,8 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+0",
         click: () => {
-          // Zoom is applied to the tab view only. The sidebar and tab bar use
-          // fixed pixel sizes and break if zoomed.
+          // Whole-shell UI zoom, applied as CSS `zoom` in the renderer; embedded
+          // web content views (the agent browser) are left untouched.
           resetZoom();
         },
         label: "Actual Size",

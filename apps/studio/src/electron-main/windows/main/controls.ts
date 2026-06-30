@@ -6,8 +6,10 @@ import { getMainWindow } from "@/electron-main/windows/main/instance";
 // Window-level zoom / history / focus. Overlay-aware: while the app-wide modal
 // overlay is open it owns the foreground, so these target its webContents rather
 // than the tab beneath it. Previously TabsManager methods.
-
-const ZOOM_STEP = 0.5;
+//
+// The main shell zooms its own UI in the renderer (CSS `zoom`) rather than via
+// `webContents.setZoomLevel`, so app zoom leaves embedded web content views (the
+// agent browser) untouched and stays independent of them.
 
 export function focusMainContents() {
   if (getStudioOverlay()?.isActive()) {
@@ -48,7 +50,7 @@ export function resetZoom() {
     overlay.resetZoom();
     return;
   }
-  getMainWindow()?.webContents.setZoomLevel(0);
+  sendTabCommand({ type: "zoomReset" });
 }
 
 export function updateOverlayBounds() {
@@ -62,7 +64,7 @@ export function zoomIn() {
     overlay.zoomIn();
     return;
   }
-  stepWindowZoom(ZOOM_STEP);
+  sendTabCommand({ type: "zoomIn" });
 }
 
 export function zoomOut() {
@@ -71,12 +73,5 @@ export function zoomOut() {
     overlay.zoomOut();
     return;
   }
-  stepWindowZoom(-ZOOM_STEP);
-}
-
-function stepWindowZoom(delta: number) {
-  const webContents = getMainWindow()?.webContents;
-  if (webContents) {
-    webContents.setZoomLevel(webContents.getZoomLevel() + delta);
-  }
+  sendTabCommand({ type: "zoomOut" });
 }

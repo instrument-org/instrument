@@ -1,3 +1,4 @@
+import { featuresAtom } from "@/client/atoms/features";
 import { promptInputRefAtom } from "@/client/atoms/prompt-value";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
@@ -156,6 +157,7 @@ export function TaskChat({
     }
   };
 
+  const features = useAtomValue(featuresAtom);
   const promptTextarea = useAtomValue(promptInputRefAtom);
   useLayoutEffect(() => {
     promptTextarea?.focus();
@@ -179,7 +181,11 @@ export function TaskChat({
     <PromptInput
       atomKey={id}
       autoFocus
-      browserToggle={<PromptBrowserToggle disabled={isReplayActive} />}
+      browserToggle={
+        features.prompt_browser_toggle ? (
+          <PromptBrowserToggle disabled={isReplayActive} />
+        ) : undefined
+      }
       className="relative z-10"
       id={id}
       isLoading={createMessage.isPending}

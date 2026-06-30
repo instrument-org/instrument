@@ -8,6 +8,7 @@ import { atomWithRefresh } from "jotai/utils";
 const defaultFeatures: Features = {
   bash_summary_chip: false,
   context_ring: false,
+  prompt_browser_toggle: false,
 };
 
 async function listen(setAtom: () => void) {

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-export const FeatureNameSchema = z.enum(["bash_summary_chip", "context_ring"]);
+export const FeatureNameSchema = z.enum([
+  "bash_summary_chip",
+  "context_ring",
+  "prompt_browser_toggle",
+]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
 export const FeaturesSchema = z.record(FeatureNameSchema, z.boolean());
@@ -19,5 +23,10 @@ export const FEATURE_METADATA: Record<
     description:
       "Show a context window usage ring in the prompt input for the active session.",
     title: "Context Ring",
+  },
+  prompt_browser_toggle: {
+    description:
+      "Show a browser toggle button in the prompt input to open the task browser panel.",
+    title: "Prompt Browser Toggle",
   },
 };

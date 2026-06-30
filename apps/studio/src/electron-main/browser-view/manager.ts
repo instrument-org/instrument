@@ -1,5 +1,8 @@
 import { publisher } from "@/electron-main/rpc/publisher";
-import { targetIdFromPartition } from "@/shared/agent-browser";
+import {
+  AGENT_BROWSER_GUEST_NAVIGATE_CHANNEL,
+  targetIdFromPartition,
+} from "@/shared/agent-browser";
 import {
   type AbsolutePath,
   type BrowserConfig,
@@ -10,8 +13,9 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/electron";
-import { session, type WebContents } from "electron";
+import { ipcMain, session, type WebContents } from "electron";
 import fs from "node:fs";
+import path from "node:path";
 import { noop } from "radashi";
 
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
@@ -70,6 +74,23 @@ export function createBrowserViewManager(): BrowserViewManager {
   // createTarget waiters, resolved once the guest attaches (or rejected on
   // timeout / attach rejection).
   const attachWaiters = new Map<BrowserTargetId, PendingAttach[]>();
+
+  // Mouse thumb buttons pressed inside a guest arrive here from its preload (the
+  // guest captures the input, so the renderer's window handler never sees them).
+  ipcMain.on(
+    AGENT_BROWSER_GUEST_NAVIGATE_CHANNEL,
+    (event, direction: unknown) => {
+      if (direction !== "back" && direction !== "forward") {
+        return;
+      }
+      for (const entry of entries.values()) {
+        if (entry.webContents === event.sender) {
+          navigateGuest(event.sender, direction);
+          return;
+        }
+      }
+    },
+  );
 
   function ensureDebuggerAttached(entry: BrowserEntry) {
     const wc = entry.webContents;
@@ -206,6 +227,8 @@ export function createBrowserViewManager(): BrowserViewManager {
       webPreferences.contextIsolation = true;
       webPreferences.nodeIntegration = false;
       webPreferences.sandbox = true;
+      // Forwards mouse thumb buttons pressed inside the guest (see preload).
+      webPreferences.preload = guestPreloadPath();
 
       pendingAttachQueue.push(entry.targetId);
     });
@@ -448,6 +471,11 @@ export function createBrowserViewManager(): BrowserViewManager {
 
 export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
+}
+
+function guestPreloadPath() {
+  // Built alongside the main-window preload; see electron.vite.config.ts.
+  return path.join(import.meta.dirname, "../preload/agent-browser-guest.mjs");
 }
 
 function navigateGuest(wc: WebContents, direction: "back" | "forward" | null) {

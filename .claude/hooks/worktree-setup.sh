@@ -28,6 +28,32 @@ fi
 
 echo "[worktree-setup] bootstrapping $(basename "$worktree_root") from $main_root"
 
+normalize_registry_env_paths() {
+  local src=$1
+  local dest=$2
+  local tmp
+
+  tmp=$(mktemp)
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      MAIN_VITE_APP_REGISTRY_DIR_PATH=* | APP_REGISTRY_DIR_PATH=*)
+        local key=${line%%=*}
+        local value=${line#*=}
+        if [[ -n "$value" && "$value" != /* ]]; then
+          value=$(cd "$(dirname "$src")" && pwd -P)/$value
+          if [[ -d "$value" ]]; then
+            value=$(cd "$value" && pwd -P)
+          fi
+          line="$key=$value"
+        fi
+        ;;
+    esac
+    printf '%s\n' "$line" >> "$tmp"
+  done < "$dest"
+
+  mv "$tmp" "$dest"
+}
+
 # 1. Copy gitignored env files from the main worktree (same relative paths).
 copied=0
 while IFS= read -r -d '' src; do
@@ -36,6 +62,7 @@ while IFS= read -r -d '' src; do
   if [[ ! -e "$dest" ]]; then
     mkdir -p "$(dirname "$dest")"
     cp "$src" "$dest"
+    normalize_registry_env_paths "$src" "$dest"
     copied=$((copied + 1))
   fi
 done < <(

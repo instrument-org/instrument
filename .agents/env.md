@@ -20,3 +20,6 @@ main and renderer processes.
 
 `apps/studio/.env.development` ships committed defaults for non-secret dev
 settings; `.env.local` overrides and holds secrets.
+
+Linked worktrees copy local env files and normalize relative registry overrides
+to absolute paths based on the source env file.

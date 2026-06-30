@@ -1,7 +1,11 @@
 import { base } from "@/electron-main/rpc/base";
 import { commandPublisher } from "@/electron-main/rpc/publisher";
 import { sendTabCommand } from "@/electron-main/tabs/tab-command";
-import { goBack, goForward } from "@/electron-main/windows/main/controls";
+import {
+  goBack,
+  goForward,
+  setTrafficLightForZoom,
+} from "@/electron-main/windows/main/controls";
 import { type StudioPath } from "@/shared/studio-path";
 import { noop } from "radashi";
 import { z } from "zod";
@@ -46,6 +50,15 @@ const reorder = base
 
 const select = base.input(z.object({ id: z.string() })).handler(noop);
 
+// The renderer owns the shell zoom (CSS `zoom`); it reports the current level so
+// the main process can keep the macOS traffic lights centered in the toolbar,
+// whose visual height scales with that zoom.
+const syncZoom = base
+  .input(z.object({ zoom: z.number() }))
+  .handler(({ input }) => {
+    setTrafficLightForZoom(input.zoom);
+  });
+
 const live = {
   // Imperative tab operations the renderer (AppShell) applies to its own tab
   // state. Streamed, not buffered: a fresh subscriber should not replay a stale
@@ -68,4 +81,5 @@ export const tabs = {
   navigateForward,
   reorder,
   select,
+  syncZoom,
 };

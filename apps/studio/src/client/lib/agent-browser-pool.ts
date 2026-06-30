@@ -1,14 +1,16 @@
+import { rpcClient } from "@/client/rpc/client";
 import {
   AGENT_BROWSER_VIEWPORT,
   agentBrowserPartition,
 } from "@/shared/agent-browser";
 
 /**
- * Renderer-owned pool of agent-browser `<webview>` guests. Each guest is created
- * once (on the main process's `mount` command), appended to `document.body`, and
- * kept there for its lifetime so React reconciliation / a host subtree being
- * hidden never unmounts it (which would drop its compositor surface and break
- * the main process's capture + input).
+ * Renderer-owned pool of agent-browser `<webview>` guests. The main process owns
+ * which targets should exist and streams that desired set over
+ * `agentBrowser.live.targets`; this pool reconciles to it (mount on add, dispose
+ * on remove). Each guest is appended to `document.body` and kept there for its
+ * lifetime so React reconciliation / a host subtree being hidden never unmounts
+ * it (which would drop its compositor surface and break capture + input).
  *
  * Two visibility modes:
  *  - paint-host: laid out at the guest's logical size but visually hidden
@@ -20,9 +22,9 @@ import {
  *    measured by that component) and scaled to fit, with input enabled.
  *
  * Only one guest is ever visible at a time (see `currentOwner`); all others are
- * parked in paint-host. The main process owns guest existence via mount/unmount;
- * the host slot only toggles paint-host vs visible. Hiding/closing the slot
- * never disposes a guest.
+ * parked in paint-host. The main process owns guest existence via the
+ * desired-targets stream; the host slot only toggles paint-host vs visible.
+ * Hiding/closing the slot never disposes a guest.
  */
 
 // Subset of Electron's `<webview>` tag API the browser panel drives so the user
@@ -108,17 +110,29 @@ export function getWebviewElement(targetId: string): null | WebviewElement {
 }
 
 /**
- * Wire the main -> renderer mount/unmount commands. Call once from AppShell.
- * Returns an unsubscribe function.
+ * Subscribe to the main process's desired-targets stream and reconcile the pool
+ * to it. Call once at startup; returns an unsubscribe function. Resubscribing
+ * always receives the current set, so a guest is never stranded by a change
+ * that happened before this listener existed.
  */
 export function initAgentBrowserPool(): () => void {
-  return window.api.onAgentBrowserCommand((command) => {
-    if (command.type === "mount") {
-      ensureWebview(command.targetId);
-    } else {
-      disposeWebview(command.targetId);
+  let cancelled = false;
+
+  async function subscribe() {
+    const subscription = await rpcClient.agentBrowser.live.targets.call();
+    for await (const targetIds of subscription) {
+      if (cancelled) {
+        break;
+      }
+      reconcile(targetIds);
     }
-  });
+  }
+
+  void subscribe();
+
+  return () => {
+    cancelled = true;
+  };
 }
 
 /** Park the guest in paint-host (laid out + painted, but not shown). */
@@ -206,4 +220,18 @@ function applyPaintHost(pooled: PooledWebview) {
     transformOrigin: "",
     width: `${width}px`,
   } satisfies Partial<CSSStyleDeclaration>);
+}
+
+/** Bring the pool in line with the desired target set: create any missing
+ * guests, dispose any that are no longer wanted. */
+function reconcile(targetIds: string[]) {
+  const desired = new Set(targetIds);
+  for (const targetId of desired) {
+    ensureWebview(targetId);
+  }
+  // Snapshot the keys to dispose first; disposeWebview mutates the pool.
+  const stale = [...pool.keys()].filter((targetId) => !desired.has(targetId));
+  for (const targetId of stale) {
+    disposeWebview(targetId);
+  }
 }

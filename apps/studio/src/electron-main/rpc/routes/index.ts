@@ -1,5 +1,6 @@
 import { workspaceRouter } from "@instrument-org/workspace/electron";
 
+import { agentBrowser } from "./agent-browser";
 import { auth } from "./auth";
 import { debug } from "./debug";
 import { features } from "./features";
@@ -20,6 +21,7 @@ import { user } from "./user";
 import { utils } from "./utils";
 
 export const router = {
+  agentBrowser,
   auth,
   debug,
   features,

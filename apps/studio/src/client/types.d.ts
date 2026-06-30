@@ -1,4 +1,3 @@
-import type { AgentBrowserCommand } from "@/shared/agent-browser";
 import type { TabCommand } from "@/shared/tabs";
 import type { ElectronAPI } from "@electron-toolkit/preload";
 
@@ -11,10 +10,6 @@ declare global {
   interface Window {
     api: {
       getFilePath: (file: File) => string;
-      /** Subscribe to main-process agent-browser pool commands; returns unsubscribe. */
-      onAgentBrowserCommand: (
-        callback: (command: AgentBrowserCommand) => void,
-      ) => () => void;
       onNavigate: (callback: (url: string) => void) => void;
       onStudioOverlayNavigate: (
         callback: (location: string, seq: number) => void,

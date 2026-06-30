@@ -57,6 +57,12 @@ interface PooledWebview {
 
 const { height: VIEW_H, width: VIEW_W } = AGENT_BROWSER_VIEWPORT;
 
+// Round the visible guest's bottom corners to match the browser panel's
+// rounded-xl frame (inner radius, inside the 1px border). Whether Chromium
+// actually clips the `<webview>` guest to this radius is build-dependent; the
+// container also sets overflow:hidden to give it the best chance.
+const VISIBLE_BOTTOM_RADIUS = "0.6875rem";
+
 const pool = new Map<string, PooledWebview>();
 
 export function disposeWebview(targetId: string) {
@@ -144,6 +150,7 @@ export function showOverSlot(targetId: string, bounds: Bounds) {
   const { container, webview } = pooled;
 
   Object.assign(container.style, {
+    borderRadius: `0 0 ${VISIBLE_BOTTOM_RADIUS} ${VISIBLE_BOTTOM_RADIUS}`,
     contain: "layout paint size style",
     height: `${bounds.height}px`,
     left: `${bounds.x}px`,
@@ -160,6 +167,7 @@ export function showOverSlot(targetId: string, bounds: Bounds) {
   } satisfies Partial<CSSStyleDeclaration>);
 
   Object.assign(webview.style, {
+    borderRadius: `0 0 ${VISIBLE_BOTTOM_RADIUS} ${VISIBLE_BOTTOM_RADIUS}`,
     height: `${bounds.height}px`,
     transform: "",
     transformOrigin: "",
@@ -176,6 +184,7 @@ function applyPaintHost(pooled: PooledWebview) {
   const height = lastVisibleBounds?.height ?? VIEW_H;
 
   Object.assign(container.style, {
+    borderRadius: "",
     contain: "layout paint size style",
     height: `${height}px`,
     left: "0",
@@ -192,6 +201,7 @@ function applyPaintHost(pooled: PooledWebview) {
   } satisfies Partial<CSSStyleDeclaration>);
 
   Object.assign(webview.style, {
+    borderRadius: "",
     height: `${height}px`,
     transform: "",
     transformOrigin: "",

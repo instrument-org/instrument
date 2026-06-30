@@ -1,4 +1,5 @@
 import { getStudioOverlay } from "@/electron-main/studio-overlay";
+import { sendTabCommand } from "@/electron-main/tabs/tab-command";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 
 // Window-level zoom / history / focus. Overlay-aware: while the app-wide modal
@@ -18,15 +19,19 @@ export function goBack() {
   const overlay = getStudioOverlay();
   if (overlay?.isActive()) {
     overlay.goBack();
+    return;
   }
-  // Otherwise per-tab history is handled in the renderer (each tab's router).
+  // Otherwise route the active tab's own history in the renderer.
+  sendTabCommand({ type: "navigateBack" });
 }
 
 export function goForward() {
   const overlay = getStudioOverlay();
   if (overlay?.isActive()) {
     overlay.goForward();
+    return;
   }
+  sendTabCommand({ type: "navigateForward" });
 }
 
 export function resetZoom() {

@@ -1,6 +1,15 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import { getTabsManager } from "@/electron-main/tabs";
+import { getStudioOverlay } from "@/electron-main/studio-overlay";
+import { sendTabCommand } from "@/electron-main/tabs/tab-command";
+import {
+  focusMainContents,
+  goBack,
+  goForward,
+  resetZoom,
+  zoomIn,
+  zoomOut,
+} from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { STUDIO_OVERLAY_DISMISSIBLE } from "@/shared/studio-overlay";
 import { type MenuItemConstructorOptions } from "electron";
@@ -20,10 +29,9 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
   // convention, we grey them out (enabled: false) rather than removing them,
   // which also reliably swallows their accelerators on all platforms. The menu
   // is rebuilt on modal open/close (see menus/index.ts), so this is re-read.
-  const isLocked = getTabsManager()?.studioOverlay.isActive() ?? false;
+  const isLocked = getStudioOverlay()?.isActive() ?? false;
   // Disabling "Close" for a non-dismissible overlay also swallows its Cmd+W.
-  const activeOverlayKind =
-    getTabsManager()?.studioOverlay.activeKind() ?? null;
+  const activeOverlayKind = getStudioOverlay()?.activeKind() ?? null;
   const canCloseOverlay =
     activeOverlayKind === null || STUDIO_OVERLAY_DISMISSIBLE[activeOverlayKind];
 
@@ -33,8 +41,10 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+T",
         click: () => {
-          getTabsManager()?.addTab({
-            urlPath: "/new-tab",
+          sendTabCommand({
+            appPath: "/new-tab",
+            newTab: true,
+            type: "navigate",
           });
         },
         enabled: !isLocked,
@@ -43,7 +53,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+N",
         click: () => {
-          getTabsManager()?.navigateActiveTab({ appPath: "/new-tab" });
+          sendTabCommand({ appPath: "/new-tab", type: "navigate" });
         },
         enabled: !isLocked,
         label: "New Task",
@@ -57,14 +67,14 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             focusedWindow.close();
             return;
           }
-          const tabsManager = getTabsManager();
+          const overlay = getStudioOverlay();
           // While the app-wide modal is open, Cmd+W dismisses it (rather than
           // closing the tab beneath it).
-          if (tabsManager?.studioOverlay.isActive()) {
-            tabsManager.studioOverlay.dismiss();
+          if (overlay?.isActive()) {
+            overlay.dismiss();
             return;
           }
-          tabsManager?.closeActiveTab();
+          sendTabCommand({ type: "close" });
         },
         // Disabled for a non-dismissible modal; rebuilt on open/close.
         enabled: canCloseOverlay,
@@ -73,7 +83,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+Shift+T",
         click: () => {
-          getTabsManager()?.reopenClosedTab();
+          sendTabCommand({ type: "reopen" });
         },
         enabled: !isLocked,
         label: "Reopen Closed Tab",
@@ -93,7 +103,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             publisher.publish("app.toggle-command-menu", {
               webContentsId: webContents.id,
             });
-            getTabsManager()?.focusCurrentTab();
+            focusMainContents();
           }
         },
         label: "Show Command Menu",
@@ -102,16 +112,14 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+[",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.goBack();
+          goBack();
         },
         label: "Back",
       },
       {
         accelerator: "CmdOrCtrl+]",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.goForward();
+          goForward();
         },
         label: "Forward",
       },
@@ -119,11 +127,11 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+R",
         click: () => {
-          const tabsManager = getTabsManager();
+          const overlay = getStudioOverlay();
           // While the app-wide modal is open it owns the foreground, so reload
           // targets the overlay's webContents instead of the tab beneath it.
-          if (tabsManager?.studioOverlay.isActive()) {
-            tabsManager.studioOverlay.reload();
+          if (overlay?.isActive()) {
+            overlay.reload();
             return;
           }
           const webContents = getMainWindow()?.webContents;
@@ -162,14 +170,14 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           // Zoom is applied to the tab view only. The sidebar and tab bar use
           // fixed pixel sizes and break if zoomed.
-          getTabsManager()?.resetZoom();
+          resetZoom();
         },
         label: "Actual Size",
       },
       {
         accelerator: "CmdOrCtrl+Plus",
         click: () => {
-          getTabsManager()?.zoomIn();
+          zoomIn();
         },
         label: "Zoom In",
       },
@@ -179,7 +187,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         // duplicate entry for Windows/Linux.
         accelerator: "CmdOrCtrl+=",
         click: () => {
-          getTabsManager()?.zoomIn();
+          zoomIn();
         },
         label: "Zoom In",
         visible: false,
@@ -187,7 +195,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+-",
         click: () => {
-          getTabsManager()?.zoomOut();
+          zoomOut();
         },
         label: "Zoom Out",
       },
@@ -195,7 +203,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "Ctrl+Tab",
         click: () => {
-          getTabsManager()?.selectNextTab();
+          sendTabCommand({ type: "selectNext" });
         },
         enabled: !isLocked,
         label: "Show Next Tab",
@@ -203,7 +211,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "Ctrl+Shift+Tab",
         click: () => {
-          getTabsManager()?.selectPreviousTab();
+          sendTabCommand({ type: "selectPrevious" });
         },
         enabled: !isLocked,
         label: "Show Previous Tab",
@@ -211,7 +219,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+Shift+]",
         click: () => {
-          getTabsManager()?.selectNextTab();
+          sendTabCommand({ type: "selectNext" });
         },
         enabled: !isLocked,
         label: "Show Next Tab",
@@ -220,7 +228,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+Shift+[",
         click: () => {
-          getTabsManager()?.selectPreviousTab();
+          sendTabCommand({ type: "selectPrevious" });
         },
         enabled: !isLocked,
         label: "Show Previous Tab",
@@ -239,8 +247,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+1",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.selectTabByIndex({ index: 0 });
+          sendTabCommand({ index: 0, type: "selectByIndex" });
         },
         enabled: !isLocked,
         label: "Switch to Tab 1",
@@ -249,8 +256,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+2",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.selectTabByIndex({ index: 1 });
+          sendTabCommand({ index: 1, type: "selectByIndex" });
         },
         enabled: !isLocked,
         label: "Switch to Tab 2",
@@ -259,8 +265,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+3",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.selectTabByIndex({ index: 2 });
+          sendTabCommand({ index: 2, type: "selectByIndex" });
         },
         enabled: !isLocked,
         label: "Switch to Tab 3",
@@ -269,8 +274,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+4",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.selectTabByIndex({ index: 3 });
+          sendTabCommand({ index: 3, type: "selectByIndex" });
         },
         enabled: !isLocked,
         label: "Switch to Tab 4",
@@ -279,8 +283,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+5",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.selectTabByIndex({ index: 4 });
+          sendTabCommand({ index: 4, type: "selectByIndex" });
         },
         enabled: !isLocked,
         label: "Switch to Tab 5",
@@ -289,8 +292,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+6",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.selectTabByIndex({ index: 5 });
+          sendTabCommand({ index: 5, type: "selectByIndex" });
         },
         enabled: !isLocked,
         label: "Switch to Tab 6",
@@ -299,8 +301,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+7",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.selectTabByIndex({ index: 6 });
+          sendTabCommand({ index: 6, type: "selectByIndex" });
         },
         enabled: !isLocked,
         label: "Switch to Tab 7",
@@ -309,8 +310,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+8",
         click: () => {
-          const tabsManager = getTabsManager();
-          tabsManager?.selectTabByIndex({ index: 7 });
+          sendTabCommand({ index: 7, type: "selectByIndex" });
         },
         enabled: !isLocked,
         label: "Switch to Tab 8",
@@ -319,7 +319,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+9",
         click: () => {
-          getTabsManager()?.selectLastTab();
+          sendTabCommand({ type: "selectLast" });
         },
         enabled: !isLocked,
         label: "Switch to Last Tab",

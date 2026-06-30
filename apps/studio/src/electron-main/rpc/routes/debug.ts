@@ -2,6 +2,7 @@ import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { getStudioOverlay } from "@/electron-main/studio-overlay";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { APP_NAME, PORTS } from "@instrument-org/shared";
 import {
@@ -167,12 +168,12 @@ const openOnboarding = devOnly.input(z.void()).handler(() => {
   openOnboardingWindow();
 });
 
-const showOverlayIdle = devOnly.input(z.void()).handler(({ context }) => {
-  context.tabsManager?.studioOverlay.showIdle();
+const showOverlayIdle = devOnly.input(z.void()).handler(() => {
+  getStudioOverlay()?.showIdle();
 });
 
-const showOverlayNotFound = devOnly.input(z.void()).handler(({ context }) => {
-  context.tabsManager?.studioOverlay.showNotFound();
+const showOverlayNotFound = devOnly.input(z.void()).handler(() => {
+  getStudioOverlay()?.showNotFound();
 });
 
 const openAuthTestPage = devOnly.input(z.void()).handler(() => {

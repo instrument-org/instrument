@@ -2,7 +2,6 @@ import { type ErrorMap, os } from "@orpc/server";
 
 import { hasToken } from "../platform-api/utils";
 import { isDeveloperMode } from "../stores/preferences";
-import { getTabsManager } from "../tabs";
 import { type InitialRPCContext } from "./context";
 
 const ORPC_ERRORS = {
@@ -13,10 +12,7 @@ const ORPC_ERRORS = {
 
 const osBase = os.$context<InitialRPCContext>().errors(ORPC_ERRORS);
 
-export const base = osBase
-  .$context<InitialRPCContext>()
-  // Injecting this dynamically since it relies on a globally mutable singleton
-  .use(({ next }) => next({ context: { tabsManager: getTabsManager() } }));
+export const base = osBase.$context<InitialRPCContext>();
 
 const authRequired = osBase.middleware(async ({ errors, next }) => {
   if (!hasToken()) {

@@ -12,6 +12,7 @@ import {
   setTabPathname,
   type TabsModel,
 } from "@/client/lib/tab-model";
+import { getTabHistory } from "@/client/lib/tab-router-registry";
 import { type Tab } from "@/shared/tabs";
 import { useAtom } from "jotai";
 
@@ -47,7 +48,11 @@ export function useTabsController() {
     },
     closeTab: ({ id }: { id: string }) => {
       update((m) =>
-        closeTab(m, { id, newTab: { id: freshId(), pathname: NEW_TAB_PATH } }),
+        closeTab(m, {
+          history: getTabHistory(id),
+          id,
+          newTab: { id: freshId(), pathname: NEW_TAB_PATH },
+        }),
       );
     },
     model,

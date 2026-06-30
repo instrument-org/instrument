@@ -81,6 +81,14 @@ export function AppShell() {
             }
             break;
           }
+          case "navigateBack": {
+            getTabRouter(store.get(tabsAtom).selectedId)?.history.back();
+            break;
+          }
+          case "navigateForward": {
+            getTabRouter(store.get(tabsAtom).selectedId)?.history.forward();
+            break;
+          }
           case "reopen": {
             store.set(tabsAtom, (m) => reopenClosed(m, { id: freshId() }));
             break;

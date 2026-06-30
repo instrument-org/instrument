@@ -22,6 +22,8 @@ export type TabCommand =
   | { appPath: string; newTab?: boolean; type: "navigate" }
   | { id?: string; type: "close" }
   | { index: number; type: "selectByIndex" }
+  | { type: "navigateBack" }
+  | { type: "navigateForward" }
   | { type: "reopen" }
   | { type: "selectLast" }
   | { type: "selectNext" }

@@ -20,8 +20,18 @@ export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
     part.state === "output-available" && part.output.state === "success"
       ? part.output
       : null;
+  const notFoundOutput =
+    part.state === "output-available" && part.output.state === "not-found"
+      ? part.output
+      : null;
 
-  const label = getToolLabel("load_skill");
+  const label = notFoundOutput ? "Skill not found" : getToolLabel("load_skill");
+  const availableText =
+    notFoundOutput && notFoundOutput.available.length > 0
+      ? notFoundOutput.available
+          .map((skill) => `${skill.name}: ${skill.description}`)
+          .join("\n")
+      : undefined;
 
   return (
     <ToolCard>
@@ -52,6 +62,37 @@ export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
                 </p>
               )}
             </div>
+          )}
+        </ToolCardSection>
+      )}
+
+      {notFoundOutput && (
+        <ToolCardSection copyText={availableText} maxHeight="max-h-52">
+          <p className="text-sm text-muted-foreground">
+            Skill{" "}
+            <span className="font-mono text-foreground">
+              {notFoundOutput.name}
+            </span>{" "}
+            was not found.
+          </p>
+
+          {notFoundOutput.available.length > 0 ? (
+            <div className="mt-3 space-y-2 border-t border-border pt-3">
+              {notFoundOutput.available.map((skill) => (
+                <div key={skill.name}>
+                  <p className="font-mono text-sm text-foreground">
+                    {skill.name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {skill.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground italic">
+              No skills are currently available.
+            </p>
           )}
         </ToolCardSection>
       )}

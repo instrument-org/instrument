@@ -184,7 +184,7 @@ export function TaskView({
   };
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden">
+    <div className="relative h-full w-full overflow-hidden">
       <ResizablePanelGroup
         className="h-full"
         defaultLayout={showArtifactPanel ? LAYOUT.open : LAYOUT.closed}

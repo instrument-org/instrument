@@ -81,7 +81,8 @@ export function TaskBrowserPanel({
     let last = measure();
     const track = () => {
       const rect = measure();
-      stableFrames = rect.x === last.x && rect.y === last.y ? stableFrames + 1 : 0;
+      stableFrames =
+        rect.x === last.x && rect.y === last.y ? stableFrames + 1 : 0;
       last = rect;
       if (stableFrames < 2) {
         raf = requestAnimationFrame(track);

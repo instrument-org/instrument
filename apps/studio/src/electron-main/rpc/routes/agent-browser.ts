@@ -7,11 +7,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
  * attach). Distinct from `workspace.browser.listTargetIds`, which only reports
  * already-attached targets. */
 function currentTargetIds(): string[] {
-  const manager = getBrowserViewManager();
-  if (!manager) {
-    return [];
-  }
-  return [...manager.getDebugEntries().keys()].map(String);
+  return getBrowserViewManager()?.getTargetIds() ?? [];
 }
 
 const live = {

@@ -21,10 +21,11 @@ import {
  *  - visible: positioned over a host slot (e.g. the task page's browser panel,
  *    measured by that component) and scaled to fit, with input enabled.
  *
- * Only one guest is ever visible at a time (see `currentOwner`); all others are
- * parked in paint-host. The main process owns guest existence via the
- * desired-targets stream; the host slot only toggles paint-host vs visible.
- * Hiding/closing the slot never disposes a guest.
+ * At most one guest is visible at a time: each task's browser panel shows its
+ * guest only while its tab is the foreground tab (see use-active-tab) and parks
+ * it otherwise, so two guests can never be shown at once. The main process owns
+ * guest existence via the desired-targets stream; the host slot only toggles
+ * paint-host vs visible. Hiding/closing the slot never disposes a guest.
  */
 
 // Subset of Electron's `<webview>` tag API the browser panel drives so the user
@@ -58,14 +59,6 @@ const { height: VIEW_H, width: VIEW_W } = AGENT_BROWSER_VIEWPORT;
 
 const pool = new Map<string, PooledWebview>();
 
-// At most one guest is ever shown to the user. Whichever target last called
-// `showOverSlot` owns the visible pane; every other live guest is forced to
-// paint-host (kept rendering for capture, but parked). Without this a guest from
-// a background task stays stacked at the paint-host z-index over the foreground
-// tab, since paint-host sits above everything. Codex models the same thing via
-// `browser-sidebar-owner-sync`.
-let currentOwner: null | string = null;
-
 export function disposeWebview(targetId: string) {
   const pooled = pool.get(targetId);
   if (!pooled) {
@@ -73,9 +66,6 @@ export function disposeWebview(targetId: string) {
   }
   pooled.container.remove();
   pool.delete(targetId);
-  if (currentOwner === targetId) {
-    currentOwner = null;
-  }
 }
 
 export function ensureWebview(targetId: string): PooledWebview {
@@ -141,9 +131,6 @@ export function setPaintHost(targetId: string) {
   if (pooled) {
     applyPaintHost(pooled);
   }
-  if (currentOwner === targetId) {
-    currentOwner = null;
-  }
 }
 
 /**
@@ -153,16 +140,6 @@ export function setPaintHost(targetId: string) {
  */
 export function showOverSlot(targetId: string, bounds: Bounds) {
   const pooled = ensureWebview(targetId);
-  // Single-owner: parking every other guest guarantees only this one is shown,
-  // so a background task's paint-hosted guest can't stack over the foreground.
-  if (currentOwner !== targetId) {
-    for (const [id, other] of pool) {
-      if (id !== targetId) {
-        applyPaintHost(other);
-      }
-    }
-    currentOwner = targetId;
-  }
   pooled.lastVisibleBounds = bounds;
   const { container, webview } = pooled;
 

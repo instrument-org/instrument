@@ -28,18 +28,6 @@ import {
  * paint-host vs visible. Hiding/closing the slot never disposes a guest.
  */
 
-// Subset of Electron's `<webview>` tag API the browser panel drives so the user
-// can take over navigation.
-export interface WebviewElement extends HTMLElement {
-  canGoBack(): boolean;
-  canGoForward(): boolean;
-  getURL(): string;
-  goBack(): void;
-  goForward(): void;
-  loadURL(url: string): Promise<void>;
-  reload(): void;
-}
-
 interface Bounds {
   height: number;
   width: number;
@@ -55,6 +43,18 @@ interface PooledWebview {
   webview: WebviewElement;
 }
 
+// Subset of Electron's `<webview>` tag API the browser panel drives so the user
+// can take over navigation.
+interface WebviewElement extends HTMLElement {
+  canGoBack(): boolean;
+  canGoForward(): boolean;
+  getURL(): string;
+  goBack(): void;
+  goForward(): void;
+  loadURL(url: string): Promise<void>;
+  reload(): void;
+}
+
 const { height: VIEW_H, width: VIEW_W } = AGENT_BROWSER_VIEWPORT;
 
 // Round the visible guest's bottom corners to match the browser panel's
@@ -64,15 +64,6 @@ const { height: VIEW_H, width: VIEW_W } = AGENT_BROWSER_VIEWPORT;
 const VISIBLE_BOTTOM_RADIUS = "0.6875rem";
 
 const pool = new Map<string, PooledWebview>();
-
-export function disposeWebview(targetId: string) {
-  const pooled = pool.get(targetId);
-  if (!pooled) {
-    return;
-  }
-  pooled.container.remove();
-  pool.delete(targetId);
-}
 
 export function ensureWebview(targetId: string): PooledWebview {
   const existing = pool.get(targetId);
@@ -207,6 +198,15 @@ function applyPaintHost(pooled: PooledWebview) {
     transformOrigin: "",
     width: `${width}px`,
   } satisfies Partial<CSSStyleDeclaration>);
+}
+
+function disposeWebview(targetId: string) {
+  const pooled = pool.get(targetId);
+  if (!pooled) {
+    return;
+  }
+  pooled.container.remove();
+  pool.delete(targetId);
 }
 
 /** Bring the pool in line with the desired target set: create any missing

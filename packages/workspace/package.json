@@ -78,18 +78,15 @@
     "@ai-sdk/provider": "^3.0.8",
     "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
-    "@t3-oss/env-core": "^0.13.8",
     "@types/mime-types": "^3.0.1",
     "@types/mock-fs": "^4.13.4",
     "@types/ms": "^2.1.0",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
     "devtools-protocol": "^0.0.1617013",
-    "dotenv": "^16.6.1",
     "mock-fs": "^5.5.0",
     "tsx": "^4.20.3",
     "typescript": "catalog:",
-    "undici": "^8.1.0",
     "vitest": "catalog:"
   },
   "optionalDependencies": {

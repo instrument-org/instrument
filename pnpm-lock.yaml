@@ -999,9 +999,6 @@ importers:
       '@instrument-org/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
-      '@t3-oss/env-core':
-        specifier: ^0.13.8
-        version: 0.13.8(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.2.1)
       '@types/mime-types':
         specifier: ^3.0.1
         version: 3.0.1
@@ -1020,9 +1017,6 @@ importers:
       devtools-protocol:
         specifier: ^0.0.1617013
         version: 0.0.1617013
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
       mock-fs:
         specifier: ^5.5.0
         version: 5.5.0
@@ -1032,9 +1026,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.2
-      undici:
-        specifier: ^8.1.0
-        version: 8.1.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.5(@edge-runtime/vm@3.2.0)(@opentelemetry/api@1.9.1)(@types/node@24.13.1)(msw@2.7.5(@types/node@24.13.1)(typescript@5.9.2))(vite@7.2.7(@types/node@24.13.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.3))
@@ -3468,23 +3459,6 @@ packages:
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
-
-  '@t3-oss/env-core@0.13.8':
-    resolution: {integrity: sha512-L1inmpzLQyYu4+Q1DyrXsGJYCXbtXjC4cICw1uAKv0ppYPQv656lhZPU91Qd1VS6SO/bou1/q5ufVzBGbNsUpw==}
-    peerDependencies:
-      arktype: ^2.1.0
-      typescript: '>=5.0.0'
-      valibot: ^1.0.0-beta.7 || ^1.0.0
-      zod: ^3.24.0 || ^4.0.0-beta.0
-    peerDependenciesMeta:
-      arktype:
-        optional: true
-      typescript:
-        optional: true
-      valibot:
-        optional: true
-      zod:
-        optional: true
 
   '@tailwindcss/browser@4.2.2':
     resolution: {integrity: sha512-JVdJBWWtvKxliBI9CtpOrqxgk8aijUWGsn0STxcOcXAYsUFAbOxN5PwawOJ+v0PoQfPcOK9eZoj9LTwvBV0Vmw==}
@@ -8833,10 +8807,6 @@ packages:
     resolution: {integrity: sha512-uZsKNuzQxDMUY6M3pIMvy5tvlGmtq8XJ2oLAkfRKGNu+1VQAIvLy2xIVG5ATZl5wDXl/tddByAWCizRbOme+TA==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.1.0:
-    resolution: {integrity: sha512-E9MkTS4xXLnRPYqxH2e6Hr2/49e7WFDKczKcCaFH4VaZs2iNvHMqeIkyUAD9vM8kujy9TjVrRlQ5KkdEJxB2pw==}
-    engines: {node: '>=22.19.0'}
-
   unicorn-magic@0.1.0:
     resolution: {integrity: sha512-lRfVq8fE8gz6QMBuDM6a+LO3IAzTi05H6gCVaUpir2E1Rwpo4ZUog45KpNXKC/Mn3Yb9UDuHumeFTo9iV/D9FQ==}
     engines: {node: '>=18'}
@@ -11859,12 +11829,6 @@ snapshots:
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
-
-  '@t3-oss/env-core@0.13.8(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.2.1)':
-    optionalDependencies:
-      typescript: 5.9.2
-      valibot: 1.2.0(typescript@5.9.2)
-      zod: 4.2.1
 
   '@tailwindcss/browser@4.2.2': {}
 
@@ -18069,8 +18033,6 @@ snapshots:
 
   undici@7.27.2:
     optional: true
-
-  undici@8.1.0: {}
 
   unicorn-magic@0.1.0: {}
 

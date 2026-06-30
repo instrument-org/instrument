@@ -34,6 +34,9 @@ const PROVIDER_TYPE_PRIORITY: ImageGenerationProviderType[] = [
   "deepinfra",
 ];
 
+const GEMINI_IMAGE_MODEL_ID = "gemini-3.1-flash-lite-image";
+const OPENROUTER_GEMINI_IMAGE_MODEL_ID = `google/${GEMINI_IMAGE_MODEL_ID}`;
+
 export const TEST_IMAGE_MODEL_OVERRIDE_KEY = "__testImageModelOverride";
 
 export type AISDKImageModelResult =
@@ -117,7 +120,7 @@ async function getAISDKImageModel({
     }
     case "google": {
       const sdk = await createGoogleSDK(config, workspaceServerURL);
-      const model = sdk.imageModel("gemini-2.5-flash-image");
+      const model = sdk.imageModel(GEMINI_IMAGE_MODEL_ID);
       return Result.ok({ model, type: "image" as const });
     }
     case "openai": {
@@ -127,7 +130,7 @@ async function getAISDKImageModel({
     }
     case "openrouter": {
       const sdk = await createOpenRouterSDK(config, workspaceServerURL);
-      const model = sdk.imageModel("google/gemini-2.5-flash-image");
+      const model = sdk.imageModel(OPENROUTER_GEMINI_IMAGE_MODEL_ID);
       return Result.ok({ model, type: "image" as const });
     }
     case OUR_MODELS.providerType: {
@@ -142,7 +145,7 @@ async function getAISDKImageModel({
     }
     case "vercel": {
       const sdk = createVercelSDK(config, workspaceServerURL);
-      const model = sdk("google/gemini-2.5-flash-image");
+      const model = sdk(OPENROUTER_GEMINI_IMAGE_MODEL_ID);
       return Result.ok({ model, type: "language" as const });
     }
     case "x-ai": {

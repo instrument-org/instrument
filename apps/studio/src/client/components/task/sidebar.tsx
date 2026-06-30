@@ -15,7 +15,6 @@ export type TaskSidebarMode = z.output<typeof TaskSidebarModeSchema>;
 export function TaskSidebar({
   activeFilePath,
   attachedFolders,
-  browserOpen,
   chatProps,
   files,
   onFileSelect,
@@ -26,7 +25,6 @@ export function TaskSidebar({
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  browserOpen: boolean;
   chatProps: ComponentProps<typeof TaskChat>;
   files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   onFileSelect: (file: TaskFileViewerFile) => void;
@@ -38,7 +36,6 @@ export function TaskSidebar({
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       <TaskToolbar
-        browserOpen={browserOpen}
         onSidebarChange={onSidebarChange}
         selectedSessionId={selectedSessionId}
         sidebar={sidebar}

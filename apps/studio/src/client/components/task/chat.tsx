@@ -27,6 +27,7 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
+import { PromptBrowserToggle } from "./prompt-browser-toggle";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
 
 export function TaskChat({
@@ -178,6 +179,7 @@ export function TaskChat({
     <PromptInput
       atomKey={id}
       autoFocus
+      browserToggle={<PromptBrowserToggle disabled={isReplayActive} />}
       className="relative z-10"
       id={id}
       isLoading={createMessage.isPending}

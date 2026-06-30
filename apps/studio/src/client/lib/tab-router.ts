@@ -38,7 +38,11 @@ export function createTabRouter({
   history?: TabHistory;
   pathname: string;
 }) {
-  const entries = history ? [...history.entries] : [pathname];
+  // Only restore a non-empty stack: createMemoryHistory throws on an empty
+  // initialEntries / out-of-range index, and once that bad value is persisted it
+  // bricks every boot. Fall back to the tab's pathname otherwise.
+  const restored = history && history.entries.length > 0 ? history : undefined;
+  const entries = restored ? [...restored.entries] : [pathname];
   const router = createTanStackRouter({
     context: { queryClient: sharedQueryClient },
     defaultErrorComponent: DefaultErrorComponent,
@@ -46,7 +50,9 @@ export function createTabRouter({
     defaultPreload: false,
     history: createMemoryHistory({
       initialEntries: entries,
-      initialIndex: history?.index,
+      initialIndex: restored
+        ? Math.min(Math.max(restored.index, 0), entries.length - 1)
+        : undefined,
     }),
     routeTree,
     scrollRestoration: true,
@@ -57,8 +63,14 @@ export function createTabRouter({
 
 /** Snapshot a tab router's current back/forward stack, for restoring on reopen. */
 export function getRouterHistory(router: TabRouter): TabHistory {
+  const entries = routerEntries.get(router);
+  // Fall back to the current location if the reference was lost (e.g. an HMR
+  // module swap) so the snapshot is always a valid, non-empty stack.
+  if (!entries || entries.length === 0) {
+    return { entries: [router.history.location.href], index: 0 };
+  }
   return {
-    entries: [...(routerEntries.get(router) ?? [])],
+    entries: [...entries],
     index: router.history.location.state.__TSR_index,
   };
 }

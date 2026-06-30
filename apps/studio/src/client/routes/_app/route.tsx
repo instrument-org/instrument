@@ -50,12 +50,6 @@ const DevTools = lazy(() =>
   })),
 );
 
-const DevPanel = lazy(() =>
-  import("@/client/components/dev-panel").then((m) => ({
-    default: m.DevPanel,
-  })),
-);
-
 const Agentation = import.meta.env.DEV
   ? lazy(() =>
       import("agentation").then((m) => ({
@@ -106,12 +100,6 @@ function RouteComponent() {
       {isDeveloperMode && (
         <Suspense fallback={null}>
           <DevTools />
-        </Suspense>
-      )}
-
-      {isDeveloperMode && (
-        <Suspense fallback={null}>
-          <DevPanel />
         </Suspense>
       )}
 

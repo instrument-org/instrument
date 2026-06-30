@@ -46,8 +46,16 @@ export function StudioToolbar() {
       <div
         className={cn(
           "flex h-full shrink-0 items-center [-webkit-app-region:drag]",
-          isMacOS() ? "pl-20" : "pl-4",
+          isMacOS() ? undefined : "pl-4",
         )}
+        // The macOS traffic-light gutter must stay a fixed visual width, so divide
+        // it by the shell zoom: the zoomed root scales it back to a constant 5rem
+        // and the OS-drawn buttons (real pixels, unzoomed) always fit.
+        style={
+          isMacOS()
+            ? { paddingLeft: "calc(5rem / var(--app-zoom, 1))" }
+            : undefined
+        }
       >
         <div className="flex items-center gap-4 [-webkit-app-region:no-drag]">
           {isSidebarOpen ? (

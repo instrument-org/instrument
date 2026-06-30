@@ -50,7 +50,6 @@ import {
   NavigationArrowIcon,
   NotePencilIcon,
   SunIcon,
-  XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -74,6 +73,7 @@ export function DevPanel() {
   const navigate = useNavigate();
   const { setTheme, theme } = useTheme();
   const [hidden, setHidden] = useState(false);
+  const [showBreakpoint, setShowBreakpoint] = useState(false);
   const setDevToolsPanel = useSetAtom(devToolsPanelAtom);
 
   const features = useAtomValue(featuresAtom);
@@ -143,8 +143,8 @@ export function DevPanel() {
   const envLabel = appEnvironment?.isPackaged === true ? "prod" : "dev";
 
   return (
-    <div className="absolute right-0 bottom-0 rounded-tl-md border-t border-l border-dev-300/30 bg-dev-50 shadow-sm dark:border-dev-400/20 dark:bg-dev-950">
-      <div className="flex items-center gap-x-1.5 px-2 py-1.5">
+    <>
+      <div className="flex items-center gap-x-1.5">
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
             <MenubarTrigger className={pillTriggerClassName}>
@@ -158,7 +158,7 @@ export function DevPanel() {
                 </span>
               )}
             </MenubarTrigger>
-            <MenubarContent align="end" side="top">
+            <MenubarContent align="end" side="bottom">
               <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-0.5 px-2 py-1.5">
                 <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
                   env
@@ -566,53 +566,51 @@ export function DevPanel() {
                   )}
                 </MenubarSubContent>
               </MenubarSub>
+              <MenubarSeparator />
+              <MenubarCheckboxItem
+                checked={showBreakpoint}
+                className="font-mono text-xs"
+                onCheckedChange={setShowBreakpoint}
+              >
+                Show breakpoint
+              </MenubarCheckboxItem>
+              <MenubarSeparator />
+              <MenubarItem
+                className="font-mono text-xs"
+                onSelect={() => {
+                  setHidden(true);
+                }}
+              >
+                Hide dev panel
+              </MenubarItem>
+              <MenubarItem
+                className="font-mono text-xs"
+                onSelect={() => {
+                  setDeveloperMode({ enabled: false });
+                  toast("Developer mode disabled");
+                }}
+              >
+                Exit developer mode
+              </MenubarItem>
             </MenubarContent>
           </MenubarMenu>
         </Menubar>
 
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <span className="cursor-default font-mono text-[9px] leading-none text-dev-700/40 dark:text-dev-300/40">
-              <span className="sm:hidden">&lt;sm</span>
-              <span className="hidden sm:inline md:hidden">:sm</span>
-              <span className="hidden md:inline lg:hidden">:md</span>
-              <span className="hidden lg:inline xl:hidden">:lg</span>
-              <span className="hidden xl:inline 2xl:hidden">:xl</span>
-              <span className="hidden 2xl:inline">:2xl</span>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top">Tailwind breakpoint</TooltipContent>
-        </Tooltip>
-
-        <div className="ml-auto">
-          <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
-            <MenubarMenu>
-              <MenubarTrigger className="cursor-default rounded-sm p-0.5 text-dev-600/30 transition-colors hover:bg-dev-500/10 hover:text-dev-600 aria-expanded:bg-dev-500/10 aria-expanded:text-dev-600 dark:text-dev-400/40 dark:hover:bg-dev-400/10 dark:hover:text-dev-400 dark:aria-expanded:bg-dev-400/10 dark:aria-expanded:text-dev-400">
-                <XIcon className="size-3" />
-              </MenubarTrigger>
-              <MenubarContent align="end" side="top">
-                <MenubarItem
-                  className="font-mono text-xs"
-                  onSelect={() => {
-                    setHidden(true);
-                  }}
-                >
-                  Hide
-                </MenubarItem>
-                <MenubarSeparator />
-                <MenubarItem
-                  className="font-mono text-xs"
-                  onSelect={() => {
-                    setDeveloperMode({ enabled: false });
-                    toast("Developer mode disabled");
-                  }}
-                >
-                  Exit developer mode
-                </MenubarItem>
-              </MenubarContent>
-            </MenubarMenu>
-          </Menubar>
-        </div>
+        {showBreakpoint && (
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <span className="cursor-default font-mono text-[9px] leading-none text-dev-700/40 dark:text-dev-300/40">
+                <span className="sm:hidden">&lt;sm</span>
+                <span className="hidden sm:inline md:hidden">:sm</span>
+                <span className="hidden md:inline lg:hidden">:md</span>
+                <span className="hidden lg:inline xl:hidden">:lg</span>
+                <span className="hidden xl:inline 2xl:hidden">:xl</span>
+                <span className="hidden 2xl:inline">:2xl</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Tailwind breakpoint</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       <AlertDialog
@@ -639,6 +637,6 @@ export function DevPanel() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getTabsManager } from "@/electron-main/tabs";
+import { getStudioOverlay } from "@/electron-main/studio-overlay";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { APP_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
@@ -21,7 +21,7 @@ export function createAppMenu(): MenuItemConstructorOptions {
       {
         accelerator: "CmdOrCtrl+,",
         click: () => {
-          void getTabsManager()?.studioOverlay.show({ kind: "settings" });
+          void getStudioOverlay()?.show({ kind: "settings" });
         },
         label: "Settings...",
       },
@@ -45,15 +45,12 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
         {
           accelerator: "CmdOrCtrl+Shift+R",
           click: () => {
-            const mainWindow = getMainWindow();
-            const tabsManager = getTabsManager();
-
             // The whole tabbed app is one web contents now, so this reloads it.
-            mainWindow?.webContents.reload();
+            getMainWindow()?.webContents.reload();
 
             // The app-wide modal overlay is its own webContents outside the tab
             // tree, so include it when reloading all views.
-            tabsManager?.studioOverlay.reload();
+            getStudioOverlay()?.reload();
           },
           label: "Reload All Web Views",
         },

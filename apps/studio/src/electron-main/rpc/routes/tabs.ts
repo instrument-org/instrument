@@ -1,5 +1,7 @@
 import { base } from "@/electron-main/rpc/base";
-import { commandPublisher, publisher } from "@/electron-main/rpc/publisher";
+import { commandPublisher } from "@/electron-main/rpc/publisher";
+import { sendTabCommand } from "@/electron-main/tabs/tab-command";
+import { goBack, goForward } from "@/electron-main/windows/main/controls";
 import { type StudioPath } from "@/shared/studio-path";
 import { noop } from "radashi";
 import { z } from "zod";
@@ -8,37 +10,35 @@ const StudioPathSchema = z.custom<StudioPath>(
   (value) => typeof value === "string" && value.startsWith("/"),
 );
 
-// Tabs are owned by the renderer (AppShell) in the unified app. These handlers
-// forward to the renderer over IPC (via TabsManager) for overlay-initiated opens
-// (e.g. create-project, welcome -> tutorial). reorder/select are driven directly
-// by the in-app tab bar, so they stay no-ops here.
+// Tabs are owned by the renderer (AppShell). These handlers publish tab commands
+// for overlay-initiated opens (e.g. create-project, welcome -> tutorial); the
+// renderer applies them. reorder/select are driven by the in-app tab bar, so
+// they stay no-ops here.
 const add = base
   .input(
     z.object({ appPath: StudioPathSchema, select: z.boolean().optional() }),
   )
-  .handler(({ context, input }) => {
-    context.tabsManager?.addTab({ urlPath: input.appPath });
+  .handler(({ input }) => {
+    sendTabCommand({ appPath: input.appPath, newTab: true, type: "navigate" });
   });
 
 const navigate = base
   .input(z.object({ appPath: StudioPathSchema }))
-  .handler(({ context, input }) => {
-    context.tabsManager?.navigateActiveTab({ appPath: input.appPath });
+  .handler(({ input }) => {
+    sendTabCommand({ appPath: input.appPath, type: "navigate" });
   });
 
-const navigateBack = base.handler(({ context }) => {
-  context.tabsManager?.goBack();
+const navigateBack = base.handler(() => {
+  goBack();
 });
 
-const navigateForward = base.handler(({ context }) => {
-  context.tabsManager?.goForward();
+const navigateForward = base.handler(() => {
+  goForward();
 });
 
-const close = base
-  .input(z.object({ id: z.string() }))
-  .handler(({ context, input }) => {
-    context.tabsManager?.closeTab({ id: input.id });
-  });
+const close = base.input(z.object({ id: z.string() })).handler(({ input }) => {
+  sendTabCommand({ id: input.id, type: "close" });
+});
 
 const reorder = base
   .input(z.object({ tabIds: z.array(z.string()) }))
@@ -55,15 +55,6 @@ const live = {
       signal,
     })) {
       yield command;
-    }
-  }),
-  state: base.handler(async function* ({ context, signal }) {
-    yield context.tabsManager?.getState();
-
-    for await (const payload of publisher.subscribe("tabs.updated", {
-      signal,
-    })) {
-      yield payload ?? undefined;
     }
   }),
 };

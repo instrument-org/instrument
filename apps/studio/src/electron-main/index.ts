@@ -6,12 +6,12 @@ import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { StudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
-import { getTabsManager } from "@/electron-main/tabs";
 import {
   createMainWindow,
   updateMainWindowBackgroundColor,
   updateTitleBarOverlay,
 } from "@/electron-main/windows/main";
+import { focusMainContents } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
   getOnboardingWindow,
@@ -210,7 +210,7 @@ function focusForegroundWindow() {
       mainWindow.restore();
     }
     mainWindow.focus();
-    getTabsManager()?.focusCurrentTab();
+    focusMainContents();
     return;
   }
   getOnboardingWindow()?.focus();

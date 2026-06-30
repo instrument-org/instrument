@@ -14,7 +14,14 @@ import {
   setWindowState,
   type WindowBounds,
 } from "@/electron-main/stores/window-state";
-import { createTabsManager, getTabsManager } from "@/electron-main/tabs";
+import {
+  createStudioOverlay,
+  teardownStudioOverlay,
+} from "@/electron-main/studio-overlay";
+import {
+  focusMainContents,
+  updateOverlayBounds,
+} from "@/electron-main/windows/main/controls";
 import {
   getMainWindow,
   setMainWindow,
@@ -29,10 +36,10 @@ let wasWindowBlurred = false;
 const LINUX_RESIZE_FOLLOW_UP_DELAY_MS = 100;
 
 export async function createMainWindow({
-  initialParams,
-  initialPath,
   reveal = true,
 }: {
+  // Accepted for caller compatibility but no longer used: the renderer owns tab
+  // creation/restore, so the initial path/params no longer seed a main-side tab.
   initialParams?: Record<string, string>;
   initialPath?: StudioPath;
   reveal?: boolean;
@@ -122,13 +129,12 @@ export async function createMainWindow({
   };
 
   mainWindow.on("close", () => {
-    const tabsManager = getTabsManager();
     debouncedSaveState.cancel();
     if (deferredResizeViews) {
       clearTimeout(deferredResizeViews);
     }
     saveState();
-    tabsManager?.teardown();
+    teardownStudioOverlay();
   });
 
   mainWindow.on("closed", () => {
@@ -147,8 +153,7 @@ export async function createMainWindow({
     // Only focus current tab if the user was away from the app entirely,
     // not when switching between web contents views within the app
     if (wasWindowBlurred) {
-      const tabsManager = getTabsManager();
-      tabsManager?.focusCurrentTab();
+      focusMainContents();
       wasWindowBlurred = false;
     }
   });
@@ -164,12 +169,9 @@ export async function createMainWindow({
     showWindow(window);
   });
 
-  const tabsManager = createTabsManager({
-    baseWindow: mainWindow,
-  });
+  createStudioOverlay({ baseWindow: mainWindow });
 
   void mainWindow.loadURL(studioURL("/shell"));
-  await tabsManager.initialize({ initialParams, initialPath });
   if (reveal) {
     showWindow(mainWindow);
   }
@@ -240,8 +242,7 @@ function isWindowNormal(mainWindow: BrowserWindow) {
 }
 
 function resizeViews() {
-  const tabsManager = getTabsManager();
-  tabsManager?.updateCurrentTabBounds();
+  updateOverlayBounds();
 }
 
 function setupWindowEventListeners({

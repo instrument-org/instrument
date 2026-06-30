@@ -415,6 +415,24 @@ a.cursor-pointer {
   }
 }
 
+@theme {
+  --animate-spinner: spinner-rotate 1s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  0% {
+    transform: rotate(270deg);
+    animation-timing-function: ease-in;
+  }
+  45% {
+    transform: rotate(520deg);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: rotate(630deg);
+  }
+}
+
 /* Planning indicator: A gentle pulsing dot with an expanding ring
 * to signal "agent is planning" */
 @keyframes planning-dot-breathe {

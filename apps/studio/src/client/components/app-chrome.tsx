@@ -69,8 +69,10 @@ export function AppChrome({ children }: { children: ReactNode }) {
       <StudioToolbar />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Activity mode={isSidebarOpen ? "visible" : "hidden"}>
+          {/* Chrome is non-selectable (blacklist); content/modal text stays
+              selectable so the user can still copy messages, code, files. */}
           <div
-            className="flex h-full flex-col overflow-hidden border-r border-border"
+            className="flex h-full flex-col overflow-hidden border-r border-border select-none"
             style={
               {
                 "--sidebar-width": `${SIDEBAR_WIDTH}px`,

@@ -21,11 +21,6 @@ export const AGENT_BROWSER_PARTITION_PREFIX = "persist:agent-browser-route:";
  */
 export const AGENT_BROWSER_VIEWPORT = { height: 800, width: 1280 };
 
-/** Main -> renderer: ask the pool to create / drop a guest for a target. */
-export type AgentBrowserCommand =
-  | { targetId: string; type: "mount" }
-  | { targetId: string; type: "unmount" };
-
 export function agentBrowserPartition(targetId: string): string {
   // Encode so the target id's `/` doesn't complicate the partition string.
   return `${AGENT_BROWSER_PARTITION_PREFIX}${encodeURIComponent(targetId)}`;

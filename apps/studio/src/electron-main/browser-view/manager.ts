@@ -1,7 +1,5 @@
-import {
-  type AgentBrowserCommand,
-  targetIdFromPartition,
-} from "@/shared/agent-browser";
+import { publisher } from "@/electron-main/rpc/publisher";
+import { targetIdFromPartition } from "@/shared/agent-browser";
 import {
   type AbsolutePath,
   type BrowserConfig,
@@ -16,7 +14,6 @@ import { session, type WebContents } from "electron";
 import fs from "node:fs";
 import { noop } from "radashi";
 
-import { getMainWindow } from "../windows/main/instance";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { sendCommand } from "./dispatch-command";
 import {
@@ -93,6 +90,7 @@ export function createBrowserViewManager(): BrowserViewManager {
 
     wc.debugger.on("detach", () => {
       handleDetach(entries, targetId);
+      notifyEntriesChanged();
     });
   }
 
@@ -141,11 +139,11 @@ export function createBrowserViewManager(): BrowserViewManager {
 
     guest.on("destroyed", () => {
       handleDetach(entries, entry.targetId);
-      notifyDebugChange();
+      notifyEntriesChanged();
     });
     guest.on("render-process-gone", () => {
       destroyEntry(entries, entry.targetId);
-      notifyDebugChange();
+      notifyEntriesChanged();
     });
 
     entry.disposers.add(() => {
@@ -236,18 +234,12 @@ export function createBrowserViewManager(): BrowserViewManager {
     }
 
     const entry = createEntry({ id, partitionDir, sessionId, targetId });
-    // Tell the renderer to drop the pooled `<webview>` on any teardown reason,
-    // even if the guest never attached (so an in-flight mount is cleaned up).
-    entry.disposers.add(() => {
-      sendPoolCommand({ targetId: String(targetId), type: "unmount" });
-    });
     entries.set(targetId, entry);
-    notifyDebugChange();
-
-    // Ask the renderer to mount a guest `<webview>` for this target. The guest
-    // attaches via will/did-attach-webview, which binds it and resolves. The
-    // task page surfaces it (auto-opens the browser artifact panel) separately.
-    sendPoolCommand({ targetId: String(targetId), type: "mount" });
+    // Publishing the new desired set makes the renderer pool mount a guest
+    // `<webview>` for this target; it attaches via will/did-attach-webview,
+    // which binds it and resolves the wait. Removal (destroyEntry/handleDetach)
+    // republishes, so the pool disposes the guest -- no explicit unmount needed.
+    notifyEntriesChanged();
 
     return waitForAttach(targetId).then(() => ({ targetId }));
   }
@@ -267,7 +259,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         const entry = entries.get(targetId);
         if (entry && !entry.webContents) {
           destroyEntry(entries, targetId);
-          notifyDebugChange();
+          notifyEntriesChanged();
         }
         reject(new Error(`agent browser attach timed out: ${targetId}`));
       }, ATTACH_TIMEOUT_MS);
@@ -376,6 +368,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         // onTargetDestroyed fires the listener synchronously.
         onTargetDestroyed(targetId, resolve);
         destroyEntry(entries, targetId);
+        notifyEntriesChanged();
       }),
     createTarget,
     getTargetMeta: (targetId) => {
@@ -427,7 +420,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       for (const targetId of entries.keys()) {
         destroyEntry(entries, targetId);
       }
-      notifyDebugChange();
+      notifyEntriesChanged();
     },
   };
   return managerInstance;
@@ -437,8 +430,13 @@ export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
 }
 
-function sendPoolCommand(command: AgentBrowserCommand) {
-  getMainWindow()?.webContents.send("agent-browser-command", command);
+// Single notify for any change to the entry set: refresh the debug snapshot and
+// publish the new desired-targets set so the renderer pool reconciles its
+// guests. Called at every add (createTarget) and removal (destroyEntry /
+// handleDetach) site.
+function notifyEntriesChanged() {
+  notifyDebugChange();
+  publisher.publish("agent-browser.targets-changed", null);
 }
 
 // session.fromPath requires the directory to exist (Chromium opens the profile

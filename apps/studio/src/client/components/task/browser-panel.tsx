@@ -16,6 +16,10 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+// How long to track the slot each frame after showing, covering the artifact
+// panel's entry animation (duration-150) plus a small buffer.
+const ENTRY_SETTLE_MS = 250;
+
 /**
  * The agent browser, hosted in the task page's artifact panel. The guest
  * `<webview>` lives in the body-mounted pool; this just measures a slot and
@@ -71,19 +75,28 @@ export function TaskBrowserPanel({
       }
     };
 
-    measure();
+    // The artifact panel slides in via a transform, which getBoundingClientRect
+    // folds into `rect.x`. ResizeObserver can't catch that (size is unchanged),
+    // so track the slot every frame for the length of the entry animation: the
+    // guest then slides in with the panel instead of being placed once (offset)
+    // and snapping when it settles. ResizeObserver/resize handle steady state.
+    let raf = 0;
+    const start = performance.now();
+    const track = (now: number) => {
+      measure();
+      if (now - start < ENTRY_SETTLE_MS) {
+        raf = requestAnimationFrame(track);
+      }
+    };
+    raf = requestAnimationFrame(track);
+
     const observer = new ResizeObserver(measure);
     observer.observe(slot);
     window.addEventListener("resize", measure);
-    // The artifact panel slides in via a transform, which getBoundingClientRect
-    // folds into `rect.x`, so the first measure lands ~8px right of the settled
-    // position. ResizeObserver won't re-fire (size is unchanged), so re-measure
-    // once the entry animation finishes. animationend bubbles to window.
-    window.addEventListener("animationend", measure);
     return () => {
+      cancelAnimationFrame(raf);
       observer.disconnect();
       window.removeEventListener("resize", measure);
-      window.removeEventListener("animationend", measure);
       setPaintHost(targetId);
     };
   }, [active, isActiveTab, targetId]);

@@ -1,5 +1,5 @@
 import { base } from "@/electron-main/rpc/base";
-import { getTabsManager } from "@/electron-main/tabs";
+import { sendTabCommand } from "@/electron-main/tabs/tab-command";
 import { createMainWindow } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { closeOnboardingWindow } from "@/electron-main/windows/onboarding";
@@ -12,9 +12,10 @@ const complete = base.handler(async () => {
     await createMainWindow(PRIVATE_BETA_LAUNCH);
   } else if (existingMainWindow.isVisible()) {
     // Already-visible window means a real re-completion; open a fresh tab.
-    getTabsManager()?.addTab({
-      params: PRIVATE_BETA_LAUNCH.initialParams,
-      urlPath: PRIVATE_BETA_LAUNCH.initialPath,
+    sendTabCommand({
+      appPath: PRIVATE_BETA_LAUNCH.initialPath,
+      newTab: true,
+      type: "navigate",
     });
     existingMainWindow.focus();
   } else {

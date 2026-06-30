@@ -1,19 +1,22 @@
 import { addTab, emptyTabsModel, type TabsModel } from "@/client/lib/tab-model";
-import { loadTabsModel } from "@/client/lib/tab-storage";
-import { atom } from "jotai";
+import { tabsStorage } from "@/client/lib/tab-storage";
+import { atomWithStorage } from "jotai/utils";
 
 const NEW_TAB_PATH = "/new-tab";
 
-function freshId() {
-  return crypto.randomUUID();
+function freshTabsModel(): TabsModel {
+  return addTab(emptyTabsModel(), {
+    id: crypto.randomUUID(),
+    pathname: NEW_TAB_PATH,
+  });
 }
 
-/** Restore persisted tabs, or start with a single new-tab. */
-function initialModel(): TabsModel {
-  return (
-    loadTabsModel() ??
-    addTab(emptyTabsModel(), { id: freshId(), pathname: NEW_TAB_PATH })
-  );
-}
-
-export const tabsAtom = atom<TabsModel>(initialModel());
+// `getOnInit` so persisted tabs are present on the first render: without it the
+// atom would start from a throwaway new-tab and swap after mount, building and
+// discarding that tab's router.
+export const tabsAtom = atomWithStorage<TabsModel>(
+  "studio.tabs.v1",
+  freshTabsModel(),
+  tabsStorage,
+  { getOnInit: true },
+);

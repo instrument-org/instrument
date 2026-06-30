@@ -87,11 +87,17 @@ export function ToolCallSummary({
     part.state === "output-available" &&
     part.type === "tool-read_file" &&
     part.output.state === "does-not-exist";
+  const isSkillNotFound =
+    part.state === "output-available" &&
+    part.type === "tool-load_skill" &&
+    part.output.state === "not-found";
   const isError = part.state === "output-error" || isFileNotFound;
   const hasCapabilityFailure =
-    part.state === "output-available" &&
-    (part.type === "tool-web_search" || part.type === "tool-generate_image") &&
-    part.output.state === "failure";
+    (part.state === "output-available" &&
+      (part.type === "tool-web_search" ||
+        part.type === "tool-generate_image") &&
+      part.output.state === "failure") ||
+    isSkillNotFound;
   const isFailed = isError || hasCapabilityFailure;
 
   const explanation = getToolExplanation(part);

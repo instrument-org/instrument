@@ -39,7 +39,7 @@ export function StudioToolbar() {
 
   return (
     <div
-      className="flex w-full items-end overflow-hidden bg-gray-200 dark:bg-gray-800"
+      className="flex w-full items-end overflow-hidden bg-gray-200 select-none dark:bg-gray-800"
       style={{ height: `${TOOLBAR_HEIGHT}px` }}
     >
       {/* Toolbar controls region shares the tab background. */}

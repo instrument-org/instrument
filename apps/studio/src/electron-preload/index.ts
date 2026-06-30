@@ -1,4 +1,3 @@
-import { type TabCommand } from "@/shared/tabs";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
@@ -17,15 +16,6 @@ const api: Window["api"] = {
         callback(location, seq);
       },
     ),
-  onTabCommand: (callback: (command: TabCommand) => void) => {
-    const listener = (_event: unknown, command: TabCommand) => {
-      callback(command);
-    };
-    ipcRenderer.on("tab-command", listener);
-    return () => {
-      ipcRenderer.removeListener("tab-command", listener);
-    };
-  },
   studioOverlayRouteReady: (location: string, seq: number) => {
     ipcRenderer.send("studio-overlay:route-ready", location, seq);
   },

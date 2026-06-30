@@ -1,5 +1,5 @@
 import { base } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
+import { commandPublisher, publisher } from "@/electron-main/rpc/publisher";
 import { type StudioPath } from "@/shared/studio-path";
 import { noop } from "radashi";
 import { z } from "zod";
@@ -34,9 +34,11 @@ const navigateForward = base.handler(({ context }) => {
   context.tabsManager?.goForward();
 });
 
-const close = base.input(z.object({ id: z.string() })).handler(({ context, input }) => {
-  context.tabsManager?.closeTab({ id: input.id });
-});
+const close = base
+  .input(z.object({ id: z.string() }))
+  .handler(({ context, input }) => {
+    context.tabsManager?.closeTab({ id: input.id });
+  });
 
 const reorder = base
   .input(z.object({ tabIds: z.array(z.string()) }))
@@ -45,6 +47,16 @@ const reorder = base
 const select = base.input(z.object({ id: z.string() })).handler(noop);
 
 const live = {
+  // Imperative tab operations the renderer (AppShell) applies to its own tab
+  // state. Streamed, not buffered: a fresh subscriber should not replay a stale
+  // command. Replaces the old `tab-command` IPC channel.
+  commands: base.handler(async function* ({ signal }) {
+    for await (const command of commandPublisher.subscribe("tab.command", {
+      signal,
+    })) {
+      yield command;
+    }
+  }),
   state: base.handler(async function* ({ context, signal }) {
     yield context.tabsManager?.getState();
 

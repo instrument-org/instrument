@@ -1,8 +1,10 @@
+import { commandPublisher } from "@/electron-main/rpc/publisher";
 import { type TabCommand } from "@/shared/tabs";
 
-import { getMainWindow } from "../windows/main/instance";
-
-/** Send a tab operation to the renderer that owns tab state (AppShell). */
+/**
+ * Send a tab operation to the renderer that owns tab state (AppShell). Published
+ * over the command bus and streamed to the renderer via `tabs.live.commands`.
+ */
 export function sendTabCommand(command: TabCommand) {
-  getMainWindow()?.webContents.send("tab-command", command);
+  commandPublisher.publish("tab.command", command);
 }

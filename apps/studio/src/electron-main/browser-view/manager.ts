@@ -44,6 +44,9 @@ export interface BrowserViewManager {
   // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
   // convention; do not mutate the returned map from outside the manager.
   getDebugEntries: () => ReadonlyMap<BrowserTargetId, BrowserEntry>;
+  // Every recorded target id, including ones whose guest has not attached yet.
+  // The renderer pool reconciles its `<webview>` guests to this set.
+  getTargetIds: () => string[];
   teardown: () => void;
 }
 
@@ -416,6 +419,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     bindHost,
     browser,
     getDebugEntries: () => entries,
+    getTargetIds: () => [...entries.keys()].map(String),
     teardown: () => {
       for (const targetId of entries.keys()) {
         destroyEntry(entries, targetId);

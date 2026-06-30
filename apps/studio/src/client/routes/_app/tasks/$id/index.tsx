@@ -114,6 +114,9 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({
         params: { id: params.id },
+        // Replace, not push: otherwise the sessionless entry stays in history
+        // and back/forward lands on a task with no session (and no browser).
+        replace: true,
         search: (prev) => ({
           ...prev,
           selectedSessionId: newestSession.id,

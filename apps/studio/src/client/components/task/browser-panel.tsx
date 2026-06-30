@@ -16,10 +16,6 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-// How long to track the slot each frame after showing, covering the artifact
-// panel's entry animation (duration-150) plus a small buffer.
-const ENTRY_SETTLE_MS = 250;
-
 /**
  * The agent browser, hosted in the task page's artifact panel. The guest
  * `<webview>` lives in the body-mounted pool; this just measures a slot and
@@ -73,18 +69,21 @@ export function TaskBrowserPanel({
       } else {
         setPaintHost(targetId);
       }
+      return rect;
     };
 
     // The artifact panel slides in via a transform, which getBoundingClientRect
-    // folds into `rect.x`. ResizeObserver can't catch that (size is unchanged),
-    // so track the slot every frame for the length of the entry animation: the
-    // guest then slides in with the panel instead of being placed once (offset)
-    // and snapping when it settles. ResizeObserver/resize handle steady state.
+    // folds into `rect.x` (ResizeObserver can't catch it -- the size is
+    // unchanged). Track the slot each frame so the guest follows the panel, and
+    // stop once the position holds for two frames, i.e. the slot has settled.
     let raf = 0;
-    const start = performance.now();
-    const track = (now: number) => {
-      measure();
-      if (now - start < ENTRY_SETTLE_MS) {
+    let stableFrames = 0;
+    let last = measure();
+    const track = () => {
+      const rect = measure();
+      stableFrames = rect.x === last.x && rect.y === last.y ? stableFrames + 1 : 0;
+      last = rect;
+      if (stableFrames < 2) {
         raf = requestAnimationFrame(track);
       }
     };
@@ -163,7 +162,7 @@ export function TaskBrowserPanel({
           }}
         >
           <Input
-            className="h-7"
+            className="h-7 text-ellipsis"
             onChange={(event) => {
               setDraftUrl(event.target.value);
             }}

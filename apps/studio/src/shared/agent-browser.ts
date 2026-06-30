@@ -21,6 +21,16 @@ export const AGENT_BROWSER_PARTITION_PREFIX = "persist:agent-browser-route:";
  */
 export const AGENT_BROWSER_VIEWPORT = { height: 800, width: 1280 };
 
+/**
+ * Guest preload -> main: the user pressed a mouse thumb button inside the guest.
+ * macOS delivers these to the guest's DOM (not as a window `app-command`), so a
+ * preload forwards them and the main process navigates the guest's history.
+ */
+export const AGENT_BROWSER_GUEST_NAVIGATE_CHANNEL =
+  "agent-browser-guest:navigate";
+
+export type AgentBrowserNavDirection = "back" | "forward";
+
 export function agentBrowserPartition(targetId: string): string {
   // Encode so the target id's `/` doesn't complicate the partition string.
   return `${AGENT_BROWSER_PARTITION_PREFIX}${encodeURIComponent(targetId)}`;

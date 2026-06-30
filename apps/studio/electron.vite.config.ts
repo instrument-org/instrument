@@ -183,7 +183,15 @@ export default defineConfig(({ command }) => {
     preload: {
       build: {
         lib: {
-          entry: path.join(process.cwd(), "src/electron-preload/index.ts"),
+          entry: {
+            // Keep `index` named so the main process keeps resolving index.mjs;
+            // the guest preload is injected into the agent-browser <webview>.
+            "agent-browser-guest": path.join(
+              process.cwd(),
+              "src/electron-preload/agent-browser-guest.ts",
+            ),
+            index: path.join(process.cwd(), "src/electron-preload/index.ts"),
+          },
         },
         sourcemap: isProduction,
         watch: {}, // Enable hot reloading

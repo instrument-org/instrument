@@ -145,6 +145,22 @@ export async function createMainWindow({
     saveState();
   });
 
+  // Mouse thumb buttons are a window-level command. Route them to a focused
+  // agent-browser guest (its own WebContents captures the event, so the
+  // renderer's handler never sees it); the shell handles its own buttons in the
+  // renderer, so do nothing when no guest is focused.
+  mainWindow.on("app-command", (_event, command) => {
+    const direction =
+      command === "browser-backward"
+        ? "back"
+        : command === "browser-forward"
+          ? "forward"
+          : null;
+    if (direction) {
+      getBrowserViewManager()?.navigateFocusedGuest(direction);
+    }
+  });
+
   mainWindow.on("blur", () => {
     wasWindowBlurred = true;
   });

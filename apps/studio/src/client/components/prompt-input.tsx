@@ -95,6 +95,9 @@ interface PromptInputProps {
   atomKey: PromptValueAtomKey;
   autoFocus?: boolean;
   autoResizeMaxHeight?: number;
+  // Extra action rendered in the button row before the attach control (e.g. the
+  // task page's browser-panel toggle). The host owns it so this stays generic.
+  browserToggle?: React.ReactNode;
   className?: string;
   disabled?: boolean;
   id?: TaskId;
@@ -128,6 +131,7 @@ export const PromptInput = ({
   atomKey,
   autoFocus = false,
   autoResizeMaxHeight = 400,
+  browserToggle,
   className,
   disabled = false,
   id,
@@ -648,6 +652,8 @@ export const PromptInput = ({
               value={selectedProjectId}
             />
           )}
+
+          {browserToggle}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

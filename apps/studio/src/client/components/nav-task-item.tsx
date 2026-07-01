@@ -169,7 +169,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                   to="/tasks/$id"
                 >
                   {isPinned && (
-                    <PushPinIcon className="!size-3.5 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
+                    <PushPinIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
                   )}
                   <span className="truncate" data-task-title>
                     {task.title}

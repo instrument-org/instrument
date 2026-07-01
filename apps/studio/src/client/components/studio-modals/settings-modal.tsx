@@ -184,6 +184,10 @@ function SettingsSectionBody({
     case "Storage": {
       return <StorageSection />;
     }
+    default: {
+      tab satisfies never;
+      return null;
+    }
   }
 }
 

@@ -12,7 +12,7 @@ import { getTabHistory, getTabRouter } from "@/client/lib/tab-router-registry";
 import { rpcClient } from "@/client/rpc/client";
 import { useStore } from "jotai";
 import { sleep } from "radashi";
-import { useEffect } from "react";
+import { startTransition, useEffect } from "react";
 
 const NEW_TAB_PATH = "/new-tab";
 
@@ -69,21 +69,25 @@ export function useTabCommands() {
               case "close": {
                 const id = command.id ?? store.get(tabsAtom).selectedId;
                 if (id) {
-                  store.set(tabsAtom, (m) =>
-                    closeTab(m, {
-                      history: getTabHistory(id),
-                      id,
-                      newTab: { id: freshId(), pathname: NEW_TAB_PATH },
-                    }),
-                  );
+                  startTransition(() => {
+                    store.set(tabsAtom, (m) =>
+                      closeTab(m, {
+                        history: getTabHistory(id),
+                        id,
+                        newTab: { id: freshId(), pathname: NEW_TAB_PATH },
+                      }),
+                    );
+                  });
                 }
                 break;
               }
               case "navigate": {
                 if (command.newTab) {
-                  store.set(tabsAtom, (m) =>
-                    addTab(m, { id: freshId(), pathname: command.appPath }),
-                  );
+                  startTransition(() => {
+                    store.set(tabsAtom, (m) =>
+                      addTab(m, { id: freshId(), pathname: command.appPath }),
+                    );
+                  });
                   break;
                 }
                 const router = getTabRouter(store.get(tabsAtom).selectedId);
@@ -103,27 +107,39 @@ export function useTabCommands() {
                 break;
               }
               case "reopen": {
-                store.set(tabsAtom, (m) => reopenClosed(m, { id: freshId() }));
+                startTransition(() => {
+                  store.set(tabsAtom, (m) =>
+                    reopenClosed(m, { id: freshId() }),
+                  );
+                });
                 break;
               }
               case "selectByIndex": {
-                store.set(tabsAtom, (m) =>
-                  selectByIndex(m, { index: command.index }),
-                );
+                startTransition(() => {
+                  store.set(tabsAtom, (m) =>
+                    selectByIndex(m, { index: command.index }),
+                  );
+                });
                 break;
               }
               case "selectLast": {
-                store.set(tabsAtom, (m) =>
-                  selectByIndex(m, { index: m.tabs.length - 1 }),
-                );
+                startTransition(() => {
+                  store.set(tabsAtom, (m) =>
+                    selectByIndex(m, { index: m.tabs.length - 1 }),
+                  );
+                });
                 break;
               }
               case "selectNext": {
-                store.set(tabsAtom, (m) => selectAdjacent(m, { delta: 1 }));
+                startTransition(() => {
+                  store.set(tabsAtom, (m) => selectAdjacent(m, { delta: 1 }));
+                });
                 break;
               }
               case "selectPrevious": {
-                store.set(tabsAtom, (m) => selectAdjacent(m, { delta: -1 }));
+                startTransition(() => {
+                  store.set(tabsAtom, (m) => selectAdjacent(m, { delta: -1 }));
+                });
                 break;
               }
               case "zoomIn": {

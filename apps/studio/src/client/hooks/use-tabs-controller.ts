@@ -15,6 +15,7 @@ import {
 import { getTabHistory } from "@/client/lib/tab-router-registry";
 import { type Tab } from "@/shared/tabs";
 import { useAtom } from "jotai";
+import { startTransition } from "react";
 
 const NEW_TAB_PATH = "/new-tab";
 
@@ -25,8 +26,14 @@ const NEW_TAB_PATH = "/new-tab";
 export function useTabsController() {
   const [model, setModel] = useAtom(tabsAtom);
 
+  // A transition, not an urgent update: switching/opening a tab can mount a
+  // whole new router tree (see AppShell's TabView), and marking it low-priority
+  // lets React keep the outgoing tab interactive while the next one prepares,
+  // and lets a later switch interrupt a still-in-flight one instead of stacking.
   const update = (fn: (model: TabsModel) => TabsModel) => {
-    setModel(fn);
+    startTransition(() => {
+      setModel(fn);
+    });
   };
 
   return {

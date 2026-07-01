@@ -1,7 +1,7 @@
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
 import { atom, getDefaultStore } from "jotai";
 
-export interface ProjectModalState {
+interface ProjectModalState {
   projectId?: ProjectId;
   taskId?: TaskId;
 }

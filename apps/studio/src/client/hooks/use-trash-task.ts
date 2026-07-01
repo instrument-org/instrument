@@ -28,13 +28,15 @@ export function useTrashTask({
 
       // removeQueries silently destroys the query without notifying active
       // observers, so mounted components (e.g. the sidebar) keep rendering
-      // stale data until something unrelated forces a re-render. resetQueries
-      // puts observers back in a loading state *and* refetches them.
-      void queryClient.resetQueries({
+      // stale data until something unrelated forces a re-render.
+      // invalidateQueries refetches active observers in the background,
+      // keeping their current data until the refetch resolves (unlike
+      // resetQueries, which clears data to a loading state first).
+      void queryClient.invalidateQueries({
         // .key() generates a wildcard key for any params
         queryKey: rpcClient.workspace.task.live.list.key(),
       });
-      void queryClient.resetQueries({
+      void queryClient.invalidateQueries({
         // .key() generates a wildcard key for any params
         queryKey: rpcClient.workspace.task.agentStatus.byIds.key(),
       });

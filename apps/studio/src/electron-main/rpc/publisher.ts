@@ -1,4 +1,7 @@
-import { type AppUpdateRequirement } from "@/electron-main/lib/app-updates";
+import {
+  type AppUpdateReminder,
+  type AppUpdateRequirement,
+} from "@/electron-main/lib/app-updates";
 import { type AppUpdaterStatus } from "@/electron-main/lib/update";
 import { type AppCommand } from "@/shared/app-command";
 import { EventPublisher } from "@orpc/server";
@@ -32,6 +35,7 @@ interface PublisherEvents {
   "server-exceptions.updated": null;
   "session.apiBearerToken.updated": null;
   "test-notification": null;
+  "updates.reminder": { reminder: AppUpdateReminder };
   "updates.requirement": { requirement: AppUpdateRequirement };
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;

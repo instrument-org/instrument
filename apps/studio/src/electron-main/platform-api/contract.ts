@@ -12,11 +12,11 @@ export const contract = {
   appUpdates: {
     get: base.input(z.void()).output(
       z.object({
-        eagerRestartAfterHours: z.number(),
         latestRecommendedVersion: z.string(),
         manualUpdateUrl: z.string(),
         message: z.string().optional(),
         minimumSupportedVersion: z.string(),
+        reminderAfterHours: z.number(),
         requiredUpdateUrl: z.string().optional(),
       }),
     ),

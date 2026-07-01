@@ -65,7 +65,7 @@ catalogs:
       version: 4.1.5
     zod:
       specifier: ^4.1.13
-      version: 4.2.1
+      version: 4.4.3
 
 overrides:
   '@electron/rebuild>node-abi': 4.31.0
@@ -210,7 +210,7 @@ importers:
         version: 1.14.3(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 'catalog:'
-        version: 1.14.3(@opentelemetry/api@1.9.1)(crossws@0.3.4)(ws@8.20.1)
+        version: 1.14.3(@opentelemetry/api@1.9.1)(crossws@0.3.4)(ws@8.21.0)
       '@orpc/shared':
         specifier: 'catalog:'
         version: 1.14.3(@opentelemetry/api@1.9.1)
@@ -234,7 +234,7 @@ importers:
         version: 3.6.0
       better-auth:
         specifier: 'catalog:'
-        version: 1.3.7(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(zod@4.2.1)
+        version: 1.3.7(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(zod@4.4.3)
       detect-port:
         specifier: ^2.1.0
         version: 2.1.0
@@ -279,7 +279,7 @@ importers:
         version: 9.0.1
       semver:
         specifier: ^7.7.2
-        version: 7.8.0
+        version: 7.8.5
       shiki:
         specifier: ^3.21.0
         version: 3.21.0
@@ -297,13 +297,13 @@ importers:
         version: 3.0.1
       ws:
         specifier: ^8.18.3
-        version: 8.20.1
+        version: 8.21.0
       xstate:
         specifier: ^5.20.1
         version: 5.20.1
       zod:
         specifier: 'catalog:'
-        version: 4.2.1
+        version: 4.4.3
     devDependencies:
       '@instrument-org/eslint-config':
         specifier: workspace:*
@@ -605,61 +605,61 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.71
-        version: 3.0.71(zod@4.2.1)
+        version: 3.0.71(zod@4.4.3)
       '@ai-sdk/cerebras':
         specifier: ^2.0.45
-        version: 2.0.45(zod@4.2.1)
+        version: 2.0.45(zod@4.4.3)
       '@ai-sdk/deepinfra':
         specifier: ^2.0.45
-        version: 2.0.45(zod@4.2.1)
+        version: 2.0.45(zod@4.4.3)
       '@ai-sdk/deepseek':
         specifier: ^2.0.29
-        version: 2.0.29(zod@4.2.1)
+        version: 2.0.29(zod@4.4.3)
       '@ai-sdk/fireworks':
         specifier: ^2.0.46
-        version: 2.0.46(zod@4.2.1)
+        version: 2.0.46(zod@4.4.3)
       '@ai-sdk/gateway':
         specifier: ^3.0.104
-        version: 3.0.104(zod@4.2.1)
+        version: 3.0.104(zod@4.4.3)
       '@ai-sdk/google':
         specifier: ^3.0.64
-        version: 3.0.64(zod@4.2.1)
+        version: 3.0.64(zod@4.4.3)
       '@ai-sdk/groq':
         specifier: ^3.0.35
-        version: 3.0.35(zod@4.2.1)
+        version: 3.0.35(zod@4.4.3)
       '@ai-sdk/mistral':
         specifier: ^3.0.30
-        version: 3.0.30(zod@4.2.1)
+        version: 3.0.30(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: ^3.0.53
-        version: 3.0.53(zod@4.2.1)
+        version: 3.0.53(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.41
-        version: 2.0.41(zod@4.2.1)
+        version: 2.0.41(zod@4.4.3)
       '@ai-sdk/perplexity':
         specifier: ^3.0.29
-        version: 3.0.29(zod@4.2.1)
+        version: 3.0.29(zod@4.4.3)
       '@ai-sdk/togetherai':
         specifier: ^2.0.45
-        version: 2.0.45(zod@4.2.1)
+        version: 2.0.45(zod@4.4.3)
       '@ai-sdk/xai':
         specifier: ^3.0.83
-        version: 3.0.83(zod@4.2.1)
+        version: 3.0.83(zod@4.4.3)
       '@instrument-org/shared':
         specifier: workspace:*
         version: link:../shared
       '@openrouter/ai-sdk-provider':
         specifier: ^2.8.0
-        version: 2.8.0(ai@6.0.168(zod@4.2.1))(zod@4.2.1)
+        version: 2.8.0(ai@6.0.168(zod@4.4.3))(zod@4.4.3)
       '@types/ms':
         specifier: ^2.1.0
         version: 2.1.0
       ai:
         specifier: 'catalog:'
-        version: 6.0.168(zod@4.2.1)
+        version: 6.0.168(zod@4.4.3)
       ai-sdk-ollama:
         specifier: ^3.8.3
-        version: 3.8.3(ai@6.0.168(zod@4.2.1))(zod@4.2.1)
+        version: 3.8.3(ai@6.0.168(zod@4.4.3))(zod@4.4.3)
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -680,7 +680,7 @@ importers:
         version: 3.5.2
       zod:
         specifier: 'catalog:'
-        version: 4.2.1
+        version: 4.4.3
     devDependencies:
       '@ai-sdk/provider':
         specifier: ^3.0.8
@@ -792,7 +792,7 @@ importers:
     dependencies:
       zod:
         specifier: 'catalog:'
-        version: 4.2.1
+        version: 4.4.3
     devDependencies:
       '@instrument-org/eslint-config':
         specifier: workspace:*
@@ -892,13 +892,13 @@ importers:
         version: 10.0.9
       '@orpc/server':
         specifier: 'catalog:'
-        version: 1.14.3(@opentelemetry/api@1.9.1)(crossws@0.3.4)(ws@8.20.1)
+        version: 1.14.3(@opentelemetry/api@1.9.1)(crossws@0.3.4)(ws@8.21.0)
       '@parcel/watcher':
         specifier: 2.5.1
         version: 2.5.1(patch_hash=70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b)
       '@t3-oss/env-core':
         specifier: ^0.13.11
-        version: 0.13.11(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.2.1)
+        version: 0.13.11(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.4.3)
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -913,7 +913,7 @@ importers:
         version: 0.27.2
       ai:
         specifier: 'catalog:'
-        version: 6.0.168(zod@4.2.1)
+        version: 6.0.168(zod@4.4.3)
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -988,13 +988,13 @@ importers:
         version: 1.16.1(@upstash/redis@1.35.0)(aws4fetch@1.0.20)(db0@0.3.2(@libsql/client@0.14.0)(better-sqlite3@11.9.1)(drizzle-orm@0.43.1(@libsql/client@0.14.0)(@opentelemetry/api@1.9.1)(@types/pg@8.6.1)(better-sqlite3@11.9.1)(kysely@0.28.5)(sql.js@1.14.1)))(ioredis@5.6.1)
       ws:
         specifier: ^8.18.3
-        version: 8.20.1
+        version: 8.21.0
       xstate:
         specifier: ^5.20.1
         version: 5.20.1
       zod:
         specifier: 'catalog:'
-        version: 4.2.1
+        version: 4.4.3
     devDependencies:
       '@ai-sdk/provider':
         specifier: ^3.0.8
@@ -3789,9 +3789,6 @@ packages:
   '@types/node@24.13.1':
     resolution: {integrity: sha512-RSpUJGmvsJ1ZeBehQZFhIdpsz+bIpES0nIQXko4Ybq+N+kX6XvOq3Jo+iJ82FWLdblFq85AsMikd3m35jgezYg==}
 
-  '@types/node@25.9.0':
-    resolution: {integrity: sha512-AOQwYUNolgy3VosiRqXrACUXTN8nJUtPl7FJXMqZVyxiiCLhQuG3jXKvCS1ALr+Y2OmZhzzLVlYPEqJaiqkaJQ==}
-
   '@types/node@26.0.1':
     resolution: {integrity: sha512-fc3KiUoBt6kie0N9bIW3E47vZsuaMf0PM2AaUpLCLT0s/LvX1nxAim6Fc049cNxODPpGm6qRAuUOB86SkRuPQw==}
 
@@ -4205,11 +4202,6 @@ packages:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
     peerDependencies:
       acorn: ^6.0.0 || ^7.0.0 || ^8.0.0
-
-  acorn@8.16.0:
-    resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
-    engines: {node: '>=0.4.0'}
-    hasBin: true
 
   acorn@8.17.0:
     resolution: {integrity: sha512-xRQbDb9BnwDafYNn6Vwl839DYVjqXYb1XVGtWAZ1kcDc6iwAL4hg3B1dZlRiuENFeO2H53gFG3in621AdERVAg==}
@@ -5355,10 +5347,6 @@ packages:
   es-module-lexer@2.0.0:
     resolution: {integrity: sha512-5POEcUuZybH7IdmGsD8wlf0AI55wMecM9rVBTI/qEAy2c1kTOm3DjFYjrBdI2K3BaJjJYfYFeRtM0t9ssnRuxw==}
 
-  es-object-atoms@1.1.1:
-    resolution: {integrity: sha512-FGgH2h8zKNim9ljj7dankFPcICIK9Cp5bm+c2gQSYePhpaG5+esrLODihIorn+Pe6FGJzWhXQotPv73jTaldXA==}
-    engines: {node: '>= 0.4'}
-
   es-object-atoms@1.1.2:
     resolution: {integrity: sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==}
     engines: {node: '>= 0.4'}
@@ -6063,10 +6051,6 @@ packages:
 
   has-tostringtag@1.0.2:
     resolution: {integrity: sha512-NqADB8VjPFLM2V0VvHUewwwsw0ZWBaIdgo+ieHtK3hasLz4qeCRjYcqfB6AQrBggRKppKF8L52/VqdVsO47Dlw==}
-    engines: {node: '>= 0.4'}
-
-  hasown@2.0.3:
-    resolution: {integrity: sha512-ej4AhfhfL2Q2zpMmLo7U1Uv9+PyhIZpgQLGT1F9miIGmiCJIoCgSmczFdrc97mWT4kVY72KA+WnnhJ5pghSvSg==}
     engines: {node: '>= 0.4'}
 
   hasown@2.0.4:
@@ -7566,10 +7550,6 @@ packages:
     resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
     engines: {node: '>=8.6'}
 
-  picomatch@4.0.3:
-    resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
-    engines: {node: '>=12'}
-
   picomatch@4.0.4:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
@@ -8106,11 +8086,6 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  semver@7.8.0:
-    resolution: {integrity: sha512-AcM7dV/5ul4EekoQ29Agm5vri8JNqRyj39o0qpX6vDF2GZrtutZl5RwgD1XnZjiTAfncsJhMI48QQH3sN87YNA==}
-    engines: {node: '>=10'}
-    hasBin: true
-
   semver@7.8.5:
     resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
     engines: {node: '>=10'}
@@ -8367,10 +8342,6 @@ packages:
 
   string.prototype.trimend@1.0.10:
     resolution: {integrity: sha512-2+3aDAOmPTmuFwjDnmJG2ctEkQKVki7vOSqaxkv42Mowj1V6PnvuwFCRrR5lChUux1TBskPjfkeTOhqczDMxTw==}
-    engines: {node: '>= 0.4'}
-
-  string.prototype.trimend@1.0.9:
-    resolution: {integrity: sha512-G7Ok5C6E/j4SGfyLCloXTrngQIQU3PWtXGst3yM7Bea9FRURf1S42ZHlZZtsNque2FN2PoUhfZXYLNWwEr4dLQ==}
     engines: {node: '>= 0.4'}
 
   string.prototype.trimstart@1.0.8:
@@ -8720,9 +8691,6 @@ packages:
 
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
-
-  undici-types@7.24.6:
-    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
 
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
@@ -9169,18 +9137,6 @@ packages:
     resolution: {integrity: sha512-DqUx8GI3r9BFWwU2DPKddL1E7xWfbFED82mLVhGXKlFEPe8IkBftzO7WfNwHtk7oGDHDeuH/o8VMpzzfMwmLUA==}
     engines: {node: '>=18'}
 
-  ws@8.20.1:
-    resolution: {integrity: sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==}
-    engines: {node: '>=10.0.0'}
-    peerDependencies:
-      bufferutil: ^4.0.1
-      utf-8-validate: '>=5.0.2'
-    peerDependenciesMeta:
-      bufferutil:
-        optional: true
-      utf-8-validate:
-        optional: true
-
   ws@8.21.0:
     resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
     engines: {node: '>=10.0.0'}
@@ -9239,10 +9195,6 @@ packages:
     resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
     engines: {node: '>=12'}
 
-  yargs@17.7.2:
-    resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
-    engines: {node: '>=12'}
-
   yargs@17.7.3:
     resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
     engines: {node: '>=12'}
@@ -9272,9 +9224,6 @@ packages:
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  zod@4.2.1:
-    resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
-
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -9297,106 +9246,106 @@ snapshots:
       section-matter: 1.0.0
       strip-bom-string: 1.0.0
 
-  '@ai-sdk/anthropic@3.0.71(zod@4.2.1)':
+  '@ai-sdk/anthropic@3.0.71(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/cerebras@2.0.45(zod@4.2.1)':
+  '@ai-sdk/cerebras@2.0.45(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.41(zod@4.2.1)
+      '@ai-sdk/openai-compatible': 2.0.41(zod@4.4.3)
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/deepinfra@2.0.45(zod@4.2.1)':
+  '@ai-sdk/deepinfra@2.0.45(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.41(zod@4.2.1)
+      '@ai-sdk/openai-compatible': 2.0.41(zod@4.4.3)
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/deepseek@2.0.29(zod@4.2.1)':
+  '@ai-sdk/deepseek@2.0.29(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/fireworks@2.0.46(zod@4.2.1)':
+  '@ai-sdk/fireworks@2.0.46(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.41(zod@4.2.1)
+      '@ai-sdk/openai-compatible': 2.0.41(zod@4.4.3)
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/gateway@3.0.104(zod@4.2.1)':
+  '@ai-sdk/gateway@3.0.104(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
       '@vercel/oidc': 3.2.0
-      zod: 4.2.1
+      zod: 4.4.3
 
-  '@ai-sdk/google@3.0.64(zod@4.2.1)':
+  '@ai-sdk/google@3.0.64(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/groq@3.0.35(zod@4.2.1)':
+  '@ai-sdk/groq@3.0.35(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/mistral@3.0.30(zod@4.2.1)':
+  '@ai-sdk/mistral@3.0.30(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/openai-compatible@2.0.41(zod@4.2.1)':
+  '@ai-sdk/openai-compatible@2.0.41(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/openai@3.0.53(zod@4.2.1)':
+  '@ai-sdk/openai@3.0.53(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/perplexity@3.0.29(zod@4.2.1)':
+  '@ai-sdk/perplexity@3.0.29(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/provider-utils@4.0.23(zod@4.2.1)':
+  '@ai-sdk/provider-utils@4.0.23(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.8
-      zod: 4.2.1
+      zod: 4.4.3
 
   '@ai-sdk/provider@3.0.8':
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/togetherai@2.0.45(zod@4.2.1)':
+  '@ai-sdk/togetherai@2.0.45(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.41(zod@4.2.1)
+      '@ai-sdk/openai-compatible': 2.0.41(zod@4.4.3)
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/xai@3.0.83(zod@4.2.1)':
+  '@ai-sdk/xai@3.0.83(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.41(zod@4.2.1)
+      '@ai-sdk/openai-compatible': 2.0.41(zod@4.4.3)
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      zod: 4.2.1
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -9944,7 +9893,7 @@ snapshots:
       env-paths: 3.0.0
       graceful-fs: 4.2.11
       progress: 2.0.3
-      semver: 7.8.0
+      semver: 7.8.5
       sumchecker: 3.0.1
     optionalDependencies:
       undici: 7.27.2
@@ -9982,9 +9931,9 @@ snapshots:
       node-gyp: 11.5.0
       ora: 5.4.1
       read-binary-file-arch: 1.0.6
-      semver: 7.8.0
+      semver: 7.8.5
       tar: 7.5.13
-      yargs: 17.7.2
+      yargs: 17.7.3
     transitivePeerDependencies:
       - supports-color
 
@@ -10425,9 +10374,9 @@ snapshots:
       find-up: 7.0.0
       minimatch: 9.0.9
       read-pkg: 9.0.1
-      semver: 7.8.0
+      semver: 7.8.5
       yaml: 2.8.3
-      yargs: 17.7.2
+      yargs: 17.7.3
 
   '@noble/ciphers@0.6.0': {}
 
@@ -10459,7 +10408,7 @@ snapshots:
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.5
 
   '@open-draft/deferred-promise@2.2.0':
     optional: true
@@ -10473,10 +10422,10 @@ snapshots:
   '@open-draft/until@2.1.0':
     optional: true
 
-  '@openrouter/ai-sdk-provider@2.8.0(ai@6.0.168(zod@4.2.1))(zod@4.2.1)':
+  '@openrouter/ai-sdk-provider@2.8.0(ai@6.0.168(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      ai: 6.0.168(zod@4.2.1)
-      zod: 4.2.1
+      ai: 6.0.168(zod@4.4.3)
+      zod: 4.4.3
 
   '@opentelemetry/api-logs@0.208.0':
     dependencies:
@@ -10576,7 +10525,7 @@ snapshots:
 
   '@orpc/interop@1.14.3': {}
 
-  '@orpc/server@1.14.3(@opentelemetry/api@1.9.1)(crossws@0.3.4)(ws@8.20.1)':
+  '@orpc/server@1.14.3(@opentelemetry/api@1.9.1)(crossws@0.3.4)(ws@8.21.0)':
     dependencies:
       '@orpc/client': 1.14.3(@opentelemetry/api@1.9.1)
       '@orpc/contract': 1.14.3(@opentelemetry/api@1.9.1)
@@ -10591,7 +10540,7 @@ snapshots:
       cookie: 1.1.1
     optionalDependencies:
       crossws: 0.3.4
-      ws: 8.20.1
+      ws: 8.21.0
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - fastify
@@ -11696,11 +11645,11 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
-  '@t3-oss/env-core@0.13.11(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.2.1)':
+  '@t3-oss/env-core@0.13.11(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.4.3)':
     optionalDependencies:
       typescript: 5.9.2
       valibot: 1.2.0(typescript@5.9.2)
-      zod: 4.2.1
+      zod: 4.4.3
 
   '@tailwindcss/browser@4.2.2': {}
 
@@ -11863,7 +11812,7 @@ snapshots:
     dependencies:
       '@tanstack/router-generator': 1.167.17
       chokidar: 5.0.0
-      yargs: 17.7.2
+      yargs: 17.7.3
     transitivePeerDependencies:
       - supports-color
 
@@ -11997,7 +11946,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.0.4
       '@types/keyv': 3.1.4
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
       '@types/responselike': 1.0.3
 
   '@types/chai@5.2.3':
@@ -12032,7 +11981,7 @@ snapshots:
 
   '@types/fs-extra@9.0.13':
     dependencies:
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
 
   '@types/hast@3.0.4':
     dependencies:
@@ -12049,7 +11998,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
 
   '@types/mdast@3.0.15':
     dependencies:
@@ -12063,7 +12012,7 @@ snapshots:
 
   '@types/mock-fs@4.13.4':
     dependencies:
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
 
   '@types/ms@2.1.0': {}
 
@@ -12073,14 +12022,9 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
-  '@types/node@25.9.0':
-    dependencies:
-      undici-types: 7.24.6
-
   '@types/node@26.0.1':
     dependencies:
       undici-types: 8.3.0
-    optional: true
 
   '@types/normalize-package-data@2.4.4': {}
 
@@ -12095,7 +12039,7 @@ snapshots:
 
   '@types/plist@3.0.5':
     dependencies:
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
       xmlbuilder: 15.1.1
     optional: true
 
@@ -12109,7 +12053,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
 
   '@types/semver@7.7.0': {}
 
@@ -12133,11 +12077,11 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
     optional: true
 
   '@typescript-eslint/eslint-plugin@8.40.0(@typescript-eslint/parser@8.40.0(eslint@9.31.0(jiti@2.7.0))(typescript@5.9.2))(eslint@9.31.0(jiti@2.7.0))(typescript@5.9.2)':
@@ -12211,7 +12155,7 @@ snapshots:
       fast-glob: 3.3.3
       is-glob: 4.0.3
       minimatch: 9.0.9
-      semver: 7.8.0
+      semver: 7.8.5
       ts-api-utils: 2.1.0(typescript@5.9.2)
       typescript: 5.9.2
     transitivePeerDependencies:
@@ -12503,14 +12447,11 @@ snapshots:
 
   abbrev@3.0.1: {}
 
-  acorn-jsx@5.3.2(acorn@8.16.0):
+  acorn-jsx@5.3.2(acorn@8.17.0):
     dependencies:
-      acorn: 8.16.0
+      acorn: 8.17.0
 
-  acorn@8.16.0: {}
-
-  acorn@8.17.0:
-    optional: true
+  acorn@8.17.0: {}
 
   actions-up@1.13.0:
     dependencies:
@@ -12518,7 +12459,7 @@ snapshots:
       enquirer: 2.4.1
       nanospinner: 1.2.2
       picocolors: 1.1.1
-      semver: 7.8.0
+      semver: 7.8.5
       yaml: 2.8.3
 
   address@2.0.3: {}
@@ -12538,23 +12479,23 @@ snapshots:
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
 
-  ai-sdk-ollama@3.8.3(ai@6.0.168(zod@4.2.1))(zod@4.2.1):
+  ai-sdk-ollama@3.8.3(ai@6.0.168(zod@4.4.3))(zod@4.4.3):
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
-      ai: 6.0.168(zod@4.2.1)
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      ai: 6.0.168(zod@4.4.3)
       jsonrepair: 3.14.0
       ollama: 0.6.3
     transitivePeerDependencies:
       - zod
 
-  ai@6.0.168(zod@4.2.1):
+  ai@6.0.168(zod@4.4.3):
     dependencies:
-      '@ai-sdk/gateway': 3.0.104(zod@4.2.1)
+      '@ai-sdk/gateway': 3.0.104(zod@4.4.3)
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.2.1)
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
       '@opentelemetry/api': 1.9.0
-      zod: 4.2.1
+      zod: 4.4.3
 
   ajv-formats@3.0.1(ajv@8.17.1):
     optionalDependencies:
@@ -12669,7 +12610,7 @@ snapshots:
       call-bound: 1.0.4
       define-properties: 1.2.1
       es-abstract: 1.24.2
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       get-intrinsic: 1.3.0
       is-string: 1.1.1
       math-intrinsics: 1.1.0
@@ -12682,7 +12623,7 @@ snapshots:
       define-properties: 1.2.1
       es-abstract: 1.24.2
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       es-shim-unscopables: 1.1.0
 
   array.prototype.findlastindex@1.2.6:
@@ -12804,7 +12745,7 @@ snapshots:
 
   baseline-browser-mapping@2.9.19: {}
 
-  better-auth@1.3.7(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(zod@4.2.1):
+  better-auth@1.3.7(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(zod@4.4.3):
     dependencies:
       '@better-auth/utils': 0.2.6
       '@better-fetch/fetch': 1.1.18
@@ -12817,7 +12758,7 @@ snapshots:
       jose: 5.10.0
       kysely: 0.28.5
       nanostores: 0.11.4
-      zod: 4.2.1
+      zod: 4.4.3
     optionalDependencies:
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
@@ -13152,7 +13093,7 @@ snapshots:
       dot-prop: 9.0.0
       env-paths: 3.0.0
       json-schema-typed: 8.0.1
-      semver: 7.8.0
+      semver: 7.8.5
       uint8array-extras: 1.4.0
 
   console.table@0.10.0:
@@ -13260,12 +13201,12 @@ snapshots:
   cspell-glob@8.19.4:
     dependencies:
       '@cspell/url': 8.19.4
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   cspell-glob@9.2.1:
     dependencies:
       '@cspell/url': 9.2.1
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   cspell-grammar@8.19.4:
     dependencies:
@@ -13370,7 +13311,7 @@ snapshots:
       cspell-lib: 8.19.4
       fast-json-stable-stringify: 2.1.0
       file-entry-cache: 9.1.0
-      semver: 7.8.0
+      semver: 7.8.5
       tinyglobby: 0.2.15
 
   cspell@9.2.1:
@@ -13391,7 +13332,7 @@ snapshots:
       cspell-lib: 9.2.1
       fast-json-stable-stringify: 2.1.0
       flatted: 3.3.3
-      semver: 7.8.0
+      semver: 7.8.5
       tinyglobby: 0.2.15
 
   cssesc@3.0.0: {}
@@ -13621,7 +13562,7 @@ snapshots:
       fs-extra: 10.1.0
       lazy-val: 1.0.5
       simple-update-notifier: 2.0.0
-      yargs: 17.7.2
+      yargs: 17.7.3
     transitivePeerDependencies:
       - electron-builder-squirrel-windows
       - supports-color
@@ -13766,7 +13707,7 @@ snapshots:
       data-view-byte-offset: 1.0.1
       es-define-property: 1.0.1
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       es-set-tostringtag: 2.1.0
       es-to-primitive: 1.3.0
       function.prototype.name: 1.1.8
@@ -13778,7 +13719,7 @@ snapshots:
       has-property-descriptors: 1.0.2
       has-proto: 1.2.0
       has-symbols: 1.1.0
-      hasown: 2.0.3
+      hasown: 2.0.4
       internal-slot: 1.1.0
       is-array-buffer: 3.0.5
       is-callable: 1.2.7
@@ -13802,7 +13743,7 @@ snapshots:
       set-proto: 1.0.0
       stop-iteration-iterator: 1.1.0
       string.prototype.trim: 1.2.10
-      string.prototype.trimend: 1.0.9
+      string.prototype.trimend: 1.0.10
       string.prototype.trimstart: 1.0.8
       typed-array-buffer: 1.0.3
       typed-array-byte-length: 1.0.3
@@ -13836,25 +13777,20 @@ snapshots:
 
   es-module-lexer@2.0.0: {}
 
-  es-object-atoms@1.1.1:
-    dependencies:
-      es-errors: 1.3.0
-
   es-object-atoms@1.1.2:
     dependencies:
       es-errors: 1.3.0
-    optional: true
 
   es-set-tostringtag@2.1.0:
     dependencies:
       es-errors: 1.3.0
       get-intrinsic: 1.3.0
       has-tostringtag: 1.0.2
-      hasown: 2.0.3
+      hasown: 2.0.4
 
   es-shim-unscopables@1.1.0:
     dependencies:
-      hasown: 2.0.3
+      hasown: 2.0.4
 
   es-to-primitive@1.3.0:
     dependencies:
@@ -13907,12 +13843,12 @@ snapshots:
   eslint-compat-utils@0.5.1(eslint@9.31.0(jiti@2.7.0)):
     dependencies:
       eslint: 9.31.0(jiti@2.7.0)
-      semver: 7.8.0
+      semver: 7.8.5
 
   eslint-compat-utils@0.6.5(eslint@9.31.0(jiti@2.7.0)):
     dependencies:
       eslint: 9.31.0(jiti@2.7.0)
-      semver: 7.8.0
+      semver: 7.8.5
 
   eslint-config-prettier@10.1.8(eslint@9.31.0(jiti@2.7.0)):
     dependencies:
@@ -14000,7 +13936,7 @@ snapshots:
       eslint-import-context: 0.1.9(unrs-resolver@1.11.1)
       is-glob: 4.0.3
       minimatch: 10.2.4
-      semver: 7.8.0
+      semver: 7.8.5
       stable-hash-x: 0.2.0
       unrs-resolver: 1.11.1
     optionalDependencies:
@@ -14070,7 +14006,7 @@ snapshots:
       globals: 15.15.0
       globrex: 0.1.2
       ignore: 5.3.2
-      semver: 7.8.0
+      semver: 7.8.5
       ts-declaration-location: 1.0.7(typescript@5.9.2)
     transitivePeerDependencies:
       - typescript
@@ -14085,7 +14021,7 @@ snapshots:
       eslint: 9.31.0(jiti@2.7.0)
       jsonc-eslint-parser: 2.4.0
       package-json-validator: 0.7.3
-      semver: 7.8.0
+      semver: 7.8.5
       sort-object-keys: 1.1.3
       sort-package-json: 2.15.1
       validate-npm-package-name: 6.0.1
@@ -14106,8 +14042,8 @@ snapshots:
       '@babel/parser': 7.29.0
       eslint: 9.31.0(jiti@2.7.0)
       hermes-parser: 0.25.1
-      zod: 4.2.1
-      zod-validation-error: 4.0.2(zod@4.2.1)
+      zod: 4.4.3
+      zod-validation-error: 4.0.2(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -14125,7 +14061,7 @@ snapshots:
       es-iterator-helpers: 1.2.1
       eslint: 9.31.0(jiti@2.7.0)
       estraverse: 5.3.0
-      hasown: 2.0.3
+      hasown: 2.0.4
       jsx-ast-utils: 3.3.5
       minimatch: 3.1.5
       object.entries: 1.1.9
@@ -14171,7 +14107,7 @@ snapshots:
       read-pkg-up: 7.0.1
       regexp-tree: 0.1.27
       regjsparser: 0.10.0
-      semver: 7.8.0
+      semver: 7.8.5
       strip-indent: 3.0.0
 
   eslint-plugin-yml@1.18.0(eslint@9.31.0(jiti@2.7.0)):
@@ -14238,14 +14174,14 @@ snapshots:
 
   espree@10.4.0:
     dependencies:
-      acorn: 8.16.0
-      acorn-jsx: 5.3.2(acorn@8.16.0)
+      acorn: 8.17.0
+      acorn-jsx: 5.3.2(acorn@8.17.0)
       eslint-visitor-keys: 4.2.1
 
   espree@9.6.1:
     dependencies:
-      acorn: 8.16.0
-      acorn-jsx: 5.3.2(acorn@8.16.0)
+      acorn: 8.17.0
+      acorn-jsx: 5.3.2(acorn@8.17.0)
       eslint-visitor-keys: 3.4.3
 
   esprima@4.0.1: {}
@@ -14377,9 +14313,9 @@ snapshots:
     dependencies:
       pend: 1.2.0
 
-  fdir@6.5.0(picomatch@4.0.3):
+  fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   fetch-blob@3.2.0:
     dependencies:
@@ -14479,7 +14415,7 @@ snapshots:
       asynckit: 0.4.0
       combined-stream: 1.0.8
       es-set-tostringtag: 2.1.0
-      hasown: 2.0.3
+      hasown: 2.0.4
       mime-types: 2.1.35
 
   formatly@0.3.0:
@@ -14554,7 +14490,7 @@ snapshots:
       call-bound: 1.0.4
       define-properties: 1.2.1
       functions-have-names: 1.2.3
-      hasown: 2.0.3
+      hasown: 2.0.4
       is-callable: 1.2.7
 
   functions-have-names@1.2.3: {}
@@ -14572,12 +14508,12 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       es-define-property: 1.0.1
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       function-bind: 1.1.2
       get-proto: 1.0.1
       gopd: 1.2.0
       has-symbols: 1.1.0
-      hasown: 2.0.3
+      hasown: 2.0.4
       math-intrinsics: 1.1.0
 
   get-nonce@1.0.1: {}
@@ -14585,7 +14521,7 @@ snapshots:
   get-proto@1.0.1:
     dependencies:
       dunder-proto: 1.0.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   get-stdin@9.0.0: {}
 
@@ -14653,7 +14589,7 @@ snapshots:
       es6-error: 4.1.1
       matcher: 3.0.0
       roarr: 2.15.4
-      semver: 7.8.0
+      semver: 7.8.5
       serialize-error: 7.0.1
     optional: true
 
@@ -14740,14 +14676,9 @@ snapshots:
     dependencies:
       has-symbols: 1.1.0
 
-  hasown@2.0.3:
-    dependencies:
-      function-bind: 1.1.2
-
   hasown@2.0.4:
     dependencies:
       function-bind: 1.1.2
-    optional: true
 
   hast-util-from-dom@5.0.1:
     dependencies:
@@ -14980,7 +14911,7 @@ snapshots:
   internal-slot@1.1.0:
     dependencies:
       es-errors: 1.3.0
-      hasown: 2.0.3
+      hasown: 2.0.4
       side-channel: 1.1.0
 
   ioredis@5.6.1:
@@ -15047,13 +14978,13 @@ snapshots:
 
   is-bun-module@2.0.0:
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.5
 
   is-callable@1.2.7: {}
 
   is-core-module@2.16.2:
     dependencies:
-      hasown: 2.0.3
+      hasown: 2.0.4
 
   is-data-view@1.0.2:
     dependencies:
@@ -15128,7 +15059,7 @@ snapshots:
       call-bound: 1.0.4
       gopd: 1.2.0
       has-tostringtag: 1.0.2
-      hasown: 2.0.3
+      hasown: 2.0.4
 
   is-set@2.0.3: {}
 
@@ -15193,7 +15124,7 @@ snapshots:
   iterator.prototype@1.1.5:
     dependencies:
       define-data-property: 1.1.4
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       get-intrinsic: 1.3.0
       get-proto: 1.0.1
       has-symbols: 1.1.0
@@ -15266,10 +15197,10 @@ snapshots:
 
   jsonc-eslint-parser@2.4.0:
     dependencies:
-      acorn: 8.16.0
+      acorn: 8.17.0
       eslint-visitor-keys: 3.4.3
       espree: 9.6.1
-      semver: 7.8.0
+      semver: 7.8.5
 
   jsonc-parser@3.3.1: {}
 
@@ -15337,11 +15268,11 @@ snapshots:
       minimist: 1.2.8
       oxc-resolver: 11.16.0
       picocolors: 1.1.1
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       smol-toml: 1.6.0
       strip-json-comments: 5.0.3
       typescript: 5.9.2
-      zod: 4.2.1
+      zod: 4.4.3
 
   kysely@0.28.5: {}
 
@@ -16162,7 +16093,7 @@ snapshots:
 
   node-abi@4.31.0:
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.5
 
   node-addon-api@1.7.2:
     optional: true
@@ -16171,7 +16102,7 @@ snapshots:
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.5
 
   node-domexception@1.0.0:
     optional: true
@@ -16193,7 +16124,7 @@ snapshots:
       make-fetch-happen: 14.0.3
       nopt: 8.1.0
       proc-log: 5.0.0
-      semver: 7.8.0
+      semver: 7.8.5
       tar: 7.5.13
       tinyglobby: 0.2.15
       which: 5.0.0
@@ -16225,7 +16156,7 @@ snapshots:
   normalize-package-data@6.0.2:
     dependencies:
       hosted-git-info: 7.0.2
-      semver: 7.8.0
+      semver: 7.8.5
       validate-npm-package-license: 3.0.4
 
   normalize-path@3.0.0: {}
@@ -16252,7 +16183,7 @@ snapshots:
       call-bind: 1.0.9
       call-bound: 1.0.4
       define-properties: 1.2.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       has-symbols: 1.1.0
       object-keys: 1.1.1
 
@@ -16261,14 +16192,14 @@ snapshots:
       call-bind: 1.0.9
       call-bound: 1.0.4
       define-properties: 1.2.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   object.fromentries@2.0.8:
     dependencies:
       call-bind: 1.0.9
       define-properties: 1.2.1
       es-abstract: 1.24.2
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   object.groupby@1.0.3:
     dependencies:
@@ -16282,7 +16213,7 @@ snapshots:
       call-bind: 1.0.9
       call-bound: 1.0.4
       define-properties: 1.2.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   obug@2.1.1: {}
 
@@ -16405,7 +16336,7 @@ snapshots:
 
   package-json-validator@0.7.3:
     dependencies:
-      yargs: 17.7.2
+      yargs: 17.7.3
 
   papaparse@5.5.3: {}
 
@@ -16508,8 +16439,6 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@2.3.1: {}
-
-  picomatch@4.0.3: {}
 
   picomatch@4.0.4: {}
 
@@ -16674,7 +16603,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.9.0
+      '@types/node': 26.0.1
       long: 5.3.2
 
   proxy-from-env@2.1.0: {}
@@ -16874,7 +16803,7 @@ snapshots:
       define-properties: 1.2.1
       es-abstract: 1.24.2
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       get-intrinsic: 1.3.0
       get-proto: 1.0.1
       which-builtin-type: 1.2.1
@@ -17138,10 +17067,7 @@ snapshots:
 
   semver@7.7.4: {}
 
-  semver@7.8.0: {}
-
-  semver@7.8.5:
-    optional: true
+  semver@7.8.5: {}
 
   serialize-error@7.0.1:
     dependencies:
@@ -17176,7 +17102,7 @@ snapshots:
     dependencies:
       dunder-proto: 1.0.1
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   sh-syntax@0.4.2:
     dependencies:
@@ -17255,7 +17181,7 @@ snapshots:
 
   simple-update-notifier@2.0.0:
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.5
 
   slash@5.1.0: {}
 
@@ -17319,7 +17245,7 @@ snapshots:
       get-stdin: 9.0.0
       git-hooks-list: 3.2.0
       is-plain-obj: 4.1.0
-      semver: 7.8.0
+      semver: 7.8.5
       sort-object-keys: 1.1.3
       tinyglobby: 0.2.15
 
@@ -17426,7 +17352,7 @@ snapshots:
       define-properties: 1.2.1
       es-abstract: 1.24.2
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       get-intrinsic: 1.3.0
       gopd: 1.2.0
       has-symbols: 1.1.0
@@ -17447,7 +17373,7 @@ snapshots:
       define-data-property: 1.1.4
       define-properties: 1.2.1
       es-abstract: 1.24.2
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       has-property-descriptors: 1.0.2
 
   string.prototype.trimend@1.0.10:
@@ -17456,20 +17382,12 @@ snapshots:
       call-bound: 1.0.4
       define-properties: 1.2.1
       es-object-atoms: 1.1.2
-    optional: true
-
-  string.prototype.trimend@1.0.9:
-    dependencies:
-      call-bind: 1.0.9
-      call-bound: 1.0.4
-      define-properties: 1.2.1
-      es-object-atoms: 1.1.1
 
   string.prototype.trimstart@1.0.8:
     dependencies:
       call-bind: 1.0.9
       define-properties: 1.2.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   string_decoder@1.3.0:
     dependencies:
@@ -17630,8 +17548,8 @@ snapshots:
 
   tinyglobby@0.2.15:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.3)
-      picomatch: 4.0.3
+      fdir: 6.5.0(picomatch@4.0.4)
+      picomatch: 4.0.4
 
   tinyrainbow@3.1.0: {}
 
@@ -17675,7 +17593,7 @@ snapshots:
 
   ts-declaration-location@1.0.7(typescript@5.9.2):
     dependencies:
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       typescript: 5.9.2
 
   tsconfig-paths-webpack-plugin@4.2.0:
@@ -17828,10 +17746,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici-types@7.24.6: {}
-
-  undici-types@8.3.0:
-    optional: true
+  undici-types@8.3.0: {}
 
   undici@7.27.2:
     optional: true
@@ -18052,8 +17967,8 @@ snapshots:
   vite@7.2.7(@types/node@24.13.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.3):
     dependencies:
       esbuild: 0.25.12
-      fdir: 6.5.0(picomatch@4.0.3)
-      picomatch: 4.0.3
+      fdir: 6.5.0(picomatch@4.0.4)
+      picomatch: 4.0.4
       postcss: 8.5.6
       rollup: 4.53.3
       tinyglobby: 0.2.15
@@ -18069,8 +17984,8 @@ snapshots:
   vite@7.2.7(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.3):
     dependencies:
       esbuild: 0.25.12
-      fdir: 6.5.0(picomatch@4.0.3)
-      picomatch: 4.0.3
+      fdir: 6.5.0(picomatch@4.0.4)
+      picomatch: 4.0.4
       postcss: 8.5.6
       rollup: 4.53.3
       tinyglobby: 0.2.15
@@ -18097,7 +18012,7 @@ snapshots:
       magic-string: 0.30.21
       obug: 2.1.1
       pathe: 2.0.3
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       std-env: 4.1.0
       tinybench: 2.9.0
       tinyexec: 1.1.1
@@ -18126,7 +18041,7 @@ snapshots:
       magic-string: 0.30.21
       obug: 2.1.1
       pathe: 2.0.3
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       std-env: 4.1.0
       tinybench: 2.9.0
       tinyexec: 1.1.1
@@ -18155,7 +18070,7 @@ snapshots:
       magic-string: 0.30.21
       obug: 2.1.1
       pathe: 2.0.3
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       std-env: 4.1.0
       tinybench: 2.9.0
       tinyexec: 1.1.1
@@ -18298,10 +18213,7 @@ snapshots:
       type-fest: 4.41.0
       write-json-file: 6.0.0
 
-  ws@8.20.1: {}
-
-  ws@8.21.0:
-    optional: true
+  ws@8.21.0: {}
 
   xdg-basedir@5.1.0: {}
 
@@ -18331,16 +18243,6 @@ snapshots:
 
   yargs-parser@21.1.1: {}
 
-  yargs@17.7.2:
-    dependencies:
-      cliui: 8.0.1
-      escalade: 3.2.0
-      get-caller-file: 2.0.5
-      require-directory: 2.1.1
-      string-width: 4.2.3
-      y18n: 5.0.8
-      yargs-parser: 21.1.1
-
   yargs@17.7.3:
     dependencies:
       cliui: 8.0.1
@@ -18350,7 +18252,6 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
-    optional: true
 
   yauzl@2.10.0:
     dependencies:
@@ -18366,11 +18267,9 @@ snapshots:
 
   yoctocolors@2.1.1: {}
 
-  zod-validation-error@4.0.2(zod@4.2.1):
+  zod-validation-error@4.0.2(zod@4.4.3):
     dependencies:
-      zod: 4.2.1
-
-  zod@4.2.1: {}
+      zod: 4.4.3
 
   zod@4.4.3: {}
 

@@ -14,7 +14,7 @@ import {
   TextareaContainer,
   TextareaInner,
 } from "@/client/components/ui/textarea-container";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
@@ -59,6 +59,7 @@ import {
   promptDraftAtom,
   type PromptDraftKey,
   promptDraftRefAtom,
+  promptFocusSignalAtom,
 } from "../atoms/prompt-value";
 import { rpcClient } from "../rpc/client";
 import { PromptProjectSelector } from "./project/prompt-project-selector";
@@ -152,6 +153,7 @@ export const PromptInput = ({
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
+  const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
     null,
@@ -225,7 +227,7 @@ export const PromptInput = ({
     }
     focusPromptDraft(textareaInnerRef.current);
     adjustHeight();
-  }, [autoFocus, isActiveTab, adjustHeight]);
+  }, [autoFocus, isActiveTab, focusSignal, adjustHeight]);
 
   const processFiles = (files: File[] | FileList) => {
     for (const file of files) {

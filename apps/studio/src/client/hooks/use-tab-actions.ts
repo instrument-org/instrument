@@ -1,3 +1,4 @@
+import { bumpPromptFocusAtom } from "@/client/atoms/prompt-value";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { type StudioPath } from "@/shared/studio-path";
 import {
@@ -6,6 +7,7 @@ import {
   type ToOptions,
   useRouter,
 } from "@tanstack/react-router";
+import { useSetAtom } from "jotai";
 
 /**
  * Tab actions for components rendered inside a tab's router (sidebar, routes,
@@ -17,6 +19,7 @@ import {
 export function useTabActions() {
   const router = useRouter();
   const controller = useTabsController();
+  const bumpPromptFocus = useSetAtom(bumpPromptFocusAtom);
 
   const buildUrlPath = <
     TTo extends string | undefined,
@@ -62,7 +65,15 @@ export function useTabActions() {
       TMaskTo extends string = "",
     >(
       opts: ToOptions<RegisteredRouter, TFrom, TTo, TMaskFrom, TMaskTo>,
-    ) => router.navigate(opts as Parameters<typeof router.navigate>[0]),
+    ) => {
+      // Re-assert prompt focus for the active tab even when `opts` resolves to
+      // the current route (a no-op navigation that wouldn't otherwise remount).
+      const selectedId = controller.model.selectedId;
+      if (selectedId) {
+        bumpPromptFocus(selectedId);
+      }
+      return router.navigate(opts as Parameters<typeof router.navigate>[0]);
+    },
     reorderTabs: ({ tabIds }: { tabIds: string[] }) => {
       controller.reorderTabs({ ids: tabIds });
       return Promise.resolve();

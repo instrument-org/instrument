@@ -1,4 +1,5 @@
 import { openDeleteTask } from "@/client/atoms/delete-task-modal";
+import { openEditProject } from "@/client/atoms/project-modal";
 import { ProjectDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
 import { DeleteProjectDialog } from "@/client/components/project/delete-project-dialog";
 import { ProjectFolders } from "@/client/components/project/project-folders";
@@ -24,7 +25,6 @@ import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useMediaQuery } from "@/client/hooks/use-media-query";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { openEditProject } from "@/client/lib/project-overlays";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { ProjectIdSchema } from "@instrument-org/workspace/client";

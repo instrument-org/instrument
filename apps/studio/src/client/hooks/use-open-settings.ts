@@ -1,30 +1,19 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { useMainProcessSignal } from "@/client/hooks/use-main-process-signal";
 import { rpcClient } from "@/client/rpc/client";
-import { useEffect } from "react";
+import { useCallback } from "react";
+
+const subscribe = () => rpcClient.utils.live.openSettings.call();
 
 /**
  * Opens the settings modal when the native app menu's "Settings..." item
  * (Cmd+,) fires in the main process, which publishes over this subscription.
  */
 export function useOpenSettings() {
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function subscribe() {
-      const subscription = await rpcClient.utils.live.openSettings.call();
-
-      for await (const _ of subscription) {
-        if (isCancelled) {
-          break;
-        }
-        openSettings({ tab: "General" });
-      }
-    }
-
-    void subscribe();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
+  useMainProcessSignal(
+    subscribe,
+    useCallback(() => {
+      openSettings({ tab: "General" });
+    }, []),
+  );
 }

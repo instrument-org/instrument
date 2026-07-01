@@ -9,7 +9,7 @@ export interface LoginModalProps {
 
 interface LoginModalState {
   // Called when the user finishes the flow (logs in / adds a provider), not on
-  // dismiss — mirrors the old overlay's `{ completed: true }` result.
+  // dismiss.
   onCompleted?: () => void;
   props?: LoginModalProps;
 }

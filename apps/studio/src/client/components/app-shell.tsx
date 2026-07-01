@@ -120,8 +120,8 @@ function TabView({
   const setTabs = useSetAtom(tabsAtom);
 
   useEffect(() => {
-    // Registered so the main process (menus/overlay) can navigate the active
-    // tab's router over the tab-command IPC.
+    // Registered so the main process (menus / keyboard shortcuts) can navigate
+    // the active tab's router over the tab-command IPC.
     registerTabRouter(tab.id, router);
     // Mirror this tab's navigation back into the model so the tab bar reflects
     // the current location, and pull the title/icon from the route's head meta.

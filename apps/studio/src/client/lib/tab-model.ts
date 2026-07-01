@@ -1,4 +1,5 @@
-import { type Tab } from "@/shared/tabs";
+import { type Tab, TabSchema } from "@/shared/tabs";
+import { z } from "zod";
 
 /**
  * Renderer-owned tab state and the pure transitions over it: selection,
@@ -8,11 +9,12 @@ import { type Tab } from "@/shared/tabs";
  * Every function is pure: it returns a new model and never mutates the input,
  * so it is trivially unit-testable and safe to drive a Jotai atom.
  */
-export interface TabsModel {
-  recentlyClosed: Tab[];
-  selectedId: null | string;
-  tabs: Tab[];
-}
+export const TabsModelSchema = z.object({
+  recentlyClosed: z.array(TabSchema),
+  selectedId: z.string().nullable(),
+  tabs: z.array(TabSchema),
+});
+export type TabsModel = z.output<typeof TabsModelSchema>;
 
 const MAX_RECENTLY_CLOSED = 10;
 

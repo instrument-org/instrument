@@ -1,37 +1,27 @@
 import { tabsAtom } from "@/client/atoms/tabs";
-import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { AppChrome } from "@/client/components/app-chrome";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
+import { useTabCommands } from "@/client/hooks/use-tab-commands";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
-import {
-  addTab,
-  closeTab,
-  reopenClosed,
-  selectAdjacent,
-  selectByIndex,
-  setTabMeta,
-  setTabPathname,
-} from "@/client/lib/tab-model";
+import { setTabMeta, setTabPathname } from "@/client/lib/tab-model";
 import {
   createTabRouter,
   sharedQueryClient,
   type TabRouter,
 } from "@/client/lib/tab-router";
 import {
-  getTabHistory,
-  getTabRouter,
   registerTabRouter,
   unregisterTabRouter,
 } from "@/client/lib/tab-router-registry";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { type Tab } from "@/shared/tabs";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterContextProvider, RouterProvider } from "@tanstack/react-router";
-import { useAtomValue, useSetAtom, useStore } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
 
 import { ThemeProvider } from "./theme-provider";
@@ -40,8 +30,6 @@ import { TooltipProvider } from "./ui/tooltip";
 const IconContextValue: IconProps = {
   weight: "bold",
 };
-
-const NEW_TAB_PATH = "/new-tab";
 
 /**
  * The whole main-window UI in a single web contents. The chrome (toolbar, tab
@@ -52,7 +40,6 @@ const NEW_TAB_PATH = "/new-tab";
  */
 export function AppShell() {
   const { model } = useTabsController();
-  const store = useStore();
   const zoom = useAtomValue(zoomAtom);
   const routers = useTabRouters(model.tabs);
   const activeRouter = model.selectedId
@@ -60,101 +47,7 @@ export function AppShell() {
     : undefined;
 
   useMouseBackForward();
-
-  // Apply tab commands from the main process (menus, overlay-initiated opens),
-  // streamed over RPC. One subscription owns the whole tab command surface.
-  useEffect(() => {
-    let cancelled = false;
-
-    async function subscribe() {
-      const subscription = await rpcClient.tabs.live.commands.call();
-      for await (const command of subscription) {
-        if (cancelled) {
-          break;
-        }
-        switch (command.type) {
-          case "close": {
-            const id = command.id ?? store.get(tabsAtom).selectedId;
-            if (id) {
-              store.set(tabsAtom, (m) =>
-                closeTab(m, {
-                  history: getTabHistory(id),
-                  id,
-                  newTab: { id: freshId(), pathname: NEW_TAB_PATH },
-                }),
-              );
-            }
-            break;
-          }
-          case "navigate": {
-            if (command.newTab) {
-              store.set(tabsAtom, (m) =>
-                addTab(m, { id: freshId(), pathname: command.appPath }),
-              );
-              break;
-            }
-            const router = getTabRouter(store.get(tabsAtom).selectedId);
-            if (router) {
-              void router.navigate({
-                to: command.appPath,
-              } as Parameters<typeof router.navigate>[0]);
-            }
-            break;
-          }
-          case "navigateBack": {
-            getTabRouter(store.get(tabsAtom).selectedId)?.history.back();
-            break;
-          }
-          case "navigateForward": {
-            getTabRouter(store.get(tabsAtom).selectedId)?.history.forward();
-            break;
-          }
-          case "reopen": {
-            store.set(tabsAtom, (m) => reopenClosed(m, { id: freshId() }));
-            break;
-          }
-          case "selectByIndex": {
-            store.set(tabsAtom, (m) =>
-              selectByIndex(m, { index: command.index }),
-            );
-            break;
-          }
-          case "selectLast": {
-            store.set(tabsAtom, (m) =>
-              selectByIndex(m, { index: m.tabs.length - 1 }),
-            );
-            break;
-          }
-          case "selectNext": {
-            store.set(tabsAtom, (m) => selectAdjacent(m, { delta: 1 }));
-            break;
-          }
-          case "selectPrevious": {
-            store.set(tabsAtom, (m) => selectAdjacent(m, { delta: -1 }));
-            break;
-          }
-          case "zoomIn": {
-            store.set(zoomAtom, (z) => clampZoom(z + ZOOM_STEP));
-            break;
-          }
-          case "zoomOut": {
-            store.set(zoomAtom, (z) => clampZoom(z - ZOOM_STEP));
-            break;
-          }
-          case "zoomReset": {
-            store.set(zoomAtom, 1);
-            break;
-          }
-        }
-      }
-    }
-
-    void subscribe();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [store]);
+  useTabCommands();
 
   return (
     <QueryClientProvider client={sharedQueryClient}>
@@ -202,10 +95,6 @@ export function AppShell() {
       </ThemeProvider>
     </QueryClientProvider>
   );
-}
-
-function freshId() {
-  return crypto.randomUUID();
 }
 
 /**

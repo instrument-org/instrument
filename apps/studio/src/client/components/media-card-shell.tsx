@@ -9,6 +9,7 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "./ui/context-menu";
+import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 const INTERACTIVE_DELAY_MS = 300;
@@ -141,7 +142,10 @@ export function MediaCardShell({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <FileActionsMenuItems file={file} variant="context" />
+        <FileActionsMenuItems
+          file={file}
+          menuComponents={contextMenuComponents}
+        />
       </ContextMenuContent>
     </ContextMenu>
   );

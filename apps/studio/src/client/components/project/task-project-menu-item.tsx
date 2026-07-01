@@ -1,10 +1,4 @@
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "@/client/components/ui/dropdown-menu";
+import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { openCreateProject } from "@/client/lib/project-overlays";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
@@ -14,11 +8,15 @@ import { toast } from "sonner";
 
 export function TaskProjectMenuItem({
   currentProjectId,
+  menuComponents,
   taskId,
 }: {
   currentProjectId: null | ProjectId | undefined;
+  menuComponents: MenuComponents;
   taskId: TaskId;
 }) {
+  const { Item, Separator, Sub, SubContent, SubTrigger } = menuComponents;
+
   const { data: projects } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
@@ -49,14 +47,14 @@ export function TaskProjectMenuItem({
 
   return (
     <>
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
+      <Sub>
+        <SubTrigger>
           <BagIcon className="size-4 text-muted-foreground" />
           {currentProjectId ? "Move to project" : "Add to project"}
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="min-w-48">
+        </SubTrigger>
+        <SubContent className="min-w-48">
           {targetProjects.map((project) => (
-            <DropdownMenuItem
+            <Item
               key={project.id}
               onSelect={() => {
                 void addTask({ projectId: project.id, taskId });
@@ -64,28 +62,28 @@ export function TaskProjectMenuItem({
             >
               <BagIcon className="size-4 text-muted-foreground" />
               <span className="flex-1 truncate">{project.name}</span>
-            </DropdownMenuItem>
+            </Item>
           ))}
-          {targetProjects.length > 0 && <DropdownMenuSeparator />}
-          <DropdownMenuItem
+          {targetProjects.length > 0 && <Separator />}
+          <Item
             onSelect={() => {
               openCreateProject(taskId);
             }}
           >
             <PlusIcon className="size-4 text-muted-foreground" />
             New project
-          </DropdownMenuItem>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
+          </Item>
+        </SubContent>
+      </Sub>
       {currentProjectId && (
-        <DropdownMenuItem
+        <Item
           onSelect={() => {
             void removeTask({ taskId });
           }}
         >
           <XCircleIcon className="size-4 text-muted-foreground" />
           Remove from project
-        </DropdownMenuItem>
+        </Item>
       )}
     </>
   );

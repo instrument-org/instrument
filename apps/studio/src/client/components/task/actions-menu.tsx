@@ -28,6 +28,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { TaskProjectMenuItem } from "../project/task-project-menu-item";
+import { dropdownMenuComponents } from "../ui/menu-components";
 import { TaskOpenInSubmenu } from "./open-in-submenu";
 
 export function TaskActionsMenu({
@@ -125,7 +126,11 @@ export function TaskActionsMenu({
           <PencilSimpleLineIcon className="size-4" />
           <span>Rename</span>
         </DropdownMenuItem>
-        <TaskProjectMenuItem currentProjectId={projectId} taskId={id} />
+        <TaskProjectMenuItem
+          currentProjectId={projectId}
+          menuComponents={dropdownMenuComponents}
+          taskId={id}
+        />
 
         {isDeveloperMode && (
           <>

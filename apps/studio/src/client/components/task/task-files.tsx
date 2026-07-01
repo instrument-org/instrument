@@ -46,6 +46,10 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+} from "../ui/menu-components";
+import {
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
@@ -330,16 +334,16 @@ function FileRow({
         <ContextMenuContent>
           <FileActionsMenuItems
             file={file}
+            menuComponents={contextMenuComponents}
             onAddToChat={handleAddToChat}
-            variant="context"
           />
         </ContextMenuContent>
       </ContextMenu>
       <FilesItemMenu>
         <FileActionsMenuItems
           file={file}
+          menuComponents={dropdownMenuComponents}
           onAddToChat={handleAddToChat}
-          variant="dropdown"
         />
       </FilesItemMenu>
     </SidebarMenuItem>

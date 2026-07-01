@@ -57,6 +57,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { contextMenuComponents } from "./ui/menu-components";
 import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -560,7 +561,10 @@ export function FileViewer({
                 </TransformWrapper>
               </ContextMenuTrigger>
               <ContextMenuContent>
-                <FileActionsMenuItems file={file} variant="context" />
+                <FileActionsMenuItems
+                  file={file}
+                  menuComponents={contextMenuComponents}
+                />
               </ContextMenuContent>
             </ContextMenu>
           )

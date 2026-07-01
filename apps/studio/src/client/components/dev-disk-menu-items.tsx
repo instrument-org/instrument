@@ -1,8 +1,5 @@
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/client/components/ui/dropdown-menu";
+import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -15,10 +12,13 @@ const devItemClass = "text-dev-700 dark:text-dev-300";
 const devIconClass = "size-4 text-dev-700 dark:text-dev-300";
 
 export function ProjectDevDiskMenuItems({
+  menuComponents,
   projectId,
 }: {
+  menuComponents: MenuComponents;
   projectId: ProjectId;
 }) {
+  const { Item, Separator } = menuComponents;
   const isDeveloperMode = useDeveloperMode();
 
   const revealMutation = useMutation(
@@ -50,8 +50,8 @@ export function ProjectDevDiskMenuItems({
 
   return (
     <>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
+      <Separator />
+      <Item
         className={devItemClass}
         onSelect={() => {
           void revealMutation.mutateAsync({ id: projectId });
@@ -59,8 +59,8 @@ export function ProjectDevDiskMenuItems({
       >
         <RevealInFolderIcon className={devIconClass} />
         <span>{getRevealInFolderLabel()}</span>
-      </DropdownMenuItem>
-      <DropdownMenuItem
+      </Item>
+      <Item
         className={devItemClass}
         onSelect={() => {
           void copyPathMutation.mutateAsync({ id: projectId });
@@ -68,12 +68,19 @@ export function ProjectDevDiskMenuItems({
       >
         <CopyIcon className={devIconClass} />
         <span>Copy folder path</span>
-      </DropdownMenuItem>
+      </Item>
     </>
   );
 }
 
-export function TaskDevDiskMenuItems({ taskId }: { taskId: TaskId }) {
+export function TaskDevDiskMenuItems({
+  menuComponents,
+  taskId,
+}: {
+  menuComponents: MenuComponents;
+  taskId: TaskId;
+}) {
+  const { Item, Separator } = menuComponents;
   const isDeveloperMode = useDeveloperMode();
 
   const revealMutation = useMutation(
@@ -105,8 +112,8 @@ export function TaskDevDiskMenuItems({ taskId }: { taskId: TaskId }) {
 
   return (
     <>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
+      <Separator />
+      <Item
         className={devItemClass}
         onSelect={() => {
           void revealMutation.mutateAsync({
@@ -117,8 +124,8 @@ export function TaskDevDiskMenuItems({ taskId }: { taskId: TaskId }) {
       >
         <RevealInFolderIcon className={devIconClass} />
         <span>{getRevealInFolderLabel()}</span>
-      </DropdownMenuItem>
-      <DropdownMenuItem
+      </Item>
+      <Item
         className={devItemClass}
         onSelect={() => {
           void copyPathMutation.mutateAsync({ id: taskId });
@@ -126,7 +133,7 @@ export function TaskDevDiskMenuItems({ taskId }: { taskId: TaskId }) {
       >
         <CopyIcon className={devIconClass} />
         <span>Copy folder path</span>
-      </DropdownMenuItem>
+      </Item>
     </>
   );
 }

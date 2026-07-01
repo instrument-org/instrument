@@ -16,16 +16,15 @@ import { useTimedFlag } from "../hooks/use-timed-flag";
 import { getRevealInFolderLabel } from "../lib/utils";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { Button, type ButtonVariant } from "./ui/button";
-import { ContextMenuItem, ContextMenuSeparator } from "./ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-
-type MenuVariant = "context" | "dropdown";
+import {
+  dropdownMenuComponents,
+  type MenuComponents,
+} from "./ui/menu-components";
 
 export function FileActionsMenu({
   file,
@@ -57,8 +56,8 @@ export function FileActionsMenu({
       <DropdownMenuContent align="end">
         <FileActionsMenuItems
           file={file}
+          menuComponents={dropdownMenuComponents}
           onAddToChat={onAddToChat}
-          variant="dropdown"
         />
       </DropdownMenuContent>
     </DropdownMenu>
@@ -67,13 +66,14 @@ export function FileActionsMenu({
 
 export function FileActionsMenuItems({
   file,
+  menuComponents,
   onAddToChat,
-  variant,
 }: {
   file: TaskFileViewerFile;
+  menuComponents: MenuComponents;
   onAddToChat?: () => void;
-  variant: MenuVariant;
 }) {
+  const { Item, Separator } = menuComponents;
   const fileActions = useFileActionVisibility(file);
 
   const showTaskFileInFolderMutation = useMutation(
@@ -114,9 +114,6 @@ export function FileActionsMenuItems({
     });
   };
 
-  const Item = variant === "context" ? ContextMenuItem : DropdownMenuItem;
-  const Separator =
-    variant === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
   const hasFileActions =
     fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
 

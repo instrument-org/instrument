@@ -6,12 +6,20 @@ import {
   CollapsibleTrigger,
 } from "@/client/components/ui/collapsible";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+  type MenuComponents,
+} from "@/client/components/ui/menu-components";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -39,7 +47,6 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useAtom } from "jotai";
-import { useState } from "react";
 
 import { InlineRenameInput } from "./inline-rename-input";
 import { InternalLink } from "./internal-link";
@@ -124,8 +131,6 @@ function NavProjectItem({
   activeProjectId: string | undefined;
   project: Project;
 }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   const { mutateAsync: renameProject } = useMutation(
     rpcClient.workspace.project.update.mutationOptions(),
   );
@@ -145,38 +150,68 @@ function NavProjectItem({
     );
   }
 
+  const renderMenuItems = (menuComponents: MenuComponents) => {
+    const { Item, Separator } = menuComponents;
+    return (
+      <>
+        <Item onClick={rename.start}>
+          <PencilSimpleLineIcon className="text-muted-foreground" />
+          <span>Rename</span>
+        </Item>
+        <ProjectDevDiskMenuItems
+          menuComponents={menuComponents}
+          projectId={project.id}
+        />
+        <Separator />
+        <Item
+          onSelect={() => {
+            openDeleteProject(project.id);
+          }}
+          variant="destructive"
+        >
+          <TrashIcon className="size-4" />
+          <span>Delete project</span>
+        </Item>
+      </>
+    );
+  };
+
   return (
     <SidebarMenuItem className="group/project">
-      <DropdownMenu onOpenChange={setIsMenuOpen} open={isMenuOpen}>
-        <SidebarMenuButton
-          asChild
-          className="h-9 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:text-sidebar-foreground"
-          isActive={project.id === activeProjectId}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setIsMenuOpen(true);
-          }}
-        >
-          <InternalLink
-            onDoubleClick={(e) => {
-              if (project.id !== activeProjectId) {
-                return;
-              }
-              if (!(e.target as Element).closest("[data-project-title]")) {
-                return;
-              }
-              rename.start();
-            }}
-            openInCurrentTab
-            params={{ id: project.id }}
-            to="/projects/$id"
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <SidebarMenuButton
+            asChild
+            className="h-9 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:text-sidebar-foreground"
+            isActive={project.id === activeProjectId}
           >
-            <BagIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
-            <span className="truncate" data-project-title>
-              {project.name}
-            </span>
-          </InternalLink>
-        </SidebarMenuButton>
+            <InternalLink
+              onDoubleClick={(e) => {
+                if (project.id !== activeProjectId) {
+                  return;
+                }
+                if (!(e.target as Element).closest("[data-project-title]")) {
+                  return;
+                }
+                rename.start();
+              }}
+              openInCurrentTab
+              params={{ id: project.id }}
+              to="/projects/$id"
+            >
+              <BagIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
+              <span className="truncate" data-project-title>
+                {project.name}
+              </span>
+            </InternalLink>
+          </SidebarMenuButton>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {renderMenuItems(contextMenuComponents)}
+        </ContextMenuContent>
+      </ContextMenu>
+
+      <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <SidebarMenuAction showOnHover>
             <DotsThreeOutlineVerticalIcon weight="fill" />
@@ -184,21 +219,7 @@ function NavProjectItem({
           </SidebarMenuAction>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom">
-          <DropdownMenuItem onClick={rename.start}>
-            <PencilSimpleLineIcon className="text-muted-foreground" />
-            <span>Rename</span>
-          </DropdownMenuItem>
-          <ProjectDevDiskMenuItems projectId={project.id} />
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => {
-              openDeleteProject(project.id);
-            }}
-            variant="destructive"
-          >
-            <TrashIcon className="size-4" />
-            <span>Delete project</span>
-          </DropdownMenuItem>
+          {renderMenuItems(dropdownMenuComponents)}
         </DropdownMenuContent>
       </DropdownMenu>
     </SidebarMenuItem>

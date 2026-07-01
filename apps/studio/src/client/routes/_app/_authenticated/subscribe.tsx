@@ -165,7 +165,7 @@ function SubscribePage() {
 
   if (plansError ?? subscriptionError) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-background via-background to-accent/20 p-8">
+      <div className="min-h-full bg-linear-to-br from-background via-background to-accent/20 p-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 text-center">
             <div className="my-6 flex justify-center">
@@ -192,7 +192,7 @@ function SubscribePage() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-background via-background to-accent/20 p-8">
+    <div className="min-h-full bg-linear-to-br from-background via-background to-accent/20 p-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 text-center">
           <div className="my-6 flex justify-center">

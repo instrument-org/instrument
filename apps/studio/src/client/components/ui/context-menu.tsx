@@ -1,4 +1,4 @@
-import { useShellZoom } from "@/client/hooks/use-shell-zoom";
+import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon, CheckIcon, CircleIcon } from "@phosphor-icons/react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
@@ -41,7 +41,6 @@ function ContextMenuContent({
   style,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
-  const zoom = useShellZoom();
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
@@ -50,7 +49,7 @@ function ContextMenuContent({
           className,
         )}
         data-slot="context-menu-content"
-        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
+        style={useShellZoomStyle(style)}
         {...props}
       />
     </ContextMenuPrimitive.Portal>
@@ -191,7 +190,6 @@ function ContextMenuSubContent({
   style,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
-  const zoom = useShellZoom();
   return (
     <ContextMenuPrimitive.SubContent
       className={cn(
@@ -199,7 +197,7 @@ function ContextMenuSubContent({
         className,
       )}
       data-slot="context-menu-sub-content"
-      style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
+      style={useShellZoomStyle(style)}
       {...props}
     />
   );

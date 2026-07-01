@@ -1,4 +1,4 @@
-import { useShellZoom } from "@/client/hooks/use-shell-zoom";
+import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
@@ -23,7 +23,6 @@ function SheetContent({
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "bottom" | "left" | "right" | "top";
 }) {
-  const zoom = useShellZoom();
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -41,7 +40,7 @@ function SheetContent({
           className,
         )}
         data-slot="sheet-content"
-        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
+        style={useShellZoomStyle(style)}
         {...props}
       >
         {children}

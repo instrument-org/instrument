@@ -1,3 +1,6 @@
+import { rpcClient } from "@/client/rpc/client";
+import { safe } from "@orpc/client";
+import { getDefaultStore } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
 export const ZOOM_MAX = 3;
@@ -18,6 +21,15 @@ export const zoomAtom = atomWithStorage<number>(
     getOnInit: true,
   },
 );
+
+// Keeps the main process's macOS traffic-light position in sync with zoom.
+function reportZoom() {
+  void safe(
+    rpcClient.tabs.syncZoom.call({ zoom: getDefaultStore().get(zoomAtom) }),
+  );
+}
+reportZoom();
+getDefaultStore().sub(zoomAtom, reportZoom);
 
 export function clampZoom(value: number) {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));

@@ -14,6 +14,7 @@ import {
   TextareaContainer,
   TextareaInner,
 } from "@/client/components/ui/textarea-container";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
@@ -150,6 +151,7 @@ export const PromptInput = ({
   showProjectSelector = false,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
+  const isActiveTab = useIsActiveTab();
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
     null,
@@ -218,12 +220,12 @@ export const PromptInput = ({
   }, [value, adjustHeight]);
 
   useLayoutEffect(() => {
-    if (!autoFocus) {
+    if (!autoFocus || !isActiveTab) {
       return;
     }
     focusPromptDraft(textareaInnerRef.current);
     adjustHeight();
-  }, [autoFocus, adjustHeight]);
+  }, [autoFocus, isActiveTab, adjustHeight]);
 
   const processFiles = (files: File[] | FileList) => {
     for (const file of files) {

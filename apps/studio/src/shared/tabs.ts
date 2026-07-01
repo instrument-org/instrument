@@ -1,16 +1,26 @@
-import { type TabIconName } from "@instrument-org/shared/icons";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { TabIconsSchema } from "@instrument-org/shared/icons";
+import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { z } from "zod";
 
-export interface Tab {
-  history?: TabHistory;
-  iconName?: TabIconName;
-  id: string;
-  pathname: string;
-  pinned?: boolean;
-  tabBarHidden?: boolean;
-  taskId?: TaskId;
-  title?: string;
-}
+// A tab's memory-history stack, captured on close so reopening restores the
+// tab's back/forward history, not just its last location.
+const TabHistorySchema = z.object({
+  entries: z.array(z.string()),
+  index: z.number(),
+});
+export type TabHistory = z.output<typeof TabHistorySchema>;
+
+export const TabSchema = z.object({
+  history: TabHistorySchema.optional(),
+  iconName: TabIconsSchema.optional(),
+  id: z.string(),
+  pathname: z.string(),
+  pinned: z.boolean().optional(),
+  tabBarHidden: z.boolean().optional(),
+  taskId: TaskIdSchema.optional(),
+  title: z.string().optional(),
+});
+export type Tab = z.output<typeof TabSchema>;
 
 /**
  * A tab operation sent from the main process (menus, overlay-initiated RPC) to
@@ -31,13 +41,6 @@ export type TabCommand =
   | { type: "zoomIn" }
   | { type: "zoomOut" }
   | { type: "zoomReset" };
-
-// A tab's memory-history stack, captured on close so reopening restores the
-// tab's back/forward history, not just its last location.
-export interface TabHistory {
-  entries: string[];
-  index: number;
-}
 
 export interface TabState {
   selectedTabId: null | string;

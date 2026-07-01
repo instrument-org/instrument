@@ -264,7 +264,7 @@ export interface FileRoutesByFullPath {
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
   '/debug/': typeof AppDebugIndexRoute
-  '/tasks': typeof AppTasksIndexRoute
+  '/tasks/': typeof AppTasksIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
@@ -276,8 +276,8 @@ export interface FileRoutesByFullPath {
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/update-status': typeof AppDebugComponentsUpdateStatusRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
-  '/projects/$id': typeof AppProjectsIdIndexRoute
-  '/tasks/$id': typeof AppTasksIdIndexRoute
+  '/projects/$id/': typeof AppProjectsIdIndexRoute
+  '/tasks/$id/': typeof AppTasksIdIndexRoute
   '/debug/components/onboarding/complete': typeof AppDebugComponentsOnboardingCompleteRoute
   '/debug/components/onboarding/login': typeof AppDebugComponentsOnboardingLoginRoute
   '/debug/components/onboarding/providers': typeof AppDebugComponentsOnboardingProvidersRoute
@@ -376,7 +376,7 @@ export interface FileRouteTypes {
     | '/debug/errors'
     | '/debug/notifications'
     | '/debug/'
-    | '/tasks'
+    | '/tasks/'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/chat-stream'
@@ -388,8 +388,8 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/update-status'
     | '/debug/components/'
-    | '/projects/$id'
-    | '/tasks/$id'
+    | '/projects/$id/'
+    | '/tasks/$id/'
     | '/debug/components/onboarding/complete'
     | '/debug/components/onboarding/login'
     | '/debug/components/onboarding/providers'
@@ -495,7 +495,7 @@ declare module '@tanstack/react-router' {
     '/_app': {
       id: '/_app'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AppRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -558,14 +558,14 @@ declare module '@tanstack/react-router' {
     '/_app/_authenticated': {
       id: '/_app/_authenticated'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AppAuthenticatedRouteRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/tasks/': {
       id: '/_app/tasks/'
       path: '/tasks'
-      fullPath: '/tasks'
+      fullPath: '/tasks/'
       preLoaderRoute: typeof AppTasksIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
@@ -614,14 +614,14 @@ declare module '@tanstack/react-router' {
     '/_app/tasks/$id/': {
       id: '/_app/tasks/$id/'
       path: '/tasks/$id'
-      fullPath: '/tasks/$id'
+      fullPath: '/tasks/$id/'
       preLoaderRoute: typeof AppTasksIdIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/projects/$id/': {
       id: '/_app/projects/$id/'
       path: '/projects/$id'
-      fullPath: '/projects/$id'
+      fullPath: '/projects/$id/'
       preLoaderRoute: typeof AppProjectsIdIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }

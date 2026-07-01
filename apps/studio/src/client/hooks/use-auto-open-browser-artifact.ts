@@ -36,7 +36,7 @@ export function useAutoOpenBrowserArtifact({
     }
     autoOpenedRef.current = targetId;
     void navigate({
-      from: "/tasks/$id",
+      from: "/tasks/$id/",
       params: { id },
       replace: true,
       search: (search) => ({ ...search, artifactPanel: { type: "browser" } }),

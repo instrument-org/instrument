@@ -133,7 +133,7 @@ export function TaskView({
 
   const handleArtifactPanelClose = () => {
     void navigate({
-      from: "/tasks/$id",
+      from: "/tasks/$id/",
       params: { id: task.id },
       replace: true,
       search: (prev) => ({ ...prev, artifactPanel: undefined }),
@@ -142,7 +142,7 @@ export function TaskView({
 
   const handleFileSelect = (file: TaskFileViewerFile) => {
     void navigate({
-      from: "/tasks/$id",
+      from: "/tasks/$id/",
       params: { id: task.id },
       replace: true,
       search: (prev) => ({
@@ -164,7 +164,7 @@ export function TaskView({
 
   const handleSidebarChange = (nextSidebar: TaskSidebarMode) => {
     void navigate({
-      from: "/tasks/$id",
+      from: "/tasks/$id/",
       params: { id: task.id },
       replace: true,
       search: (prev) => ({

@@ -1,7 +1,8 @@
 import { type FileRoutesByPath } from "@tanstack/react-router";
 
-// Exclude layout routes ("") and non-root index routes with trailing slash (e.g. "/debug/")
+// Exclude layout routes ("") and internal debug/onboarding index routes
+// (e.g. "/debug/", "/debug/components/"), which aren't real tab destinations.
 export type StudioPath = Exclude<
   FileRoutesByPath[keyof FileRoutesByPath]["fullPath"],
-  "" | `${string}/${string}/`
+  "" | `/debug${string}/` | `/onboarding${string}/`
 >;

@@ -60,7 +60,7 @@ function RouteComponent() {
   useEffect(() => {
     // Preload the task route chunk for faster navigation
     async function preloadRouteChunks() {
-      const taskRoute = router.routesByPath["/tasks/$id"];
+      const taskRoute = router.routesByPath["/tasks/$id/"];
       await router.loadRouteChunk(taskRoute);
     }
 

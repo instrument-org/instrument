@@ -109,7 +109,7 @@ export function ToolGenerateImage({
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
 }) {
-  const navigate = useNavigate({ from: "/tasks/$id" });
+  const navigate = useNavigate({ from: "/tasks/$id/" });
 
   if (!part.input) {
     return null;
@@ -321,7 +321,7 @@ function ImageActions({
   modifiedAt: number;
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/tasks/$id" });
+  const navigate = useNavigate({ from: "/tasks/$id/" });
 
   const handleAddToChat = () => {
     appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });

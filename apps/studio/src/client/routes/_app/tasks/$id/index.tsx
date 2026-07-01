@@ -151,7 +151,7 @@ function RouteComponent() {
 
   const handleDuplicateDialogChange = (open: boolean) => {
     void navigate({
-      from: "/tasks/$id",
+      from: "/tasks/$id/",
       params: { id },
       replace: true,
       search: (prev) => ({ ...prev, showDuplicate: open || undefined }),
@@ -160,7 +160,7 @@ function RouteComponent() {
 
   const handleSettingsDialogChange = (open: boolean) => {
     void navigate({
-      from: "/tasks/$id",
+      from: "/tasks/$id/",
       params: { id },
       replace: true,
       search: (prev) => ({ ...prev, showSettings: open || undefined }),

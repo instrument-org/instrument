@@ -250,7 +250,7 @@ const openAsTab = devOnly
     // Open the owning task's page for this session; the task page auto-opens the
     // browser artifact panel. `satisfies` pins taskPath so route staleness is
     // caught at compile time.
-    const taskPath = "/tasks/$id" satisfies StudioPath;
+    const taskPath = "/tasks/$id/" satisfies StudioPath;
     sendTabCommand({
       appPath: `${taskPath.replace("$id", String(entry.id))}?selectedSessionId=${String(entry.sessionId)}`,
       newTab: true,

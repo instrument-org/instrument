@@ -115,7 +115,7 @@ export function TaskActionsMenu({
         <DropdownMenuItem
           onClick={() => {
             void navigate({
-              from: "/tasks/$id",
+              from: "/tasks/$id/",
               params: { id },
               search: (prev) => ({ ...prev, showDuplicate: true }),
             });

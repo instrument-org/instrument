@@ -10,7 +10,6 @@ import {
   SidebarContent,
   SidebarFooter,
 } from "@/client/components/ui/sidebar";
-import { useMatchesForPathname } from "@/client/lib/get-route-matches";
 import { rpcClient } from "@/client/rpc/client";
 import { NotePencilIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -20,11 +19,10 @@ import { useMemo } from "react";
 export function StudioSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  // Each tab renders its own sidebar inside its own router; highlight based on
-  // this tab's current location rather than the globally selected tab.
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  const matches = useMatchesForPathname(pathname);
+  // The chrome reads the active tab's router from context. Use its live matches
+  // rather than re-matching a pathname string, which can throw on a router that
+  // was just created for a newly opened tab and hasn't run its first load yet.
+  const matches = useRouterState({ select: (s) => s.matches });
 
   const { data: pinnedTaskIds } = useQuery(
     rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),

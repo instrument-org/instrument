@@ -12,7 +12,7 @@ import {
 } from "@/client/components/ui/sidebar";
 import { rpcClient } from "@/client/rpc/client";
 import { NotePencilIcon } from "@phosphor-icons/react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import { useMemo } from "react";
 
@@ -28,10 +28,9 @@ export function StudioSidebar({
     rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
 
-  const { data: tasksData } = useQuery({
-    ...rpcClient.workspace.task.live.list.experimental_liveOptions(),
-    placeholderData: keepPreviousData,
-  });
+  const { data: tasksData } = useQuery(
+    rpcClient.workspace.task.live.list.experimental_liveOptions(),
+  );
 
   const pinnedTaskIdSet = useMemo(
     () => new Set(pinnedTaskIds ?? []),

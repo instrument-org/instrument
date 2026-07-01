@@ -13,7 +13,7 @@
  * partition string), so the guest keeps the same on-disk, per-task profile the
  * WebContentsView path used; this partition value is just a carrier.
  */
-export const AGENT_BROWSER_PARTITION_PREFIX = "persist:agent-browser-route:";
+const AGENT_BROWSER_PARTITION_PREFIX = "persist:agent-browser-route:";
 
 /**
  * Logical guest viewport. Kept fixed across visibility modes so the agent's

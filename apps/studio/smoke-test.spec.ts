@@ -35,9 +35,7 @@ function runPnpmScript(
   });
 }
 
-const isOnboardingWindow = (url: string) => url.includes("#/onboarding");
-const isAppWindow = (url: string) =>
-  url.includes("#/") && !url.includes("#/onboarding");
+const isAppWindow = (url: string) => url.includes("#/");
 
 describe("Studio Smoke Test", () => {
   let distPath: string;
@@ -185,23 +183,14 @@ describe("Studio Smoke Test", () => {
 
     await electronApp.firstWindow({ timeout: 30_000 });
 
-    // Wait for both named windows to appear; locate by URL rather than index
-    // since window ordering isn't guaranteed.
+    // The app runs with SKIP_ONBOARDING, so only the AppShell window launches;
+    // locate it by URL rather than index since ordering isn't guaranteed.
     const startTime = Date.now();
 
     let appWindow = electronApp.windows().find((w) => isAppWindow(w.url()));
-    let onboardingWindow = electronApp
-      .windows()
-      .find((w) => isOnboardingWindow(w.url()));
-    while (
-      (!appWindow || !onboardingWindow) &&
-      Date.now() - startTime < 30_000
-    ) {
+    while (!appWindow && Date.now() - startTime < 30_000) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       appWindow = electronApp.windows().find((w) => isAppWindow(w.url()));
-      onboardingWindow = electronApp
-        .windows()
-        .find((w) => isOnboardingWindow(w.url()));
     }
 
     const windowUrls = electronApp.windows().map((w) => w.url());
@@ -209,25 +198,13 @@ describe("Studio Smoke Test", () => {
       appWindow,
       `app window found (all window URLs: ${windowUrls.join(", ")})`,
     ).toBeDefined();
-    expect(
-      onboardingWindow,
-      `onboarding window found (all window URLs: ${windowUrls.join(", ")})`,
-    ).toBeDefined();
 
-    if (!appWindow || !onboardingWindow) {
-      throw new Error(`windows not found. URLs: ${windowUrls.join(", ")}`);
+    if (!appWindow) {
+      throw new Error(`app window not found. URLs: ${windowUrls.join(", ")}`);
     }
 
     const windowConfigs = [
-      // The app (AppShell) window is created up front but stays hidden behind
-      // onboarding during first-run setup, so it's only attached, not visible.
-      { name: "app", state: "attached", testId: "app-page", window: appWindow },
-      {
-        name: "onboarding",
-        state: "visible",
-        testId: "onboarding-page",
-        window: onboardingWindow,
-      },
+      { name: "app", state: "visible", testId: "app-page", window: appWindow },
     ] as const;
 
     for (const { name, state, testId, window } of windowConfigs) {

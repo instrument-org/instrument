@@ -15,7 +15,6 @@ export function OnboardingLayout({
         "flex h-svh max-h-full w-full flex-col overflow-hidden select-none",
         variant === "brand" ? SHARED.brandGradient : SHARED.subtleGradient,
       )}
-      data-testid="onboarding-page"
     >
       {isMacOS() && (
         <div className="absolute top-0 right-0 left-0 h-10 pl-20 [-webkit-app-region:drag]" />

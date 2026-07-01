@@ -12,7 +12,7 @@
 
 Zoom lives in `apps/studio/src/electron-main/windows/main/controls.ts`
 (`zoomIn`/`zoomOut`/`resetZoom` → `webContents.setZoomLevel`), driven by the menu
-accelerators (Cmd +/-/0) and overlay-aware.
+accelerators (Cmd +/-/0).
 
 It works in **dev**, where the renderer is served from a localhost URL. Suspected
 gap: the **built/packaged app** loads the renderer from a non-localhost (file://)
@@ -33,9 +33,10 @@ zoom / toolbar height.
   `tabs.live.commands`; the agent-browser pool reconciles to
   `agentBrowser.live.targets`). `window.api.onTabCommand` /
   `onAgentBrowserCommand` removed from the preload.
-- `TabsManager` deleted: studio overlay → `electron-main/studio-overlay`
-  singleton; window zoom/focus/back-forward → `windows/main/controls`. Overlay is
-  still WebContentsView-backed (slated to become a React modal).
+- `TabsManager` deleted: window zoom/focus/back-forward → `windows/main/controls`.
+  The studio overlay (app-wide modals) was WebContentsView-backed at the time;
+  it has since been replaced entirely by in-app React `<Dialog>` modals — see
+  the "App-wide modals" section of `apps/studio/AGENTS.md`.
 - Agent browser is a renderer `<webview>` shown in the task artifact panel
   (`browser-panel.tsx` + a body-mounted pool in `lib/agent-browser-pool.ts`).
 - Tab state is renderer-owned (jotai `atomWithStorage`); closed tabs restore
@@ -49,7 +50,7 @@ zoom / toolbar height.
 
 ## Known follow-ups
 
-- Boot-verify everything: menus/zoom/overlay flows, mouse thumb buttons (shell +
+- Boot-verify everything: menus/zoom/modal flows, mouse thumb buttons (shell +
   inside the guest), guest context menu, slide-in tracking, closed-tab reopen.
 - Replay creates a session that becomes a back/forward target within a tab; make
   the replay navigation `replace` to stop hopping between a task's sessions.

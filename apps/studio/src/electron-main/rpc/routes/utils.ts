@@ -428,6 +428,15 @@ const live = {
       }
     }
   }),
+  toggleSidebar: base.handler(async function* ({ context, signal }) {
+    for await (const payload of publisher.subscribe("app.toggle-sidebar", {
+      signal,
+    })) {
+      if (context.webContentsId === payload.webContentsId) {
+        yield;
+      }
+    }
+  }),
 };
 
 const copyTaskPathToClipboard = base

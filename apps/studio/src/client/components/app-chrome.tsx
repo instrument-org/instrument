@@ -2,16 +2,18 @@ import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { taskFileViewerAtom } from "@/client/atoms/task-file-viewer";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
-import { StudioSidebar } from "@/client/components/studio-sidebar";
+import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { StudioToolbar } from "@/client/components/studio-toolbar";
-import { SidebarProvider } from "@/client/components/ui/sidebar";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { rpcClient } from "@/client/rpc/client";
-import { SIDEBAR_WIDTH } from "@/shared/constants";
-import { useQuery } from "@tanstack/react-query";
+import {
+  setSidebarOpen,
+  toggleSidebar,
+  useSidebarOpen,
+} from "@/client/hooks/use-sidebar";
+import { useToggleSidebar } from "@/client/hooks/use-toggle-sidebar";
 import { useAtomValue } from "jotai";
-import { Activity, lazy, type ReactNode, Suspense } from "react";
+import { lazy, type ReactNode, Suspense } from "react";
 
 const StudioCommandMenu = lazy(() =>
   import("@/client/components/studio-command-menu").then((module) => ({
@@ -57,10 +59,11 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const activePanel = useAtomValue(devToolsPanelAtom);
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   const isTaskFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
-  const { data: sidebarState } = useQuery(
-    rpcClient.sidebar.live.state.experimental_liveOptions({}),
-  );
-  const isSidebarOpen = sidebarState?.isOpen ?? true;
+  const isSidebarOpen = useSidebarOpen();
+
+  // The native Toggle Sidebar menu item (Cmd+B) is a stateless dispatcher; the
+  // renderer owns the state, so it flips the atom here.
+  useToggleSidebar(toggleSidebar);
 
   return (
     <div
@@ -69,23 +72,12 @@ export function AppChrome({ children }: { children: ReactNode }) {
     >
       <StudioToolbar />
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <Activity mode={isSidebarOpen ? "visible" : "hidden"}>
-          {/* select-none only on chrome; content/modal text stays selectable
-              so users can copy messages, code, and files. */}
-          <div
-            className="flex h-full flex-col overflow-hidden border-r border-border select-none"
-            style={
-              {
-                "--sidebar-width": `${SIDEBAR_WIDTH}px`,
-                width: `${SIDEBAR_WIDTH}px`,
-              } as React.CSSProperties
-            }
-          >
-            <SidebarProvider className="min-h-0 flex-1">
-              <StudioSidebar className="h-full" />
-            </SidebarProvider>
-          </div>
-        </Activity>
+        <StudioSidebarRail
+          isOpen={isSidebarOpen}
+          onCollapse={() => {
+            setSidebarOpen(false);
+          }}
+        />
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </div>

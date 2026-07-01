@@ -12,8 +12,6 @@ import {
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { type MenuItemConstructorOptions } from "electron";
 
-import { captureServerEvent } from "../lib/capture-server-event";
-import { getSidebarVisible, setSidebarVisible } from "../stores/app-state";
 import {
   createAppMenu,
   createDevToolsMenu,
@@ -117,13 +115,14 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+B",
         click: () => {
-          const wasVisible = getSidebarVisible();
-          setSidebarVisible(!wasVisible);
-          captureServerEvent(
-            wasVisible ? "app.sidebar_closed" : "app.sidebar_opened",
-          );
+          const webContents = getMainWindow()?.webContents;
+          if (webContents) {
+            publisher.publish("app.toggle-sidebar", {
+              webContentsId: webContents.id,
+            });
+          }
         },
-        label: getSidebarVisible() ? "Hide Sidebar" : "Show Sidebar",
+        label: "Toggle Sidebar",
       },
       { type: "separator" as const },
       { role: "togglefullscreen" as const },

@@ -3,11 +3,12 @@ import TabBar from "@/client/components/tab-bar";
 import { Button } from "@/client/components/ui/button";
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
 import { cn, isLinux, isMacOS, isWindows } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SidebarSimpleIcon } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 
 const DevPanel = lazy(() =>
@@ -17,17 +18,7 @@ const DevPanel = lazy(() =>
 );
 
 export function StudioToolbar() {
-  const { data: sidebarState } = useQuery(
-    rpcClient.sidebar.live.state.experimental_liveOptions({}),
-  );
-
-  const { mutate: openSidebar } = useMutation(
-    rpcClient.sidebar.open.mutationOptions(),
-  );
-
-  const { mutate: closeSidebar } = useMutation(
-    rpcClient.sidebar.close.mutationOptions(),
-  );
+  const isSidebarOpen = useSidebarOpen();
 
   const { data: exceptions } = useQuery(
     rpcClient.utils.live.serverExceptions.experimental_liveOptions({}),
@@ -35,7 +26,6 @@ export function StudioToolbar() {
 
   const isDeveloperMode = useDeveloperMode();
   const hasExceptions = (exceptions?.length ?? 0) > 0;
-  const isSidebarOpen = sidebarState?.isOpen ?? true;
 
   return (
     <div
@@ -62,7 +52,7 @@ export function StudioToolbar() {
             <Button
               className="size-6 text-foreground/80"
               onClick={() => {
-                closeSidebar();
+                setSidebarOpen(false);
               }}
               size="icon"
               variant="ghost"
@@ -73,7 +63,7 @@ export function StudioToolbar() {
             <Button
               className="relative size-6 shrink-0 text-foreground/80"
               onClick={() => {
-                openSidebar();
+                setSidebarOpen(true);
               }}
               size="icon"
               title="Show sidebar"

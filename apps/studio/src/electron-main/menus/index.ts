@@ -24,10 +24,6 @@ export function createApplicationMenu(): void {
     updateApplicationMenu();
   });
 
-  void publisher.subscribe("sidebar.updated", () => {
-    updateApplicationMenu();
-  });
-
   void publisher.subscribe("preferences.updated", () => {
     updateApplicationMenu();
   });

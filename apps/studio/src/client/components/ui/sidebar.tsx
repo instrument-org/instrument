@@ -315,13 +315,10 @@ function SidebarProvider({
   );
 }
 
-function useSidebar() {
-  const context = React.useContext(SidebarContext);
-  if (!context) {
-    throw new Error("useSidebar must be used within a SidebarProvider.");
-  }
-
-  return context;
+function useSidebar(): SidebarContextProps {
+  // A `collapsible="none"` sidebar has no collapse state to track and can render
+  // without a provider, so default to expanded rather than throwing.
+  return React.useContext(SidebarContext) ?? { open: true, state: "expanded" };
 }
 
 const sidebarMenuButtonVariants = tv({

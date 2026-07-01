@@ -10,12 +10,8 @@ declare global {
     api: {
       getFilePath: (file: File) => string;
       onNavigate: (callback: (url: string) => void) => void;
-      onStudioOverlayNavigate: (
-        callback: (location: string, seq: number) => void,
-      ) => void;
-      studioOverlayRouteReady: (location: string, seq: number) => void;
       tabId?: string;
-      windowType?: "onboarding" | "shell" | "studio-overlay";
+      windowType?: "onboarding" | "shell";
     };
     electron: ElectronAPI;
   }

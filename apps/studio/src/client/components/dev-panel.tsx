@@ -1,5 +1,8 @@
 import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { featuresAtom } from "@/client/atoms/features";
+import { openLogin } from "@/client/atoms/login-modal";
+import { openSettings } from "@/client/atoms/settings-modal";
+import { openWelcome } from "@/client/atoms/welcome-modal";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   AlertDialog,
@@ -88,14 +91,6 @@ export function DevPanel() {
 
   const { mutate: openOnboarding } = useMutation(
     rpcClient.debug.openOnboarding.mutationOptions(),
-  );
-
-  const { mutate: showOverlayIdle } = useMutation(
-    rpcClient.debug.showOverlayIdle.mutationOptions(),
-  );
-
-  const { mutate: showOverlayNotFound } = useMutation(
-    rpcClient.debug.showOverlayNotFound.mutationOptions(),
   );
 
   const { mutate: openAuthTestPage } = useMutation(
@@ -416,13 +411,13 @@ export function DevPanel() {
               </MenubarSub>
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
-                  Overlay
+                  Modals
                 </MenubarSubTrigger>
                 <MenubarSubContent>
                   <MenubarItem
                     className="font-mono text-xs"
                     onSelect={() => {
-                      void rpcClient.studioOverlay.show.call({ kind: "login" });
+                      openLogin();
                     }}
                   >
                     Login
@@ -430,9 +425,7 @@ export function DevPanel() {
                   <MenubarItem
                     className="font-mono text-xs"
                     onSelect={() => {
-                      void rpcClient.studioOverlay.show.call({
-                        kind: "welcome",
-                      });
+                      openWelcome();
                     }}
                   >
                     Welcome
@@ -440,37 +433,10 @@ export function DevPanel() {
                   <MenubarItem
                     className="font-mono text-xs"
                     onSelect={() => {
-                      void rpcClient.studioOverlay.show.call({
-                        kind: "settings",
-                      });
+                      openSettings();
                     }}
                   >
                     Settings
-                  </MenubarItem>
-                  <MenubarSeparator />
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      void rpcClient.studioOverlay.show.call({ kind: "crash" });
-                    }}
-                  >
-                    Simulate overlay error
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      showOverlayNotFound();
-                    }}
-                  >
-                    Simulate overlay 404
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      showOverlayIdle();
-                    }}
-                  >
-                    Simulate stuck idle view
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

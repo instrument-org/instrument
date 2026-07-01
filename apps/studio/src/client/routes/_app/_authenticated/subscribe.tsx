@@ -1,3 +1,4 @@
+import { openSettings } from "@/client/atoms/settings-modal";
 import { BrandIcon } from "@/client/components/brand-icon";
 import { EmailLink } from "@/client/components/email-link";
 import { ErrorCard } from "@/client/components/error-card";
@@ -342,12 +343,11 @@ function SubscribePage() {
                         className="w-full gap-2 disabled:opacity-100"
                         disabled={isButtonDisabled}
                         onClick={async () => {
-                          await (buttonText === "Current Plan"
-                            ? rpcClient.studioOverlay.show.call({
-                                kind: "settings",
-                                props: { tab: "General" },
-                              })
-                            : handleSubscribe(plan));
+                          if (buttonText === "Current Plan") {
+                            openSettings({ tab: "General" });
+                          } else {
+                            await handleSubscribe(plan);
+                          }
                         }}
                         size="lg"
                         variant={variant}

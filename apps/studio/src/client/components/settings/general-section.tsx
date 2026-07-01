@@ -16,13 +16,8 @@ import {
 } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/studio-overlay/settings/")({
-  component: SettingsGeneralPage,
-});
 
 function SettingsSection({
   children,
@@ -42,6 +37,19 @@ function SettingsSection({
 const handleInstallUpdate = () => {
   void rpcClient.preferences.quitAndInstall.call();
 };
+
+export function GeneralSection() {
+  return (
+    <div className="space-y-4">
+      <AccountInfo />
+      <InterfaceAndTheme />
+      <About />
+      <SettingsSection title="Advanced">
+        <UsageMetrics />
+      </SettingsSection>
+    </div>
+  );
+}
 
 function About() {
   const { data: appVersion, isLoading: isLoadingVersion } = useQuery(
@@ -313,19 +321,6 @@ function InterfaceAndTheme() {
         </div>
       </Card>
     </SettingsSection>
-  );
-}
-
-function SettingsGeneralPage() {
-  return (
-    <div className="space-y-4">
-      <AccountInfo />
-      <InterfaceAndTheme />
-      <About />
-      <SettingsSection title="Advanced">
-        <UsageMetrics />
-      </SettingsSection>
-    </div>
   );
 }
 

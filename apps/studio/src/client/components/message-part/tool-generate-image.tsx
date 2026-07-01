@@ -324,7 +324,7 @@ function ImageActions({
   const navigate = useNavigate({ from: "/tasks/$id" });
 
   const handleAddToChat = () => {
-    appendToPrompt({ key: id, update: filePath });
+    appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
   };
 
   const handleExpand = () => {

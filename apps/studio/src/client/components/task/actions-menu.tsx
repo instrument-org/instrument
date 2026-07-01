@@ -34,6 +34,7 @@ import { TaskOpenInSubmenu } from "./open-in-submenu";
 export function TaskActionsMenu({
   id,
   onDebugClick,
+  onDelete,
   onReplayClick,
   onSettingsClick,
   projectId,
@@ -41,6 +42,7 @@ export function TaskActionsMenu({
 }: {
   id: TaskId;
   onDebugClick: () => void;
+  onDelete: () => void;
   onReplayClick: () => void;
   onSettingsClick: () => void;
   projectId: null | ProjectId | undefined;
@@ -172,11 +174,7 @@ export function TaskActionsMenu({
 
         <DropdownMenuItem
           onSelect={() => {
-            void navigate({
-              from: "/tasks/$id",
-              params: { id },
-              search: (prev) => ({ ...prev, showDelete: true }),
-            });
+            onDelete();
           }}
           variant="destructive"
         >

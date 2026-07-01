@@ -6,6 +6,7 @@ interface PublisherEvents {
   // Fired whenever the set of agent-browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "agent-browser.targets-changed": null;
+  "app.open-settings": { webContentsId: number };
   "app.reload": { webContentsId: number };
   "app.toggle-command-menu": { webContentsId: number };
   "auth.login-error": {
@@ -33,7 +34,6 @@ interface PublisherEvents {
     isOpen: boolean;
     width: number;
   };
-  "studio-overlay.active-changed": { isActive: boolean };
   "tabs.updated": null | TabState;
   "test-notification": null;
   "updates.status": { status: AppUpdaterStatus };

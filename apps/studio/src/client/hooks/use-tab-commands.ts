@@ -1,3 +1,4 @@
+import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { tabsAtom } from "@/client/atoms/tabs";
 import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
 import {
@@ -14,6 +15,21 @@ import { sleep } from "radashi";
 import { useEffect } from "react";
 
 const NEW_TAB_PATH = "/new-tab";
+
+// Tab commands that move the user between tabs or routes. While a modal is open
+// these are ignored so shortcuts like Cmd+T / Cmd+W can't pull the user out from
+// under it; zoom commands stay allowed since they don't navigate.
+const MODAL_BLOCKED_COMMANDS = new Set([
+  "close",
+  "navigate",
+  "navigateBack",
+  "navigateForward",
+  "reopen",
+  "selectByIndex",
+  "selectLast",
+  "selectNext",
+  "selectPrevious",
+]);
 
 // Backoff before re-establishing a dropped command stream, so a transport reset
 // (e.g. a renderer hot reload) doesn't spin.
@@ -43,6 +59,12 @@ export function useTabCommands() {
             signal,
           });
           for await (const command of commands) {
+            if (
+              MODAL_BLOCKED_COMMANDS.has(command.type) &&
+              store.get(blockingModalCountAtom) > 0
+            ) {
+              continue;
+            }
             switch (command.type) {
               case "close": {
                 const id = command.id ?? store.get(tabsAtom).selectedId;

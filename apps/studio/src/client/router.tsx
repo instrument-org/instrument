@@ -13,7 +13,6 @@ import { routeTree } from "./routeTree.gen";
 
 const IGNORED_PATHS = new Set<keyof FileRoutesByPath>([
   "/shell", // Always rendered as separate view in Electron app
-  "/studio-overlay-idle", // Internal warm-overlay idle state; not useful as a page view
 ]);
 
 function createRouter(options?: { history?: RouterHistory }) {
@@ -95,20 +94,4 @@ window.api.onNavigate((url) => {
     }
   }
   void router.navigate({ to: url });
-});
-
-// The warm overlay view navigates client-side with `replace` (it loads its
-// document once and stays warm). The main process flattens webContents history.
-//
-// `router.navigate` commits asynchronously, so main waits for the matching
-// route-ready ack before re-adding the hidden warm view on reopen.
-let lastNavSeq = -1;
-window.api.onStudioOverlayNavigate((location, seq) => {
-  if (seq <= lastNavSeq) {
-    return;
-  }
-  lastNavSeq = seq;
-  void router.navigate({ replace: true, to: location }).then(() => {
-    window.api.studioOverlayRouteReady(location, seq);
-  });
 });

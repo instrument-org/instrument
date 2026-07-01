@@ -12,7 +12,6 @@ import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
 import { sidebar } from "./sidebar";
 import { stripe } from "./stripe";
-import { studioOverlay } from "./studio-overlay";
 import { syntax } from "./syntax";
 import { tabs } from "./tabs";
 import { telemetry } from "./telemetry";
@@ -33,7 +32,6 @@ export const router = {
   releases,
   sidebar,
   stripe,
-  studioOverlay,
   syntax,
   tabs,
   telemetry,

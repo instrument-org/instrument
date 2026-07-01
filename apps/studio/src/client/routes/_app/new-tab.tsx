@@ -1,5 +1,7 @@
+import { openWelcome } from "@/client/atoms/welcome-modal";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import { PromptInput } from "@/client/components/prompt-input";
+import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
@@ -31,7 +33,7 @@ export const Route = createFileRoute("/_app/new-tab")({
       return;
     }
 
-    void rpcClient.studioOverlay.show.call({ kind: "welcome" });
+    openWelcome();
 
     // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw redirect({ replace: true, search: {}, to: "/new-tab" });
@@ -49,6 +51,7 @@ function RouteComponent() {
   const navigate = useNavigate({ from: "/new-tab" });
   const router = useRouter();
   const { addTab } = useTabActions();
+  const tabId = useTabId();
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
   const createTaskMutation = useMutation(
     rpcClient.workspace.task.create.mutationOptions(),
@@ -77,9 +80,9 @@ function RouteComponent() {
         </div>
         <PromptInput
           allowOpenInNewTab
-          atomKey="$$new-tab$$"
           autoFocus
           autoResizeMaxHeight={300}
+          draftKey={{ scope: "compose", tabId }}
           isLoading={createTaskMutation.isPending}
           modelURI={selectedModelURI}
           onModelChange={setSelectedModelURI}

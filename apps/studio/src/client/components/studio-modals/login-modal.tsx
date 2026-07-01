@@ -1,38 +1,74 @@
 import {
+  loginModalAtom,
+  type LoginModalProps,
+} from "@/client/atoms/login-modal";
+import {
   type ProviderSetupPage,
   ProviderSetupScreen,
 } from "@/client/components/onboarding/provider-setup-screen";
 import { OnboardingSuccessScreen } from "@/client/components/onboarding/success-screen";
 import { Button } from "@/client/components/ui/button";
 import {
+  Dialog,
   DialogClose,
   DialogContent,
   DialogTitle,
 } from "@/client/components/ui/dialog";
+import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
-import { StudioOverlayLoginSearchSchema } from "@/shared/studio-overlay";
 import { XIcon } from "@phosphor-icons/react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useAtom } from "jotai";
 import { useState } from "react";
-
-export const Route = createFileRoute("/studio-overlay/login")({
-  component: LoginModal,
-  validateSearch: StudioOverlayLoginSearchSchema,
-});
 
 type Page = "success" | ProviderSetupPage;
 
 const FIXED_HEIGHT_PAGES = new Set<Page>(["success", "welcome"]);
 
-function LoginModal() {
-  const { hideManualProvider, reason } = Route.useSearch();
+/**
+ * App-wide login / add-provider modal, mounted once at the app-chrome root.
+ * Reads `loginModalAtom` (opened via `openLogin`); traps tab navigation while
+ * open. Finishing the flow fires the caller's `onCompleted`; dismissing does not.
+ */
+export function LoginModal() {
+  const [state, setState] = useAtom(loginModalAtom);
+  const isOpen = state !== null;
+
+  useBlockTabNavigation(isOpen);
+
+  const complete = () => {
+    state?.onCompleted?.();
+    setState(null);
+  };
+
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          setState(null);
+        }
+      }}
+      open={isOpen}
+    >
+      {state !== null && (
+        <LoginModalContent onComplete={complete} props={state.props} />
+      )}
+    </Dialog>
+  );
+}
+
+function LoginModalContent({
+  onComplete,
+  props,
+}: {
+  onComplete: () => void;
+  props?: LoginModalProps;
+}) {
   const { error, login } = useLoginSocial();
   // When the caller only needs a provider (not a login), open straight on the
   // add-provider form. There's no welcome page to go back to in that case.
-  const opensOnAddProvider = reason === "provider-required";
+  const opensOnAddProvider = props?.reason === "provider-required";
   const [page, setPage] = useState<Page>(
     opensOnAddProvider ? "add-provider" : "welcome",
   );
@@ -67,15 +103,11 @@ function LoginModal() {
         </DialogClose>
       </div>
       {page === "success" ? (
-        <OnboardingSuccessScreen
-          onContinue={() => {
-            void rpcClient.studioOverlay.resolve.call();
-          }}
-        />
+        <OnboardingSuccessScreen onContinue={onComplete} />
       ) : (
         <ProviderSetupScreen
           error={error}
-          hideManualProvider={hideManualProvider}
+          hideManualProvider={props?.hideManualProvider}
           onBack={
             opensOnAddProvider
               ? undefined
@@ -83,9 +115,7 @@ function LoginModal() {
                   setPage("welcome");
                 }
           }
-          onContinue={() => {
-            void rpcClient.studioOverlay.resolve.call();
-          }}
+          onContinue={onComplete}
           onLogin={login}
           onLoginSuccess={() => {
             setPage("success");

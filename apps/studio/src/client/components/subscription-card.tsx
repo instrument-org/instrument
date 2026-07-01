@@ -1,6 +1,6 @@
+import { openSettings } from "@/client/atoms/settings-modal";
 import { ExternalLink } from "@/client/components/external-link";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
-import { InternalLink } from "@/client/components/internal-link";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -117,13 +117,15 @@ export function SubscriptionCard() {
                 Contact us
               </ExternalLink>
               {" or "}
-              <InternalLink
-                allowOpenNewTab={false}
+              <button
                 className="underline"
-                to="/studio-overlay/settings/providers"
+                onClick={() => {
+                  openSettings({ tab: "Providers" });
+                }}
+                type="button"
               >
                 add API keys
-              </InternalLink>{" "}
+              </button>{" "}
               to use {APP_NAME} with your AI provider of choice
             </p>
             <span className="shrink-0">

@@ -4,15 +4,10 @@ import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
-import { createFileRoute } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 
-export const Route = createFileRoute("/studio-overlay/settings/features")({
-  component: SettingsFeaturesPage,
-});
-
-function SettingsFeaturesPage() {
+export function FeaturesSection() {
   const features = useAtomValue(featuresAtom);
   const [optimisticFeatures, setOptimisticFeatures] =
     useState<Record<FeatureName, boolean>>(features);

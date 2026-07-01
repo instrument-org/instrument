@@ -1,6 +1,8 @@
+import { projectModalAtom } from "@/client/atoms/project-modal";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
 import {
+  Dialog,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -12,36 +14,71 @@ import { Field, FieldError, FieldLabel } from "@/client/components/ui/field";
 import { Input } from "@/client/components/ui/input";
 import { Spinner } from "@/client/components/ui/spinner";
 import { Textarea } from "@/client/components/ui/textarea";
+import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { useWindowFileDrop } from "@/client/lib/use-window-file-drop";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { StudioOverlayNewProjectSearchSchema } from "@/shared/studio-overlay";
 import { type StudioPath } from "@/shared/studio-path";
 import {
   type Project,
-  ProjectIdSchema,
-  TaskIdSchema,
+  type ProjectId,
+  type TaskId,
 } from "@instrument-org/workspace/client";
 import { isDefinedError, type ORPCError, safe } from "@orpc/client";
 import { PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useForm } from "@tanstack/react-form";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useAtom } from "jotai";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/studio-overlay/project")({
-  component: NewProjectModal,
-  validateSearch: StudioOverlayNewProjectSearchSchema,
-});
+/**
+ * App-wide new/edit-project modal, mounted once at the app-chrome root. Reads
+ * `projectModalAtom` (opened via `openCreateProject` / `openEditProject`); traps
+ * tab navigation while open.
+ */
+export function ProjectModal() {
+  const [state, setState] = useAtom(projectModalAtom);
+  const isOpen = state !== null;
+  const close = () => {
+    setState(null);
+  };
 
-function NewProjectModal() {
-  const { projectId, taskId } = Route.useSearch();
+  useBlockTabNavigation(isOpen);
 
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          close();
+        }
+      }}
+      open={isOpen}
+    >
+      {state !== null && (
+        <ProjectModalContent
+          close={close}
+          projectId={state.projectId}
+          taskId={state.taskId}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+function ProjectModalContent({
+  close,
+  projectId,
+  taskId,
+}: {
+  close: () => void;
+  projectId?: ProjectId;
+  taskId?: TaskId;
+}) {
   const { data: editProject, isLoading } = useQuery(
     rpcClient.workspace.project.byId.queryOptions({
-      input: projectId ? { id: ProjectIdSchema.parse(projectId) } : skipToken,
+      input: projectId ? { id: projectId } : skipToken,
     }),
   );
 
@@ -76,7 +113,7 @@ function NewProjectModal() {
         <DialogFooter>
           <Button
             onClick={() => {
-              void rpcClient.studioOverlay.dismiss.call();
+              close();
             }}
             type="button"
             variant="outline"
@@ -90,6 +127,7 @@ function NewProjectModal() {
 
   return (
     <ProjectModalForm
+      close={close}
       editProject={projectId ? editProject : undefined}
       key={editProject?.id ?? "new"}
       taskId={taskId}
@@ -98,14 +136,17 @@ function NewProjectModal() {
 }
 
 function ProjectModalForm({
+  close,
   editProject,
   taskId,
 }: {
+  close: () => void;
   editProject?: Project;
-  taskId?: string;
+  taskId?: TaskId;
 }) {
   const isEditing = editProject !== undefined;
   const [folders, setFolders] = useState<string[]>([]);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Name validation runs server-side (rules vary per OS); attribute those
   // failures to the Name field, everything else stays form-level.
@@ -174,7 +215,7 @@ function ProjectModalForm({
           if (error) {
             return toSubmitError(error);
           }
-          void rpcClient.studioOverlay.resolve.call();
+          close();
           return;
         }
 
@@ -193,7 +234,7 @@ function ProjectModalForm({
         if (taskId) {
           await rpcClient.workspace.project.addTask.call({
             projectId: project.id,
-            taskId: TaskIdSchema.parse(taskId),
+            taskId,
           });
         }
 
@@ -201,14 +242,21 @@ function ProjectModalForm({
           appPath: `/projects/${project.id}` as StudioPath,
           select: true,
         });
-        void rpcClient.studioOverlay.resolve.call();
+        close();
         return;
       },
     },
   });
 
   return (
-    <DialogContent className="max-w-lg" showCloseButton={false}>
+    <DialogContent
+      className="max-w-lg"
+      onOpenAutoFocus={(e) => {
+        e.preventDefault();
+        nameInputRef.current?.focus();
+      }}
+      showCloseButton={false}
+    >
       <div className="absolute top-3 right-3 z-10">
         <DialogClose asChild>
           <Button aria-label="Close" type="button" variant="outline">
@@ -252,7 +300,6 @@ function ProjectModalForm({
                   <FieldLabel htmlFor={field.name}>Name</FieldLabel>
                   <Input
                     aria-invalid={isInvalid}
-                    autoFocus
                     disabled={isPending}
                     id={field.name}
                     name={field.name}
@@ -261,6 +308,7 @@ function ProjectModalForm({
                       field.handleChange(e.target.value);
                     }}
                     placeholder="Project name"
+                    ref={nameInputRef}
                     value={field.state.value}
                   />
                   {isInvalid && <FieldError errors={field.state.meta.errors} />}
@@ -371,7 +419,7 @@ function ProjectModalForm({
           <Button
             disabled={isPending}
             onClick={() => {
-              void rpcClient.studioOverlay.dismiss.call();
+              close();
             }}
             type="button"
             variant="outline"

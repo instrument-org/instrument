@@ -1,6 +1,4 @@
-import { isStudioOverlayWindow } from "@/client/lib/studio-overlay";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { SUPPORT_URL } from "@instrument-org/shared";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import {
@@ -45,9 +43,6 @@ export function ErrorCard({
     strict: false,
   });
   const canGoBack = useCanGoBack();
-  // Inside the app-wide overlay view, the only meaningful recovery is closing
-  // the overlay (its tab-oriented Home/Back/Retry don't apply).
-  const isStudioOverlay = isStudioOverlayWindow();
 
   const errors = normalizeErrors(error);
   const errorInfos = errors.map(extractErrorInfo);
@@ -140,16 +135,7 @@ export function ErrorCard({
           </ExternalLink>
         </p>
         <div className="flex gap-x-2">
-          {isStudioOverlay ? (
-            <Button
-              onClick={() => {
-                void rpcClient.studioOverlay.dismiss.call();
-              }}
-              variant="secondary"
-            >
-              Close
-            </Button>
-          ) : isRoot ? (
+          {isRoot ? (
             <Button asChild variant="secondary">
               <InternalLink to="/">Home</InternalLink>
             </Button>
@@ -170,15 +156,13 @@ export function ErrorCard({
               </InternalLink>
             </Button>
           )}
-          {!isStudioOverlay && (
-            <Button
-              onClick={() => {
-                void router.invalidate();
-              }}
-            >
-              Try again
-            </Button>
-          )}
+          <Button
+            onClick={() => {
+              void router.invalidate();
+            }}
+          >
+            Try again
+          </Button>
         </div>
       </CardFooter>
     </Card>

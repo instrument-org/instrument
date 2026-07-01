@@ -4,7 +4,6 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 const windowTypeRedirects = {
   onboarding: "/onboarding",
   shell: "/shell",
-  "studio-overlay": "/studio-overlay",
 } as const satisfies Record<
   NonNullable<Window["api"]["windowType"]>,
   StudioPath

@@ -1,6 +1,12 @@
+import { welcomeModalAtom } from "@/client/atoms/welcome-modal";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { Button } from "@/client/components/ui/button";
-import { DialogContent, DialogTitle } from "@/client/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
+import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -13,7 +19,7 @@ import {
   ListChecksIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { useAtom } from "jotai";
 import {
   motion,
   useMotionTemplate,
@@ -22,10 +28,6 @@ import {
   useSpring,
 } from "motion/react";
 import { type PointerEvent, useState } from "react";
-
-export const Route = createFileRoute("/studio-overlay/welcome")({
-  component: WelcomeModal,
-});
 
 const FEATURE_ROWS: {
   body: string;
@@ -55,6 +57,32 @@ const FEATURE_ROWS: {
 ];
 
 const POSITION_SPRING = { damping: 28, stiffness: 180 };
+
+/**
+ * App-wide welcome modal, mounted once at the app-chrome root. Reads
+ * `welcomeModalAtom` (opened via `openWelcome`). Non-dismissible: the content
+ * blocks Escape / outside-click and there's no close button, so it stays until
+ * the user continues. Traps tab navigation while open.
+ */
+export function WelcomeModal() {
+  const [isOpen, setIsOpen] = useAtom(welcomeModalAtom);
+
+  useBlockTabNavigation(isOpen);
+
+  return (
+    // No onOpenChange: the content refuses Escape/outside dismiss, so the only
+    // way out is Continue.
+    <Dialog open={isOpen}>
+      {isOpen && (
+        <WelcomeModalContent
+          onContinue={() => {
+            setIsOpen(false);
+          }}
+        />
+      )}
+    </Dialog>
+  );
+}
 
 function WelcomeHeader() {
   const prefersReducedMotion = useReducedMotion();
@@ -135,7 +163,7 @@ function WelcomeHeader() {
   );
 }
 
-function WelcomeModal() {
+function WelcomeModalContent({ onContinue }: { onContinue: () => void }) {
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
@@ -146,7 +174,7 @@ function WelcomeModal() {
 
   async function handleContinue() {
     await rpcClient.tabs.navigate.call({ appPath: "/tutorial-task" });
-    await rpcClient.studioOverlay.resolve.call();
+    onContinue();
   }
 
   return (

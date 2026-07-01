@@ -1,3 +1,4 @@
+import { openDeleteTask } from "@/client/atoms/delete-task-modal";
 import { TaskDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
 import { InternalLink } from "@/client/components/internal-link";
 import {
@@ -123,17 +124,15 @@ export const NavTaskItem = memo(function NavTaskItem({
           taskId={task.id}
         />
         <Separator />
-        <InternalLink
-          openInCurrentTab
-          params={{ id: task.id }}
-          search={{ showDelete: true }}
-          to="/tasks/$id"
+        <Item
+          onSelect={() => {
+            openDeleteTask(task);
+          }}
+          variant="destructive"
         >
-          <Item variant="destructive">
-            <TrashIcon className="size-4" />
-            <span>Delete</span>
-          </Item>
-        </InternalLink>
+          <TrashIcon className="size-4" />
+          <span>Delete</span>
+        </Item>
       </>
     );
   };

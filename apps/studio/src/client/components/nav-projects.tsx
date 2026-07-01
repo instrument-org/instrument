@@ -1,5 +1,6 @@
 import { projectsSectionOpenAtom } from "@/client/atoms/projects-section";
 import { ProjectDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
+import { DeleteProjectDialog } from "@/client/components/project/delete-project-dialog";
 import {
   Collapsible,
   CollapsibleContent,
@@ -29,10 +30,7 @@ import {
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
-import {
-  openCreateProject,
-  openDeleteProject,
-} from "@/client/lib/project-overlays";
+import { openCreateProject } from "@/client/lib/project-overlays";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Project } from "@instrument-org/workspace/client";
@@ -47,6 +45,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useAtom } from "jotai";
+import { useState } from "react";
 
 import { InlineRenameInput } from "./inline-rename-input";
 import { InternalLink } from "./internal-link";
@@ -135,6 +134,8 @@ function NavProjectItem({
     rpcClient.workspace.project.update.mutationOptions(),
   );
 
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
   const rename = useInlineRename({
     onSave: async (next) => {
       await renameProject({ id: project.id, name: next });
@@ -165,7 +166,7 @@ function NavProjectItem({
         <Separator />
         <Item
           onSelect={() => {
-            openDeleteProject(project.id);
+            setIsDeleteOpen(true);
           }}
           variant="destructive"
         >
@@ -222,6 +223,13 @@ function NavProjectItem({
           {renderMenuItems(dropdownMenuComponents)}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <DeleteProjectDialog
+        onOpenChange={setIsDeleteOpen}
+        open={isDeleteOpen}
+        projectId={project.id}
+        projectName={project.name}
+      />
     </SidebarMenuItem>
   );
 }

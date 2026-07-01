@@ -1,3 +1,4 @@
+import { openLogin } from "@/client/atoms/login-modal";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
@@ -99,10 +100,7 @@ export function AccountInfo() {
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
                     onClick={() => {
-                      void rpcClient.studioOverlay.show.call({
-                        kind: "login",
-                        props: { hideManualProvider: true },
-                      });
+                      openLogin({ hideManualProvider: true });
                     }}
                     variant="outline"
                   >
@@ -110,10 +108,7 @@ export function AccountInfo() {
                   </Button>
                   <Button
                     onClick={() => {
-                      void rpcClient.studioOverlay.show.call({
-                        kind: "login",
-                        props: { hideManualProvider: true },
-                      });
+                      openLogin({ hideManualProvider: true });
                     }}
                     variant="brand"
                   >

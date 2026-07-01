@@ -1,3 +1,4 @@
+import { ModalTabNavigationBlocker } from "@/client/components/ui/modal-tab-navigation-blocker";
 import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
@@ -17,6 +18,7 @@ function DialogClose({
 }
 
 function DialogContent({
+  blockTabNavigation = true,
   children,
   className,
   overlayClassName,
@@ -24,6 +26,7 @@ function DialogContent({
   style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  blockTabNavigation?: boolean;
   overlayClassName?: string;
   showCloseButton?: boolean;
 }) {
@@ -39,10 +42,11 @@ function DialogContent({
         style={useShellZoomStyle(style)}
         {...props}
       >
+        {blockTabNavigation && <ModalTabNavigationBlocker />}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close
-            className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+            className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity not-disabled:hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
             data-slot="dialog-close"
           >
             <XIcon />

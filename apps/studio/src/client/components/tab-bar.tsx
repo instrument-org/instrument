@@ -12,11 +12,11 @@ export default function TabBar() {
   const tabs = allTabs.filter((tab) => !tab.tabBarHidden);
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-row items-stretch overflow-hidden px-3">
+    <div className="flex h-full min-w-0 flex-1 flex-row items-stretch overflow-hidden px-3 [-webkit-app-region:drag]">
       <Reorder.Group
         as="ul"
         axis="x"
-        className="flex min-w-0 flex-1 flex-nowrap items-stretch justify-start gap-1 py-1 [-webkit-app-region:drag]"
+        className="flex min-w-0 flex-1 flex-nowrap items-stretch justify-start gap-1 py-1"
         onReorder={(values) => {
           // Extract only the IDs of non-pinned tabs for reordering
           const nonPinnedTabIds = values

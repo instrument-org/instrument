@@ -4,7 +4,7 @@ import * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const toggleSharedChrome =
-  "inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[color,outline,background-color] outline-none focus-visible:border-ring focus-visible:[outline-style:solid] focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
+  "inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[color,outline,background-color] outline-none focus-visible:border-ring focus-visible:[outline-style:solid] focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
 const toolbarSurface = tv({
   // Inset the focus ring (negative outline-offset) so it is painted inside the
@@ -16,8 +16,8 @@ const toolbarSurface = tv({
   variants: {
     pressed: {
       false:
-        "bg-transparent text-muted-foreground hover:bg-muted hover:text-muted-foreground active:bg-muted",
-      true: "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground active:bg-accent/90",
+        "bg-transparent text-muted-foreground not-disabled:hover:bg-muted not-disabled:hover:text-muted-foreground not-disabled:active:bg-muted",
+      true: "bg-accent text-accent-foreground not-disabled:hover:bg-accent not-disabled:hover:text-accent-foreground not-disabled:active:bg-accent/90",
     },
   },
 });
@@ -41,7 +41,7 @@ function toolbarClassName({
 const toggleVariants = tv({
   base: cn(
     toggleSharedChrome,
-    "rounded-md hover:bg-muted hover:text-muted-foreground aria-pressed:bg-accent aria-pressed:text-accent-foreground aria-pressed:hover:bg-accent aria-pressed:hover:text-accent-foreground aria-pressed:active:bg-accent/90",
+    "rounded-md not-disabled:hover:bg-muted not-disabled:hover:text-muted-foreground aria-pressed:bg-accent aria-pressed:text-accent-foreground not-disabled:aria-pressed:hover:bg-accent not-disabled:aria-pressed:hover:text-accent-foreground not-disabled:aria-pressed:active:bg-accent/90",
   ),
   defaultVariants: {
     size: "default",
@@ -56,7 +56,7 @@ const toggleVariants = tv({
     variant: {
       default: "bg-transparent",
       outline:
-        "border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
+        "border border-input bg-transparent shadow-xs not-disabled:hover:bg-accent not-disabled:hover:text-accent-foreground",
       toolbar: toolbarSurface({ pressed: false }),
     },
   },

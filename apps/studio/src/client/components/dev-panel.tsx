@@ -41,7 +41,6 @@ import {
 import { presetSessions } from "@/client/routes/_app/debug/-sessions";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
-import { type StudioPath } from "@/shared/studio-path";
 import {
   ArrowLineDownIcon,
   ArrowsClockwiseIcon,
@@ -60,12 +59,14 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useState } from "react";
 import { toast } from "sonner";
 
+type NavigateTo = Parameters<ReturnType<typeof useNavigate>>[0]["to"];
+
 const PAGES = [
   { label: "/tasks", to: "/tasks" },
   { label: "/tutorial-task", to: "/tutorial-task" },
   { label: "/subscribe", to: "/subscribe" },
   { label: "/", to: "/" },
-] as const satisfies { label: string; to: StudioPath }[];
+] as const satisfies { label: string; to: NavigateTo }[];
 
 const pillTriggerClassName =
   "flex items-center gap-x-1 rounded-sm px-1.5 py-0.5" +
@@ -127,8 +128,10 @@ export function DevPanel() {
 
   const enabledFlagCount = Object.values(features).filter(Boolean).length;
 
-  function handleNavigate(to: StudioPath, search?: { session: string }) {
-    void navigate({ search, to });
+  function handleNavigate(to: NavigateTo, search?: { session: string }) {
+    // `to` is widened to the full route union here, so TS can't correlate it
+    // with a per-route search schema the way a literal `to` would.
+    void navigate({ search, to } as Parameters<typeof navigate>[0]);
   }
 
   if (hidden) {

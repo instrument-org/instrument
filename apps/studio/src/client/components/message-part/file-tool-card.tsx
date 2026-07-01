@@ -32,7 +32,7 @@ export function FileToolCard({
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/tasks/$id" });
+  const navigate = useNavigate({ from: "/tasks/$id/" });
 
   const cleanedContent =
     !isStreaming && content.endsWith("\n") ? content.slice(0, -1) : content;

@@ -34,7 +34,7 @@ export function FilesGrid({
   initialVisibleCount = DEFAULT_INITIAL_VISIBLE_COUNT,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
-  const navigate = useNavigate({ from: "/tasks/$id" });
+  const navigate = useNavigate({ from: "/tasks/$id/" });
   const search = useSearch({
     from: "/_app/tasks/$id/",
     shouldThrow: false,

@@ -239,7 +239,7 @@ function ProjectModalForm({
         }
 
         void rpcClient.tabs.add.call({
-          appPath: `/projects/${project.id}` as StudioPath,
+          appPath: `/projects/${project.id}/` as StudioPath,
           select: true,
         });
         close();

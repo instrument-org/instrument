@@ -36,7 +36,7 @@ export function useAutoOpenOutputArtifact({
     }
 
     void navigate({
-      from: "/tasks/$id",
+      from: "/tasks/$id/",
       params: { id },
       replace: true,
       search: (s) => ({

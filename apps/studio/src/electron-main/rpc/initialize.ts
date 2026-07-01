@@ -9,6 +9,7 @@ import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 
 import { type BrowserViewManager } from "../browser-view/manager";
+import { type AppUpdatesService } from "../lib/app-updates";
 import { captureServerException } from "../lib/capture-server-exception";
 import { isExpectedNetworkError } from "../lib/is-network-error";
 import { type StudioAppUpdater } from "../lib/update";
@@ -91,11 +92,13 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
 
 export function initializeRPC({
   appUpdater,
+  appUpdates,
   browserViewManager,
   workspaceConfig,
   workspaceRef,
 }: {
   appUpdater: StudioAppUpdater;
+  appUpdates: AppUpdatesService;
   browserViewManager: BrowserViewManager;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
@@ -113,6 +116,7 @@ export function initializeRPC({
     handler.upgrade(serverPort, {
       context: {
         appUpdater,
+        appUpdates,
         browserViewManager,
         webContentsId,
         workspaceConfig,

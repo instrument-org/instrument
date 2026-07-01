@@ -12,38 +12,16 @@ import {
   SelectTrigger,
 } from "@/client/components/ui/select";
 import { Switch } from "@/client/components/ui/switch";
+import { UpdateRecoveryActions } from "@/client/components/update-recovery-actions";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  APP_NAME,
-  APP_REPO_URL,
-  MANUAL_DOWNLOAD_URL,
-} from "@instrument-org/shared";
+import { APP_NAME, APP_REPO_URL } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
-
-function SettingsSection({
-  children,
-  title,
-}: {
-  children: ReactNode;
-  title: string;
-}) {
-  return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-const handleInstallUpdate = () => {
-  void rpcClient.preferences.quitAndInstall.call();
-};
 
 export function GeneralSection() {
   return (
@@ -68,10 +46,6 @@ function About() {
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
 
-  const checkForUpdatesMutation = useMutation(
-    rpcClient.preferences.checkForUpdates.mutationOptions(),
-  );
-
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
@@ -88,12 +62,6 @@ function About() {
   const testDownloadNotification = useMutation(
     rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
   );
-
-  const handleCheckForUpdates = () => {
-    checkForUpdatesMutation.mutate({
-      notify: true,
-    });
-  };
 
   const formatLastChecked = (date: Date) => {
     return (
@@ -207,71 +175,17 @@ function About() {
     }
   };
 
-  const checkForUpdatesButton = (
-    <Button
-      disabled={checkForUpdatesMutation.isPending}
-      onClick={handleCheckForUpdates}
-    >
-      {checkForUpdatesMutation.isPending ? "Checking..." : "Check for updates"}
-    </Button>
-  );
-
-  const getActionButton = () => {
-    switch (updateState?.type) {
-      case "available":
-      case "checking":
-      case "downloading": {
-        return (
-          <Button disabled>
-            {updateState.type === "checking" && "Checking..."}
-            {updateState.type === "downloading" && "Downloading..."}
-            {updateState.type === "available" && "Preparing..."}
-          </Button>
-        );
-      }
-      case "canceled": {
-        return <Button onClick={handleCheckForUpdates}>Try again</Button>;
-      }
-      case "downloaded": {
-        return <Button onClick={handleInstallUpdate}>Install now</Button>;
-      }
-      case "error": {
-        return (
-          <div className="flex gap-2">
-            <Button onClick={handleCheckForUpdates}>Try again</Button>
-            <Button asChild>
-              <ExternalLink
-                href={`${MANUAL_DOWNLOAD_URL}?ref=studio-settings-error`}
-              >
-                Download manually
-              </ExternalLink>
-            </Button>
-          </div>
-        );
-      }
-      case "inactive": {
-        if (developerMode && isUnpacked) {
-          return (
-            <Button
-              disabled={testDownloadNotification.isPending}
-              onClick={() => {
-                testDownloadNotification.mutate(undefined);
-              }}
-            >
-              Test download
-            </Button>
-          );
-        }
-        return checkForUpdatesButton;
-      }
-      case "installing": {
-        return <Button disabled>Installing...</Button>;
-      }
-      default: {
-        return checkForUpdatesButton;
-      }
-    }
-  };
+  const devTestDownloadSlot =
+    developerMode && isUnpacked ? (
+      <Button
+        disabled={testDownloadNotification.isPending}
+        onClick={() => {
+          testDownloadNotification.mutate(undefined);
+        }}
+      >
+        Test download
+      </Button>
+    ) : undefined;
 
   return (
     <SettingsSection title="About">
@@ -287,7 +201,12 @@ function About() {
               </div>
               {getUpdateStatusContent()}
             </div>
-            <div className="shrink-0">{getActionButton()}</div>
+            <div className="shrink-0">
+              <UpdateRecoveryActions
+                downloadRef="studio-settings-error"
+                inactiveSlot={devTestDownloadSlot}
+              />
+            </div>
           </div>
         </Card>
         <Card className="bg-muted/30 p-4">
@@ -443,6 +362,21 @@ function Notifications() {
         </div>
       </Card>
     </SettingsSection>
+  );
+}
+
+function SettingsSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+      {children}
+    </div>
   );
 }
 

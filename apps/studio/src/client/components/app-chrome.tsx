@@ -5,8 +5,11 @@ import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { StudioToolbar } from "@/client/components/studio-toolbar";
 import { Toaster } from "@/client/components/ui/sonner";
+import { UpdateRequiredScreen } from "@/client/components/update-required-screen";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
+import { rpcClient } from "@/client/rpc/client";
+import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, Suspense } from "react";
 
@@ -55,6 +58,21 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   const isTaskFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
   const isSidebarOpen = useSidebarOpen();
+
+  const { data: updateRequirement } = useQuery(
+    rpcClient.updates.live.requirement.experimental_liveOptions({}),
+  );
+
+  // A build below the server-enforced minimum version is blocked entirely: the
+  // required screen replaces the normal chrome and every tab.
+  if (updateRequirement?.required) {
+    return (
+      <UpdateRequiredScreen
+        downloadUrl={updateRequirement.downloadUrl}
+        message={updateRequirement.message}
+      />
+    );
+  }
 
   return (
     <div

@@ -28,7 +28,6 @@ import {
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab } from "@/shared/tabs";
-import { safe } from "@orpc/client";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterContextProvider, RouterProvider } from "@tanstack/react-router";
@@ -61,12 +60,6 @@ export function AppShell() {
     : undefined;
 
   useMouseBackForward();
-
-  // Report the shell zoom to the main process so it can keep the macOS traffic
-  // lights centered in the toolbar (its visual height scales with this zoom).
-  useEffect(() => {
-    void safe(rpcClient.tabs.syncZoom.call({ zoom }));
-  }, [zoom]);
 
   // Apply tab commands from the main process (menus, overlay-initiated opens),
   // streamed over RPC. One subscription owns the whole tab command surface.

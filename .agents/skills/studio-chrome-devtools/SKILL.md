@@ -1,6 +1,6 @@
 ---
 name: studio-chrome-devtools
-description: Use when working with Chrome DevTools against the Studio Electron app in this repo. Load this for Studio-specific connection details, page selection, and multi-WebContentsView behavior. Especially relevant when the user mentions Electron, `chrome-devtools`, `chrome-devtools-cli`, shell window, main window, browser views, smoke tests, or debug routes.
+description: Use when working with Chrome DevTools against the Studio Electron app in this repo. Load this for Studio-specific connection details and page selection. Especially relevant when the user mentions Electron, `chrome-devtools`, `chrome-devtools-cli`, browser views, smoke tests, or debug routes.
 ---
 
 # Studio Chrome DevTools
@@ -60,64 +60,42 @@ What the script does:
 1. Probes `/json/version` and `/json/list` on Studio's Electron debug port.
 2. Runs `pnpm exec chrome-devtools start --browserUrl ...`.
 3. Runs `pnpm exec chrome-devtools list_pages --output-format=json`.
-4. If a URL hint was provided, selects the first non-shield page whose URL contains that hint and runs `take_snapshot`.
+4. If a URL hint was provided, selects the first page whose URL contains that hint and runs `take_snapshot`.
 
 Run this script outside the sandbox. In Cursor Shell calls, use `required_permissions: ["all"]`. If the raw `/json/*` probes work but the CLI still fails with `ENOENT`, the daemon socket is the problem.
 
 ## Studio Page Model
 
-Do not assume Studio is a single page.
+Studio is a single window / single web contents: `AppChrome` (sidebar + chrome)
+and every open tab are all mounted in the same page. There's no separate shell
+window, no shield `data:` page, and no per-tab `WebContentsView` — that
+multi-view model was removed when the chrome was hoisted into one web contents.
+`list_pages` should show one Studio page (URL starts `#/...`), plus a separate
+onboarding window if that flow is active, plus any real debug/devtools pages.
 
-The app commonly exposes multiple debuggable pages at once:
-
-- a shell window at `#/shell`
-- a main app window at other `#/...` routes
-- debug routes such as `#/debug/...`
-- extra `WebContentsView` instances
-- a shield `data:` page used internally to prevent tab flicker
-
-Always start with `list_pages`, then select by URL and only then inspect or interact.
+Agent-browser tabs are renderer `<webview>` guests inside that same page, not
+separate DevTools-visible pages.
 
 ## How To Pick The Right Page
 
-Use these rules:
+1. Run `list_pages` and pick the Studio page (ignore any onboarding window
+   unless that's what you're testing).
+2. If multiple Studio-looking pages appear, prefer the one whose URL matches
+   the route the user is looking at right now.
+3. After selecting, run `take_snapshot` to confirm you landed in the right renderer.
 
-1. Ignore `data:text/html,<body bgcolor=...>` style pages. That is the internal shield view.
-2. If you want the sidebar or shell chrome, pick the page whose URL contains `#/shell`.
-3. If you want the main app, pick a non-shell Studio route such as `#/tasks/...`, `#/debug/...`, or another `#/...` page that is not `#/shell`.
-4. If multiple candidate pages exist, prefer the one whose URL matches the route the user is looking at right now.
-5. After selecting a page, immediately run `take_snapshot` to confirm you landed in the right renderer.
+## Stable Marker In The Renderer
 
-## Stable Markers In The Renderer
-
-When you need to confirm you are on the right Studio root:
-
-- shell window contains `data-testid="shell-page"`
-- main app window contains `data-testid="app-page"`
-
-Use those markers in snapshots or script evaluation instead of trusting page order.
-
-## Multi-WebContentsView Caveats
-
-Studio uses multiple `WebContentsView`s, and some internal views can show up in page listings.
-
-Important consequences:
-
-- Do not rely on page index staying stable across runs.
-- Do not rely on "first page" or "second page" semantics.
-- Extra internal views may appear during tab transitions or browser-view work.
-- A keep-mounted or hidden view can still exist even when it is not the user-visible target.
-
-The smoke test in `apps/studio/smoke-test.spec.ts` is the model to follow: it finds windows by URL shape, not by index.
+The rendered app root has `data-testid="app-page"` (`app-chrome.tsx`). Use it
+in snapshots or script evaluation to confirm you're on the right root.
 
 ## Recommended Workflow
 
 1. Ensure Studio is already running with the debug port available.
 2. Prefer `bash .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh`.
-3. Ignore the shield `data:` page.
-4. Choose the correct page by URL fragment such as `#/shell` or `#/debug/...`.
-5. Run `take_snapshot`.
-6. Verify you see the expected root marker or route content before clicking or typing.
+3. Choose the correct page by URL fragment such as `#/tasks/...` or `#/debug/...`.
+4. Run `take_snapshot`.
+5. Verify you see the expected root marker or route content before clicking or typing.
 
 ## Evaluating JavaScript
 
@@ -134,7 +112,7 @@ expression. The function must return a JSON-serializable value.
 
 ## Interaction Notes
 
-- On Linux, Studio enables Chromium's `allow-pre-commit-input` switch to make CDP mouse input work better with occluded `WebContentsView`s.
-- If an interaction fails, re-run `list_pages` and `take_snapshot` before retrying. A different view may now be selected or exposed.
+- Studio enables Chromium's `allow-pre-commit-input` switch to make CDP mouse input work better with `<webview>` guests (agent-browser tabs).
+- If an interaction fails, re-run `list_pages` and `take_snapshot` before retrying.
 - For route-specific work, prefer selecting the page that already has the target route open over trying to navigate the wrong renderer into place.
 - `pnpm exec chrome-devtools list_pages --output-format=json` is useful when a script needs stable page ids for the current CLI session.

@@ -29,7 +29,7 @@ export default function TabBar() {
         }}
         values={tabs}
       >
-        <AnimatePresence initial={false}>
+        <AnimatePresence initial={false} mode="popLayout">
           {tabs.map((item, index) => (
             <Tab
               isSelected={selectedTabId === item.id}

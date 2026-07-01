@@ -6,10 +6,9 @@ import {
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { type BaseWindow } from "electron";
 
-// The app-wide modal overlay (a topmost WebContentsView) as a process singleton.
-// Previously owned by TabsManager; lifted out so the overlay outlives that class
-// and menus/RPC reach it directly. Created with the main window, torn down with
-// it.
+// The app-wide modal overlay (a topmost WebContentsView) as a process
+// singleton, so menus/RPC can reach it directly. Created with the main window,
+// torn down with it.
 let controller: StudioOverlayController | undefined;
 
 export function createStudioOverlay({

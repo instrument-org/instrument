@@ -1,9 +1,9 @@
 import { type Tab } from "@/shared/tabs";
 
 /**
- * Renderer-owned tab state and the pure transitions over it. This replaces the
- * main-process `TabsManager` bookkeeping (selection, ordering, reopen-closed,
- * single-tab-route dedup) so the whole shell can live in one web contents.
+ * Renderer-owned tab state and the pure transitions over it: selection,
+ * ordering, reopen-closed, single-tab-route dedup. Lets the whole shell live
+ * in one web contents.
  *
  * Every function is pure: it returns a new model and never mutates the input,
  * so it is trivially unit-testable and safe to drive a Jotai atom.

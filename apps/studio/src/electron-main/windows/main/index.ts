@@ -38,8 +38,8 @@ const LINUX_RESIZE_FOLLOW_UP_DELAY_MS = 100;
 export async function createMainWindow({
   reveal = true,
 }: {
-  // Accepted for caller compatibility but no longer used: the renderer owns tab
-  // creation/restore, so the initial path/params no longer seed a main-side tab.
+  // Unused: the renderer owns tab creation/restore. Kept only so callers
+  // passing these fields still type-check.
   initialParams?: Record<string, string>;
   initialPath?: StudioPath;
   reveal?: boolean;

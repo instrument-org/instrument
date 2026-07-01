@@ -19,9 +19,8 @@ import { useAtom } from "jotai";
 const NEW_TAB_PATH = "/new-tab";
 
 /**
- * Renderer-side tab actions backed by the pure {@link TabsModel}. Replaces the
- * old `use-tab-actions` / `use-tabs` hooks that round-tripped to the main-process
- * `TabsManager`; tab state now lives entirely in the renderer.
+ * Renderer-side tab actions backed by the pure {@link TabsModel}. Tab state
+ * lives entirely in the renderer; nothing round-trips to the main process.
  */
 export function useTabsController() {
   const [model, setModel] = useAtom(tabsAtom);

@@ -3,6 +3,7 @@ import { DuplicateTaskModal } from "@/client/components/task/duplicate-modal";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskSidebarModeSchema } from "@/client/components/task/sidebar";
 import { TaskView } from "@/client/components/task/view";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAutoOpenBrowserArtifact } from "@/client/hooks/use-auto-open-browser-artifact";
 import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-artifact";
 import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
@@ -17,6 +18,7 @@ import { safe } from "@orpc/client";
 import {
   CancelledError,
   keepPreviousData,
+  skipToken,
   useQuery,
 } from "@tanstack/react-query";
 import {
@@ -198,9 +200,13 @@ function RouteComponent() {
     }),
   );
 
+  // Presence is scoped to the foreground tab, not to mount: every tab stays
+  // mounted in the background, so gating on the active tab lets the server's
+  // taskBrowser machine reap an unviewed task's browser after its grace period.
+  const isActiveTab = useIsActiveTab();
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id },
+      input: isActiveTab ? { id } : skipToken,
     }),
   );
 

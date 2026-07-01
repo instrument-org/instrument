@@ -1,20 +1,18 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef } from "react";
 
 // Opens the browser artifact panel once when the agent first opens a browser
-// for the selected session. Won't override an artifact panel the user already
-// has open, and won't re-open after the user closes it (per-target ref guard),
-// so it never fights the user.
+// for the selected session, even overriding an artifact panel the user
+// already has open (worth surfacing since it's the first time the agent's
+// browser use becomes visible). Won't re-open after the user closes it, since
+// the per-target ref guard fires at most once per session.
 export function useAutoOpenBrowserArtifact({
-  artifactPanel,
   id,
   selectedSessionId,
 }: {
-  artifactPanel: ArtifactPanel | undefined;
   id: TaskId;
   selectedSessionId: StoreId.Session | undefined;
 }) {
@@ -33,11 +31,7 @@ export function useAutoOpenBrowserArtifact({
       return;
     }
     const targetId = `${id}/${selectedSessionId}`;
-    if (
-      !ids.includes(targetId) ||
-      artifactPanel !== undefined ||
-      autoOpenedRef.current === targetId
-    ) {
+    if (!ids.includes(targetId) || autoOpenedRef.current === targetId) {
       return;
     }
     autoOpenedRef.current = targetId;

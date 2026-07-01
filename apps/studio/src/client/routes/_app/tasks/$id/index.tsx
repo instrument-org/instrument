@@ -233,7 +233,6 @@ function RouteComponent() {
 
   // Opens the browser panel when the agent starts browsing.
   useAutoOpenBrowserArtifact({
-    artifactPanel,
     id,
     selectedSessionId,
   });

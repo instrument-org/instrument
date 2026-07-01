@@ -79,9 +79,7 @@ function RouteComponent() {
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
   // Below this width the right-hand details panel can't sit beside the main
-  // column, so it folds into a collapsible section above the task list. This
-  // route fills its own tab WebContentsView (the sidebar is a separate view),
-  // so the viewport width is the page width and a plain media query is accurate.
+  // column, so it folds into a collapsible section above the task list.
   const isWide = useMediaQuery("(min-width: 1024px)");
 
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);

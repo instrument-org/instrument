@@ -13,6 +13,13 @@ import { useAtomValue } from "jotai";
  * self-applying zoom rescales the element's own rendered size without
  * disturbing where floating-ui already placed it. Omitted at 1x to avoid a
  * no-op `zoom` declaration on every such element.
+ *
+ * Interim: floating-ui doesn't yet correct positioning for CSS `zoom` on an
+ * ancestor (https://github.com/floating-ui/floating-ui/issues/3032, fix
+ * https://github.com/floating-ui/floating-ui/pull/3463 unmerged), so we can't
+ * just zoom the AppShell root and let portals inherit it. Once that lands and
+ * Radix bumps to it, drop this hook and the per-content `zoom` and zoom only the
+ * AppShell root.
  */
 export function useShellZoomStyle(style?: CSSProperties): CSSProperties {
   const zoom = useAtomValue(zoomAtom);

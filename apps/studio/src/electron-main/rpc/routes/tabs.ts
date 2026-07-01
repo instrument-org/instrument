@@ -62,7 +62,7 @@ const syncZoom = base
 const live = {
   // Imperative tab operations the renderer (AppShell) applies to its own tab
   // state. Streamed, not buffered: a fresh subscriber should not replay a stale
-  // command. Replaces the old `tab-command` IPC channel.
+  // command.
   commands: base.handler(async function* ({ signal }) {
     for await (const command of commandPublisher.subscribe("tab.command", {
       signal,

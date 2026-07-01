@@ -12,7 +12,7 @@ const TRAFFIC_LIGHT_X = 12;
 
 // Window-level zoom / history / focus. Overlay-aware: while the app-wide modal
 // overlay is open it owns the foreground, so these target its webContents rather
-// than the tab beneath it. Previously TabsManager methods.
+// than the tab beneath it.
 //
 // The main shell zooms its own UI in the renderer (CSS `zoom`) rather than via
 // `webContents.setZoomLevel`, so app zoom leaves embedded web content views (the

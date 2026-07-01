@@ -26,13 +26,15 @@ export function useTrashTask({
         id: taskId,
       });
 
-      // Not invalidating because live queries cannot be awaited
-      // and the goal is to make callers go back into loading state
-      queryClient.removeQueries({
+      // removeQueries silently destroys the query without notifying active
+      // observers, so mounted components (e.g. the sidebar) keep rendering
+      // stale data until something unrelated forces a re-render. resetQueries
+      // puts observers back in a loading state *and* refetches them.
+      void queryClient.resetQueries({
         // .key() generates a wildcard key for any params
         queryKey: rpcClient.workspace.task.live.list.key(),
       });
-      queryClient.removeQueries({
+      void queryClient.resetQueries({
         // .key() generates a wildcard key for any params
         queryKey: rpcClient.workspace.task.agentStatus.byIds.key(),
       });

@@ -99,7 +99,7 @@ function SettingsModalContent({
   return (
     <DialogContent
       aria-describedby={undefined}
-      className="h-175 max-h-[90vh] w-225 max-w-[min(900px,90vw)] gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none sm:max-w-[min(900px,90vw)]"
+      className="h-175 max-h-[calc(96vh/var(--content-zoom))] w-225 max-w-[calc(96vw/var(--content-zoom))] gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none sm:max-w-[calc(96vw/var(--content-zoom))]"
       onOpenAutoFocus={(event) => {
         event.preventDefault();
       }}
@@ -117,10 +117,10 @@ function SettingsModalContent({
         <div className="shrink-0 p-3 text-center text-sm font-semibold">
           Settings
         </div>
-        <div className="flex min-h-0 flex-1 px-3">
+        <div className="flex min-h-0 flex-1 overflow-x-auto px-3">
           <SidebarProvider className="h-full min-h-0" defaultOpen>
             <Sidebar
-              className="h-full shrink-0 bg-transparent"
+              className="h-full max-w-[40%] shrink-0 bg-transparent"
               collapsible="none"
             >
               <SidebarContent>
@@ -146,7 +146,7 @@ function SettingsModalContent({
                 </SidebarMenu>
               </SidebarContent>
             </Sidebar>
-            <SidebarInset className="overflow-y-auto">
+            <SidebarInset className="min-w-0 overflow-y-auto">
               <div className="flex flex-1 flex-col gap-4 p-6">
                 <SettingsSectionBody
                   autoAddProvider={autoAddProvider}

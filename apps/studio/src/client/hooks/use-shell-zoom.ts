@@ -20,8 +20,18 @@ import { useAtomValue } from "jotai";
  * just zoom the AppShell root and let portals inherit it. Once that lands and
  * Radix bumps to it, drop this hook and the per-content `zoom` and zoom only the
  * AppShell root.
+ *
+ * Also exposes `--content-zoom`: since `zoom` rescales the box itself, a
+ * viewport- or rem-based max size on the zoomed element grows by the same
+ * factor. Consumers divide those sizes by `var(--content-zoom)` (e.g.
+ * `max-h-[calc(85vh/var(--content-zoom))]`) to keep their rendered footprint
+ * constant regardless of zoom level.
  */
 export function useShellZoomStyle(style?: CSSProperties): CSSProperties {
   const zoom = useAtomValue(zoomAtom);
-  return { zoom: zoom === 1 ? undefined : zoom, ...style };
+  return {
+    "--content-zoom": zoom,
+    zoom: zoom === 1 ? undefined : zoom,
+    ...style,
+  } as CSSProperties;
 }

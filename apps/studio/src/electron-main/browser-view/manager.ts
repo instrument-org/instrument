@@ -52,7 +52,16 @@ export interface BrowserViewManager {
   // true. Lets keyboard back/forward target the focused guest instead of the
   // tab (mouse buttons are handled by the guest's own app-command).
   navigateFocusedGuest: (direction: "back" | "forward") => boolean;
+  // Record renderer-reported DOM focus/blur on a guest's `<webview>` element.
+  // `webContents.isFocused()` is unreliable for `<webview>` guests (it can get
+  // stuck `true` after focus moves to a plain host-page element), so
+  // navigateFocusedGuest/zoomFocusedGuest trust this instead.
+  setGuestFocus: (targetId: string, focused: boolean) => void;
   teardown: () => void;
+  // If an agent-browser guest has focus, zoom its own web content and return
+  // true. Lets keyboard Cmd+/-/0 target the focused guest instead of the
+  // shell (shell zoom is CSS-only and never reaches the guest's webContents).
+  zoomFocusedGuest: (direction: "in" | "out" | "reset") => boolean;
 }
 
 interface PendingAttach {
@@ -71,6 +80,8 @@ export function createBrowserViewManager(): BrowserViewManager {
   // createTarget waiters, resolved once the guest attaches (or rejected on
   // timeout / attach rejection).
   const attachWaiters = new Map<BrowserTargetId, PendingAttach[]>();
+  // The guest the renderer last reported real DOM focus on (see setGuestFocus).
+  let focusedTargetId: BrowserTargetId | null = null;
 
   function ensureDebuggerAttached(entry: BrowserEntry) {
     const wc = entry.webContents;
@@ -423,15 +434,43 @@ export function createBrowserViewManager(): BrowserViewManager {
       }),
   };
 
+  function focusedGuestWebContents(): null | WebContents {
+    const entry = focusedTargetId && entries.get(focusedTargetId);
+    const wc = entry?.webContents;
+    return wc && !wc.isDestroyed() ? wc : null;
+  }
+
   function navigateFocusedGuest(direction: "back" | "forward"): boolean {
-    for (const entry of entries.values()) {
-      const wc = entry.webContents;
-      if (wc && !wc.isDestroyed() && wc.isFocused()) {
-        navigateGuest(wc, direction);
-        return true;
-      }
+    const wc = focusedGuestWebContents();
+    if (!wc) {
+      return false;
     }
-    return false;
+    navigateGuest(wc, direction);
+    return true;
+  }
+
+  function setGuestFocus(targetId: string, focused: boolean) {
+    if (!decodeBrowserTargetId(targetId)) {
+      return;
+    }
+    // Validated above -- decodeBrowserTargetId succeeding means targetId is a
+    // well-formed BrowserTargetId, but it only hands back the decoded halves,
+    // not the branded string itself (same idiom as will-attach-webview above).
+    const id = targetId as BrowserTargetId;
+    if (focused) {
+      focusedTargetId = id;
+    } else if (focusedTargetId === id) {
+      focusedTargetId = null;
+    }
+  }
+
+  function zoomFocusedGuest(direction: "in" | "out" | "reset"): boolean {
+    const wc = focusedGuestWebContents();
+    if (!wc) {
+      return false;
+    }
+    zoomGuest(wc, direction);
+    return true;
   }
 
   managerInstance = {
@@ -440,12 +479,14 @@ export function createBrowserViewManager(): BrowserViewManager {
     getDebugEntries: () => entries,
     getTargetIds: () => [...entries.keys()].map(String),
     navigateFocusedGuest,
+    setGuestFocus,
     teardown: () => {
       for (const targetId of entries.keys()) {
         destroyEntry(entries, targetId);
       }
       notifyEntriesChanged();
     },
+    zoomFocusedGuest,
   };
   return managerInstance;
 }
@@ -480,5 +521,27 @@ function notifyEntriesChanged() {
 // exists before handing the path to Electron.
 function sessionForEntry(entry: BrowserEntry) {
   fs.mkdirSync(entry.partitionDir, { recursive: true });
-  return session.fromPath(entry.partitionDir, { cache: true });
+  const guestSession = session.fromPath(entry.partitionDir, { cache: true });
+  // Electron auto-approves every permission request (camera, mic, geolocation,
+  // notifications, ...) when no handler is set. There's no browser chrome here
+  // to show a native prompt, so deny everything rather than silently granting
+  // it to whatever site the guest navigates to.
+  guestSession.setPermissionRequestHandler((_wc, _permission, callback) => {
+    callback(false);
+  });
+  guestSession.setPermissionCheckHandler(() => false);
+  return guestSession;
+}
+
+function zoomGuest(wc: WebContents, direction: "in" | "out" | "reset") {
+  if (wc.isDestroyed()) {
+    return;
+  }
+  if (direction === "reset") {
+    wc.setZoomLevel(0);
+  } else if (direction === "in") {
+    wc.setZoomLevel(wc.getZoomLevel() + 0.5);
+  } else {
+    wc.setZoomLevel(wc.getZoomLevel() - 0.5);
+  }
 }

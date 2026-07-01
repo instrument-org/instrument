@@ -12,11 +12,12 @@ const TRAFFIC_LIGHT_X = 12;
 
 // Window-level zoom / history / focus. Overlay-aware: while the app-wide modal
 // overlay is open it owns the foreground, so these target its webContents rather
-// than the tab beneath it.
+// than the tab beneath it. Also guest-aware: a focused agent-browser guest
+// zooms/navigates its own webContents instead of the shell.
 //
-// The main shell zooms its own UI in the renderer (CSS `zoom`) rather than via
-// `webContents.setZoomLevel`, so app zoom leaves embedded web content views (the
-// agent browser) untouched and stays independent of them.
+// Otherwise the main shell zooms its own UI in the renderer (CSS `zoom`) rather
+// than via `webContents.setZoomLevel`, so app zoom leaves unfocused embedded web
+// content views untouched and stays independent of them.
 
 export function focusMainContents() {
   if (getStudioOverlay()?.isActive()) {
@@ -57,6 +58,9 @@ export function resetZoom() {
     overlay.resetZoom();
     return;
   }
+  if (getBrowserViewManager()?.zoomFocusedGuest("reset")) {
+    return;
+  }
   sendTabCommand({ type: "zoomReset" });
 }
 
@@ -83,6 +87,9 @@ export function zoomIn() {
     overlay.zoomIn();
     return;
   }
+  if (getBrowserViewManager()?.zoomFocusedGuest("in")) {
+    return;
+  }
   sendTabCommand({ type: "zoomIn" });
 }
 
@@ -90,6 +97,9 @@ export function zoomOut() {
   const overlay = getStudioOverlay();
   if (overlay?.isActive()) {
     overlay.zoomOut();
+    return;
+  }
+  if (getBrowserViewManager()?.zoomFocusedGuest("out")) {
     return;
   }
   sendTabCommand({ type: "zoomOut" });

@@ -1,3 +1,4 @@
+import { openSettings } from "@/client/atoms/settings-modal";
 import { Spinner } from "@/client/components/ui/spinner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -85,12 +86,7 @@ export function UpdateStatusIndicator() {
         // surfaces the failure with retry and manual-download options.
       }
 
-      await safe(
-        rpcClient.studioOverlay.show.call({
-          kind: "settings",
-          props: { tab: "General" },
-        }),
-      );
+      openSettings({ tab: "General" });
     })();
   };
 

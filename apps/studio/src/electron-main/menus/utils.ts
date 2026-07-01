@@ -1,6 +1,5 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getStudioOverlay } from "@/electron-main/studio-overlay";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { APP_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
@@ -21,7 +20,12 @@ export function createAppMenu(): MenuItemConstructorOptions {
       {
         accelerator: "CmdOrCtrl+,",
         click: () => {
-          void getStudioOverlay()?.show({ kind: "settings" });
+          const webContents = getMainWindow()?.webContents;
+          if (webContents) {
+            publisher.publish("app.open-settings", {
+              webContentsId: webContents.id,
+            });
+          }
         },
         label: "Settings...",
       },
@@ -47,10 +51,6 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
           click: () => {
             // The whole tabbed app is one web contents now, so this reloads it.
             getMainWindow()?.webContents.reload();
-
-            // The app-wide modal overlay is its own webContents outside the tab
-            // tree, so include it when reloading all views.
-            getStudioOverlay()?.reload();
           },
           label: "Reload All Web Views",
         },

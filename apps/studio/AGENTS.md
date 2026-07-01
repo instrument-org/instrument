@@ -26,16 +26,40 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
   `src/client/routeTree.gen.ts`.
 - RPC-derived types: use `RPCInput` / `RPCOutput` from `@/client/rpc/client`, e.g. `RPCOutput["workspace"]["task"]["list"]`. Never redeclare inferable types.
 
-## App-wide modals (studio overlay)
+## App-wide modals
 
-Each renderer (`WebContentsView`) clips its own portals — a `<Dialog>` in the sidebar can't float over the main view. For app-wide modals, use the **studio overlay**: a dedicated view that floats over the whole window.
+The whole main window is one web contents (`AppShell` / `AppChrome`), so a plain
+`<Dialog>` at the chrome root floats over the sidebar _and_ content — no separate
+overlay view. Two shapes:
 
-- **Open**: `rpcClient.studioOverlay.show.call({ kind, props? })` from any renderer.
-- **Add a kind**: edit `src/shared/studio-overlay.ts` (`StudioOverlayKind` union, `STUDIO_OVERLAY_DISMISSIBLE`, `StudioOverlayRequestSchema`, `studioOverlayRequestToLocation`) + add `src/client/routes/studio-overlay/<kind>.tsx` rendering a `DialogContent`. Controller is data-driven; no other changes needed.
-- **Close**: `rpcClient.studioOverlay.resolve.call()` (success) or `rpcClient.studioOverlay.dismiss.call()` (cancel). Have the caller react to the `show()` result — the overlay can't navigate a tab's router.
-- **Example**: `kind: "project"` → `routes/studio-overlay/project.tsx`, opened via `openCreateProject()` in `src/client/lib/project-overlays.ts`.
+- **App-wide (opened from scattered places)** — `login`, `welcome`, `settings`,
+  the new/edit-`project` modal, and `delete-task` (opened from the sidebar, task
+  page, and lists via `openDeleteTask(task, opts)`). Each is: a Jotai atom
+  holding its state
+  (`atoms/<name>-modal.ts`), a plain `openX()` setter that sets it (imperative,
+  callable anywhere via `getDefaultStore().set(...)`), and a component in
+  `components/studio-modals/<name>-modal.tsx` that reads the atom and renders its
+  own `<Dialog>`. All are mounted once by `<StudioModals />` in `app-chrome.tsx`.
+  They're independent atoms, so they stack like ordinary dialogs.
+  - **Example**: `openCreateProject()` / `openEditProject(id)` in
+    `lib/project-overlays.ts` set `projectModalAtom`; `ProjectModal` renders it.
+  - **Result / callback**: pass a callback in the opener (e.g. `openLogin(props,
+onCompleted)`) — `onCompleted` fires only when the flow finishes, not on
+    dismiss. There's no cross-view serialization; props are passed as typed
+    values (branded ids included).
+  - **Dismissibility** lives in the component: a non-dismissible modal (welcome)
+    omits `onOpenChange`-close and blocks Escape/outside-click itself.
+  - **Native menu → modal**: `Cmd+,` publishes `app.open-settings`; the renderer
+    subscribes via `useOpenSettings` (see `utils.live.openSettings`).
+- **Contextual (a component owns the trigger + data)** — mount the `<Dialog>`
+  inline next to the trigger with local `useState`, passing data as props. Used
+  by `delete-project` (sidebar + project page). Prefer this for a small number of
+  co-located triggers; go app-wide once a modal is opened from many scattered
+  places or would otherwise force a navigation just to show a dialog.
 
-Sidebar flyouts (dropdowns, popovers) are also clipped to the sidebar view; avoid sideways-opening submenus there.
+**Block tab navigation while a modal is open**: call `useBlockTabNavigation(open)`
+(opt-in). `useTabCommands` then ignores tab open/close/switch shortcuts (Cmd+T /
+Cmd+W / etc.) while any modal is up.
 
 ## Where things are
 

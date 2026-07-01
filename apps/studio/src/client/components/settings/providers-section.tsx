@@ -1,3 +1,4 @@
+import { openLogin } from "@/client/atoms/login-modal";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { AIProviderEditDialog } from "@/client/components/ai-provider-edit-dialog";
@@ -6,38 +7,27 @@ import { ProviderConfigListItem } from "@/client/components/provider-config-list
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
-import { SettingsProvidersSearchSchema } from "@/shared/studio-overlay";
 import { CpuIcon, PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 
-export const Route = createFileRoute("/studio-overlay/settings/providers")({
-  component: SettingsProvidersPage,
-  validateSearch: SettingsProvidersSearchSchema,
-});
-
-function SettingsProvidersPage() {
+export function ProvidersSection({
+  autoOpenAddProvider = false,
+}: {
+  autoOpenAddProvider?: boolean;
+}) {
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
-  const { showNewProviderDialog } = Route.useSearch();
-  const navigate = Route.useNavigate();
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
 
+  const [showAddProvider, setShowAddProvider] = useState(autoOpenAddProvider);
   const [selectedConfig, setSelectedConfig] =
     useState<ClientAIProviderConfig | null>(null);
-
-  const openLogin = () => {
-    void rpcClient.studioOverlay.show.call({
-      kind: "login",
-      props: { hideManualProvider: true },
-    });
-  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6">
@@ -47,7 +37,7 @@ function SettingsProvidersPage() {
         </h3>
         <Button
           onClick={() => {
-            void navigate({ search: { showNewProviderDialog: true } });
+            setShowAddProvider(true);
           }}
         >
           <PlusIcon className="size-4" />
@@ -83,7 +73,12 @@ function SettingsProvidersPage() {
                       Log in to enjoy free AI usage without a provider
                     </span>
                   </div>
-                  <Button onClick={openLogin} size="sm">
+                  <Button
+                    onClick={() => {
+                      openLogin({ hideManualProvider: true });
+                    }}
+                    size="sm"
+                  >
                     Log in
                   </Button>
                 </div>
@@ -119,17 +114,17 @@ function SettingsProvidersPage() {
         />
       )}
 
-      {showNewProviderDialog && (
+      {showAddProvider && (
         <AddProviderDialog
           onOpenChange={(open) => {
             if (!open) {
-              void navigate({ search: {} });
+              setShowAddProvider(false);
             }
           }}
           onSuccess={() => {
-            void navigate({ search: {} });
+            setShowAddProvider(false);
           }}
-          open={showNewProviderDialog}
+          open={showAddProvider}
           providers={providerConfigs ?? []}
         />
       )}

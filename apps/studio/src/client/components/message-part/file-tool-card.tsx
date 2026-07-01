@@ -47,7 +47,7 @@ export function FileToolCard({
   };
 
   const handleAddToChat = () => {
-    appendToPrompt({ key: id, update: filePath });
+    appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
   };
 
   const handleExpand = () => {

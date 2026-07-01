@@ -14,14 +14,7 @@ import {
   setWindowState,
   type WindowBounds,
 } from "@/electron-main/stores/window-state";
-import {
-  createStudioOverlay,
-  teardownStudioOverlay,
-} from "@/electron-main/studio-overlay";
-import {
-  focusMainContents,
-  updateOverlayBounds,
-} from "@/electron-main/windows/main/controls";
+import { focusMainContents } from "@/electron-main/windows/main/controls";
 import {
   getMainWindow,
   setMainWindow,
@@ -33,7 +26,6 @@ import path from "node:path";
 import { debounce } from "radashi";
 
 let wasWindowBlurred = false;
-const LINUX_RESIZE_FOLLOW_UP_DELAY_MS = 100;
 
 export async function createMainWindow({
   reveal = true,
@@ -107,41 +99,14 @@ export async function createMainWindow({
   };
 
   const debouncedSaveState = debounce({ delay: 500 }, saveState);
-  let deferredResizeViews: ReturnType<typeof setTimeout> | undefined;
-  const resizeViewsAfterNativeBoundsSettle = () => {
-    if (process.platform !== "linux") {
-      return;
-    }
-
-    if (deferredResizeViews) {
-      clearTimeout(deferredResizeViews);
-    }
-
-    // Linux can emit maximize before getContentBounds() reflects the new size.
-    deferredResizeViews = setTimeout(() => {
-      deferredResizeViews = undefined;
-      resizeViews();
-    }, LINUX_RESIZE_FOLLOW_UP_DELAY_MS);
-  };
-  const resizeViewsNow = () => {
-    resizeViews();
-    resizeViewsAfterNativeBoundsSettle();
-  };
 
   mainWindow.on("close", () => {
     debouncedSaveState.cancel();
-    if (deferredResizeViews) {
-      clearTimeout(deferredResizeViews);
-    }
     saveState();
-    teardownStudioOverlay();
   });
 
   mainWindow.on("closed", () => {
     debouncedSaveState.cancel();
-    if (deferredResizeViews) {
-      clearTimeout(deferredResizeViews);
-    }
     saveState();
   });
 
@@ -169,8 +134,6 @@ export async function createMainWindow({
     showWindow(window);
   });
 
-  createStudioOverlay({ baseWindow: mainWindow });
-
   void mainWindow.loadURL(studioURL("/shell"));
   if (reveal) {
     showWindow(mainWindow);
@@ -195,7 +158,6 @@ export async function createMainWindow({
       }
 
       debouncedSaveState();
-      resizeViewsNow();
     },
   });
 
@@ -205,9 +167,6 @@ export async function createMainWindow({
     void openExternal(details.url);
     return { action: "deny" };
   });
-
-  // Required or the initial size may be wrong
-  resizeViewsNow();
 
   return mainWindow;
 }
@@ -236,10 +195,6 @@ function isWindowNormal(mainWindow: BrowserWindow) {
     !mainWindow.isMinimized() &&
     !mainWindow.isFullScreen()
   );
-}
-
-function resizeViews() {
-  updateOverlayBounds();
 }
 
 function setupWindowEventListeners({

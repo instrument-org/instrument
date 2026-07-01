@@ -1,4 +1,5 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
+import { openLogin } from "@/client/atoms/login-modal";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
 import { AttachedFolderPreview } from "@/client/components/attached-folder-preview";
 import { ModelPicker } from "@/client/components/model-picker";
@@ -53,9 +54,10 @@ import { ulid } from "ulid";
 
 import { featuresAtom } from "../atoms/features";
 import {
-  promptInputRefAtom,
-  promptValueAtomFamily,
-  type PromptValueAtomKey,
+  focusPromptDraft,
+  promptDraftAtom,
+  type PromptDraftKey,
+  promptDraftRefAtom,
 } from "../atoms/prompt-value";
 import { rpcClient } from "../rpc/client";
 import { PromptProjectSelector } from "./project/prompt-project-selector";
@@ -92,7 +94,6 @@ const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 
 interface PromptInputProps {
   allowOpenInNewTab?: boolean;
-  atomKey: PromptValueAtomKey;
   autoFocus?: boolean;
   autoResizeMaxHeight?: number;
   // Extra action rendered in the button row before the attach control (e.g. the
@@ -100,6 +101,7 @@ interface PromptInputProps {
   browserToggle?: React.ReactNode;
   className?: string;
   disabled?: boolean;
+  draftKey: PromptDraftKey;
   id?: TaskId;
   isLoading: boolean;
   isStoppable?: boolean;
@@ -128,12 +130,12 @@ interface PromptInputRef {
 
 export const PromptInput = ({
   allowOpenInNewTab = false,
-  atomKey,
   autoFocus = false,
   autoResizeMaxHeight = 400,
   browserToggle,
   className,
   disabled = false,
+  draftKey,
   id,
   isLoading,
   isStoppable = false,
@@ -156,8 +158,8 @@ export const PromptInput = ({
   const textareaRef = useRef<HTMLDivElement>(null);
   const textareaInnerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useAtom(promptValueAtomFamily(atomKey));
-  const setInputRef = useSetAtom(promptInputRefAtom);
+  const [value, setValue] = useAtom(promptDraftAtom(draftKey));
+  const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
 
   const {
     data: modelsData,
@@ -196,7 +198,7 @@ export const PromptInput = ({
       resetTextareaHeight();
     },
     focus: () => {
-      textareaInnerRef.current?.focus();
+      focusPromptDraft(textareaInnerRef.current);
     },
   }));
 
@@ -219,7 +221,7 @@ export const PromptInput = ({
     if (!autoFocus) {
       return;
     }
-    textareaInnerRef.current?.focus();
+    focusPromptDraft(textareaInnerRef.current);
     adjustHeight();
   }, [autoFocus, adjustHeight]);
 
@@ -614,12 +616,9 @@ export const PromptInput = ({
                 isLoading={modelsIsLoading}
                 models={models}
                 onAddProvider={() => {
-                  void rpcClient.studioOverlay.show.call({
-                    kind: "login",
-                    props: hasToken
-                      ? { reason: "provider-required" }
-                      : undefined,
-                  });
+                  openLogin(
+                    hasToken ? { reason: "provider-required" } : undefined,
+                  );
                 }}
                 onClose={() => {
                   if (modelURI) {

@@ -1,3 +1,4 @@
+import { openSettings } from "@/client/atoms/settings-modal";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -19,7 +20,7 @@ import {
 } from "@/client/lib/group-models";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { cn } from "@/client/lib/utils";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
@@ -420,17 +421,11 @@ function ErrorsGroup({
             className="h-6 px-2 text-xs"
             onClick={() => {
               if (hasOurProviderError) {
-                void rpcClient.studioOverlay.show.call({
-                  kind: "settings",
-                  props: { tab: "General" },
-                });
+                openSettings({ tab: "General" });
               } else {
-                void rpcClient.studioOverlay.show.call({
-                  kind: "settings",
-                  props: {
-                    showNewProviderDialog: false,
-                    tab: "Providers",
-                  },
+                openSettings({
+                  showNewProviderDialog: false,
+                  tab: "Providers",
                 });
               }
             }}

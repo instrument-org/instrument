@@ -1,7 +1,10 @@
 import { tabsAtom } from "@/client/atoms/tabs";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AppChrome } from "@/client/components/app-chrome";
-import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
+import {
+  ActiveTabProvider,
+  TabIdProvider,
+} from "@/client/hooks/use-active-tab";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { useTabCommands } from "@/client/hooks/use-tab-commands";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
@@ -52,7 +55,7 @@ export function AppShell() {
   return (
     <QueryClientProvider client={sharedQueryClient}>
       <ThemeProvider>
-        {/* The one studio-overlay-free TooltipProvider for the unified shell. */}
+        {/* The one TooltipProvider for the unified shell. */}
         {/* eslint-disable-next-line no-restricted-syntax */}
         <TooltipProvider>
           <IconContext.Provider value={IconContextValue}>
@@ -155,9 +158,11 @@ function TabView({
         isActive ? "visible" : "invisible opacity-0",
       )}
     >
-      <ActiveTabProvider isActive={isActive}>
-        <RouterProvider router={router} />
-      </ActiveTabProvider>
+      <TabIdProvider id={tab.id}>
+        <ActiveTabProvider isActive={isActive}>
+          <RouterProvider router={router} />
+        </ActiveTabProvider>
+      </TabIdProvider>
     </div>
   );
 }

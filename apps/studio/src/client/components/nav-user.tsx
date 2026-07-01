@@ -1,3 +1,4 @@
+import { openSettings } from "@/client/atoms/settings-modal";
 import {
   Avatar,
   AvatarFallback,
@@ -5,7 +6,6 @@ import {
 } from "@/client/components/ui/avatar";
 import { SidebarMenu, SidebarMenuItem } from "@/client/components/ui/sidebar";
 import { getInitials } from "@/client/lib/get-initials";
-import { rpcClient } from "@/client/rpc/client";
 import { FadersHorizontalIcon } from "@phosphor-icons/react";
 
 import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status";
@@ -25,10 +25,7 @@ export function NavUser() {
           <button
             className="flex w-full items-center gap-3 py-5 pr-5 pl-4 text-gray-400 hover:bg-black/5 dark:text-gray-600 dark:hover:bg-white/5"
             onClick={() => {
-              void rpcClient.studioOverlay.show.call({
-                kind: "settings",
-                props: { tab: "General" },
-              });
+              openSettings({ tab: "General" });
             }}
             type="button"
           >
@@ -46,10 +43,7 @@ export function NavUser() {
         <button
           className="flex w-full items-start gap-3 py-5 pr-5 pl-4 hover:bg-black/5 dark:hover:bg-white/5"
           onClick={() => {
-            void rpcClient.studioOverlay.show.call({
-              kind: "settings",
-              props: { tab: "General" },
-            });
+            openSettings({ tab: "General" });
           }}
           type="button"
         >

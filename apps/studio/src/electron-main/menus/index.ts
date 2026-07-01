@@ -28,12 +28,6 @@ export function createApplicationMenu(): void {
     updateApplicationMenu();
   });
 
-  // The modal overlay disables tab/sidebar commands while open; rebuild so the
-  // menu reflects their availability when it opens or closes.
-  void publisher.subscribe("studio-overlay.active-changed", () => {
-    updateApplicationMenu();
-  });
-
   void publisher.subscribe("preferences.updated", () => {
     updateApplicationMenu();
   });

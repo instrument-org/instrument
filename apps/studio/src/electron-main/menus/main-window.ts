@@ -1,6 +1,5 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import { getStudioOverlay } from "@/electron-main/studio-overlay";
 import { sendTabCommand } from "@/electron-main/tabs/tab-command";
 import {
   focusMainContents,
@@ -11,7 +10,6 @@ import {
   zoomOut,
 } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { STUDIO_OVERLAY_DISMISSIBLE } from "@/shared/studio-overlay";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { captureServerEvent } from "../lib/capture-server-event";
@@ -24,17 +22,6 @@ import {
 } from "./utils";
 
 export function createMainWindowMenu(): MenuItemConstructorOptions[] {
-  // While the app-wide modal overlay is open it covers the tabs + sidebar, so
-  // tab-structural and sidebar commands are unavailable. Following the macOS
-  // convention, we grey them out (enabled: false) rather than removing them,
-  // which also reliably swallows their accelerators on all platforms. The menu
-  // is rebuilt on modal open/close (see menus/index.ts), so this is re-read.
-  const isLocked = getStudioOverlay()?.isActive() ?? false;
-  // Disabling "Close" for a non-dismissible overlay also swallows its Cmd+W.
-  const activeOverlayKind = getStudioOverlay()?.activeKind() ?? null;
-  const canCloseOverlay =
-    activeOverlayKind === null || STUDIO_OVERLAY_DISMISSIBLE[activeOverlayKind];
-
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
@@ -47,7 +34,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             type: "navigate",
           });
         },
-        enabled: !isLocked,
         label: "New Tab",
       },
       {
@@ -55,7 +41,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ appPath: "/new-tab", type: "navigate" });
         },
-        enabled: !isLocked,
         label: "New Task",
       },
       { type: "separator" as const },
@@ -67,25 +52,17 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             focusedWindow.close();
             return;
           }
-          const overlay = getStudioOverlay();
-          // While the app-wide modal is open, Cmd+W dismisses it (rather than
-          // closing the tab beneath it).
-          if (overlay?.isActive()) {
-            overlay.dismiss();
-            return;
-          }
+          // The renderer ignores this while an app-wide modal is open (see
+          // useTabCommands + blockingModalCountAtom), so open modals stay put.
           sendTabCommand({ type: "close" });
         },
-        // Disabled for a non-dismissible modal; rebuilt on open/close.
-        enabled: canCloseOverlay,
-        label: isLocked ? "Close" : "Close Tab",
+        label: "Close Tab",
       },
       {
         accelerator: "CmdOrCtrl+Shift+T",
         click: () => {
           sendTabCommand({ type: "reopen" });
         },
-        enabled: !isLocked,
         label: "Reopen Closed Tab",
       },
     ],
@@ -127,13 +104,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+R",
         click: () => {
-          const overlay = getStudioOverlay();
-          // While the app-wide modal is open it owns the foreground, so reload
-          // targets the overlay's webContents instead of the tab beneath it.
-          if (overlay?.isActive()) {
-            overlay.reload();
-            return;
-          }
           const webContents = getMainWindow()?.webContents;
           if (webContents) {
             publisher.publish("app.reload", {
@@ -153,7 +123,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             wasVisible ? "app.sidebar_closed" : "app.sidebar_opened",
           );
         },
-        enabled: !isLocked,
         label: getSidebarVisible() ? "Hide Sidebar" : "Show Sidebar",
       },
       { type: "separator" as const },
@@ -205,7 +174,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ type: "selectNext" });
         },
-        enabled: !isLocked,
         label: "Show Next Tab",
       },
       {
@@ -213,7 +181,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ type: "selectPrevious" });
         },
-        enabled: !isLocked,
         label: "Show Previous Tab",
       },
       {
@@ -221,7 +188,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ type: "selectNext" });
         },
-        enabled: !isLocked,
         label: "Show Next Tab",
         visible: false,
       },
@@ -230,7 +196,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ type: "selectPrevious" });
         },
-        enabled: !isLocked,
         label: "Show Previous Tab",
         visible: false,
       },
@@ -249,7 +214,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ index: 0, type: "selectByIndex" });
         },
-        enabled: !isLocked,
         label: "Switch to Tab 1",
         visible: false,
       },
@@ -258,7 +222,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ index: 1, type: "selectByIndex" });
         },
-        enabled: !isLocked,
         label: "Switch to Tab 2",
         visible: false,
       },
@@ -267,7 +230,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ index: 2, type: "selectByIndex" });
         },
-        enabled: !isLocked,
         label: "Switch to Tab 3",
         visible: false,
       },
@@ -276,7 +238,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ index: 3, type: "selectByIndex" });
         },
-        enabled: !isLocked,
         label: "Switch to Tab 4",
         visible: false,
       },
@@ -285,7 +246,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ index: 4, type: "selectByIndex" });
         },
-        enabled: !isLocked,
         label: "Switch to Tab 5",
         visible: false,
       },
@@ -294,7 +254,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ index: 5, type: "selectByIndex" });
         },
-        enabled: !isLocked,
         label: "Switch to Tab 6",
         visible: false,
       },
@@ -303,7 +262,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ index: 6, type: "selectByIndex" });
         },
-        enabled: !isLocked,
         label: "Switch to Tab 7",
         visible: false,
       },
@@ -312,7 +270,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ index: 7, type: "selectByIndex" });
         },
-        enabled: !isLocked,
         label: "Switch to Tab 8",
         visible: false,
       },
@@ -321,7 +278,6 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           sendTabCommand({ type: "selectLast" });
         },
-        enabled: !isLocked,
         label: "Switch to Last Tab",
         visible: false,
       },

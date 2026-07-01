@@ -1,9 +1,10 @@
+import { openDeleteTask } from "@/client/atoms/delete-task-modal";
 import { ProjectDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
+import { DeleteProjectDialog } from "@/client/components/project/delete-project-dialog";
 import { ProjectFolders } from "@/client/components/project/project-folders";
 import { ProjectInstructions } from "@/client/components/project/project-instructions";
 import { ProjectTaskRow } from "@/client/components/project/project-task-row";
 import { PromptInput } from "@/client/components/prompt-input";
-import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
 import { Button } from "@/client/components/ui/button";
 import {
   Collapsible,
@@ -19,16 +20,14 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
+import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useMediaQuery } from "@/client/hooks/use-media-query";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import {
-  openDeleteProject,
-  openEditProject,
-} from "@/client/lib/project-overlays";
+import { openEditProject } from "@/client/lib/project-overlays";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { ProjectIdSchema, type Task } from "@instrument-org/workspace/client";
+import { ProjectIdSchema } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import {
   CaretRightIcon,
@@ -74,6 +73,7 @@ function RouteComponent() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const { addTab } = useTabActions();
+  const tabId = useTabId();
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
@@ -84,8 +84,7 @@ function RouteComponent() {
   // so the viewport width is the page width and a plain media query is accurate.
   const isWide = useMediaQuery("(min-width: 1024px)");
 
-  const [taskToDelete, setTaskToDelete] = useState<null | Task>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
 
   const {
     data: projects,
@@ -239,7 +238,7 @@ function RouteComponent() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => {
-                    openDeleteProject(id);
+                    setDeleteProjectOpen(true);
                   }}
                   variant="destructive"
                 >
@@ -252,9 +251,9 @@ function RouteComponent() {
 
           <PromptInput
             allowOpenInNewTab
-            atomKey={`$$project:${id}$$`}
             autoFocus
             autoResizeMaxHeight={240}
+            draftKey={{ scope: "compose", tabId }}
             isLoading={createTaskMutation.isPending}
             modelURI={selectedModelURI}
             onModelChange={setSelectedModelURI}
@@ -323,8 +322,7 @@ function RouteComponent() {
                   isPinned={pinnedTaskIdSet.has(task.id)}
                   key={task.id}
                   onDelete={(t) => {
-                    setTaskToDelete(t);
-                    setDeleteDialogOpen(true);
+                    openDeleteTask(t);
                   }}
                   task={task}
                 />
@@ -340,19 +338,12 @@ function RouteComponent() {
         </aside>
       )}
 
-      {taskToDelete && (
-        <TaskDeleteDialog
-          navigateOnDelete={false}
-          onOpenChange={(open) => {
-            setDeleteDialogOpen(open);
-            if (!open) {
-              setTaskToDelete(null);
-            }
-          }}
-          open={deleteDialogOpen}
-          task={taskToDelete}
-        />
-      )}
+      <DeleteProjectDialog
+        onOpenChange={setDeleteProjectOpen}
+        open={deleteProjectOpen}
+        projectId={projectData.id}
+        projectName={projectData.name}
+      />
     </div>
   );
 }

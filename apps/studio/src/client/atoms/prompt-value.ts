@@ -8,12 +8,19 @@ import { debounce } from "radashi";
 
 import { rpcClient } from "../rpc/client";
 
-export type PromptValueAtomKey =
-  | "$$new-tab$$"
-  | `$$project:${string}$$`
-  | TaskId;
+// A prompt draft is scoped one of two ways:
+//  - task: the follow-up input on an existing task, persisted with the task so
+//    it survives closing and reopening the task.
+//  - compose: the "new task" input on the new-tab / project pages, keyed by the
+//    owning tab so each tab composes independently. Ephemeral by design; a
+//    half-written new task isn't worth persisting across restarts.
+export type PromptDraftKey =
+  | { scope: "compose"; tabId: string }
+  | { scope: "task"; taskId: TaskId };
 
-export const promptInputRefAtom = atom<HTMLTextAreaElement | null>(null);
+function draftKeyString(key: PromptDraftKey): string {
+  return key.scope === "task" ? `task:${key.taskId}` : `compose:${key.tabId}`;
+}
 
 const createTaskPromptStorage = (id: TaskId) => {
   let lastValue: string | undefined;
@@ -70,43 +77,64 @@ const createTaskPromptStorage = (id: TaskId) => {
   };
 };
 
-// Sentinel keys (new-tab, per-project) get ephemeral in-memory drafts;
-// only real tasks back their draft with task-state storage.
-function isEphemeralKey(
-  key: PromptValueAtomKey,
-): key is "$$new-tab$$" | `$$project:${string}$$` {
-  return key === "$$new-tab$$" || key.startsWith("$$project:");
+// Ephemeral, in-memory compose drafts, one per tab.
+const composeDraftFamily = atomFamily((_tabId: string) => atom(""));
+
+// Task follow-up drafts, persisted with the task via task-state storage.
+export const taskDraftFamily = atomFamily((taskId: TaskId) =>
+  atomWithStorage(
+    `prompt-draft-${taskId}`,
+    "",
+    createTaskPromptStorage(taskId),
+  ),
+);
+
+/** The value atom for a draft, resolving to the right backing store per scope. */
+export function promptDraftAtom(key: PromptDraftKey) {
+  return key.scope === "task"
+    ? taskDraftFamily(key.taskId)
+    : composeDraftFamily(key.tabId);
 }
 
-export const promptValueAtomFamily = atomFamily((key: PromptValueAtomKey) => {
-  if (isEphemeralKey(key)) {
-    return atom("");
-  }
+// The live textarea for a draft, so imperative focus targets the right input
+// even with several prompt surfaces mounted across tabs.
+const promptDraftRefFamily = atomFamily((_key: string) =>
+  atom<HTMLTextAreaElement | null>(null),
+);
 
-  return atomWithStorage(
-    `prompt-draft-${key}`,
-    "",
-    createTaskPromptStorage(key),
-  );
-});
+/** Focus a prompt textarea and drop the caret at the end of its text. */
+export function focusPromptDraft(el: HTMLTextAreaElement | null) {
+  if (!el) {
+    return;
+  }
+  el.focus();
+  const end = el.value.length;
+  el.setSelectionRange(end, end);
+}
+
+export function promptDraftRefAtom(key: PromptDraftKey) {
+  return promptDraftRefFamily(draftKeyString(key));
+}
 
 export const appendToPromptAtom = atom(
   null,
   (
     get,
     set,
-    {
-      key,
-      update,
-    }: { key: PromptValueAtomKey; update: SetStateAction<string> },
+    { key, update }: { key: PromptDraftKey; update: SetStateAction<string> },
   ) => {
-    const valueAtom = promptValueAtomFamily(key);
+    const valueAtom = promptDraftAtom(key);
     const prev = get(valueAtom);
     const next =
       typeof update === "function"
         ? update(prev)
         : (prev.trimEnd() ? prev.trimEnd() + " " : "") + update.trim() + " ";
     set(valueAtom, next);
-    get(promptInputRefAtom)?.focus();
+    const el = get(promptDraftRefAtom(key));
+    el?.focus();
+    // The value lands on the next render; place the caret after it does.
+    requestAnimationFrame(() => {
+      focusPromptDraft(el);
+    });
   },
 );

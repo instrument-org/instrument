@@ -1,5 +1,4 @@
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
-import { getStudioOverlay } from "@/electron-main/studio-overlay";
 import { sendTabCommand } from "@/electron-main/tabs/tab-command";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
@@ -10,28 +9,18 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 const TRAFFIC_LIGHT_CLUSTER_HEIGHT = 16;
 const TRAFFIC_LIGHT_X = 12;
 
-// Window-level zoom / history / focus. Overlay-aware: while the app-wide modal
-// overlay is open it owns the foreground, so these target its webContents rather
-// than the tab beneath it. Also guest-aware: a focused agent-browser guest
-// zooms/navigates its own webContents instead of the shell.
+// Window-level zoom / history / focus. Guest-aware: a focused agent-browser
+// guest zooms/navigates its own webContents instead of the shell.
 //
 // Otherwise the main shell zooms its own UI in the renderer (CSS `zoom`) rather
 // than via `webContents.setZoomLevel`, so app zoom leaves unfocused embedded web
 // content views untouched and stays independent of them.
 
 export function focusMainContents() {
-  if (getStudioOverlay()?.isActive()) {
-    return;
-  }
   getMainWindow()?.webContents.focus();
 }
 
 export function goBack() {
-  const overlay = getStudioOverlay();
-  if (overlay?.isActive()) {
-    overlay.goBack();
-    return;
-  }
   // A focused agent-browser guest navigates its own history; otherwise route the
   // active tab's own history in the renderer.
   if (getBrowserViewManager()?.navigateFocusedGuest("back")) {
@@ -41,11 +30,6 @@ export function goBack() {
 }
 
 export function goForward() {
-  const overlay = getStudioOverlay();
-  if (overlay?.isActive()) {
-    overlay.goForward();
-    return;
-  }
   if (getBrowserViewManager()?.navigateFocusedGuest("forward")) {
     return;
   }
@@ -53,11 +37,6 @@ export function goForward() {
 }
 
 export function resetZoom() {
-  const overlay = getStudioOverlay();
-  if (overlay?.isActive()) {
-    overlay.resetZoom();
-    return;
-  }
   if (getBrowserViewManager()?.zoomFocusedGuest("reset")) {
     return;
   }
@@ -76,17 +55,7 @@ export function setTrafficLightForZoom(zoom: number) {
   window.setWindowButtonPosition({ x: TRAFFIC_LIGHT_X, y });
 }
 
-export function updateOverlayBounds() {
-  // The app-wide overlay tracks the full window; keep it aligned on resize.
-  getStudioOverlay()?.resize();
-}
-
 export function zoomIn() {
-  const overlay = getStudioOverlay();
-  if (overlay?.isActive()) {
-    overlay.zoomIn();
-    return;
-  }
   if (getBrowserViewManager()?.zoomFocusedGuest("in")) {
     return;
   }
@@ -94,11 +63,6 @@ export function zoomIn() {
 }
 
 export function zoomOut() {
-  const overlay = getStudioOverlay();
-  if (overlay?.isActive()) {
-    overlay.zoomOut();
-    return;
-  }
   if (getBrowserViewManager()?.zoomFocusedGuest("out")) {
     return;
   }

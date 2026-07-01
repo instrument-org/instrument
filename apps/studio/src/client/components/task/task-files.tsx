@@ -220,7 +220,7 @@ function AttachedFolderRow({
             label: "Add to chat",
             onSelect: () => {
               appendToPrompt({
-                key: taskId,
+                key: { scope: "task", taskId },
                 update: `the attached folder "${folder.name}"`,
               });
             },
@@ -295,7 +295,7 @@ function FileRow({
 
   const handleAddToChat = () => {
     appendToPrompt({
-      key: file.taskId,
+      key: { scope: "task", taskId: file.taskId },
       update: file.filePath,
     });
   };

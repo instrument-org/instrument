@@ -1,3 +1,4 @@
+import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import {
   getTrashTerminology,
   PROGRESS_MESSAGES,
@@ -37,6 +38,8 @@ export function DeleteWithProgressDialog<T>({
   open,
   title,
 }: DeleteWithProgressDialogProps<T>) {
+  useBlockTabNavigation(open);
+
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
       <AlertDialogContent>

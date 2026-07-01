@@ -1,5 +1,8 @@
 import { featuresAtom } from "@/client/atoms/features";
-import { promptInputRefAtom } from "@/client/atoms/prompt-value";
+import {
+  focusPromptDraft,
+  promptDraftRefAtom,
+} from "@/client/atoms/prompt-value";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -158,9 +161,10 @@ export function TaskChat({
   };
 
   const features = useAtomValue(featuresAtom);
-  const promptTextarea = useAtomValue(promptInputRefAtom);
+  const draftKey = { scope: "task", taskId: id } as const;
+  const promptTextarea = useAtomValue(promptDraftRefAtom(draftKey));
   useLayoutEffect(() => {
-    promptTextarea?.focus();
+    focusPromptDraft(promptTextarea);
   }, [selectedSessionId, promptTextarea]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
@@ -179,7 +183,6 @@ export function TaskChat({
 
   const promptInput = (
     <PromptInput
-      atomKey={id}
       autoFocus
       browserToggle={
         features.prompt_browser_toggle ? (
@@ -187,6 +190,7 @@ export function TaskChat({
         ) : undefined
       }
       className="relative z-10"
+      draftKey={draftKey}
       id={id}
       isLoading={createMessage.isPending}
       isStoppable={isAgentAlive}

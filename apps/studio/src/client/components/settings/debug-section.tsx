@@ -1,11 +1,10 @@
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/studio-overlay/settings/debug")({
-  component: SettingsDebugPage,
-});
+export function DebugSection() {
+  return <div className="space-y-4">{isLinux() && <SafeStorage />}</div>;
+}
 
 function SafeStorage() {
   const { data: safeStorageInfo } = useQuery(
@@ -54,8 +53,4 @@ function SafeStorage() {
       </div>
     </div>
   );
-}
-
-function SettingsDebugPage() {
-  return <div className="space-y-4">{isLinux() && <SafeStorage />}</div>;
 }

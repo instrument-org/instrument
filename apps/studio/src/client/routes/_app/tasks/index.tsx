@@ -1,9 +1,9 @@
 import type { RowSelectionState } from "@tanstack/react-table";
 
+import { openDeleteTask } from "@/client/atoms/delete-task-modal";
 import { CommandMenuCTA } from "@/client/components/command-menu-cta";
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { InternalLink } from "@/client/components/internal-link";
-import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import {
   TASKS_PAGE_SIZE,
@@ -61,9 +61,7 @@ function RouteComponent() {
   const navigate = Route.useNavigate();
   const [deleteSelectedDialogOpen, setDeleteSelectedDialogOpen] =
     useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState<null | Task>(null);
   const [taskToEdit, setTaskToEdit] = useState<null | Task>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
@@ -256,8 +254,14 @@ function RouteComponent() {
     (id: TaskId) => {
       const task = tasks.find((p) => p.id === id);
       if (task) {
-        setTaskToDelete(task);
-        setDeleteDialogOpen(true);
+        openDeleteTask(task, {
+          onDeleteEnd: () => {
+            setIsSingleDeleting(false);
+          },
+          onDeleteStart: () => {
+            setIsSingleDeleting(true);
+          },
+        });
       }
     },
     [tasks],
@@ -497,26 +501,6 @@ function RouteComponent() {
         open={deleteSelectedDialogOpen}
         title={`Move ${selectedTasks.length} ${selectedTasks.length === 1 ? "task" : "tasks"} to ${trashTerminology}?`}
       />
-
-      {taskToDelete && (
-        <TaskDeleteDialog
-          navigateOnDelete={false}
-          onDeleteEnd={() => {
-            setIsSingleDeleting(false);
-          }}
-          onDeleteStart={() => {
-            setIsSingleDeleting(true);
-          }}
-          onOpenChange={(open) => {
-            setDeleteDialogOpen(open);
-            if (!open) {
-              setTaskToDelete(null);
-            }
-          }}
-          open={deleteDialogOpen}
-          task={taskToDelete}
-        />
-      )}
 
       {taskToEdit && (
         <TaskSettingsDialog

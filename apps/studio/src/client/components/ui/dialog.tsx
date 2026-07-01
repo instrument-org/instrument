@@ -1,4 +1,3 @@
-import { ModalTabNavigationBlocker } from "@/client/components/ui/modal-tab-navigation-blocker";
 import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
@@ -18,7 +17,6 @@ function DialogClose({
 }
 
 function DialogContent({
-  blockTabNavigation = true,
   children,
   className,
   overlayClassName,
@@ -26,7 +24,6 @@ function DialogContent({
   style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  blockTabNavigation?: boolean;
   overlayClassName?: string;
   showCloseButton?: boolean;
 }) {
@@ -42,7 +39,6 @@ function DialogContent({
         style={useShellZoomStyle(style)}
         {...props}
       >
-        {blockTabNavigation && <ModalTabNavigationBlocker />}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close

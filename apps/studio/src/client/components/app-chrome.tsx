@@ -1,6 +1,7 @@
 import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { taskFileViewerAtom } from "@/client/atoms/task-file-viewer";
+import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { StudioSidebar } from "@/client/components/studio-sidebar";
 import { StudioToolbar } from "@/client/components/studio-toolbar";
 import { SidebarProvider } from "@/client/components/ui/sidebar";
@@ -105,6 +106,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
       <Suspense fallback={null}>
         <StudioCommandMenu />
       </Suspense>
+      <StudioModals />
       {isTaskFileViewerOpen && (
         <Suspense fallback={null}>
           <LazyTaskFileViewerModal />

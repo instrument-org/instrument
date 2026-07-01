@@ -1,25 +1,11 @@
-import { rpcClient } from "@/client/rpc/client";
+import { projectModalAtom } from "@/client/atoms/project-modal";
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
+import { getDefaultStore } from "jotai";
 
-// Must use the overlay (its own WebContentsView): sidebar and tab renderers are
-// isolated, so a renderer-local dialog would be clipped to its own view.
 export function openCreateProject(taskId?: TaskId) {
-  void rpcClient.studioOverlay.show.call({
-    kind: "project",
-    props: taskId ? { taskId } : undefined,
-  });
-}
-
-export function openDeleteProject(projectId: ProjectId) {
-  void rpcClient.studioOverlay.show.call({
-    kind: "delete-project",
-    props: { projectId },
-  });
+  getDefaultStore().set(projectModalAtom, taskId ? { taskId } : {});
 }
 
 export function openEditProject(projectId: ProjectId) {
-  void rpcClient.studioOverlay.show.call({
-    kind: "project",
-    props: { projectId },
-  });
+  getDefaultStore().set(projectModalAtom, { projectId });
 }

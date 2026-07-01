@@ -377,6 +377,15 @@ const live = {
       };
     }
   }),
+  openSettings: base.handler(async function* ({ context, signal }) {
+    for await (const payload of publisher.subscribe("app.open-settings", {
+      signal,
+    })) {
+      if (context.webContentsId === payload.webContentsId) {
+        yield;
+      }
+    }
+  }),
   reload: base.handler(async function* ({ context, signal }) {
     for await (const payload of publisher.subscribe("app.reload", {
       signal,

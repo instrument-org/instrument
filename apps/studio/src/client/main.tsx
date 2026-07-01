@@ -24,8 +24,7 @@ if (rootElement) {
   }
 
   // The main window hosts the whole tabbed app in this one web contents
-  // (AppShell). The studio-overlay and onboarding web contents keep using the
-  // single-router App.
+  // (AppShell). The onboarding web contents keeps using the single-router App.
   const isMainWindow = window.api.windowType === "shell";
   root.render(isMainWindow ? <AppShell /> : <App />);
 

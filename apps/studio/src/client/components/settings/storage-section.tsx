@@ -26,16 +26,26 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
 type InvalidFolder =
   RPCOutput["workspace"]["storage"]["invalidFolders"]["list"][number];
 
-export const Route = createFileRoute("/studio-overlay/settings/storage")({
-  component: SettingsStoragePage,
-});
+export function StorageSection() {
+  return (
+    <div className="space-y-8">
+      <div>
+        <h3 className="text-base font-semibold">Storage</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Where {APP_NAME} keeps your projects and tasks on your computer
+        </p>
+      </div>
+      <WorkspaceLocation />
+      <UnrecognizedFolders />
+    </div>
+  );
+}
 
 function FolderGroup({
   folders,
@@ -92,21 +102,6 @@ function FolderGroup({
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function SettingsStoragePage() {
-  return (
-    <div className="space-y-8">
-      <div>
-        <h3 className="text-base font-semibold">Storage</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Where {APP_NAME} keeps your projects and tasks on your computer
-        </p>
-      </div>
-      <WorkspaceLocation />
-      <UnrecognizedFolders />
     </div>
   );
 }

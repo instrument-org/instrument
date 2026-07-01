@@ -1,5 +1,4 @@
-import { promptValueAtomFamily } from "@/client/atoms/prompt-value";
-import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
+import { taskDraftFamily } from "@/client/atoms/prompt-value";
 import { DuplicateTaskModal } from "@/client/components/task/duplicate-modal";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskSidebarModeSchema } from "@/client/components/task/sidebar";
@@ -24,7 +23,6 @@ import {
   createFileRoute,
   notFound,
   redirect,
-  useMatchRoute,
   useNavigate,
 } from "@tanstack/react-router";
 import { z } from "zod";
@@ -37,7 +35,6 @@ const taskSearchSchema = z.object({
   // eslint-disable-next-line unicorn/prefer-top-level-await
   artifactPanel: artifactPanelSchema.optional().catch(undefined),
   selectedSessionId: StoreId.SessionSchema.optional(),
-  showDelete: z.boolean().optional(),
   showDuplicate: z.boolean().optional(),
   showSettings: z.boolean().optional(),
   sidebar: TaskSidebarModeSchema.optional(),
@@ -62,7 +59,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
   }),
   onLeave: ({ params }) => {
     // Garbage collect task atoms
-    promptValueAtomFamily.remove(params.id);
+    taskDraftFamily.remove(params.id);
   },
   beforeLoad: async ({ context, params, search }) => {
     const needsSessionDefault = !search.selectedSessionId;
@@ -146,28 +143,11 @@ function RouteComponent() {
   const {
     artifactPanel,
     selectedSessionId,
-    showDelete,
     showDuplicate,
     showSettings,
     sidebar,
   } = Route.useSearch();
   const navigate = useNavigate();
-  const matchRoute = useMatchRoute();
-
-  const handleDeleteDialogChange = (open: boolean) => {
-    // After a successful delete, trashTask has already navigated the tab away.
-    // Guard against calling navigate with from: "/tasks/$id" when
-    // this route is no longer matched -- the match is gone and it would throw.
-    if (!matchRoute({ params: { id }, to: "/tasks/$id" })) {
-      return;
-    }
-    void navigate({
-      from: "/tasks/$id",
-      params: { id },
-      replace: true,
-      search: (prev) => ({ ...prev, showDelete: open || undefined }),
-    });
-  };
 
   const handleDuplicateDialogChange = (open: boolean) => {
     void navigate({
@@ -264,13 +244,6 @@ function RouteComponent() {
         selectedSessionId={selectedSessionId}
         showTutorial={taskState.showTutorial}
         sidebar={sidebar ?? "chat"}
-        task={task}
-      />
-
-      <TaskDeleteDialog
-        navigateOnDelete
-        onOpenChange={handleDeleteDialogChange}
-        open={showDelete ?? false}
         task={task}
       />
 

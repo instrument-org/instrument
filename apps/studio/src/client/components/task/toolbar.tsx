@@ -1,3 +1,4 @@
+import { openDeleteTask } from "@/client/atoms/delete-task-modal";
 import { ShareExport } from "@/client/components/icons/share-export";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Button } from "@/client/components/ui/button";
@@ -113,6 +114,9 @@ export function TaskToolbar({
                   id={task.id}
                   onDebugClick={() => {
                     setDebugDialogOpen(true);
+                  }}
+                  onDelete={() => {
+                    openDeleteTask(task, { navigateOnDelete: true });
                   }}
                   onReplayClick={() => {
                     setReplayModalOpen(true);

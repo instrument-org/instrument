@@ -1,3 +1,4 @@
+import { openCreateProject } from "@/client/atoms/project-modal";
 import { projectsSectionOpenAtom } from "@/client/atoms/projects-section";
 import { ProjectDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
 import { DeleteProjectDialog } from "@/client/components/project/delete-project-dialog";
@@ -30,7 +31,6 @@ import {
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
-import { openCreateProject } from "@/client/lib/project-overlays";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Project } from "@instrument-org/workspace/client";

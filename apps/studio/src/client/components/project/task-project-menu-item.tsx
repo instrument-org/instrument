@@ -1,5 +1,5 @@
+import { openCreateProject } from "@/client/atoms/project-modal";
 import { type MenuComponents } from "@/client/components/ui/menu-components";
-import { openCreateProject } from "@/client/lib/project-overlays";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
 import { BagIcon, PlusIcon, XCircleIcon } from "@phosphor-icons/react";

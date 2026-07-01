@@ -15,7 +15,7 @@ const StudioPathSchema = z.custom<StudioPath>(
 );
 
 // Tabs are owned by the renderer (AppShell). These handlers publish tab commands
-// for overlay-initiated opens (e.g. create-project, welcome -> tutorial); the
+// for modal-initiated opens (e.g. create-project, welcome -> tutorial); the
 // renderer applies them. reorder/select are driven by the in-app tab bar, so
 // they stay no-ops here.
 const add = base

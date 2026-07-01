@@ -37,7 +37,7 @@ const RECONNECT_DELAY_MS = 500;
 
 /**
  * Applies imperative tab commands from the main process (menus,
- * overlay-initiated opens), streamed over RPC, to the renderer-owned tab state.
+ * modal-initiated opens), streamed over RPC, to the renderer-owned tab state.
  * One subscription owns the whole tab command surface: it aborts deterministically
  * on unmount and reconnects if the stream drops, so a hot reload (or any
  * transient transport reset) can't leave the hotkeys unwired.

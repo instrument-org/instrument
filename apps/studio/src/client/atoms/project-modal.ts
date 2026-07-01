@@ -1,5 +1,5 @@
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
-import { atom } from "jotai";
+import { atom, getDefaultStore } from "jotai";
 
 export interface ProjectModalState {
   projectId?: ProjectId;
@@ -9,6 +9,14 @@ export interface ProjectModalState {
 /**
  * Drives the app-wide new/edit-project modal. `null` when closed; a state
  * object (edit when `projectId` is set) when open. `<ProjectModal />` at the
- * app-chrome root reads it; `project-overlays.ts` sets it.
+ * app-chrome root reads it; the openers below set it.
  */
 export const projectModalAtom = atom<null | ProjectModalState>(null);
+
+export function openCreateProject(taskId?: TaskId) {
+  getDefaultStore().set(projectModalAtom, taskId ? { taskId } : {});
+}
+
+export function openEditProject(projectId: ProjectId) {
+  getDefaultStore().set(projectModalAtom, { projectId });
+}

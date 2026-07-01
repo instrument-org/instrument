@@ -10,7 +10,7 @@ export function DefaultErrorComponent({ error }: ErrorComponentProps) {
   // (outside the card) dismisses, matching how modals close on outside-click.
   return (
     <div
-      className="flex min-h-dvh min-w-0 flex-1 items-center justify-center p-6"
+      className="flex min-h-full min-w-0 flex-1 items-center justify-center p-6"
       onClick={
         isStudioOverlayWindow()
           ? (event) => {

@@ -37,7 +37,7 @@ function ErrorComponent(props: ErrorComponentProps) {
 function PendingComponent() {
   return (
     <Root>
-      <div className="flex h-dvh items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Spinner className="size-8" />
       </div>
     </Root>

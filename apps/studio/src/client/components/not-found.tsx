@@ -40,7 +40,7 @@ function NotFoundComponent({
 
   return (
     <div
-      className="flex min-h-screen flex-col items-center justify-center space-y-4 p-6"
+      className="flex min-h-full flex-col items-center justify-center space-y-4 p-6"
       onClick={
         isOverlay
           ? (event) => {

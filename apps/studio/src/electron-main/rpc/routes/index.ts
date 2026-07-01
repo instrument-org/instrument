@@ -10,7 +10,6 @@ import { plans } from "./plans";
 import { preferences } from "./preferences";
 import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
-import { sidebar } from "./sidebar";
 import { stripe } from "./stripe";
 import { syntax } from "./syntax";
 import { tabs } from "./tabs";
@@ -30,7 +29,6 @@ export const router = {
   preferences,
   providerConfig,
   releases,
-  sidebar,
   stripe,
   syntax,
   tabs,

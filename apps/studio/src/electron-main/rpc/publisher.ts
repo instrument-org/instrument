@@ -9,6 +9,7 @@ interface PublisherEvents {
   "app.open-settings": { webContentsId: number };
   "app.reload": { webContentsId: number };
   "app.toggle-command-menu": { webContentsId: number };
+  "app.toggle-sidebar": { webContentsId: number };
   "auth.login-error": {
     error: {
       code?: string | undefined;
@@ -30,10 +31,6 @@ interface PublisherEvents {
   };
   "server-exceptions.updated": null;
   "session.apiBearerToken.updated": null;
-  "sidebar.updated": {
-    isOpen: boolean;
-    width: number;
-  };
   "tabs.updated": null | TabState;
   "test-notification": null;
   "updates.status": { status: AppUpdaterStatus };

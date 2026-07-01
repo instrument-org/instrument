@@ -1,6 +1,4 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { SIDEBAR_WIDTH } from "@/shared/constants";
 import Store from "electron-store";
 import { ulid } from "ulid";
 import { z } from "zod";
@@ -16,7 +14,6 @@ const DEFAULT_TELEMETRY_ID = "studio-main-default";
 /* eslint-disable unicorn/prefer-top-level-await */
 const AppStateSchema = z.object({
   hasCompletedProviderSetup: z.boolean().catch(false),
-  isSidebarOpen: z.boolean().catch(true),
   lastMigratedVersion: z.string().optional(),
   telemetryId: z.string().catch(DEFAULT_TELEMETRY_ID),
 });
@@ -57,28 +54,7 @@ export const getAppStateStore = (): Store<AppState> => {
     if (APP_STATE_STORE.get("telemetryId") === DEFAULT_TELEMETRY_ID) {
       APP_STATE_STORE.set("telemetryId", generateTelemetryId());
     }
-
-    APP_STATE_STORE.onDidChange("isSidebarOpen", (isOpen = false) => {
-      publisher.publish("sidebar.updated", {
-        isOpen,
-        width: getSidebarWidth(),
-      });
-    });
   }
 
   return APP_STATE_STORE;
 };
-
-export function getSidebarVisible() {
-  const store = getAppStateStore();
-  return store.get("isSidebarOpen");
-}
-
-export function setSidebarVisible(visible: boolean) {
-  const store = getAppStateStore();
-  store.set("isSidebarOpen", visible);
-}
-
-function getSidebarWidth() {
-  return getSidebarVisible() ? SIDEBAR_WIDTH : 0;
-}

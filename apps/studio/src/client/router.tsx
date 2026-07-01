@@ -1,4 +1,4 @@
-import type { FileRoutesByPath, RouterHistory } from "@tanstack/react-router";
+import type { RouterHistory } from "@tanstack/react-router";
 
 import { DefaultErrorComponent } from "@/client/components/default-error-component";
 import { NotFoundRouteComponent } from "@/client/components/not-found";
@@ -10,10 +10,6 @@ import {
 
 import { capturePageView } from "./lib/telemetry";
 import { routeTree } from "./routeTree.gen";
-
-const IGNORED_PATHS = new Set<keyof FileRoutesByPath>([
-  "/shell", // Always rendered as separate view in Electron app
-]);
 
 function createRouter(options?: { history?: RouterHistory }) {
   const queryClient = new QueryClient({
@@ -37,12 +33,7 @@ function createRouter(options?: { history?: RouterHistory }) {
     scrollRestoration: true,
   });
 
-  router.subscribe("onRendered", (event) => {
-    if (
-      IGNORED_PATHS.has(event.toLocation.pathname as keyof FileRoutesByPath)
-    ) {
-      return;
-    }
+  router.subscribe("onRendered", () => {
     capturePageView();
   });
 

@@ -35,9 +35,9 @@ function runPnpmScript(
   });
 }
 
-const isShellWindow = (url: string) => url.includes("#/shell");
-const isMainWindow = (url: string) =>
-  url.includes("#/") && !url.includes("#/shell");
+const isOnboardingWindow = (url: string) => url.includes("#/onboarding");
+const isAppWindow = (url: string) =>
+  url.includes("#/") && !url.includes("#/onboarding");
 
 describe("Studio Smoke Test", () => {
   let distPath: string;
@@ -190,40 +190,50 @@ describe("Studio Smoke Test", () => {
     // Playwright surfaces in windows() -- we locate by URL rather than index.
     const startTime = Date.now();
 
-    let shellWindow = electronApp.windows().find((w) => isShellWindow(w.url()));
-    let mainWindow = electronApp.windows().find((w) => isMainWindow(w.url()));
-    while ((!shellWindow || !mainWindow) && Date.now() - startTime < 30_000) {
+    let appWindow = electronApp.windows().find((w) => isAppWindow(w.url()));
+    let onboardingWindow = electronApp
+      .windows()
+      .find((w) => isOnboardingWindow(w.url()));
+    while (
+      (!appWindow || !onboardingWindow) &&
+      Date.now() - startTime < 30_000
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      shellWindow = electronApp.windows().find((w) => isShellWindow(w.url()));
-      mainWindow = electronApp.windows().find((w) => isMainWindow(w.url()));
+      appWindow = electronApp.windows().find((w) => isAppWindow(w.url()));
+      onboardingWindow = electronApp
+        .windows()
+        .find((w) => isOnboardingWindow(w.url()));
     }
 
     const windowUrls = electronApp.windows().map((w) => w.url());
     expect(
-      shellWindow,
-      `shell window found (all window URLs: ${windowUrls.join(", ")})`,
+      appWindow,
+      `app window found (all window URLs: ${windowUrls.join(", ")})`,
     ).toBeDefined();
     expect(
-      mainWindow,
-      `main window found (all window URLs: ${windowUrls.join(", ")})`,
+      onboardingWindow,
+      `onboarding window found (all window URLs: ${windowUrls.join(", ")})`,
     ).toBeDefined();
 
-    if (!shellWindow || !mainWindow) {
+    if (!appWindow || !onboardingWindow) {
       throw new Error(`windows not found. URLs: ${windowUrls.join(", ")}`);
     }
 
     const windowConfigs = [
-      { name: "shell", testId: "shell-page", window: shellWindow },
-      { name: "main", testId: "app-page", window: mainWindow },
-    ];
+      // The app (AppShell) window is created up front but stays hidden behind
+      // onboarding during first-run setup, so it's only attached, not visible.
+      { name: "app", state: "attached", testId: "app-page", window: appWindow },
+      {
+        name: "onboarding",
+        state: "visible",
+        testId: "onboarding-page",
+        window: onboardingWindow,
+      },
+    ] as const;
 
-    for (const { name, testId, window } of windowConfigs) {
+    for (const { name, state, testId, window } of windowConfigs) {
       const locator = window.locator(`[data-testid="${testId}"]`);
-      await locator.waitFor({
-        // Shell is hidden during initial setup
-        state: name === "shell" ? "attached" : "visible",
-        timeout: 30_000,
-      });
+      await locator.waitFor({ state, timeout: 30_000 });
       expect(
         await locator.count(),
         `${name} window: [data-testid="${testId}"] element found`,

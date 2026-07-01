@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ShellRouteImport } from './routes/shell'
 import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -47,11 +46,6 @@ import { Route as AppDebugComponentsOnboardingProvidersRouteImport } from './rou
 import { Route as AppDebugComponentsOnboardingLoginRouteImport } from './routes/_app/debug/components/onboarding/login'
 import { Route as AppDebugComponentsOnboardingCompleteRouteImport } from './routes/_app/debug/components/onboarding/complete'
 
-const ShellRoute = ShellRouteImport.update({
-  id: '/shell',
-  path: '/shell',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -250,7 +244,6 @@ const AppDebugComponentsOnboardingCompleteRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRouteRouteWithChildren
-  '/shell': typeof ShellRoute
   '/debug': typeof AppDebugRouteRouteWithChildren
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
@@ -286,7 +279,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/shell': typeof ShellRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/tutorial-task': typeof AppTutorialTaskRoute
@@ -322,7 +314,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
-  '/shell': typeof ShellRoute
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
   '/_app/debug': typeof AppDebugRouteRouteWithChildren
   '/_app/new-tab': typeof AppNewTabRoute
@@ -362,7 +353,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
-    | '/shell'
     | '/debug'
     | '/new-tab'
     | '/release-notes'
@@ -398,7 +388,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/shell'
     | '/new-tab'
     | '/release-notes'
     | '/tutorial-task'
@@ -433,7 +422,6 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/onboarding'
-    | '/shell'
     | '/_app/_authenticated'
     | '/_app/debug'
     | '/_app/new-tab'
@@ -473,18 +461,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
-  ShellRoute: typeof ShellRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/shell': {
-      id: '/shell'
-      path: '/shell'
-      fullPath: '/shell'
-      preLoaderRoute: typeof ShellRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -878,7 +858,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
-  ShellRoute: ShellRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

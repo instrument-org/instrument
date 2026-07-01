@@ -134,7 +134,10 @@ export async function createMainWindow({
     showWindow(window);
   });
 
-  void mainWindow.loadURL(studioURL("/shell"));
+  // The path is cosmetic: the main window renders AppShell based on its
+  // `--windowType=shell` argument, not on the route. It only needs a valid entry
+  // URL, and the root path distinguishes it from the onboarding window.
+  void mainWindow.loadURL(studioURL("/"));
   if (reveal) {
     showWindow(mainWindow);
   }

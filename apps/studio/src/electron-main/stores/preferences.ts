@@ -34,6 +34,11 @@ export const PreferencesStoreSchema = z.object({
     .optional()
     .catch(undefined),
   theme: z.enum(["light", "dark", "system"]).catch("system"),
+  // When a downloaded update was first seen, persisted so the ignored-too-long
+  // reminder measures real elapsed time across relaunches.
+  updateReady: z
+    .object({ firstSeenAt: z.number(), version: z.string() })
+    .optional(),
 });
 /* eslint-enable unicorn/prefer-top-level-await */
 
@@ -68,9 +73,17 @@ export const getPreferencesStore = (): Store<PreferencesStore> => {
   return PREFERENCES_STORE;
 };
 
+export function clearUpdateReady(): void {
+  getPreferencesStore().delete("updateReady");
+}
+
 export function getDefaultModelURI(): AIGatewayModelURI.Type | undefined {
   const store = getPreferencesStore();
   return store.get("defaultModelURI");
+}
+
+export function getUpdateReady(): PreferencesStore["updateReady"] {
+  return getPreferencesStore().get("updateReady");
 }
 
 export function isDeveloperMode() {
@@ -86,4 +99,8 @@ export function setDefaultModelURI(modelURI: AIGatewayModelURI.Type): void {
 export function setLastUpdateCheck(): void {
   const store = getPreferencesStore();
   store.set("lastUpdateCheck", Date.now());
+}
+
+export function setUpdateReady(value: { firstSeenAt: number; version: string }): void {
+  getPreferencesStore().set("updateReady", value);
 }

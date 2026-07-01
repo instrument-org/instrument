@@ -5,6 +5,7 @@ import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { StudioToolbar } from "@/client/components/studio-toolbar";
 import { Toaster } from "@/client/components/ui/sonner";
+import { UpdateReminder } from "@/client/components/update-reminder";
 import { UpdateRequiredScreen } from "@/client/components/update-required-screen";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
@@ -80,6 +81,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
       data-testid="app-page"
     >
       <StudioToolbar />
+      <UpdateReminder />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <StudioSidebarRail
           isOpen={isSidebarOpen}

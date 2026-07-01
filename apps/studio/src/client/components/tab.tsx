@@ -3,7 +3,7 @@ import { TaskIcon } from "@/client/components/task-icon";
 import { cn } from "@/client/lib/utils";
 import { type Tab as TabData } from "@/shared/tabs";
 import { XIcon } from "@phosphor-icons/react";
-import { motion, Reorder } from "motion/react";
+import { motion, Reorder, useReducedMotion } from "motion/react";
 
 const SkeletonTitle = () => {
   return (
@@ -37,12 +37,30 @@ export const Tab = ({
     <TaskIcon isSelected={isSelected} name={item.iconName} size="sm" />
   ) : null;
 
+  const prefersReducedMotion = useReducedMotion();
+
+  // Reduced motion collapses the width instantly (a snap, not a slide) and only
+  // crossfades; otherwise tabs grow in and collapse out symmetrically. max-w-60
+  // == 15rem, so the enter target matches the resting cap.
+  const motionStates = prefersReducedMotion
+    ? {
+        animate: { opacity: 1 },
+        exit: { opacity: 0, transition: { duration: 0.1 } },
+        initial: { opacity: 0 },
+      }
+    : {
+        animate: { maxWidth: "15rem", opacity: 1 },
+        exit: {
+          maxWidth: 0,
+          opacity: 0,
+          transition: { duration: 0.18, ease: "easeOut" as const },
+        },
+        initial: { maxWidth: 0, opacity: 0 },
+      };
+
   return (
     <Reorder.Item
-      animate={{
-        opacity: 1,
-        transition: { duration: 0.1, ease: "easeInOut" },
-      }}
+      animate={motionStates.animate}
       className={cn(
         "group relative flex min-h-0 min-w-0 select-none [-webkit-app-region:no-drag]",
         item.pinned ? "shrink-0" : "w-full max-w-60 flex-1 overflow-hidden",
@@ -65,13 +83,13 @@ export const Tab = ({
             ),
       )}
       dragListener={!item.pinned}
-      exit={{
-        maxWidth: 0,
-        opacity: 0,
-        transition: { duration: 0.15, ease: "linear" },
-      }}
+      exit={motionStates.exit}
       id={item.id}
-      initial={{ opacity: 1 }}
+      initial={motionStates.initial}
+      // popLayout removes a closing tab from flow immediately; `layout` is what
+      // lets the remaining tabs slide/resize to fill the gap via transforms
+      // instead of reflowing every frame.
+      layout={prefersReducedMotion ? undefined : "position"}
       onPointerDown={(event: React.PointerEvent<HTMLLIElement>) => {
         if (event.button === 1) {
           onRemove();
@@ -80,7 +98,7 @@ export const Tab = ({
         }
       }}
       title={item.title || ""}
-      transition={{ duration: 0.15, ease: "easeOut", type: "tween" }}
+      transition={{ duration: 0.18, ease: "easeOut", type: "tween" }}
       value={item}
     >
       <motion.div

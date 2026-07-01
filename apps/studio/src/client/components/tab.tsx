@@ -75,7 +75,7 @@ export const Tab = ({
       onPointerDown={(event: React.PointerEvent<HTMLLIElement>) => {
         if (event.button === 1) {
           onRemove();
-        } else {
+        } else if (event.button === 0) {
           onClick();
         }
       }}

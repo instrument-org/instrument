@@ -325,7 +325,7 @@ function useSidebar() {
 }
 
 const sidebarMenuButtonVariants = tv({
-  base: "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-lg p-2 text-left text-sm outline-hidden transition-[width,height,padding] group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-sidebar-ring focus-visible:[outline-style:solid] disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground [&>span:last-child]:min-w-0 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  base: "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-lg p-2 text-left text-sm outline-hidden transition-[width,height,padding] group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-sidebar-ring focus-visible:[outline-style:solid] disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground [&>span:last-child]:min-w-0 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   defaultVariants: {
     size: "default",
     variant: "default",
@@ -339,7 +339,7 @@ const sidebarMenuButtonVariants = tv({
     variant: {
       default: "",
       outline:
-        "bg-background shadow-[0_0_0_1px_var(--sidebar-border)] hover:shadow-[0_0_0_1px_var(--sidebar-accent)]",
+        "bg-background shadow-[0_0_0_1px_var(--sidebar-border)] not-disabled:not-aria-disabled:hover:shadow-[0_0_0_1px_var(--sidebar-accent)]",
     },
   },
 });
@@ -515,7 +515,7 @@ function SidebarMenuSubButton({
   return (
     <Comp
       className={cn(
-        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-hidden focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-sidebar-ring focus-visible:[outline-style:solid] disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-hidden focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-sidebar-ring focus-visible:[outline-style:solid] disabled:pointer-events-none disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
         "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
         size === "sm" && "text-xs",
         size === "md" && "text-sm",

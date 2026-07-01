@@ -2,6 +2,15 @@ import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 
 const live = {
+  requirement: base.handler(async function* ({ context, signal }) {
+    yield context.appUpdates.requirement;
+
+    for await (const payload of publisher.subscribe("updates.requirement", {
+      signal,
+    })) {
+      yield payload.requirement;
+    }
+  }),
   status: base.handler(async function* ({ context, signal }) {
     yield context.appUpdater.status;
 

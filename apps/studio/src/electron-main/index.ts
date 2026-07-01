@@ -2,6 +2,7 @@
 
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { AppUpdatesService } from "@/electron-main/lib/app-updates";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { StudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
@@ -169,8 +170,12 @@ void app.whenReady().then(async () => {
   });
   appUpdater.pollForUpdates();
 
+  const appUpdates = new AppUpdatesService();
+  appUpdates.start();
+
   initializeRPC({
     appUpdater,
+    appUpdates,
     browserViewManager,
     workspaceConfig,
     workspaceRef,

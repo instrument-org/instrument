@@ -1,5 +1,6 @@
 "use client";
 
+import { useShellZoom } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import * as React from "react";
@@ -20,8 +21,10 @@ function PopoverContent({
   align = "center",
   className,
   sideOffset = 4,
+  style,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  const zoom = useShellZoom();
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
@@ -32,6 +35,7 @@ function PopoverContent({
         )}
         data-slot="popover-content"
         sideOffset={sideOffset}
+        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
         {...props}
       />
     </PopoverPrimitive.Portal>

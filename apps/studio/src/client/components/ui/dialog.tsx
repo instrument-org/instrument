@@ -1,3 +1,4 @@
+import { useShellZoom } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -20,11 +21,13 @@ function DialogContent({
   className,
   overlayClassName,
   showCloseButton = true,
+  style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   overlayClassName?: string;
   showCloseButton?: boolean;
 }) {
+  const zoom = useShellZoom();
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay className={overlayClassName} />
@@ -34,6 +37,7 @@ function DialogContent({
           className,
         )}
         data-slot="dialog-content"
+        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
         {...props}
       >
         {children}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useShellZoom } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as React from "react";
@@ -16,11 +17,13 @@ function TooltipContent({
   children,
   className,
   sideOffset = 0,
+  style,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content> & {
   arrow?: React.ReactNode;
   arrowClassName?: string;
 }) {
+  const zoom = useShellZoom();
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
@@ -30,6 +33,7 @@ function TooltipContent({
         )}
         data-slot="tooltip-content"
         sideOffset={sideOffset}
+        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
         {...props}
       >
         {children}

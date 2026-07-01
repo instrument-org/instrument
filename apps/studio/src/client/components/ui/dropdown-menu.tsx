@@ -1,3 +1,4 @@
+import { useShellZoom } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon, CheckIcon, CircleIcon } from "@phosphor-icons/react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
@@ -38,8 +39,10 @@ function DropdownMenuCheckboxItem({
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  style,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  const zoom = useShellZoom();
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
@@ -49,6 +52,7 @@ function DropdownMenuContent({
         )}
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
+        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>
@@ -186,8 +190,10 @@ function DropdownMenuSub({
 
 function DropdownMenuSubContent({
   className,
+  style,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  const zoom = useShellZoom();
   return (
     <DropdownMenuPrimitive.SubContent
       className={cn(
@@ -195,6 +201,7 @@ function DropdownMenuSubContent({
         className,
       )}
       data-slot="dropdown-menu-sub-content"
+      style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
       {...props}
     />
   );

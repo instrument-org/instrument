@@ -1,3 +1,4 @@
+import { useShellZoom } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import * as React from "react";
@@ -12,8 +13,10 @@ function HoverCardContent({
   align = "center",
   className,
   sideOffset = 4,
+  style,
   ...props
 }: React.ComponentProps<typeof HoverCardPrimitive.Content>) {
+  const zoom = useShellZoom();
   return (
     <HoverCardPrimitive.Portal data-slot="hover-card-portal">
       <HoverCardPrimitive.Content
@@ -24,6 +27,7 @@ function HoverCardContent({
         )}
         data-slot="hover-card-content"
         sideOffset={sideOffset}
+        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
         {...props}
       />
     </HoverCardPrimitive.Portal>

@@ -1,3 +1,4 @@
+import { useShellZoom } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
 import * as MenubarPrimitive from "@radix-ui/react-menubar";
@@ -54,8 +55,10 @@ function MenubarContent({
   alignOffset = -4,
   className,
   sideOffset = 8,
+  style,
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Content>) {
+  const zoom = useShellZoom();
   return (
     <MenubarPortal>
       <MenubarPrimitive.Content
@@ -67,6 +70,7 @@ function MenubarContent({
         )}
         data-slot="menubar-content"
         sideOffset={sideOffset}
+        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
         {...props}
       />
     </MenubarPortal>
@@ -207,8 +211,10 @@ function MenubarSub({
 
 function MenubarSubContent({
   className,
+  style,
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.SubContent>) {
+  const zoom = useShellZoom();
   return (
     <MenubarPrimitive.SubContent
       className={cn(
@@ -216,6 +222,7 @@ function MenubarSubContent({
         className,
       )}
       data-slot="menubar-sub-content"
+      style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
       {...props}
     />
   );

@@ -82,6 +82,17 @@ export function ensureWebview(targetId: string): PooledWebview {
   webview.setAttribute("src", "about:blank");
   webview.style.border = "0";
 
+  // Report real DOM focus/blur so the main process can target keyboard
+  // commands (zoom, back/forward) at this guest -- WebContents#isFocused()
+  // in main is unreliable for `<webview>` guests, but focus/blur on the
+  // element itself tracks the host document's activeElement correctly.
+  webview.addEventListener("focus", () => {
+    void rpcClient.agentBrowser.syncFocus.call({ focused: true, targetId });
+  });
+  webview.addEventListener("blur", () => {
+    void rpcClient.agentBrowser.syncFocus.call({ focused: false, targetId });
+  });
+
   container.append(webview);
   document.body.append(container);
 

@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useMediaQuery } from "@/client/hooks/use-media-query";
@@ -234,7 +235,10 @@ function RouteComponent() {
                   <PencilSimpleLineIcon className="text-muted-foreground" />
                   <span>Edit project</span>
                 </DropdownMenuItem>
-                <ProjectDevDiskMenuItems projectId={id} />
+                <ProjectDevDiskMenuItems
+                  menuComponents={dropdownMenuComponents}
+                  projectId={id}
+                />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => {

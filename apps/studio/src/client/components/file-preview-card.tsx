@@ -29,6 +29,7 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "./ui/context-menu";
+import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function FilePreviewCard({
@@ -187,7 +188,10 @@ function FileRowCard({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <FileActionsMenuItems file={file} variant="context" />
+        <FileActionsMenuItems
+          file={file}
+          menuComponents={contextMenuComponents}
+        />
       </ContextMenuContent>
     </ContextMenu>
   );

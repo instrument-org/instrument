@@ -4,17 +4,18 @@ import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+  type MenuComponents,
+} from "@/client/components/ui/menu-components";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -68,6 +69,58 @@ export function ProjectTaskRow({
     return <InlineRenameInput inputProps={rename.inputProps} />;
   }
 
+  const renderMenuItems = (menuComponents: MenuComponents) => {
+    const { Item, Separator } = menuComponents;
+    return (
+      <>
+        <Item
+          onSelect={() => {
+            void (isPinned
+              ? removePin({ id: task.id })
+              : addPin({ id: task.id }));
+          }}
+        >
+          <PushPinIcon className="text-muted-foreground" />
+          <span>{isPinned ? "Unpin" : "Pin"}</span>
+        </Item>
+        <Item
+          onSelect={() => {
+            void navigate({
+              params: { id: task.id },
+              search: { showDuplicate: true },
+              to: "/tasks/$id",
+            });
+          }}
+        >
+          <CopyIcon className="text-muted-foreground" />
+          <span>Duplicate</span>
+        </Item>
+        <Item onSelect={rename.start}>
+          <PencilSimpleLineIcon className="text-muted-foreground" />
+          <span>Rename</span>
+        </Item>
+        <Item
+          onSelect={() => {
+            void removeFromProject({ taskId: task.id });
+          }}
+        >
+          <XCircleIcon className="text-muted-foreground" />
+          <span>Remove from project</span>
+        </Item>
+        <Separator />
+        <Item
+          onSelect={() => {
+            onDelete(task);
+          }}
+          variant="destructive"
+        >
+          <TrashIcon className="size-4" />
+          <span>Delete</span>
+        </Item>
+      </>
+    );
+  };
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -102,100 +155,14 @@ export function ProjectTaskRow({
                 <span className="sr-only">More</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem
-                  onSelect={() => {
-                    void (isPinned
-                      ? removePin({ id: task.id })
-                      : addPin({ id: task.id }));
-                  }}
-                >
-                  <PushPinIcon className="text-muted-foreground" />
-                  <span>{isPinned ? "Unpin" : "Pin"}</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    void navigate({
-                      params: { id: task.id },
-                      search: { showDuplicate: true },
-                      to: "/tasks/$id",
-                    });
-                  }}
-                >
-                  <CopyIcon className="text-muted-foreground" />
-                  <span>Duplicate</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={rename.start}>
-                  <PencilSimpleLineIcon className="text-muted-foreground" />
-                  <span>Rename</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    void removeFromProject({ taskId: task.id });
-                  }}
-                >
-                  <XCircleIcon className="text-muted-foreground" />
-                  <span>Remove from project</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() => {
-                    onDelete(task);
-                  }}
-                  variant="destructive"
-                >
-                  <TrashIcon className="size-4" />
-                  <span>Delete</span>
-                </DropdownMenuItem>
+                {renderMenuItems(dropdownMenuComponents)}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem
-          onSelect={() => {
-            void (isPinned
-              ? removePin({ id: task.id })
-              : addPin({ id: task.id }));
-          }}
-        >
-          <PushPinIcon className="text-muted-foreground" />
-          <span>{isPinned ? "Unpin" : "Pin"}</span>
-        </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => {
-            void navigate({
-              params: { id: task.id },
-              search: { showDuplicate: true },
-              to: "/tasks/$id",
-            });
-          }}
-        >
-          <CopyIcon className="text-muted-foreground" />
-          <span>Duplicate</span>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={rename.start}>
-          <PencilSimpleLineIcon className="text-muted-foreground" />
-          <span>Rename</span>
-        </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => {
-            void removeFromProject({ taskId: task.id });
-          }}
-        >
-          <XCircleIcon className="text-muted-foreground" />
-          <span>Remove from project</span>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onSelect={() => {
-            onDelete(task);
-          }}
-          variant="destructive"
-        >
-          <TrashIcon className="size-4" />
-          <span>Delete</span>
-        </ContextMenuItem>
+        {renderMenuItems(contextMenuComponents)}
       </ContextMenuContent>
     </ContextMenu>
   );

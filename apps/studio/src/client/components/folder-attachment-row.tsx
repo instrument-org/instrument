@@ -9,17 +9,18 @@ import { toast } from "sonner";
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+  type MenuComponents,
+} from "./ui/menu-components";
 
 interface ExtraItem {
   icon: React.ReactNode;
@@ -53,6 +54,34 @@ export function FolderAttachmentRow({
 
   const revealLabel = getRevealInFolderLabel();
 
+  const renderMenuItems = (menuComponents: MenuComponents) => {
+    const { Item, Separator } = menuComponents;
+    return (
+      <>
+        {additionalMenuItems && additionalMenuItems.length > 0 && (
+          <>
+            {additionalMenuItems.map((item) => (
+              <Item key={item.label} onSelect={item.onSelect}>
+                {item.icon}
+                <span>{item.label}</span>
+              </Item>
+            ))}
+            <Separator />
+          </>
+        )}
+        <Item onSelect={() => void handleReveal()}>
+          <RevealInFolderIcon className="size-4" />
+          <span>{revealLabel}</span>
+        </Item>
+        <Separator />
+        <Item onSelect={onRemove} variant="destructive">
+          <TrashIcon className="size-4" />
+          <span>{removeLabel}</span>
+        </Item>
+      </>
+    );
+  };
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -70,51 +99,13 @@ export function FolderAttachmentRow({
               <span className="sr-only">Folder actions</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {additionalMenuItems && additionalMenuItems.length > 0 && (
-                <>
-                  {additionalMenuItems.map((item) => (
-                    <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
-                      {item.icon}
-                      <span>{item.label}</span>
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem onSelect={() => void handleReveal()}>
-                <RevealInFolderIcon className="size-4" />
-                <span>{revealLabel}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={onRemove} variant="destructive">
-                <TrashIcon className="size-4" />
-                <span>{removeLabel}</span>
-              </DropdownMenuItem>
+              {renderMenuItems(dropdownMenuComponents)}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        {additionalMenuItems && additionalMenuItems.length > 0 && (
-          <>
-            {additionalMenuItems.map((item) => (
-              <ContextMenuItem key={item.label} onSelect={item.onSelect}>
-                {item.icon}
-                <span>{item.label}</span>
-              </ContextMenuItem>
-            ))}
-            <ContextMenuSeparator />
-          </>
-        )}
-        <ContextMenuItem onSelect={() => void handleReveal()}>
-          <RevealInFolderIcon className="size-4" />
-          <span>{revealLabel}</span>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={onRemove} variant="destructive">
-          <TrashIcon className="size-4" />
-          <span>{removeLabel}</span>
-        </ContextMenuItem>
+        {renderMenuItems(contextMenuComponents)}
       </ContextMenuContent>
     </ContextMenu>
   );

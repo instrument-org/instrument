@@ -25,6 +25,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { TaskProjectMenuItem } from "../project/task-project-menu-item";
+import { dropdownMenuComponents } from "../ui/menu-components";
 
 export function TaskActionsCell({
   id,
@@ -130,7 +131,11 @@ export function TaskActionsCell({
             <ArrowUpRightIcon className="text-muted-foreground" />
             <span>Open in new tab</span>
           </DropdownMenuItem>
-          <TaskProjectMenuItem currentProjectId={projectId} taskId={id} />
+          <TaskProjectMenuItem
+            currentProjectId={projectId}
+            menuComponents={dropdownMenuComponents}
+            taskId={id}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

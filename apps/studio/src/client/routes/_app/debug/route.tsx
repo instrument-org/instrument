@@ -1,5 +1,4 @@
 import { InternalLink } from "@/client/components/internal-link";
-import { createIconMeta } from "@/shared/tabs";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { debugNavigationRoutes } from "./-debug-routes";
@@ -11,13 +10,9 @@ const linkActiveClasses = "bg-background text-foreground! shadow-xs";
 export const Route = createFileRoute("/_app/debug")({
   component: RouteComponent,
   head: () => ({
-    meta: [
-      {
-        title: "Debug",
-      },
-      createIconMeta("bug"),
-    ],
+    meta: [{ title: "Debug" }],
   }),
+  staticData: { tabIcon: "bug" },
 });
 
 function RouteComponent() {

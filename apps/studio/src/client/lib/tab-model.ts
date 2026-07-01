@@ -2,7 +2,7 @@ import { type Tab } from "@/shared/tabs";
 
 /**
  * Renderer-owned tab state and the pure transitions over it: selection,
- * ordering, reopen-closed, single-tab-route dedup. Lets the whole shell live
+ * ordering, reopen-closed, single-tab-route dedupe. Lets the whole shell live
  * in one web contents.
  *
  * Every function is pure: it returns a new model and never mutates the input,
@@ -166,6 +166,12 @@ export function selectTab(model: TabsModel, { id }: { id: string }): TabsModel {
   return { ...model, selectedId: id };
 }
 
+/**
+ * Apply the resolved head meta of a tab's route to the model. The caller always
+ * passes the full snapshot for the deepest match, so this replaces rather than
+ * merges: a route that declares no icon (e.g. a task, which uses its status
+ * ring) clears an icon left over from the previous route (e.g. a project).
+ */
 export function setTabMeta(
   model: TabsModel,
   {
@@ -183,14 +189,7 @@ export function setTabMeta(
   return {
     ...model,
     tabs: model.tabs.map((tab) =>
-      tab.id === id
-        ? {
-            ...tab,
-            iconName: iconName ?? tab.iconName,
-            taskId: taskId ?? tab.taskId,
-            title: title ?? tab.title,
-          }
-        : tab,
+      tab.id === id ? { ...tab, iconName, taskId, title } : tab,
     ),
   };
 }

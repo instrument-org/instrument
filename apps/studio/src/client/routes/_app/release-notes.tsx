@@ -10,7 +10,6 @@ import {
 } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { rpcClient } from "@/client/rpc/client";
-import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME, RELEASE_NOTES_URL } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -20,13 +19,9 @@ import { formatDistanceToNow } from "date-fns";
 export const Route = createFileRoute("/_app/release-notes")({
   component: RouteComponent,
   head: () => ({
-    meta: [
-      {
-        title: "Release Notes",
-      },
-      createIconMeta("file-text"),
-    ],
+    meta: [{ title: "Release Notes" }],
   }),
+  staticData: { tabIcon: "file-text" },
 });
 
 function ErrorFallback() {

@@ -1,51 +1,52 @@
 import { type TabRouter } from "@/client/lib/tab-router";
-import { META_TAGS } from "@/shared/tabs";
-import { type TabIconName, TabIconsSchema } from "@instrument-org/shared/icons";
+import { type TabIconName } from "@instrument-org/shared/icons";
 import { type TaskId, TaskIdSchema } from "@instrument-org/workspace/client";
 
+declare module "@tanstack/react-router" {
+  interface StaticDataRouteOption {
+    // Static tab-bar icon for this route (project, table, bug, ...). Tasks omit
+    // it; they render a live status ring keyed off `tabTaskIdParam` instead.
+    tabIcon?: TabIconName;
+    // Name of the path param holding this route's TaskId, surfaced to the tab
+    // bar's status ring. Read off the match's params at resolve time.
+    tabTaskIdParam?: string;
+  }
+}
+
 /**
- * Extract a tab's title/icon/taskId from the resolved head meta of the router's
- * matched routes. Routes keep declaring these in `head()` (including async heads
- * that fetch a task/project name); this is what consumes them now that the old
- * main-process page-scraping is gone. The deepest match's title wins.
+ * Derive a tab's title/icon/taskId from the router's matched routes. Icon and
+ * taskId come from each route's typed `staticData`; the title comes from the
+ * route `head()` (which may async-fetch a task/project name). The deepest match
+ * wins for each field.
  */
 export function readRouterTabMeta(router: TabRouter): {
   iconName?: TabIconName;
   taskId?: TaskId;
   title?: string;
 } {
+  let iconName: TabIconName | undefined;
+  let taskId: TaskId | undefined;
   let title: string | undefined;
-  let rawIcon: string | undefined;
-  let rawTaskId: string | undefined;
 
   for (const match of router.state.matches) {
+    const { tabIcon, tabTaskIdParam } = match.staticData;
+    if (tabIcon) {
+      iconName = tabIcon;
+    }
+    if (tabTaskIdParam) {
+      // Aggregated match params are loosely typed across the route union.
+      const params = match.params as Record<string, string | undefined>;
+      const parsed = TaskIdSchema.safeParse(params[tabTaskIdParam]);
+      taskId = parsed.success ? parsed.data : undefined;
+    }
     for (const entry of match.meta ?? []) {
-      // Head meta entries are loosely typed (title tags vs named metas).
-      const meta = entry as {
-        content?: unknown;
-        name?: unknown;
-        title?: unknown;
-      };
+      // Head meta entries are loosely typed; only title tags matter here.
+      const meta = entry as { title?: unknown };
       if (typeof meta.title === "string") {
         title = meta.title;
-      }
-      if (
-        meta.name === META_TAGS.iconName &&
-        typeof meta.content === "string"
-      ) {
-        rawIcon = meta.content;
-      }
-      if (meta.name === META_TAGS.taskId && typeof meta.content === "string") {
-        rawTaskId = meta.content;
       }
     }
   }
 
-  const icon = rawIcon ? TabIconsSchema.safeParse(rawIcon) : null;
-  const taskId = rawTaskId ? TaskIdSchema.safeParse(rawTaskId) : null;
-  return {
-    iconName: icon?.success ? icon.data : undefined,
-    taskId: taskId?.success ? taskId.data : undefined,
-    title,
-  };
+  return { iconName, taskId, title };
 }

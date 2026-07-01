@@ -9,7 +9,6 @@ import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-a
 import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
-import { createTaskIdMeta } from "@/shared/tabs";
 import {
   StoreId,
   type Task,
@@ -126,6 +125,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
     }
   },
   component: RouteComponent,
+  staticData: { tabTaskIdParam: "id" },
   head: async ({ params }) => {
     const taskResult = await safe(
       rpcClient.workspace.task.byId.call({
@@ -134,12 +134,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
     );
 
     return {
-      meta: [
-        {
-          title: title(taskResult.data),
-        },
-        createTaskIdMeta(params.id),
-      ],
+      meta: [{ title: title(taskResult.data) }],
     };
   },
   validateSearch: taskSearchSchema,

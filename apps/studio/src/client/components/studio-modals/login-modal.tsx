@@ -77,11 +77,14 @@ function LoginModalContent({
     <DialogContent
       aria-describedby={undefined}
       className={cn(
-        `w-full max-w-[472px] gap-0 overflow-hidden border-0 p-0
-        shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] drop-shadow-2xl outline-none
-        focus:outline-none focus-visible:outline-none
+        `w-full max-w-[min(472px,calc(96vw/var(--content-zoom)))] gap-0
+        overflow-hidden border-0 p-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]
+        drop-shadow-2xl outline-none focus:outline-none
+        focus-visible:outline-none
+        sm:max-w-[min(472px,calc(96vw/var(--content-zoom)))]
         dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]`,
-        FIXED_HEIGHT_PAGES.has(page) && "h-[640px] max-h-[85vh]",
+        FIXED_HEIGHT_PAGES.has(page) &&
+          "h-[640px] max-h-[calc(85vh/var(--content-zoom))]",
         page === "add-provider" ? SHARED.subtleGradient : SHARED.brandGradient,
       )}
       // Radix auto-focuses the first focusable element on open, painting a

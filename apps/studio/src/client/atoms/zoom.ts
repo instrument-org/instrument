@@ -3,8 +3,8 @@ import { safe } from "@orpc/client";
 import { getDefaultStore } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
-export const ZOOM_MAX = 3;
-export const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const ZOOM_MIN = 0.5;
 export const ZOOM_STEP = 0.1;
 
 /**

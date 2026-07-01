@@ -43,22 +43,36 @@ function contextMenuTemplate(
   const { editFlags } = params;
   const items: MenuItemConstructorOptions[] = [
     {
-      click: () => { guest.navigationHistory.goBack(); },
+      click: () => {
+        guest.navigationHistory.goBack();
+      },
       enabled: guest.navigationHistory.canGoBack(),
       label: "Back",
     },
     {
-      click: () => { guest.navigationHistory.goForward(); },
+      click: () => {
+        guest.navigationHistory.goForward();
+      },
       enabled: guest.navigationHistory.canGoForward(),
       label: "Forward",
     },
-    { click: () => { guest.reload(); }, label: "Reload" },
+    {
+      click: () => {
+        guest.reload();
+      },
+      label: "Reload",
+    },
     { type: "separator" },
   ];
 
   if (params.linkURL) {
     items.push(
-      { click: () => { clipboard.writeText(params.linkURL); }, label: "Copy Link" },
+      {
+        click: () => {
+          clipboard.writeText(params.linkURL);
+        },
+        label: "Copy Link",
+      },
       { type: "separator" },
     );
   }
@@ -79,7 +93,9 @@ function contextMenuTemplate(
     items.push(
       { type: "separator" },
       {
-        click: () => { guest.inspectElement(params.x, params.y); },
+        click: () => {
+          guest.inspectElement(params.x, params.y);
+        },
         label: "Inspect Element",
       },
     );

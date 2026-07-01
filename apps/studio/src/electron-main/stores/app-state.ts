@@ -74,11 +74,11 @@ export function getSidebarVisible() {
   return store.get("isSidebarOpen");
 }
 
-export function getSidebarWidth() {
-  return getSidebarVisible() ? SIDEBAR_WIDTH : 0;
-}
-
 export function setSidebarVisible(visible: boolean) {
   const store = getAppStateStore();
   store.set("isSidebarOpen", visible);
+}
+
+function getSidebarWidth() {
+  return getSidebarVisible() ? SIDEBAR_WIDTH : 0;
 }

@@ -27,7 +27,6 @@ import {
   openEditProject,
 } from "@/client/lib/project-overlays";
 import { rpcClient } from "@/client/rpc/client";
-import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { ProjectIdSchema, type Task } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
@@ -58,16 +57,14 @@ export const Route = createFileRoute("/_app/projects/$id/")({
     // Allow route to load on transient/workspace-not-ready errors
   },
   component: RouteComponent,
+  staticData: { tabIcon: "project" },
   head: async ({ params }) => {
     const projectResult = await safe(
       rpcClient.workspace.project.byId.call({ id: params.id }),
     );
 
     return {
-      meta: [
-        { title: projectResult.data?.name ?? "Project" },
-        createIconMeta("project"),
-      ],
+      meta: [{ title: projectResult.data?.name ?? "Project" }],
     };
   },
 });

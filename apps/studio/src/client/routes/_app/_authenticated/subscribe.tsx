@@ -10,7 +10,6 @@ import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME, CONTACT_EMAIL } from "@instrument-org/shared";
 import { CheckCircleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -23,14 +22,10 @@ export const Route = createFileRoute("/_app/_authenticated/subscribe")({
   component: SubscribePage,
   head: () => {
     return {
-      meta: [
-        {
-          title: "Subscribe",
-        },
-        createIconMeta("our-app"),
-      ],
+      meta: [{ title: "Subscribe" }],
     };
   },
+  staticData: { tabIcon: "our-app" },
 });
 
 type BillingCycle = "monthly" | "yearly";

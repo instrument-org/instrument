@@ -186,12 +186,14 @@ describe("setTabPathname", () => {
 });
 
 describe("setTabMeta", () => {
-  it("merges title/icon/taskId without clobbering with undefined", () => {
-    const start = model([tab({ id: "a", title: "Old" })], "a");
-    const next = setTabMeta(start, { id: "a", title: "New" });
-    expect(next.tabs[0]?.title).toBe("New");
-    const unchanged = setTabMeta(next, { iconName: "globe", id: "a" });
-    expect(unchanged.tabs[0]?.title).toBe("New");
-    expect(unchanged.tabs[0]?.iconName).toBe("globe");
+  it("replaces the resolved meta, clearing a stale icon on navigation", () => {
+    // project (has an icon) -> task (no icon, uses its status ring) in one tab
+    const start = model(
+      [tab({ iconName: "project", id: "a", title: "My project" })],
+      "a",
+    );
+    const next = setTabMeta(start, { id: "a", title: "My task" });
+    expect(next.tabs[0]?.title).toBe("My task");
+    expect(next.tabs[0]?.iconName).toBeUndefined();
   });
 });

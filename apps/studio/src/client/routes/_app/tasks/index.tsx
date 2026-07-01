@@ -24,7 +24,6 @@ import { useTrashTask } from "@/client/hooks/use-trash-task";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
-import { createIconMeta } from "@/shared/tabs";
 import { APP_NAME, TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import {
   isTaskId,
@@ -48,14 +47,10 @@ export const Route = createFileRoute("/_app/tasks/")({
   component: RouteComponent,
   head: () => {
     return {
-      meta: [
-        {
-          title: "Your Tasks",
-        },
-        createIconMeta("table-properties"),
-      ],
+      meta: [{ title: "Your Tasks" }],
     };
   },
+  staticData: { tabIcon: "table-properties" },
   validateSearch: tasksSearchSchema,
 });
 

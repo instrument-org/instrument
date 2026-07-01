@@ -185,9 +185,8 @@ describe("Studio Smoke Test", () => {
 
     await electronApp.firstWindow({ timeout: 30_000 });
 
-    // Wait for both named windows to appear. The app may open additional internal
-    // WebContentsViews (e.g. the shield view used to prevent tab flicker) that
-    // Playwright surfaces in windows() -- we locate by URL rather than index.
+    // Wait for both named windows to appear; locate by URL rather than index
+    // since window ordering isn't guaranteed.
     const startTime = Date.now();
 
     let appWindow = electronApp.windows().find((w) => isAppWindow(w.url()));

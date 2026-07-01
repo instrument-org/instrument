@@ -1,5 +1,5 @@
 import { buttonVariants } from "@/client/components/ui/button";
-import { useShellZoom } from "@/client/hooks/use-shell-zoom";
+import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
 import { cn } from "@/client/lib/utils";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import * as React from "react";
@@ -45,7 +45,6 @@ function AlertDialogContent({
   style,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
-  const zoom = useShellZoom();
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
@@ -55,7 +54,7 @@ function AlertDialogContent({
           className,
         )}
         data-slot="alert-dialog-content"
-        style={{ zoom: zoom === 1 ? undefined : zoom, ...style }}
+        style={useShellZoomStyle(style)}
         {...props}
       />
     </AlertDialogPortal>

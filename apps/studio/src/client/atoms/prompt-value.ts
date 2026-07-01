@@ -116,6 +116,21 @@ export function promptDraftRefAtom(key: PromptDraftKey) {
   return promptDraftRefFamily(draftKeyString(key));
 }
 
+// A per-tab focus signal, bumped whenever the active tab navigates in place (see
+// `navigateTab`). A sidebar click whose destination equals the current route is
+// a no-op navigation, so nothing remounts to re-run the prompt's focus effect;
+// the page's prompt watches this signal to re-assert focus on that click too.
+const promptFocusSignalFamily = atomFamily((_tabId: string) => atom(0));
+
+export function promptFocusSignalAtom(tabId: string) {
+  return promptFocusSignalFamily(tabId);
+}
+
+export const bumpPromptFocusAtom = atom(null, (get, set, tabId: string) => {
+  const signal = promptFocusSignalFamily(tabId);
+  set(signal, get(signal) + 1);
+});
+
 export const appendToPromptAtom = atom(
   null,
   (

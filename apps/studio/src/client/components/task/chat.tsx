@@ -2,8 +2,9 @@ import { featuresAtom } from "@/client/atoms/features";
 import {
   focusPromptDraft,
   promptDraftRefAtom,
+  promptFocusSignalAtom,
 } from "@/client/atoms/prompt-value";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -163,6 +164,7 @@ export function TaskChat({
 
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
+  const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
   const draftKey = { scope: "task", taskId: id } as const;
   const promptTextarea = useAtomValue(promptDraftRefAtom(draftKey));
   useLayoutEffect(() => {
@@ -170,7 +172,7 @@ export function TaskChat({
       return;
     }
     focusPromptDraft(promptTextarea);
-  }, [isActiveTab, selectedSessionId, promptTextarea]);
+  }, [isActiveTab, focusSignal, selectedSessionId, promptTextarea]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
   const isTutorialVisible =

@@ -61,37 +61,3 @@ declare module "@tanstack/react-router" {
 const history = createHashHistory({});
 
 export const { queryClient, router } = createRouter({ history });
-
-window.api.onNavigate((url) => {
-  const currentPath = router.state.location.pathname;
-  if (currentPath === url) {
-    const matches = router.matchRoutes(url, {});
-    const taskRouteMatch = matches.find(
-      (m) => m.routeId === "/_app/tasks/$id/",
-    );
-    if (taskRouteMatch) {
-      // Same pathname as IPC: keep search params (bare path would strip them)
-      // except clear `sidebar` so the default chat sidebar shows again.
-      const loc = router.state.location;
-      const id = taskRouteMatch.params.id;
-      if (
-        (loc.search.sidebar !== undefined ||
-          loc.search.artifactPanel !== undefined) &&
-        id
-      ) {
-        void router.navigate({
-          params: { id },
-          replace: true,
-          search: (prev) => ({
-            ...prev,
-            artifactPanel: undefined,
-            sidebar: undefined,
-          }),
-          to: "/tasks/$id",
-        });
-      }
-      return;
-    }
-  }
-  void router.navigate({ to: url });
-});

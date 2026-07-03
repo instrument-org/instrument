@@ -1,6 +1,9 @@
+import { toggleCommandMenu } from "@/client/atoms/command-menu";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { tabsAtom } from "@/client/atoms/tabs";
 import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
+import { toggleSidebar } from "@/client/hooks/use-sidebar";
 import {
   addTab,
   closeTab,
@@ -16,9 +19,10 @@ import { startTransition, useEffect } from "react";
 
 const NEW_TAB_PATH = "/new-tab";
 
-// Tab commands that move the user between tabs or routes. While a modal is open
+// Commands that move the user between tabs or routes. While a modal is open
 // these are ignored so shortcuts like Cmd+T / Cmd+W can't pull the user out from
-// under it; zoom commands stay allowed since they don't navigate.
+// under it; shell-state commands (zoom, sidebar, settings, command menu, reload)
+// stay allowed since they don't navigate the tab.
 const MODAL_BLOCKED_COMMANDS = new Set([
   "close",
   "navigate",
@@ -106,6 +110,22 @@ export function useTabCommands() {
                 getTabRouter(store.get(tabsAtom).selectedId)?.history.forward();
                 break;
               }
+              case "openSettings": {
+                openSettings({ tab: "General" });
+                break;
+              }
+              case "reload": {
+                // Gated on the *active* tab's route so a backgrounded task
+                // can't suppress reload and a foregrounded one can.
+                const router = getTabRouter(store.get(tabsAtom).selectedId);
+                const disableHotkeyReload = router?.state.matches.some(
+                  (match) => match.context.disableHotkeyReload,
+                );
+                if (!disableHotkeyReload) {
+                  window.location.reload();
+                }
+                break;
+              }
               case "reopen": {
                 startTransition(() => {
                   store.set(tabsAtom, (m) =>
@@ -140,6 +160,14 @@ export function useTabCommands() {
                 startTransition(() => {
                   store.set(tabsAtom, (m) => selectAdjacent(m, { delta: -1 }));
                 });
+                break;
+              }
+              case "toggleCommandMenu": {
+                toggleCommandMenu();
+                break;
+              }
+              case "toggleSidebar": {
+                toggleSidebar();
                 break;
               }
               case "zoomIn": {

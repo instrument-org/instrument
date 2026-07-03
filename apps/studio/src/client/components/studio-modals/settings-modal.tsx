@@ -26,7 +26,6 @@ import {
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { useOpenSettings } from "@/client/hooks/use-open-settings";
 import { rpcClient } from "@/client/rpc/client";
 import {
   BugIcon,
@@ -61,7 +60,6 @@ export function SettingsModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete } = useDeferredModalState(state);
 
-  useOpenSettings();
   useBlockTabNavigation(isOpen);
 
   return (

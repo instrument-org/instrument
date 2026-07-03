@@ -1,3 +1,4 @@
+import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import {
   CommandDialog,
   CommandGroup,
@@ -7,8 +8,6 @@ import {
 } from "@/client/components/ui/command";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { useToggleCommandMenu } from "@/client/hooks/use-toggle-command-menu";
-import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
@@ -21,7 +20,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useAtom } from "jotai";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { FuzzyHighlight } from "./fuzzy-highlight";
@@ -34,7 +34,7 @@ interface MatchedTask {
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
 export function StudioCommandMenu() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
   const { navigateTab } = useTabActions();
@@ -99,17 +99,6 @@ export function StudioCommandMenu() {
   }, [candidateTasks, search]);
 
   const isOnNewTabPage = !!newTabRouteMatch;
-
-  useToggleCommandMenu(
-    useCallback(() => {
-      setOpen((prev) => {
-        if (!prev) {
-          captureClientEvent("command_menu.opened");
-        }
-        return !prev;
-      });
-    }, []),
-  );
 
   const handleClose = () => {
     setOpen(false);

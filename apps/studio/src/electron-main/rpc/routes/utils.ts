@@ -377,25 +377,6 @@ const syncZoom = base
     setTrafficLightForZoom(input.zoom);
   });
 
-// One-shot window signals (menu items / accelerators) streamed to the target
-// window's renderer. Filtered by webContentsId so a signal meant for one window
-// doesn't fire in another.
-function windowSignal(
-  event:
-    | "app.open-settings"
-    | "app.reload"
-    | "app.toggle-command-menu"
-    | "app.toggle-sidebar",
-) {
-  return base.handler(async function* ({ context, signal }) {
-    for await (const payload of publisher.subscribe(event, { signal })) {
-      if (context.webContentsId === payload.webContentsId) {
-        yield;
-      }
-    }
-  });
-}
-
 const live = {
   onWindowFocus: base.handler(async function* ({ signal }) {
     for await (const _ of publisher.subscribe("window.focus-changed", {
@@ -406,8 +387,6 @@ const live = {
       };
     }
   }),
-  openSettings: windowSignal("app.open-settings"),
-  reload: windowSignal("app.reload"),
   serverExceptions: base
     .output(
       eventIterator(
@@ -432,8 +411,6 @@ const live = {
         yield getServerExceptions();
       }
     }),
-  toggleCommandMenu: windowSignal("app.toggle-command-menu"),
-  toggleSidebar: windowSignal("app.toggle-sidebar"),
 };
 
 const copyTaskPathToClipboard = base

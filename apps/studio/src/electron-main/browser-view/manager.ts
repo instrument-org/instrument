@@ -1,5 +1,8 @@
 import { publisher } from "@/electron-main/rpc/publisher";
-import { targetIdFromPartition } from "@/shared/agent-browser";
+import {
+  type AgentBrowserTarget,
+  targetIdFromPartition,
+} from "@/shared/agent-browser";
 import {
   type AbsolutePath,
   type BrowserConfig,
@@ -45,9 +48,9 @@ export interface BrowserViewManager {
   // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
   // convention; do not mutate the returned map from outside the manager.
   getDebugEntries: () => ReadonlyMap<BrowserTargetId, BrowserEntry>;
-  // Every recorded target id, including ones whose guest has not attached yet.
-  // The renderer pool reconciles its `<webview>` guests to this set.
-  getTargetIds: () => string[];
+  // Every recorded target and whether its guest has attached yet. The renderer
+  // pool mounts a guest for every id; the UI treats only attached ones as live.
+  getTargets: () => AgentBrowserTarget[];
   // If an agent-browser guest has focus, navigate its own history and return
   // true. Lets keyboard back/forward target the focused guest instead of the
   // tab (mouse buttons are handled by the guest's own app-command).
@@ -165,6 +168,9 @@ export function createBrowserViewManager(): BrowserViewManager {
       ensureDebuggerAttached(entry);
       attachDevHooks(entry);
       entry.attach.resolve();
+      // The guest is now attached; re-publish so subscribers (the UI's live
+      // view) flip this target from pending to live.
+      notifyEntriesChanged();
     });
     void guest.loadURL("about:blank");
 
@@ -453,7 +459,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     bindHost,
     browser,
     getDebugEntries: () => entries,
-    getTargetIds: () => [...entries.keys()].map(String),
+    getTargets: () =>
+      [...entries.values()].map((entry) => ({
+        attached: Boolean(
+          entry.webContents && !entry.webContents.isDestroyed(),
+        ),
+        id: String(entry.targetId),
+      })),
     navigateFocusedGuest,
     setGuestFocus,
     teardown: () => {

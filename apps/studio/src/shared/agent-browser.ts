@@ -21,6 +21,17 @@ const AGENT_BROWSER_PARTITION_PREFIX = "persist:agent-browser-route:";
  */
 export const AGENT_BROWSER_VIEWPORT = { height: 800, width: 1280 };
 
+/**
+ * A recorded agent-browser target and whether its guest has attached yet.
+ * Streamed over `agentBrowser.live.targets`: the pool mounts a `<webview>` for
+ * every id (attached or not -- mounting is what triggers the attach), while the
+ * UI treats only attached targets as "live" (guest present, not a placeholder).
+ */
+export interface AgentBrowserTarget {
+  attached: boolean;
+  id: string;
+}
+
 export function agentBrowserPartition(targetId: string): string {
   // Encode so the target id's `/` doesn't complicate the partition string.
   return `${AGENT_BROWSER_PARTITION_PREFIX}${encodeURIComponent(targetId)}`;

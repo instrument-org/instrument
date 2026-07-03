@@ -1,5 +1,6 @@
 import { rpcClient } from "@/client/rpc/client";
 import {
+  type AgentBrowserTarget,
   AGENT_BROWSER_VIEWPORT,
   agentBrowserPartition,
 } from "@/shared/agent-browser";
@@ -65,9 +66,28 @@ const VISIBLE_BOTTOM_RADIUS = "0.6875rem";
 
 const pool = new Map<string, PooledWebview>();
 
+// Ids of targets whose guest has attached, mirrored from the desired-targets
+// stream so the UI can show the live guest vs a placeholder without a second
+// polled endpoint. Replaced (not mutated) on each reconcile so the snapshot is a
+// stable reference for useSyncExternalStore between changes.
+let attachedTargets: ReadonlySet<string> = new Set();
+const targetListeners = new Set<() => void>();
+
 /** The pooled guest element for a target, if it exists (for nav controls). */
 export function getWebviewElement(targetId: string): null | WebviewElement {
   return pool.get(targetId)?.webview ?? null;
+}
+
+/** useSyncExternalStore glue for {@link attachedTargets} (see use-agent-browser-targets). */
+export function subscribeAttachedTargets(listener: () => void): () => void {
+  targetListeners.add(listener);
+  return () => {
+    targetListeners.delete(listener);
+  };
+}
+
+export function getAttachedTargetsSnapshot(): ReadonlySet<string> {
+  return attachedTargets;
 }
 
 /**
@@ -81,11 +101,11 @@ export function initAgentBrowserPool(): () => void {
 
   async function subscribe() {
     const subscription = await rpcClient.agentBrowser.live.targets.call();
-    for await (const targetIds of subscription) {
+    for await (const targets of subscription) {
       if (cancelled) {
         break;
       }
-      reconcile(targetIds);
+      reconcile(targets);
     }
   }
 
@@ -229,9 +249,9 @@ function ensureWebview(targetId: string): PooledWebview {
 }
 
 /** Bring the pool in line with the desired target set: create any missing
- * guests, dispose any that are no longer wanted. */
-function reconcile(targetIds: string[]) {
-  const desired = new Set(targetIds);
+ * guests, dispose any that are no longer wanted, and mirror the attached set. */
+function reconcile(targets: AgentBrowserTarget[]) {
+  const desired = new Set(targets.map((target) => target.id));
   for (const targetId of desired) {
     ensureWebview(targetId);
   }
@@ -239,5 +259,12 @@ function reconcile(targetIds: string[]) {
   const stale = [...pool.keys()].filter((targetId) => !desired.has(targetId));
   for (const targetId of stale) {
     disposeWebview(targetId);
+  }
+
+  attachedTargets = new Set(
+    targets.filter((target) => target.attached).map((target) => target.id),
+  );
+  for (const listener of targetListeners) {
+    listener();
   }
 }

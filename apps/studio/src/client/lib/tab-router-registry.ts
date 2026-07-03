@@ -1,4 +1,5 @@
-import { getRouterHistory, type TabRouter } from "@/client/lib/tab-router";
+import { type TabRouter } from "@/client/lib/tab-router";
+import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { type TabHistory } from "@/shared/tabs";
 
 /**

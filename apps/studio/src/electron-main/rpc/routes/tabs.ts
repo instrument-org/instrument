@@ -4,7 +4,7 @@ import { commandPublisher } from "@/electron-main/rpc/publisher";
 // Tabs are owned by the renderer (AppShell). Selection, ordering, back/forward,
 // close, and modal-initiated opens are all driven entirely in the renderer, so
 // they have no RPC surface here. Main-process sources (native menus, onboarding)
-// publish tab commands directly via `sendTabCommand`, streamed over `live`.
+// publish tab commands directly via `sendShellCommand`, streamed over `live`.
 
 const live = {
   // Imperative tab operations the renderer (AppShell) applies to its own tab

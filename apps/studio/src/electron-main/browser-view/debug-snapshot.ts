@@ -4,7 +4,7 @@
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import { sendTabCommand } from "@/electron-main/tabs/tab-command";
+import { sendShellCommand } from "@/electron-main/tabs/tab-command";
 import { type StudioPath } from "@/shared/studio-path";
 import {
   BrowserTargetIdSchema,
@@ -251,7 +251,7 @@ const openAsTab = devOnly
     // browser artifact panel. `satisfies` pins taskPath so route staleness is
     // caught at compile time.
     const taskPath = "/tasks/$id/" satisfies StudioPath;
-    sendTabCommand({
+    sendShellCommand({
       appPath: `${taskPath.replace("$id", String(entry.id))}?selectedSessionId=${String(entry.sessionId)}`,
       newTab: true,
       type: "navigate",

@@ -13,6 +13,7 @@ import {
 } from "@/electron-main/lib/server-exceptions";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { setTrafficLightForZoom } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
   OpenTaskInTypeSchema,
@@ -367,6 +368,15 @@ const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
 });
 
+// The renderer owns the shell zoom (CSS `zoom`); it reports the current level so
+// the main process can keep the macOS traffic lights centered in the toolbar,
+// whose visual height scales with that zoom.
+const syncZoom = base
+  .input(z.object({ zoom: z.number() }))
+  .handler(({ input }) => {
+    setTrafficLightForZoom(input.zoom);
+  });
+
 // One-shot window signals (menu items / accelerators) streamed to the target
 // window's renderer. Filtered by webContentsId so a signal meant for one window
 // doesn't fire in another.
@@ -546,4 +556,5 @@ export const utils = {
   showFolderPicker,
   showProjectInFolder,
   showTaskFileInFolder,
+  syncZoom,
 };

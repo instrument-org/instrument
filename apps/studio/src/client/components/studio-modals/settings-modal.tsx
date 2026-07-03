@@ -37,7 +37,6 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { useState } from "react";
 
 interface NavItem {
   icon: React.ElementType;
@@ -48,9 +47,10 @@ interface NavItem {
 
 /**
  * App-wide settings modal, mounted once at the app-chrome root. Reads
- * `settingsModalAtom` (opened via `openSettings`). The visible section is
- * internal state seeded from the request's `tab`, and Providers can deep-link
- * straight to the add-provider dialog. Traps tab navigation while open.
+ * `settingsModalAtom` (opened via `openSettings`). The visible section is the
+ * atom's `tab`, so a second `openSettings({ tab })` while open retargets the
+ * modal instead of no-oping. Providers can deep-link straight to the
+ * add-provider dialog. Traps tab navigation while open.
  */
 export function SettingsModal() {
   const [state, setState] = useAtom(settingsModalAtom);
@@ -70,8 +70,14 @@ export function SettingsModal() {
     >
       {state !== null && (
         <SettingsModalContent
-          initialTab={state.tab ?? "General"}
-          showNewProviderDialog={state.showNewProviderDialog ?? false}
+          activeTab={state.tab ?? "General"}
+          // One-shot: honored only for the initial Providers section. Switching
+          // sections drops it (onSelectTab sets `{ tab }` alone), so revisiting
+          // Providers doesn't reopen add-provider.
+          autoAddProvider={state.showNewProviderDialog ?? false}
+          onSelectTab={(tab) => {
+            setState({ tab });
+          }}
         />
       )}
     </Dialog>
@@ -79,22 +85,15 @@ export function SettingsModal() {
 }
 
 function SettingsModalContent({
-  initialTab,
-  showNewProviderDialog,
+  activeTab,
+  autoAddProvider,
+  onSelectTab,
 }: {
-  initialTab: SettingsTab;
-  showNewProviderDialog: boolean;
+  activeTab: SettingsTab;
+  autoAddProvider: boolean;
+  onSelectTab: (tab: SettingsTab) => void;
 }) {
   const navItems = useNavItems();
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
-  // One-shot: honored only for the initial Providers section, cleared on any
-  // section switch so revisiting Providers doesn't reopen add-provider.
-  const [autoAddProvider, setAutoAddProvider] = useState(showNewProviderDialog);
-
-  const selectTab = (tab: SettingsTab) => {
-    setActiveTab(tab);
-    setAutoAddProvider(false);
-  };
 
   return (
     <DialogContent
@@ -135,7 +134,7 @@ function SettingsModalContent({
                         }
                         isActive={item.tab === activeTab}
                         onClick={() => {
-                          selectTab(item.tab);
+                          onSelectTab(item.tab);
                         }}
                       >
                         <item.icon />

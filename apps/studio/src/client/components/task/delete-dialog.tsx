@@ -10,6 +10,7 @@ export function TaskDeleteDialog({
   navigateOnDelete,
   onDeleteEnd,
   onDeleteStart,
+  onExitComplete,
   onOpenChange,
   open,
   task,
@@ -17,6 +18,7 @@ export function TaskDeleteDialog({
   navigateOnDelete: boolean;
   onDeleteEnd?: () => void;
   onDeleteStart?: () => void;
+  onExitComplete?: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   task: Task;
@@ -45,6 +47,7 @@ export function TaskDeleteDialog({
       description={`This task will be moved to your system ${trashTerminology}. You can restore it from there if needed.`}
       items={[task]}
       onDelete={handleDelete}
+      onExitComplete={onExitComplete}
       onOpenChange={onOpenChange}
       open={open}
       title="Delete task?"

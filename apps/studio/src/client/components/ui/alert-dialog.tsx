@@ -42,9 +42,17 @@ function AlertDialogCancel({
 
 function AlertDialogContent({
   className,
+  onAnimationEnd,
+  onExitComplete,
   style,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
+  // Fires once the `data-[state=closed]:animate-out` exit animation actually
+  // finishes on this element (not a bubbled animation from a child), so
+  // callers can defer clearing their content until the close animation has
+  // had time to play instead of guessing its duration.
+  onExitComplete?: () => void;
+}) {
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
@@ -54,6 +62,16 @@ function AlertDialogContent({
           className,
         )}
         data-slot="alert-dialog-content"
+        onAnimationEnd={(event) => {
+          onAnimationEnd?.(event);
+          if (
+            onExitComplete &&
+            event.target === event.currentTarget &&
+            event.currentTarget.dataset.state === "closed"
+          ) {
+            onExitComplete();
+          }
+        }}
         style={useShellZoomStyle(style)}
         {...props}
       />

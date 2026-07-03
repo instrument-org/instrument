@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -19,6 +20,7 @@ import {
   ListChecksIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import {
   motion,
@@ -66,6 +68,12 @@ const POSITION_SPRING = { damping: 28, stiffness: 180 };
  */
 export function WelcomeModal() {
   const [isOpen, setIsOpen] = useAtom(welcomeModalAtom);
+  // Deferred so `DialogContent` stays mounted (and its close animation can
+  // play) for a moment after `isOpen` flips false, instead of unmounting the
+  // instant the dialog starts closing.
+  const { content, onExitComplete } = useDeferredModalState(
+    isOpen ? true : null,
+  );
 
   useBlockTabNavigation(isOpen);
 
@@ -73,11 +81,12 @@ export function WelcomeModal() {
     // No onOpenChange: the content refuses Escape/outside dismiss, so the only
     // way out is Continue.
     <Dialog open={isOpen}>
-      {isOpen && (
+      {content !== null && (
         <WelcomeModalContent
           onContinue={() => {
             setIsOpen(false);
           }}
+          onExitComplete={onExitComplete}
         />
       )}
     </Dialog>
@@ -163,7 +172,13 @@ function WelcomeHeader() {
   );
 }
 
-function WelcomeModalContent({ onContinue }: { onContinue: () => void }) {
+function WelcomeModalContent({
+  onContinue,
+  onExitComplete,
+}: {
+  onContinue: () => void;
+  onExitComplete: () => void;
+}) {
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
@@ -172,8 +187,13 @@ function WelcomeModalContent({ onContinue }: { onContinue: () => void }) {
   });
   const showFreeUsageFooter = hasToken === true && subscription?.plan === null;
 
+  // Navigates the active tab's router directly (the chrome renders inside its
+  // RouterContextProvider), matching NavControls, rather than round-tripping a
+  // tab command through the main process.
+  const router = useRouter();
+
   async function handleContinue() {
-    await rpcClient.tabs.navigate.call({ appPath: "/tutorial-task" });
+    await router.navigate({ to: "/tutorial-task" });
     onContinue();
   }
 
@@ -192,6 +212,7 @@ function WelcomeModalContent({ onContinue }: { onContinue: () => void }) {
       onEscapeKeyDown={(event) => {
         event.preventDefault();
       }}
+      onExitComplete={onExitComplete}
       onInteractOutside={(event) => {
         event.preventDefault();
       }}

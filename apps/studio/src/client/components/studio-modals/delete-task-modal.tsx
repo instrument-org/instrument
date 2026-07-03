@@ -1,5 +1,6 @@
 import { deleteTaskModalAtom } from "@/client/atoms/delete-task-modal";
 import { TaskDeleteDialog } from "@/client/components/task/delete-dialog";
+import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useAtom } from "jotai";
 
 /**
@@ -9,22 +10,27 @@ import { useAtom } from "jotai";
  */
 export function DeleteTaskModal() {
   const [state, setState] = useAtom(deleteTaskModalAtom);
-  if (state === null) {
+  // Deferred so the dialog stays mounted (and its close animation can play)
+  // for a moment after `state` clears to null, instead of unmounting the
+  // instant it starts closing.
+  const { content, onExitComplete } = useDeferredModalState(state);
+  if (content === null) {
     return null;
   }
 
   return (
     <TaskDeleteDialog
-      navigateOnDelete={state.navigateOnDelete}
-      onDeleteEnd={state.onDeleteEnd}
-      onDeleteStart={state.onDeleteStart}
+      navigateOnDelete={content.navigateOnDelete}
+      onDeleteEnd={content.onDeleteEnd}
+      onDeleteStart={content.onDeleteStart}
+      onExitComplete={onExitComplete}
       onOpenChange={(open) => {
         if (!open) {
           setState(null);
         }
       }}
-      open
-      task={state.task}
+      open={state !== null}
+      task={content.task}
     />
   );
 }

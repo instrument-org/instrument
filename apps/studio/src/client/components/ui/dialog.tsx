@@ -19,11 +19,18 @@ function DialogClose({
 function DialogContent({
   children,
   className,
+  onAnimationEnd,
+  onExitComplete,
   overlayClassName,
   showCloseButton = true,
   style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  // Fires once the `data-[state=closed]:animate-out` exit animation actually
+  // finishes on this element (not a bubbled animation from a child), so
+  // callers can defer clearing their content until the close animation has
+  // had time to play instead of guessing its duration.
+  onExitComplete?: () => void;
   overlayClassName?: string;
   showCloseButton?: boolean;
 }) {
@@ -36,6 +43,16 @@ function DialogContent({
           className,
         )}
         data-slot="dialog-content"
+        onAnimationEnd={(event) => {
+          onAnimationEnd?.(event);
+          if (
+            onExitComplete &&
+            event.target === event.currentTarget &&
+            event.currentTarget.dataset.state === "closed"
+          ) {
+            onExitComplete();
+          }
+        }}
         style={useShellZoomStyle(style)}
         {...props}
       >

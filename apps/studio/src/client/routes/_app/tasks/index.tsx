@@ -19,6 +19,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useTrashTask } from "@/client/hooks/use-trash-task";
 import { captureClientEvent } from "@/client/lib/capture-client-event";
@@ -63,6 +64,13 @@ function RouteComponent() {
     useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<null | Task>(null);
+  // Deferred so `TaskSettingsDialog` stays mounted (and its close animation
+  // can play) for a moment after `taskToEdit` clears to null, instead of
+  // unmounting the instant the dialog starts closing.
+  const {
+    content: taskSettingsTask,
+    onExitComplete: taskSettingsExitComplete,
+  } = useDeferredModalState(taskToEdit);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isSingleDeleting, setIsSingleDeleting] = useState(false);
@@ -502,8 +510,9 @@ function RouteComponent() {
         title={`Move ${selectedTasks.length} ${selectedTasks.length === 1 ? "task" : "tasks"} to ${trashTerminology}?`}
       />
 
-      {taskToEdit && (
+      {taskSettingsTask && (
         <TaskSettingsDialog
+          onExitComplete={taskSettingsExitComplete}
           onOpenChange={(open) => {
             setSettingsDialogOpen(open);
             if (!open) {
@@ -511,7 +520,7 @@ function RouteComponent() {
             }
           }}
           open={settingsDialogOpen}
-          task={taskToEdit}
+          task={taskSettingsTask}
         />
       )}
     </div>

@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
@@ -34,6 +35,10 @@ const FIXED_HEIGHT_PAGES = new Set<Page>(["success", "welcome"]);
 export function LoginModal() {
   const [state, setState] = useAtom(loginModalAtom);
   const isOpen = state !== null;
+  // Deferred so `DialogContent` stays mounted (and its close animation can
+  // play) for a moment after `state` clears to null, instead of unmounting
+  // the instant the dialog starts closing.
+  const { content, onExitComplete } = useDeferredModalState(state);
 
   useBlockTabNavigation(isOpen);
 
@@ -51,8 +56,12 @@ export function LoginModal() {
       }}
       open={isOpen}
     >
-      {state !== null && (
-        <LoginModalContent onComplete={complete} props={state.props} />
+      {content !== null && (
+        <LoginModalContent
+          onComplete={complete}
+          onExitComplete={onExitComplete}
+          props={content.props}
+        />
       )}
     </Dialog>
   );
@@ -60,9 +69,11 @@ export function LoginModal() {
 
 function LoginModalContent({
   onComplete,
+  onExitComplete,
   props,
 }: {
   onComplete: () => void;
+  onExitComplete: () => void;
   props?: LoginModalProps;
 }) {
   const { error, login } = useLoginSocial();
@@ -87,6 +98,7 @@ function LoginModalContent({
           "h-[640px] max-h-[calc(85vh/var(--content-zoom))]",
         page === "add-provider" ? SHARED.subtleGradient : SHARED.brandGradient,
       )}
+      onExitComplete={onExitComplete}
       // Radix auto-focuses the first focusable element on open, painting a
       // focus ring the user never asked for. Prevent it (the focus trap still
       // works once they tab); focus moves to the content container instead.

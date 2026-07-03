@@ -24,6 +24,7 @@ interface DeleteWithProgressDialogProps<T> {
   description: string;
   items: T[];
   onDelete: (items: T[]) => Promise<void>;
+  onExitComplete?: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   title: string;
@@ -34,6 +35,7 @@ export function DeleteWithProgressDialog<T>({
   description,
   items,
   onDelete,
+  onExitComplete,
   onOpenChange,
   open,
   title,
@@ -42,7 +44,7 @@ export function DeleteWithProgressDialog<T>({
 
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
-      <AlertDialogContent>
+      <AlertDialogContent onExitComplete={onExitComplete}>
         {open && (
           <DeleteWithProgressDialogBody
             content={content}

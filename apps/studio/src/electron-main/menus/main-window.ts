@@ -1,5 +1,5 @@
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import { sendShellCommand } from "@/electron-main/tabs/tab-command";
+import { sendAppCommand } from "@/electron-main/tabs/tab-command";
 import {
   focusMainContents,
   goBack,
@@ -25,7 +25,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+T",
         click: () => {
-          sendShellCommand({
+          sendAppCommand({
             appPath: "/new-tab",
             newTab: true,
             type: "navigate",
@@ -36,7 +36,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+N",
         click: () => {
-          sendShellCommand({ appPath: "/new-tab", type: "navigate" });
+          sendAppCommand({ appPath: "/new-tab", type: "navigate" });
         },
         label: "New Task",
       },
@@ -50,15 +50,15 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             return;
           }
           // The renderer ignores this while an app-wide modal is open (see
-          // useShellCommands + blockingModalCountAtom), so open modals stay put.
-          sendShellCommand({ type: "close" });
+          // useAppCommands + blockingModalCountAtom), so open modals stay put.
+          sendAppCommand({ type: "close" });
         },
         label: "Close Tab",
       },
       {
         accelerator: "CmdOrCtrl+Shift+T",
         click: () => {
-          sendShellCommand({ type: "reopen" });
+          sendAppCommand({ type: "reopen" });
         },
         label: "Reopen Closed Tab",
       },
@@ -72,7 +72,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+K",
         click: () => {
-          sendShellCommand({ type: "toggleCommandMenu" });
+          sendAppCommand({ type: "toggleCommandMenu" });
           focusMainContents();
         },
         label: "Show Command Menu",
@@ -96,7 +96,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+R",
         click: () => {
-          sendShellCommand({ type: "reload" });
+          sendAppCommand({ type: "reload" });
         },
         label: "Reload Page",
       },
@@ -104,7 +104,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+B",
         click: () => {
-          sendShellCommand({ type: "toggleSidebar" });
+          sendAppCommand({ type: "toggleSidebar" });
         },
         label: "Toggle Sidebar",
       },
@@ -155,21 +155,21 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "Ctrl+Tab",
         click: () => {
-          sendShellCommand({ type: "selectNext" });
+          sendAppCommand({ type: "selectNext" });
         },
         label: "Show Next Tab",
       },
       {
         accelerator: "Ctrl+Shift+Tab",
         click: () => {
-          sendShellCommand({ type: "selectPrevious" });
+          sendAppCommand({ type: "selectPrevious" });
         },
         label: "Show Previous Tab",
       },
       {
         accelerator: "CmdOrCtrl+Shift+]",
         click: () => {
-          sendShellCommand({ type: "selectNext" });
+          sendAppCommand({ type: "selectNext" });
         },
         label: "Show Next Tab",
         visible: false,
@@ -177,7 +177,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+Shift+[",
         click: () => {
-          sendShellCommand({ type: "selectPrevious" });
+          sendAppCommand({ type: "selectPrevious" });
         },
         label: "Show Previous Tab",
         visible: false,
@@ -195,7 +195,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+1",
         click: () => {
-          sendShellCommand({ index: 0, type: "selectByIndex" });
+          sendAppCommand({ index: 0, type: "selectByIndex" });
         },
         label: "Switch to Tab 1",
         visible: false,
@@ -203,7 +203,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+2",
         click: () => {
-          sendShellCommand({ index: 1, type: "selectByIndex" });
+          sendAppCommand({ index: 1, type: "selectByIndex" });
         },
         label: "Switch to Tab 2",
         visible: false,
@@ -211,7 +211,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+3",
         click: () => {
-          sendShellCommand({ index: 2, type: "selectByIndex" });
+          sendAppCommand({ index: 2, type: "selectByIndex" });
         },
         label: "Switch to Tab 3",
         visible: false,
@@ -219,7 +219,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+4",
         click: () => {
-          sendShellCommand({ index: 3, type: "selectByIndex" });
+          sendAppCommand({ index: 3, type: "selectByIndex" });
         },
         label: "Switch to Tab 4",
         visible: false,
@@ -227,7 +227,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+5",
         click: () => {
-          sendShellCommand({ index: 4, type: "selectByIndex" });
+          sendAppCommand({ index: 4, type: "selectByIndex" });
         },
         label: "Switch to Tab 5",
         visible: false,
@@ -235,7 +235,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+6",
         click: () => {
-          sendShellCommand({ index: 5, type: "selectByIndex" });
+          sendAppCommand({ index: 5, type: "selectByIndex" });
         },
         label: "Switch to Tab 6",
         visible: false,
@@ -243,7 +243,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+7",
         click: () => {
-          sendShellCommand({ index: 6, type: "selectByIndex" });
+          sendAppCommand({ index: 6, type: "selectByIndex" });
         },
         label: "Switch to Tab 7",
         visible: false,
@@ -251,7 +251,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+8",
         click: () => {
-          sendShellCommand({ index: 7, type: "selectByIndex" });
+          sendAppCommand({ index: 7, type: "selectByIndex" });
         },
         label: "Switch to Tab 8",
         visible: false,
@@ -259,7 +259,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+9",
         click: () => {
-          sendShellCommand({ type: "selectLast" });
+          sendAppCommand({ type: "selectLast" });
         },
         label: "Switch to Last Tab",
         visible: false,

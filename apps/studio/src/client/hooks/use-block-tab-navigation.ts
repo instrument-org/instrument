@@ -3,7 +3,7 @@ import { useStore } from "jotai";
 import { useEffect } from "react";
 
 /**
- * While mounted (and `active`), prevents tab navigation — `useShellCommands`
+ * While mounted (and `active`), prevents tab navigation — `useAppCommands`
  * ignores tab open/close/switch shortcuts like Cmd+T / Cmd+W so the user can't
  * move out from under whatever is holding this. Composable and not modal-
  * specific: any component that should trap navigation can call it.

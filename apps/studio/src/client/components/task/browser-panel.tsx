@@ -2,7 +2,6 @@ import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import {
-  ensureWebview,
   getWebviewElement,
   setPaintHost,
   showOverSlot,
@@ -50,7 +49,6 @@ export function TaskBrowserPanel({
     if (!slot || !active) {
       return;
     }
-    ensureWebview(targetId);
 
     if (!isActiveTab) {
       setPaintHost(targetId);
@@ -112,8 +110,14 @@ export function TaskBrowserPanel({
       return;
     }
     const sync = () => {
-      setDraftUrl(webview.getURL());
-      setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
+      // getURL/canGoBack throw if the guest hasn't attached its WebContents yet;
+      // the did-navigate events that also drive this only fire once it has.
+      try {
+        setDraftUrl(webview.getURL());
+        setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
+      } catch {
+        // Not attached yet; a did-navigate will re-run sync once it is.
+      }
     };
     sync();
     webview.addEventListener("did-navigate", sync);

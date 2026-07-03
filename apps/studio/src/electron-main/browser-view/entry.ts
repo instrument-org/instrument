@@ -10,7 +10,22 @@ import { noop } from "radashi";
 
 import { log } from "./log";
 
+// One-shot signal for "the guest attached (and its first load settled)". Created
+// with the entry, resolved in bindGuest's did-finish-load, and rejected by
+// fireDestruction if the entry is removed first (for any reason). Lets
+// createTarget await attachment without a separate waiter registry, and fixes
+// the hang where a createTarget racing a teardown/close would block until its
+// own timeout instead of failing immediately.
+export interface AttachSignal {
+  promise: Promise<void>;
+  reject: (error: Error) => void;
+  resolve: () => void;
+  settled: boolean;
+}
+
 export interface BrowserEntry {
+  // Resolves when the guest attaches, rejects if the entry is removed first.
+  attach: AttachSignal;
   authorizedDownloadPath: null | string;
   // Listeners notified once when the entry is removed from the manager (for
   // any reason: explicit close, detach, renderer crash). Drained as part of
@@ -57,6 +72,7 @@ export function createEntry({
   targetId: BrowserTargetId;
 }): BrowserEntry {
   return {
+    attach: createAttachSignal(),
     authorizedDownloadPath: null,
     destructionListeners: new Set(),
     detachListeners: new Set(),
@@ -139,6 +155,35 @@ export function subscribeEvents({
   };
 }
 
+function createAttachSignal(): AttachSignal {
+  let resolveFn: () => void = noop;
+  let rejectFn: (error: Error) => void = noop;
+  const promise = new Promise<void>((resolve, reject) => {
+    resolveFn = resolve;
+    rejectFn = reject;
+  });
+  // Swallow "unhandled rejection" if the entry is torn down before anything
+  // awaits attachment; real awaiters (createTarget) still observe the rejection.
+  promise.catch(noop);
+  const signal: AttachSignal = {
+    promise,
+    reject: (error) => {
+      if (!signal.settled) {
+        signal.settled = true;
+        rejectFn(error);
+      }
+    },
+    resolve: () => {
+      if (!signal.settled) {
+        signal.settled = true;
+        resolveFn();
+      }
+    },
+    settled: false,
+  };
+  return signal;
+}
+
 function drainDisposers(entry: BrowserEntry) {
   for (const dispose of entry.disposers) {
     try {
@@ -157,6 +202,11 @@ function drainDisposers(entry: BrowserEntry) {
 // Fired after disposers so cleanup runs first; drained so each fires at most
 // once. Centralized here so it runs even for entries that never bound a guest.
 function fireDestruction(entry: BrowserEntry) {
+  // Fail any in-flight createTarget immediately instead of leaving it to time
+  // out; a no-op once the guest has already attached.
+  entry.attach.reject(
+    new Error(`agent browser target removed before attach: ${entry.targetId}`),
+  );
   for (const listener of entry.destructionListeners) {
     try {
       listener();

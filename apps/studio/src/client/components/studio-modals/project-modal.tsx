@@ -15,11 +15,12 @@ import { Input } from "@/client/components/ui/input";
 import { Spinner } from "@/client/components/ui/spinner";
 import { Textarea } from "@/client/components/ui/textarea";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
+import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { useWindowFileDrop } from "@/client/lib/use-window-file-drop";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type StudioPath } from "@/shared/studio-path";
 import {
   type Project,
   type ProjectId,
@@ -41,6 +42,10 @@ import { toast } from "sonner";
 export function ProjectModal() {
   const [state, setState] = useAtom(projectModalAtom);
   const isOpen = state !== null;
+  // Deferred so `DialogContent` stays mounted (and its close animation can
+  // play) for a moment after `state` clears to null, instead of unmounting
+  // the instant the dialog starts closing.
+  const { content, onExitComplete } = useDeferredModalState(state);
   const close = () => {
     setState(null);
   };
@@ -56,11 +61,12 @@ export function ProjectModal() {
       }}
       open={isOpen}
     >
-      {state !== null && (
+      {content !== null && (
         <ProjectModalContent
           close={close}
-          projectId={state.projectId}
-          taskId={state.taskId}
+          onExitComplete={onExitComplete}
+          projectId={content.projectId}
+          taskId={content.taskId}
         />
       )}
     </Dialog>
@@ -69,10 +75,12 @@ export function ProjectModal() {
 
 function ProjectModalContent({
   close,
+  onExitComplete,
   projectId,
   taskId,
 }: {
   close: () => void;
+  onExitComplete: () => void;
   projectId?: ProjectId;
   taskId?: TaskId;
 }) {
@@ -84,7 +92,7 @@ function ProjectModalContent({
 
   if (projectId && isLoading) {
     return (
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" onExitComplete={onExitComplete}>
         <DialogTitle className="sr-only">Edit project</DialogTitle>
         <DialogDescription className="sr-only">
           Loading project
@@ -98,7 +106,7 @@ function ProjectModalContent({
 
   if (projectId && !editProject) {
     return (
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" onExitComplete={onExitComplete}>
         <DialogHeader>
           <DialogTitle className="text-center font-serif text-2xl font-medium">
             Project not found
@@ -130,6 +138,7 @@ function ProjectModalContent({
       close={close}
       editProject={projectId ? editProject : undefined}
       key={editProject?.id ?? "new"}
+      onExitComplete={onExitComplete}
       taskId={taskId}
     />
   );
@@ -138,10 +147,12 @@ function ProjectModalContent({
 function ProjectModalForm({
   close,
   editProject,
+  onExitComplete,
   taskId,
 }: {
   close: () => void;
   editProject?: Project;
+  onExitComplete: () => void;
   taskId?: TaskId;
 }) {
   const isEditing = editProject !== undefined;
@@ -182,6 +193,8 @@ function ProjectModalForm({
     rpcClient.workspace.project.update.mutationOptions(),
   );
   const isPending = isCreating || isUpdating;
+
+  const { addTab } = useTabsController();
 
   const handlePickFolder = async () => {
     const [error, result] = await safe(
@@ -238,10 +251,7 @@ function ProjectModalForm({
           });
         }
 
-        void rpcClient.tabs.add.call({
-          appPath: `/projects/${project.id}/` as StudioPath,
-          select: true,
-        });
+        addTab({ pathname: `/projects/${project.id}/`, select: true });
         close();
         return;
       },
@@ -251,6 +261,7 @@ function ProjectModalForm({
   return (
     <DialogContent
       className="max-w-lg"
+      onExitComplete={onExitComplete}
       onOpenAutoFocus={(e) => {
         e.preventDefault();
         nameInputRef.current?.focus();

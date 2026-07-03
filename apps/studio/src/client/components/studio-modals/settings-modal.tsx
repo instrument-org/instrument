@@ -24,6 +24,7 @@ import {
   SidebarProvider,
 } from "@/client/components/ui/sidebar";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useOpenSettings } from "@/client/hooks/use-open-settings";
 import { rpcClient } from "@/client/rpc/client";
@@ -55,6 +56,10 @@ interface NavItem {
 export function SettingsModal() {
   const [state, setState] = useAtom(settingsModalAtom);
   const isOpen = state !== null;
+  // Deferred so `DialogContent` stays mounted (and its close animation can
+  // play) for a moment after `state` clears to null, instead of unmounting
+  // the instant the dialog starts closing.
+  const { content, onExitComplete } = useDeferredModalState(state);
 
   useOpenSettings();
   useBlockTabNavigation(isOpen);
@@ -68,13 +73,14 @@ export function SettingsModal() {
       }}
       open={isOpen}
     >
-      {state !== null && (
+      {content !== null && (
         <SettingsModalContent
-          activeTab={state.tab ?? "General"}
+          activeTab={content.tab ?? "General"}
           // One-shot: honored only for the initial Providers section. Switching
           // sections drops it (onSelectTab sets `{ tab }` alone), so revisiting
           // Providers doesn't reopen add-provider.
-          autoAddProvider={state.showNewProviderDialog ?? false}
+          autoAddProvider={content.showNewProviderDialog ?? false}
+          onExitComplete={onExitComplete}
           onSelectTab={(tab) => {
             setState({ tab });
           }}
@@ -87,10 +93,12 @@ export function SettingsModal() {
 function SettingsModalContent({
   activeTab,
   autoAddProvider,
+  onExitComplete,
   onSelectTab,
 }: {
   activeTab: SettingsTab;
   autoAddProvider: boolean;
+  onExitComplete: () => void;
   onSelectTab: (tab: SettingsTab) => void;
 }) {
   const navItems = useNavItems();
@@ -99,6 +107,7 @@ function SettingsModalContent({
     <DialogContent
       aria-describedby={undefined}
       className="h-175 max-h-[calc(96vh/var(--content-zoom))] w-225 max-w-[calc(96vw/var(--content-zoom))] gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none sm:max-w-[calc(96vw/var(--content-zoom))]"
+      onExitComplete={onExitComplete}
       onOpenAutoFocus={(event) => {
         event.preventDefault();
       }}

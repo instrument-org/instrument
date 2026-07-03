@@ -17,17 +17,19 @@ import { Field, FieldError, FieldLabel } from "../ui/field";
 import { Input } from "../ui/input";
 
 export function TaskSettingsDialog({
+  onExitComplete,
   onOpenChange,
   open,
   task,
 }: {
+  onExitComplete?: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   task: Task;
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
+      <DialogContent onExitComplete={onExitComplete}>
         <RenameForm key={task.id} onOpenChange={onOpenChange} task={task} />
       </DialogContent>
     </Dialog>

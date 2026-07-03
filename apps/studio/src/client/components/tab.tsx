@@ -63,26 +63,16 @@ export const Tab = ({
       animate={motionStates.animate}
       className={cn(
         "group relative flex min-h-0 min-w-0 select-none [-webkit-app-region:no-drag]",
-        item.pinned ? "shrink-0" : "w-full max-w-60 flex-1 overflow-hidden",
-        item.pinned
-          ? cn(
-              "h-full items-center justify-center px-2.5 py-2 transition-colors duration-150",
-              isSelected
-                ? "rounded-xl bg-background shadow-sm"
-                : "rounded-xl hover:bg-muted/60",
-            )
+        "w-full max-w-60 flex-1 overflow-hidden",
+        "h-full items-center transition-[background-color,border-radius,box-shadow] duration-150",
+        isSelected
+          ? "gap-2 rounded-xl bg-background py-2 pr-1.5 pl-3 shadow-sm"
           : cn(
-              "h-full items-center transition-[background-color,border-radius,box-shadow] duration-150",
-              isSelected
-                ? "gap-2 rounded-xl bg-background py-2 pr-1.5 pl-3 shadow-sm"
-                : cn(
-                    "py-2 pr-1.5 pl-3 hover:rounded-xl hover:bg-muted/60",
-                    showSeparator &&
-                      "after:pointer-events-none after:absolute after:top-1/4 after:right-0 after:h-1/2 after:w-px after:bg-gray-300 after:content-[''] hover:after:hidden dark:after:bg-border/50",
-                  ),
+              "py-2 pr-1.5 pl-3 hover:rounded-xl hover:bg-muted/60",
+              showSeparator &&
+                "after:pointer-events-none after:absolute after:top-1/4 after:right-0 after:h-1/2 after:w-px after:bg-gray-300 after:content-[''] hover:after:hidden dark:after:bg-border/50",
             ),
       )}
-      dragListener={!item.pinned}
       exit={motionStates.exit}
       id={item.id}
       initial={motionStates.initial}
@@ -102,60 +92,50 @@ export const Tab = ({
       value={item}
     >
       <motion.div
-        className={cn(
-          "flex min-w-0 flex-1 items-center",
-          iconSlot && "gap-2",
-          item.pinned && "justify-center",
-        )}
+        className={cn("flex min-w-0 flex-1 items-center", iconSlot && "gap-2")}
       >
         {iconSlot ? <div className="shrink-0">{iconSlot}</div> : null}
-        {!item.pinned && (
-          <>
-            {item.title ? (
-              <motion.span
-                className={cn(
-                  "min-w-0 flex-1 overflow-hidden text-sm font-medium text-clip whitespace-nowrap transition-colors",
-                  isSelected
-                    ? "text-foreground"
-                    : "text-muted-foreground group-hover:text-foreground",
-                )}
-                style={tabTitleMaskStyle}
-              >
-                {item.title}
-              </motion.span>
-            ) : (
-              <SkeletonTitle />
+        {item.title ? (
+          <motion.span
+            className={cn(
+              "min-w-0 flex-1 overflow-hidden text-sm font-medium text-clip whitespace-nowrap transition-colors",
+              isSelected
+                ? "text-foreground"
+                : "text-muted-foreground group-hover:text-foreground",
             )}
-          </>
+            style={tabTitleMaskStyle}
+          >
+            {item.title}
+          </motion.span>
+        ) : (
+          <SkeletonTitle />
         )}
       </motion.div>
-      {!item.pinned && (
-        <div className="flex shrink-0 items-center gap-1 pl-1">
-          {item.taskId && !isSelected ? (
-            <div className="group-hover:hidden">
-              <TaskStatusIcon className="size-3 shrink-0" id={item.taskId} />
-            </div>
-          ) : null}
-          <button
+      <div className="flex shrink-0 items-center gap-1 pl-1">
+        {item.taskId && !isSelected ? (
+          <div className="group-hover:hidden">
+            <TaskStatusIcon className="size-3 shrink-0" id={item.taskId} />
+          </div>
+        ) : null}
+        <button
+          className={cn(
+            "rounded-md p-1 opacity-70 ring-offset-background transition-opacity hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
+            isSelected ? "flex" : "hidden group-hover:flex",
+          )}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
+          type="button"
+        >
+          <XIcon
             className={cn(
-              "rounded-md p-1 opacity-70 ring-offset-background transition-opacity hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
-              isSelected ? "flex" : "hidden group-hover:flex",
+              "size-3 transition-colors",
+              isSelected ? "text-foreground" : "text-muted-foreground",
             )}
-            onClick={(event) => {
-              event.stopPropagation();
-              onRemove();
-            }}
-            type="button"
-          >
-            <XIcon
-              className={cn(
-                "size-3 transition-colors",
-                isSelected ? "text-foreground" : "text-muted-foreground",
-              )}
-            />
-          </button>
-        </div>
-      )}
+          />
+        </button>
+      </div>
     </Reorder.Item>
   );
 };

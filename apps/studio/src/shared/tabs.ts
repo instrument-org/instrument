@@ -15,8 +15,6 @@ export const TabSchema = z.object({
   iconName: TabIconsSchema.optional(),
   id: z.string(),
   pathname: z.string(),
-  pinned: z.boolean().optional(),
-  tabBarHidden: z.boolean().optional(),
   taskId: TaskIdSchema.optional(),
   title: z.string().optional(),
 });

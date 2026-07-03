@@ -21,7 +21,7 @@ function model(tabs: Tab[], selectedId: null | string = null): TabsModel {
 }
 
 function tab(partial: Partial<Tab> & Pick<Tab, "id">): Tab {
-  return { pathname: "/new-tab", pinned: false, ...partial };
+  return { pathname: "/new-tab", ...partial };
 }
 
 describe("addTab", () => {
@@ -71,11 +71,6 @@ describe("closeTab", () => {
     expect(closeTab(start, { id: "b", newTab: seed }).selectedId).toBe("a");
   });
 
-  it("refuses to close pinned tabs", () => {
-    const start = model([tab({ id: "a", pinned: true })], "a");
-    expect(closeTab(start, { id: "a", newTab: seed })).toBe(start);
-  });
-
   it("seeds a fresh tab when the last one closes", () => {
     const start = model([tab({ id: "a" })], "a");
     const next = closeTab(start, { id: "a", newTab: seed });
@@ -96,7 +91,7 @@ describe("selection", () => {
     expect(selectTab(start, { id: "ghost" })).toBe(start);
   });
 
-  it("selectByIndex uses visible order", () => {
+  it("selectByIndex uses tab order", () => {
     const start = model([tab({ id: "a" }), tab({ id: "b" })], "a");
     expect(selectByIndex(start, { index: 1 }).selectedId).toBe("b");
   });
@@ -108,29 +103,13 @@ describe("selection", () => {
     const one = model([tab({ id: "a" })], "a");
     expect(selectAdjacent(one, { delta: 1 })).toBe(one);
   });
-
-  it("excludes tabBarHidden tabs from index/adjacent navigation", () => {
-    const start = model(
-      [
-        tab({ id: "a" }),
-        tab({ id: "hidden", tabBarHidden: true }),
-        tab({ id: "b" }),
-      ],
-      "a",
-    );
-    expect(selectByIndex(start, { index: 1 }).selectedId).toBe("b");
-  });
 });
 
 describe("reorderTabs", () => {
-  it("keeps pinned tabs first, then the requested order", () => {
-    const start = model([
-      tab({ id: "p", pinned: true }),
-      tab({ id: "a" }),
-      tab({ id: "b" }),
-    ]);
-    const next = reorderTabs(start, { ids: ["b", "a"] });
-    expect(next.tabs.map((t) => t.id)).toEqual(["p", "b", "a"]);
+  it("applies the requested order", () => {
+    const start = model([tab({ id: "a" }), tab({ id: "b" }), tab({ id: "c" })]);
+    const next = reorderTabs(start, { ids: ["c", "a", "b"] });
+    expect(next.tabs.map((t) => t.id)).toEqual(["c", "a", "b"]);
   });
 });
 

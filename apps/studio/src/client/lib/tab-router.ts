@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 
 import { routeTree } from "../routeTree.gen";
+import { routerEntries } from "./tab-router-history";
 
 /**
  * One QueryClient shared by every per-tab router in the main window so tabs
@@ -25,11 +26,6 @@ export const sharedQueryClient = new QueryClient({
 });
 
 export type TabRouter = ReturnType<typeof createTabRouter>;
-
-// createMemoryHistory mutates the `initialEntries` array it's given in place
-// (push/splice on navigation), so we keep a reference per router and read it
-// back for the live history stack -- no navigation subscription needed.
-const routerEntries = new WeakMap<object, string[]>();
 
 export function createTabRouter({
   history,
@@ -59,18 +55,4 @@ export function createTabRouter({
   });
   routerEntries.set(router, entries);
   return router;
-}
-
-/** Snapshot a tab router's current back/forward stack, for restoring on reopen. */
-export function getRouterHistory(router: TabRouter): TabHistory {
-  const entries = routerEntries.get(router);
-  // Fall back to the current location if the reference was lost (e.g. an HMR
-  // module swap) so the snapshot is always a valid, non-empty stack.
-  if (!entries || entries.length === 0) {
-    return { entries: [router.history.location.href], index: 0 };
-  }
-  return {
-    entries: [...entries],
-    index: router.history.location.state.__TSR_index,
-  };
 }

@@ -21,7 +21,7 @@ const NEW_TAB_PATH = "/new-tab";
 
 // Commands that move the user between tabs or routes. While a modal is open
 // these are ignored so shortcuts like Cmd+T / Cmd+W can't pull the user out from
-// under it; shell-state commands (zoom, sidebar, settings, command menu, reload)
+// under it; app-state commands (zoom, sidebar, settings, command menu, reload)
 // stay allowed since they don't navigate the tab.
 const MODAL_BLOCKED_COMMANDS = new Set([
   "close",
@@ -40,13 +40,13 @@ const MODAL_BLOCKED_COMMANDS = new Set([
 const RECONNECT_DELAY_MS = 500;
 
 /**
- * Applies imperative shell commands from the main process (native menus /
- * accelerators), streamed over RPC, to the renderer-owned tab and shell state.
+ * Applies imperative app commands from the main process (native menus /
+ * accelerators), streamed over RPC, to the renderer-owned tab and app state.
  * One subscription owns the whole command surface: it aborts deterministically
  * on unmount and reconnects if the stream drops, so a hot reload (or any
  * transient transport reset) can't leave the hotkeys unwired.
  */
-export function useShellCommands() {
+export function useAppCommands() {
   const store = useStore();
 
   useEffect(() => {

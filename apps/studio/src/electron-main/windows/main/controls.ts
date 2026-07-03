@@ -1,5 +1,5 @@
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
-import { sendShellCommand } from "@/electron-main/tabs/tab-command";
+import { sendAppCommand } from "@/electron-main/tabs/tab-command";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 
@@ -26,21 +26,21 @@ export function goBack() {
   if (getBrowserViewManager()?.navigateFocusedGuest("back")) {
     return;
   }
-  sendShellCommand({ type: "navigateBack" });
+  sendAppCommand({ type: "navigateBack" });
 }
 
 export function goForward() {
   if (getBrowserViewManager()?.navigateFocusedGuest("forward")) {
     return;
   }
-  sendShellCommand({ type: "navigateForward" });
+  sendAppCommand({ type: "navigateForward" });
 }
 
 export function resetZoom() {
   if (getBrowserViewManager()?.zoomFocusedGuest("reset")) {
     return;
   }
-  sendShellCommand({ type: "zoomReset" });
+  sendAppCommand({ type: "zoomReset" });
 }
 
 export function setTrafficLightForZoom(zoom: number) {
@@ -59,12 +59,12 @@ export function zoomIn() {
   if (getBrowserViewManager()?.zoomFocusedGuest("in")) {
     return;
   }
-  sendShellCommand({ type: "zoomIn" });
+  sendAppCommand({ type: "zoomIn" });
 }
 
 export function zoomOut() {
   if (getBrowserViewManager()?.zoomFocusedGuest("out")) {
     return;
   }
-  sendShellCommand({ type: "zoomOut" });
+  sendAppCommand({ type: "zoomOut" });
 }

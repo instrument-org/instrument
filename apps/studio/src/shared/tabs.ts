@@ -19,14 +19,14 @@ export const TabSchema = z.object({
   title: z.string().optional(),
 });
 /**
- * A shell command sent from the main process (native menus / accelerators) to
- * the renderer that owns the shell (AppShell), streamed over the one command
+ * An app command sent from the main process (native menus / accelerators) to
+ * the renderer that owns the window (AppShell), streamed over the one command
  * bus. Most are tab operations (`navigate` with `newTab` opens a new tab;
  * without it the active tab navigates; `close` closes the active tab); the rest
- * drive shell-wide view state (sidebar, settings, command menu, reload, zoom)
- * the renderer owns, so there is no second signal channel.
+ * drive app-wide view state (sidebar, settings, command menu, reload, zoom) the
+ * renderer owns, so there is no second signal channel.
  */
-export type ShellCommand =
+export type AppCommand =
   | { appPath: string; newTab?: boolean; type: "navigate" }
   | { index: number; type: "selectByIndex" }
   | { type: "close" }

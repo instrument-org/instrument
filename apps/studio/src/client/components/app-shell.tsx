@@ -5,8 +5,8 @@ import {
   ActiveTabProvider,
   TabIdProvider,
 } from "@/client/hooks/use-active-tab";
+import { useAppCommands } from "@/client/hooks/use-app-commands";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
-import { useShellCommands } from "@/client/hooks/use-shell-commands";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import { setTabMeta, setTabPathname } from "@/client/lib/tab-model";
@@ -53,7 +53,7 @@ export function AppShell() {
     : undefined;
 
   useMouseBackForward();
-  useShellCommands();
+  useAppCommands();
 
   // Keep the macOS traffic-light position in sync with the shell zoom (the
   // toolbar height scales with it). Only the main window renders AppShell, so

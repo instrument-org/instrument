@@ -1,5 +1,5 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update";
-import { type ShellCommand } from "@/shared/tabs";
+import { type AppCommand } from "@/shared/tabs";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
@@ -40,7 +40,7 @@ export const publisher = new EventPublisher<PublisherEvents>({
 interface CommandEvents {
   // Imperative tab operations from the main process (menus, modal-initiated
   // RPC) to the renderer that owns tab state (AppShell).
-  "tab.command": ShellCommand;
+  "tab.command": AppCommand;
 }
 
 // Commands must not be buffered: unlike state, a stale command replayed to a

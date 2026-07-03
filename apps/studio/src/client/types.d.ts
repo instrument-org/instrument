@@ -9,7 +9,6 @@ declare global {
   interface Window {
     api: {
       getFilePath: (file: File) => string;
-      tabId?: string;
       windowType?: "onboarding" | "shell";
     };
     electron: ElectronAPI;

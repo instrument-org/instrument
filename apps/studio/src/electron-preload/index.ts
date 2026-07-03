@@ -5,14 +5,6 @@ const api: Window["api"] = {
   getFilePath: (file: File) => webUtils.getPathForFile(file),
 };
 
-const tabId = process.argv
-  .find((arg) => arg.startsWith("--tabId="))
-  ?.split("=")[1];
-
-if (tabId) {
-  api.tabId = tabId;
-}
-
 const windowType = process.argv
   .find((arg) => arg.startsWith("--windowType="))
   ?.split("=")[1] as Window["api"]["windowType"];

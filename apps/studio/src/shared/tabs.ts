@@ -23,15 +23,14 @@ export const TabSchema = z.object({
 export type Tab = z.output<typeof TabSchema>;
 
 /**
- * A tab operation sent from the main process (menus, overlay-initiated RPC) to
+ * A tab operation sent from the main process (menus, modal-initiated RPC) to
  * the renderer that owns tab state (AppShell). `navigate` with `newTab` opens a
- * new tab; without it, the active tab navigates. `close` without `id` closes the
- * active tab.
+ * new tab; without it, the active tab navigates. `close` closes the active tab.
  */
 export type TabCommand =
   | { appPath: string; newTab?: boolean; type: "navigate" }
-  | { id?: string; type: "close" }
   | { index: number; type: "selectByIndex" }
+  | { type: "close" }
   | { type: "navigateBack" }
   | { type: "navigateForward" }
   | { type: "reopen" }
@@ -41,8 +40,3 @@ export type TabCommand =
   | { type: "zoomIn" }
   | { type: "zoomOut" }
   | { type: "zoomReset" };
-
-export interface TabState {
-  selectedTabId: null | string;
-  tabs: Tab[];
-}

@@ -1,13 +1,8 @@
 import { base } from "@/electron-main/rpc/base";
 import { commandPublisher } from "@/electron-main/rpc/publisher";
 import { sendTabCommand } from "@/electron-main/tabs/tab-command";
-import {
-  goBack,
-  goForward,
-  setTrafficLightForZoom,
-} from "@/electron-main/windows/main/controls";
+import { setTrafficLightForZoom } from "@/electron-main/windows/main/controls";
 import { type StudioPath } from "@/shared/studio-path";
-import { noop } from "radashi";
 import { z } from "zod";
 
 const StudioPathSchema = z.custom<StudioPath>(
@@ -16,8 +11,8 @@ const StudioPathSchema = z.custom<StudioPath>(
 
 // Tabs are owned by the renderer (AppShell). These handlers publish tab commands
 // for modal-initiated opens (e.g. create-project, welcome -> tutorial); the
-// renderer applies them. reorder/select are driven by the in-app tab bar, so
-// they stay no-ops here.
+// renderer applies them. Selection, ordering, back/forward, and close are driven
+// entirely in the renderer, so they have no RPC surface here.
 const add = base
   .input(
     z.object({ appPath: StudioPathSchema, select: z.boolean().optional() }),
@@ -31,24 +26,6 @@ const navigate = base
   .handler(({ input }) => {
     sendTabCommand({ appPath: input.appPath, type: "navigate" });
   });
-
-const navigateBack = base.handler(() => {
-  goBack();
-});
-
-const navigateForward = base.handler(() => {
-  goForward();
-});
-
-const close = base.input(z.object({ id: z.string() })).handler(({ input }) => {
-  sendTabCommand({ id: input.id, type: "close" });
-});
-
-const reorder = base
-  .input(z.object({ tabIds: z.array(z.string()) }))
-  .handler(noop);
-
-const select = base.input(z.object({ id: z.string() })).handler(noop);
 
 // The renderer owns the shell zoom (CSS `zoom`); it reports the current level so
 // the main process can keep the macOS traffic lights centered in the toolbar,
@@ -74,12 +51,7 @@ const live = {
 
 export const tabs = {
   add,
-  close,
   live,
   navigate,
-  navigateBack,
-  navigateForward,
-  reorder,
-  select,
   syncZoom,
 };

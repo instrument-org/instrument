@@ -6,6 +6,7 @@ import {
   TabIdProvider,
 } from "@/client/hooks/use-active-tab";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
+import { useReload } from "@/client/hooks/use-reload";
 import { useTabCommands } from "@/client/hooks/use-tab-commands";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
@@ -26,7 +27,7 @@ import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterContextProvider, RouterProvider } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ThemeProvider } from "./theme-provider";
 import { TooltipProvider } from "./ui/tooltip";
@@ -52,6 +53,20 @@ export function AppShell() {
 
   useMouseBackForward();
   useTabCommands();
+
+  // Reload the whole shell (one web contents now) on the menu accelerator,
+  // gated on the *active* tab's route so a backgrounded task can't suppress it
+  // and a foregrounded one can. Handled once here, not per tab.
+  useReload(
+    useCallback(() => {
+      const disableHotkeyReload = activeRouter?.state.matches.some(
+        (match) => match.context.disableHotkeyReload,
+      );
+      if (!disableHotkeyReload) {
+        window.location.reload();
+      }
+    }, [activeRouter]),
+  );
 
   return (
     <QueryClientProvider client={sharedQueryClient}>

@@ -1,5 +1,10 @@
 import { useAgentBrowserTargets } from "@/client/hooks/use-agent-browser-targets";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type BrowserTargetId,
+  encodeBrowserTargetId,
+  type StoreId,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef } from "react";
 
@@ -16,15 +21,15 @@ export function useAutoOpenBrowserArtifact({
   selectedSessionId: StoreId.Session | undefined;
 }) {
   const navigate = useNavigate();
-  const autoOpenedRef = useRef<string | undefined>(undefined);
+  const autoOpenedRef = useRef<BrowserTargetId | undefined>(undefined);
 
   const attachedTargets = useAgentBrowserTargets();
 
-  const onTargets = useEffectEvent((ids: ReadonlySet<string>) => {
+  const onTargets = useEffectEvent((ids: ReadonlySet<BrowserTargetId>) => {
     if (!selectedSessionId) {
       return;
     }
-    const targetId = `${id}/${selectedSessionId}`;
+    const targetId = encodeBrowserTargetId(id, selectedSessionId);
     if (!ids.has(targetId) || autoOpenedRef.current === targetId) {
       return;
     }

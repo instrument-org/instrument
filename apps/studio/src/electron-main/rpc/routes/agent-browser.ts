@@ -2,6 +2,7 @@ import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type AgentBrowserTarget } from "@/shared/agent-browser";
+import { BrowserTargetIdSchema } from "@instrument-org/workspace/electron";
 import { z } from "zod";
 
 // Every recorded target and whether its guest has attached yet. The renderer
@@ -33,7 +34,7 @@ const live = {
 // `<webview>` guests, so keyboard commands (zoom, back/forward) trust this
 // instead of asking the guest directly.
 const syncFocus = base
-  .input(z.object({ focused: z.boolean(), targetId: z.string() }))
+  .input(z.object({ focused: z.boolean(), targetId: BrowserTargetIdSchema }))
   .handler(({ input }) => {
     getBrowserViewManager()?.setGuestFocus(input.targetId, input.focused);
   });

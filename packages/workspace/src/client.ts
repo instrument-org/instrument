@@ -26,3 +26,9 @@ export type { Task } from "./schemas/task";
 export type { SessionTag } from "./schemas/task-agent-status";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export type { ToolName } from "./tools/types";
+export {
+  type BrowserTargetId,
+  BrowserTargetIdSchema,
+  decodeBrowserTargetId,
+  encodeBrowserTargetId,
+} from "./types";

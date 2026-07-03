@@ -14,7 +14,11 @@ import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { type StoreId, type Task } from "@instrument-org/workspace/client";
+import {
+  encodeBrowserTargetId,
+  type StoreId,
+  type Task,
+} from "@instrument-org/workspace/client";
 import {
   keepPreviousData,
   skipToken,
@@ -69,7 +73,7 @@ export function TaskView({
   // Whether the agent has a live browser for this session, used to show the
   // guest vs a placeholder in the browser panel.
   const liveTargetId = selectedSessionId
-    ? `${task.id}/${selectedSessionId}`
+    ? encodeBrowserTargetId(task.id, selectedSessionId)
     : undefined;
   const attachedTargets = useAgentBrowserTargets();
   const browserActive = Boolean(

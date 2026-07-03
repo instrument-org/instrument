@@ -6,7 +6,11 @@ import {
   setPaintHost,
   showOverSlot,
 } from "@/client/lib/agent-browser-pool";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import {
+  encodeBrowserTargetId,
+  type StoreId,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import {
   ArrowClockwiseIcon,
   ArrowLeftIcon,
@@ -34,7 +38,7 @@ export function TaskBrowserPanel({
   sessionId: StoreId.Session;
   taskId: TaskId;
 }) {
-  const targetId = `${taskId}/${sessionId}`;
+  const targetId = encodeBrowserTargetId(taskId, sessionId);
   const slotRef = useRef<HTMLDivElement>(null);
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");

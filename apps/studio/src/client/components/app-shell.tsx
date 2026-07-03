@@ -10,6 +10,7 @@ import { useTabCommands } from "@/client/hooks/use-tab-commands";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import { setTabMeta, setTabPathname } from "@/client/lib/tab-model";
+import { getRouterHistory } from "@/client/lib/tab-router-history";
 import {
   createTabRouter,
   sharedQueryClient,
@@ -129,6 +130,7 @@ function TabView({
       const meta = readRouterTabMeta(router);
       setTabs((model) => {
         const withPathname = setTabPathname(model, {
+          history: getRouterHistory(router),
           id: tab.id,
           pathname: router.state.location.href,
         });

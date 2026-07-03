@@ -196,14 +196,25 @@ export function setTabMeta(
   };
 }
 
-/** Mirror a per-tab router navigation back into the model (drives the tab bar). */
+/**
+ * Mirror a per-tab router navigation back into the model (drives the tab bar).
+ * Also captures the router's live back/forward stack so persistence always
+ * serializes a fresh history: without this the only history a tab ever carries
+ * is a reopen-time seed that goes stale the moment the tab navigates again.
+ */
 export function setTabPathname(
   model: TabsModel,
-  { id, pathname }: { id: string; pathname: string },
+  {
+    history,
+    id,
+    pathname,
+  }: { history?: Tab["history"]; id: string; pathname: string },
 ): TabsModel {
   return {
     ...model,
-    tabs: model.tabs.map((tab) => (tab.id === id ? { ...tab, pathname } : tab)),
+    tabs: model.tabs.map((tab) =>
+      tab.id === id ? { ...tab, history, pathname } : tab,
+    ),
   };
 }
 

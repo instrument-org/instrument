@@ -15,7 +15,7 @@ import { getTabHistory, getTabRouter } from "@/client/lib/tab-router-registry";
 import { rpcClient } from "@/client/rpc/client";
 import { useStore } from "jotai";
 import { sleep } from "radashi";
-import { startTransition, useEffect } from "react";
+import { useEffect } from "react";
 
 const NEW_TAB_PATH = "/new-tab";
 
@@ -45,6 +45,10 @@ const RECONNECT_DELAY_MS = 500;
  * One subscription owns the whole command surface: it aborts deterministically
  * on unmount and reconnects if the stream drops, so a hot reload (or any
  * transient transport reset) can't leave the hotkeys unwired.
+ *
+ * Updates are applied directly, not wrapped in `startTransition`: React warns
+ * about transitions driven by an async subscription's update bursts. The
+ * tab-switch transition for UI-originated actions lives in `useTabsController`.
  */
 export function useAppCommands() {
   const store = useStore();
@@ -73,25 +77,21 @@ export function useAppCommands() {
               case "close": {
                 const id = store.get(tabsAtom).selectedId;
                 if (id) {
-                  startTransition(() => {
-                    store.set(tabsAtom, (m) =>
-                      closeTab(m, {
-                        history: getTabHistory(id),
-                        id,
-                        newTab: { id: freshId(), pathname: NEW_TAB_PATH },
-                      }),
-                    );
-                  });
+                  store.set(tabsAtom, (m) =>
+                    closeTab(m, {
+                      history: getTabHistory(id),
+                      id,
+                      newTab: { id: freshId(), pathname: NEW_TAB_PATH },
+                    }),
+                  );
                 }
                 break;
               }
               case "navigate": {
                 if (command.newTab) {
-                  startTransition(() => {
-                    store.set(tabsAtom, (m) =>
-                      addTab(m, { id: freshId(), pathname: command.appPath }),
-                    );
-                  });
+                  store.set(tabsAtom, (m) =>
+                    addTab(m, { id: freshId(), pathname: command.appPath }),
+                  );
                   break;
                 }
                 const router = getTabRouter(store.get(tabsAtom).selectedId);
@@ -127,39 +127,27 @@ export function useAppCommands() {
                 break;
               }
               case "reopen": {
-                startTransition(() => {
-                  store.set(tabsAtom, (m) =>
-                    reopenClosed(m, { id: freshId() }),
-                  );
-                });
+                store.set(tabsAtom, (m) => reopenClosed(m, { id: freshId() }));
                 break;
               }
               case "selectByIndex": {
-                startTransition(() => {
-                  store.set(tabsAtom, (m) =>
-                    selectByIndex(m, { index: command.index }),
-                  );
-                });
+                store.set(tabsAtom, (m) =>
+                  selectByIndex(m, { index: command.index }),
+                );
                 break;
               }
               case "selectLast": {
-                startTransition(() => {
-                  store.set(tabsAtom, (m) =>
-                    selectByIndex(m, { index: m.tabs.length - 1 }),
-                  );
-                });
+                store.set(tabsAtom, (m) =>
+                  selectByIndex(m, { index: m.tabs.length - 1 }),
+                );
                 break;
               }
               case "selectNext": {
-                startTransition(() => {
-                  store.set(tabsAtom, (m) => selectAdjacent(m, { delta: 1 }));
-                });
+                store.set(tabsAtom, (m) => selectAdjacent(m, { delta: 1 }));
                 break;
               }
               case "selectPrevious": {
-                startTransition(() => {
-                  store.set(tabsAtom, (m) => selectAdjacent(m, { delta: -1 }));
-                });
+                store.set(tabsAtom, (m) => selectAdjacent(m, { delta: -1 }));
                 break;
               }
               case "toggleCommandMenu": {

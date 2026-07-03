@@ -4,6 +4,7 @@ import {
   agentBrowserPartition,
   type AgentBrowserTarget,
 } from "@/shared/agent-browser";
+import { type BrowserTargetId } from "@instrument-org/workspace/client";
 
 /**
  * Renderer-owned pool of agent-browser `<webview>` guests. The main process owns
@@ -64,21 +65,23 @@ const { height: VIEW_H, width: VIEW_W } = AGENT_BROWSER_VIEWPORT;
 // container also sets overflow:hidden to give it the best chance.
 const VISIBLE_BOTTOM_RADIUS = "0.6875rem";
 
-const pool = new Map<string, PooledWebview>();
+const pool = new Map<BrowserTargetId, PooledWebview>();
 
 // Ids of targets whose guest has attached, mirrored from the desired-targets
 // stream so the UI can show the live guest vs a placeholder without a second
 // polled endpoint. Replaced (not mutated) on each reconcile so the snapshot is a
 // stable reference for useSyncExternalStore between changes.
-let attachedTargets: ReadonlySet<string> = new Set();
+let attachedTargets: ReadonlySet<BrowserTargetId> = new Set();
 const targetListeners = new Set<() => void>();
 
-export function getAttachedTargetsSnapshot(): ReadonlySet<string> {
+export function getAttachedTargetsSnapshot(): ReadonlySet<BrowserTargetId> {
   return attachedTargets;
 }
 
 /** The pooled guest element for a target, if it exists (for nav controls). */
-export function getWebviewElement(targetId: string): null | WebviewElement {
+export function getWebviewElement(
+  targetId: BrowserTargetId,
+): null | WebviewElement {
   return pool.get(targetId)?.webview ?? null;
 }
 
@@ -109,7 +112,7 @@ export function initAgentBrowserPool(): () => void {
 }
 
 /** Park the guest in paint-host (laid out + painted, but not shown). */
-export function setPaintHost(targetId: string) {
+export function setPaintHost(targetId: BrowserTargetId) {
   const pooled = pool.get(targetId);
   if (pooled) {
     applyPaintHost(pooled);
@@ -122,7 +125,7 @@ export function setPaintHost(targetId: string) {
  * alive, so this can fire freely on every resize. No-ops if the guest doesn't
  * exist (the main process owns creation via the desired-targets stream).
  */
-export function showOverSlot(targetId: string, bounds: Bounds) {
+export function showOverSlot(targetId: BrowserTargetId, bounds: Bounds) {
   const pooled = pool.get(targetId);
   if (!pooled) {
     return;
@@ -198,7 +201,7 @@ function applyPaintHost(pooled: PooledWebview) {
   } satisfies Partial<CSSStyleDeclaration>);
 }
 
-function disposeWebview(targetId: string) {
+function disposeWebview(targetId: BrowserTargetId) {
   const pooled = pool.get(targetId);
   if (!pooled) {
     return;
@@ -211,7 +214,7 @@ function disposeWebview(targetId: string) {
 // process's desired-targets stream. The host slot never creates a guest: it can
 // only show/park one that already exists (see showOverSlot/setPaintHost), so a
 // stale "active" host can't resurrect a target the main process just destroyed.
-function ensureWebview(targetId: string): PooledWebview {
+function ensureWebview(targetId: BrowserTargetId): PooledWebview {
   const existing = pool.get(targetId);
   if (existing) {
     return existing;

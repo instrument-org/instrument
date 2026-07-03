@@ -2,6 +2,7 @@ import {
   getAttachedTargetsSnapshot,
   subscribeAttachedTargets,
 } from "@/client/lib/agent-browser-pool";
+import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useSyncExternalStore } from "react";
 
 /**
@@ -9,7 +10,7 @@ import { useSyncExternalStore } from "react";
  * the single desired-targets stream the pool already subscribes to, so the UI
  * reads live-ness without a second polled endpoint.
  */
-export function useAgentBrowserTargets(): ReadonlySet<string> {
+export function useAgentBrowserTargets(): ReadonlySet<BrowserTargetId> {
   return useSyncExternalStore(
     subscribeAttachedTargets,
     getAttachedTargetsSnapshot,

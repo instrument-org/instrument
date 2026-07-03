@@ -4,6 +4,11 @@
 // WebContents in `did-attach-webview`, and keeps per-task isolation by
 // overriding the guest session in `will-attach-webview`.
 
+import {
+  type BrowserTargetId,
+  BrowserTargetIdSchema,
+} from "@instrument-org/workspace/client";
+
 /**
  * The renderer sets the guest's `partition` to this prefix + the encoded target
  * id. `will-attach-webview` only surfaces recognized webview attributes (not
@@ -29,21 +34,23 @@ export const AGENT_BROWSER_VIEWPORT = { height: 800, width: 1280 };
  */
 export interface AgentBrowserTarget {
   attached: boolean;
-  id: string;
+  id: BrowserTargetId;
 }
 
-export function agentBrowserPartition(targetId: string): string {
+export function agentBrowserPartition(targetId: BrowserTargetId): string {
   // Encode so the target id's `/` doesn't complicate the partition string.
   return `${AGENT_BROWSER_PARTITION_PREFIX}${encodeURIComponent(targetId)}`;
 }
 
 export function targetIdFromPartition(
   partition: string | undefined,
-): null | string {
+): BrowserTargetId | null {
   if (!partition?.startsWith(AGENT_BROWSER_PARTITION_PREFIX)) {
     return null;
   }
-  return decodeURIComponent(
+  const raw = decodeURIComponent(
     partition.slice(AGENT_BROWSER_PARTITION_PREFIX.length),
   );
+  const result = BrowserTargetIdSchema.safeParse(raw);
+  return result.success ? result.data : null;
 }

@@ -18,8 +18,6 @@ export const TabSchema = z.object({
   taskId: TaskIdSchema.optional(),
   title: z.string().optional(),
 });
-export type Tab = z.output<typeof TabSchema>;
-
 /**
  * A shell command sent from the main process (native menus / accelerators) to
  * the renderer that owns the shell (AppShell), streamed over the one command
@@ -28,7 +26,7 @@ export type Tab = z.output<typeof TabSchema>;
  * drive shell-wide view state (sidebar, settings, command menu, reload, zoom)
  * the renderer owns, so there is no second signal channel.
  */
-export type TabCommand =
+export type ShellCommand =
   | { appPath: string; newTab?: boolean; type: "navigate" }
   | { index: number; type: "selectByIndex" }
   | { type: "close" }
@@ -45,3 +43,5 @@ export type TabCommand =
   | { type: "zoomIn" }
   | { type: "zoomOut" }
   | { type: "zoomReset" };
+
+export type Tab = z.output<typeof TabSchema>;

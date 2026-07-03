@@ -1,6 +1,6 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { sendTabCommand } from "@/electron-main/tabs/tab-command";
+import { sendShellCommand } from "@/electron-main/tabs/tab-command";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { APP_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
@@ -21,7 +21,7 @@ export function createAppMenu(): MenuItemConstructorOptions {
       {
         accelerator: "CmdOrCtrl+,",
         click: () => {
-          sendTabCommand({ type: "openSettings" });
+          sendShellCommand({ type: "openSettings" });
         },
         label: "Settings...",
       },

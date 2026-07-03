@@ -221,6 +221,13 @@ export function createBrowserViewManager(): BrowserViewManager {
       webPreferences.contextIsolation = true;
       webPreferences.nodeIntegration = false;
       webPreferences.sandbox = true;
+      // Pinned explicitly to guard against a future Electron default flip
+      // silently weakening this agent-controlled browsing context. This is the
+      // hook whose job is to sanitize webPreferences a renderer-supplied
+      // `webpreferences` attribute could have influenced.
+      webPreferences.allowRunningInsecureContent = false;
+      webPreferences.experimentalFeatures = false;
+      webPreferences.webSecurity = true;
 
       pendingAttachQueue.push(entry.targetId);
     });

@@ -18,7 +18,6 @@ import {
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
-import { PRIVATE_BETA_LAUNCH } from "@/shared/constants";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -174,7 +173,7 @@ void app.whenReady().then(async () => {
 
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
-    void createMainWindow({ ...PRIVATE_BETA_LAUNCH, reveal: false });
+    void createMainWindow({ reveal: false });
   } else {
     await createMainWindow();
   }

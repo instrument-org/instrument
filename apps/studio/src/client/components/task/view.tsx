@@ -8,6 +8,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/client/components/ui/resizable";
+import { useAgentBrowserTargets } from "@/client/hooks/use-agent-browser-targets";
 import { useReload } from "@/client/hooks/use-reload";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
@@ -72,14 +73,9 @@ export function TaskView({
   const liveTargetId = selectedSessionId
     ? `${task.id}/${selectedSessionId}`
     : undefined;
-  const { data: liveTargetIds } = useQuery(
-    rpcClient.workspace.browser.listTargetIds.queryOptions({
-      input: selectedSessionId ? { id: task.id } : skipToken,
-      refetchInterval: 2000,
-    }),
-  );
+  const attachedTargets = useAgentBrowserTargets();
   const browserActive = Boolean(
-    liveTargetId && liveTargetIds?.includes(liveTargetId),
+    liveTargetId && attachedTargets.has(liveTargetId),
   );
 
   const { data: replayStatus } = useQuery(

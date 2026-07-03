@@ -1,6 +1,5 @@
-import { rpcClient } from "@/client/rpc/client";
+import { useAgentBrowserTargets } from "@/client/hooks/use-agent-browser-targets";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef } from "react";
 
@@ -19,19 +18,14 @@ export function useAutoOpenBrowserArtifact({
   const navigate = useNavigate();
   const autoOpenedRef = useRef<string | undefined>(undefined);
 
-  const { data: liveTargetIds } = useQuery(
-    rpcClient.workspace.browser.listTargetIds.queryOptions({
-      input: selectedSessionId ? { id } : skipToken,
-      refetchInterval: 2000,
-    }),
-  );
+  const attachedTargets = useAgentBrowserTargets();
 
-  const onTargets = useEffectEvent((ids: string[]) => {
+  const onTargets = useEffectEvent((ids: ReadonlySet<string>) => {
     if (!selectedSessionId) {
       return;
     }
     const targetId = `${id}/${selectedSessionId}`;
-    if (!ids.includes(targetId) || autoOpenedRef.current === targetId) {
+    if (!ids.has(targetId) || autoOpenedRef.current === targetId) {
       return;
     }
     autoOpenedRef.current = targetId;
@@ -44,8 +38,6 @@ export function useAutoOpenBrowserArtifact({
   });
 
   useEffect(() => {
-    if (liveTargetIds) {
-      onTargets(liveTargetIds);
-    }
-  }, [liveTargetIds]);
+    onTargets(attachedTargets);
+  }, [attachedTargets]);
 }

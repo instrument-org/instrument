@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 export function Alacritty({ className }: { className?: string }) {
   return (
     <svg
@@ -101,6 +103,7 @@ export function MacOSTerminal({ className }: { className?: string }) {
 }
 
 export function OpenRouter({ className }: { className?: string }) {
+  const clipId = `${useId().replaceAll(":", "")}-openrouter-clip`;
   return (
     <svg
       className={className}
@@ -108,7 +111,7 @@ export function OpenRouter({ className }: { className?: string }) {
       stroke="currentColor"
       viewBox="0 0 512 512"
     >
-      <g clipPath="url(#clip0_205_3)">
+      <g clipPath={`url(#${clipId})`}>
         <path
           d="M3 248.945C18 248.945 76 236 106 219C136 202 136 202 198 158C276.497 102.293 332 120.945 423 120.945"
           strokeWidth="90"
@@ -121,7 +124,7 @@ export function OpenRouter({ className }: { className?: string }) {
         <path d="M508 376.445L354.25 287.678L354.25 465.213L508 376.445Z" />
       </g>
       <defs>
-        <clipPath id="clip0_205_3">
+        <clipPath id={clipId}>
           <rect fill="white" height="512" width="512" />
         </clipPath>
       </defs>

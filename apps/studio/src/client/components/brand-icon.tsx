@@ -101,6 +101,7 @@ export const AnimatedOutlineBrandIconGlyph = ({
       className={className}
       fill="none"
       height={size}
+      initial={false}
       ref={ref}
       viewBox="0 0 520 520"
       whileHover="hover"

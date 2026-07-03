@@ -1,8 +1,7 @@
 import { Button } from "@/client/components/ui/button";
-import { useMutation } from "@tanstack/react-query";
+import { useTabId } from "@/client/hooks/use-active-tab";
+import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { useRouter } from "@tanstack/react-router";
-
-import { rpcClient } from "../rpc/client";
 
 export function NotFoundRouteComponent() {
   const router = useRouter();
@@ -18,14 +17,11 @@ function NotFoundComponent({
   message?: string;
   title?: string;
 }) {
-  const { mutate: removeTab } = useMutation(
-    rpcClient.tabs.close.mutationOptions(),
-  );
+  const tabId = useTabId();
+  const { closeTab } = useTabsController();
 
   const handleClose = () => {
-    if (window.api.tabId) {
-      removeTab({ id: window.api.tabId });
-    }
+    closeTab({ id: tabId });
   };
 
   return (

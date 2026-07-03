@@ -896,9 +896,6 @@ importers:
       '@parcel/watcher':
         specifier: 2.5.1
         version: 2.5.1(patch_hash=70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b)
-      '@t3-oss/env-core':
-        specifier: ^0.13.11
-        version: 0.13.11(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.4.3)
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -926,9 +923,6 @@ importers:
       diff:
         specifier: ^8.0.3
         version: 8.0.3
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
       dugite:
         specifier: 3.0.0-rc11
         version: 3.0.0-rc11
@@ -980,9 +974,6 @@ importers:
       ulid:
         specifier: ^3.0.1
         version: 3.0.1
-      undici:
-        specifier: ^8.5.0
-        version: 8.5.0
       unstorage:
         specifier: ^1.16.1
         version: 1.16.1(@upstash/redis@1.35.0)(aws4fetch@1.0.20)(db0@0.3.2(@libsql/client@0.14.0)(better-sqlite3@11.9.1)(drizzle-orm@0.43.1(@libsql/client@0.14.0)(@opentelemetry/api@1.9.1)(@types/pg@8.6.1)(better-sqlite3@11.9.1)(kysely@0.28.5)(sql.js@1.14.1)))(ioredis@5.6.1)
@@ -1005,6 +996,9 @@ importers:
       '@instrument-org/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@t3-oss/env-core':
+        specifier: ^0.13.8
+        version: 0.13.11(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.4.3)
       '@types/mime-types':
         specifier: ^3.0.1
         version: 3.0.1
@@ -1023,6 +1017,9 @@ importers:
       devtools-protocol:
         specifier: ^0.0.1617013
         version: 0.0.1617013
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       mock-fs:
         specifier: ^5.5.0
         version: 5.5.0
@@ -1032,6 +1029,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.2
+      undici:
+        specifier: ^8.1.0
+        version: 8.5.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.5(@edge-runtime/vm@3.2.0)(@opentelemetry/api@1.9.1)(@types/node@24.13.1)(msw@2.7.5(@types/node@24.13.1)(typescript@5.9.2))(vite@7.2.7(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.39.0)(tsx@4.20.3)(yaml@2.8.3))

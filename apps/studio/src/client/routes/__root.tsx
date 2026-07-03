@@ -8,13 +8,10 @@ import {
   createRootRouteWithContext,
   HeadContent,
   Outlet,
-  useRouterState,
 } from "@tanstack/react-router";
-import { useCallback } from "react";
 
 import { Spinner } from "../components/ui/spinner";
 import { TooltipProvider } from "../components/ui/tooltip";
-import { useReload } from "../hooks/use-reload";
 
 export const Route = createRootRouteWithContext<{
   disableHotkeyReload?: boolean;
@@ -55,20 +52,6 @@ function Root({ children }: Readonly<{ children: React.ReactNode }>) {
 }
 
 function RootComponent() {
-  const matches = useRouterState({ select: (s) => s.matches });
-  const disableHotkeyReload = matches.some(
-    (match) => match.context.disableHotkeyReload,
-  );
-
-  useReload(
-    useCallback(() => {
-      if (disableHotkeyReload) {
-        return;
-      }
-      window.location.reload();
-    }, [disableHotkeyReload]),
-  );
-
   return (
     <Root>
       <HeadContent />

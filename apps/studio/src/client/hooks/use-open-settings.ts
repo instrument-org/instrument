@@ -3,7 +3,8 @@ import { useMainProcessSignal } from "@/client/hooks/use-main-process-signal";
 import { rpcClient } from "@/client/rpc/client";
 import { useCallback } from "react";
 
-const subscribe = () => rpcClient.utils.live.openSettings.call();
+const subscribe = ({ signal }: { signal: AbortSignal }) =>
+  rpcClient.utils.live.openSettings.call(undefined, { signal });
 
 /**
  * Opens the settings modal when the native app menu's "Settings..." item

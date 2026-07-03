@@ -9,7 +9,6 @@ import {
   ResizablePanelGroup,
 } from "@/client/components/ui/resizable";
 import { useAgentBrowserTargets } from "@/client/hooks/use-agent-browser-targets";
-import { useReload } from "@/client/hooks/use-reload";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -24,7 +23,6 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
-import { useCallback } from "react";
 
 import { TaskBrowserPanel } from "./browser-panel";
 import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
@@ -151,12 +149,6 @@ export function TaskView({
       }),
     });
   };
-
-  useReload(
-    useCallback(() => {
-      window.location.reload();
-    }, []),
-  );
 
   const handleSidebarChange = (nextSidebar: TaskSidebarMode) => {
     void navigate({

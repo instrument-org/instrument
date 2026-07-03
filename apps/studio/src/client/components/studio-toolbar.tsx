@@ -39,7 +39,7 @@ export function StudioToolbar() {
           isMacOS() ? undefined : "pl-4",
         )}
         // The macOS traffic-light gutter must stay a fixed visual width, so divide
-        // it by the shell zoom: the zoomed root scales it back to a constant 5rem
+        // it by the main-window zoom: the zoomed root scales it back to a constant 5rem
         // and the OS-drawn buttons (real pixels, unzoomed) always fit.
         style={
           isMacOS()

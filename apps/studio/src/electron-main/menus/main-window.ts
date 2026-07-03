@@ -120,7 +120,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+0",
         click: () => {
-          // Whole-shell UI zoom, applied as CSS `zoom` in the renderer; embedded
+          // Main-window UI zoom, applied as CSS `zoom` in the renderer; embedded
           // web content views (the agent browser) are left untouched.
           resetZoom();
         },

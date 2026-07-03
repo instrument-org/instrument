@@ -1,4 +1,4 @@
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -53,7 +53,7 @@ function DialogContent({
             onExitComplete();
           }
         }}
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       >
         {children}

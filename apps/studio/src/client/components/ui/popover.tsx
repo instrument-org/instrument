@@ -1,6 +1,6 @@
 "use client";
 
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import * as React from "react";
@@ -34,7 +34,7 @@ function PopoverContent({
         )}
         data-slot="popover-content"
         sideOffset={sideOffset}
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </PopoverPrimitive.Portal>

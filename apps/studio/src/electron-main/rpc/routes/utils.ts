@@ -368,7 +368,7 @@ const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
 });
 
-// The renderer owns the shell zoom (CSS `zoom`); it reports the current level so
+// The renderer owns the main-window zoom (CSS `zoom`); it reports the current level so
 // the main process can keep the macOS traffic lights centered in the toolbar,
 // whose visual height scales with that zoom.
 const syncZoom = base

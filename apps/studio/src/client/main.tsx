@@ -3,7 +3,7 @@ import "./styles/globals.css";
 import ReactDOM, { type Root } from "react-dom/client";
 
 import { App } from "./app";
-import { AppShell } from "./components/app-shell";
+import { MainWindow } from "./components/main-window";
 import { initAgentBrowserPool } from "./lib/agent-browser-pool";
 import { applyInitialTheme } from "./lib/initial-theme";
 
@@ -24,13 +24,13 @@ if (rootElement) {
   }
 
   // The main window hosts the whole tabbed app in this one web contents
-  // (AppShell). The onboarding web contents keeps using the single-router App.
-  const isMainWindow = window.api.windowType === "shell";
-  root.render(isMainWindow ? <AppShell /> : <App />);
+  // (MainWindow). The onboarding web contents keeps using the single-router App.
+  const isMainWindow = window.api.windowType === "main";
+  root.render(isMainWindow ? <MainWindow /> : <App />);
 
   if (isMainWindow) {
     // Subscribe the agent-browser webview pool to main-process mount/unmount
-    // commands for the lifetime of the shell renderer.
+    // commands for the lifetime of the main-window renderer.
     initAgentBrowserPool();
   }
 }

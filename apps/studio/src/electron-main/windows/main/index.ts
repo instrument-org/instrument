@@ -57,7 +57,7 @@ export async function createMainWindow({
     frame: process.platform === "darwin" ? true : false,
     titleBarOverlay: getTitleBarOverlay(),
     webPreferences: {
-      additionalArguments: ["--windowType=shell"],
+      additionalArguments: ["--windowType=main"],
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,
@@ -129,8 +129,8 @@ export async function createMainWindow({
     showWindow(window);
   });
 
-  // The path is cosmetic: the main window renders AppShell based on its
-  // `--windowType=shell` argument, not on the route. It only needs a valid entry
+  // The path is cosmetic: the main window renders MainWindow based on its
+  // `--windowType=main` argument, not on the route. It only needs a valid entry
   // URL, and the root path distinguishes it from the onboarding window.
   void mainWindow.loadURL(studioURL("/"));
   if (reveal) {

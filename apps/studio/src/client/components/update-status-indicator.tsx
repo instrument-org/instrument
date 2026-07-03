@@ -82,7 +82,7 @@ export function UpdateStatusIndicator() {
         if (!error) {
           return;
         }
-        // No Toaster in the shell window, so fall through to Settings, which
+        // No Toaster in the main window, so fall through to Settings, which
         // surfaces the failure with retry and manual-download options.
       }
 

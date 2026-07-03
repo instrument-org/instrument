@@ -1,4 +1,4 @@
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon, CaretUpIcon, CheckIcon } from "@phosphor-icons/react";
 import * as SelectPrimitive from "@radix-ui/react-select";
@@ -30,7 +30,7 @@ function SelectContent({
         )}
         data-slot="select-content"
         position={position}
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       >
         <SelectScrollUpButton />

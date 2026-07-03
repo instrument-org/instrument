@@ -39,7 +39,7 @@ export const publisher = new EventPublisher<PublisherEvents>({
 
 interface CommandEvents {
   // Imperative tab operations from the main process (menus, modal-initiated
-  // RPC) to the renderer that owns tab state (AppShell).
+  // RPC) to the renderer that owns tab state (MainWindow).
   "tab.command": AppCommand;
 }
 

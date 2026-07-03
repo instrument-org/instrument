@@ -8,7 +8,6 @@ import {
   type BrowserConfig,
   type BrowserTarget,
   type BrowserTargetId,
-  decodeBrowserTargetId,
   encodeBrowserTargetId,
   type StoreId,
   type TaskId,
@@ -35,7 +34,7 @@ import { log } from "./log";
 import { stopScreencast } from "./screencast";
 
 // How long createTarget waits for the renderer to mount the guest `<webview>`
-// and Electron to fire `did-attach-webview`. The shell renderer is alive
+// and Electron to fire `did-attach-webview`. The main-window renderer is alive
 // whenever the agent runs, so attach normally completes in well under a second;
 // the timeout only fires if no renderer is available to host the guest.
 const ATTACH_TIMEOUT_MS = 15_000;
@@ -59,11 +58,11 @@ export interface BrowserViewManager {
   // `webContents.isFocused()` is unreliable for `<webview>` guests (it can get
   // stuck `true` after focus moves to a plain host-page element), so
   // navigateFocusedGuest/zoomFocusedGuest trust this instead.
-  setGuestFocus: (targetId: string, focused: boolean) => void;
+  setGuestFocus: (targetId: BrowserTargetId, focused: boolean) => void;
   teardown: () => void;
   // If an agent-browser guest has focus, zoom its own web content and return
   // true. Lets keyboard Cmd+/-/0 target the focused guest instead of the
-  // shell (shell zoom is CSS-only and never reaches the guest's webContents).
+  // main window (main-window zoom is CSS-only and never reaches the guest's webContents).
   zoomFocusedGuest: (direction: "in" | "out" | "reset") => boolean;
 }
 
@@ -179,17 +178,16 @@ export function createBrowserViewManager(): BrowserViewManager {
 
   function bindHost(host: WebContents) {
     host.on("will-attach-webview", (event, webPreferences, params) => {
-      const rawTargetId = targetIdFromPartition(params.partition);
-      if (!rawTargetId) {
+      const targetId = targetIdFromPartition(params.partition);
+      if (!targetId) {
         // Not one of ours; leave other webviews alone.
         return;
       }
-      const decoded = decodeBrowserTargetId(rawTargetId);
-      const entry = decoded && entries.get(rawTargetId as BrowserTargetId);
-      if (!decoded || !entry) {
+      const entry = entries.get(targetId);
+      if (!entry) {
         // No page state recorded for this id: reject the attachment.
         log.warn(
-          `rejected agent-browser webview attach (no entry) targetId=${rawTargetId}`,
+          `rejected agent-browser webview attach (no entry) targetId=${targetId}`,
         );
         event.preventDefault();
         return;
@@ -431,17 +429,10 @@ export function createBrowserViewManager(): BrowserViewManager {
     return true;
   }
 
-  function setGuestFocus(targetId: string, focused: boolean) {
-    if (!decodeBrowserTargetId(targetId)) {
-      return;
-    }
-    // Validated above -- decodeBrowserTargetId succeeding means targetId is a
-    // well-formed BrowserTargetId, but it only hands back the decoded halves,
-    // not the branded string itself (same idiom as will-attach-webview above).
-    const id = targetId as BrowserTargetId;
+  function setGuestFocus(targetId: BrowserTargetId, focused: boolean) {
     if (focused) {
-      focusedTargetId = id;
-    } else if (focusedTargetId === id) {
+      focusedTargetId = targetId;
+    } else if (focusedTargetId === targetId) {
       focusedTargetId = null;
     }
   }
@@ -464,7 +455,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         attached: Boolean(
           entry.webContents && !entry.webContents.isDestroyed(),
         ),
-        id: String(entry.targetId),
+        id: entry.targetId,
       })),
     navigateFocusedGuest,
     setGuestFocus,

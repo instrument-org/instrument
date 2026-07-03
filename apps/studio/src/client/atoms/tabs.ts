@@ -27,7 +27,7 @@ const persist = debounce({ delay: 300 }, (key: string, value: TabsModel) => {
 /**
  * localStorage backing for {@link tabsAtom}. The main window shares one origin,
  * so this survives restarts with no main-process round trip. A corrupt/stale
- * blob must not brick the window (AppShell maps over `tabs`), so reads validate
+ * blob must not brick the window (MainWindow maps over `tabs`), so reads validate
  * against {@link TabsModelSchema} and fall back to the initial model on failure;
  * the versioned key (`studio.tabs.v1`) covers intentional breaking changes.
  */

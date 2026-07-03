@@ -1,4 +1,4 @@
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import * as React from "react";
@@ -26,7 +26,7 @@ function HoverCardContent({
         )}
         data-slot="hover-card-content"
         sideOffset={sideOffset}
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </HoverCardPrimitive.Portal>

@@ -1,4 +1,4 @@
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
 import * as MenubarPrimitive from "@radix-ui/react-menubar";
@@ -69,7 +69,7 @@ function MenubarContent({
         )}
         data-slot="menubar-content"
         sideOffset={sideOffset}
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </MenubarPortal>
@@ -224,7 +224,7 @@ function MenubarSubContent({
           className,
         )}
         data-slot="menubar-sub-content"
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </MenubarPortal>

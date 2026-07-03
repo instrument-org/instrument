@@ -4,15 +4,16 @@ import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 
 // Height of the macOS traffic-light cluster, used to vertically center it within
-// the toolbar. The toolbar's visual height is TOOLBAR_HEIGHT scaled by the shell
-// zoom, so the buttons must be repositioned whenever the renderer zoom changes.
+// the toolbar. The toolbar's visual height is TOOLBAR_HEIGHT scaled by the
+// main-window zoom, so the buttons must be repositioned whenever the renderer
+// zoom changes.
 const TRAFFIC_LIGHT_CLUSTER_HEIGHT = 16;
 const TRAFFIC_LIGHT_X = 12;
 
 // Window-level zoom / history / focus. Guest-aware: a focused agent-browser
-// guest zooms/navigates its own webContents instead of the shell.
+// guest zooms/navigates its own webContents instead of the main window.
 //
-// Otherwise the main shell zooms its own UI in the renderer (CSS `zoom`) rather
+// Otherwise the main window zooms its own UI in the renderer (CSS `zoom`) rather
 // than via `webContents.setZoomLevel`, so app zoom leaves unfocused embedded web
 // content views untouched and stays independent of them.
 

@@ -1,4 +1,4 @@
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
@@ -40,7 +40,7 @@ function SheetContent({
           className,
         )}
         data-slot="sheet-content"
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       >
         {children}

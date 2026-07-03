@@ -4,6 +4,7 @@ import { PromptInput } from "@/client/components/prompt-input";
 import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
+import { Route as TaskRoute } from "@/client/routes/_app/tasks/$id/index";
 import { rpcClient } from "@/client/rpc/client";
 import { PRIVATE_BETA_SEARCH_PARAM } from "@/shared/constants";
 import { APP_NAME } from "@instrument-org/shared";
@@ -59,12 +60,7 @@ function RouteComponent() {
 
   useEffect(() => {
     // Preload the task route chunk for faster navigation
-    async function preloadRouteChunks() {
-      const taskRoute = router.routesByPath["/tasks/$id/"];
-      await router.loadRouteChunk(taskRoute);
-    }
-
-    void preloadRouteChunks();
+    void router.loadRouteChunk(TaskRoute);
   }, [router]);
 
   return (

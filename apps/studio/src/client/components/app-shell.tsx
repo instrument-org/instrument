@@ -11,18 +11,20 @@ import { useTabCommands } from "@/client/hooks/use-tab-commands";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import { setTabMeta, setTabPathname } from "@/client/lib/tab-model";
-import { getRouterHistory } from "@/client/lib/tab-router-history";
 import {
   createTabRouter,
   sharedQueryClient,
   type TabRouter,
 } from "@/client/lib/tab-router";
+import { getRouterHistory } from "@/client/lib/tab-router-history";
 import {
   registerTabRouter,
   unregisterTabRouter,
 } from "@/client/lib/tab-router-registry";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { type Tab } from "@/shared/tabs";
+import { safe } from "@orpc/client";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterContextProvider, RouterProvider } from "@tanstack/react-router";
@@ -53,6 +55,13 @@ export function AppShell() {
 
   useMouseBackForward();
   useTabCommands();
+
+  // Keep the macOS traffic-light position in sync with the shell zoom (the
+  // toolbar height scales with it). Only the main window renders AppShell, so
+  // this stays out of the zoom atom (which the onboarding window also imports).
+  useEffect(() => {
+    void safe(rpcClient.utils.syncZoom.call({ zoom }));
+  }, [zoom]);
 
   // Reload the whole shell (one web contents now) on the menu accelerator,
   // gated on the *active* tab's route so a backgrounded task can't suppress it

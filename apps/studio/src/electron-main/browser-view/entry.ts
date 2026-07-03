@@ -10,19 +10,6 @@ import { noop } from "radashi";
 
 import { log } from "./log";
 
-// One-shot signal for "the guest attached (and its first load settled)". Created
-// with the entry, resolved in bindGuest's did-finish-load, and rejected by
-// fireDestruction if the entry is removed first (for any reason). Lets
-// createTarget await attachment without a separate waiter registry, and fixes
-// the hang where a createTarget racing a teardown/close would block until its
-// own timeout instead of failing immediately.
-export interface AttachSignal {
-  promise: Promise<void>;
-  reject: (error: Error) => void;
-  resolve: () => void;
-  settled: boolean;
-}
-
 export interface BrowserEntry {
   // Resolves when the guest attaches, rejects if the entry is removed first.
   attach: AttachSignal;
@@ -58,6 +45,19 @@ export interface BrowserEntry {
   // between createTarget (which records the entry + asks the renderer to mount
   // a guest) and the attach completing.
   webContents: null | WebContents;
+}
+
+// One-shot signal for "the guest attached (and its first load settled)". Created
+// with the entry, resolved in bindGuest's did-finish-load, and rejected by
+// fireDestruction if the entry is removed first (for any reason). Lets
+// createTarget await attachment without a separate waiter registry, and fixes
+// the hang where a createTarget racing a teardown/close would block until its
+// own timeout instead of failing immediately.
+interface AttachSignal {
+  promise: Promise<void>;
+  reject: (error: Error) => void;
+  resolve: () => void;
+  settled: boolean;
 }
 
 export function createEntry({

@@ -65,43 +65,6 @@ const VISIBLE_BOTTOM_RADIUS = "0.6875rem";
 
 const pool = new Map<string, PooledWebview>();
 
-export function ensureWebview(targetId: string): PooledWebview {
-  const existing = pool.get(targetId);
-  if (existing) {
-    return existing;
-  }
-
-  const container = document.createElement("div");
-  // `webview` is a custom element (enabled by webviewTag on the host window);
-  // cast to the subset of its tag API we drive.
-  const webview = document.createElement("webview") as WebviewElement;
-  // The partition encodes the target id so `will-attach-webview` can route the
-  // attach; main overrides the actual session there (partition is just a
-  // carrier, see agentBrowserPartition).
-  webview.setAttribute("partition", agentBrowserPartition(targetId));
-  webview.setAttribute("src", "about:blank");
-  webview.style.border = "0";
-
-  // Report real DOM focus/blur so the main process can target keyboard
-  // commands (zoom, back/forward) at this guest -- WebContents#isFocused()
-  // in main is unreliable for `<webview>` guests, but focus/blur on the
-  // element itself tracks the host document's activeElement correctly.
-  webview.addEventListener("focus", () => {
-    void rpcClient.agentBrowser.syncFocus.call({ focused: true, targetId });
-  });
-  webview.addEventListener("blur", () => {
-    void rpcClient.agentBrowser.syncFocus.call({ focused: false, targetId });
-  });
-
-  container.append(webview);
-  document.body.append(container);
-
-  const pooled: PooledWebview = { container, lastVisibleBounds: null, webview };
-  pool.set(targetId, pooled);
-  applyPaintHost(pooled);
-  return pooled;
-}
-
 /** The pooled guest element for a target, if it exists (for nav controls). */
 export function getWebviewElement(targetId: string): null | WebviewElement {
   return pool.get(targetId)?.webview ?? null;
@@ -144,10 +107,14 @@ export function setPaintHost(targetId: string) {
 /**
  * Show the guest over a host slot, sized to the slot's measured bounds so it
  * fills dynamically (no letterbox). Resizing/moving a painted guest keeps it
- * alive, so this can fire freely on every resize.
+ * alive, so this can fire freely on every resize. No-ops if the guest doesn't
+ * exist (the main process owns creation via the desired-targets stream).
  */
 export function showOverSlot(targetId: string, bounds: Bounds) {
-  const pooled = ensureWebview(targetId);
+  const pooled = pool.get(targetId);
+  if (!pooled) {
+    return;
+  }
   pooled.lastVisibleBounds = bounds;
   const { container, webview } = pooled;
 
@@ -218,6 +185,47 @@ function disposeWebview(targetId: string) {
   }
   pooled.container.remove();
   pool.delete(targetId);
+}
+
+// Guest creation happens only here, driven by `reconcile` off the main
+// process's desired-targets stream. The host slot never creates a guest: it can
+// only show/park one that already exists (see showOverSlot/setPaintHost), so a
+// stale "active" host can't resurrect a target the main process just destroyed.
+function ensureWebview(targetId: string): PooledWebview {
+  const existing = pool.get(targetId);
+  if (existing) {
+    return existing;
+  }
+
+  const container = document.createElement("div");
+  // `webview` is a custom element (enabled by webviewTag on the host window);
+  // cast to the subset of its tag API we drive.
+  const webview = document.createElement("webview") as WebviewElement;
+  // The partition encodes the target id so `will-attach-webview` can route the
+  // attach; main overrides the actual session there (partition is just a
+  // carrier, see agentBrowserPartition).
+  webview.setAttribute("partition", agentBrowserPartition(targetId));
+  webview.setAttribute("src", "about:blank");
+  webview.style.border = "0";
+
+  // Report real DOM focus/blur so the main process can target keyboard
+  // commands (zoom, back/forward) at this guest -- WebContents#isFocused()
+  // in main is unreliable for `<webview>` guests, but focus/blur on the
+  // element itself tracks the host document's activeElement correctly.
+  webview.addEventListener("focus", () => {
+    void rpcClient.agentBrowser.syncFocus.call({ focused: true, targetId });
+  });
+  webview.addEventListener("blur", () => {
+    void rpcClient.agentBrowser.syncFocus.call({ focused: false, targetId });
+  });
+
+  container.append(webview);
+  document.body.append(container);
+
+  const pooled: PooledWebview = { container, lastVisibleBounds: null, webview };
+  pool.set(targetId, pooled);
+  applyPaintHost(pooled);
+  return pooled;
 }
 
 /** Bring the pool in line with the desired target set: create any missing

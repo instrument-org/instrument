@@ -64,12 +64,6 @@ export interface BrowserViewManager {
   zoomFocusedGuest: (direction: "in" | "out" | "reset") => boolean;
 }
 
-interface PendingAttach {
-  reject: (error: Error) => void;
-  resolve: () => void;
-  timer: ReturnType<typeof setTimeout>;
-}
-
 let managerInstance: BrowserViewManager | undefined;
 
 export function createBrowserViewManager(): BrowserViewManager {
@@ -77,9 +71,6 @@ export function createBrowserViewManager(): BrowserViewManager {
   // FIFO of target ids accepted in `will-attach-webview`, drained in
   // `did-attach-webview` (Electron pairs the two events in order).
   const pendingAttachQueue: BrowserTargetId[] = [];
-  // createTarget waiters, resolved once the guest attaches (or rejected on
-  // timeout / attach rejection).
-  const attachWaiters = new Map<BrowserTargetId, PendingAttach[]>();
   // The guest the renderer last reported real DOM focus on (see setGuestFocus).
   let focusedTargetId: BrowserTargetId | null = null;
 
@@ -111,22 +102,6 @@ export function createBrowserViewManager(): BrowserViewManager {
       handleDetach(entries, targetId);
       notifyEntriesChanged();
     });
-  }
-
-  function settleWaiters(targetId: BrowserTargetId, error?: Error) {
-    const waiters = attachWaiters.get(targetId);
-    if (!waiters) {
-      return;
-    }
-    attachWaiters.delete(targetId);
-    for (const waiter of waiters) {
-      clearTimeout(waiter.timer);
-      if (error) {
-        waiter.reject(error);
-      } else {
-        waiter.resolve();
-      }
-    }
   }
 
   function bindGuest(entry: BrowserEntry, guest: WebContents) {
@@ -189,7 +164,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.once("did-finish-load", () => {
       ensureDebuggerAttached(entry);
       attachDevHooks(entry);
-      settleWaiters(entry.targetId);
+      entry.attach.resolve();
     });
     void guest.loadURL("about:blank");
 
@@ -259,48 +234,42 @@ export function createBrowserViewManager(): BrowserViewManager {
       if (existing.webContents && !existing.webContents.isDestroyed()) {
         return Promise.resolve({ targetId });
       }
-      return waitForAttach(targetId).then(() => ({ targetId }));
+      return waitForAttach(existing).then(() => ({ targetId }));
     }
 
     const entry = createEntry({ id, partitionDir, sessionId, targetId });
     entries.set(targetId, entry);
     // Publishing the new desired set makes the renderer pool mount a guest
     // `<webview>` for this target; it attaches via will/did-attach-webview,
-    // which binds it and resolves the wait. Removal (destroyEntry/handleDetach)
-    // republishes, so the pool disposes the guest -- no explicit unmount needed.
+    // which binds it and resolves entry.attach. Removal (destroyEntry/
+    // handleDetach) rejects entry.attach and republishes, so the pool disposes
+    // the guest -- no explicit unmount needed.
     notifyEntriesChanged();
 
-    return waitForAttach(targetId).then(() => ({ targetId }));
+    return waitForAttach(entry).then(() => ({ targetId }));
   }
 
-  function waitForAttach(targetId: BrowserTargetId): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+  // Resolve when the guest attaches (entry.attach), reject if the entry is
+  // removed first (attach rejects) or nothing mounts within the timeout. The
+  // timeout drops the orphaned page-state entry so a retry starts clean.
+  function waitForAttach(entry: BrowserEntry): Promise<void> {
+    if (entry.attach.settled) {
+      return entry.attach.promise;
+    }
+    const timeout = new Promise<never>((_resolve, reject) => {
       const timer = setTimeout(() => {
-        const waiters = attachWaiters.get(targetId);
-        if (waiters) {
-          attachWaiters.set(
-            targetId,
-            waiters.filter((w) => w.timer !== timer),
-          );
-        }
-        // Nothing mounted in time: drop the orphaned page-state entry so a
-        // retry can start clean.
-        const entry = entries.get(targetId);
-        if (entry && !entry.webContents) {
-          destroyEntry(entries, targetId);
+        if (!entry.attach.settled && !entry.webContents) {
+          destroyEntry(entries, entry.targetId);
           notifyEntriesChanged();
         }
-        reject(new Error(`agent browser attach timed out: ${targetId}`));
+        reject(new Error(`agent browser attach timed out: ${entry.targetId}`));
       }, ATTACH_TIMEOUT_MS);
-
-      const waiter: PendingAttach = { reject, resolve, timer };
-      const waiters = attachWaiters.get(targetId);
-      if (waiters) {
-        waiters.push(waiter);
-      } else {
-        attachWaiters.set(targetId, [waiter]);
-      }
+      const clear = () => {
+        clearTimeout(timer);
+      };
+      entry.attach.promise.then(clear, clear);
     });
+    return Promise.race([entry.attach.promise, timeout]);
   }
 
   function listTargets(id: TaskId): Promise<BrowserTarget[]> {

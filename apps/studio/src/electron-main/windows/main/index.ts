@@ -19,7 +19,6 @@ import {
   getMainWindow,
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
-import { type StudioPath } from "@/shared/studio-path";
 import { is } from "@electron-toolkit/utils";
 import { type BaseWindow, BrowserWindow } from "electron";
 import path from "node:path";
@@ -30,10 +29,6 @@ let wasWindowBlurred = false;
 export async function createMainWindow({
   reveal = true,
 }: {
-  // Unused: the renderer owns tab creation/restore. Kept only so callers
-  // passing these fields still type-check.
-  initialParams?: Record<string, string>;
-  initialPath?: StudioPath;
   reveal?: boolean;
 } = {}) {
   let icon: string | undefined;

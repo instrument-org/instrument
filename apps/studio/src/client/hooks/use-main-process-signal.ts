@@ -20,14 +20,19 @@ export function useMainProcessSignal(
   onSignal: () => void,
 ) {
   const onSignalRef = useRef(onSignal);
-  onSignalRef.current = onSignal;
+  useEffect(() => {
+    onSignalRef.current = onSignal;
+  });
 
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
 
     async function run() {
-      while (!signal.aborted) {
+      while (true) {
+        if (signal.aborted) {
+          return;
+        }
         try {
           const subscription = await subscribe({ signal });
           for await (const _ of subscription) {
@@ -36,9 +41,6 @@ export function useMainProcessSignal(
         } catch {
           // Stream dropped (transport reset, hot reload); reconnect below unless
           // we're tearing down.
-        }
-        if (signal.aborted) {
-          break;
         }
         await sleep(RECONNECT_DELAY_MS);
       }

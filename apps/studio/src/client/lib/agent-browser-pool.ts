@@ -1,8 +1,8 @@
 import { rpcClient } from "@/client/rpc/client";
 import {
-  type AgentBrowserTarget,
   AGENT_BROWSER_VIEWPORT,
   agentBrowserPartition,
+  type AgentBrowserTarget,
 } from "@/shared/agent-browser";
 
 /**
@@ -73,21 +73,13 @@ const pool = new Map<string, PooledWebview>();
 let attachedTargets: ReadonlySet<string> = new Set();
 const targetListeners = new Set<() => void>();
 
+export function getAttachedTargetsSnapshot(): ReadonlySet<string> {
+  return attachedTargets;
+}
+
 /** The pooled guest element for a target, if it exists (for nav controls). */
 export function getWebviewElement(targetId: string): null | WebviewElement {
   return pool.get(targetId)?.webview ?? null;
-}
-
-/** useSyncExternalStore glue for {@link attachedTargets} (see use-agent-browser-targets). */
-export function subscribeAttachedTargets(listener: () => void): () => void {
-  targetListeners.add(listener);
-  return () => {
-    targetListeners.delete(listener);
-  };
-}
-
-export function getAttachedTargetsSnapshot(): ReadonlySet<string> {
-  return attachedTargets;
 }
 
 /**
@@ -162,6 +154,14 @@ export function showOverSlot(targetId: string, bounds: Bounds) {
     transformOrigin: "",
     width: `${bounds.width}px`,
   } satisfies Partial<CSSStyleDeclaration>);
+}
+
+/** useSyncExternalStore glue for {@link attachedTargets} (see use-agent-browser-targets). */
+export function subscribeAttachedTargets(listener: () => void): () => void {
+  targetListeners.add(listener);
+  return () => {
+    targetListeners.delete(listener);
+  };
 }
 
 // On-screen-sized but visually hidden. NOT display:none / far-offscreen, which

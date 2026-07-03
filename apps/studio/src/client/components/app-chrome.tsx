@@ -6,12 +6,7 @@ import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { StudioToolbar } from "@/client/components/studio-toolbar";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import {
-  setSidebarOpen,
-  toggleSidebar,
-  useSidebarOpen,
-} from "@/client/hooks/use-sidebar";
-import { useToggleSidebar } from "@/client/hooks/use-toggle-sidebar";
+import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, Suspense } from "react";
 
@@ -60,10 +55,6 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   const isTaskFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
   const isSidebarOpen = useSidebarOpen();
-
-  // The native Toggle Sidebar menu item (Cmd+B) is a stateless dispatcher; the
-  // renderer owns the state, so it flips the atom here.
-  useToggleSidebar(toggleSidebar);
 
   return (
     <div

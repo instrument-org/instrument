@@ -1,4 +1,3 @@
-import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
 import { sendTabCommand } from "@/electron-main/tabs/tab-command";
 import {
@@ -73,13 +72,8 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+K",
         click: () => {
-          const webContents = getMainWindow()?.webContents;
-          if (webContents) {
-            publisher.publish("app.toggle-command-menu", {
-              webContentsId: webContents.id,
-            });
-            focusMainContents();
-          }
+          sendTabCommand({ type: "toggleCommandMenu" });
+          focusMainContents();
         },
         label: "Show Command Menu",
       },
@@ -102,12 +96,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+R",
         click: () => {
-          const webContents = getMainWindow()?.webContents;
-          if (webContents) {
-            publisher.publish("app.reload", {
-              webContentsId: webContents.id,
-            });
-          }
+          sendTabCommand({ type: "reload" });
         },
         label: "Reload Page",
       },
@@ -115,12 +104,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+B",
         click: () => {
-          const webContents = getMainWindow()?.webContents;
-          if (webContents) {
-            publisher.publish("app.toggle-sidebar", {
-              webContentsId: webContents.id,
-            });
-          }
+          sendTabCommand({ type: "toggleSidebar" });
         },
         label: "Toggle Sidebar",
       },

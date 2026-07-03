@@ -8,8 +8,7 @@ import { AnimatePresence, motion, Reorder } from "motion/react";
 export default function TabBar() {
   const { addTab, closeTab, reorderTabs, selectTab } = useTabsController();
   const selectedTabId = useSelectedTabId();
-  const allTabs = useTabs();
-  const tabs = allTabs.filter((tab) => !tab.tabBarHidden);
+  const tabs = useTabs();
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-row items-stretch overflow-hidden px-3 [-webkit-app-region:drag]">
@@ -18,14 +17,7 @@ export default function TabBar() {
         axis="x"
         className="flex min-w-0 flex-1 flex-nowrap items-stretch justify-start gap-1 py-1"
         onReorder={(values) => {
-          // Extract only the IDs of non-pinned tabs for reordering
-          const nonPinnedTabIds = values
-            .filter((tab) => !tab.pinned)
-            .map((tab) => tab.id);
-
-          if (nonPinnedTabIds.length > 0) {
-            reorderTabs({ ids: nonPinnedTabIds });
-          }
+          reorderTabs({ ids: values.map((tab) => tab.id) });
         }}
         values={tabs}
       >

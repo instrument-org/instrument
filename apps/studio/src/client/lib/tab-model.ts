@@ -38,7 +38,7 @@ export function addTab(
 ): TabsModel {
   // Any route may have multiple tabs open at once (e.g. two tabs of the same
   // project/task), like a browser. No single-tab collapsing.
-  const tab: Tab = { history, iconName, id, pathname, pinned: false, title };
+  const tab: Tab = { history, iconName, id, pathname, title };
   return {
     ...model,
     selectedId: select ? id : model.selectedId,
@@ -61,12 +61,11 @@ export function closeTab(
   },
 ): TabsModel {
   const tab = model.tabs.find((t) => t.id === id);
-  if (!tab || tab.pinned) {
+  if (!tab) {
     return model;
   }
 
-  const snapshot = visibleTabs(model);
-  const closingIndex = snapshot.findIndex((t) => t.id === id);
+  const closingIndex = model.tabs.findIndex((t) => t.id === id);
 
   const tabs = model.tabs.filter((t) => t.id !== id);
   const recentlyClosed = [
@@ -78,13 +77,13 @@ export function closeTab(
     return {
       recentlyClosed,
       selectedId: newTab.id,
-      tabs: [{ id: newTab.id, pathname: newTab.pathname, pinned: false }],
+      tabs: [{ id: newTab.id, pathname: newTab.pathname }],
     };
   }
 
   const selectedId =
     model.selectedId === id
-      ? neighborId(snapshot, closingIndex)
+      ? neighborId(model.tabs, closingIndex)
       : model.selectedId;
 
   return { recentlyClosed, selectedId, tabs };
@@ -131,25 +130,23 @@ export function reorderTabs(
   model: TabsModel,
   { ids }: { ids: string[] },
 ): TabsModel {
-  const pinned = model.tabs.filter((tab) => tab.pinned);
   const byId = new Map(model.tabs.map((tab) => [tab.id, tab]));
   const reordered = ids
     .map((id) => byId.get(id))
-    .filter((tab): tab is Tab => tab !== undefined && !tab.pinned);
-  return { ...model, tabs: [...pinned, ...reordered] };
+    .filter((tab): tab is Tab => tab !== undefined);
+  return { ...model, tabs: reordered };
 }
 
 export function selectAdjacent(
   model: TabsModel,
   { delta }: { delta: number },
 ): TabsModel {
-  const visible = visibleTabs(model);
-  if (visible.length <= 1) {
+  if (model.tabs.length <= 1) {
     return model;
   }
-  const current = visible.findIndex((tab) => tab.id === model.selectedId);
-  const next = (current + delta + visible.length) % visible.length;
-  const tab = visible[next];
+  const current = model.tabs.findIndex((tab) => tab.id === model.selectedId);
+  const next = (current + delta + model.tabs.length) % model.tabs.length;
+  const tab = model.tabs[next];
   return tab ? { ...model, selectedId: tab.id } : model;
 }
 
@@ -157,7 +154,7 @@ export function selectByIndex(
   model: TabsModel,
   { index }: { index: number },
 ): TabsModel {
-  const tab = visibleTabs(model)[index];
+  const tab = model.tabs[index];
   return tab ? { ...model, selectedId: tab.id } : model;
 }
 
@@ -219,15 +216,10 @@ export function setTabPathname(
 }
 
 /**
- * Selects the neighbor of `closing` among the pre-removal visible snapshot:
- * prefers the tab to the right, falls back to the left.
+ * Selects the neighbor of `closing` among the pre-removal tabs: prefers the tab
+ * to the right, falls back to the left.
  */
-function neighborId(visibleSnapshot: Tab[], closingIndex: number) {
-  const next =
-    visibleSnapshot[closingIndex + 1] ?? visibleSnapshot[closingIndex - 1];
+function neighborId(tabs: Tab[], closingIndex: number) {
+  const next = tabs[closingIndex + 1] ?? tabs[closingIndex - 1];
   return next?.id ?? null;
-}
-
-function visibleTabs(model: TabsModel) {
-  return model.tabs.filter((tab) => !tab.tabBarHidden);
 }

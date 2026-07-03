@@ -1,5 +1,5 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update";
-import { type TabCommand, type TabState } from "@/shared/tabs";
+import { type TabCommand } from "@/shared/tabs";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
@@ -31,7 +31,6 @@ interface PublisherEvents {
   };
   "server-exceptions.updated": null;
   "session.apiBearerToken.updated": null;
-  "tabs.updated": null | TabState;
   "test-notification": null;
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;

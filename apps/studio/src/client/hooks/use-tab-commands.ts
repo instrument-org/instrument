@@ -67,7 +67,7 @@ export function useTabCommands() {
             }
             switch (command.type) {
               case "close": {
-                const id = command.id ?? store.get(tabsAtom).selectedId;
+                const id = store.get(tabsAtom).selectedId;
                 if (id) {
                   startTransition(() => {
                     store.set(tabsAtom, (m) =>

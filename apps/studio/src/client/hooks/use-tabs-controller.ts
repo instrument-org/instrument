@@ -27,7 +27,7 @@ export function useTabsController() {
   const [model, setModel] = useAtom(tabsAtom);
 
   // A transition, not an urgent update: switching/opening a tab can mount a
-  // whole new router tree (see AppShell's TabView), and marking it low-priority
+  // whole new router tree (see MainWindow's TabView), and marking it low-priority
   // lets React keep the outgoing tab interactive while the next one prepares,
   // and lets a later switch interrupt a still-in-flight one instead of stacking.
   const update = (fn: (model: TabsModel) => TabsModel) => {

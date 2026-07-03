@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
-    // The "shell" (main) window renders AppShell directly and never mounts this
+    // The main window renders MainWindow directly and never mounts this
     // router, so only the onboarding window reaches here.
     const to =
       window.api.windowType === "onboarding" ? "/onboarding" : "/new-tab";

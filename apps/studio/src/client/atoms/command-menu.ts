@@ -5,7 +5,7 @@ const store = getDefaultStore();
 
 /**
  * Whether the command menu (Cmd+K) is open. Renderer-owned view state so the
- * native menu item can drive it through the shell command bus rather than owning
+ * native menu item can drive it through the app command bus rather than owning
  * the state itself (mirrors the sidebar/zoom atoms).
  */
 export const commandMenuOpenAtom = atom(false);

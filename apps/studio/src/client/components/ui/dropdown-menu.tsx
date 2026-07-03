@@ -1,4 +1,4 @@
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon, CheckIcon, CircleIcon } from "@phosphor-icons/react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
@@ -51,7 +51,7 @@ function DropdownMenuContent({
         )}
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>
@@ -203,7 +203,7 @@ function DropdownMenuSubContent({
           className,
         )}
         data-slot="dropdown-menu-sub-content"
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>

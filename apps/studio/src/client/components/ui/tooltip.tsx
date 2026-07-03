@@ -1,6 +1,6 @@
 "use client";
 
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as React from "react";
@@ -32,7 +32,7 @@ function TooltipContent({
         )}
         data-slot="tooltip-content"
         sideOffset={sideOffset}
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       >
         {children}

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 /**
  * Renderer-owned tab state and the pure transitions over it: selection,
- * ordering, reopen-closed, single-tab-route dedupe. Lets the whole shell live
+ * ordering, reopen-closed, single-tab-route dedupe. Lets the whole main window live
  * in one web contents.
  *
  * Every function is pure: it returns a new model and never mutates the input,

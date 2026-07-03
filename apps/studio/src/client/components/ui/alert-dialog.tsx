@@ -1,5 +1,5 @@
 import { buttonVariants } from "@/client/components/ui/button";
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import * as React from "react";
@@ -72,7 +72,7 @@ function AlertDialogContent({
             onExitComplete();
           }
         }}
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </AlertDialogPortal>

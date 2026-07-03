@@ -124,8 +124,8 @@ export function StudioSidebarRail({
       }
     };
 
-    // clientX and the rail's left edge are both in the shell's zoomed coordinate
-    // space, so divide by the shell zoom to recover the pre-zoom CSS width.
+    // clientX and the rail's left edge are both in the main window's zoomed coordinate
+    // space, so divide by the main-window zoom to recover the pre-zoom CSS width.
     const rawWidthAt = (clientX: number) => (clientX - left) / zoom;
 
     const handleMove = (moveEvent: PointerEvent) => {

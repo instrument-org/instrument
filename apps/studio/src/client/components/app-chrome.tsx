@@ -45,7 +45,7 @@ const Agentation = import.meta.env.DEV
 /**
  * The persistent window chrome (toolbar, tab bar, sidebar) and app-wide modals,
  * rendered once for the whole main window. It reads the active tab's router from
- * context (provided by AppShell), so highlights and navigation follow the
+ * context (provided by MainWindow), so highlights and navigation follow the
  * foreground tab without the chrome remounting when tabs switch. `children` is
  * the kept-mounted stack of per-tab content.
  */

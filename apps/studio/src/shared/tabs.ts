@@ -20,7 +20,7 @@ export const TabSchema = z.object({
 });
 /**
  * An app command sent from the main process (native menus / accelerators) to
- * the renderer that owns the window (AppShell), streamed over the one command
+ * the renderer that owns the window (MainWindow), streamed over the one command
  * bus. Most are tab operations (`navigate` with `newTab` opens a new tab;
  * without it the active tab navigates; `close` closes the active tab); the rest
  * drive app-wide view state (sidebar, settings, command menu, reload, zoom) the

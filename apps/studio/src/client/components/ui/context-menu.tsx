@@ -1,4 +1,4 @@
-import { useShellZoomStyle } from "@/client/hooks/use-shell-zoom";
+import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon, CheckIcon, CircleIcon } from "@phosphor-icons/react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
@@ -49,7 +49,7 @@ function ContextMenuContent({
           className,
         )}
         data-slot="context-menu-content"
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </ContextMenuPrimitive.Portal>
@@ -201,7 +201,7 @@ function ContextMenuSubContent({
           className,
         )}
         data-slot="context-menu-sub-content"
-        style={useShellZoomStyle(style)}
+        style={useAppZoomStyle(style)}
         {...props}
       />
     </ContextMenuPrimitive.Portal>

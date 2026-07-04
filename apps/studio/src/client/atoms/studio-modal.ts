@@ -4,7 +4,7 @@ import { atom, type WritableAtom } from "jotai";
 // the symbol its atom closed over) and that modal's state.
 const openModalAtom = atom<null | { id: symbol; state: unknown }>(null);
 
-export type StudioModalAtom<T> = WritableAtom<null | T, [null | T], void>;
+type StudioModalAtom<T> = WritableAtom<null | T, [null | T], void>;
 
 /**
  * Creates the atom behind one app-wide studio modal. Every atom made here is

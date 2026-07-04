@@ -1,5 +1,6 @@
+import { studioModalAtom } from "@/client/atoms/studio-modal";
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
-import { atom, getDefaultStore } from "jotai";
+import { getDefaultStore } from "jotai";
 
 interface ProjectModalState {
   projectId?: ProjectId;
@@ -11,7 +12,7 @@ interface ProjectModalState {
  * object (edit when `projectId` is set) when open. `<ProjectModal />` at the
  * app-chrome root reads it; the openers below set it.
  */
-export const projectModalAtom = atom<null | ProjectModalState>(null);
+export const projectModalAtom = studioModalAtom<ProjectModalState>();
 
 export function openCreateProject(taskId?: TaskId) {
   getDefaultStore().set(projectModalAtom, taskId ? { taskId } : {});

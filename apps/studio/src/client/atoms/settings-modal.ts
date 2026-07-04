@@ -1,4 +1,5 @@
-import { atom, getDefaultStore } from "jotai";
+import { studioModalAtom } from "@/client/atoms/studio-modal";
+import { getDefaultStore } from "jotai";
 
 export type SettingsTab =
   | "Debug"
@@ -18,7 +19,7 @@ interface SettingsModalState {
  * at the app-chrome root reads it; `openSettings` sets it. The section shown is
  * internal state seeded from `tab`, not a route.
  */
-export const settingsModalAtom = atom<null | SettingsModalState>(null);
+export const settingsModalAtom = studioModalAtom<SettingsModalState>();
 
 export function openSettings(props?: SettingsModalState) {
   getDefaultStore().set(settingsModalAtom, props ?? {});

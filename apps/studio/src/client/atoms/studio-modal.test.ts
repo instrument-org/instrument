@@ -47,6 +47,30 @@ describe("studioModalAtom", () => {
     expect(store.get(login)).toEqual({ reason: "provider-required" });
   });
 
+  it("keeps a non-replaceable modal open when another opens", () => {
+    const store = createStore();
+    const welcome = studioModalAtom<true>({ replaceable: false });
+    const settings = studioModalAtom<{ tab: string }>();
+
+    store.set(welcome, true);
+    store.set(settings, { tab: "General" });
+
+    expect(store.get(welcome)).toBe(true);
+    expect(store.get(settings)).toBeNull();
+  });
+
+  it("lets a non-replaceable modal close and update itself", () => {
+    const store = createStore();
+    const welcome = studioModalAtom<true>({ replaceable: false });
+    const settings = studioModalAtom<{ tab: string }>();
+
+    store.set(welcome, true);
+    store.set(welcome, null);
+    store.set(settings, { tab: "General" });
+
+    expect(store.get(settings)).toEqual({ tab: "General" });
+  });
+
   it("updates state in place while open", () => {
     const store = createStore();
     const settings = studioModalAtom<{ tab: string }>();

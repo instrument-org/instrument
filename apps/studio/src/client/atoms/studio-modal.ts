@@ -1,8 +1,13 @@
 import { atom, type WritableAtom } from "jotai";
 
 // The single app-wide modal slot: which studio modal is open (identified by
-// the symbol its atom closed over) and that modal's state.
-const openModalAtom = atom<null | { id: symbol; state: unknown }>(null);
+// the symbol its atom closed over), that modal's state, and whether another
+// modal is allowed to replace it.
+const openModalAtom = atom<null | {
+  id: symbol;
+  replaceable: boolean;
+  state: unknown;
+}>(null);
 
 type StudioModalAtom<T> = WritableAtom<null | T, [null | T], void>;
 
@@ -16,9 +21,17 @@ type StudioModalAtom<T> = WritableAtom<null | T, [null | T], void>;
  * Writing `null` releases the slot only if this modal still owns it. That
  * matters when modal A is replaced by modal B: A's dialog closes and its
  * `onOpenChange(false)` writes `null`, which must not tear down B.
+ *
+ * Pass `replaceable: false` for a modal that must hold the slot until it
+ * closes itself (e.g. the onboarding welcome gate): opening another modal over
+ * it is ignored, so its non-dismissible contract holds however that other
+ * modal is triggered (menu, command palette, programmatic).
  */
-export function studioModalAtom<T>(): StudioModalAtom<T> {
+export function studioModalAtom<T>({
+  replaceable,
+}: { replaceable?: boolean } = {}): StudioModalAtom<T> {
   const id = Symbol();
+  const isReplaceable = replaceable ?? true;
   return atom(
     (get) => {
       const open = get(openModalAtom);
@@ -28,7 +41,11 @@ export function studioModalAtom<T>(): StudioModalAtom<T> {
     },
     (get, set, state: null | T) => {
       if (state !== null) {
-        set(openModalAtom, { id, state });
+        const open = get(openModalAtom);
+        if (open && open.id !== id && !open.replaceable) {
+          return;
+        }
+        set(openModalAtom, { id, replaceable: isReplaceable, state });
       } else if (get(openModalAtom)?.id === id) {
         set(openModalAtom, null);
       }

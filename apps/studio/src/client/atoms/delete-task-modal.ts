@@ -1,5 +1,6 @@
+import { studioModalAtom } from "@/client/atoms/studio-modal";
 import { type Task } from "@instrument-org/workspace/client";
-import { atom, getDefaultStore } from "jotai";
+import { getDefaultStore } from "jotai";
 
 interface DeleteTaskModalState {
   // Navigate the active tab to /new-tab after delete (used from the task's own
@@ -15,7 +16,7 @@ interface DeleteTaskModalState {
  * app-chrome root reads it; `openDeleteTask` sets it, so any trigger (sidebar,
  * task page, lists) confirms in place instead of navigating to the task page.
  */
-export const deleteTaskModalAtom = atom<DeleteTaskModalState | null>(null);
+export const deleteTaskModalAtom = studioModalAtom<DeleteTaskModalState>();
 
 export function openDeleteTask(
   task: Task,

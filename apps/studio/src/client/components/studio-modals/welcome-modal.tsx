@@ -67,13 +67,12 @@ const POSITION_SPRING = { damping: 28, stiffness: 180 };
  * the user continues. Traps tab navigation while open.
  */
 export function WelcomeModal() {
-  const [isOpen, setIsOpen] = useAtom(welcomeModalAtom);
+  const [state, setState] = useAtom(welcomeModalAtom);
+  const isOpen = state !== null;
   // Deferred so `DialogContent` stays mounted (and its close animation can
-  // play) for a moment after `isOpen` flips false, instead of unmounting the
-  // instant the dialog starts closing.
-  const { content, onExitComplete } = useDeferredModalState(
-    isOpen ? true : null,
-  );
+  // play) for a moment after `state` clears to null, instead of unmounting
+  // the instant the dialog starts closing.
+  const { content, onExitComplete } = useDeferredModalState(state);
 
   useBlockTabNavigation(isOpen);
 
@@ -84,7 +83,7 @@ export function WelcomeModal() {
       {content !== null && (
         <WelcomeModalContent
           onContinue={() => {
-            setIsOpen(false);
+            setState(null);
           }}
           onExitComplete={onExitComplete}
         />

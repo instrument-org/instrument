@@ -1,4 +1,5 @@
-import { atom, getDefaultStore } from "jotai";
+import { studioModalAtom } from "@/client/atoms/studio-modal";
+import { getDefaultStore } from "jotai";
 
 export interface LoginModalProps {
   // Hide the manual-provider option (caller only wants account login).
@@ -16,9 +17,10 @@ interface LoginModalState {
 
 /**
  * Drives the app-wide login / add-provider modal. `<LoginModal />` at the
- * app-chrome root reads it; `openLogin` sets it.
+ * app-chrome root reads it; `openLogin` sets it. Opening it replaces any other
+ * studio modal (e.g. settings, whose account/provider sections trigger it).
  */
-export const loginModalAtom = atom<LoginModalState | null>(null);
+export const loginModalAtom = studioModalAtom<LoginModalState>();
 
 export function openLogin(props?: LoginModalProps, onCompleted?: () => void) {
   getDefaultStore().set(loginModalAtom, { onCompleted, props });

@@ -126,6 +126,12 @@ export const Tab = ({
             event.stopPropagation();
             onRemove();
           }}
+          // The item selects on pointerdown; stop it here so clicking a
+          // background tab's close button doesn't first select that tab (which
+          // would then close and move selection to its neighbor, not stay put).
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
           type="button"
         >
           <XIcon

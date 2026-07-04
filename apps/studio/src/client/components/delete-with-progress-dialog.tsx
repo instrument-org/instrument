@@ -1,10 +1,11 @@
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import {
   getTrashTerminology,
   PROGRESS_MESSAGES,
 } from "@/client/lib/trash-terminology";
 import { TimerIcon } from "@phosphor-icons/react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "./ui/alert";
 import {
@@ -41,18 +42,33 @@ export function DeleteWithProgressDialog<T>({
   title,
 }: DeleteWithProgressDialogProps<T>) {
   useBlockTabNavigation(open);
+  // Keep the body mounted through the close animation so it never animates out
+  // as an empty frame. Retain the last-open props in a ref too, so a caller
+  // that clears its selection on confirm (e.g. bulk delete) doesn't flash a
+  // "0 tasks" body during the fade. Cleared when the exit animation ends.
+  const { content: bodyVisible, onExitComplete: onBodyExit } =
+    useDeferredModalState(open ? true : null);
+  const lastProps = useRef({ content, description, items, title });
+  if (open) {
+    lastProps.current = { content, description, items, title };
+  }
 
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
-      <AlertDialogContent onExitComplete={onExitComplete}>
-        {open && (
+      <AlertDialogContent
+        onExitComplete={() => {
+          onBodyExit();
+          onExitComplete?.();
+        }}
+      >
+        {bodyVisible && (
           <DeleteWithProgressDialogBody
-            content={content}
-            description={description}
-            items={items}
+            content={lastProps.current.content}
+            description={lastProps.current.description}
+            items={lastProps.current.items}
             onDelete={onDelete}
             onOpenChange={onOpenChange}
-            title={title}
+            title={lastProps.current.title}
           />
         )}
       </AlertDialogContent>

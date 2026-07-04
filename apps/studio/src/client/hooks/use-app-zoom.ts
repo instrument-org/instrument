@@ -35,3 +35,14 @@ export function useAppZoomStyle(style?: CSSProperties): CSSProperties {
     ...style,
   } as CSSProperties;
 }
+
+/**
+ * Max-size utilities that divide by `--content-zoom` so a portalled Radix
+ * Content keeps a constant rendered footprint as `zoom` rescales its box.
+ * Applied alongside {@link useAppZoomStyle}; shared by every centered dialog so
+ * the compensation isn't hand-copied per primitive (and silently skipped, which
+ * is how AlertDialog clipped off-screen at zoom > 1).
+ */
+export const ZOOM_CONTENT_MAX_HEIGHT = "max-h-[calc(85vh/var(--content-zoom))]";
+export const ZOOM_CONTENT_MAX_WIDTH =
+  "max-w-[calc((100%-2rem)/var(--content-zoom))] sm:max-w-[calc(32rem/var(--content-zoom))]";

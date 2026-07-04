@@ -8,8 +8,9 @@ import { commandPublisher } from "@/electron-main/rpc/publisher";
 
 const live = {
   // Imperative tab operations the renderer (MainWindow) applies to its own tab
-  // state. Streamed, not buffered: a fresh subscriber should not replay a stale
-  // command.
+  // state, streamed from the main process. The publisher buffers a small burst
+  // per subscription (see commandPublisher) so a command isn't dropped when it
+  // lands while the previous one is still being sent.
   commands: base.handler(async function* ({ signal }) {
     for await (const command of commandPublisher.subscribe("tab.command", {
       signal,

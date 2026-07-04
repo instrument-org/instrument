@@ -1,3 +1,4 @@
+import { captureException } from "@/client/lib/telemetry";
 import { rpcClient } from "@/client/rpc/client";
 import {
   AGENT_BROWSER_VIEWPORT,
@@ -5,6 +6,11 @@ import {
   type AgentBrowserTarget,
 } from "@/shared/agent-browser";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import { sleep } from "radashi";
+
+// Backoff before re-establishing a dropped desired-targets stream so a hard
+// transport failure doesn't spin.
+const RECONNECT_DELAY_MS = 500;
 
 /**
  * Renderer-owned pool of agent-browser `<webview>` guests. The main process owns
@@ -87,27 +93,43 @@ export function getWebviewElement(
 
 /**
  * Subscribe to the main process's desired-targets stream and reconcile the pool
- * to it. Call once at startup; returns an unsubscribe function. Resubscribing
- * always receives the current set, so a guest is never stranded by a change
- * that happened before this listener existed.
+ * to it. Call once at startup; returns an unsubscribe function. This is the pool's
+ * only lifeline, so it must survive a dropped stream: if the subscription errors
+ * (transport reset, main-process RPC restart) it reconnects after a short backoff
+ * rather than silently freezing every future mount/dispose. Resubscribing always
+ * receives the current set, so no guest is stranded across the gap.
  */
 export function initAgentBrowserPool(): () => void {
-  let cancelled = false;
+  const controller = new AbortController();
+  const { signal } = controller;
 
-  async function subscribe() {
-    const subscription = await rpcClient.agentBrowser.live.targets.call();
-    for await (const targets of subscription) {
-      if (cancelled) {
-        break;
+  async function run() {
+    while (!signal.aborted) {
+      try {
+        const subscription = await rpcClient.agentBrowser.live.targets.call(
+          undefined,
+          { signal },
+        );
+        for await (const targets of subscription) {
+          reconcile(targets);
+        }
+      } catch (error) {
+        if (signal.aborted) {
+          return;
+        }
+        captureException(error);
       }
-      reconcile(targets);
+      if (signal.aborted) {
+        return;
+      }
+      await sleep(RECONNECT_DELAY_MS);
     }
   }
 
-  void subscribe();
+  void run();
 
   return () => {
-    cancelled = true;
+    controller.abort();
   };
 }
 

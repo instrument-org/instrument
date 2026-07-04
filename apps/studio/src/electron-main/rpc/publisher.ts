@@ -43,8 +43,11 @@ interface CommandEvents {
   "tab.command": AppCommand;
 }
 
-// Commands must not be buffered: unlike state, a stale command replayed to a
-// fresh subscriber (e.g. after a renderer reload) would be wrongly re-applied.
+// Buffer a small burst of commands per subscriber. The buffer is per
+// subscription and starts empty at subscribe time, so a reconnecting renderer
+// can never replay commands from before it subscribed; the only real hazard is
+// dropping a command published while the previous one's send is in flight
+// (e.g. key-repeat Cmd+Plus), which a positive buffer preserves in order.
 export const commandPublisher = new EventPublisher<CommandEvents>({
-  maxBufferedEvents: 0,
+  maxBufferedEvents: 32,
 });

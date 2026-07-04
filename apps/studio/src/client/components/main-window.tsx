@@ -20,6 +20,7 @@ import {
   registerTabRouter,
   unregisterTabRouter,
 } from "@/client/lib/tab-router-registry";
+import { capturePageView } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab } from "@/shared/tabs";
@@ -136,6 +137,10 @@ function TabView({
     // Mirror this tab's navigation back into the model so the tab bar reflects
     // the current location, and pull the title/icon from the route's head meta.
     const unsubscribe = router.subscribe("onResolved", () => {
+      // Each tab's navigation is a product page view; the shared web contents no
+      // longer fires the router.tsx onRendered capture (that router is onboarding
+      // only), so emit it here with the tab's own path.
+      capturePageView(router.state.location.href);
       const meta = readRouterTabMeta(router);
       setTabs((model) => {
         const withPathname = setTabPathname(model, {

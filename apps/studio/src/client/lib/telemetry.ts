@@ -128,9 +128,18 @@ export function captureException(
   });
 }
 
-export function capturePageView() {
+export function capturePageView(path?: string) {
   void getTelemetry().then((telemetry) => {
-    telemetry?.capture("$pageview");
+    if (path === undefined) {
+      telemetry?.capture("$pageview");
+      return;
+    }
+    // The main window's per-tab routers use in-memory history, so
+    // window.location never reflects the active route. Carry the tab's path in
+    // the hash of the current href so before_send's hash->path normalization
+    // reports the real route instead of the static shell URL.
+    const base = window.location.href.split("#")[0];
+    telemetry?.capture("$pageview", { $current_url: `${base}#${path}` });
   });
 }
 

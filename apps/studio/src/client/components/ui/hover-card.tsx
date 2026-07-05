@@ -1,4 +1,5 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import * as React from "react";
@@ -16,8 +17,13 @@ function HoverCardContent({
   style,
   ...props
 }: React.ComponentProps<typeof HoverCardPrimitive.Content>) {
+  const container = usePortalContainer();
+
   return (
-    <HoverCardPrimitive.Portal data-slot="hover-card-portal">
+    <HoverCardPrimitive.Portal
+      container={container}
+      data-slot="hover-card-portal"
+    >
       <HoverCardPrimitive.Content
         align={align}
         className={cn(

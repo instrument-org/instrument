@@ -1,4 +1,5 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
@@ -105,9 +106,18 @@ function SheetOverlay({
 }
 
 function SheetPortal({
+  container,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Portal>) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
+  const defaultContainer = usePortalContainer();
+
+  return (
+    <SheetPrimitive.Portal
+      container={container ?? defaultContainer}
+      data-slot="sheet-portal"
+      {...props}
+    />
+  );
 }
 
 function SheetTitle({

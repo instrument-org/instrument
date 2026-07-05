@@ -1,4 +1,5 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon, CaretUpIcon, CheckIcon } from "@phosphor-icons/react";
 import * as SelectPrimitive from "@radix-ui/react-select";
@@ -18,8 +19,10 @@ function SelectContent({
   style,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const container = usePortalContainer();
+
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Content
         align={align}
         className={cn(

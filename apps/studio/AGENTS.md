@@ -35,6 +35,14 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 - **Contextual** (`delete-project`): `<Dialog>` inline next to its trigger with local `useState`. Use for a small number of co-located triggers.
 - `useBlockTabNavigation(open)` opts a modal out of tab shortcuts (Cmd+T/W/etc.) while open.
 
+## UI zoom
+
+The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned or sized against the viewport needs care when zoom ≠ 1 (it's silently fine at the 1x default — check other levels).
+
+- Radix overlays portal to `document.body` (outside the zoomed root) and self-apply zoom on their own Content via `useAppZoomStyle` + the `--content-zoom` max-size divisors. Reuse those helpers on any new floating/portalled UI instead of hand-rolling zoom math.
+- If you portal into the zoomed tree instead of `body`, counter-scale the target back to effective 1x (see `use-portal-container.tsx`) so self-applied zoom doesn't double up.
+- See `use-app-zoom.ts` for the full rationale and the upstream floating-ui issue to drop this once fixed.
+
 ## Where things are
 
 - **Client**: `src/client`, file routes in `src/client/routes/` (`_app/` = layout/auth).

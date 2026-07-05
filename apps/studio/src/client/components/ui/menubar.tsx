@@ -1,4 +1,5 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
 import * as MenubarPrimitive from "@radix-ui/react-menubar";
@@ -132,9 +133,18 @@ function MenubarMenu({
 }
 
 function MenubarPortal({
+  container,
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Portal>) {
-  return <MenubarPrimitive.Portal data-slot="menubar-portal" {...props} />;
+  const defaultContainer = usePortalContainer();
+
+  return (
+    <MenubarPrimitive.Portal
+      container={container ?? defaultContainer}
+      data-slot="menubar-portal"
+      {...props}
+    />
+  );
 }
 
 function MenubarRadioGroup({
@@ -214,7 +224,7 @@ function MenubarSubContent({
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.SubContent>) {
   return (
-    // Portalled to `body` (like the top-level Content) so it isn't a DOM
+    // Portalled outside the parent content so it isn't a DOM
     // descendant of the parent menu's zoomed content -- otherwise it would
     // inherit that zoom and compound with its own self-applied zoom per level.
     <MenubarPortal>

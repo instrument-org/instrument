@@ -1,4 +1,5 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon, CheckIcon, CircleIcon } from "@phosphor-icons/react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
@@ -41,8 +42,10 @@ function ContextMenuContent({
   style,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+  const container = usePortalContainer();
+
   return (
-    <ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.Portal container={container}>
       <ContextMenuPrimitive.Content
         className={cn(
           // `--content-zoom` divisor cancels Radix's zoomed-px available-height
@@ -110,10 +113,17 @@ function ContextMenuLabel({
 }
 
 function ContextMenuPortal({
+  container,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
+  const defaultContainer = usePortalContainer();
+
   return (
-    <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
+    <ContextMenuPrimitive.Portal
+      container={container ?? defaultContainer}
+      data-slot="context-menu-portal"
+      {...props}
+    />
   );
 }
 
@@ -192,11 +202,13 @@ function ContextMenuSubContent({
   style,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+  const container = usePortalContainer();
+
   return (
-    // Portalled to `body` (like the top-level Content) so it isn't a DOM
+    // Portalled outside the parent content so it isn't a DOM
     // descendant of the parent menu's zoomed content -- otherwise it would
     // inherit that zoom and compound with its own self-applied zoom per level.
-    <ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.Portal container={container}>
       <ContextMenuPrimitive.SubContent
         className={cn(
           "z-50 min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-hidden rounded-xl bg-popover p-1 text-popover-foreground shadow-panel data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",

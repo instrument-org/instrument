@@ -8,6 +8,7 @@ import {
 } from "@/client/hooks/use-active-tab";
 import { useAppCommands } from "@/client/hooks/use-app-commands";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
+import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import {
@@ -161,11 +162,13 @@ function TabView({
         isActive ? "visible" : "invisible opacity-0",
       )}
     >
-      <TabIdProvider id={tab.id}>
-        <ActiveTabProvider isActive={isActive}>
-          <RouterProvider router={router} />
-        </ActiveTabProvider>
-      </TabIdProvider>
+      <PortalContainerProvider>
+        <TabIdProvider id={tab.id}>
+          <ActiveTabProvider isActive={isActive}>
+            <RouterProvider router={router} />
+          </ActiveTabProvider>
+        </TabIdProvider>
+      </PortalContainerProvider>
     </div>
   );
 }

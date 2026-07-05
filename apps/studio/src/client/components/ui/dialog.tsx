@@ -4,6 +4,7 @@ import {
   ZOOM_CONTENT_MAX_HEIGHT,
   ZOOM_CONTENT_MAX_WIDTH,
 } from "@/client/hooks/use-app-zoom";
+import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -125,9 +126,18 @@ function DialogOverlay({
 }
 
 function DialogPortal({
+  container,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+  const defaultContainer = usePortalContainer();
+
+  return (
+    <DialogPrimitive.Portal
+      container={container ?? defaultContainer}
+      data-slot="dialog-portal"
+      {...props}
+    />
+  );
 }
 
 function DialogTitle({

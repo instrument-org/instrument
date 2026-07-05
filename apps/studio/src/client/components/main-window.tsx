@@ -16,8 +16,10 @@ import {
 } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import {
-  registerTabRouter,
-  unregisterTabRouter,
+  getTabRouter,
+  getTabRouters,
+  pruneTabRouters,
+  setTabRouter,
 } from "@/client/lib/tab-router-registry";
 import { setTabMeta, setTabPathname } from "@/client/lib/tabs-model";
 import { capturePageView } from "@/client/lib/telemetry";
@@ -29,7 +31,7 @@ import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterContextProvider, RouterProvider } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { ThemeProvider } from "./theme-provider";
 import { TooltipProvider } from "./ui/tooltip";
@@ -131,9 +133,6 @@ function TabView({
   const setTabs = useSetAtom(tabsAtom);
 
   useEffect(() => {
-    // Registered so the main process (menus / keyboard shortcuts) can navigate
-    // the active tab's router over the app-command bus.
-    registerTabRouter(tab.id, router);
     // Mirror this tab's navigation back into the model so the tab bar reflects
     // the current location, and pull the title/icon from the route's head meta.
     const unsubscribe = router.subscribe("onResolved", () => {
@@ -158,7 +157,6 @@ function TabView({
     });
     return () => {
       unsubscribe();
-      unregisterTabRouter(tab.id);
     };
   }, [router, setTabs, tab.id]);
 
@@ -184,32 +182,28 @@ function TabView({
 }
 
 /**
- * Owns one router per open tab, keyed by tab id, for the lifetime of the window.
- * Routers are created lazily on first appearance and pruned when their tab
- * closes, so MainWindow can hand the active tab's router to the chrome
- * synchronously (no registry round-trip on first paint).
+ * Backs each open tab with a router from the shared registry: created lazily on
+ * first appearance (synchronously, so MainWindow can hand the active tab's
+ * router to the chrome on first paint) and pruned when the tab closes. The
+ * registry is the single owner, so the chrome and the app-command bus read the
+ * same routers via `getTabRouter`.
  */
 function useTabRouters(tabs: Tab[]) {
-  const [routers] = useState(() => new Map<string, TabRouter>());
-
   for (const tab of tabs) {
-    if (!routers.has(tab.id)) {
-      routers.set(
+    if (!getTabRouter(tab.id)) {
+      setTabRouter(
         tab.id,
         createTabRouter({ history: tab.history, pathname: tab.pathname }),
       );
     }
   }
 
-  const liveIds = tabs.map((tab) => tab.id).join("\n");
+  // `tabs` changes reference only when the tab set changes (add/remove/reorder),
+  // so this prunes exactly then -- including speculative routers left by an
+  // abandoned transition render, since effects run only on commit.
   useEffect(() => {
-    const live = new Set(liveIds.split("\n"));
-    for (const id of routers.keys()) {
-      if (!live.has(id)) {
-        routers.delete(id);
-      }
-    }
-  }, [liveIds, routers]);
+    pruneTabRouters(new Set(tabs.map((tab) => tab.id)));
+  }, [tabs]);
 
-  return routers;
+  return getTabRouters();
 }

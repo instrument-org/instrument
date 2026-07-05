@@ -3,6 +3,7 @@ import { featuresAtom } from "@/client/atoms/features";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openWelcome } from "@/client/atoms/welcome-modal";
+import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   AlertDialog,
@@ -47,6 +48,8 @@ import {
   BugIcon,
   ChartBarIcon,
   DatabaseIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
   MonitorIcon,
   MoonIcon,
   NavigationArrowIcon,
@@ -55,7 +58,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -79,6 +82,7 @@ export function DevPanel() {
   const [hidden, setHidden] = useState(false);
   const [showBreakpoint, setShowBreakpoint] = useState(false);
   const setDevToolsPanel = useSetAtom(devToolsPanelAtom);
+  const [zoom, setZoom] = useAtom(zoomAtom);
 
   const features = useAtomValue(featuresAtom);
 
@@ -506,6 +510,46 @@ export function DevPanel() {
                       System
                     </MenubarRadioItem>
                   </MenubarRadioGroup>
+                </MenubarSubContent>
+              </MenubarSub>
+              <MenubarSub>
+                <MenubarSubTrigger className="font-mono text-xs">
+                  Zoom
+                  <span className="ml-1 font-mono text-[9px] text-dev-500/70 tabular-nums dark:text-dev-400/60">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                </MenubarSubTrigger>
+                <MenubarSubContent>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setZoom((z) => clampZoom(z + ZOOM_STEP));
+                    }}
+                  >
+                    <MagnifyingGlassPlusIcon className="size-3" />
+                    Zoom in
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setZoom((z) => clampZoom(z - ZOOM_STEP));
+                    }}
+                  >
+                    <MagnifyingGlassMinusIcon className="size-3" />
+                    Zoom out
+                  </MenubarItem>
+                  <MenubarSeparator />
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      setZoom(1);
+                    }}
+                  >
+                    <ArrowsClockwiseIcon className="size-3" />
+                    Reset
+                  </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
               <MenubarSub>

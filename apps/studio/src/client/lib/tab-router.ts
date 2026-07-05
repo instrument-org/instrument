@@ -9,6 +9,7 @@ import {
 
 import { routeTree } from "../routeTree.gen";
 import { routerEntries } from "./tab-router-history";
+import { captureException } from "./telemetry";
 
 /**
  * One QueryClient shared by every per-tab router in the main window so tabs
@@ -43,6 +44,9 @@ export function createTabRouter({
     context: { queryClient: sharedQueryClient },
     defaultErrorComponent: DefaultErrorComponent,
     defaultNotFoundComponent: NotFoundRouteComponent,
+    defaultOnCatch: (error, errorInfo) => {
+      captureException(error, { componentStack: errorInfo.componentStack });
+    },
     defaultPreload: false,
     history: createMemoryHistory({
       initialEntries: entries,

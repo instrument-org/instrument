@@ -1,6 +1,8 @@
 import { tabsAtom } from "@/client/atoms/tabs";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AppChrome } from "@/client/components/app-chrome";
+import { AppErrorFallback } from "@/client/components/app-error-fallback";
+import { ErrorBoundary } from "@/client/components/error-boundary";
 import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
 import {
@@ -74,31 +76,33 @@ export function MainWindow() {
         {/* The one TooltipProvider for the unified main window. */}
         {/* eslint-disable-next-line no-restricted-syntax */}
         <TooltipProvider>
-          <IconContext.Provider value={IconContextValue}>
-            <ZoomRoot>
-              {activeRouter ? (
-                <RouterContextProvider router={activeRouter}>
-                  <AppChrome>
-                    {model.tabs.map((tab) => {
-                      const router = routers.get(tab.id);
-                      if (!router) {
-                        return null;
-                      }
-                      return (
-                        <TabView
-                          isActive={tab.id === model.selectedId}
-                          key={tab.id}
-                          router={router}
-                          tab={tab}
-                        />
-                      );
-                    })}
-                  </AppChrome>
-                </RouterContextProvider>
-              ) : null}
-            </ZoomRoot>
-            <ZoomToast />
-          </IconContext.Provider>
+          <ErrorBoundary FallbackComponent={AppErrorFallback}>
+            <IconContext.Provider value={IconContextValue}>
+              <ZoomRoot>
+                {activeRouter ? (
+                  <RouterContextProvider router={activeRouter}>
+                    <AppChrome>
+                      {model.tabs.map((tab) => {
+                        const router = routers.get(tab.id);
+                        if (!router) {
+                          return null;
+                        }
+                        return (
+                          <TabView
+                            isActive={tab.id === model.selectedId}
+                            key={tab.id}
+                            router={router}
+                            tab={tab}
+                          />
+                        );
+                      })}
+                    </AppChrome>
+                  </RouterContextProvider>
+                ) : null}
+              </ZoomRoot>
+              <ZoomToast />
+            </IconContext.Provider>
+          </ErrorBoundary>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

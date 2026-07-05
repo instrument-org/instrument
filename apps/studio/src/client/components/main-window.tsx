@@ -1,6 +1,7 @@
 import { tabsAtom } from "@/client/atoms/tabs";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AppChrome } from "@/client/components/app-chrome";
+import { ZoomRoot } from "@/client/components/zoom-root";
 import {
   ActiveTabProvider,
   TabIdProvider,
@@ -72,19 +73,7 @@ export function MainWindow() {
         {/* eslint-disable-next-line no-restricted-syntax */}
         <TooltipProvider>
           <IconContext.Provider value={IconContextValue}>
-            <div
-              className="relative overflow-hidden"
-              style={
-                {
-                  "--app-zoom": zoom,
-                  // `zoom` rescales the box, so divide the viewport sizing by the
-                  // same factor to keep the main window covering the real viewport.
-                  height: "calc(100vh / var(--app-zoom))",
-                  width: "calc(100vw / var(--app-zoom))",
-                  zoom: "var(--app-zoom)",
-                } as React.CSSProperties
-              }
-            >
+            <ZoomRoot>
               {activeRouter ? (
                 <RouterContextProvider router={activeRouter}>
                   <AppChrome>
@@ -105,7 +94,7 @@ export function MainWindow() {
                   </AppChrome>
                 </RouterContextProvider>
               ) : null}
-            </div>
+            </ZoomRoot>
           </IconContext.Provider>
         </TooltipProvider>
       </ThemeProvider>

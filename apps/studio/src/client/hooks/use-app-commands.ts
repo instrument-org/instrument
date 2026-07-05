@@ -4,6 +4,7 @@ import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { tabsAtom } from "@/client/atoms/tabs";
 import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
 import { toggleSidebar } from "@/client/hooks/use-sidebar";
+import { requestBrowserFind } from "@/client/lib/browser-find-registry";
 import { closeSelectedTab, openTab, reopenTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { selectAdjacent, selectByIndex } from "@/client/lib/tabs-model";
@@ -70,6 +71,10 @@ export function useAppCommands() {
             switch (command.type) {
               case "close": {
                 store.set(tabsAtom, closeSelectedTab);
+                break;
+              }
+              case "findInPage": {
+                requestBrowserFind();
                 break;
               }
               case "navigate": {

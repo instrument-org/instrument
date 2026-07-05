@@ -37,6 +37,15 @@ export function goForward() {
   sendAppCommand({ type: "navigateForward" });
 }
 
+export function reload() {
+  // A focused agent-browser guest reloads its own page; otherwise route the
+  // app-level reload (gated on the active tab's route) in the renderer.
+  if (getBrowserViewManager()?.reloadFocusedGuest()) {
+    return;
+  }
+  sendAppCommand({ type: "reload" });
+}
+
 export function resetZoom() {
   if (getBrowserViewManager()?.zoomFocusedGuest("reset")) {
     return;

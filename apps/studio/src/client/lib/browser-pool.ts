@@ -60,6 +60,10 @@ interface PooledWebview {
 interface WebviewElement extends HTMLElement {
   canGoBack(): boolean;
   canGoForward(): boolean;
+  findInPage(
+    text: string,
+    options?: { findNext?: boolean; forward?: boolean },
+  ): number;
   getTitle(): string;
   getURL(): string;
   getZoomLevel(): number;
@@ -67,7 +71,11 @@ interface WebviewElement extends HTMLElement {
   goForward(): void;
   loadURL(url: string): Promise<void>;
   reload(): void;
+  reloadIgnoringCache(): void;
   setZoomLevel(level: number): void;
+  stopFindInPage(
+    action: "activateSelection" | "clearSelection" | "keepSelection",
+  ): void;
 }
 
 const { height: VIEW_H, width: VIEW_W } = BROWSER_GUEST_VIEWPORT;

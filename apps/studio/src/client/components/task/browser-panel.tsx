@@ -14,6 +14,7 @@ import {
 } from "@/client/components/ui/input-group";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { setBrowserFindOpener } from "@/client/lib/browser-find-registry";
 import {
   getWebviewElement,
   setPaintHost,
@@ -28,11 +29,15 @@ import {
 } from "@instrument-org/workspace/client";
 import {
   ArrowClockwiseIcon,
+  ArrowCounterClockwiseIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowSquareOutIcon,
+  CaretDownIcon,
+  CaretUpIcon,
   CopyIcon,
   DotsThreeVerticalIcon,
+  MagnifyingGlassIcon,
   MinusIcon,
   PlusIcon,
   WarningCircleIcon,
@@ -48,6 +53,12 @@ interface DidFailLoadEvent extends Event {
   errorDescription: string;
   isMainFrame: boolean;
   validatedURL: string;
+}
+
+// Shape of the `<webview>` `found-in-page` DOM event (Electron adds `result`;
+// the DOM lib types it as a plain Event).
+interface FoundInPageEvent extends Event {
+  result: { activeMatchOrdinal: number; matches: number };
 }
 
 /**
@@ -73,11 +84,20 @@ export function TaskBrowserPanel({
   const targetId = encodeBrowserTargetId(taskId, sessionId);
   const slotRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const findInputRef = useRef<HTMLInputElement>(null);
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
   const [nav, setNav] = useState({ back: false, forward: false });
   const [zoomLevel, setZoomLevel] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  // Active match / total from the guest's `found-in-page` event; null before any
+  // search runs (or after it's cleared).
+  const [findResult, setFindResult] = useState<null | {
+    active: number;
+    matches: number;
+  }>(null);
   // Set when a main-frame navigation fails (bad host, no network, ...). The
   // guest is parked and we show a light error state over the slot instead of its
   // blank error page. Cleared when a new load starts or succeeds.
@@ -272,6 +292,99 @@ export function TaskBrowserPanel({
 
   const webviewFor = () => getWebviewElement(targetId);
 
+  // Mirror the guest's match count into the find bar. Runs whenever a webview
+  // exists; the guest fires this for every findInPage call and clears its
+  // highlights on navigation, so a stale count self-corrects on the next search.
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+    const webview = getWebviewElement(targetId);
+    if (!webview) {
+      return;
+    }
+    const onFound = (event: Event) => {
+      const detail = event as FoundInPageEvent;
+      setFindResult({
+        active: detail.result.activeMatchOrdinal,
+        matches: detail.result.matches,
+      });
+    };
+    webview.addEventListener("found-in-page", onFound);
+    return () => {
+      webview.removeEventListener("found-in-page", onFound);
+    };
+  }, [active, targetId]);
+
+  // Register this panel as the find target while it's the foreground browser, so
+  // the Cmd+F app command opens (and re-focuses) its find bar. See
+  // browser-find-registry for why Cmd+F can't be a renderer keydown.
+  useEffect(() => {
+    if (!active || !isActiveTab) {
+      return;
+    }
+    return setBrowserFindOpener(() => {
+      setFindOpen(true);
+      findInputRef.current?.focus();
+      findInputRef.current?.select();
+    });
+  }, [active, isActiveTab]);
+
+  // Focus the find input when the bar opens (its first render, when the opener
+  // above couldn't focus it yet). Deferred a frame so it wins over Radix
+  // returning focus to the overflow trigger when opened from the menu.
+  useEffect(() => {
+    if (!findOpen) {
+      return;
+    }
+    const raf = requestAnimationFrame(() => {
+      findInputRef.current?.focus();
+      findInputRef.current?.select();
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, [findOpen]);
+
+  // The guest can be reaped (active -> false) while the bar is open; drop its
+  // state during render (the pattern React allows over a cascading effect) so a
+  // later reopen starts clean rather than showing a stale query and count.
+  const [prevActive, setPrevActive] = useState(active);
+  if (prevActive !== active) {
+    setPrevActive(active);
+    if (!active && findOpen) {
+      setFindOpen(false);
+      setFindQuery("");
+      setFindResult(null);
+    }
+  }
+
+  // Empty query clears the highlight; otherwise search. `forward` is only passed
+  // for next/prev stepping (Enter / the arrows); a fresh keystroke omits it so
+  // the guest re-anchors from the top.
+  const runFind = (query: string, options?: { forward: boolean }) => {
+    const webview = webviewFor();
+    if (!webview) {
+      return;
+    }
+    if (!query) {
+      webview.stopFindInPage("clearSelection");
+      setFindResult(null);
+      return;
+    }
+    webview.findInPage(
+      query,
+      options ? { findNext: true, forward: options.forward } : undefined,
+    );
+  };
+
+  const closeFind = () => {
+    webviewFor()?.stopFindInPage("clearSelection");
+    setFindOpen(false);
+    setFindQuery("");
+    setFindResult(null);
+  };
+
   // loadURL rejects on a failed navigation (bad host, offline, ...); the
   // did-fail-load listener already surfaces the error, so swallow the rejection
   // to avoid an unhandled promise error.
@@ -456,6 +569,23 @@ export function TaskBrowserPanel({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => {
+                setFindOpen(true);
+              }}
+            >
+              <MagnifyingGlassIcon className="size-4" />
+              Find in page
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                webviewFor()?.reloadIgnoringCache();
+              }}
+            >
+              <ArrowCounterClockwiseIcon className="size-4" />
+              Hard reload
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
                 const url = currentUrl();
                 if (url) {
                   void navigator.clipboard.writeText(url);
@@ -471,6 +601,68 @@ export function TaskBrowserPanel({
           <XIcon className="size-4" />
         </Button>
       </div>
+      {active && findOpen && (
+        <div className="flex items-center gap-1 border-b px-1.5 py-1">
+          <MagnifyingGlassIcon className="ml-1 size-4 shrink-0 text-muted-foreground" />
+          <input
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            onChange={(event) => {
+              setFindQuery(event.target.value);
+              runFind(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                runFind(findQuery, { forward: !event.shiftKey });
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                closeFind();
+              }
+            }}
+            placeholder="Find in page"
+            ref={findInputRef}
+            spellCheck={false}
+            value={findQuery}
+          />
+          <span className="shrink-0 px-1 text-xs text-muted-foreground tabular-nums">
+            {findResult && findResult.matches > 0
+              ? `${findResult.active}/${findResult.matches}`
+              : findQuery
+                ? "0/0"
+                : ""}
+          </span>
+          <Button
+            aria-label="Previous match"
+            disabled={!findResult?.matches}
+            onClick={() => {
+              runFind(findQuery, { forward: false });
+            }}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <CaretUpIcon className="size-4" />
+          </Button>
+          <Button
+            aria-label="Next match"
+            disabled={!findResult?.matches}
+            onClick={() => {
+              runFind(findQuery, { forward: true });
+            }}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <CaretDownIcon className="size-4" />
+          </Button>
+          <Button
+            aria-label="Close find"
+            onClick={closeFind}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <XIcon className="size-4" />
+          </Button>
+        </div>
+      )}
       {active ? (
         <div className="relative flex-1" ref={slotRef}>
           {loadError && (

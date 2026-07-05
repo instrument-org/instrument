@@ -26,7 +26,7 @@ export const FEATURE_METADATA: Record<
   },
   prompt_browser_toggle: {
     description:
-      "Show a browser toggle button in the prompt input to open the task browser panel.",
+      "Show a browser button in the prompt input to open an in-app browser you can drive yourself or hand to the agent.",
     title: "Prompt Browser Toggle",
   },
 };

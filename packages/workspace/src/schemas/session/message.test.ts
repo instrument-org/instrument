@@ -347,7 +347,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      \`agent-browser\` already has an in-app browser tab open for this task. Current URL: https://example.com. Page title: Example.
+      An in-app browser tab is already open for this task (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
       </instrument-system-note>",
               "type": "text",
             },
@@ -412,7 +412,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      This session previously used \`agent-browser\`, but its in-app browser tab is no longer open. Last known URL: https://example.com/work. Page title: Example. If browser work needs to continue, reopen the relevant page and restore any required page state before proceeding.
+      This session previously had an in-app browser tab open, but it is no longer open. Last known URL: https://example.com/work. Page title: Example. If browser work needs to continue, use \`agent-browser\` to reopen the relevant page and restore any required page state before proceeding.
       </instrument-system-note>",
               "type": "text",
             },
@@ -503,7 +503,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      \`agent-browser\` already has an in-app browser tab open for this task. Current URL: https://example.com. Page title: Example.
+      An in-app browser tab is already open for this task (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
       </instrument-system-note>",
               "type": "text",
             },

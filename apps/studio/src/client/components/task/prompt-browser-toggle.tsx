@@ -4,14 +4,15 @@ import { GlobeIcon } from "@phosphor-icons/react";
 
 /**
  * Globe toggle in the prompt input that opens/closes the task's browser artifact
- * panel (where the agent browser is shown). Highlights when open.
+ * panel. Opening the panel with no live guest kicks off `browser.open`, so the
+ * user can browse without waiting for the agent. Highlights when open.
  */
 export function PromptBrowserToggle({ disabled }: { disabled?: boolean }) {
   const { open, toggle } = useBrowserArtifactToggle();
 
   return (
     <Toggle
-      aria-label="Show browser"
+      aria-label="Open browser panel"
       className="size-8 p-0"
       disabled={disabled}
       onPressedChange={toggle}

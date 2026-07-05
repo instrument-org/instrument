@@ -114,7 +114,10 @@ export function initAgentBrowserPool(): () => void {
   const { signal } = controller;
 
   async function run() {
-    while (!signal.aborted) {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
       try {
         const subscription = await rpcClient.agentBrowser.live.targets.call(
           undefined,
@@ -124,13 +127,13 @@ export function initAgentBrowserPool(): () => void {
           reconcile(targets);
         }
       } catch (error) {
-        if (signal.aborted) {
+        // Read through `controller` so control-flow analysis doesn't narrow the
+        // loop-top guard's `signal.aborted` to a constant false here: abort can
+        // flip it across the await, which is exactly the teardown case.
+        if (controller.signal.aborted) {
           return;
         }
         captureException(error);
-      }
-      if (signal.aborted) {
-        return;
       }
       await sleep(RECONNECT_DELAY_MS);
     }

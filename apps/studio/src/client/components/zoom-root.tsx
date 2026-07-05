@@ -1,4 +1,5 @@
 import { zoomAtom } from "@/client/atoms/zoom";
+import { useZoomWheel } from "@/client/hooks/use-zoom-wheel";
 import { useAtomValue } from "jotai";
 import { type CSSProperties, type ReactNode } from "react";
 
@@ -11,12 +12,14 @@ import { type CSSProperties, type ReactNode } from "react";
  * this keeps the one wrapper implementation in sync between them.
  *
  * `zoom` rescales the box, so the viewport sizing is divided by the same factor
- * to keep the root covering the real viewport. This does not wire up the zoom
- * commands or persistence; callers own that (MainWindow via `useAppCommands`,
- * onboarding via {@link OnboardingZoomRoot}).
+ * to keep the root covering the real viewport. Also owns direct ctrl+wheel and
+ * trackpad-pinch zoom (via {@link useZoomWheel}), which is identical for both
+ * windows. It does not wire up the menu zoom commands or persistence; callers own
+ * that (MainWindow via `useAppCommands`, onboarding via {@link OnboardingZoomRoot}).
  */
 export function ZoomRoot({ children }: { children: ReactNode }) {
   const zoom = useAtomValue(zoomAtom);
+  useZoomWheel();
 
   return (
     <div

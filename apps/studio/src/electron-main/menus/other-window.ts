@@ -57,11 +57,30 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
         visible: false,
       },
       {
+        // Numpad "+" is a distinct key from the main-row "+", so bind it
+        // explicitly; hidden so it doesn't add a second Zoom In menu row.
+        accelerator: "CmdOrCtrl+numadd",
+        click: () => {
+          sendAppCommand({ type: "zoomIn" });
+        },
+        label: "Zoom In",
+        visible: false,
+      },
+      {
         accelerator: "CmdOrCtrl+-",
         click: () => {
           sendAppCommand({ type: "zoomOut" });
         },
         label: "Zoom Out",
+      },
+      {
+        // Numpad "-" duplicate of Zoom Out, hidden like the numpad "+" above.
+        accelerator: "CmdOrCtrl+numsub",
+        click: () => {
+          sendAppCommand({ type: "zoomOut" });
+        },
+        label: "Zoom Out",
+        visible: false,
       },
       { type: "separator" as const },
       { role: "togglefullscreen" as const },

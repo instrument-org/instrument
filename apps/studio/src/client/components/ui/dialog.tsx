@@ -129,11 +129,11 @@ function DialogPortal({
   container,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  const defaultContainer = usePortalContainer();
+  const portalContainer = usePortalContainer(container);
 
   return (
     <DialogPrimitive.Portal
-      container={container ?? defaultContainer}
+      container={portalContainer}
       data-slot="dialog-portal"
       {...props}
     />

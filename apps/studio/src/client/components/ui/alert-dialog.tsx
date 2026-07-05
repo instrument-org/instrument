@@ -144,11 +144,11 @@ function AlertDialogPortal({
   container,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) {
-  const defaultContainer = usePortalContainer();
+  const portalContainer = usePortalContainer(container);
 
   return (
     <AlertDialogPrimitive.Portal
-      container={container ?? defaultContainer}
+      container={portalContainer}
       data-slot="alert-dialog-portal"
       {...props}
     />

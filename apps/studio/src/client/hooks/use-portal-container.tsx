@@ -35,9 +35,14 @@ export function PortalContainerProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Defaults to `body` outside scoped containers, matching Radix's native Portal
-// behavior for chrome and app-wide overlays.
+// The scoped portal target for the current subtree, or `override` when a caller
+// already has an explicit container (e.g. a Radix `container` prop). Defaults to
+// `body` outside scoped containers, matching Radix's native Portal behavior for
+// chrome and app-wide overlays.
 // eslint-disable-next-line react-refresh/only-export-components
-export function usePortalContainer() {
-  return useContext(PortalContainerContext);
+export function usePortalContainer(
+  override?: DocumentFragment | Element | null,
+) {
+  const container = useContext(PortalContainerContext);
+  return override ?? container;
 }

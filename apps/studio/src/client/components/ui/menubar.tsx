@@ -136,11 +136,11 @@ function MenubarPortal({
   container,
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Portal>) {
-  const defaultContainer = usePortalContainer();
+  const portalContainer = usePortalContainer(container);
 
   return (
     <MenubarPrimitive.Portal
-      container={container ?? defaultContainer}
+      container={portalContainer}
       data-slot="menubar-portal"
       {...props}
     />

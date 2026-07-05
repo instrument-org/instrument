@@ -116,11 +116,11 @@ function ContextMenuPortal({
   container,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
-  const defaultContainer = usePortalContainer();
+  const portalContainer = usePortalContainer(container);
 
   return (
     <ContextMenuPrimitive.Portal
-      container={container ?? defaultContainer}
+      container={portalContainer}
       data-slot="context-menu-portal"
       {...props}
     />

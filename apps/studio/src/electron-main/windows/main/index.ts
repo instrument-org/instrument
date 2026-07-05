@@ -14,7 +14,11 @@ import {
   setWindowState,
   type WindowBounds,
 } from "@/electron-main/stores/window-state";
-import { focusMainContents } from "@/electron-main/windows/main/controls";
+import {
+  focusMainContents,
+  goBack,
+  goForward,
+} from "@/electron-main/windows/main/controls";
 import {
   getMainWindow,
   setMainWindow,
@@ -103,6 +107,19 @@ export async function createMainWindow({
   mainWindow.on("closed", () => {
     debouncedSaveState.cancel();
     saveState();
+  });
+
+  // Windows delivers mouse thumb buttons (back/forward) as native app-commands
+  // rather than DOM mouse events, so route them through the same history helpers
+  // the menu uses and preventDefault to stop Chromium's own navigation/reload.
+  mainWindow.on("app-command", (event, command) => {
+    if (command === "browser-backward") {
+      event.preventDefault();
+      goBack();
+    } else if (command === "browser-forward") {
+      event.preventDefault();
+      goForward();
+    }
   });
 
   mainWindow.on("blur", () => {

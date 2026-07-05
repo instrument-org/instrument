@@ -23,7 +23,11 @@ function SelectContent({
       <SelectPrimitive.Content
         align={align}
         className={cn(
-          "relative z-50 max-h-(--radix-select-content-available-height) min-w-32 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-xl bg-popover text-popover-foreground shadow-panel data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          // Radix measures `--radix-*` sizing vars in already-zoomed rendered
+          // pixels; this content self-applies CSS `zoom` (useAppZoomStyle), so
+          // divide them by `--content-zoom` to cancel the double-count (otherwise
+          // the max-height is scaled twice and the list overflows off-screen).
+          "relative z-50 max-h-[calc(var(--radix-select-content-available-height)/var(--content-zoom))] min-w-32 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-xl bg-popover text-popover-foreground shadow-panel data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className,
@@ -38,7 +42,7 @@ function SelectContent({
           className={cn(
             "p-1",
             position === "popper" &&
-              "h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width) scroll-my-1",
+              "h-[calc(var(--radix-select-trigger-height)/var(--content-zoom))] w-full min-w-[calc(var(--radix-select-trigger-width)/var(--content-zoom))] scroll-my-1",
           )}
         >
           {children}

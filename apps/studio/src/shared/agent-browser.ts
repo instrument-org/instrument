@@ -34,6 +34,10 @@ export const AGENT_BROWSER_VIEWPORT = { height: 800, width: 1280 };
  */
 export interface AgentBrowserTarget {
   attached: boolean;
+  // Per-entry generation (see BrowserEntry.generation). The id is stable across
+  // a destroy+recreate of the same (task, session), so the pool diffs the
+  // generation to know it must dispose the old guest and mount a fresh one.
+  generation: number;
   id: BrowserTargetId;
 }
 

@@ -10,6 +10,10 @@ import { noop } from "radashi";
 
 import { log } from "./log";
 
+// Bumped per createEntry so each entry (even a recreate of a just-destroyed
+// target id) gets a distinct generation the renderer pool can diff against.
+let generationCounter = 0;
+
 export interface BrowserEntry {
   // Resolves when the guest attaches, rejects if the entry is removed first.
   attach: AttachSignal;
@@ -25,6 +29,12 @@ export interface BrowserEntry {
   // most once because the set is cleared after draining.
   disposers: Set<() => void>;
   eventListeners: Set<(method: string, params: unknown) => void>;
+  // Monotonic per-entry id, bumped on every createEntry. The renderer pool keys
+  // its `<webview>` by targetId, which is stable across a destroy+recreate of
+  // the same (task, session); the generation lets the pool notice that recreate
+  // (even when the two events coalesce into one stream snapshot) and remount a
+  // fresh guest instead of stranding the destroyed one.
+  generation: number;
   id: TaskId;
   // Chromium profile partition directory; threaded through so callers like
   // BrowserConfig.getTargetMeta can correlate the target back to its session
@@ -78,6 +88,7 @@ export function createEntry({
     detachListeners: new Set(),
     disposers: new Set(),
     eventListeners: new Set(),
+    generation: ++generationCounter,
     id,
     partitionDir,
     pendingDownloadGuids: new Map(),

@@ -1,8 +1,8 @@
 import { SIDEBAR_WIDTH } from "@/shared/constants";
 import { atomWithStorage } from "jotai/utils";
 
-const SIDEBAR_WIDTH_MIN = 200;
-const SIDEBAR_WIDTH_MAX = 480;
+export const SIDEBAR_WIDTH_MIN = 200;
+export const SIDEBAR_WIDTH_MAX = 480;
 
 // Dragging the handle left of this (below the min) on release collapses the
 // sidebar rather than pinning it to the min width.

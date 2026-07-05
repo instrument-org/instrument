@@ -62,7 +62,12 @@ export function fetchModelsForProvider(
     },
   )
     .map((models) => {
-      modelCache.write(config.cacheIdentifier, models);
+      // Don't cache an empty list: a transient empty (or filtered-to-nothing)
+      // response would otherwise clobber the last-known-good models and defeat
+      // the fallback below.
+      if (models.length > 0) {
+        modelCache.write(config.cacheIdentifier, models);
+      }
       return models;
     })
     .onFailure((error) => {

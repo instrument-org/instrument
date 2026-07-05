@@ -62,6 +62,19 @@ describe("fetchModelsForProvider", () => {
     expect(cache.store.get(config.cacheIdentifier)).toEqual(MODELS);
   });
 
+  it("does not overwrite cached models when the fetch returns an empty list", async () => {
+    fetchAndParseAnthropicModels.mockResolvedValue([]);
+    const cache = createMemoryCache(CACHED);
+
+    const result = await fetchModelsForProvider(config, {
+      captureException,
+      modelCache: cache,
+    });
+
+    expect(result.getOrNull()).toEqual([]);
+    expect(cache.store.get(config.cacheIdentifier)).toEqual(CACHED);
+  });
+
   it("falls back to cached models when the fetch fails", async () => {
     fetchAndParseAnthropicModels.mockRejectedValue(new Error("network down"));
     const cache = createMemoryCache(CACHED);

@@ -8,12 +8,15 @@ import { z } from "zod";
 // this cache is app-global too. It survives restarts to serve stale model lists
 // when a provider is slow or unreachable on startup.
 /* eslint-disable unicorn/prefer-top-level-await */
-const ModelCacheStoreSchema = z
-  .object({
-    // Keyed by provider `cacheIdentifier`.
-    models: z.record(z.string(), AIGatewayModel.Schema.array()).catch({}),
-  })
-  .catch({ models: {} });
+const ModelCacheStoreSchema = z.object({
+  // Keyed by provider `cacheIdentifier`. A single corrupt or schema-drifted
+  // provider entry falls back to [] (which read() treats as cold) instead of
+  // discarding every provider's cache; a malformed top-level store fails
+  // safeParse and is logged + reset by the deserialize handler below.
+  models: z
+    .record(z.string(), AIGatewayModel.Schema.array().catch([]))
+    .default({}),
+});
 /* eslint-enable unicorn/prefer-top-level-await */
 
 type ModelCacheStore = z.output<typeof ModelCacheStoreSchema>;
@@ -45,10 +48,20 @@ function getModelCacheStore(): Store<ModelCacheStore> {
 
 export const diskModelCache: ModelCache = {
   read(cacheIdentifier) {
-    return getModelCacheStore().get("models")[cacheIdentifier];
+    const models = getModelCacheStore().get("models")[cacheIdentifier];
+    // Treat a missing or empty entry as a cold cache so a degraded write never
+    // masks a real "no models" state as a successful fallback.
+    return models && models.length > 0 ? models : undefined;
   },
   write(cacheIdentifier, models) {
-    const store = getModelCacheStore();
-    store.set("models", { ...store.get("models"), [cacheIdentifier]: models });
+    try {
+      const store = getModelCacheStore();
+      store.set("models", {
+        ...store.get("models"),
+        [cacheIdentifier]: models,
+      });
+    } catch (error) {
+      logger.error("Failed to write model cache", error);
+    }
   },
 };

@@ -163,9 +163,11 @@ export const llmRequestLogic = fromPromise<
   const toolCallInputText: Record<string, string> = {};
   try {
     // Fetch AI SDK model at the last moment before making the LLM request
+    const workspaceConfig = getWorkspaceConfig();
     const aiSDKModelResult = await fetchAISDKModel({
-      captureException: getWorkspaceConfig().captureException,
-      configs: getWorkspaceConfig().getAIProviderConfigs(),
+      captureException: workspaceConfig.captureException,
+      configs: workspaceConfig.getAIProviderConfigs(),
+      modelCache: workspaceConfig.modelCache,
       modelURI: input.model.uri,
       workspaceServerURL: getWorkspaceServerURL(),
     });

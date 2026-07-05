@@ -17,6 +17,7 @@ import "dotenv/config";
 
 import "./lib/define-globals-apply";
 
+import { noopModelCache } from "@instrument-org/ai-gateway";
 import { execa } from "execa";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -95,6 +96,7 @@ setWorkspaceConfig({
     path.join(rootDir, "default-task-template"),
   ),
   getAIProviderConfigs: () => [],
+  modelCache: noopModelCache,
   nodeExecEnv: {},
   pnpmBinPath: AbsolutePathSchema.parse(
     await execa({ reject: false })`which pnpm`.then(

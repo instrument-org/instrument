@@ -36,6 +36,7 @@ const list = base
     const providers = context.workspaceConfig.getAIProviderConfigs();
     const modelsForProviders = await fetchModelResultsForProviders(providers, {
       captureException: context.workspaceConfig.captureException,
+      modelCache: context.workspaceConfig.modelCache,
     });
 
     const errors: ListErrors = [];
@@ -60,6 +61,17 @@ const live = {
     context,
     signal,
   }) {
+    // Serve stale cached models immediately while the fresh fetch runs.
+    const providers = context.workspaceConfig.getAIProviderConfigs();
+    const cachedModels = providers.flatMap(
+      (config) =>
+        context.workspaceConfig.modelCache.read(config.cacheIdentifier) ?? [],
+    );
+    if (cachedModels.length > 0) {
+      yield { errors: [], models: cachedModels };
+    }
+
+    // Fetch fresh data. fetchModelsForProvider writes to cache on success.
     yield call(list, {}, { context, signal });
 
     const providerConfigUpdates = publisher.subscribe(

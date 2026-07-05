@@ -1,6 +1,9 @@
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
-import { type GetProviderConfigs } from "@instrument-org/ai-gateway";
+import {
+  type GetProviderConfigs,
+  type ModelCache,
+} from "@instrument-org/ai-gateway";
 import {
   type CaptureEventFunction,
   type CaptureExceptionFunction,
@@ -109,6 +112,7 @@ export interface WorkspaceConfig {
   captureException: CaptureExceptionFunction;
   defaultTaskTemplateDir: AbsolutePath;
   getAIProviderConfigs: GetProviderConfigs;
+  modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   pnpmBinPath: AbsolutePath;
   projectsDir: AbsolutePath;

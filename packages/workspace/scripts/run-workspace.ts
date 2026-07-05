@@ -2,6 +2,7 @@ import "dotenv/config";
 import {
   aiGatewayApp,
   type AIGatewayProviderConfig,
+  noopModelCache,
 } from "@instrument-org/ai-gateway";
 
 import "./lib/bootstrap-proxy";
@@ -119,6 +120,7 @@ const actor = createActor(workspaceMachine, {
       "../templates/default",
     ),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
+    modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
       (result) => result.stdout.trim() || "pnpm",

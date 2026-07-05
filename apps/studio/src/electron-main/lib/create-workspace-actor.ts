@@ -1,4 +1,5 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
+import { diskModelCache } from "@/electron-main/stores/model-cache";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
@@ -85,6 +86,7 @@ export function createWorkspaceActor({
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       getAIProviderConfigs,
+      modelCache: diskModelCache,
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process
         // See https://www.electronjs.org/docs/latest/api/environment-variables

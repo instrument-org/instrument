@@ -214,15 +214,21 @@ export const workspaceMachine = setup({
       },
     ),
 
-    forwardRegisterBrowserTarget: enqueueActions(
+    // Get-or-spawn the task's browser machine and forward a target event to it.
+    // The user-open (`registerTarget`) and agent CDP (`updateCdpHeartbeat`) paths
+    // carry the same payload and differ only in which event the ref receives;
+    // the ref decides how each affects its liveness state.
+    forwardToTaskBrowser: enqueueActions(
       (
         { enqueue },
         {
+          event,
           id,
           partitionDir,
           sessionId,
           targetId,
         }: {
+          event: "registerTarget" | "updateCdpHeartbeat";
           id: TaskId;
           partitionDir: AbsolutePath;
           sessionId: StoreId.Session;
@@ -240,46 +246,7 @@ export const workspaceMachine = setup({
               },
             });
           ref.send({
-            type: "registerTarget",
-            value: { partitionDir, sessionId, targetId },
-          });
-          if (existing) {
-            return {};
-          }
-          return {
-            taskBrowserRefs: new Map(context.taskBrowserRefs).set(id, ref),
-          };
-        });
-      },
-    ),
-
-    forwardUpdateCdpHeartbeat: enqueueActions(
-      (
-        { enqueue },
-        {
-          id,
-          partitionDir,
-          sessionId,
-          targetId,
-        }: {
-          id: TaskId;
-          partitionDir: AbsolutePath;
-          sessionId: StoreId.Session;
-          targetId: BrowserTargetId;
-        },
-      ) => {
-        enqueue.assign(({ context, spawn }) => {
-          const existing = context.taskBrowserRefs.get(id);
-          const ref =
-            existing ??
-            spawn("taskBrowserMachine", {
-              input: {
-                browser: context.config.browser,
-                id,
-              },
-            });
-          ref.send({
-            type: "updateCdpHeartbeat",
+            type: event,
             value: { partitionDir, sessionId, targetId },
           });
           if (existing) {
@@ -659,8 +626,8 @@ export const workspaceMachine = setup({
     },
     registerBrowserTarget: {
       actions: {
-        params: ({ event }) => event.value,
-        type: "forwardRegisterBrowserTarget",
+        params: ({ event }) => ({ event: "registerTarget", ...event.value }),
+        type: "forwardToTaskBrowser",
       },
     },
     releaseBrowserPresence: {
@@ -881,12 +848,13 @@ export const workspaceMachine = setup({
     "workspaceServer.updateCdpHeartbeat": {
       actions: {
         params: ({ event }) => ({
+          event: "updateCdpHeartbeat",
           id: event.value.id,
           partitionDir: event.value.partitionDir,
           sessionId: event.value.sessionId,
           targetId: event.value.targetId,
         }),
-        type: "forwardUpdateCdpHeartbeat",
+        type: "forwardToTaskBrowser",
       },
     },
   },

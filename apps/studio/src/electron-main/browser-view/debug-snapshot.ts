@@ -1,11 +1,10 @@
 // Debug-only snapshot of the browser view manager and the taskBrowser
 // XState machines that reap it.
 
+import { sendAppCommand } from "@/electron-main/app-command";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import { sendAppCommand } from "@/electron-main/tabs/tab-command";
-import { type StudioPath } from "@/shared/studio-path";
 import {
   BrowserTargetIdSchema,
   type WorkspaceActorRef,
@@ -248,12 +247,13 @@ const openAsTab = devOnly
       return;
     }
     // Open the owning task's page for this session; the task page auto-opens the
-    // browser artifact panel. `satisfies` pins taskPath so route staleness is
-    // caught at compile time.
-    const taskPath = "/tasks/$id/" satisfies StudioPath;
+    // browser artifact panel. The typed `to` catches route staleness at compile
+    // time; the concrete id/session ride as params/search.
     sendAppCommand({
-      appPath: `${taskPath.replace("$id", String(entry.id))}?selectedSessionId=${String(entry.sessionId)}`,
       newTab: true,
+      params: { id: String(entry.id) },
+      search: { selectedSessionId: String(entry.sessionId) },
+      to: "/tasks/$id/",
       type: "navigate",
     });
   });

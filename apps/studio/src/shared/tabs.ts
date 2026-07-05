@@ -18,30 +18,5 @@ export const TabSchema = z.object({
   taskId: TaskIdSchema.optional(),
   title: z.string().optional(),
 });
-/**
- * An app command sent from the main process (native menus / accelerators) to
- * the renderer that owns the window (MainWindow), streamed over the one command
- * bus. Most are tab operations (`navigate` with `newTab` opens a new tab;
- * without it the active tab navigates; `close` closes the active tab); the rest
- * drive app-wide view state (sidebar, settings, command menu, reload, zoom) the
- * renderer owns, so there is no second signal channel.
- */
-export type AppCommand =
-  | { appPath: string; newTab?: boolean; type: "navigate" }
-  | { index: number; type: "selectByIndex" }
-  | { type: "close" }
-  | { type: "navigateBack" }
-  | { type: "navigateForward" }
-  | { type: "openSettings" }
-  | { type: "reload" }
-  | { type: "reopen" }
-  | { type: "selectLast" }
-  | { type: "selectNext" }
-  | { type: "selectPrevious" }
-  | { type: "toggleCommandMenu" }
-  | { type: "toggleSidebar" }
-  | { type: "zoomIn" }
-  | { type: "zoomOut" }
-  | { type: "zoomReset" };
 
 export type Tab = z.output<typeof TabSchema>;

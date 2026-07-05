@@ -1,5 +1,5 @@
+import { sendAppCommand } from "@/electron-main/app-command";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
-import { sendAppCommand } from "@/electron-main/tabs/tab-command";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 

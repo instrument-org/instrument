@@ -132,7 +132,7 @@ function TabView({
 
   useEffect(() => {
     // Registered so the main process (menus / keyboard shortcuts) can navigate
-    // the active tab's router over the tab-command IPC.
+    // the active tab's router over the app-command bus.
     registerTabRouter(tab.id, router);
     // Mirror this tab's navigation back into the model so the tab bar reflects
     // the current location, and pull the title/icon from the route's head meta.

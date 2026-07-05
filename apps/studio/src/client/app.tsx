@@ -1,3 +1,4 @@
+import { OnboardingZoomRoot } from "@/client/components/onboarding/zoom-root";
 import { resolveWorkspaceServerUrl } from "@/client/lib/asset-base-url";
 import { queryClient, router } from "@/client/router";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
@@ -18,7 +19,9 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <IconContext.Provider value={IconContextValue}>
-        <RouterProvider router={router} />
+        <OnboardingZoomRoot>
+          <RouterProvider router={router} />
+        </OnboardingZoomRoot>
       </IconContext.Provider>
     </QueryClientProvider>
   );

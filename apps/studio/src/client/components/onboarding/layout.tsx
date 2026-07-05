@@ -12,7 +12,7 @@ export function OnboardingLayout({
   return (
     <div
       className={cn(
-        "flex h-svh max-h-full w-full flex-col overflow-hidden select-none",
+        "flex h-full w-full flex-col overflow-hidden select-none",
         variant === "brand" ? SHARED.brandGradient : SHARED.subtleGradient,
       )}
     >

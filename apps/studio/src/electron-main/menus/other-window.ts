@@ -1,3 +1,4 @@
+import { sendAppCommand } from "@/electron-main/app-command";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { isDeveloperMode } from "../stores/preferences";
@@ -29,9 +30,39 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
       { role: "forceReload" as const },
       { role: "toggleDevTools" as const },
       { type: "separator" as const },
-      { role: "resetZoom" as const },
-      { role: "zoomIn" as const },
-      { role: "zoomOut" as const },
+      // Custom CSS `zoom` (not Electron's native page zoom), so onboarding shares
+      // the main window's zoom mechanism and persisted level. See OnboardingZoomRoot.
+      {
+        accelerator: "CmdOrCtrl+0",
+        click: () => {
+          sendAppCommand({ type: "zoomReset" });
+        },
+        label: "Actual Size",
+      },
+      {
+        accelerator: "CmdOrCtrl+Plus",
+        click: () => {
+          sendAppCommand({ type: "zoomIn" });
+        },
+        label: "Zoom In",
+      },
+      {
+        // Ctrl+= is what Windows users physically press to zoom in; Electron only
+        // matches CmdOrCtrl+Plus on macOS, so this hidden duplicate covers it.
+        accelerator: "CmdOrCtrl+=",
+        click: () => {
+          sendAppCommand({ type: "zoomIn" });
+        },
+        label: "Zoom In",
+        visible: false,
+      },
+      {
+        accelerator: "CmdOrCtrl+-",
+        click: () => {
+          sendAppCommand({ type: "zoomOut" });
+        },
+        label: "Zoom Out",
+      },
       { type: "separator" as const },
       { role: "togglefullscreen" as const },
     ],

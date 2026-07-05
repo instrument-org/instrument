@@ -94,12 +94,7 @@ export class StudioAppUpdater {
     autoUpdater.forceDevUpdateConfig =
       process.env.FORCE_DEV_AUTO_UPDATE === "true";
 
-    autoUpdater.setFeedURL({
-      channel: getChannel(),
-      provider: "generic",
-      updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
-      url: RELEASES_BUCKET_URL,
-    });
+    this.#configureFeedURL();
 
     autoUpdater.on("update-available", (updateInfo) => {
       scopedLogger.info("Update available");
@@ -165,6 +160,7 @@ export class StudioAppUpdater {
 
   public async checkForUpdates({ notify }: { notify?: boolean } = {}) {
     this.#notify = notify ?? false;
+    this.#configureFeedURL();
 
     this.status = {
       notifyUser: this.#notify,
@@ -254,6 +250,15 @@ export class StudioAppUpdater {
         type: "error",
       };
     }
+  }
+
+  #configureFeedURL() {
+    autoUpdater.setFeedURL({
+      channel: getChannel(),
+      provider: "generic",
+      updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
+      url: RELEASES_BUCKET_URL,
+    });
   }
 
   // A ready-to-install update is a fact that must survive background polling.

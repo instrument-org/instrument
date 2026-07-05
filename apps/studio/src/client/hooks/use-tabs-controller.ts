@@ -1,6 +1,10 @@
 import { tabsAtom } from "@/client/atoms/tabs";
 import { closeTabById, openTab } from "@/client/lib/tab-actions";
-import { reorderTabs, selectTab, type TabsModel } from "@/client/lib/tab-model";
+import {
+  reorderTabs,
+  selectTab,
+  type TabsModel,
+} from "@/client/lib/tabs-model";
 import { type Tab } from "@/shared/tabs";
 import { useAtom } from "jotai";
 import { startTransition } from "react";

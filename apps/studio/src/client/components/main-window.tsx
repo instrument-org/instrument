@@ -9,7 +9,6 @@ import { useAppCommands } from "@/client/hooks/use-app-commands";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
-import { setTabMeta, setTabPathname } from "@/client/lib/tab-model";
 import {
   createTabRouter,
   sharedQueryClient,
@@ -20,6 +19,7 @@ import {
   registerTabRouter,
   unregisterTabRouter,
 } from "@/client/lib/tab-router-registry";
+import { setTabMeta, setTabPathname } from "@/client/lib/tabs-model";
 import { capturePageView } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";

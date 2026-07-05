@@ -209,8 +209,10 @@ export default defineConfig(({ command }) => {
         createValidateProductionEnv("renderer"),
         tanstackRouter({
           autoCodeSplitting: true,
-          generatedRouteTree: "./src/client/routeTree.gen.ts",
-          routesDirectory: "./src/client/routes",
+          // Paths are relative to the renderer `root` (`src`) below, not cwd:
+          // router-plugin >=1.168 resolves these against Vite's config.root.
+          generatedRouteTree: "./client/routeTree.gen.ts",
+          routesDirectory: "./client/routes",
         }),
         react({
           babel: {

@@ -1,4 +1,5 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
+import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
@@ -20,7 +21,7 @@ function OnboardingProviders() {
   const navigate = useNavigate();
 
   return (
-    <div className="flex-1 overflow-y-auto px-11 pt-17 pb-11">
+    <OnboardingScreen align="top" className="px-11 pt-17 pb-11">
       <AddProviderForm
         onBack={() => void navigate({ to: "/onboarding" })}
         onSuccess={() =>
@@ -29,6 +30,6 @@ function OnboardingProviders() {
         providers={providerConfigs ?? []}
         submitLabel="Next"
       />
-    </div>
+    </OnboardingScreen>
   );
 }

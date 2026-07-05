@@ -1,3 +1,4 @@
+import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { useTheme } from "@/client/components/theme-provider";
 import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
@@ -133,7 +134,7 @@ export function OnboardingThemeScreen({
   const selectedTheme: ThemeOption = theme;
 
   return (
-    <div className="flex h-full flex-col items-center justify-between overflow-hidden px-6 pt-20 pb-6">
+    <OnboardingScreen align="between" className="pt-20">
       <div className="flex w-full flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
@@ -163,7 +164,7 @@ export function OnboardingThemeScreen({
           </Button>
         </div>
       </div>
-    </div>
+    </OnboardingScreen>
   );
 }
 

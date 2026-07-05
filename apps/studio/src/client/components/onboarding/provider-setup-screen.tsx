@@ -3,6 +3,7 @@ import { BrandMark } from "@/client/components/brand-mark";
 import { ExternalLink } from "@/client/components/external-link";
 import { GoogleLoginButton } from "@/client/components/google-login-button";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
+import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
@@ -40,83 +41,24 @@ export function ProviderSetupScreen({
 
   if (page === "add-provider") {
     return (
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-11 pt-6 pb-11">
-          <AddProviderForm
-            onBack={onBack}
-            onSuccess={() => {
-              onPageChange("welcome");
-              onContinue();
-            }}
-            providers={providerConfigs ?? []}
-            submitLabel="Next"
-          />
-        </div>
-      </div>
+      <OnboardingScreen align="top" className="px-11 pt-6 pb-11">
+        <AddProviderForm
+          onBack={onBack}
+          onSuccess={() => {
+            onPageChange("welcome");
+            onContinue();
+          }}
+          providers={providerConfigs ?? []}
+          submitLabel="Next"
+        />
+      </OnboardingScreen>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex flex-1 flex-col items-center justify-center px-6">
-        <div className="flex w-full flex-col items-center gap-10">
-          <div className="flex flex-col items-center gap-6">
-            <BrandMark className="size-20 drop-shadow-md" />
-
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
-                Log in to {APP_NAME}
-              </h1>
-              <p className="text-sm text-foreground/80">
-                A guided AI workspace for ambitious work
-              </p>
-            </div>
-          </div>
-
-          <div className="flex w-full max-w-xs flex-col items-center gap-4">
-            {error && (
-              <div className="w-full rounded-lg bg-muted px-3 py-2.5">
-                <div className="mb-1.5 flex items-center gap-1.5">
-                  <WarningCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="text-xs font-medium text-foreground/80">
-                    Login failed
-                  </span>
-                </div>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  There was an error logging in. Please try again, or{" "}
-                  <ExternalLink
-                    className="underline underline-offset-2 hover:text-foreground"
-                    href={SUPPORT_URL}
-                  >
-                    contact support
-                  </ExternalLink>
-                  .
-                </p>
-              </div>
-            )}
-
-            <div className="flex w-full flex-col items-center gap-y-4">
-              <div className="flex items-center justify-center gap-x-2">
-                <BrandLeafIcon className="size-3" />
-                <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
-                  Create an account to enjoy free AI usage
-                </p>
-              </div>
-
-              <GoogleLoginButton
-                className="w-full justify-center"
-                onLogin={onLogin}
-                onSuccess={onLoginSuccess}
-              />
-            </div>
-
-            <TermsFooter />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 justify-center px-6 pb-6">
-        {!hideManualProvider && (
+    <OnboardingScreen
+      footer={
+        !hideManualProvider && (
           <Button
             className="text-foreground/40 hover:bg-transparent hover:text-foreground/60"
             onClick={
@@ -131,8 +73,63 @@ export function ProviderSetupScreen({
           >
             Or add an AI provider manually
           </Button>
-        )}
+        )
+      }
+    >
+      <div className="flex w-full flex-col items-center gap-10">
+        <div className="flex flex-col items-center gap-6">
+          <BrandMark className="size-20 drop-shadow-md" />
+
+          <div className="flex flex-col items-center gap-2 text-center">
+            <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
+              Log in to {APP_NAME}
+            </h1>
+            <p className="text-sm text-foreground/80">
+              A guided AI workspace for ambitious work
+            </p>
+          </div>
+        </div>
+
+        <div className="flex w-full max-w-xs flex-col items-center gap-4">
+          {error && (
+            <div className="w-full rounded-lg bg-muted px-3 py-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <WarningCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="text-xs font-medium text-foreground/80">
+                  Login failed
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                There was an error logging in. Please try again, or{" "}
+                <ExternalLink
+                  className="underline underline-offset-2 hover:text-foreground"
+                  href={SUPPORT_URL}
+                >
+                  contact support
+                </ExternalLink>
+                .
+              </p>
+            </div>
+          )}
+
+          <div className="flex w-full flex-col items-center gap-y-4">
+            <div className="flex items-center justify-center gap-x-2">
+              <BrandLeafIcon className="size-3" />
+              <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
+                Create an account to enjoy free AI usage
+              </p>
+            </div>
+
+            <GoogleLoginButton
+              className="w-full justify-center"
+              onLogin={onLogin}
+              onSuccess={onLoginSuccess}
+            />
+          </div>
+
+          <TermsFooter />
+        </div>
       </div>
-    </div>
+    </OnboardingScreen>
   );
 }

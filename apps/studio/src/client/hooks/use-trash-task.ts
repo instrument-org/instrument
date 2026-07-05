@@ -1,24 +1,18 @@
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import { rpcClient } from "../rpc/client";
 import { useTabActions } from "./use-tab-actions";
 import { useTabs } from "./use-tabs";
 
-export function useTrashTask({
-  navigateOnDelete,
-}: {
-  navigateOnDelete?: boolean;
-}) {
+export function useTrashTask() {
   const queryClient = useQueryClient();
   const trashTaskMutation = useMutation(
     rpcClient.workspace.task.trash.mutationOptions(),
   );
   const { closeTab } = useTabActions();
   const tabs = useTabs();
-  const navigate = useNavigate();
 
   const trashTask = useCallback(
     async (taskId: TaskId) => {
@@ -41,24 +35,15 @@ export function useTrashTask({
         queryKey: rpcClient.workspace.task.agentStatus.byIds.key(),
       });
 
-      if (navigateOnDelete) {
-        await navigate({ replace: true, to: "/new-tab" });
-      } else {
-        const taskTabs = tabs.filter((tab) => tab.taskId === taskId);
-
-        for (const tab of taskTabs) {
-          await closeTab({ id: tab.id });
-        }
+      // Close every tab showing this task (not just the active one); the tab
+      // model seeds a fresh /new-tab if that was the last tab, so deleting from
+      // the task's own page still lands the user somewhere valid.
+      const taskTabs = tabs.filter((tab) => tab.taskId === taskId);
+      for (const tab of taskTabs) {
+        await closeTab({ id: tab.id });
       }
     },
-    [
-      trashTaskMutation,
-      queryClient,
-      tabs,
-      closeTab,
-      navigate,
-      navigateOnDelete,
-    ],
+    [trashTaskMutation, queryClient, tabs, closeTab],
   );
 
   return {

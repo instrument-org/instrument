@@ -166,7 +166,7 @@ function RouteComponent() {
     rpcClient.workspace.session.stop.mutationOptions(),
   );
 
-  const { trashTask } = useTrashTask({ navigateOnDelete: false });
+  const { trashTask } = useTrashTask();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 

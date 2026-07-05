@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { TaskStatsCard } from "./stats-card";
 
 export function TaskDeleteDialog({
-  navigateOnDelete,
   onDeleteEnd,
   onDeleteStart,
   onExitComplete,
@@ -15,7 +14,6 @@ export function TaskDeleteDialog({
   open,
   task,
 }: {
-  navigateOnDelete: boolean;
   onDeleteEnd?: () => void;
   onDeleteStart?: () => void;
   onExitComplete?: () => void;
@@ -23,7 +21,7 @@ export function TaskDeleteDialog({
   open: boolean;
   task: Task;
 }) {
-  const { trashTask } = useTrashTask({ navigateOnDelete });
+  const { trashTask } = useTrashTask();
   const trashTerminology = getTrashTerminology();
 
   const handleDelete = async () => {

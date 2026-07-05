@@ -116,7 +116,7 @@ export function TaskToolbar({
                     setDebugDialogOpen(true);
                   }}
                   onDelete={() => {
-                    openDeleteTask(task, { navigateOnDelete: true });
+                    openDeleteTask(task);
                   }}
                   onReplayClick={() => {
                     setReplayModalOpen(true);

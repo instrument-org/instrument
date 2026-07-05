@@ -20,7 +20,6 @@ export function DeleteTaskModal() {
 
   return (
     <TaskDeleteDialog
-      navigateOnDelete={content.navigateOnDelete}
       onDeleteEnd={content.onDeleteEnd}
       onDeleteStart={content.onDeleteStart}
       onExitComplete={onExitComplete}

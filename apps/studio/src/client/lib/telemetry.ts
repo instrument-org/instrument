@@ -1,4 +1,5 @@
 import type { CaptureResult } from "posthog-js";
+import type { ErrorInfo } from "react";
 
 import { FAUX_STUDIO_URL } from "@instrument-org/shared";
 
@@ -113,6 +114,13 @@ async function initTelemetry() {
 let telemetryPromise: null | Promise<
   Awaited<ReturnType<typeof initTelemetry>>
 > = null;
+
+// Report a render/lifecycle error caught by an error boundary (a router route
+// boundary or the top-level shell boundary), tagged with the component stack.
+// Shared so shell crashes are reported identically to router-caught ones.
+export function captureComponentError(error: unknown, errorInfo: ErrorInfo) {
+  captureException(error, { componentStack: errorInfo.componentStack });
+}
 
 // Loudly report a caught exception: console for dev visibility, PostHog for
 // production. Use for failures that should never happen (e.g. foundational

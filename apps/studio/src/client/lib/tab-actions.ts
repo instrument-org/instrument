@@ -4,7 +4,7 @@ import {
   reopenClosed,
   type TabsModel,
 } from "@/client/lib/tabs-model";
-import { type Tab } from "@/shared/tabs";
+import { type Tab, type TabId, TabIdSchema } from "@/shared/tabs";
 
 /**
  * Impure model actions shared by the two dispatchers that mutate the tabs atom:
@@ -26,7 +26,7 @@ export function closeSelectedTab(model: TabsModel): TabsModel {
 
 export function closeTabById(
   model: TabsModel,
-  { id }: { id: string },
+  { id }: { id: TabId },
 ): TabsModel {
   return closeTab(model, {
     id,
@@ -34,8 +34,8 @@ export function closeTabById(
   });
 }
 
-export function freshTabId() {
-  return crypto.randomUUID();
+export function freshTabId(): TabId {
+  return TabIdSchema.parse(crypto.randomUUID());
 }
 
 export function openTab(

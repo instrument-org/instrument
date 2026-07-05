@@ -1,4 +1,4 @@
-import { type Tab, TabSchema } from "@/shared/tabs";
+import { type Tab, type TabId, TabIdSchema, TabSchema } from "@/shared/tabs";
 import { z } from "zod";
 
 /**
@@ -11,7 +11,7 @@ import { z } from "zod";
  */
 export const TabsModelSchema = z.object({
   recentlyClosed: z.array(TabSchema),
-  selectedId: z.string().nullable(),
+  selectedId: TabIdSchema.nullable(),
   tabs: z.array(TabSchema),
 });
 export type TabsModel = z.output<typeof TabsModelSchema>;
@@ -30,7 +30,7 @@ export function addTab(
   }: {
     history?: Tab["history"];
     iconName?: Tab["iconName"];
-    id: string;
+    id: TabId;
     pathname: string;
     select?: boolean;
     title?: string;
@@ -52,9 +52,9 @@ export function closeTab(
     id,
     newTab,
   }: {
-    id: string;
+    id: TabId;
     /** Used to seed a fresh tab when the last one is closed. */
-    newTab: { id: string; pathname: string };
+    newTab: { id: TabId; pathname: string };
   },
 ): TabsModel {
   const tab = model.tabs.find((t) => t.id === id);
@@ -95,7 +95,7 @@ export function emptyTabsModel(): TabsModel {
 
 export function reopenClosed(
   model: TabsModel,
-  { id }: { id: string },
+  { id }: { id: TabId },
 ): TabsModel {
   const [restored, ...rest] = model.recentlyClosed;
   if (!restored) {
@@ -115,7 +115,7 @@ export function reopenClosed(
 
 export function reorderTabs(
   model: TabsModel,
-  { ids }: { ids: string[] },
+  { ids }: { ids: TabId[] },
 ): TabsModel {
   const byId = new Map(model.tabs.map((tab) => [tab.id, tab]));
   const reordered = ids
@@ -145,7 +145,7 @@ export function selectByIndex(
   return tab ? { ...model, selectedId: tab.id } : model;
 }
 
-export function selectTab(model: TabsModel, { id }: { id: string }): TabsModel {
+export function selectTab(model: TabsModel, { id }: { id: TabId }): TabsModel {
   if (!model.tabs.some((tab) => tab.id === id)) {
     return model;
   }
@@ -167,7 +167,7 @@ export function setTabMeta(
     title,
   }: {
     iconName?: Tab["iconName"];
-    id: string;
+    id: TabId;
     taskId?: Tab["taskId"];
     title?: string;
   },
@@ -192,7 +192,7 @@ export function setTabPathname(
     history,
     id,
     pathname,
-  }: { history?: Tab["history"]; id: string; pathname: string },
+  }: { history?: Tab["history"]; id: TabId; pathname: string },
 ): TabsModel {
   return {
     ...model,

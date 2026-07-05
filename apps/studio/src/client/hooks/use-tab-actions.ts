@@ -1,6 +1,7 @@
 import { bumpPromptFocusAtom } from "@/client/atoms/prompt-value";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { type StudioPath } from "@/shared/studio-path";
+import { type TabId } from "@/shared/tabs";
 import {
   type ParsedLocation,
   type RegisteredRouter,
@@ -54,7 +55,7 @@ export function useTabActions() {
       });
       return Promise.resolve();
     },
-    closeTab: ({ id }: { id: string }) => {
+    closeTab: ({ id }: { id: TabId }) => {
       controller.closeTab({ id });
       return Promise.resolve();
     },
@@ -74,11 +75,11 @@ export function useTabActions() {
       }
       return router.navigate(opts as Parameters<typeof router.navigate>[0]);
     },
-    reorderTabs: ({ tabIds }: { tabIds: string[] }) => {
+    reorderTabs: ({ tabIds }: { tabIds: TabId[] }) => {
       controller.reorderTabs({ ids: tabIds });
       return Promise.resolve();
     },
-    selectTab: ({ id }: { id: string }) => {
+    selectTab: ({ id }: { id: TabId }) => {
       controller.selectTab({ id });
       return Promise.resolve();
     },

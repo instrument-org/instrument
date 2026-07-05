@@ -5,7 +5,7 @@ import {
   selectTab,
   type TabsModel,
 } from "@/client/lib/tabs-model";
-import { type Tab } from "@/shared/tabs";
+import { type Tab, type TabId } from "@/shared/tabs";
 import { useAtom } from "jotai";
 import { startTransition } from "react";
 
@@ -42,14 +42,14 @@ export function useTabsController() {
     }) => {
       update((m) => openTab(m, { iconName, pathname, select, title }));
     },
-    closeTab: ({ id }: { id: string }) => {
+    closeTab: ({ id }: { id: TabId }) => {
       update((m) => closeTabById(m, { id }));
     },
     model,
-    reorderTabs: ({ ids }: { ids: string[] }) => {
+    reorderTabs: ({ ids }: { ids: TabId[] }) => {
       update((m) => reorderTabs(m, { ids }));
     },
-    selectTab: ({ id }: { id: string }) => {
+    selectTab: ({ id }: { id: TabId }) => {
       update((m) => selectTab(m, { id }));
     },
   };

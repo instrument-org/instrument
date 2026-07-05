@@ -17,6 +17,9 @@ const NOT_AVAILABLE_BADGE_TIMEOUT_MS = 5000;
 const ICON_CLASS_NAME = "size-3.5";
 const PROGRESS_ICON_CLASS_NAME = "size-3";
 
+const MUTED_TRIGGER_CLASS_NAME =
+  "border-black/5 bg-background text-muted-foreground hover:bg-muted dark:border-white/10";
+
 type UpdateStatusBadgeState =
   | {
       message?: string;
@@ -40,48 +43,101 @@ type UpdateStatusBadgeState =
       type: "not-available";
     };
 
+// Single source of truth for each rendered badge: its trigger styling, label,
+// and whether it's manual-only (a silent background poll of these stays in
+// Settings, no toolbar pill, unless the user ran the check). Keyed by the badge
+// union so adding a state is one entry and the compiler enforces completeness.
+const BADGE_META = {
+  checking: {
+    className: MUTED_TRIGGER_CLASS_NAME,
+    label: "Checking",
+    manualOnly: true,
+  },
+  downloaded: {
+    className:
+      "border-transparent bg-brand-600 text-brand-foreground hover:bg-brand-700",
+    label: "Update",
+    manualOnly: false,
+  },
+  downloading: {
+    className: MUTED_TRIGGER_CLASS_NAME,
+    label: "Updating",
+    manualOnly: false,
+  },
+  error: {
+    className:
+      "border-destructive/25 bg-background text-destructive hover:bg-destructive/10 dark:border-destructive/35 dark:hover:bg-destructive/20",
+    label: "Update issue",
+    manualOnly: true,
+  },
+  installing: {
+    className: MUTED_TRIGGER_CLASS_NAME,
+    label: "Installing",
+    manualOnly: false,
+  },
+  "not-available": {
+    className:
+      "border-black/5 bg-background text-muted-foreground dark:border-white/10",
+    label: "Up to date",
+    manualOnly: true,
+  },
+} satisfies Record<
+  UpdateStatusBadgeState["type"],
+  { className: string; label: string; manualOnly: boolean }
+>;
+
 export function UpdateStatusIndicator() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
-  const [hiddenNotAvailableStatus, setHiddenNotAvailableStatus] =
-    useState<unknown>(null);
+  // A manual "up to date" result auto-hides after a beat so it's transient
+  // feedback, not persistent chrome.
+  const [dismissedNotAvailable, setDismissedNotAvailable] = useState(false);
 
-  const updateInfo =
-    updateState && "updateInfo" in updateState ? updateState.updateInfo : null;
-  const updateVersion = updateInfo?.version;
-  const errorMessage =
-    updateState?.type === "error" ? updateState.message : undefined;
   const isManualNotAvailable =
     updateState?.type === "not-available" && updateState.notifyUser;
-  const hideNotAvailable = hiddenNotAvailableStatus === updateState;
+
+  // Re-arm the dismissal on every transition into/out of the manual state during
+  // render (the pattern React allows over a cascading effect), so each new manual
+  // check shows the pill again before the timer below hides it.
+  const [trackedManualNotAvailable, setTrackedManualNotAvailable] =
+    useState(isManualNotAvailable);
+  if (trackedManualNotAvailable !== isManualNotAvailable) {
+    setTrackedManualNotAvailable(isManualNotAvailable);
+    setDismissedNotAvailable(false);
+  }
 
   useEffect(() => {
     if (!isManualNotAvailable) {
       return;
     }
-
     const timeout = setTimeout(() => {
-      setHiddenNotAvailableStatus(updateState);
+      setDismissedNotAvailable(true);
     }, NOT_AVAILABLE_BADGE_TIMEOUT_MS);
-
     return () => {
       clearTimeout(timeout);
     };
-  }, [isManualNotAvailable, updateState]);
+  }, [isManualNotAvailable]);
 
-  if (!updateState || !isHeaderStatus(updateState.type)) {
-    return null;
-  }
-
-  // Silent background polls stay in Settings only; don't put a pill in the
-  // toolbar for checks the user didn't run.
-  const isSilentBackgroundStatus =
-    !updateState.notifyUser && isManualOnlyHeaderStatus(updateState.type);
+  const badgeState = updateState
+    ? getBadgeState({
+        errorMessage:
+          updateState.type === "error" ? updateState.message : undefined,
+        progress:
+          updateState.type === "downloading"
+            ? Math.round(updateState.progress.percent)
+            : undefined,
+        status: updateState.type,
+        version:
+          "updateInfo" in updateState
+            ? updateState.updateInfo?.version
+            : undefined,
+      })
+    : null;
 
   const handleClick = () => {
     void (async () => {
-      if (updateState.type === "downloaded") {
+      if (updateState?.type === "downloaded") {
         const [error] = await safe(rpcClient.preferences.quitAndInstall.call());
         if (!error) {
           return;
@@ -94,39 +150,30 @@ export function UpdateStatusIndicator() {
     })();
   };
 
-  const badgeState = getBadgeState({
-    errorMessage,
-    progress:
-      updateState.type === "downloading"
-        ? Math.round(updateState.progress.percent)
-        : undefined,
-    status: updateState.type,
-    version: updateVersion,
-  });
-
-  if (!badgeState) {
-    return null;
-  }
-
-  const showBadge =
-    !isSilentBackgroundStatus && !(hideNotAvailable && isManualNotAvailable);
-
-  if (!showBadge) {
-    return <AnimatePresence initial={false} mode="wait" />;
-  }
+  // Hidden when: no badge for this status; a silent background poll of a
+  // manual-only status; or the auto-dismissed manual "up to date" pill.
+  const visibleBadge =
+    updateState &&
+    badgeState &&
+    !(BADGE_META[badgeState.type].manualOnly && !updateState.notifyUser) &&
+    !(dismissedNotAvailable && isManualNotAvailable)
+      ? badgeState
+      : null;
 
   return (
     <AnimatePresence initial={false} mode="wait">
-      <motion.div
-        animate={{ opacity: 1, x: 0 }}
-        className="inline-flex h-5 items-center"
-        exit={{ opacity: 0, x: 6 }}
-        initial={{ opacity: 0, x: 10 }}
-        key={badgeState.type}
-        transition={{ duration: 0.28, ease: "easeOut" }}
-      >
-        <UpdateStatusBadge onClick={handleClick} state={badgeState} />
-      </motion.div>
+      {visibleBadge && (
+        <motion.div
+          animate={{ opacity: 1, x: 0 }}
+          className="inline-flex h-5 items-center"
+          exit={{ opacity: 0, x: 6 }}
+          initial={{ opacity: 0, x: 10 }}
+          key={visibleBadge.type}
+          transition={{ duration: 0.28, ease: "easeOut" }}
+        >
+          <UpdateStatusBadge onClick={handleClick} state={visibleBadge} />
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }
@@ -171,6 +218,34 @@ function CircularProgressIcon({
   );
 }
 
+function getAriaLabel(state: UpdateStatusBadgeState) {
+  switch (state.type) {
+    case "checking": {
+      return "Checking for updates";
+    }
+    case "downloaded": {
+      return state.version ? `Update ${state.version} ready` : "Update ready";
+    }
+    case "downloading": {
+      return "Downloading update";
+    }
+    case "error": {
+      return state.message
+        ? `Update failed: ${state.message}`
+        : "Update failed";
+    }
+    case "installing": {
+      return "Installing update";
+    }
+    case "not-available": {
+      return "No updates available";
+    }
+  }
+}
+
+// The one place raw updater status strings become a typed badge; everything
+// downstream keys off {@link BADGE_META} via the returned union. Returns null
+// for statuses that get no toolbar pill (available, canceled, inactive).
 function getBadgeState({
   errorMessage,
   progress,
@@ -222,96 +297,6 @@ function getBadgeState({
   }
 }
 
-function getStatusCopy(state: UpdateStatusBadgeState) {
-  switch (state.type) {
-    case "checking": {
-      return {
-        ariaLabel: "Checking for updates",
-        label: "Checking",
-      };
-    }
-    case "downloaded": {
-      return {
-        ariaLabel: state.version
-          ? `Update ${state.version} ready`
-          : "Update ready",
-        label: "Update",
-      };
-    }
-    case "downloading": {
-      return {
-        ariaLabel: "Downloading update",
-        label: "Updating",
-      };
-    }
-    case "error": {
-      return {
-        ariaLabel: state.message
-          ? `Update failed: ${state.message}`
-          : "Update failed",
-        label: "Update issue",
-      };
-    }
-    case "installing": {
-      return {
-        ariaLabel: "Installing update",
-        label: "Installing",
-      };
-    }
-    case "not-available": {
-      return {
-        ariaLabel: "No updates available",
-        label: "Up to date",
-      };
-    }
-    default: {
-      return {
-        ariaLabel: "Update status",
-        label: "Update",
-      };
-    }
-  }
-}
-
-function getTriggerClassName(status: string) {
-  switch (status) {
-    case "checking":
-    case "downloading":
-    case "installing": {
-      return "border-black/5 bg-background text-muted-foreground hover:bg-muted dark:border-white/10";
-    }
-    case "downloaded": {
-      return "border-transparent bg-brand-600 text-brand-foreground hover:bg-brand-700";
-    }
-    case "error": {
-      return "border-destructive/25 bg-background text-destructive hover:bg-destructive/10 dark:border-destructive/35 dark:hover:bg-destructive/20";
-    }
-    case "not-available": {
-      return "border-black/5 bg-background text-muted-foreground dark:border-white/10";
-    }
-    default: {
-      return "border-foreground bg-foreground text-background hover:bg-foreground/90";
-    }
-  }
-}
-
-function isHeaderStatus(status: string) {
-  return (
-    status === "checking" ||
-    status === "downloaded" ||
-    status === "downloading" ||
-    status === "error" ||
-    status === "installing" ||
-    status === "not-available"
-  );
-}
-
-function isManualOnlyHeaderStatus(status: string) {
-  return (
-    status === "checking" || status === "error" || status === "not-available"
-  );
-}
-
 function renderTriggerIcon(state: UpdateStatusBadgeState) {
   if (state.type === "checking") {
     return <Spinner className="size-3" />;
@@ -348,14 +333,12 @@ function UpdateStatusBadge({
   onClick: () => void;
   state: UpdateStatusBadgeState;
 }) {
-  const statusCopy = getStatusCopy(state);
-
   return (
     <button
-      aria-label={statusCopy.ariaLabel}
+      aria-label={getAriaLabel(state)}
       className={cn(
         "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border px-1.5 text-xs leading-none font-semibold whitespace-nowrap shadow-xs transition-colors [-webkit-app-region:no-drag]",
-        getTriggerClassName(state.type),
+        BADGE_META[state.type].className,
       )}
       onClick={onClick}
       type="button"
@@ -363,7 +346,7 @@ function UpdateStatusBadge({
       <span className="flex size-3.5 shrink-0 items-center justify-center">
         {renderTriggerIcon(state)}
       </span>
-      <span>{statusCopy.label}</span>
+      <span>{BADGE_META[state.type].label}</span>
     </button>
   );
 }

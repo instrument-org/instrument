@@ -52,6 +52,14 @@ type TaskBrowserEvent =
   | { type: "acquirePresence" }
   | { type: "attachAgentSession"; value: { sessionId: StoreId.Session } }
   | { type: "forceReap" }
+  | {
+      type: "registerTarget";
+      value: {
+        partitionDir: AbsolutePath;
+        sessionId: StoreId.Session;
+        targetId: BrowserTargetId;
+      };
+    }
   | { type: "releasePresence" }
   | {
       type: "targetDestroyedExternally";
@@ -205,6 +213,16 @@ export const taskBrowserMachine = setup({
       },
     },
     forceReap: { target: ".Stopping" },
+    // A user opened the browser from the UI (no agent CDP traffic yet). Record
+    // the target so reap closes it and spawn its destruction watcher, without
+    // changing state: liveness is driven by the presence lease the open panel
+    // holds, not by this event.
+    registerTarget: {
+      actions: {
+        params: ({ event }) => event.value,
+        type: "setTargetMeta",
+      },
+    },
     targetDestroyedExternally: {
       actions: {
         params: ({ event }) => ({ targetId: event.value.targetId }),
@@ -232,10 +250,12 @@ export const taskBrowserMachine = setup({
         },
       },
     },
+    // The user is present on this tab (presence is foreground-tab scoped, so at
+    // most one browser is Observed at a time). While present, the browser stays
+    // alive regardless of agent idleness -- reaping only happens once the user
+    // leaves (GracePeriod) or when nobody is watching (Unobserved idle timer).
+    // Whoever is attending the browser, user or agent, keeps it warm.
     Observed: {
-      after: {
-        AGENT_IDLE_TIMEOUT_MS: { target: "Stopping" },
-      },
       on: {
         acquirePresence: { actions: "acquirePresence" },
         releasePresence: [
@@ -246,13 +266,13 @@ export const taskBrowserMachine = setup({
           },
           { actions: "releasePresence" },
         ],
+        // No state change: the browser is already kept alive by presence, so a
+        // heartbeat only needs to record target meta (and spawn its watcher).
         updateCdpHeartbeat: {
           actions: {
             params: ({ event }) => event.value,
             type: "setTargetMeta",
           },
-          reenter: true,
-          target: "Observed",
         },
       },
     },

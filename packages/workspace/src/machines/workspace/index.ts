@@ -110,6 +110,15 @@ export type WorkspaceEvent =
       value: { id: TaskId; onBrowserReaped?: () => void };
     }
   | {
+      type: "registerBrowserTarget";
+      value: {
+        id: TaskId;
+        partitionDir: AbsolutePath;
+        sessionId: StoreId.Session;
+        targetId: BrowserTargetId;
+      };
+    }
+  | {
       type: "releaseBrowserPresence";
       value: { id: TaskId };
     }
@@ -201,6 +210,45 @@ export const workspaceMachine = setup({
         ref?.send({
           type: "attachAgentSession",
           value: { sessionId },
+        });
+      },
+    ),
+
+    forwardRegisterBrowserTarget: enqueueActions(
+      (
+        { enqueue },
+        {
+          id,
+          partitionDir,
+          sessionId,
+          targetId,
+        }: {
+          id: TaskId;
+          partitionDir: AbsolutePath;
+          sessionId: StoreId.Session;
+          targetId: BrowserTargetId;
+        },
+      ) => {
+        enqueue.assign(({ context, spawn }) => {
+          const existing = context.taskBrowserRefs.get(id);
+          const ref =
+            existing ??
+            spawn("taskBrowserMachine", {
+              input: {
+                browser: context.config.browser,
+                id,
+              },
+            });
+          ref.send({
+            type: "registerTarget",
+            value: { partitionDir, sessionId, targetId },
+          });
+          if (existing) {
+            return {};
+          }
+          return {
+            taskBrowserRefs: new Map(context.taskBrowserRefs).set(id, ref),
+          };
         });
       },
     ),
@@ -608,6 +656,12 @@ export const workspaceMachine = setup({
           value: { id: event.value.id },
         });
       }),
+    },
+    registerBrowserTarget: {
+      actions: {
+        params: ({ event }) => event.value,
+        type: "forwardRegisterBrowserTarget",
+      },
     },
     releaseBrowserPresence: {
       actions: {

@@ -1,12 +1,27 @@
 import { Button } from "@/client/components/ui/button";
-import { Input } from "@/client/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/client/components/ui/input-group";
+import { Spinner } from "@/client/components/ui/spinner";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import {
   getWebviewElement,
   setPaintHost,
   showOverSlot,
-} from "@/client/lib/agent-browser-pool";
+} from "@/client/lib/browser-pool";
+import { rpcClient } from "@/client/rpc/client";
 import {
+  type BrowserTargetId,
   encodeBrowserTargetId,
   type StoreId,
   type TaskId,
@@ -15,17 +30,34 @@ import {
   ArrowClockwiseIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  ArrowSquareOutIcon,
+  CopyIcon,
+  DotsThreeVerticalIcon,
+  MinusIcon,
+  PlusIcon,
+  WarningCircleIcon,
   XIcon,
 } from "@phosphor-icons/react";
+import { useMutation } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+// Shape of the `<webview>` `did-fail-load` DOM event (Electron adds these
+// fields; the DOM lib types it as a plain Event).
+interface DidFailLoadEvent extends Event {
+  errorCode: number;
+  errorDescription: string;
+  isMainFrame: boolean;
+  validatedURL: string;
+}
+
 /**
- * The agent browser, hosted in the task page's artifact panel. The guest
- * `<webview>` lives in the body-mounted pool; this just measures a slot and
- * tells the pool to show the guest over it while the panel is visible, plus
- * lightweight navigation controls so the user can take over (drive the same
- * guest the agent uses). The guest only exists once the agent has opened a
- * browser for the session (`active`); otherwise we show a placeholder.
+ * The task's in-app browser, hosted in the artifact panel. The guest `<webview>`
+ * lives in the body-mounted pool; this measures a slot and tells the pool to
+ * show the guest over it while the panel is visible, plus navigation controls
+ * and an overflow menu (zoom, open externally, copy URL). Either the user (via
+ * `browser.open`, fired on mount) or the agent's `agent-browser` command can
+ * create the guest; both drive the same target. While the guest is being
+ * created or after it's reaped, `active` is false and we show a status body.
  */
 export function TaskBrowserPanel({
   active,
@@ -40,15 +72,44 @@ export function TaskBrowserPanel({
 }) {
   const targetId = encodeBrowserTargetId(taskId, sessionId);
   const slotRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
   const [nav, setNav] = useState({ back: false, forward: false });
+  const [zoomLevel, setZoomLevel] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Set when a main-frame navigation fails (bad host, no network, ...). The
+  // guest is parked and we show a light error state over the slot instead of its
+  // blank error page. Cleared when a new load starts or succeeds.
+  const [loadError, setLoadError] = useState<null | {
+    message: string;
+    url: string;
+  }>(null);
   // While the user is editing the URL, agent-driven navigations must not
   // overwrite what they're typing.
   const editingUrlRef = useRef(false);
   // Identity for this panel's claim on the guest's visibility, so the pool can
   // reject a park from a different panel showing the same target (see pool).
   const [slotOwner] = useState(() => Symbol("browser-panel-slot"));
+
+  const openExternalLink = useMutation(
+    rpcClient.utils.openExternalLink.mutationOptions(),
+  );
+  const { mutate: openBrowser, status: openStatus } = useMutation(
+    rpcClient.workspace.browser.open.mutationOptions(),
+  );
+
+  // Targets this panel has already auto-opened, so a reap (active -> false)
+  // doesn't re-create the guest in a loop and defeat the reaper. After a reap
+  // the user re-opens explicitly via the "Reopen browser" button.
+  const autoOpenedRef = useRef<Set<BrowserTargetId>>(new Set());
+  useEffect(() => {
+    if (active || autoOpenedRef.current.has(targetId)) {
+      return;
+    }
+    autoOpenedRef.current.add(targetId);
+    openBrowser({ id: taskId, sessionId });
+  }, [active, openBrowser, sessionId, targetId, taskId]);
 
   // Show the guest over the slot only while this is the foreground tab; park it
   // in paint-host otherwise. Every tab stays mounted (hidden via CSS), so the
@@ -60,7 +121,9 @@ export function TaskBrowserPanel({
       return;
     }
 
-    if (!isActiveTab) {
+    // On a load error, park the guest so its blank error page doesn't cover our
+    // own error state rendered in the slot.
+    if (!isActiveTab || loadError) {
       setPaintHost(targetId, slotOwner);
       return;
     }
@@ -111,10 +174,11 @@ export function TaskBrowserPanel({
       window.removeEventListener("resize", measure);
       setPaintHost(targetId, slotOwner);
     };
-  }, [active, isActiveTab, slotOwner, targetId]);
+  }, [active, isActiveTab, loadError, slotOwner, targetId]);
 
   // Mirror the guest's URL + nav availability into the controls (it navigates
-  // from agent CDP commands too, not just user input).
+  // from agent CDP commands too, not just user input), and track main-frame
+  // load failures so we can show a light error state.
   useEffect(() => {
     if (!active) {
       return;
@@ -128,29 +192,127 @@ export function TaskBrowserPanel({
       // the did-navigate events that also drive this only fire once it has.
       try {
         if (!editingUrlRef.current) {
-          setDraftUrl(webview.getURL());
+          const url = webview.getURL();
+          setDraftUrl(url === "about:blank" ? "" : url);
         }
         setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
       } catch {
         // Not attached yet; a did-navigate will re-run sync once it is.
       }
     };
+    const onNavigate = () => {
+      setLoadError(null);
+      sync();
+    };
+    const onStartLoading = () => {
+      setLoadError(null);
+    };
+    const onFailLoad = (event: Event) => {
+      const detail = event as DidFailLoadEvent;
+      // Ignore sub-frame failures and user-aborted navigations (ERR_ABORTED),
+      // which fire routinely when a new navigation supersedes an in-flight one.
+      if (!detail.isMainFrame || detail.errorCode === -3) {
+        return;
+      }
+      setLoadError({
+        message: detail.errorDescription || "This site can’t be reached",
+        url: detail.validatedURL,
+      });
+      if (!editingUrlRef.current && detail.validatedURL) {
+        setDraftUrl(detail.validatedURL);
+      }
+    };
     sync();
-    webview.addEventListener("did-navigate", sync);
-    webview.addEventListener("did-navigate-in-page", sync);
+    webview.addEventListener("did-navigate", onNavigate);
+    webview.addEventListener("did-navigate-in-page", onNavigate);
+    webview.addEventListener("did-start-loading", onStartLoading);
+    webview.addEventListener("did-fail-load", onFailLoad);
     return () => {
-      webview.removeEventListener("did-navigate", sync);
-      webview.removeEventListener("did-navigate-in-page", sync);
+      webview.removeEventListener("did-navigate", onNavigate);
+      webview.removeEventListener("did-navigate-in-page", onNavigate);
+      webview.removeEventListener("did-start-loading", onStartLoading);
+      webview.removeEventListener("did-fail-load", onFailLoad);
     };
   }, [active, targetId]);
 
+  // Focus the URL bar on a blank page ONLY when this panel opened the browser
+  // (autoOpenedRef), i.e. a user-initiated open, so they can type immediately.
+  // For an agent-initiated open we must not steal focus: a focused bar reads as
+  // "user editing" and would block the agent's navigation from syncing into it.
+  useEffect(() => {
+    if (!active || !autoOpenedRef.current.has(targetId)) {
+      return;
+    }
+    try {
+      const url = getWebviewElement(targetId)?.getURL();
+      if (!url || url === "about:blank") {
+        inputRef.current?.focus();
+      }
+    } catch {
+      // Not attached yet; nothing to focus into.
+    }
+  }, [active, targetId]);
+
+  // Close the overflow menu when the host window loses focus. Clicking into the
+  // guest `<webview>` (a separate WebContents) blurs the host window but never
+  // dispatches a pointer/focus event Radix can see, so its own outside-dismiss
+  // never fires and the menu would otherwise stay stuck open over the page.
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const close = () => {
+      setMenuOpen(false);
+    };
+    window.addEventListener("blur", close);
+    return () => {
+      window.removeEventListener("blur", close);
+    };
+  }, [menuOpen]);
+
   const webviewFor = () => getWebviewElement(targetId);
+
+  // loadURL rejects on a failed navigation (bad host, offline, ...); the
+  // did-fail-load listener already surfaces the error, so swallow the rejection
+  // to avoid an unhandled promise error.
+  const navigateTo = (url: string) => {
+    void webviewFor()
+      ?.loadURL(url)
+      .catch(() => {
+        // Surfaced by the did-fail-load listener; nothing to do here.
+      });
+  };
+
+  const applyZoom = (level: number) => {
+    const webview = webviewFor();
+    if (!webview) {
+      return;
+    }
+    webview.setZoomLevel(level);
+    setZoomLevel(level);
+  };
+
+  const currentUrl = () => {
+    try {
+      // getURL throws until the guest's WebContents is dom-ready; `active` can
+      // lead that (it round-trips through main), so treat a throw as "no page".
+      const url = webviewFor()?.getURL();
+      return url && url !== "about:blank" ? url : undefined;
+    } catch {
+      return;
+    }
+  };
+
+  // A real page is loaded (not about:blank). Zoom, copy, and open-external all
+  // act on the current page, so they're only meaningful once one exists; zoom in
+  // particular is per-page and doesn't carry to the next navigation.
+  const pageUrl = active ? currentUrl() : undefined;
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
       <div className="flex items-center gap-1 border-b p-1.5">
         <Button
-          disabled={!nav.back}
+          disabled={!active || !nav.back}
           onClick={() => webviewFor()?.goBack()}
           size="icon-sm"
           variant="ghost"
@@ -158,7 +320,7 @@ export function TaskBrowserPanel({
           <ArrowLeftIcon className="size-4" />
         </Button>
         <Button
-          disabled={!nav.forward}
+          disabled={!active || !nav.forward}
           onClick={() => webviewFor()?.goForward()}
           size="icon-sm"
           variant="ghost"
@@ -166,6 +328,7 @@ export function TaskBrowserPanel({
           <ArrowRightIcon className="size-4" />
         </Button>
         <Button
+          disabled={!active}
           onClick={() => webviewFor()?.reload()}
           size="icon-sm"
           variant="ghost"
@@ -178,35 +341,195 @@ export function TaskBrowserPanel({
             event.preventDefault();
             const target = normalizeUrl(draftUrl);
             if (target) {
-              void webviewFor()?.loadURL(target);
+              navigateTo(target);
+              // Blur so the "editing" guard releases and the resolved final URL
+              // (after normalization/redirects) syncs back into the bar once the
+              // navigation commits, instead of leaving what the user typed.
+              inputRef.current?.blur();
             }
           }}
         >
-          <Input
-            className="h-7 text-ellipsis"
-            onBlur={() => {
-              editingUrlRef.current = false;
-            }}
-            onChange={(event) => {
-              setDraftUrl(event.target.value);
-            }}
-            onFocus={() => {
-              editingUrlRef.current = true;
-            }}
-            placeholder="Enter a URL"
-            spellCheck={false}
-            value={draftUrl}
-          />
+          <InputGroup className="h-8 rounded-lg border border-input from-transparent to-transparent shadow-none dark:bg-transparent">
+            <InputGroupInput
+              className="h-full text-ellipsis dark:border-0"
+              disabled={!active}
+              onBlur={() => {
+                editingUrlRef.current = false;
+              }}
+              onChange={(event) => {
+                setDraftUrl(event.target.value);
+              }}
+              onFocus={() => {
+                editingUrlRef.current = true;
+              }}
+              placeholder="Enter a URL"
+              ref={inputRef}
+              spellCheck={false}
+              value={draftUrl}
+            />
+            <InputGroupAddon
+              align="inline-end"
+              className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
+            >
+              <InputGroupButton
+                aria-label="Open in external browser"
+                disabled={!pageUrl}
+                onClick={() => {
+                  if (pageUrl) {
+                    openExternalLink.mutate({ url: pageUrl });
+                  }
+                }}
+                size="icon-xs"
+                title="Open in external browser"
+              >
+                <ArrowSquareOutIcon />
+              </InputGroupButton>
+            </InputGroupAddon>
+          </InputGroup>
         </form>
+        <DropdownMenu
+          // Non-modal so clicking into the guest `<webview>` (a separate
+          // WebContents) isn't blocked by the modal body `pointer-events: none`;
+          // combined with the window-blur close above, that dismisses the menu.
+          modal={false}
+          onOpenChange={(open) => {
+            // No live page -> nothing to act on; refuse to open even if the
+            // disabled trigger is bypassed.
+            if (open && !pageUrl) {
+              return;
+            }
+            if (open) {
+              const webview = webviewFor();
+              if (webview) {
+                try {
+                  setZoomLevel(webview.getZoomLevel());
+                } catch {
+                  // Not dom-ready yet; keep the last known level.
+                }
+              }
+            }
+            setMenuOpen(open);
+          }}
+          open={menuOpen}
+        >
+          <DropdownMenuTrigger asChild>
+            <Button disabled={!pageUrl} size="icon-sm" variant="ghost">
+              <DotsThreeVerticalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <span className="text-sm">Zoom</span>
+              <div className="flex h-7 items-stretch overflow-hidden rounded-md border">
+                <button
+                  aria-label="Zoom out"
+                  className="flex w-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  onClick={() => {
+                    applyZoom(zoomLevel - 0.5);
+                  }}
+                  type="button"
+                >
+                  <MinusIcon className="size-4" />
+                </button>
+                <button
+                  className="min-w-12 border-x text-xs tabular-nums transition-colors hover:bg-accent"
+                  onClick={() => {
+                    applyZoom(0);
+                  }}
+                  title="Reset to 100%"
+                  type="button"
+                >
+                  {Math.round(1.2 ** zoomLevel * 100)}%
+                </button>
+                <button
+                  aria-label="Zoom in"
+                  className="flex w-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  onClick={() => {
+                    applyZoom(zoomLevel + 0.5);
+                  }}
+                  type="button"
+                >
+                  <PlusIcon className="size-4" />
+                </button>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
+                const url = currentUrl();
+                if (url) {
+                  void navigator.clipboard.writeText(url);
+                }
+              }}
+            >
+              <CopyIcon className="size-4" />
+              Copy URL
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button onClick={onClose} size="icon-sm" variant="ghost">
           <XIcon className="size-4" />
         </Button>
       </div>
       {active ? (
-        <div className="relative flex-1" ref={slotRef} />
+        <div className="relative flex-1" ref={slotRef}>
+          {loadError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
+              <WarningCircleIcon className="size-8 text-muted-foreground" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  This site can’t be reached
+                </p>
+                <p className="max-w-xs truncate text-xs text-muted-foreground">
+                  {loadError.url}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {loadError.message}
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  navigateTo(loadError.url);
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Try again
+              </Button>
+            </div>
+          )}
+        </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          The agent hasn’t opened a browser in this session yet.
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+          {openStatus === "error" ? (
+            <>
+              <span>Couldn’t open the browser.</span>
+              <Button
+                onClick={() => {
+                  openBrowser({ id: taskId, sessionId });
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Try again
+              </Button>
+            </>
+          ) : openStatus === "success" ? (
+            <Button
+              onClick={() => {
+                openBrowser({ id: taskId, sessionId });
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Reopen browser
+            </Button>
+          ) : (
+            <>
+              <Spinner className="size-5" />
+              <span>Opening browser…</span>
+            </>
+          )}
         </div>
       )}
     </div>

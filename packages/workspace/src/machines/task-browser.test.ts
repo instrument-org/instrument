@@ -145,7 +145,7 @@ describe("taskBrowserMachine", () => {
     expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
   });
 
-  it("reaps after agent inactivity even while presence is acquired", async () => {
+  it("stays alive while presence is held even after the agent goes idle", async () => {
     const { actor, browser } = spawnHarness();
 
     actor.send({
@@ -154,27 +154,9 @@ describe("taskBrowserMachine", () => {
     });
     actor.send({ type: "acquirePresence" });
 
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS);
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
-  });
-
-  it("browser activity resets the idle timer while presence is acquired", async () => {
-    const { actor, browser } = spawnHarness();
-
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "acquirePresence" });
-
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS / 2);
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS / 2);
+    // The user is present (watching), so agent idleness alone must not reap the
+    // browser -- reaping waits until they leave (grace period) or nobody watches.
+    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS * 2);
 
     expect(actor.getSnapshot().value).toBe("Observed");
     expect(browser.closeTarget).not.toHaveBeenCalled();
@@ -249,6 +231,63 @@ describe("taskBrowserMachine", () => {
 
     actor.send({
       type: "updateCdpHeartbeat",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+    actor.send({
+      type: "targetDestroyedExternally",
+      value: { targetId: TARGET_A },
+    });
+
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(browser.closeTarget).not.toHaveBeenCalled();
+    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("registerTarget records a user-opened target so reap closes it", async () => {
+    const { actor, browser } = spawnHarness();
+
+    actor.send({
+      type: "registerTarget",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+    actor.send({ type: "forceReap" });
+
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(browser.closeTarget).toHaveBeenCalledTimes(1);
+    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
+    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledWith([
+      SESSION_A,
+    ]);
+  });
+
+  it("registerTarget does not reset the agent idle timer", async () => {
+    const { actor, browser } = spawnHarness();
+
+    actor.send({
+      type: "updateCdpHeartbeat",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+
+    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS / 2);
+    // A user re-opening the panel is not agent activity; it must not extend the
+    // idle window.
+    actor.send({
+      type: "registerTarget",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS / 2);
+
+    await waitFor(actor, (s) => s.status === "done");
+    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
+  });
+
+  it("targetDestroyedExternally after registerTarget skips closeTarget", async () => {
+    const { actor, browser } = spawnHarness();
+
+    actor.send({
+      type: "registerTarget",
       value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
     });
     actor.send({

@@ -67,6 +67,7 @@ const create = base
       const modelResult = await fetchModel({
         captureException: context.workspaceConfig.captureException,
         configs: context.workspaceConfig.getAIProviderConfigs(),
+        modelCache: context.workspaceConfig.modelCache,
         modelURI,
       });
 

@@ -5,14 +5,17 @@ import { AIGatewayModelURI } from "../schemas/model-uri";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { TypedError } from "./errors";
 import { fetchModelsForProvider } from "./fetch-models";
+import { type ModelCache } from "./model-cache";
 
 export async function fetchModel({
   captureException,
   configs,
+  modelCache,
   modelURI,
 }: {
   captureException: CaptureExceptionFunction;
   configs: AIGatewayProviderConfig.Type[];
+  modelCache: ModelCache;
   modelURI: AIGatewayModelURI.Type;
 }) {
   return Result.gen(async function* () {
@@ -37,6 +40,7 @@ export async function fetchModel({
 
     const models = yield* await fetchModelsForProvider(config, {
       captureException,
+      modelCache,
     });
 
     const model = models.find((m) => m.uri === modelURI);

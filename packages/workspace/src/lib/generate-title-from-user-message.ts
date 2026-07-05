@@ -37,6 +37,7 @@ export function generateTitleFromUserMessage({
       const aiSDKModelResult = await fetchAISDKModel({
         captureException: workspaceConfig.captureException,
         configs: workspaceConfig.getAIProviderConfigs(),
+        modelCache: workspaceConfig.modelCache,
         modelURI: model.uri,
         workspaceServerURL: getWorkspaceServerURL(),
       });

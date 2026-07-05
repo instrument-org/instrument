@@ -12,6 +12,13 @@ const inFlightRequests = new Map<
 
 const ERROR_CACHE_TTL = ms("5 seconds");
 
+// Bound every request so a provider that accepts the connection but never
+// responds (slow/hanging endpoint) fails fast instead of blocking startup on
+// undici's ~5-minute default header timeout. Callers (model-list fetches) then
+// fall back to their disk cache. All fetchJson callers are small metadata GETs,
+// so a generous timeout won't clip a legitimately-working provider.
+const REQUEST_TIMEOUT = ms("15 seconds");
+
 export function fetchJson({
   cache = true,
   headers,
@@ -43,7 +50,11 @@ export function fetchJson({
   const requestPromise = Result.fromAsync(
     Result.fromAsyncCatching(
       async () => {
-        const response = await fetch(url, { headers, method: "GET" });
+        const response = await fetch(url, {
+          headers,
+          method: "GET",
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+        });
 
         if (!response.ok) {
           throw new TypedError.Fetch(

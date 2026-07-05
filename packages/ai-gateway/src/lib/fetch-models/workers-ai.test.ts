@@ -137,6 +137,7 @@ describe("fetchAndParseWorkersAiModels", () => {
     expect(fetch).toHaveBeenCalledWith(modelsSearchURL, {
       headers: expect.any(Headers),
       method: "GET",
+      signal: expect.any(AbortSignal),
     });
     expect(result.value.map((m) => m.providerId)).toEqual([
       "@cf/moonshotai/kimi-k2.6",
@@ -315,6 +316,7 @@ describe("verifyWorkersAiApiKey", () => {
       {
         headers: expect.any(Headers),
         method: "GET",
+        signal: expect.any(AbortSignal),
       },
     );
 

@@ -1,4 +1,4 @@
-import { aiGatewayApp } from "@instrument-org/ai-gateway";
+import { aiGatewayApp, noopModelCache } from "@instrument-org/ai-gateway";
 import { noop } from "radashi";
 import { describe, expect, it } from "vitest";
 import { type AnyActorLogic, createActor, fromCallback } from "xstate";
@@ -37,6 +37,7 @@ function createWorkspaceActor() {
       captureException: noop,
       defaultTaskTemplateDir: MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
       getAIProviderConfigs: () => [],
+      modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: "/tmp/pnpm",
       registryDir: MOCK_WORKSPACE_DIRS.registry,

@@ -1,3 +1,4 @@
+import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -13,13 +14,11 @@ import {
   InputGroupInput,
 } from "@/client/components/ui/input-group";
 import { Spinner } from "@/client/components/ui/spinner";
+import { ZoomStepperControl } from "@/client/components/zoom-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { setBrowserFindOpener } from "@/client/lib/browser-find-registry";
-import {
-  getWebviewElement,
-  setPaintHost,
-  showOverSlot,
-} from "@/client/lib/browser-pool";
+import { useBrowserFind } from "@/client/hooks/use-browser-find";
+import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
+import { getWebviewElement } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type BrowserTargetId,
@@ -33,18 +32,14 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowSquareOutIcon,
-  CaretDownIcon,
-  CaretUpIcon,
   CopyIcon,
   DotsThreeVerticalIcon,
   MagnifyingGlassIcon,
-  MinusIcon,
-  PlusIcon,
   WarningCircleIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Shape of the `<webview>` `did-fail-load` DOM event (Electron adds these
 // fields; the DOM lib types it as a plain Event).
@@ -55,20 +50,15 @@ interface DidFailLoadEvent extends Event {
   validatedURL: string;
 }
 
-// Shape of the `<webview>` `found-in-page` DOM event (Electron adds `result`;
-// the DOM lib types it as a plain Event).
-interface FoundInPageEvent extends Event {
-  result: { activeMatchOrdinal: number; matches: number };
-}
-
 /**
  * The task's in-app browser, hosted in the artifact panel. The guest `<webview>`
- * lives in the body-mounted pool; this measures a slot and tells the pool to
- * show the guest over it while the panel is visible, plus navigation controls
- * and an overflow menu (zoom, open externally, copy URL). Either the user (via
- * `browser.open`, fired on mount) or the agent's `agent-browser` command can
- * create the guest; both drive the same target. While the guest is being
- * created or after it's reaped, `active` is false and we show a status body.
+ * lives in the body-mounted pool; {@link useBrowserSlot} measures a slot and
+ * tells the pool to show the guest over it while the panel is visible, plus
+ * navigation controls and an overflow menu (zoom, open externally, copy URL).
+ * Either the user (via `browser.open`, fired on mount) or the agent's
+ * `agent-browser` command can create the guest; both drive the same target.
+ * While the guest is being created or after it's reaped, `active` is false and
+ * we show a status body.
  */
 export function TaskBrowserPanel({
   active,
@@ -82,22 +72,12 @@ export function TaskBrowserPanel({
   taskId: TaskId;
 }) {
   const targetId = encodeBrowserTargetId(taskId, sessionId);
-  const slotRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const findInputRef = useRef<HTMLInputElement>(null);
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
   const [nav, setNav] = useState({ back: false, forward: false });
   const [zoomLevel, setZoomLevel] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [findOpen, setFindOpen] = useState(false);
-  const [findQuery, setFindQuery] = useState("");
-  // Active match / total from the guest's `found-in-page` event; null before any
-  // search runs (or after it's cleared).
-  const [findResult, setFindResult] = useState<null | {
-    active: number;
-    matches: number;
-  }>(null);
   // Set when a main-frame navigation fails (bad host, no network, ...). The
   // guest is parked and we show a light error state over the slot instead of its
   // blank error page. Cleared when a new load starts or succeeds.
@@ -108,9 +88,14 @@ export function TaskBrowserPanel({
   // While the user is editing the URL, agent-driven navigations must not
   // overwrite what they're typing.
   const editingUrlRef = useRef(false);
-  // Identity for this panel's claim on the guest's visibility, so the pool can
-  // reject a park from a different panel showing the same target (see pool).
-  const [slotOwner] = useState(() => Symbol("browser-panel-slot"));
+
+  const find = useBrowserFind({ active, isActiveTab, targetId });
+  const slotRef = useBrowserSlot({
+    active,
+    hasLoadError: Boolean(loadError),
+    isActiveTab,
+    targetId,
+  });
 
   const openExternalLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
@@ -130,71 +115,6 @@ export function TaskBrowserPanel({
     autoOpenedRef.current.add(targetId);
     openBrowser({ id: taskId, sessionId });
   }, [active, openBrowser, sessionId, targetId, taskId]);
-
-  // Show the guest over the slot only while this is the foreground tab; park it
-  // in paint-host otherwise. Every tab stays mounted (hidden via CSS), so the
-  // guest's own DOM visibility can't tell us we've been backgrounded -- the
-  // active-tab signal is authoritative.
-  useLayoutEffect(() => {
-    const slot = slotRef.current;
-    if (!slot || !active) {
-      return;
-    }
-
-    // On a load error, park the guest so its blank error page doesn't cover our
-    // own error state rendered in the slot.
-    if (!isActiveTab || loadError) {
-      setPaintHost(targetId, slotOwner);
-      return;
-    }
-
-    const measure = () => {
-      const rect = slot.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        showOverSlot(
-          targetId,
-          {
-            height: rect.height,
-            width: rect.width,
-            x: rect.x,
-            y: rect.y,
-          },
-          slotOwner,
-        );
-      } else {
-        setPaintHost(targetId, slotOwner);
-      }
-      return rect;
-    };
-
-    // The artifact panel slides in via a transform, which getBoundingClientRect
-    // folds into `rect.x` (ResizeObserver can't catch it -- the size is
-    // unchanged). Track the slot each frame so the guest follows the panel, and
-    // stop once the position holds for two frames, i.e. the slot has settled.
-    let raf = 0;
-    let stableFrames = 0;
-    let last = measure();
-    const track = () => {
-      const rect = measure();
-      stableFrames =
-        rect.x === last.x && rect.y === last.y ? stableFrames + 1 : 0;
-      last = rect;
-      if (stableFrames < 2) {
-        raf = requestAnimationFrame(track);
-      }
-    };
-    raf = requestAnimationFrame(track);
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(slot);
-    window.addEventListener("resize", measure);
-    return () => {
-      cancelAnimationFrame(raf);
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-      setPaintHost(targetId, slotOwner);
-    };
-  }, [active, isActiveTab, loadError, slotOwner, targetId]);
 
   // Mirror the guest's URL + nav availability into the controls (it navigates
   // from agent CDP commands too, not just user input), and track main-frame
@@ -291,99 +211,6 @@ export function TaskBrowserPanel({
   }, [menuOpen]);
 
   const webviewFor = () => getWebviewElement(targetId);
-
-  // Mirror the guest's match count into the find bar. Runs whenever a webview
-  // exists; the guest fires this for every findInPage call and clears its
-  // highlights on navigation, so a stale count self-corrects on the next search.
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-    const webview = getWebviewElement(targetId);
-    if (!webview) {
-      return;
-    }
-    const onFound = (event: Event) => {
-      const detail = event as FoundInPageEvent;
-      setFindResult({
-        active: detail.result.activeMatchOrdinal,
-        matches: detail.result.matches,
-      });
-    };
-    webview.addEventListener("found-in-page", onFound);
-    return () => {
-      webview.removeEventListener("found-in-page", onFound);
-    };
-  }, [active, targetId]);
-
-  // Register this panel as the find target while it's the foreground browser, so
-  // the Cmd+F app command opens (and re-focuses) its find bar. See
-  // browser-find-registry for why Cmd+F can't be a renderer keydown.
-  useEffect(() => {
-    if (!active || !isActiveTab) {
-      return;
-    }
-    return setBrowserFindOpener(() => {
-      setFindOpen(true);
-      findInputRef.current?.focus();
-      findInputRef.current?.select();
-    });
-  }, [active, isActiveTab]);
-
-  // Focus the find input when the bar opens (its first render, when the opener
-  // above couldn't focus it yet). Deferred a frame so it wins over Radix
-  // returning focus to the overflow trigger when opened from the menu.
-  useEffect(() => {
-    if (!findOpen) {
-      return;
-    }
-    const raf = requestAnimationFrame(() => {
-      findInputRef.current?.focus();
-      findInputRef.current?.select();
-    });
-    return () => {
-      cancelAnimationFrame(raf);
-    };
-  }, [findOpen]);
-
-  // The guest can be reaped (active -> false) while the bar is open; drop its
-  // state during render (the pattern React allows over a cascading effect) so a
-  // later reopen starts clean rather than showing a stale query and count.
-  const [prevActive, setPrevActive] = useState(active);
-  if (prevActive !== active) {
-    setPrevActive(active);
-    if (!active && findOpen) {
-      setFindOpen(false);
-      setFindQuery("");
-      setFindResult(null);
-    }
-  }
-
-  // Empty query clears the highlight; otherwise search. `forward` is only passed
-  // for next/prev stepping (Enter / the arrows); a fresh keystroke omits it so
-  // the guest re-anchors from the top.
-  const runFind = (query: string, options?: { forward: boolean }) => {
-    const webview = webviewFor();
-    if (!webview) {
-      return;
-    }
-    if (!query) {
-      webview.stopFindInPage("clearSelection");
-      setFindResult(null);
-      return;
-    }
-    webview.findInPage(
-      query,
-      options ? { findNext: true, forward: options.forward } : undefined,
-    );
-  };
-
-  const closeFind = () => {
-    webviewFor()?.stopFindInPage("clearSelection");
-    setFindOpen(false);
-    setFindQuery("");
-    setFindResult(null);
-  };
 
   // loadURL rejects on a failed navigation (bad host, offline, ...); the
   // did-fail-load listener already surfaces the error, so swallow the rejection
@@ -533,43 +360,23 @@ export function TaskBrowserPanel({
           <DropdownMenuContent align="end" className="w-56">
             <div className="flex items-center justify-between px-2 py-1.5">
               <span className="text-sm">Zoom</span>
-              <div className="flex h-7 items-stretch overflow-hidden rounded-md border">
-                <button
-                  aria-label="Zoom out"
-                  className="flex w-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  onClick={() => {
-                    applyZoom(zoomLevel - 0.5);
-                  }}
-                  type="button"
-                >
-                  <MinusIcon className="size-4" />
-                </button>
-                <button
-                  className="min-w-12 border-x text-xs tabular-nums transition-colors hover:bg-accent"
-                  onClick={() => {
-                    applyZoom(0);
-                  }}
-                  title="Reset to 100%"
-                  type="button"
-                >
-                  {Math.round(1.2 ** zoomLevel * 100)}%
-                </button>
-                <button
-                  aria-label="Zoom in"
-                  className="flex w-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  onClick={() => {
-                    applyZoom(zoomLevel + 0.5);
-                  }}
-                  type="button"
-                >
-                  <PlusIcon className="size-4" />
-                </button>
-              </div>
+              <ZoomStepperControl
+                onReset={() => {
+                  applyZoom(0);
+                }}
+                onZoomIn={() => {
+                  applyZoom(zoomLevel + 0.5);
+                }}
+                onZoomOut={() => {
+                  applyZoom(zoomLevel - 0.5);
+                }}
+                percent={Math.round(1.2 ** zoomLevel * 100)}
+              />
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => {
-                setFindOpen(true);
+                find.setFindOpen(true);
               }}
             >
               <MagnifyingGlassIcon className="size-4" />
@@ -601,67 +408,15 @@ export function TaskBrowserPanel({
           <XIcon className="size-4" />
         </Button>
       </div>
-      {active && findOpen && (
-        <div className="flex items-center gap-1 border-b px-1.5 py-1">
-          <MagnifyingGlassIcon className="ml-1 size-4 shrink-0 text-muted-foreground" />
-          <input
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-            onChange={(event) => {
-              setFindQuery(event.target.value);
-              runFind(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                runFind(findQuery, { forward: !event.shiftKey });
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                closeFind();
-              }
-            }}
-            placeholder="Find in page"
-            ref={findInputRef}
-            spellCheck={false}
-            value={findQuery}
-          />
-          <span className="shrink-0 px-1 text-xs text-muted-foreground tabular-nums">
-            {findResult && findResult.matches > 0
-              ? `${findResult.active}/${findResult.matches}`
-              : findQuery
-                ? "0/0"
-                : ""}
-          </span>
-          <Button
-            aria-label="Previous match"
-            disabled={!findResult?.matches}
-            onClick={() => {
-              runFind(findQuery, { forward: false });
-            }}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <CaretUpIcon className="size-4" />
-          </Button>
-          <Button
-            aria-label="Next match"
-            disabled={!findResult?.matches}
-            onClick={() => {
-              runFind(findQuery, { forward: true });
-            }}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <CaretDownIcon className="size-4" />
-          </Button>
-          <Button
-            aria-label="Close find"
-            onClick={closeFind}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <XIcon className="size-4" />
-          </Button>
-        </div>
+      {active && find.findOpen && (
+        <BrowserFindBar
+          closeFind={find.closeFind}
+          findInputRef={find.findInputRef}
+          findQuery={find.findQuery}
+          findResult={find.findResult}
+          runFind={find.runFind}
+          setFindQuery={find.setFindQuery}
+        />
       )}
       {active ? (
         <div className="relative flex-1" ref={slotRef}>

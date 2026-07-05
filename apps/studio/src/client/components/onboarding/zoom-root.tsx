@@ -1,4 +1,5 @@
 import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
+import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
 import { rpcClient } from "@/client/rpc/client";
 import { useSetAtom } from "jotai";
@@ -67,5 +68,10 @@ export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
     };
   }, [setZoom]);
 
-  return <ZoomRoot>{children}</ZoomRoot>;
+  return (
+    <>
+      <ZoomRoot>{children}</ZoomRoot>
+      <ZoomToast />
+    </>
+  );
 }

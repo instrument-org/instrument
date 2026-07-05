@@ -45,6 +45,10 @@ interface Bounds {
 
 interface PooledWebview {
   container: HTMLDivElement;
+  // Generation of the entry this guest was mounted for. A destroy+recreate of
+  // the same targetId bumps it, so reconcile knows to dispose this guest and
+  // mount a fresh one rather than reusing an element bound to a dead entry.
+  generation: number;
   // Last size the guest was shown at, so paint-host keeps it that size while
   // hidden (avoids a jarring resize when re-shown).
   lastVisibleBounds: Bounds | null;
@@ -236,7 +240,10 @@ function disposeWebview(targetId: BrowserTargetId) {
 // process's desired-targets stream. The host slot never creates a guest: it can
 // only show/park one that already exists (see showOverSlot/setPaintHost), so a
 // stale "active" host can't resurrect a target the main process just destroyed.
-function ensureWebview(targetId: BrowserTargetId): PooledWebview {
+function ensureWebview(
+  targetId: BrowserTargetId,
+  generation: number,
+): PooledWebview {
   const existing = pool.get(targetId);
   if (existing) {
     return existing;
@@ -267,7 +274,12 @@ function ensureWebview(targetId: BrowserTargetId): PooledWebview {
   container.append(webview);
   document.body.append(container);
 
-  const pooled: PooledWebview = { container, lastVisibleBounds: null, webview };
+  const pooled: PooledWebview = {
+    container,
+    generation,
+    lastVisibleBounds: null,
+    webview,
+  };
   pool.set(targetId, pooled);
   applyPaintHost(pooled);
   return pooled;
@@ -277,8 +289,15 @@ function ensureWebview(targetId: BrowserTargetId): PooledWebview {
  * guests, dispose any that are no longer wanted, and mirror the attached set. */
 function reconcile(targets: AgentBrowserTarget[]) {
   const desired = new Set(targets.map((target) => target.id));
-  for (const targetId of desired) {
-    ensureWebview(targetId);
+  for (const target of targets) {
+    // A destroy+recreate of the same id (new generation) may reach us as a
+    // single snapshot; dispose the stale guest first so ensureWebview mounts a
+    // fresh one bound to the live entry instead of reusing the dead element.
+    const pooled = pool.get(target.id);
+    if (pooled && pooled.generation !== target.generation) {
+      disposeWebview(target.id);
+    }
+    ensureWebview(target.id, target.generation);
   }
   // Snapshot the keys to dispose first; disposeWebview mutates the pool.
   const stale = [...pool.keys()].filter((targetId) => !desired.has(targetId));

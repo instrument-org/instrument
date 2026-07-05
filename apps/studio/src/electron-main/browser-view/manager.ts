@@ -455,6 +455,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         attached: Boolean(
           entry.webContents && !entry.webContents.isDestroyed(),
         ),
+        generation: entry.generation,
         id: entry.targetId,
       })),
     navigateFocusedGuest,

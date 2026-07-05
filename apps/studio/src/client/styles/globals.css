@@ -19,10 +19,6 @@ body,
 }
 
 body {
-  background: transparent;
-}
-
-html:has(meta[name="opaque-background"]) body {
   background: var(--background);
 }
 

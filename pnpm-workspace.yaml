@@ -56,6 +56,11 @@ minimumReleaseAgeExclude:
 
 overrides:
   "@electron/rebuild>node-abi": 4.31.0
+  # Collapse jiti to a single version so vite (which has jiti as an optional
+  # peer) resolves to one peer-variant. Two jiti versions otherwise spawn two
+  # vite@7 variants, making Plugin types "unrelated" and breaking tsgo on
+  # electron.vite.config.ts.
+  jiti: 2.7.0
 
 patchedDependencies:
   "@parcel/watcher@2.5.1": patches/@parcel__watcher@2.5.1.patch

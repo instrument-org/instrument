@@ -3,7 +3,7 @@ import {
   closeTab,
   reopenClosed,
   type TabsModel,
-} from "@/client/lib/tab-model";
+} from "@/client/lib/tabs-model";
 import { type Tab } from "@/shared/tabs";
 
 /**
@@ -13,7 +13,7 @@ import { type Tab } from "@/shared/tabs";
  * which calls them bare). Each bakes in id generation and the new-tab seed so
  * "open a tab" / "close the current tab" means the same thing on both paths.
  *
- * The pure transitions in {@link tab-model} stay id-injecting and side-effect
+ * The pure transitions in {@link tabs-model} stay id-injecting and side-effect
  * free; this is the one layer that reaches for a fresh id.
  */
 export const NEW_TAB_PATH = "/new-tab";

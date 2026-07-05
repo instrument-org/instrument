@@ -4,7 +4,7 @@ import {
   emptyTabsModel,
   type TabsModel,
   TabsModelSchema,
-} from "@/client/lib/tab-model";
+} from "@/client/lib/tabs-model";
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 import { debounce } from "radashi";
 

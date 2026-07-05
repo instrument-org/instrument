@@ -13,7 +13,7 @@ import {
   setTabMeta,
   setTabPathname,
   type TabsModel,
-} from "./tab-model";
+} from "./tabs-model";
 
 function model(tabs: Tab[], selectedId: null | string = null): TabsModel {
   return { recentlyClosed: [], selectedId, tabs };

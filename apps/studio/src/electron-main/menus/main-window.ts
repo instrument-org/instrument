@@ -4,6 +4,7 @@ import {
   focusMainContents,
   goBack,
   goForward,
+  reload,
   resetZoom,
   zoomIn,
   zoomOut,
@@ -96,9 +97,19 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+R",
         click: () => {
-          sendAppCommand({ type: "reload" });
+          reload();
         },
         label: "Reload Page",
+      },
+      {
+        // A focused browser guest takes keyboard focus, so Cmd+F can only reach
+        // us via this native accelerator; the renderer opens the find bar in the
+        // active browser panel (no-op when none is showing).
+        accelerator: "CmdOrCtrl+F",
+        click: () => {
+          sendAppCommand({ type: "findInPage" });
+        },
+        label: "Find…",
       },
       { type: "separator" as const },
       {

@@ -54,6 +54,10 @@ export interface BrowserViewManager {
   // Lets keyboard back/forward target the focused guest instead of the tab
   // (mouse buttons are handled by the guest's own app-command).
   navigateFocusedGuest: (direction: "back" | "forward") => boolean;
+  // If a browser guest has focus, reload its own web content and return true.
+  // Lets keyboard Cmd+R reload the focused guest instead of the whole renderer
+  // (which the app-level reload command would otherwise do).
+  reloadFocusedGuest: () => boolean;
   // Record renderer-reported DOM focus/blur on a guest's `<webview>` element.
   // `webContents.isFocused()` is unreliable for `<webview>` guests (it can get
   // stuck `true` after focus moves to a plain host-page element), so
@@ -453,6 +457,15 @@ export function createBrowserViewManager(): BrowserViewManager {
     return true;
   }
 
+  function reloadFocusedGuest(): boolean {
+    const wc = focusedGuestWebContents();
+    if (!wc) {
+      return false;
+    }
+    wc.reload();
+    return true;
+  }
+
   function setGuestFocus(targetId: BrowserTargetId, focused: boolean) {
     if (focused) {
       focusedTargetId = targetId;
@@ -483,6 +496,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         id: entry.targetId,
       })),
     navigateFocusedGuest,
+    reloadFocusedGuest,
     setGuestFocus,
     teardown: () => {
       for (const targetId of entries.keys()) {

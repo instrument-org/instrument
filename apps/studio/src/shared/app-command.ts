@@ -22,6 +22,7 @@ export type AppCommand =
       type: "navigate";
     }
   | { type: "close" }
+  | { type: "findInPage" }
   | { type: "navigateBack" }
   | { type: "navigateForward" }
   | { type: "openSettings" }

@@ -77,6 +77,12 @@ const VISIBLE_BOTTOM_RADIUS = "0.6875rem";
 
 const pool = new Map<BrowserTargetId, PooledWebview>();
 
+// The slot currently showing each guest. Two panels can be mounted for the same
+// target (e.g. the task open in two tabs), and both drive show/park as tabs
+// switch; only the slot that showed a guest may park it, so a backgrounded panel
+// can't park the guest the foreground one is showing (last-writer-wins otherwise).
+const paintOwners = new Map<BrowserTargetId, symbol>();
+
 // Ids of targets whose guest has attached, mirrored from the desired-targets
 // stream so the UI can show the live guest vs a placeholder without a second
 // polled endpoint. Replaced (not mutated) on each reconcile so the snapshot is a
@@ -137,8 +143,17 @@ export function initAgentBrowserPool(): () => void {
   };
 }
 
-/** Park the guest in paint-host (laid out + painted, but not shown). */
-export function setPaintHost(targetId: BrowserTargetId) {
+/**
+ * Park the guest in paint-host (laid out + painted, but not shown). No-ops if
+ * another slot currently owns the guest's visibility, so a backgrounded panel
+ * can't hide the guest the foreground panel is showing.
+ */
+export function setPaintHost(targetId: BrowserTargetId, owner: symbol) {
+  const currentOwner = paintOwners.get(targetId);
+  if (currentOwner && currentOwner !== owner) {
+    return;
+  }
+  paintOwners.delete(targetId);
   const pooled = pool.get(targetId);
   if (pooled) {
     applyPaintHost(pooled);
@@ -150,12 +165,18 @@ export function setPaintHost(targetId: BrowserTargetId) {
  * fills dynamically (no letterbox). Resizing/moving a painted guest keeps it
  * alive, so this can fire freely on every resize. No-ops if the guest doesn't
  * exist (the main process owns creation via the desired-targets stream).
+ * Claims visibility ownership for `owner` so only this slot can later park it.
  */
-export function showOverSlot(targetId: BrowserTargetId, bounds: Bounds) {
+export function showOverSlot(
+  targetId: BrowserTargetId,
+  bounds: Bounds,
+  owner: symbol,
+) {
   const pooled = pool.get(targetId);
   if (!pooled) {
     return;
   }
+  paintOwners.set(targetId, owner);
   pooled.lastVisibleBounds = bounds;
   const { container, webview } = pooled;
 
@@ -234,6 +255,7 @@ function disposeWebview(targetId: BrowserTargetId) {
   }
   pooled.container.remove();
   pool.delete(targetId);
+  paintOwners.delete(targetId);
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main

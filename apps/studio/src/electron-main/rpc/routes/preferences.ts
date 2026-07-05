@@ -58,13 +58,15 @@ const setDeveloperMode = base
 
 const setReleaseChannel = base
   .input(z.object({ channel: z.enum(["latest", "beta", "alpha"]).optional() }))
-  .handler(({ input }) => {
+  .handler(({ context, input }) => {
     const preferencesStore = getPreferencesStore();
     if (input.channel === undefined) {
       preferencesStore.delete("releaseChannel");
     } else {
       preferencesStore.set("releaseChannel", input.channel);
     }
+    setLastUpdateCheck();
+    return context.appUpdater.checkForUpdates({ notify: true });
   });
 
 const checkForUpdates = base

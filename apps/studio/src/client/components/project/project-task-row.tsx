@@ -1,6 +1,7 @@
 import { InlineRenameInput } from "@/client/components/inline-rename-input";
 import { InternalLink } from "@/client/components/internal-link";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
+import { TaskMenuItems } from "@/client/components/task-menu-items";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -23,9 +24,7 @@ import { type Task } from "@instrument-org/workspace/client";
 import {
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
-  PencilSimpleLineIcon,
   PushPinIcon,
-  TrashIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -70,54 +69,45 @@ export function ProjectTaskRow({
   }
 
   const renderMenuItems = (menuComponents: MenuComponents) => {
-    const { Item, Separator } = menuComponents;
+    const { Item } = menuComponents;
     return (
-      <>
-        <Item
-          onSelect={() => {
-            void (isPinned
-              ? removePin({ id: task.id })
-              : addPin({ id: task.id }));
-          }}
-        >
-          <PushPinIcon className="text-muted-foreground" />
-          <span>{isPinned ? "Unpin" : "Pin"}</span>
-        </Item>
-        <Item
-          onSelect={() => {
-            void navigate({
-              params: { id: task.id },
-              search: { showDuplicate: true },
-              to: "/tasks/$id",
-            });
-          }}
-        >
-          <CopyIcon className="text-muted-foreground" />
-          <span>Duplicate</span>
-        </Item>
-        <Item onSelect={rename.start}>
-          <PencilSimpleLineIcon className="text-muted-foreground" />
-          <span>Rename</span>
-        </Item>
-        <Item
-          onSelect={() => {
-            void removeFromProject({ taskId: task.id });
-          }}
-        >
-          <XCircleIcon className="text-muted-foreground" />
-          <span>Remove from project</span>
-        </Item>
-        <Separator />
-        <Item
-          onSelect={() => {
-            onDelete(task);
-          }}
-          variant="destructive"
-        >
-          <TrashIcon className="size-4" />
-          <span>Delete</span>
-        </Item>
-      </>
+      <TaskMenuItems
+        duplicate={
+          <Item
+            onSelect={() => {
+              void navigate({
+                params: { id: task.id },
+                search: { showDuplicate: true },
+                to: "/tasks/$id",
+              });
+            }}
+          >
+            <CopyIcon className="text-muted-foreground" />
+            <span>Duplicate</span>
+          </Item>
+        }
+        extras={
+          <Item
+            onSelect={() => {
+              void removeFromProject({ taskId: task.id });
+            }}
+          >
+            <XCircleIcon className="text-muted-foreground" />
+            <span>Remove from project</span>
+          </Item>
+        }
+        isPinned={isPinned}
+        menuComponents={menuComponents}
+        onDelete={() => {
+          onDelete(task);
+        }}
+        onRename={rename.start}
+        onTogglePin={() => {
+          void (isPinned
+            ? removePin({ id: task.id })
+            : addPin({ id: task.id }));
+        }}
+      />
     );
   };
 

@@ -1,6 +1,7 @@
 import { openDeleteTask } from "@/client/atoms/delete-task-modal";
 import { TaskDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
 import { InternalLink } from "@/client/components/internal-link";
+import { TaskMenuItems } from "@/client/components/task-menu-items";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -28,9 +29,7 @@ import {
   ArrowUpRightIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
-  PencilSimpleLineIcon,
   PushPinIcon,
-  TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { memo, useState } from "react";
@@ -81,59 +80,52 @@ export const NavTaskItem = memo(function NavTaskItem({
   const renderMenuItems = (menuComponents: MenuComponents) => {
     const { Item, Separator } = menuComponents;
     return (
-      <>
-        <Item
-          onClick={() => {
-            void handleTogglePin();
-          }}
-        >
-          <PushPinIcon className="text-muted-foreground" />
-          <span>{isPinned ? "Unpin" : "Pin"}</span>
-        </Item>
-        <InternalLink
-          openInCurrentTab
-          params={{ id: task.id }}
-          search={{ showDuplicate: true }}
-          to="/tasks/$id"
-        >
-          <Item>
-            <CopyIcon className="text-muted-foreground" />
-            <span>Duplicate</span>
-          </Item>
-        </InternalLink>
-        <Item onClick={rename.start}>
-          <PencilSimpleLineIcon className="text-muted-foreground" />
-          <span>Rename</span>
-        </Item>
-        <TaskProjectMenuItem
-          currentProjectId={task.projectId}
-          menuComponents={menuComponents}
-          taskId={task.id}
-        />
-        <Separator />
-        <Item
-          onClick={() => {
-            onOpenInNewTab(task.id);
-          }}
-        >
-          <ArrowUpRightIcon className="text-muted-foreground" />
-          <span>Open in new tab</span>
-        </Item>
-        <TaskDevDiskMenuItems
-          menuComponents={menuComponents}
-          taskId={task.id}
-        />
-        <Separator />
-        <Item
-          onSelect={() => {
-            openDeleteTask(task);
-          }}
-          variant="destructive"
-        >
-          <TrashIcon className="size-4" />
-          <span>Delete</span>
-        </Item>
-      </>
+      <TaskMenuItems
+        duplicate={
+          <InternalLink
+            openInCurrentTab
+            params={{ id: task.id }}
+            search={{ showDuplicate: true }}
+            to="/tasks/$id"
+          >
+            <Item>
+              <CopyIcon className="text-muted-foreground" />
+              <span>Duplicate</span>
+            </Item>
+          </InternalLink>
+        }
+        extras={
+          <>
+            <TaskProjectMenuItem
+              currentProjectId={task.projectId}
+              menuComponents={menuComponents}
+              taskId={task.id}
+            />
+            <Separator />
+            <Item
+              onSelect={() => {
+                onOpenInNewTab(task.id);
+              }}
+            >
+              <ArrowUpRightIcon className="text-muted-foreground" />
+              <span>Open in new tab</span>
+            </Item>
+            <TaskDevDiskMenuItems
+              menuComponents={menuComponents}
+              taskId={task.id}
+            />
+          </>
+        }
+        isPinned={isPinned}
+        menuComponents={menuComponents}
+        onDelete={() => {
+          openDeleteTask(task);
+        }}
+        onRename={rename.start}
+        onTogglePin={() => {
+          void handleTogglePin();
+        }}
+      />
     );
   };
 

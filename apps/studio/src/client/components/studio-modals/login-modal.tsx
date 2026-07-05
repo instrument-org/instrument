@@ -38,7 +38,7 @@ export function LoginModal() {
   // Deferred so `DialogContent` stays mounted (and its close animation can
   // play) for a moment after `state` clears to null, instead of unmounting
   // the instant the dialog starts closing.
-  const { content, onExitComplete } = useDeferredModalState(state);
+  const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
   useBlockTabNavigation(isOpen);
 
@@ -58,6 +58,7 @@ export function LoginModal() {
     >
       {content !== null && (
         <LoginModalContent
+          key={openKey}
           onComplete={complete}
           onExitComplete={onExitComplete}
           props={content.props}

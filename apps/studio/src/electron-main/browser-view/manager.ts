@@ -1,8 +1,8 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  type AgentBrowserTarget,
+  type BrowserGuestTarget,
   targetIdFromPartition,
-} from "@/shared/agent-browser";
+} from "@/shared/browser";
 import {
   type AbsolutePath,
   type BrowserConfig,
@@ -49,10 +49,10 @@ export interface BrowserViewManager {
   getDebugEntries: () => ReadonlyMap<BrowserTargetId, BrowserEntry>;
   // Every recorded target and whether its guest has attached yet. The renderer
   // pool mounts a guest for every id; the UI treats only attached ones as live.
-  getTargets: () => AgentBrowserTarget[];
-  // If an agent-browser guest has focus, navigate its own history and return
-  // true. Lets keyboard back/forward target the focused guest instead of the
-  // tab (mouse buttons are handled by the guest's own app-command).
+  getTargets: () => BrowserGuestTarget[];
+  // If a browser guest has focus, navigate its own history and return true.
+  // Lets keyboard back/forward target the focused guest instead of the tab
+  // (mouse buttons are handled by the guest's own app-command).
   navigateFocusedGuest: (direction: "back" | "forward") => boolean;
   // Record renderer-reported DOM focus/blur on a guest's `<webview>` element.
   // `webContents.isFocused()` is unreliable for `<webview>` guests (it can get
@@ -60,9 +60,9 @@ export interface BrowserViewManager {
   // navigateFocusedGuest/zoomFocusedGuest trust this instead.
   setGuestFocus: (targetId: BrowserTargetId, focused: boolean) => void;
   teardown: () => void;
-  // If an agent-browser guest has focus, zoom its own web content and return
-  // true. Lets keyboard Cmd+/-/0 target the focused guest instead of the
-  // main window (main-window zoom is CSS-only and never reaches the guest's webContents).
+  // If a browser guest has focus, zoom its own web content and return true.
+  // Lets keyboard Cmd+/-/0 target the focused guest instead of the main window
+  // (main-window zoom is CSS-only and never reaches the guest's webContents).
   zoomFocusedGuest: (direction: "in" | "out" | "reset") => boolean;
 }
 
@@ -196,7 +196,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       if (!entry) {
         // No page state recorded for this id: reject the attachment.
         log.warn(
-          `rejected agent-browser webview attach (no entry) targetId=${targetId}`,
+          `rejected browser webview attach (no entry) targetId=${targetId}`,
         );
         event.preventDefault();
         return;
@@ -205,7 +205,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         // Already bound to a live guest: a second attach for the same id would
         // rebind and orphan the first guest's debugger. Reject it.
         log.warn(
-          `rejected agent-browser webview attach (already bound) targetId=${targetId}`,
+          `rejected browser webview attach (already bound) targetId=${targetId}`,
         );
         event.preventDefault();
         return;
@@ -290,7 +290,7 @@ export function createBrowserViewManager(): BrowserViewManager {
           destroyEntry(entries, entry.targetId);
           notifyEntriesChanged();
         }
-        reject(new Error(`agent browser attach timed out: ${entry.targetId}`));
+        reject(new Error(`browser attach timed out: ${entry.targetId}`));
       }, ATTACH_TIMEOUT_MS);
       const clear = () => {
         clearTimeout(timer);
@@ -517,7 +517,7 @@ function navigateGuest(wc: WebContents, direction: "back" | "forward") {
 // handleDetach) site.
 function notifyEntriesChanged() {
   notifyDebugChange();
-  publisher.publish("agent-browser.targets-changed", null);
+  publisher.publish("browser.targets-changed", null);
 }
 
 // session.fromPath requires the directory to exist (Chromium opens the profile

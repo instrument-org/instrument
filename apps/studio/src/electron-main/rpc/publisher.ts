@@ -3,9 +3,6 @@ import { type AppCommand } from "@/shared/app-command";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
-  // Fired whenever the set of agent-browser targets (entries) changes, so the
-  // renderer pool can reconcile its `<webview>` guests to the desired set.
-  "agent-browser.targets-changed": null;
   "auth.login-error": {
     error: {
       code?: string | undefined;
@@ -17,6 +14,9 @@ interface PublisherEvents {
   "auth.login-success": {
     success: true;
   };
+  // Fired whenever the set of browser targets (entries) changes, so the
+  // renderer pool can reconcile its `<webview>` guests to the desired set.
+  "browser.targets-changed": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
   "preferences.updated": null;

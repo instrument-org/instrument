@@ -1,10 +1,10 @@
 import { captureException } from "@/client/lib/telemetry";
 import { rpcClient } from "@/client/rpc/client";
 import {
-  AGENT_BROWSER_VIEWPORT,
-  agentBrowserPartition,
-  type AgentBrowserTarget,
-} from "@/shared/agent-browser";
+  BROWSER_GUEST_VIEWPORT,
+  type BrowserGuestTarget,
+  browserPartition,
+} from "@/shared/browser";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { sleep } from "radashi";
 
@@ -13,9 +13,9 @@ import { sleep } from "radashi";
 const RECONNECT_DELAY_MS = 500;
 
 /**
- * Renderer-owned pool of agent-browser `<webview>` guests. The main process owns
+ * Renderer-owned pool of browser `<webview>` guests. The main process owns
  * which targets should exist and streams that desired set over
- * `agentBrowser.live.targets`; this pool reconciles to it (mount on add, dispose
+ * `browser.live.targets`; this pool reconciles to it (mount on add, dispose
  * on remove). Each guest is appended to `document.body` and kept there for its
  * lifetime so React reconciliation / a host subtree being hidden never unmounts
  * it (which would drop its compositor surface and break capture + input).
@@ -60,14 +60,17 @@ interface PooledWebview {
 interface WebviewElement extends HTMLElement {
   canGoBack(): boolean;
   canGoForward(): boolean;
+  getTitle(): string;
   getURL(): string;
+  getZoomLevel(): number;
   goBack(): void;
   goForward(): void;
   loadURL(url: string): Promise<void>;
   reload(): void;
+  setZoomLevel(level: number): void;
 }
 
-const { height: VIEW_H, width: VIEW_W } = AGENT_BROWSER_VIEWPORT;
+const { height: VIEW_H, width: VIEW_W } = BROWSER_GUEST_VIEWPORT;
 
 // Round the visible guest's bottom corners to match the browser panel's
 // rounded-xl frame (inner radius, inside the 1px border). Whether Chromium
@@ -109,7 +112,7 @@ export function getWebviewElement(
  * rather than silently freezing every future mount/dispose. Resubscribing always
  * receives the current set, so no guest is stranded across the gap.
  */
-export function initAgentBrowserPool(): () => void {
+export function initBrowserPool(): () => void {
   const controller = new AbortController();
   const { signal } = controller;
 
@@ -119,7 +122,7 @@ export function initAgentBrowserPool(): () => void {
         return;
       }
       try {
-        const subscription = await rpcClient.agentBrowser.live.targets.call(
+        const subscription = await rpcClient.browser.live.targets.call(
           undefined,
           { signal },
         );
@@ -209,7 +212,7 @@ export function showOverSlot(
   } satisfies Partial<CSSStyleDeclaration>);
 }
 
-/** useSyncExternalStore glue for {@link attachedTargets} (see use-agent-browser-targets). */
+/** useSyncExternalStore glue for {@link attachedTargets} (see use-browser-targets). */
 export function subscribeAttachedTargets(listener: () => void): () => void {
   targetListeners.add(listener);
   return () => {
@@ -280,8 +283,8 @@ function ensureWebview(
   const webview = document.createElement("webview") as WebviewElement;
   // The partition encodes the target id so `will-attach-webview` can route the
   // attach; main overrides the actual session there (partition is just a
-  // carrier, see agentBrowserPartition).
-  webview.setAttribute("partition", agentBrowserPartition(targetId));
+  // carrier, see browserPartition).
+  webview.setAttribute("partition", browserPartition(targetId));
   webview.setAttribute("src", "about:blank");
   webview.style.border = "0";
 
@@ -290,10 +293,10 @@ function ensureWebview(
   // in main is unreliable for `<webview>` guests, but focus/blur on the
   // element itself tracks the host document's activeElement correctly.
   webview.addEventListener("focus", () => {
-    void rpcClient.agentBrowser.syncFocus.call({ focused: true, targetId });
+    void rpcClient.browser.syncFocus.call({ focused: true, targetId });
   });
   webview.addEventListener("blur", () => {
-    void rpcClient.agentBrowser.syncFocus.call({ focused: false, targetId });
+    void rpcClient.browser.syncFocus.call({ focused: false, targetId });
   });
 
   container.append(webview);
@@ -312,7 +315,7 @@ function ensureWebview(
 
 /** Bring the pool in line with the desired target set: create any missing
  * guests, dispose any that are no longer wanted, and mirror the attached set. */
-function reconcile(targets: AgentBrowserTarget[]) {
+function reconcile(targets: BrowserGuestTarget[]) {
   const desired = new Set(targets.map((target) => target.id));
   for (const target of targets) {
     // A destroy+recreate of the same id (new generation) may reach us as a

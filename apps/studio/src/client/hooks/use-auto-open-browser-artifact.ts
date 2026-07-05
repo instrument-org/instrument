@@ -1,4 +1,4 @@
-import { useAgentBrowserTargets } from "@/client/hooks/use-agent-browser-targets";
+import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import {
   type BrowserTargetId,
   encodeBrowserTargetId,
@@ -13,11 +13,12 @@ import { useEffect, useEffectEvent } from "react";
 // browser the user already dismissed.
 const autoOpenedTargets = new Set<BrowserTargetId>();
 
-// Opens the browser artifact panel once when the agent first opens a browser
-// for the selected session, even overriding an artifact panel the user
-// already has open (worth surfacing since it's the first time the agent's
-// browser use becomes visible). Won't re-open after the user closes it, since
-// the guard fires at most once per session for the renderer's lifetime.
+// Opens the browser artifact panel once when a browser guest first attaches for
+// the selected session (whether the agent or the user opened it), even
+// overriding an artifact panel the user already has open (worth surfacing since
+// it's the first time the browser becomes visible). Won't re-open after the user
+// closes it, since the guard fires at most once per session for the renderer's
+// lifetime.
 export function useAutoOpenBrowserArtifact({
   id,
   selectedSessionId,
@@ -27,7 +28,7 @@ export function useAutoOpenBrowserArtifact({
 }) {
   const navigate = useNavigate();
 
-  const attachedTargets = useAgentBrowserTargets();
+  const attachedTargets = useBrowserTargets();
 
   const onTargets = useEffectEvent((ids: ReadonlySet<BrowserTargetId>) => {
     if (!selectedSessionId) {

@@ -96,6 +96,6 @@ describe("fetchModelsForProvider", () => {
       modelCache: cache,
     });
 
-    expect(result.isError()).toBe(true);
+    expect(result.ok).toBe(false);
   });
 });

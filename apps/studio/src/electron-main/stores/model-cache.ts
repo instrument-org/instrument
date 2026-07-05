@@ -29,13 +29,20 @@ function getModelCacheStore(): Store<ModelCacheStore> {
     MODEL_CACHE_STORE = new Store<ModelCacheStore>({
       defaults,
       deserialize: (value) => {
-        const parsed = ModelCacheStoreSchema.safeParse(JSON.parse(value));
+        // electron-store defaults clearInvalidConfig to false, so a corrupt
+        // (non-JSON) file would otherwise throw out of every get()/set(). This
+        // is a disposable cache, so treat any unreadable data as cold.
+        try {
+          const parsed = ModelCacheStoreSchema.safeParse(JSON.parse(value));
 
-        if (parsed.success) {
-          return parsed.data;
+          if (parsed.success) {
+            return parsed.data;
+          }
+
+          logger.error("Failed to parse model cache", parsed.error);
+        } catch (error) {
+          logger.error("Failed to read model cache", error);
         }
-
-        logger.error("Failed to parse model cache", parsed.error);
 
         return defaults;
       },
@@ -46,6 +53,13 @@ function getModelCacheStore(): Store<ModelCacheStore> {
   return MODEL_CACHE_STORE;
 }
 
+// Last value persisted per provider in this process, used to skip redundant
+// disk writes. fetchModel resolves a model on every LLM turn (via a network
+// response that fetchJson caches in-memory for an hour), so without this the
+// unchanged list would be re-serialized and atomically rewritten to disk every
+// turn.
+const lastWrittenByIdentifier = new Map<string, string>();
+
 export const diskModelCache: ModelCache = {
   read(cacheIdentifier) {
     const models = getModelCacheStore().get("models")[cacheIdentifier];
@@ -55,11 +69,16 @@ export const diskModelCache: ModelCache = {
   },
   write(cacheIdentifier, models) {
     try {
+      const serialized = JSON.stringify(models);
+      if (lastWrittenByIdentifier.get(cacheIdentifier) === serialized) {
+        return;
+      }
       const store = getModelCacheStore();
       store.set("models", {
         ...store.get("models"),
         [cacheIdentifier]: models,
       });
+      lastWrittenByIdentifier.set(cacheIdentifier, serialized);
     } catch (error) {
       logger.error("Failed to write model cache", error);
     }

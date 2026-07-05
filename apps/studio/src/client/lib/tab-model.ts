@@ -49,12 +49,9 @@ export function addTab(
 export function closeTab(
   model: TabsModel,
   {
-    history,
     id,
     newTab,
   }: {
-    /** The closing tab's live history stack, restored if it's reopened. */
-    history?: Tab["history"];
     id: string;
     /** Used to seed a fresh tab when the last one is closed. */
     newTab: { id: string; pathname: string };
@@ -68,10 +65,13 @@ export function closeTab(
   const closingIndex = model.tabs.findIndex((t) => t.id === id);
 
   const tabs = model.tabs.filter((t) => t.id !== id);
-  const recentlyClosed = [
-    history ? { ...tab, history } : tab,
-    ...model.recentlyClosed,
-  ].slice(0, MAX_RECENTLY_CLOSED);
+  // `tab.history` is already fresh: TabView captures each router's live stack on
+  // every navigation (see setTabPathname), so reopen restores from the model
+  // rather than a separate close-time snapshot.
+  const recentlyClosed = [tab, ...model.recentlyClosed].slice(
+    0,
+    MAX_RECENTLY_CLOSED,
+  );
 
   if (tabs.length === 0) {
     return {
@@ -91,19 +91,6 @@ export function closeTab(
 
 export function emptyTabsModel(): TabsModel {
   return { recentlyClosed: [], selectedId: null, tabs: [] };
-}
-
-/** Reflect a client-side navigation of the selected tab into the model. */
-export function navigate(
-  model: TabsModel,
-  { pathname }: { pathname: string },
-): TabsModel {
-  return {
-    ...model,
-    tabs: model.tabs.map((tab) =>
-      tab.id === model.selectedId ? { ...tab, pathname } : tab,
-    ),
-  };
 }
 
 export function reopenClosed(

@@ -5,7 +5,6 @@ import {
   addTab,
   closeTab,
   emptyTabsModel,
-  navigate,
   reopenClosed,
   reorderTabs,
   selectAdjacent,
@@ -128,27 +127,6 @@ describe("reopenClosed", () => {
   it("no-ops with empty history", () => {
     const start = model([tab({ id: "a" })], "a");
     expect(reopenClosed(start, { id: "x" })).toBe(start);
-  });
-});
-
-describe("navigate", () => {
-  it("updates the selected tab's pathname", () => {
-    const start = model([tab({ id: "a", pathname: "/new-tab" })], "a");
-    const next = navigate(start, { pathname: "/evals" });
-    expect(next.tabs[0]?.pathname).toBe("/evals");
-  });
-
-  it("navigates the selected tab even if another tab has that route", () => {
-    const start = model(
-      [
-        tab({ id: "a", pathname: "/tasks/1" }),
-        tab({ id: "b", pathname: "/new-tab" }),
-      ],
-      "b",
-    );
-    const next = navigate(start, { pathname: "/tasks/1" });
-    expect(next.selectedId).toBe("b");
-    expect(next.tabs[1]?.pathname).toBe("/tasks/1");
   });
 });
 

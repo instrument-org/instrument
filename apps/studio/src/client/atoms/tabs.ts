@@ -1,3 +1,4 @@
+import { freshTabId, NEW_TAB_PATH } from "@/client/lib/tab-actions";
 import {
   addTab,
   emptyTabsModel,
@@ -7,11 +8,9 @@ import {
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 import { debounce } from "radashi";
 
-const NEW_TAB_PATH = "/new-tab";
-
 function freshTabsModel(): TabsModel {
   return addTab(emptyTabsModel(), {
-    id: crypto.randomUUID(),
+    id: freshTabId(),
     pathname: NEW_TAB_PATH,
   });
 }

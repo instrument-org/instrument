@@ -2,6 +2,7 @@ import { Tab } from "@/client/components/tab";
 import { useSelectedTabId } from "@/client/hooks/use-selected-tab-id";
 import { useTabs } from "@/client/hooks/use-tabs";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
+import { NEW_TAB_PATH } from "@/client/lib/tab-actions";
 import { PlusIcon } from "@phosphor-icons/react";
 import { AnimatePresence, motion, Reorder } from "motion/react";
 
@@ -41,7 +42,7 @@ export default function TabBar() {
           <motion.button
             className="group inline-flex shrink-0 items-center justify-center rounded-xl px-3 py-2 transition-colors [-webkit-app-region:no-drag] hover:bg-muted/60"
             onClick={() => {
-              addTab({ pathname: "/new-tab" });
+              addTab({ pathname: NEW_TAB_PATH });
             }}
             type="button"
             whileTap={{ scale: 0.97 }}

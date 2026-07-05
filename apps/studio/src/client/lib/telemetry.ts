@@ -135,11 +135,11 @@ export function capturePageView(path?: string) {
       return;
     }
     // The main window's per-tab routers use in-memory history, so
-    // window.location never reflects the active route. Carry the tab's path in
-    // the hash of the current href so before_send's hash->path normalization
-    // reports the real route instead of the static shell URL.
-    const base = window.location.href.replace(/#.*$/, "");
-    telemetry?.capture("$pageview", { $current_url: `${base}#${path}` });
+    // window.location never reflects the active route. Report the tab's route
+    // as a canonical URL directly; before_send derives $pathname from it.
+    telemetry?.capture("$pageview", {
+      $current_url: `${FAUX_STUDIO_URL}${path}`,
+    });
   });
 }
 

@@ -58,15 +58,25 @@ export function StudioSidebarRail({
   const draggingRef = useRef(false);
   const collapsingRef = useRef(false);
 
+  // Read the latest stored width from inside the open/close effect without
+  // making it a dependency: width tweaks (drag, keyboard, double-click) apply
+  // their own animation, so re-running the slide spring on every width change
+  // would fight them and jitter.
+  const storedWidthRef = useRef(storedWidth);
+  useEffect(() => {
+    storedWidthRef.current = storedWidth;
+  }, [storedWidth]);
+
   const applyWidth = (value: number) => {
     layoutWidth.set(value);
     panelWidth.set(value);
     panelX.set(0);
   };
 
-  // Animate open/close whenever the open state flips (or the stored width changes
-  // while open, e.g. a double-click reset). A drag drives the width by hand, and
-  // a mid-drag collapse animates itself, so both are skipped here.
+  // Slide the panel in/out when the open state flips. Width changes while open
+  // are driven directly by their handlers, so this only reacts to open/close. A
+  // drag drives the width by hand and a mid-drag collapse animates itself, so
+  // both are skipped here.
   useEffect(() => {
     if (isOpen) {
       collapsingRef.current = false;
@@ -77,16 +87,17 @@ export function StudioSidebarRail({
 
     const controls: AnimationPlaybackControls[] = [];
     if (isOpen) {
-      // Opening or adjusting while open: always drive panelX/opacity home so a
-      // reopen mid-close-fade can't leave the panel translated out or dimmed.
-      // Only when genuinely closed (no reserved layout width) pre-size the panel
-      // so it slides in at full width instead of growing from 0.
+      const width = storedWidthRef.current;
+      // Opening: always drive panelX/opacity home so a reopen mid-close-fade
+      // can't leave the panel translated out or dimmed. Only when genuinely
+      // closed (no reserved layout width) pre-size the panel so it slides in at
+      // full width instead of growing from 0.
       if (layoutWidth.get() === 0) {
-        panelWidth.set(storedWidth);
+        panelWidth.set(width);
       }
       controls.push(
-        animate(layoutWidth, storedWidth, SLIDE_TRANSITION),
-        animate(panelWidth, storedWidth, SLIDE_TRANSITION),
+        animate(layoutWidth, width, SLIDE_TRANSITION),
+        animate(panelWidth, width, SLIDE_TRANSITION),
         animate(panelX, 0, SLIDE_TRANSITION),
         animate(opacity, 1, FADE_TRANSITION),
       );
@@ -102,26 +113,34 @@ export function StudioSidebarRail({
         control.stop();
       }
     };
-  }, [isOpen, storedWidth, layoutWidth, opacity, panelWidth, panelX]);
+  }, [isOpen, layoutWidth, opacity, panelWidth, panelX]);
 
   // Keyboard resize for the splitter (WAI-ARIA window-splitter pattern): arrows
-  // nudge the width, Home/End jump to the bounds. Widening a step per press.
+  // nudge a step, Home/End jump to the bounds. Base each step off the live
+  // panel width (not the render-time atom, which lags rapid presses) so repeated
+  // presses accumulate.
   const KEYBOARD_STEP = 16;
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    const delta =
-      event.key === "ArrowLeft"
-        ? -KEYBOARD_STEP
-        : event.key === "ArrowRight"
-          ? KEYBOARD_STEP
-          : 0;
-    let next: number | undefined;
-    if (delta !== 0) {
-      next = clampSidebarWidth(storedWidth + delta);
-    } else if (event.key === "Home") {
-      next = SIDEBAR_WIDTH_MIN;
-    } else if (event.key === "End") {
-      next = SIDEBAR_WIDTH_MAX;
+  function nextKeyboardWidth(key: string): number | undefined {
+    switch (key) {
+      case "ArrowLeft": {
+        return clampSidebarWidth(panelWidth.get() - KEYBOARD_STEP);
+      }
+      case "ArrowRight": {
+        return clampSidebarWidth(panelWidth.get() + KEYBOARD_STEP);
+      }
+      case "End": {
+        return SIDEBAR_WIDTH_MAX;
+      }
+      case "Home": {
+        return SIDEBAR_WIDTH_MIN;
+      }
+      default: {
+        return undefined;
+      }
     }
+  }
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const next = nextKeyboardWidth(event.key);
     if (next === undefined) {
       return;
     }
@@ -223,6 +242,8 @@ export function StudioSidebarRail({
             "hover:after:bg-muted-foreground/40 active:after:bg-primary/50",
           )}
           onDoubleClick={() => {
+            animate(panelWidth, SIDEBAR_WIDTH, SLIDE_TRANSITION);
+            animate(layoutWidth, SIDEBAR_WIDTH, SLIDE_TRANSITION);
             setStoredWidth(SIDEBAR_WIDTH);
           }}
           onKeyDown={handleKeyDown}

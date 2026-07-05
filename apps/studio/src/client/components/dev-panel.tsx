@@ -55,6 +55,7 @@ import {
   NavigationArrowIcon,
   NotePencilIcon,
   SunIcon,
+  WarningOctagonIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -81,6 +82,7 @@ export function DevPanel() {
   const { setTheme, theme } = useTheme();
   const [hidden, setHidden] = useState(false);
   const [showBreakpoint, setShowBreakpoint] = useState(false);
+  const [crash, setCrash] = useState(false);
   const setDevToolsPanel = useSetAtom(devToolsPanelAtom);
   const [zoom, setZoom] = useAtom(zoomAtom);
 
@@ -154,6 +156,7 @@ export function DevPanel() {
 
   return (
     <>
+      {crash && <CrashProbe />}
       <div className="flex items-center gap-x-1.5">
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
@@ -464,6 +467,19 @@ export function DevPanel() {
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
+              <MenubarSeparator />
+              <MenubarItem
+                className="font-mono text-xs text-destructive focus:text-destructive"
+                onSelect={() => {
+                  // Trip the top-level ErrorBoundary in main-window.tsx by
+                  // throwing during render (event-handler throws aren't caught
+                  // by boundaries), verifying the shell-crash fallback + report.
+                  setCrash(true);
+                }}
+              >
+                <WarningOctagonIcon className="size-3" />
+                Simulate crash
+              </MenubarItem>
               {isPackaged && (
                 <MenubarSub>
                   <MenubarSubTrigger className="font-mono text-xs">
@@ -669,4 +685,9 @@ export function DevPanel() {
       </AlertDialog>
     </>
   );
+}
+
+/** Throws during render to exercise the top-level error boundary. */
+function CrashProbe(): never {
+  throw new Error("Simulated render crash (dev panel)");
 }

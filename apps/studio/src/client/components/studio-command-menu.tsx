@@ -102,6 +102,14 @@ export function StudioCommandMenu() {
   }, [candidateTasks, search]);
 
   const isOnNewTabPage = !!newTabRouteMatch;
+  const commandSearch = search.trim().toLowerCase();
+  const showNewTaskCommand =
+    !isOnNewTabPage && commandMatches("New task", commandSearch);
+  const showCheckForUpdatesCommand = commandMatches(
+    "Check for updates",
+    commandSearch,
+  );
+  const showCommands = showNewTaskCommand || showCheckForUpdatesCommand;
 
   const handleClose = () => {
     setOpen(false);
@@ -122,6 +130,15 @@ export function StudioCommandMenu() {
   const handleNewTask = () => {
     handleClose();
     void navigate({ to: "/new-tab" });
+  };
+
+  const handleCheckForUpdates = () => {
+    handleClose();
+    if (import.meta.env.DEV) {
+      simulateNoUpdate(undefined);
+    } else {
+      checkForUpdates({});
+    }
   };
 
   return (
@@ -161,28 +178,22 @@ export function StudioCommandMenu() {
             {search &&
               search !== "!dev" &&
               search !== "!beta" &&
+              !showCommands &&
               matchedTasks.length === 0 && (
                 <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
                   No tasks found
                 </div>
               )}
-            {!search && (
+            {showCommands && (
               <CommandGroup>
-                {!isOnNewTabPage && (
+                {showNewTaskCommand && (
                   <CommandItem onSelect={handleNewTask} value="new-task">
                     <PlusIcon className="size-4" />
                     <span>New task</span>
                   </CommandItem>
                 )}
                 <CommandItem
-                  onSelect={() => {
-                    handleClose();
-                    if (import.meta.env.DEV) {
-                      simulateNoUpdate(undefined);
-                    } else {
-                      checkForUpdates({});
-                    }
-                  }}
+                  onSelect={handleCheckForUpdates}
                   value="check-for-updates"
                 >
                   <ArrowsClockwiseIcon className="size-4" />
@@ -241,6 +252,10 @@ export function StudioCommandMenu() {
       </CommandList>
     </CommandDialog>
   );
+}
+
+function commandMatches(label: string, search: string) {
+  return search === "" || label.toLowerCase().includes(search);
 }
 
 function VirtualTaskList({

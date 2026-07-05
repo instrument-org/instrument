@@ -1,8 +1,13 @@
+import { type TabId, TabIdSchema } from "@/shared/tabs";
 import { createContext, type ReactNode, useContext } from "react";
 
 const ActiveTabContext = createContext<boolean>(true);
 
-const TabIdContext = createContext<string>("$$no-tab$$");
+// Sentinel for code that reads a tab id outside any tab (e.g. a prompt surface
+// mounted in the chrome). Keyed distinctly so its atom-family state never
+// collides with a real tab's.
+const NO_TAB_ID = TabIdSchema.parse("$$no-tab$$");
+const TabIdContext = createContext<TabId>(NO_TAB_ID);
 
 /**
  * Provided by each `TabView` so anything inside a tab can tell whether it is the
@@ -29,7 +34,7 @@ export function TabIdProvider({
   id,
 }: {
   children: ReactNode;
-  id: string;
+  id: TabId;
 }) {
   return <TabIdContext value={id}>{children}</TabIdContext>;
 }

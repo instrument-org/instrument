@@ -1,3 +1,4 @@
+import { type TabId } from "@/shared/tabs";
 import {
   MAX_PROMPT_STORAGE_LENGTH,
   type TaskId,
@@ -15,7 +16,7 @@ import { rpcClient } from "../rpc/client";
 //    owning tab so each tab composes independently. Ephemeral by design; a
 //    half-written new task isn't worth persisting across restarts.
 export type PromptDraftKey =
-  | { scope: "compose"; tabId: string }
+  | { scope: "compose"; tabId: TabId }
   | { scope: "task"; taskId: TaskId };
 
 function draftKeyString(key: PromptDraftKey): string {
@@ -78,7 +79,7 @@ const createTaskPromptStorage = (id: TaskId) => {
 };
 
 // Ephemeral, in-memory compose drafts, one per tab.
-const composeDraftFamily = atomFamily((_tabId: string) => atom(""));
+const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
 
 // Task follow-up drafts, persisted with the task via task-state storage.
 export const taskDraftFamily = atomFamily((taskId: TaskId) =>
@@ -120,13 +121,13 @@ export function promptDraftRefAtom(key: PromptDraftKey) {
 // `navigateTab`). A sidebar click whose destination equals the current route is
 // a no-op navigation, so nothing remounts to re-run the prompt's focus effect;
 // the page's prompt watches this signal to re-assert focus on that click too.
-const promptFocusSignalFamily = atomFamily((_tabId: string) => atom(0));
+const promptFocusSignalFamily = atomFamily((_tabId: TabId) => atom(0));
 
-export function promptFocusSignalAtom(tabId: string) {
+export function promptFocusSignalAtom(tabId: TabId) {
   return promptFocusSignalFamily(tabId);
 }
 
-export const bumpPromptFocusAtom = atom(null, (get, set, tabId: string) => {
+export const bumpPromptFocusAtom = atom(null, (get, set, tabId: TabId) => {
   const signal = promptFocusSignalFamily(tabId);
   set(signal, get(signal) + 1);
 });

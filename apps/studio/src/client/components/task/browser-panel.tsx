@@ -43,6 +43,9 @@ export function TaskBrowserPanel({
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
   const [nav, setNav] = useState({ back: false, forward: false });
+  // Identity for this panel's claim on the guest's visibility, so the pool can
+  // reject a park from a different panel showing the same target (see pool).
+  const [slotOwner] = useState(() => Symbol("browser-panel-slot"));
 
   // Show the guest over the slot only while this is the foreground tab; park it
   // in paint-host otherwise. Every tab stays mounted (hidden via CSS), so the
@@ -55,21 +58,25 @@ export function TaskBrowserPanel({
     }
 
     if (!isActiveTab) {
-      setPaintHost(targetId);
+      setPaintHost(targetId, slotOwner);
       return;
     }
 
     const measure = () => {
       const rect = slot.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
-        showOverSlot(targetId, {
-          height: rect.height,
-          width: rect.width,
-          x: rect.x,
-          y: rect.y,
-        });
+        showOverSlot(
+          targetId,
+          {
+            height: rect.height,
+            width: rect.width,
+            x: rect.x,
+            y: rect.y,
+          },
+          slotOwner,
+        );
       } else {
-        setPaintHost(targetId);
+        setPaintHost(targetId, slotOwner);
       }
       return rect;
     };
@@ -99,9 +106,9 @@ export function TaskBrowserPanel({
       cancelAnimationFrame(raf);
       observer.disconnect();
       window.removeEventListener("resize", measure);
-      setPaintHost(targetId);
+      setPaintHost(targetId, slotOwner);
     };
-  }, [active, isActiveTab, targetId]);
+  }, [active, isActiveTab, slotOwner, targetId]);
 
   // Mirror the guest's URL + nav availability into the controls (it navigates
   // from agent CDP commands too, not just user input).

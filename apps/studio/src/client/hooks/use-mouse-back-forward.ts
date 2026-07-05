@@ -26,9 +26,24 @@ export function useMouseBackForward() {
       }
     };
 
+    // Also suppress the default nav on mouseup/auxclick: Chromium can fire its
+    // native BrowserBack/BrowserForward at those stages, so preventing it on
+    // mousedown alone isn't always enough.
+    const onAux = (event: MouseEvent) => {
+      if (event.button !== 3 && event.button !== 4) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
     window.addEventListener("mousedown", onMouseDown, { capture: true });
+    window.addEventListener("mouseup", onAux, { capture: true });
+    window.addEventListener("auxclick", onAux, { capture: true });
     return () => {
       window.removeEventListener("mousedown", onMouseDown, { capture: true });
+      window.removeEventListener("mouseup", onAux, { capture: true });
+      window.removeEventListener("auxclick", onAux, { capture: true });
     };
   }, [store]);
 }

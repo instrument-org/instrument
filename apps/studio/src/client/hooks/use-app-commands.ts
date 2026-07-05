@@ -8,24 +8,24 @@ import { closeSelectedTab, openTab, reopenTab } from "@/client/lib/tab-actions";
 import { selectAdjacent, selectByIndex } from "@/client/lib/tab-model";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { rpcClient } from "@/client/rpc/client";
+import { type AppCommand } from "@/shared/tabs";
 import { useStore } from "jotai";
 import { sleep } from "radashi";
 import { useEffect } from "react";
 
-// Commands that move the user between tabs or routes. While a modal is open
-// these are ignored so shortcuts like Cmd+T / Cmd+W can't pull the user out from
-// under it; app-state commands (zoom, sidebar, settings, command menu, reload)
-// stay allowed since they don't navigate the tab.
-const MODAL_BLOCKED_COMMANDS = new Set([
-  "close",
-  "navigate",
-  "navigateBack",
-  "navigateForward",
-  "reopen",
-  "selectByIndex",
-  "selectLast",
-  "selectNext",
-  "selectPrevious",
+// Commands allowed to run while a blocking modal is open: they drive app-wide
+// view state (settings, command menu, sidebar, zoom, reload), never the tab
+// stack, so they can't pull the user out from under a modal. Everything else
+// (open/close/switch/navigate) is blocked. Allow-list, not deny-list, so a new
+// command is blocked by default until it's explicitly marked modal-safe.
+const MODAL_SAFE_COMMANDS = new Set<AppCommand["type"]>([
+  "openSettings",
+  "reload",
+  "toggleCommandMenu",
+  "toggleSidebar",
+  "zoomIn",
+  "zoomOut",
+  "zoomReset",
 ]);
 
 // Backoff before re-establishing a dropped command stream, so a transport reset
@@ -61,7 +61,7 @@ export function useAppCommands() {
           });
           for await (const command of commands) {
             if (
-              MODAL_BLOCKED_COMMANDS.has(command.type) &&
+              !MODAL_SAFE_COMMANDS.has(command.type) &&
               store.get(blockingModalCountAtom) > 0
             ) {
               continue;
@@ -80,6 +80,9 @@ export function useAppCommands() {
                 }
                 const router = getTabRouter(store.get(tabsAtom).selectedId);
                 if (router) {
+                  // appPath is an unvalidated route string from the main process
+                  // (menus/onboarding), so it can't satisfy the typed route graph
+                  // statically; assert it here at that trust boundary.
                   void router.navigate({
                     to: command.appPath,
                   } as Parameters<typeof router.navigate>[0]);
@@ -153,6 +156,9 @@ export function useAppCommands() {
               case "zoomReset": {
                 store.set(zoomAtom, 1);
                 break;
+              }
+              default: {
+                command satisfies never;
               }
             }
           }

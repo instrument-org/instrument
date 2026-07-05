@@ -101,8 +101,8 @@ importers:
         specifier: ^3.2.3
         version: 3.2.3
       '@instrument-org/agent-hooks':
-        specifier: https://github.com/instrument-org/agent-hooks
-        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/31647d0319786653baf6ed52c4f91e3813202972
+        specifier: github:instrument-org/agent-hooks
+        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/cfc91a3892b2684fa1977d5a5aed26eb28827035
       '@instrument-org/eslint-config':
         specifier: workspace:*
         version: link:packages/eslint-config
@@ -1943,8 +1943,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/31647d0319786653baf6ed52c4f91e3813202972':
-    resolution: {tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/31647d0319786653baf6ed52c4f91e3813202972}
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/cfc91a3892b2684fa1977d5a5aed26eb28827035':
+    resolution: {tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/cfc91a3892b2684fa1977d5a5aed26eb28827035}
     version: 1.0.0
     engines: {node: '>=22'}
 
@@ -6499,8 +6499,8 @@ packages:
       react:
         optional: true
 
-  js-base64@3.7.8:
-    resolution: {integrity: sha512-hNngCeKxIUQiEUN3GPJOkz4wF/YvdUdbNL9hsBcMQTkKzboD7T/q3OYOuuPZLUE6dBxSGpwhk5mwuDud7JVAow==}
+  js-base64@3.8.0:
+    resolution: {integrity: sha512-65kvbemyZhj+ExQt1PEFyBEjL5vAHysu1lJdW1AwhhChkO8ZBPizYk/m9GVrpbS2Je1hF+UYZ+6KywqtZV8mHw==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -8462,8 +8462,8 @@ packages:
     resolution: {integrity: sha512-g9ljZiwki/LfxmQADO3dEY1CbpmXT5Hm2fJ+QaGKwSXUylMybePR7/67YW7jOrrvjEgL1Fmz5kzyAjWVWLlucg==}
     engines: {node: '>=6'}
 
-  tar-fs@2.1.4:
-    resolution: {integrity: sha512-mDAjwmZdh7LTT6pNleZ05Yt65HC3E+NiQzl672vQG38jIrehtJk/J3mNwIg+vShQPcLF/LV7CMnDW6vjj6sfYQ==}
+  tar-fs@2.1.5:
+    resolution: {integrity: sha512-OboTd8mmMhZDNPV+UjQcK9yKAatXu2aJ+r1w4im1Otd4M4fl2hwvdoXUxIYHFTHWK/3y3FarBP70v3vwmGlOxw==}
 
   tar-stream@2.2.0:
     resolution: {integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==}
@@ -10190,7 +10190,7 @@ snapshots:
       '@types/node': 24.13.1
     optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/31647d0319786653baf6ed52c4f91e3813202972': {}
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/cfc91a3892b2684fa1977d5a5aed26eb28827035': {}
 
   '@ioredis/commands@1.10.0':
     optional: true
@@ -10267,7 +10267,7 @@ snapshots:
     dependencies:
       '@libsql/core': 0.14.0
       '@libsql/hrana-client': 0.7.0
-      js-base64: 3.7.8
+      js-base64: 3.8.0
       libsql: 0.4.7
       promise-limit: 2.7.0
     transitivePeerDependencies:
@@ -10277,7 +10277,7 @@ snapshots:
 
   '@libsql/core@0.14.0':
     dependencies:
-      js-base64: 3.7.8
+      js-base64: 3.8.0
     optional: true
 
   '@libsql/darwin-arm64@0.4.7':
@@ -10290,7 +10290,7 @@ snapshots:
     dependencies:
       '@libsql/isomorphic-fetch': 0.3.1
       '@libsql/isomorphic-ws': 0.1.5
-      js-base64: 3.7.8
+      js-base64: 3.8.0
       node-fetch: 3.3.2
     transitivePeerDependencies:
       - bufferutil
@@ -15156,7 +15156,7 @@ snapshots:
       '@types/react': 19.2.7
       react: 19.2.1
 
-  js-base64@3.7.8:
+  js-base64@3.8.0:
     optional: true
 
   js-tokens@4.0.0: {}
@@ -16526,7 +16526,7 @@ snapshots:
       pump: 3.0.4
       rc: 1.2.8
       simple-get: 4.0.1
-      tar-fs: 2.1.4
+      tar-fs: 2.1.5
       tunnel-agent: 0.6.0
     optional: true
 
@@ -17479,7 +17479,7 @@ snapshots:
 
   tapable@2.3.0: {}
 
-  tar-fs@2.1.4:
+  tar-fs@2.1.5:
     dependencies:
       chownr: 1.1.4
       mkdirp-classic: 0.5.3

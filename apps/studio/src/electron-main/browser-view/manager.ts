@@ -133,6 +133,15 @@ export function createBrowserViewManager(): BrowserViewManager {
         log.error(
           `did-fail-load targetId=${entry.targetId} url=${validatedURL} errorCode=${errorCode} errorDescription=${errorDescription}`,
         );
+        // ERR_ABORTED (-3) is a normal interrupted navigation. Any other failure
+        // of the initial load would leave `attach` pending until the 15s timeout;
+        // settle it so createTarget resolves against the bound guest (CDP still
+        // works) instead of hanging. A no-op once did-finish-load has resolved.
+        if (errorCode !== -3 && !entry.attach.settled) {
+          ensureDebuggerAttached(entry);
+          entry.attach.resolve();
+          notifyEntriesChanged();
+        }
       },
     );
 
@@ -192,6 +201,15 @@ export function createBrowserViewManager(): BrowserViewManager {
         event.preventDefault();
         return;
       }
+      if (entry.webContents && !entry.webContents.isDestroyed()) {
+        // Already bound to a live guest: a second attach for the same id would
+        // rebind and orphan the first guest's debugger. Reject it.
+        log.warn(
+          `rejected agent-browser webview attach (already bound) targetId=${targetId}`,
+        );
+        event.preventDefault();
+        return;
+      }
 
       // The trick that preserves per-task isolation: override the guest session
       // with our path-based profile. When both `session` and `partition` are
@@ -218,6 +236,12 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       const entry = entries.get(targetId);
       if (!entry) {
+        return;
+      }
+      if (entry.webContents && !entry.webContents.isDestroyed()) {
+        // Already bound (will-attach should have rejected this); don't rebind
+        // and stack a second set of disposers on the entry.
+        log.warn(`ignored duplicate did-attach-webview targetId=${targetId}`);
         return;
       }
       bindGuest(entry, guest);
@@ -475,8 +499,8 @@ export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
 }
 
-function navigateGuest(wc: WebContents, direction: "back" | "forward" | null) {
-  if (!direction || wc.isDestroyed()) {
+function navigateGuest(wc: WebContents, direction: "back" | "forward") {
+  if (wc.isDestroyed()) {
     return;
   }
   const history = wc.navigationHistory;

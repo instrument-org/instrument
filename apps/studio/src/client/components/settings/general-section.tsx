@@ -83,7 +83,7 @@ function About() {
 
   const handleCheckForUpdates = async () => {
     await checkForUpdatesMutation.mutateAsync({
-      notify: false,
+      notify: true,
     });
   };
 

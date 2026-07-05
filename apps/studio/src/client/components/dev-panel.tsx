@@ -110,6 +110,14 @@ export function DevPanel() {
     rpcClient.debug.trigger.testErrorNotification.mutationOptions(),
   );
 
+  const { mutate: simulateNoUpdate } = useMutation(
+    rpcClient.debug.trigger.testNoUpdateNotification.mutationOptions(),
+  );
+
+  const { mutate: clearUpdateBadge } = useMutation(
+    rpcClient.debug.trigger.testSilentNoUpdate.mutationOptions(),
+  );
+
   const { data: appEnvironment } = useQuery(
     rpcClient.debug.getAppEnvironment.queryOptions(),
   );
@@ -316,14 +324,23 @@ export function DevPanel() {
                     <ArrowsClockwiseIcon className="size-3" />
                     Simulate error
                   </MenubarItem>
-                  <MenubarSeparator />
                   <MenubarItem
                     className="font-mono text-xs"
                     onSelect={() => {
-                      handleNavigate("/debug/notifications");
+                      simulateNoUpdate(undefined);
                     }}
                   >
-                    Debug page
+                    <ArrowsClockwiseIcon className="size-3" />
+                    Simulate no updates
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      clearUpdateBadge(undefined);
+                    }}
+                  >
+                    <ArrowsClockwiseIcon className="size-3" />
+                    Clear update badge
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

@@ -138,7 +138,7 @@ export function capturePageView(path?: string) {
     // window.location never reflects the active route. Carry the tab's path in
     // the hash of the current href so before_send's hash->path normalization
     // reports the real route instead of the static shell URL.
-    const base = window.location.href.split("#")[0];
+    const base = window.location.href.replace(/#.*$/, "");
     telemetry?.capture("$pageview", { $current_url: `${base}#${path}` });
   });
 }

@@ -192,70 +192,18 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             { role: "front" as const },
           ] satisfies MenuItemConstructorOptions[])
         : []),
-      {
-        accelerator: "CmdOrCtrl+1",
-        click: () => {
-          sendAppCommand({ index: 0, type: "selectByIndex" });
-        },
-        label: "Switch to Tab 1",
-        visible: false,
-      },
-      {
-        accelerator: "CmdOrCtrl+2",
-        click: () => {
-          sendAppCommand({ index: 1, type: "selectByIndex" });
-        },
-        label: "Switch to Tab 2",
-        visible: false,
-      },
-      {
-        accelerator: "CmdOrCtrl+3",
-        click: () => {
-          sendAppCommand({ index: 2, type: "selectByIndex" });
-        },
-        label: "Switch to Tab 3",
-        visible: false,
-      },
-      {
-        accelerator: "CmdOrCtrl+4",
-        click: () => {
-          sendAppCommand({ index: 3, type: "selectByIndex" });
-        },
-        label: "Switch to Tab 4",
-        visible: false,
-      },
-      {
-        accelerator: "CmdOrCtrl+5",
-        click: () => {
-          sendAppCommand({ index: 4, type: "selectByIndex" });
-        },
-        label: "Switch to Tab 5",
-        visible: false,
-      },
-      {
-        accelerator: "CmdOrCtrl+6",
-        click: () => {
-          sendAppCommand({ index: 5, type: "selectByIndex" });
-        },
-        label: "Switch to Tab 6",
-        visible: false,
-      },
-      {
-        accelerator: "CmdOrCtrl+7",
-        click: () => {
-          sendAppCommand({ index: 6, type: "selectByIndex" });
-        },
-        label: "Switch to Tab 7",
-        visible: false,
-      },
-      {
-        accelerator: "CmdOrCtrl+8",
-        click: () => {
-          sendAppCommand({ index: 7, type: "selectByIndex" });
-        },
-        label: "Switch to Tab 8",
-        visible: false,
-      },
+      // Cmd/Ctrl+1..8 jump to that tab index; hidden accelerators (no menu row).
+      ...Array.from(
+        { length: 8 },
+        (_, i): MenuItemConstructorOptions => ({
+          accelerator: `CmdOrCtrl+${i + 1}`,
+          click: () => {
+            sendAppCommand({ index: i, type: "selectByIndex" });
+          },
+          label: `Switch to Tab ${i + 1}`,
+          visible: false,
+        }),
+      ),
       {
         accelerator: "CmdOrCtrl+9",
         click: () => {

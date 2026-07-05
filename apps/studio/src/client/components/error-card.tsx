@@ -1,4 +1,3 @@
-import { SUPPORT_URL } from "@instrument-org/shared";
 import {
   rootRouteId,
   useCanGoBack,
@@ -6,23 +5,14 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 
-import { ErrorDetails } from "./error-details";
-import { ExternalLink } from "./external-link";
+import { ErrorCardShell } from "./error-card-shell";
 import { InternalLink } from "./internal-link";
 import { Button } from "./ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
 
 export function ErrorCard({
   description = "Something didn't work as expected. Try again, or go back if it keeps happening.",
   error,
-  title = "Something went wrong",
+  title,
 }: {
   description?: string;
   error: unknown;
@@ -36,24 +26,8 @@ export function ErrorCard({
   const canGoBack = useCanGoBack();
 
   return (
-    <Card className="w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <ErrorDetails error={error} />
-      </CardContent>
-      <CardFooter className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          Still having trouble?{" "}
-          <ExternalLink
-            className="underline underline-offset-2 hover:text-foreground"
-            href={SUPPORT_URL}
-          >
-            Get help
-          </ExternalLink>
-        </p>
+    <ErrorCardShell
+      actions={
         <div className="flex gap-x-2">
           {isRoot ? (
             <Button asChild variant="secondary">
@@ -84,7 +58,10 @@ export function ErrorCard({
             Try again
           </Button>
         </div>
-      </CardFooter>
-    </Card>
+      }
+      description={description}
+      error={error}
+      title={title}
+    />
   );
 }

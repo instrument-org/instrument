@@ -118,11 +118,11 @@ function DropdownMenuPortal({
   container,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
-  const defaultContainer = usePortalContainer();
+  const portalContainer = usePortalContainer(container);
 
   return (
     <DropdownMenuPrimitive.Portal
-      container={container ?? defaultContainer}
+      container={portalContainer}
       data-slot="dropdown-menu-portal"
       {...props}
     />

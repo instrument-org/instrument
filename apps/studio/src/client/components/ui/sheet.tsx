@@ -109,11 +109,11 @@ function SheetPortal({
   container,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Portal>) {
-  const defaultContainer = usePortalContainer();
+  const portalContainer = usePortalContainer(container);
 
   return (
     <SheetPrimitive.Portal
-      container={container ?? defaultContainer}
+      container={portalContainer}
       data-slot="sheet-portal"
       {...props}
     />

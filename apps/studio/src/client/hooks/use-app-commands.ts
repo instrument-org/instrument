@@ -4,20 +4,13 @@ import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { tabsAtom } from "@/client/atoms/tabs";
 import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
 import { toggleSidebar } from "@/client/hooks/use-sidebar";
-import {
-  addTab,
-  closeTab,
-  reopenClosed,
-  selectAdjacent,
-  selectByIndex,
-} from "@/client/lib/tab-model";
-import { getTabHistory, getTabRouter } from "@/client/lib/tab-router-registry";
+import { closeSelectedTab, openTab, reopenTab } from "@/client/lib/tab-actions";
+import { selectAdjacent, selectByIndex } from "@/client/lib/tab-model";
+import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { rpcClient } from "@/client/rpc/client";
 import { useStore } from "jotai";
 import { sleep } from "radashi";
 import { useEffect } from "react";
-
-const NEW_TAB_PATH = "/new-tab";
 
 // Commands that move the user between tabs or routes. While a modal is open
 // these are ignored so shortcuts like Cmd+T / Cmd+W can't pull the user out from
@@ -75,22 +68,13 @@ export function useAppCommands() {
             }
             switch (command.type) {
               case "close": {
-                const id = store.get(tabsAtom).selectedId;
-                if (id) {
-                  store.set(tabsAtom, (m) =>
-                    closeTab(m, {
-                      history: getTabHistory(id),
-                      id,
-                      newTab: { id: freshId(), pathname: NEW_TAB_PATH },
-                    }),
-                  );
-                }
+                store.set(tabsAtom, closeSelectedTab);
                 break;
               }
               case "navigate": {
                 if (command.newTab) {
                   store.set(tabsAtom, (m) =>
-                    addTab(m, { id: freshId(), pathname: command.appPath }),
+                    openTab(m, { pathname: command.appPath }),
                   );
                   break;
                 }
@@ -127,7 +111,7 @@ export function useAppCommands() {
                 break;
               }
               case "reopen": {
-                store.set(tabsAtom, (m) => reopenClosed(m, { id: freshId() }));
+                store.set(tabsAtom, reopenTab);
                 break;
               }
               case "selectByIndex": {
@@ -186,8 +170,4 @@ export function useAppCommands() {
       controller.abort();
     };
   }, [store]);
-}
-
-function freshId() {
-  return crypto.randomUUID();
 }

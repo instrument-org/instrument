@@ -102,7 +102,7 @@ importers:
         version: 3.2.3
       '@instrument-org/agent-hooks':
         specifier: github:instrument-org/agent-hooks
-        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/cfc91a3892b2684fa1977d5a5aed26eb28827035
+        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/79b323c517a9583366669f27c36c56560b2a196e
       '@instrument-org/eslint-config':
         specifier: workspace:*
         version: link:packages/eslint-config
@@ -1943,8 +1943,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/cfc91a3892b2684fa1977d5a5aed26eb28827035':
-    resolution: {tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/cfc91a3892b2684fa1977d5a5aed26eb28827035}
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/79b323c517a9583366669f27c36c56560b2a196e':
+    resolution: {tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/79b323c517a9583366669f27c36c56560b2a196e}
     version: 1.0.0
     engines: {node: '>=22'}
 
@@ -10190,7 +10190,7 @@ snapshots:
       '@types/node': 24.13.1
     optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/cfc91a3892b2684fa1977d5a5aed26eb28827035': {}
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/79b323c517a9583366669f27c36c56560b2a196e': {}
 
   '@ioredis/commands@1.10.0':
     optional: true

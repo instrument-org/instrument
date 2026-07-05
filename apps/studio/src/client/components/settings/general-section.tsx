@@ -6,6 +6,7 @@ import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
 import { Switch } from "@/client/components/ui/switch";
+import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -317,6 +318,15 @@ function InterfaceAndTheme() {
               </p>
             </div>
             <ThemeToggle />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Zoom</Label>
+              <p className="text-xs text-muted-foreground">
+                Scale the interface. Independent of web view zoom.
+              </p>
+            </div>
+            <ZoomStepper />
           </div>
         </div>
       </Card>

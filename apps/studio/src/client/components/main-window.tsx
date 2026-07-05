@@ -1,6 +1,7 @@
 import { tabsAtom } from "@/client/atoms/tabs";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AppChrome } from "@/client/components/app-chrome";
+import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
 import {
   ActiveTabProvider,
@@ -96,6 +97,7 @@ export function MainWindow() {
                 </RouterContextProvider>
               ) : null}
             </ZoomRoot>
+            <ZoomToast />
           </IconContext.Provider>
         </TooltipProvider>
       </ThemeProvider>

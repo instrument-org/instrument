@@ -86,14 +86,19 @@ export function ProviderPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-(--radix-popover-trigger-width) p-0"
+        // Radix `--radix-popover-*` vars are measured in already-zoomed rendered
+        // pixels; PopoverContent then self-applies CSS `zoom` (useAppZoomStyle), so
+        // dividing by `--content-zoom` cancels the double-count: the panel matches
+        // the trigger width and stays within the available height (the list flexes
+        // and scrolls) instead of overflowing off-screen at zoom > 1.
+        className="flex max-h-[calc(var(--radix-popover-content-available-height)/var(--content-zoom))] w-[calc(var(--radix-popover-trigger-width)/var(--content-zoom))] flex-col overflow-hidden p-0"
         onWheel={(e) => {
           e.stopPropagation();
         }}
       >
         <Command>
           <CommandInput placeholder="Search providers..." />
-          <CommandList>
+          <CommandList className="max-h-none min-h-0 flex-1">
             <CommandEmpty>Error loading providers.</CommandEmpty>
             <CommandGroup>
               {sortedProviderMetadata

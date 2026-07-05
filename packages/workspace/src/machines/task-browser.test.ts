@@ -283,6 +283,24 @@ describe("taskBrowserMachine", () => {
     expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
   });
 
+  it("ignores registerTarget once teardown has started", async () => {
+    const { actor, browser } = spawnHarness();
+
+    // Enter Stopping, then a browser.open createTarget resolves late and fires a
+    // registerTarget. It must be ignored, not spawn a destruction watcher on a
+    // target that's already being reaped.
+    actor.send({ type: "forceReap" });
+    actor.send({
+      type: "registerTarget",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(browser.onTargetDestroyed).not.toHaveBeenCalled();
+    expect(browser.closeTarget).not.toHaveBeenCalled();
+  });
+
   it("targetDestroyedExternally after registerTarget skips closeTarget", async () => {
     const { actor, browser } = spawnHarness();
 

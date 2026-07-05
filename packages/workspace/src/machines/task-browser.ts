@@ -213,16 +213,6 @@ export const taskBrowserMachine = setup({
       },
     },
     forceReap: { target: ".Stopping" },
-    // A user opened the browser from the UI (no agent CDP traffic yet). Record
-    // the target so reap closes it and spawn its destruction watcher, without
-    // changing state: liveness is driven by the presence lease the open panel
-    // holds, not by this event.
-    registerTarget: {
-      actions: {
-        params: ({ event }) => event.value,
-        type: "setTargetMeta",
-      },
-    },
     targetDestroyedExternally: {
       actions: {
         params: ({ event }) => ({ targetId: event.value.targetId }),
@@ -241,6 +231,16 @@ export const taskBrowserMachine = setup({
           actions: "acquirePresence",
           target: "Observed",
         },
+        // A user opened the browser from the UI. Record the target (and spawn
+        // its destruction watcher) without changing state: liveness is driven by
+        // the presence lease the open panel holds, not by this event. Scoped to
+        // the live states so a late open during teardown is ignored.
+        registerTarget: {
+          actions: {
+            params: ({ event }) => event.value,
+            type: "setTargetMeta",
+          },
+        },
         updateCdpHeartbeat: {
           actions: {
             params: ({ event }) => event.value,
@@ -258,6 +258,12 @@ export const taskBrowserMachine = setup({
     Observed: {
       on: {
         acquirePresence: { actions: "acquirePresence" },
+        registerTarget: {
+          actions: {
+            params: ({ event }) => event.value,
+            type: "setTargetMeta",
+          },
+        },
         releasePresence: [
           {
             actions: "releasePresence",
@@ -300,6 +306,12 @@ export const taskBrowserMachine = setup({
         acquirePresence: {
           actions: "acquirePresence",
           target: "Observed",
+        },
+        registerTarget: {
+          actions: {
+            params: ({ event }) => event.value,
+            type: "setTargetMeta",
+          },
         },
         updateCdpHeartbeat: {
           actions: {

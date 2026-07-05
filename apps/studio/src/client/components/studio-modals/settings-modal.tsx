@@ -58,7 +58,7 @@ export function SettingsModal() {
   // Deferred so `DialogContent` stays mounted (and its close animation can
   // play) for a moment after `state` clears to null, instead of unmounting
   // the instant the dialog starts closing.
-  const { content, onExitComplete } = useDeferredModalState(state);
+  const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
   useBlockTabNavigation(isOpen);
 
@@ -78,6 +78,7 @@ export function SettingsModal() {
           // sections drops it (onSelectTab sets `{ tab }` alone), so revisiting
           // Providers doesn't reopen add-provider.
           autoAddProvider={content.showNewProviderDialog ?? false}
+          key={openKey}
           onExitComplete={onExitComplete}
           onSelectTab={(tab) => {
             setState({ tab });

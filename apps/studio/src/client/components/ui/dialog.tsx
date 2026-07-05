@@ -1,3 +1,4 @@
+import { handleContentExitAnimation } from "@/client/components/ui/dialog-exit";
 import {
   useAppZoomStyle,
   ZOOM_CONTENT_MAX_HEIGHT,
@@ -43,22 +44,16 @@ function DialogContent({
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         className={cn(
-          "pointer-events-auto fixed top-[50%] left-[50%] z-50 grid w-full translate-[-50%] gap-4 overflow-y-auto rounded-3xl border bg-background p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "pointer-events-auto fixed top-[50%] left-[50%] z-50 grid w-full translate-[-50%] gap-4 overflow-y-auto rounded-3xl border bg-background p-6 shadow-lg duration-200 data-[state=closed]:pointer-events-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           ZOOM_CONTENT_MAX_HEIGHT,
           ZOOM_CONTENT_MAX_WIDTH,
           className,
         )}
         data-slot="dialog-content"
-        onAnimationEnd={(event) => {
-          onAnimationEnd?.(event);
-          if (
-            onExitComplete &&
-            event.target === event.currentTarget &&
-            event.currentTarget.dataset.state === "closed"
-          ) {
-            onExitComplete();
-          }
-        }}
+        onAnimationEnd={handleContentExitAnimation(
+          onAnimationEnd,
+          onExitComplete,
+        )}
         style={useAppZoomStyle(style)}
         {...props}
       >

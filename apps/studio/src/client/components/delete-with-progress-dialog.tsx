@@ -5,7 +5,7 @@ import {
   PROGRESS_MESSAGES,
 } from "@/client/lib/trash-terminology";
 import { TimerIcon } from "@phosphor-icons/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { Alert, AlertDescription } from "./ui/alert";
 import {
@@ -42,16 +42,14 @@ export function DeleteWithProgressDialog<T>({
   title,
 }: DeleteWithProgressDialogProps<T>) {
   useBlockTabNavigation(open);
-  // Keep the body mounted through the close animation so it never animates out
-  // as an empty frame. Retain the last-open props in a ref too, so a caller
-  // that clears its selection on confirm (e.g. bulk delete) doesn't flash a
-  // "0 tasks" body during the fade. Cleared when the exit animation ends.
-  const { content: bodyVisible, onExitComplete: onBodyExit } =
-    useDeferredModalState(open ? true : null);
-  const lastProps = useRef({ content, description, items, title });
-  if (open) {
-    lastProps.current = { content, description, items, title };
-  }
+  // Keep the body mounted through the close animation instead of unmounting it
+  // the instant `open` flips false, which would animate out an empty frame.
+  // Cleared when AlertDialogContent's exit animation actually ends.
+  const {
+    content: bodyVisible,
+    onExitComplete: onBodyExit,
+    openKey,
+  } = useDeferredModalState(open ? true : null);
 
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
@@ -63,12 +61,13 @@ export function DeleteWithProgressDialog<T>({
       >
         {bodyVisible && (
           <DeleteWithProgressDialogBody
-            content={lastProps.current.content}
-            description={lastProps.current.description}
-            items={lastProps.current.items}
+            content={content}
+            description={description}
+            items={items}
+            key={openKey}
             onDelete={onDelete}
             onOpenChange={onOpenChange}
-            title={lastProps.current.title}
+            title={title}
           />
         )}
       </AlertDialogContent>

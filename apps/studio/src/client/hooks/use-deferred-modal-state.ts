@@ -20,6 +20,10 @@ const EXIT_FALLBACK_MS = 1000;
 export function useDeferredModalState<T>(state: null | T): {
   content: null | T;
   onExitComplete: () => void;
+  // Bumped on every open (null -> non-null). Use as the content element's
+  // `key` so reopening within the exit window remounts it fresh instead of
+  // reviving the still-mounted instance's per-open `useState`.
+  openKey: number;
 } {
   const [lastNonNull, setLastNonNull] = useState(state);
   if (state !== null && state !== lastNonNull) {
@@ -31,6 +35,15 @@ export function useDeferredModalState<T>(state: null | T): {
   // should show content again immediately, not wait on the previous close.
   if (state !== null && !showContent) {
     setShowContent(true);
+  }
+
+  const [openKey, setOpenKey] = useState(0);
+  const [wasOpen, setWasOpen] = useState(state !== null);
+  if ((state !== null) !== wasOpen) {
+    setWasOpen(state !== null);
+    if (state !== null) {
+      setOpenKey((key) => key + 1);
+    }
   }
 
   useEffect(() => {
@@ -50,5 +63,6 @@ export function useDeferredModalState<T>(state: null | T): {
     onExitComplete: () => {
       setShowContent(false);
     },
+    openKey,
   };
 }

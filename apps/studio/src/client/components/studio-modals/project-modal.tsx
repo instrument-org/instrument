@@ -45,7 +45,7 @@ export function ProjectModal() {
   // Deferred so `DialogContent` stays mounted (and its close animation can
   // play) for a moment after `state` clears to null, instead of unmounting
   // the instant the dialog starts closing.
-  const { content, onExitComplete } = useDeferredModalState(state);
+  const { content, onExitComplete, openKey } = useDeferredModalState(state);
   const close = () => {
     setState(null);
   };
@@ -64,6 +64,7 @@ export function ProjectModal() {
       {content !== null && (
         <ProjectModalContent
           close={close}
+          key={openKey}
           onExitComplete={onExitComplete}
           projectId={content.projectId}
           taskId={content.taskId}

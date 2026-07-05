@@ -4,7 +4,7 @@ import ReactDOM, { type Root } from "react-dom/client";
 
 import { App } from "./app";
 import { MainWindow } from "./components/main-window";
-import { initAgentBrowserPool } from "./lib/agent-browser-pool";
+import { initBrowserPool } from "./lib/browser-pool";
 import { applyInitialTheme } from "./lib/initial-theme";
 
 declare global {
@@ -29,8 +29,8 @@ if (rootElement) {
   root.render(isMainWindow ? <MainWindow /> : <App />);
 
   if (isMainWindow) {
-    // Subscribe the agent-browser webview pool to main-process mount/unmount
+    // Subscribe the browser webview pool to main-process mount/unmount
     // commands for the lifetime of the main-window renderer.
-    initAgentBrowserPool();
+    initBrowserPool();
   }
 }

@@ -8,7 +8,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/client/components/ui/resizable";
-import { useAgentBrowserTargets } from "@/client/hooks/use-agent-browser-targets";
+import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -70,12 +70,12 @@ export function TaskView({
   const filePanel = artifactPanel?.type === "file" ? artifactPanel : undefined;
   const browserPanel = artifactPanel?.type === "browser";
 
-  // Whether the agent has a live browser for this session, used to show the
-  // guest vs a placeholder in the browser panel.
+  // Whether a live browser exists for this session, used to show the guest vs a
+  // placeholder in the browser panel.
   const liveTargetId = selectedSessionId
     ? encodeBrowserTargetId(task.id, selectedSessionId)
     : undefined;
-  const attachedTargets = useAgentBrowserTargets();
+  const attachedTargets = useBrowserTargets();
   const browserActive = Boolean(
     liveTargetId && attachedTargets.has(liveTargetId),
   );

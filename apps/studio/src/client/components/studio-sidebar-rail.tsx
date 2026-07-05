@@ -1,6 +1,8 @@
 import {
   clampSidebarWidth,
   SIDEBAR_COLLAPSE_THRESHOLD,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
   sidebarWidthAtom,
 } from "@/client/atoms/sidebar";
 import { zoomAtom } from "@/client/atoms/zoom";
@@ -74,25 +76,25 @@ export function StudioSidebarRail({
     }
 
     const controls: AnimationPlaybackControls[] = [];
-    if (!isOpen) {
-      controls.push(
-        animate(layoutWidth, 0, SLIDE_TRANSITION),
-        animate(panelX, -panelWidth.get(), SLIDE_TRANSITION),
-        animate(opacity, 0, FADE_TRANSITION),
-      );
-    } else if (opacity.get() < 0.5) {
-      // Reopening from closed: put the panel at full width off-screen, then slide in.
-      panelWidth.set(storedWidth);
+    if (isOpen) {
+      // Opening or adjusting while open: always drive panelX/opacity home so a
+      // reopen mid-close-fade can't leave the panel translated out or dimmed.
+      // Only when genuinely closed (no reserved layout width) pre-size the panel
+      // so it slides in at full width instead of growing from 0.
+      if (layoutWidth.get() === 0) {
+        panelWidth.set(storedWidth);
+      }
       controls.push(
         animate(layoutWidth, storedWidth, SLIDE_TRANSITION),
+        animate(panelWidth, storedWidth, SLIDE_TRANSITION),
         animate(panelX, 0, SLIDE_TRANSITION),
         animate(opacity, 1, FADE_TRANSITION),
       );
     } else {
-      // Already open (double-click reset): animate the width change in place.
       controls.push(
-        animate(panelWidth, storedWidth, SLIDE_TRANSITION),
-        animate(layoutWidth, storedWidth, SLIDE_TRANSITION),
+        animate(layoutWidth, 0, SLIDE_TRANSITION),
+        animate(panelX, -panelWidth.get(), SLIDE_TRANSITION),
+        animate(opacity, 0, FADE_TRANSITION),
       );
     }
     return () => {
@@ -101,6 +103,32 @@ export function StudioSidebarRail({
       }
     };
   }, [isOpen, storedWidth, layoutWidth, opacity, panelWidth, panelX]);
+
+  // Keyboard resize for the splitter (WAI-ARIA window-splitter pattern): arrows
+  // nudge the width, Home/End jump to the bounds. Widening a step per press.
+  const KEYBOARD_STEP = 16;
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const delta =
+      event.key === "ArrowLeft"
+        ? -KEYBOARD_STEP
+        : event.key === "ArrowRight"
+          ? KEYBOARD_STEP
+          : 0;
+    let next: number | undefined;
+    if (delta !== 0) {
+      next = clampSidebarWidth(storedWidth + delta);
+    } else if (event.key === "Home") {
+      next = SIDEBAR_WIDTH_MIN;
+    } else if (event.key === "End") {
+      next = SIDEBAR_WIDTH_MAX;
+    }
+    if (next === undefined) {
+      return;
+    }
+    event.preventDefault();
+    applyWidth(next);
+    setStoredWidth(next);
+  }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) {
@@ -143,10 +171,13 @@ export function StudioSidebarRail({
       applyWidth(clampSidebarWidth(raw));
     };
 
-    const handleUp = (upEvent: PointerEvent) => {
+    const handleUp = () => {
       endDrag();
       if (!collapsingRef.current) {
-        const finalWidth = clampSidebarWidth(rawWidthAt(upEvent.clientX));
+        // Commit the last width the drag applied, not one recomputed from the
+        // event: pointercancel carries zeroed coordinates, which would persist
+        // the min width regardless of where the drag actually ended.
+        const finalWidth = clampSidebarWidth(panelWidth.get());
         applyWidth(finalWidth);
         setStoredWidth(finalWidth);
       }
@@ -181,7 +212,11 @@ export function StudioSidebarRail({
       </div>
       {isOpen && (
         <div
+          aria-label="Resize sidebar"
           aria-orientation="vertical"
+          aria-valuemax={SIDEBAR_WIDTH_MAX}
+          aria-valuemin={SIDEBAR_WIDTH_MIN}
+          aria-valuenow={storedWidth}
           className={cn(
             "absolute inset-y-0 right-0 z-20 w-2 translate-x-1/2 cursor-col-resize select-none",
             "after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors",
@@ -190,8 +225,10 @@ export function StudioSidebarRail({
           onDoubleClick={() => {
             setStoredWidth(SIDEBAR_WIDTH);
           }}
+          onKeyDown={handleKeyDown}
           onPointerDown={handlePointerDown}
           role="separator"
+          tabIndex={0}
         />
       )}
     </motion.div>

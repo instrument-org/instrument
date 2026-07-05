@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import * as React from "react";
@@ -24,8 +25,10 @@ function PopoverContent({
   style,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  const container = usePortalContainer();
+
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={container}>
       <PopoverPrimitive.Content
         align={align}
         className={cn(

@@ -4,6 +4,7 @@ import {
   useAppZoomStyle,
   ZOOM_CONTENT_MAX_WIDTH,
 } from "@/client/hooks/use-app-zoom";
+import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import * as React from "react";
@@ -140,10 +141,17 @@ function AlertDialogOverlay({
 }
 
 function AlertDialogPortal({
+  container,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) {
+  const defaultContainer = usePortalContainer();
+
   return (
-    <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
+    <AlertDialogPrimitive.Portal
+      container={container ?? defaultContainer}
+      data-slot="alert-dialog-portal"
+      {...props}
+    />
   );
 }
 

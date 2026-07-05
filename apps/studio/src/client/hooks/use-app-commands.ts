@@ -8,7 +8,7 @@ import { closeSelectedTab, openTab, reopenTab } from "@/client/lib/tab-actions";
 import { selectAdjacent, selectByIndex } from "@/client/lib/tab-model";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { rpcClient } from "@/client/rpc/client";
-import { type AppCommand } from "@/shared/tabs";
+import { type AppCommand } from "@/shared/app-command";
 import { useStore } from "jotai";
 import { sleep } from "radashi";
 import { useEffect } from "react";
@@ -56,9 +56,10 @@ export function useAppCommands() {
           return;
         }
         try {
-          const commands = await rpcClient.tabs.live.commands.call(undefined, {
-            signal,
-          });
+          const commands = await rpcClient.appCommands.live.commands.call(
+            undefined,
+            { signal },
+          );
           for await (const command of commands) {
             if (
               !MODAL_SAFE_COMMANDS.has(command.type) &&
@@ -72,20 +73,27 @@ export function useAppCommands() {
                 break;
               }
               case "navigate": {
+                const router = getTabRouter(store.get(tabsAtom).selectedId);
+                // `to` is a typed StudioPath; params/search are loose IPC data,
+                // so cast the combined target to the router's options here.
+                const target = {
+                  params: command.params,
+                  search: command.search,
+                  to: command.to,
+                };
                 if (command.newTab) {
-                  store.set(tabsAtom, (m) =>
-                    openTab(m, { pathname: command.appPath }),
-                  );
+                  const pathname = router
+                    ? router.buildLocation(
+                        target as Parameters<typeof router.buildLocation>[0],
+                      ).href
+                    : command.to;
+                  store.set(tabsAtom, (m) => openTab(m, { pathname }));
                   break;
                 }
-                const router = getTabRouter(store.get(tabsAtom).selectedId);
                 if (router) {
-                  // appPath is an unvalidated route string from the main process
-                  // (menus/onboarding), so it can't satisfy the typed route graph
-                  // statically; assert it here at that trust boundary.
-                  void router.navigate({
-                    to: command.appPath,
-                  } as Parameters<typeof router.navigate>[0]);
+                  void router.navigate(
+                    target as Parameters<typeof router.navigate>[0],
+                  );
                 }
                 break;
               }

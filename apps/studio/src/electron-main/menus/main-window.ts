@@ -1,5 +1,5 @@
+import { sendAppCommand } from "@/electron-main/app-command";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import { sendAppCommand } from "@/electron-main/tabs/tab-command";
 import {
   focusMainContents,
   goBack,
@@ -26,8 +26,8 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         accelerator: "CmdOrCtrl+T",
         click: () => {
           sendAppCommand({
-            appPath: "/new-tab",
             newTab: true,
+            to: "/new-tab",
             type: "navigate",
           });
         },
@@ -36,7 +36,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       {
         accelerator: "CmdOrCtrl+N",
         click: () => {
-          sendAppCommand({ appPath: "/new-tab", type: "navigate" });
+          sendAppCommand({ to: "/new-tab", type: "navigate" });
         },
         label: "New Task",
       },

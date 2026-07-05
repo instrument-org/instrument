@@ -13,42 +13,67 @@ import { useEffect, useRef, useState } from "react";
 const ZOOM_TOAST_MS = 2200;
 
 /**
- * Full `-` / `%` / `+` stepper for the main-window UI zoom ({@link zoomAtom}),
- * mirroring the agent-browser guest stepper. Distinct mechanism (CSS `zoom` on
- * the window vs. the guest's `setZoomLevel`), so it drives the atom directly
- * rather than sharing that control. Meant for a settings row.
+ * Full stepper for the main-window UI zoom ({@link zoomAtom}), driving the atom
+ * directly. Meant for a settings row.
  */
 export function ZoomStepper() {
   const [zoom, setZoom] = useAtom(zoomAtom);
 
   return (
+    <ZoomStepperControl
+      onReset={() => {
+        setZoom(1);
+      }}
+      onZoomIn={() => {
+        setZoom((z) => clampZoom(z + ZOOM_STEP));
+      }}
+      onZoomOut={() => {
+        setZoom((z) => clampZoom(z - ZOOM_STEP));
+      }}
+      percent={Math.round(zoom * 100)}
+    />
+  );
+}
+
+/**
+ * Presentational `-` / `%` / `+` stepper shell. Shared by the main-window UI
+ * zoom ({@link ZoomStepper}) and the browser guest's per-page zoom, which drive
+ * distinct mechanisms (CSS `zoom` on the window vs. the guest's `setZoomLevel`)
+ * but render the same control. Callers supply the readout and handlers.
+ */
+export function ZoomStepperControl({
+  onReset,
+  onZoomIn,
+  onZoomOut,
+  percent,
+}: {
+  onReset: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  percent: number;
+}) {
+  return (
     <div className="flex h-7 items-stretch overflow-hidden rounded-md border">
       <button
         aria-label="Zoom out"
         className="flex w-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        onClick={() => {
-          setZoom((z) => clampZoom(z - ZOOM_STEP));
-        }}
+        onClick={onZoomOut}
         type="button"
       >
         <MinusIcon className="size-4" />
       </button>
       <button
         className="min-w-12 border-x text-xs tabular-nums transition-colors hover:bg-accent"
-        onClick={() => {
-          setZoom(1);
-        }}
+        onClick={onReset}
         title="Reset to 100%"
         type="button"
       >
-        {Math.round(zoom * 100)}%
+        {percent}%
       </button>
       <button
         aria-label="Zoom in"
         className="flex w-7 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        onClick={() => {
-          setZoom((z) => clampZoom(z + ZOOM_STEP));
-        }}
+        onClick={onZoomIn}
         type="button"
       >
         <PlusIcon className="size-4" />

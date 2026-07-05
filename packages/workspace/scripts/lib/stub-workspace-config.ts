@@ -1,3 +1,4 @@
+import { noopModelCache } from "@instrument-org/ai-gateway";
 import path from "node:path";
 
 import {
@@ -30,6 +31,7 @@ export function createStubWorkspaceConfig({
       path.join(absoluteRootDir, "default-task-template"),
     ),
     getAIProviderConfigs: () => [],
+    modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
     projectsDir: AbsolutePathSchema.parse(

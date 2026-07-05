@@ -1,3 +1,4 @@
+import { diskModelCache } from "@/electron-main/stores/model-cache";
 import {
   getDefaultModelURI,
   setDefaultModelURI,
@@ -36,6 +37,7 @@ export async function setDefaultModel(options?: {
 
   const modelsForProviders = await fetchModelResultsForProviders(providers, {
     captureException: captureServerException,
+    modelCache: diskModelCache,
   });
 
   const models: AIGatewayModel.Type[] = [];

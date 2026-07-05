@@ -14,12 +14,16 @@ import { fetchModelsForOpenRouter } from "./fetch-models/openrouter";
 import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 import { fetchModelsForVercel } from "./fetch-models/vercel";
 import { fetchAndParseWorkersAiModels } from "./fetch-models/workers-ai";
+import { type ModelCache } from "./model-cache";
 
 const capturedErrors = new Set<string>();
 
 export function fetchModelsForProvider(
   config: AIGatewayProviderConfig.Type,
-  { captureException }: { captureException: CaptureExceptionFunction },
+  {
+    captureException,
+    modelCache,
+  }: { captureException: CaptureExceptionFunction; modelCache: ModelCache },
 ) {
   return Result.fromAsyncCatching(
     async () => {
@@ -56,13 +60,31 @@ export function fetchModelsForProvider(
         cause: error,
       });
     },
-  ).onFailure((error) => {
-    const captureKey = getCaptureKey(config, error);
-    if (!capturedErrors.has(captureKey)) {
-      capturedErrors.add(captureKey);
-      captureException(error);
-    }
-  });
+  )
+    .map((models) => {
+      // Don't cache an empty list: a transient empty (or filtered-to-nothing)
+      // response would otherwise clobber the last-known-good models and defeat
+      // the fallback below.
+      if (models.length > 0) {
+        modelCache.write(config.cacheIdentifier, models);
+      }
+      return models;
+    })
+    .onFailure((error) => {
+      const captureKey = getCaptureKey(config, error);
+      if (!capturedErrors.has(captureKey)) {
+        capturedErrors.add(captureKey);
+        captureException(error);
+      }
+    })
+    .recover((error) => {
+      // Network failed — fall back to the cached models so a slow or
+      // unreachable provider does not block workspace operations on app
+      // restart. With no cache (e.g. first-ever launch), keep the original
+      // error so behavior is unchanged.
+      const cached = modelCache.read(config.cacheIdentifier);
+      return cached ? Result.ok(cached) : Result.error(error);
+    });
 }
 
 function getCaptureKey(config: AIGatewayProviderConfig.Type, error: Error) {

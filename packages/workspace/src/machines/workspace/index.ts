@@ -2,6 +2,7 @@ import {
   type AIGatewayApp,
   type AIGatewayModel,
   type GetProviderConfigs,
+  type ModelCache,
 } from "@instrument-org/ai-gateway";
 import {
   type CaptureEventFunction,
@@ -358,6 +359,7 @@ export const workspaceMachine = setup({
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
       getAIProviderConfigs: GetProviderConfigs;
+      modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
       registryDir: string;
@@ -381,6 +383,7 @@ export const workspaceMachine = setup({
         input.defaultTaskTemplateDir,
       ),
       getAIProviderConfigs: input.getAIProviderConfigs,
+      modelCache: input.modelCache,
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       projectsDir: absolutePathJoin(rootDir, PROJECTS_DIR_NAME),

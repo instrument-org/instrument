@@ -1,5 +1,9 @@
 import "dotenv/config";
-import { aiGatewayApp, AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  aiGatewayApp,
+  AIGatewayModelURI,
+  noopModelCache,
+} from "@instrument-org/ai-gateway";
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
@@ -112,6 +116,7 @@ export async function runEvals(
         "../templates/default",
       ),
       getAIProviderConfigs: () => providerConfigs,
+      modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
         (result) => result.stdout.trim() || "pnpm",

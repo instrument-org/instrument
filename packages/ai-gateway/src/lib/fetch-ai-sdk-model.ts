@@ -10,17 +10,20 @@ import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { aiSDKForProviderConfig } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
 import { fetchModel } from "./fetch-model";
+import { type ModelCache } from "./model-cache";
 
 export const TEST_MODEL_OVERRIDE_KEY = "__testModelOverride";
 
 export async function fetchAISDKModel({
   captureException,
   configs,
+  modelCache,
   modelURI,
   workspaceServerURL,
 }: {
   captureException: CaptureExceptionFunction;
   configs: AIGatewayProviderConfig.Type[];
+  modelCache: ModelCache;
   modelURI: AIGatewayModelURI.Type;
   workspaceServerURL: WorkspaceServerURL;
 }) {
@@ -43,6 +46,7 @@ export async function fetchAISDKModel({
     const model = yield* await fetchModel({
       captureException,
       configs,
+      modelCache,
       modelURI,
     });
 

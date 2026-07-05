@@ -2,7 +2,6 @@ import { tabsAtom } from "@/client/atoms/tabs";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AppChrome } from "@/client/components/app-chrome";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
-import { ErrorBoundary } from "@/client/components/error-boundary";
 import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
 import {
@@ -27,14 +26,18 @@ import {
   setTabRouter,
 } from "@/client/lib/tab-router-registry";
 import { setTabMeta, setTabPathname } from "@/client/lib/tabs-model";
-import { capturePageView } from "@/client/lib/telemetry";
+import { captureComponentError, capturePageView } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab } from "@/shared/tabs";
 import { safe } from "@orpc/client";
 import { IconContext, type IconProps } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { RouterContextProvider, RouterProvider } from "@tanstack/react-router";
+import {
+  CatchBoundary,
+  RouterContextProvider,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect } from "react";
 
@@ -76,7 +79,11 @@ export function MainWindow() {
         {/* The one TooltipProvider for the unified main window. */}
         {/* eslint-disable-next-line no-restricted-syntax */}
         <TooltipProvider>
-          <ErrorBoundary FallbackComponent={AppErrorFallback}>
+          <CatchBoundary
+            errorComponent={AppErrorFallback}
+            getResetKey={() => "app"}
+            onCatch={captureComponentError}
+          >
             <IconContext.Provider value={IconContextValue}>
               <ZoomRoot>
                 {activeRouter ? (
@@ -102,7 +109,7 @@ export function MainWindow() {
               </ZoomRoot>
               <ZoomToast />
             </IconContext.Provider>
-          </ErrorBoundary>
+          </CatchBoundary>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

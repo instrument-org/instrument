@@ -8,7 +8,7 @@ import {
   createRouter as createTanStackRouter,
 } from "@tanstack/react-router";
 
-import { captureException, capturePageView } from "./lib/telemetry";
+import { captureComponentError, capturePageView } from "./lib/telemetry";
 import { routeTree } from "./routeTree.gen";
 
 function createRouter(options?: { history?: RouterHistory }) {
@@ -27,9 +27,7 @@ function createRouter(options?: { history?: RouterHistory }) {
     context: { queryClient },
     defaultErrorComponent: DefaultErrorComponent,
     defaultNotFoundComponent: NotFoundRouteComponent,
-    defaultOnCatch: (error, errorInfo) => {
-      captureException(error, { componentStack: errorInfo.componentStack });
-    },
+    defaultOnCatch: captureComponentError,
     defaultPreload: false, // 99% of data is local, so no preload. We preload JS for certain routs in _app/route.tsx.
     history: options?.history,
     routeTree,

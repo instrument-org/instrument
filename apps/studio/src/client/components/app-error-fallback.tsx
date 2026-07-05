@@ -2,10 +2,11 @@ import { ErrorCardShell } from "./error-card-shell";
 import { Button } from "./ui/button";
 
 /**
- * Top-level fallback for {@link ErrorBoundary}. Rendered when the window shell
- * or providers crash outside any router, so it must not use router hooks (there
- * is no navigation to recover to). The only reliable recovery for a shell crash
- * is a full reload of the web contents.
+ * Top-level fallback for the main window's `CatchBoundary`. Rendered when the
+ * window shell or providers crash outside any router, so it must not use router
+ * hooks (there is no navigation to recover to). The only reliable recovery for a
+ * shell crash is a full reload of the web contents, so the `reset` the boundary
+ * passes is intentionally ignored.
  */
 export function AppErrorFallback({ error }: { error: unknown }) {
   return (

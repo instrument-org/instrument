@@ -6,13 +6,18 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
+
+// Targets already auto-opened this renderer session. Module-scoped (not per
+// mount) so reopening the task's tab doesn't re-hijack the artifact panel for a
+// browser the user already dismissed.
+const autoOpenedTargets = new Set<BrowserTargetId>();
 
 // Opens the browser artifact panel once when the agent first opens a browser
 // for the selected session, even overriding an artifact panel the user
 // already has open (worth surfacing since it's the first time the agent's
 // browser use becomes visible). Won't re-open after the user closes it, since
-// the per-target ref guard fires at most once per session.
+// the guard fires at most once per session for the renderer's lifetime.
 export function useAutoOpenBrowserArtifact({
   id,
   selectedSessionId,
@@ -21,7 +26,6 @@ export function useAutoOpenBrowserArtifact({
   selectedSessionId: StoreId.Session | undefined;
 }) {
   const navigate = useNavigate();
-  const autoOpenedRef = useRef<BrowserTargetId | undefined>(undefined);
 
   const attachedTargets = useAgentBrowserTargets();
 
@@ -30,10 +34,10 @@ export function useAutoOpenBrowserArtifact({
       return;
     }
     const targetId = encodeBrowserTargetId(id, selectedSessionId);
-    if (!ids.has(targetId) || autoOpenedRef.current === targetId) {
+    if (!ids.has(targetId) || autoOpenedTargets.has(targetId)) {
       return;
     }
-    autoOpenedRef.current = targetId;
+    autoOpenedTargets.add(targetId);
     void navigate({
       from: "/tasks/$id/",
       params: { id },

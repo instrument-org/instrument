@@ -43,6 +43,9 @@ export function TaskBrowserPanel({
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
   const [nav, setNav] = useState({ back: false, forward: false });
+  // While the user is editing the URL, agent-driven navigations must not
+  // overwrite what they're typing.
+  const editingUrlRef = useRef(false);
   // Identity for this panel's claim on the guest's visibility, so the pool can
   // reject a park from a different panel showing the same target (see pool).
   const [slotOwner] = useState(() => Symbol("browser-panel-slot"));
@@ -124,7 +127,9 @@ export function TaskBrowserPanel({
       // getURL/canGoBack throw if the guest hasn't attached its WebContents yet;
       // the did-navigate events that also drive this only fire once it has.
       try {
-        setDraftUrl(webview.getURL());
+        if (!editingUrlRef.current) {
+          setDraftUrl(webview.getURL());
+        }
         setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
       } catch {
         // Not attached yet; a did-navigate will re-run sync once it is.
@@ -179,8 +184,14 @@ export function TaskBrowserPanel({
         >
           <Input
             className="h-7 text-ellipsis"
+            onBlur={() => {
+              editingUrlRef.current = false;
+            }}
             onChange={(event) => {
               setDraftUrl(event.target.value);
+            }}
+            onFocus={() => {
+              editingUrlRef.current = true;
             }}
             placeholder="Enter a URL"
             spellCheck={false}

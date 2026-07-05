@@ -54,6 +54,9 @@ export function StudioCommandMenu() {
   const { mutate: checkForUpdates } = useMutation(
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
+  const { mutate: simulateNoUpdate } = useMutation(
+    rpcClient.debug.trigger.testNoUpdateNotification.mutationOptions(),
+  );
   const taskRouteMatch = useMatch({
     from: "/_app/tasks/$id/",
     shouldThrow: false,
@@ -174,7 +177,11 @@ export function StudioCommandMenu() {
                 <CommandItem
                   onSelect={() => {
                     handleClose();
-                    checkForUpdates({});
+                    if (import.meta.env.DEV) {
+                      simulateNoUpdate(undefined);
+                    } else {
+                      checkForUpdates({});
+                    }
                   }}
                   value="check-for-updates"
                 >

@@ -77,11 +77,6 @@ export const componentPages = [
     to: "/debug/components/spinner",
   },
   {
-    id: "update-status",
-    label: "Update Status",
-    to: "/debug/components/update-status",
-  },
-  {
     id: "colors",
     label: "Colors",
     to: "/debug/components/colors",

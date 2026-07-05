@@ -161,6 +161,28 @@ const trigger = {
   testNotification: devOnly.handler(() => {
     publisher.publish("test-notification", null);
   }),
+  testNoUpdateNotification: devOnly.handler(() => {
+    publisher.publish("updates.status", {
+      status: { notifyUser: true, type: "checking" },
+    });
+
+    void new Promise((resolve) => setTimeout(resolve, 1000)).then(() => {
+      publisher.publish("updates.status", {
+        status: {
+          notifyUser: true,
+          type: "not-available",
+        },
+      });
+    });
+  }),
+  testSilentNoUpdate: devOnly.handler(() => {
+    publisher.publish("updates.status", {
+      status: {
+        notifyUser: false,
+        type: "not-available",
+      },
+    });
+  }),
 };
 
 const openOnboarding = devOnly.input(z.void()).handler(() => {

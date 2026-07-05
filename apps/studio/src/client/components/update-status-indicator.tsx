@@ -3,10 +3,17 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
-import { ArrowsClockwiseIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import {
+  ArrowsClockwiseIcon,
+  CheckCircleIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState } from "react";
 
 const PROGRESS_RING_CIRCUMFERENCE = 44;
+const NOT_AVAILABLE_BADGE_TIMEOUT_MS = 5000;
 const ICON_CLASS_NAME = "size-3.5";
 const PROGRESS_ICON_CLASS_NAME = "size-3";
 
@@ -20,60 +27,57 @@ type UpdateStatusBadgeState =
       type: "downloading";
     }
   | {
+      type: "checking";
+    }
+  | {
       type: "downloaded";
       version?: string;
     }
   | {
       type: "installing";
+    }
+  | {
+      type: "not-available";
     };
-
-export function UpdateStatusBadge({
-  onClick,
-  state,
-}: {
-  onClick: () => void;
-  state: UpdateStatusBadgeState;
-}) {
-  const statusCopy = getStatusCopy(state);
-
-  return (
-    <button
-      aria-label={statusCopy.ariaLabel}
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border px-1.5 text-xs leading-none font-semibold whitespace-nowrap shadow-xs transition-colors [-webkit-app-region:no-drag]",
-        getTriggerClassName(state.type),
-      )}
-      onClick={onClick}
-      type="button"
-    >
-      <span className="flex size-3.5 shrink-0 items-center justify-center">
-        {renderTriggerIcon(state)}
-      </span>
-      <span>{statusCopy.label}</span>
-    </button>
-  );
-}
 
 export function UpdateStatusIndicator() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
+  const [hiddenNotAvailableStatus, setHiddenNotAvailableStatus] =
+    useState<unknown>(null);
 
   const updateInfo =
     updateState && "updateInfo" in updateState ? updateState.updateInfo : null;
   const updateVersion = updateInfo?.version;
   const errorMessage =
     updateState?.type === "error" ? updateState.message : undefined;
+  const isManualNotAvailable =
+    updateState?.type === "not-available" && updateState.notifyUser;
+  const hideNotAvailable = hiddenNotAvailableStatus === updateState;
+
+  useEffect(() => {
+    if (!isManualNotAvailable) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setHiddenNotAvailableStatus(updateState);
+    }, NOT_AVAILABLE_BADGE_TIMEOUT_MS);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [isManualNotAvailable, updateState]);
 
   if (!updateState || !isHeaderStatus(updateState.type)) {
     return null;
   }
 
-  // Errors from silent background polls (notifyUser=false) stay in Settings
-  // only; don't put a red pill in the toolbar for checks the user didn't run.
-  if (updateState.type === "error" && !updateState.notifyUser) {
-    return null;
-  }
+  // Silent background polls stay in Settings only; don't put a pill in the
+  // toolbar for checks the user didn't run.
+  const isSilentBackgroundStatus =
+    !updateState.notifyUser && isManualOnlyHeaderStatus(updateState.type);
 
   const handleClick = () => {
     void (async () => {
@@ -104,7 +108,27 @@ export function UpdateStatusIndicator() {
     return null;
   }
 
-  return <UpdateStatusBadge onClick={handleClick} state={badgeState} />;
+  const showBadge =
+    !isSilentBackgroundStatus && !(hideNotAvailable && isManualNotAvailable);
+
+  if (!showBadge) {
+    return <AnimatePresence initial={false} mode="wait" />;
+  }
+
+  return (
+    <AnimatePresence initial={false} mode="wait">
+      <motion.div
+        animate={{ opacity: 1, x: 0 }}
+        className="inline-flex h-5 items-center"
+        exit={{ opacity: 0, x: 6 }}
+        initial={{ opacity: 0, x: 10 }}
+        key={badgeState.type}
+        transition={{ duration: 0.28, ease: "easeOut" }}
+      >
+        <UpdateStatusBadge onClick={handleClick} state={badgeState} />
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 function CircularProgressIcon({
@@ -159,6 +183,11 @@ function getBadgeState({
   version: string | undefined;
 }): null | UpdateStatusBadgeState {
   switch (status) {
+    case "checking": {
+      return {
+        type: "checking",
+      };
+    }
     case "downloaded": {
       return {
         type: "downloaded",
@@ -182,6 +211,11 @@ function getBadgeState({
         type: "installing",
       };
     }
+    case "not-available": {
+      return {
+        type: "not-available",
+      };
+    }
     default: {
       return null;
     }
@@ -190,6 +224,12 @@ function getBadgeState({
 
 function getStatusCopy(state: UpdateStatusBadgeState) {
   switch (state.type) {
+    case "checking": {
+      return {
+        ariaLabel: "Checking for updates",
+        label: "Checking",
+      };
+    }
     case "downloaded": {
       return {
         ariaLabel: state.version
@@ -218,6 +258,12 @@ function getStatusCopy(state: UpdateStatusBadgeState) {
         label: "Installing",
       };
     }
+    case "not-available": {
+      return {
+        ariaLabel: "No updates available",
+        label: "Up to date",
+      };
+    }
     default: {
       return {
         ariaLabel: "Update status",
@@ -229,15 +275,19 @@ function getStatusCopy(state: UpdateStatusBadgeState) {
 
 function getTriggerClassName(status: string) {
   switch (status) {
-    case "downloaded": {
-      return "border-transparent bg-brand-600 text-brand-foreground hover:bg-brand-700";
-    }
+    case "checking":
     case "downloading":
     case "installing": {
       return "border-black/5 bg-background text-muted-foreground hover:bg-muted dark:border-white/10";
     }
+    case "downloaded": {
+      return "border-transparent bg-brand-600 text-brand-foreground hover:bg-brand-700";
+    }
     case "error": {
       return "border-destructive/25 bg-background text-destructive hover:bg-destructive/10 dark:border-destructive/35 dark:hover:bg-destructive/20";
+    }
+    case "not-available": {
+      return "border-black/5 bg-background text-muted-foreground dark:border-white/10";
     }
     default: {
       return "border-foreground bg-foreground text-background hover:bg-foreground/90";
@@ -247,14 +297,26 @@ function getTriggerClassName(status: string) {
 
 function isHeaderStatus(status: string) {
   return (
+    status === "checking" ||
     status === "downloaded" ||
     status === "downloading" ||
     status === "error" ||
-    status === "installing"
+    status === "installing" ||
+    status === "not-available"
+  );
+}
+
+function isManualOnlyHeaderStatus(status: string) {
+  return (
+    status === "checking" || status === "error" || status === "not-available"
   );
 }
 
 function renderTriggerIcon(state: UpdateStatusBadgeState) {
+  if (state.type === "checking") {
+    return <Spinner className="size-3" />;
+  }
+
   if (state.type === "downloading") {
     return (
       <CircularProgressIcon
@@ -272,5 +334,36 @@ function renderTriggerIcon(state: UpdateStatusBadgeState) {
     return <WarningCircleIcon className={ICON_CLASS_NAME} weight="fill" />;
   }
 
+  if (state.type === "not-available") {
+    return <CheckCircleIcon className={ICON_CLASS_NAME} weight="fill" />;
+  }
+
   return <ArrowsClockwiseIcon className={ICON_CLASS_NAME} weight="bold" />;
+}
+
+function UpdateStatusBadge({
+  onClick,
+  state,
+}: {
+  onClick: () => void;
+  state: UpdateStatusBadgeState;
+}) {
+  const statusCopy = getStatusCopy(state);
+
+  return (
+    <button
+      aria-label={statusCopy.ariaLabel}
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border px-1.5 text-xs leading-none font-semibold whitespace-nowrap shadow-xs transition-colors [-webkit-app-region:no-drag]",
+        getTriggerClassName(state.type),
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      <span className="flex size-3.5 shrink-0 items-center justify-center">
+        {renderTriggerIcon(state)}
+      </span>
+      <span>{statusCopy.label}</span>
+    </button>
+  );
 }

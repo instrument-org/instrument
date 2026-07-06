@@ -17,6 +17,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { isEqual } from "radashi";
 import { useMemo } from "react";
 
+import { CopyButton } from "./copy-button";
+
 interface GroupedExceptionItem {
   code?: string;
   content: string;
@@ -92,7 +94,7 @@ export function ServerExceptionsAlert() {
   }
 
   return (
-    <div className="border-b bg-background">
+    <div className="border-b bg-background select-text">
       <div className="flex items-center gap-2 border-b bg-muted/30 px-3 py-1.5">
         <WarningCircleIcon className="size-3.5 shrink-0 text-destructive" />
         <span className="flex-1 text-xs font-medium text-foreground">
@@ -106,8 +108,22 @@ export function ServerExceptionsAlert() {
         </Badge>
         <Tooltip>
           <TooltipTrigger asChild>
+            <CopyButton
+              className="size-5 rounded-sm p-0.5 text-muted-foreground transition-colors select-none hover:bg-foreground/5 hover:text-foreground"
+              iconSize={12}
+              onCopy={() =>
+                navigator.clipboard.writeText(
+                  formatExceptionsForCopy(groupedExceptions),
+                )
+              }
+            />
+          </TooltipTrigger>
+          <TooltipContent>Copy all exceptions</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
             <Button
-              className="size-5"
+              className="size-5 select-none"
               onClick={() => {
                 clearExceptions();
               }}
@@ -126,11 +142,11 @@ export function ServerExceptionsAlert() {
         <Accordion className="border-0" type="multiple">
           {groupedExceptions.map((exception) => (
             <AccordionItem
-              className="border-b last:border-b-0"
+              className="relative border-b last:border-b-0"
               key={exception.id}
               value={exception.id}
             >
-              <AccordionTrigger className="min-w-0 gap-2 px-1 py-1.5 transition-colors hover:bg-muted/50 hover:no-underline data-[state=open]:bg-muted/50">
+              <AccordionTrigger className="min-w-0 gap-2 py-1.5 pr-12 pl-1 transition-colors hover:bg-muted/50 hover:no-underline data-[state=open]:bg-muted/50">
                 <div className="flex min-w-0 flex-1 items-center gap-0.5">
                   {exception.count > 1 && (
                     <Badge
@@ -147,6 +163,22 @@ export function ServerExceptionsAlert() {
                   </span>
                 </div>
               </AccordionTrigger>
+              <div className="absolute top-1.5 right-6 z-10">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <CopyButton
+                      className="size-5 rounded-sm p-0.5 text-muted-foreground transition-colors select-none hover:bg-foreground/5 hover:text-foreground"
+                      iconSize={12}
+                      onCopy={() =>
+                        navigator.clipboard.writeText(
+                          formatExceptionForCopy(exception),
+                        )
+                      }
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>Copy exception</TooltipContent>
+                </Tooltip>
+              </div>
               <AccordionContent className="px-3 pt-0 pb-2">
                 <div className="mb-2 rounded-sm border bg-muted/50 p-1.5 font-mono text-[11px] leading-relaxed wrap-break-word text-foreground/90">
                   {exception.rpcPath && (
@@ -171,4 +203,22 @@ export function ServerExceptionsAlert() {
       </div>
     </div>
   );
+}
+
+function formatExceptionForCopy(exception: GroupedExceptionItem) {
+  const prefixParts: string[] = [];
+  if (exception.rpcPath) {
+    prefixParts.push(`[${exception.rpcPath}]`);
+  }
+  if (exception.code) {
+    prefixParts.push(`[${exception.code}]`);
+  }
+
+  return [prefixParts.join(" "), exception.firstLine, exception.content]
+    .filter((part) => part.length > 0)
+    .join("\n");
+}
+
+function formatExceptionsForCopy(exceptions: GroupedExceptionItem[]) {
+  return exceptions.map(formatExceptionForCopy).join("\n\n");
 }

@@ -15,7 +15,7 @@ import { createPipCommand } from "./pip";
 import { createPythonCommand } from "./python";
 import { createUvCommand } from "./uv";
 
-// cspell:ignore cowsay uvsmoke uvseed bs4 lxml openpyxl dateutil pytz dotenv tqdm numpy httpx pyyaml matplotlib
+// cspell:ignore cowsay uvsmoke uvseed bs4 lxml openpyxl dateutil pytz dotenv tqdm numpy httpx pyyaml matplotlib pypdf docx pptx rapidfuzz tabulate
 
 const mockCtx: CommandContext = {
   cwd: "/",
@@ -107,11 +107,12 @@ describe.skipIf(!runSmoke)("uv python/pip integration", () => {
 
     // First Python use creates the venv and seeds SEED_PACKAGES, so these
     // import without any explicit `pip install`. Module names differ from
-    // distribution names (pyyaml -> yaml, beautifulsoup4 -> bs4, pillow -> PIL).
+    // distribution names (pyyaml -> yaml, beautifulsoup4 -> bs4, pillow -> PIL,
+    // python-docx -> docx, python-pptx -> pptx).
     const run = await createPythonCommand(taskId).execute(
       [
         "-c",
-        "import requests, httpx, bs4, lxml, yaml, openpyxl, PIL, dateutil, pytz, dotenv, tqdm, numpy, pandas, matplotlib; print('seeded')",
+        "import requests, httpx, bs4, lxml, yaml, openpyxl, PIL, dateutil, pytz, dotenv, tqdm, numpy, pandas, matplotlib, pypdf, docx, pptx, rapidfuzz, tabulate; print('seeded')",
       ],
       mockCtx,
     );

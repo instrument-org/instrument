@@ -107,11 +107,14 @@ export async function ensureTaskVenv({
   return creation;
 }
 
-// cspell:ignore dateutil pyyaml lxml openpyxl beautifulsoup dotenv httpx pytz numpy tqdm
+// cspell:ignore dateutil pyyaml lxml openpyxl beautifulsoup dotenv httpx pytz numpy tqdm pypdf docx pptx rapidfuzz
 // Packages pre-installed into every task venv so the agent can run common small
-// scripts (HTTP, HTML/XML, dates, config, spreadsheets, images, tabular data,
-// charts) without an explicit `pip install` first. This mirrors the baseline
-// that code-interpreter sandboxes (OpenAI Code Interpreter, e2b, etc.) ship.
+// scripts (HTTP, HTML/XML, dates, config, spreadsheets, office documents,
+// images, tabular data, charts, fuzzy matching) without an explicit
+// `pip install` first. This mirrors the baseline that code-interpreter
+// sandboxes (OpenAI Code Interpreter, e2b, etc.) ship, plus the office-document
+// (PDF/Word/PowerPoint) libraries that agents reach for on Instrument's core
+// task types.
 //
 // Scope: moderate-or-smaller wheels only. We deliberately exclude the heavy
 // stacks (torch, tensorflow, transformers, opencv-python, scipy, scikit-learn,
@@ -131,11 +134,16 @@ export const SEED_PACKAGES = [
   "openpyxl",
   "pandas",
   "pillow",
+  "pypdf",
   "python-dateutil",
+  "python-docx",
   "python-dotenv",
+  "python-pptx",
   "pytz",
   "pyyaml",
+  "rapidfuzz",
   "requests",
+  "tabulate",
   "tqdm",
 ] as const;
 

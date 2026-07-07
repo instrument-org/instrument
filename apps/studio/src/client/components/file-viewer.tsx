@@ -20,16 +20,14 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import {
-  TransformComponent,
-  TransformWrapper,
-  useControls,
-  useTransformComponent,
-} from "react-zoom-pan-pinch";
 import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
+import {
+  IMAGE_PANZOOM_VIEWPORT_CLASS,
+  useImagePanzoom,
+} from "../hooks/use-image-panzoom";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenuItems } from "./file-actions-menu";
@@ -62,70 +60,78 @@ import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-function ImageResizeRecenter() {
-  const { centerView } = useControls();
+function ImagePanzoomViewer({
+  filename,
+  onError,
+  url,
+}: {
+  filename: string;
+  onError: () => void;
+  url: string;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { canReset, reset, zoomIn, zoomOut } = useImagePanzoom({
+    contentRef,
+    viewportRef,
+  });
 
-  useEffect(() => {
-    let animationFrame: number | undefined;
-
-    const handleResize = () => {
-      if (animationFrame !== undefined) {
-        window.cancelAnimationFrame(animationFrame);
-      }
-
-      animationFrame = window.requestAnimationFrame(() => {
-        animationFrame = undefined;
-        centerView(undefined, 0);
-      });
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      if (animationFrame !== undefined) {
-        window.cancelAnimationFrame(animationFrame);
-      }
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [centerView]);
-
-  return null;
+  return (
+    <div className={`${IMAGE_PANZOOM_VIEWPORT_CLASS} relative size-full`}>
+      <div
+        className="flex size-full items-center justify-center overflow-hidden"
+        ref={viewportRef}
+      >
+        <div
+          className="flex items-center justify-center"
+          ref={contentRef}
+          style={{ height: "100%", width: "100%" }}
+        >
+          <ImageWithFallback
+            alt={filename}
+            className="size-auto max-h-full max-w-full object-contain select-none"
+            filename={filename}
+            onError={onError}
+            showCheckerboard
+            src={url}
+          />
+        </div>
+      </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+        <div className="pointer-events-auto">
+          <ImageZoomControls
+            canReset={canReset}
+            onReset={reset}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function ImageZoomControls() {
-  const { resetTransform, zoomIn, zoomOut } = useControls();
-  const isZoomed = useTransformComponent(({ state }) => state.scale > 1.01);
+function ImageZoomControls({
+  canReset,
+  onReset,
+  onZoomIn,
+  onZoomOut,
+}: {
+  canReset: boolean;
+  onReset: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}) {
   return (
-    <div className="flex items-center gap-1 rounded-xl bg-black/10 p-1 backdrop-blur-md">
-      <Button
-        className="text-muted-foreground hover:bg-white/20 hover:text-muted-foreground"
-        onClick={() => {
-          zoomOut();
-        }}
-        size="icon-sm"
-        variant="ghost"
-      >
+    <div className="flex items-center gap-1 rounded-xl bg-background/90 p-1 text-foreground shadow-lg">
+      <Button onClick={onZoomOut} size="icon-sm" variant="ghost">
         <MagnifyingGlassMinusIcon className="size-5" />
       </Button>
-      <Button
-        className="text-muted-foreground hover:bg-white/20 hover:text-muted-foreground"
-        onClick={() => {
-          zoomIn();
-        }}
-        size="icon-sm"
-        variant="ghost"
-      >
+      <Button onClick={onZoomIn} size="icon-sm" variant="ghost">
         <MagnifyingGlassPlusIcon className="size-5" />
       </Button>
-      {isZoomed && (
-        <Button
-          className="text-muted-foreground hover:bg-white/20 hover:text-muted-foreground"
-          onClick={() => {
-            resetTransform();
-          }}
-          size="icon-sm"
-          variant="ghost"
-        >
+      {canReset && (
+        <Button onClick={onReset} size="icon-sm" variant="ghost">
           <ArrowsInIcon className="size-5" />
         </Button>
       )}
@@ -525,40 +531,15 @@ export function FileViewer({
             </div>
           ) : (
             <ContextMenu>
-              {/* ContextMenuTrigger must render its own div. Using asChild on
-                  TransformWrapper breaks ref forwarding and prevents the
-                  contextmenu event from reaching Radix */}
               <ContextMenuTrigger className="size-full">
-                <TransformWrapper
-                  centerOnInit
+                <ImagePanzoomViewer
+                  filename={filename}
                   key={url}
-                  panning={{ allowRightClickPan: false }}
-                >
-                  <div className="relative size-full">
-                    <ImageResizeRecenter />
-                    <TransformComponent
-                      contentClass="items-center justify-center"
-                      contentStyle={{ height: "100%", width: "100%" }}
-                      wrapperStyle={{ height: "100%", width: "100%" }}
-                    >
-                      <ImageWithFallback
-                        alt={filename}
-                        className="size-auto max-h-full max-w-full object-contain select-none"
-                        filename={filename}
-                        onError={() => {
-                          setImageErrorUrl(url);
-                        }}
-                        showCheckerboard
-                        src={url}
-                      />
-                    </TransformComponent>
-                    <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-                      <div className="pointer-events-auto">
-                        <ImageZoomControls />
-                      </div>
-                    </div>
-                  </div>
-                </TransformWrapper>
+                  onError={() => {
+                    setImageErrorUrl(url);
+                  }}
+                  url={url}
+                />
               </ContextMenuTrigger>
               <ContextMenuContent>
                 <FileActionsMenuItems

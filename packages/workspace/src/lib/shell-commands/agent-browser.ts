@@ -20,6 +20,7 @@ import {
   beginBrowserCommandObservation,
   type UpsertContextItem,
 } from "../capture-browser-screenshot";
+import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import {
   getBrowserSessionDir,
@@ -270,6 +271,11 @@ export function createAgentBrowserCommand({
         cwd: taskCwd,
         env: {
           ...env,
+          // `agent-browser record` spawns a real `ffmpeg` process by bare name,
+          // resolved against PATH. The bundled ffmpeg-static binary isn't on the
+          // sandbox PATH, so prepend its dir (the in-bash `ffmpeg` command is a
+          // just-bash intercept that a separate subprocess can't see).
+          ...ffmpegSubprocessEnv(env.PATH),
           // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
           // can't bypass the rejection above.
           AGENT_BROWSER_AUTO_CONNECT: undefined,

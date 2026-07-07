@@ -9,7 +9,6 @@ import { getAppStateStore } from "@/electron-main/stores/app-state";
 import {
   createMainWindow,
   updateMainWindowBackgroundColor,
-  updateTitleBarOverlay,
 } from "@/electron-main/windows/main";
 import { focusMainContents } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
@@ -239,5 +238,4 @@ app.on("window-all-closed", () => {
 function applyThemeToWindows() {
   updateMainWindowBackgroundColor();
   updateOnboardingWindowBackgroundColor();
-  updateTitleBarOverlay();
 }

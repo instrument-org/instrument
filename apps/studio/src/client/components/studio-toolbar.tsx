@@ -2,9 +2,10 @@ import { NavControls } from "@/client/components/nav-controls";
 import TabBar from "@/client/components/tab-bar";
 import { Button } from "@/client/components/ui/button";
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
+import { WindowControls } from "@/client/components/window-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
-import { cn, isLinux, isMacOS, isWindows } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SidebarSimpleIcon } from "@phosphor-icons/react";
@@ -79,13 +80,7 @@ export function StudioToolbar() {
         </div>
       </div>
       {/* Main toolbar region: tab bar */}
-      <header
-        className={cn(
-          "flex h-full min-w-0 flex-1 items-center",
-          isWindows() && "pr-36",
-          isLinux() && "pr-24",
-        )}
-      >
+      <header className="flex h-full min-w-0 flex-1 items-center">
         <div className="flex h-full min-w-0 flex-1 items-stretch">
           <TabBar />
         </div>
@@ -97,6 +92,7 @@ export function StudioToolbar() {
           )}
           <UpdateStatusIndicator />
         </div>
+        <WindowControls />
       </header>
     </div>
   );

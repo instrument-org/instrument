@@ -31,6 +31,7 @@ interface PublisherEvents {
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;
   "window.focus-changed": null;
+  "window.maximized-changed": null;
 }
 
 export const publisher = new EventPublisher<PublisherEvents>({

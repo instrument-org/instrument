@@ -1,4 +1,3 @@
-import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { nativeTheme } from "electron";
 
 import { getPreferencesStore } from "../stores/preferences";
@@ -10,22 +9,6 @@ export function getBackgroundColor() {
 
 export function getMainWindowBackgroundColor() {
   return getBackgroundColor();
-}
-
-export function getTitleBarOverlay() {
-  const isDark = shouldUseDarkMode();
-  // Windows and Linux include a 1px border in the overlay height that is not
-  // part of the CSS content area, causing a 1px overlap with the tab bar.
-  const height =
-    process.platform === "darwin" ? TOOLBAR_HEIGHT : TOOLBAR_HEIGHT - 1;
-  return {
-    // Must be manually synced with the StudioToolbar background
-    // (gray-800 in dark, gray-200 in light).
-    color: isDark ? "#292524" : "#e7e5e4",
-    height,
-    // Must be manually synced with globals.css var(--foreground) (gray-950).
-    symbolColor: isDark ? "#ffffff" : "#171412",
-  };
 }
 
 export function watchThemePreferenceAndApply(callback?: () => void): void {

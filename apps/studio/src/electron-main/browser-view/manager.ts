@@ -118,8 +118,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.setWindowOpenHandler(() => ({ action: "deny" }));
     // Mute: the page may be agent-driven and not visible to the user.
     guest.setAudioMuted(true);
-    // Keep producing frames while only in paint-host mode, so CDP capture and
-    // Input.dispatch keep working when no tab is showing the guest.
+    // Keep the guest compositing when the whole Studio window is
+    // minimized/occluded (e.g. the agent captures while the user is in another
+    // app). A visible window already keeps the paint-host guest painting via its
+    // visibility:visible layout regardless of this flag; guest visibility is
+    // window-driven, not element-CSS-driven. This only matters once the window
+    // itself is hidden, when Chromium would otherwise mark the page hidden and
+    // stop producing the frames capture/Input.dispatch need.
     guest.setBackgroundThrottling(false);
 
     // Mouse thumb-button navigation + right-click menu so the user can drive it.
@@ -362,9 +367,11 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       let image: Electron.NativeImage;
       try {
-        // capturePage can hang on Windows if the background view is occluded
-        // and Chromium has not produced a compositor frame yet. Observation
-        // screenshots should never block the command pipeline.
+        // The paint-host guest is visibility:visible, so the view itself is
+        // never occluded; capturePage only stalls when the whole window is
+        // occluded/minimized or the compositor hasn't produced a frame yet
+        // (modern Electron rejects such captures rather than hanging, but cap
+        // latency anyway). Observation screenshots must never block the pipeline.
         const CAPTURE_TIMEOUT_MS = 5000;
         image = await Promise.race([
           wc.capturePage(),

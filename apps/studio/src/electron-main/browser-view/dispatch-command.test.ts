@@ -209,7 +209,7 @@ describe("sendCommand", () => {
       };
     }
 
-    it("serves a viewport capture from capturePage(stayHidden) instead of the debugger", async () => {
+    it("serves a viewport capture from capturePage instead of the debugger", async () => {
       const capturePage = vi.fn().mockResolvedValue(fakeImage());
       const wcSendCommand = vi.fn();
       const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
@@ -223,7 +223,7 @@ describe("sendCommand", () => {
         targetId: TARGET_ID,
       });
 
-      expect(capturePage).toHaveBeenCalledWith(undefined, { stayHidden: true });
+      expect(capturePage).toHaveBeenCalledWith();
       expect(wcSendCommand).not.toHaveBeenCalled();
       expect(sendCdpCommandMock).not.toHaveBeenCalled();
       expect(result).toEqual({ data: Buffer.from("PNG").toString("base64") });

@@ -60,26 +60,39 @@ export function FilesGrid({
 
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Only `output/` (deliverables), `attachments/` (user inputs), and
-  // `downloads/` (agent-fetched files) surface to the user. Everything else --
-  // the agent's `work/` project -- is hidden.
+  // Only `output/` (deliverables), `attachments/` (user inputs), `downloads/`
+  // (agent-fetched files), and root-level files surface to the user. Root files
+  // cover a deliverable an agent saved to the task root instead of `output/`.
+  // Nested scratch inside the agent's `work/` project stays hidden.
   const [outputFiles, nonOutputFiles] = fork(files, (file) =>
     isFileInTaskFolder(file, TASK_FOLDER_NAMES.output),
   );
   const [attachmentFiles, nonAttachmentFiles] = fork(nonOutputFiles, (file) =>
     isFileInTaskFolder(file, TASK_FOLDER_NAMES.attachments),
   );
-  const [downloadFiles] = fork(nonAttachmentFiles, (file) =>
+  const [downloadFiles, nonDownloadFiles] = fork(nonAttachmentFiles, (file) =>
     isFileInTaskFolder(file, TASK_FOLDER_NAMES.downloads),
   );
+  const [rootFiles] = fork(nonDownloadFiles, isRootFile);
 
   const sortedOutputFiles = sortByRichPreview(outputFiles);
   const sortedAttachmentFiles = sortByRichPreview(attachmentFiles);
   const sortedDownloadFiles = sortByRichPreview(downloadFiles);
+  const sortedRootFiles = sortByRichPreview(rootFiles);
 
   const mainFiles = prioritizeUserFiles
-    ? [...sortedAttachmentFiles, ...sortedOutputFiles, ...sortedDownloadFiles]
-    : [...sortedOutputFiles, ...sortedAttachmentFiles, ...sortedDownloadFiles];
+    ? [
+        ...sortedAttachmentFiles,
+        ...sortedOutputFiles,
+        ...sortedRootFiles,
+        ...sortedDownloadFiles,
+      ]
+    : [
+        ...sortedOutputFiles,
+        ...sortedRootFiles,
+        ...sortedAttachmentFiles,
+        ...sortedDownloadFiles,
+      ];
 
   const visibleMainFiles = mainFiles.slice(0, initialVisibleCount);
   const hasMoreFiles = mainFiles.length > initialVisibleCount;
@@ -252,6 +265,12 @@ function isArtifactPanelFileSelected(
 
 function isFileInTaskFolder(file: TaskFileViewerFile, folderName: string) {
   return file.filePath.startsWith(`${folderName}/`);
+}
+
+function isRootFile(file: TaskFileViewerFile) {
+  // Root-level, non-dotfile: surfaces a deliverable saved to the task root while
+  // hiding setup dotfiles like `.gitignore`.
+  return !file.filePath.includes("/") && !file.filePath.startsWith(".");
 }
 
 function sortByRichPreview(files: TaskFileViewerFile[]) {

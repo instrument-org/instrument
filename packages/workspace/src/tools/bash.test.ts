@@ -152,6 +152,38 @@ describe("BashTool", () => {
       expect(value).toContain(".instrument/tool-output/part-123.log");
     });
 
+    it("notes that the shell session ends when cd is used", () => {
+      const result = BashTool.toModelOutput({
+        input: { command: "cd subdir && ls", timeoutMs: 1000 },
+        output: {
+          ...BASE_OUTPUT,
+          command: "cd subdir && ls",
+          commands: ["cd", "ls"],
+          durationMs: 5,
+          output: "file.txt\n",
+        },
+        toolCallId: "1",
+      });
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "type": "text",
+          "value": "Exit code: 0
+
+        Command output:
+
+        file.txt
+
+        <instrument-system-note>
+        This shell session ends when this command completes. The next
+        \`bash\` call starts fresh at the task root, not the directory this
+        \`cd\` moved to -- prefix that call with \`cd\` again if you need it.
+        </instrument-system-note>
+
+        Duration: 5 ms",
+        }
+      `);
+    });
+
     it("does not truncate output that fits within limits", () => {
       const output = Array.from({ length: 10 }, (_, i) => `line ${i}`).join(
         "\n",

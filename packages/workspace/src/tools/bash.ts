@@ -145,6 +145,16 @@ export const BashTool = setupTool({
       (truncationNotice + displayOutput).replace(/\n+$/, ""),
     ];
 
+    if (output.commands.includes("cd")) {
+      outputParts.push(
+        systemNote`
+          This shell session ends when this command completes. The next
+          \`bash\` call starts fresh at the task root, not the directory this
+          \`cd\` moved to -- prefix that call with \`cd\` again if you need it.
+        `,
+      );
+    }
+
     if (
       output.commands.includes("pnpm") &&
       displayOutput.includes("Ignored build scripts:") &&

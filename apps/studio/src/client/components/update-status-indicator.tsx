@@ -11,6 +11,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 const PROGRESS_RING_CIRCUMFERENCE = 44;
 const NOT_AVAILABLE_BADGE_TIMEOUT_MS = 5000;
@@ -142,8 +143,17 @@ export function UpdateStatusIndicator() {
         if (!error) {
           return;
         }
-        // No Toaster in the main window, so fall through to Settings, which
-        // surfaces the failure with retry and manual-download options.
+        // Settings' update section holds the retry and manual-download recourse.
+        toast.error("Couldn't install the update", {
+          action: {
+            label: "Open Settings",
+            onClick: () => {
+              openSettings({ tab: "General" });
+            },
+          },
+          description: error.message,
+        });
+        return;
       }
 
       openSettings({ tab: "General" });

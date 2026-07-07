@@ -117,9 +117,7 @@ function UnrecognizedFolders() {
   const revealMutation = useMutation(
     rpcClient.utils.showFileInFolder.mutationOptions({
       onError: () => {
-        toast.error("Couldn't reveal that folder", {
-          position: "bottom-center",
-        });
+        toast.error("Couldn't reveal that folder");
       },
     }),
   );
@@ -138,13 +136,9 @@ function UnrecognizedFolders() {
       await queryClient.invalidateQueries({
         queryKey: rpcClient.workspace.storage.invalidFolders.list.key(),
       });
-      toast.success(`Moved "${folder.name}" to the trash`, {
-        position: "bottom-center",
-      });
+      toast.success(`Moved "${folder.name}" to the trash`);
     } catch {
-      toast.error(`Couldn't move "${folder.name}" to the trash`, {
-        position: "bottom-center",
-      });
+      toast.error(`Couldn't move "${folder.name}" to the trash`);
     }
   };
 
@@ -232,7 +226,6 @@ function WorkspaceLocation() {
       onError: (error) => {
         toast.error("Couldn't open the workspace folder", {
           description: error.message,
-          position: "bottom-center",
         });
       },
     }),

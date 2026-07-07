@@ -348,12 +348,9 @@ function UsageMetrics() {
       await setUsageMetricsMutation.mutateAsync({ enabled: checked });
       toast.success(
         checked ? "Usage metrics enabled" : "Usage metrics disabled",
-        { position: "bottom-center" },
       );
     } catch {
-      toast.error("Failed to update usage metrics preference", {
-        position: "bottom-center",
-      });
+      toast.error("Failed to update usage metrics preference");
     }
   };
 

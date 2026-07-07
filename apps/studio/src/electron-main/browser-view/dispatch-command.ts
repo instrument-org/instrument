@@ -111,6 +111,22 @@ export async function sendCommand({
     return applyDownloadBehavior(entry, params);
   }
 
+  // Device emulation (Emulation.setDeviceMetricsOverride) isn't supported on
+  // the `<webview>` guest for the same reason captureBeyondViewport isn't
+  // (above): its rendered surface is pinned to whatever the on-screen panel
+  // slot currently measures, which varies with the split layout and is never
+  // known to this main-process command dispatcher. Any override wider or
+  // taller than that slot -- clamping to a fixed safe max included, since the
+  // slot is very often smaller than any reasonable clamp -- makes the guest
+  // paint only a corner of its emulated layout into the slot, leaving the
+  // rest blank. Refuse it outright rather than risk that mismatch; agents
+  // needing a larger capture should use PDF export instead (see above).
+  if (method === "Emulation.setDeviceMetricsOverride") {
+    throw new Error(
+      "Device/viewport emulation is not supported in this browser. The guest always renders at its on-screen panel size; to capture more than what's visible, export to PDF instead: `agent-browser pdf <path>`.",
+    );
+  }
+
   try {
     const wc = entry.webContents;
     if (!wc) {

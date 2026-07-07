@@ -58,6 +58,13 @@ export interface BrowserViewManager {
   // Lets keyboard Cmd+R reload the focused guest instead of the whole renderer
   // (which the app-level reload command would otherwise do).
   reloadFocusedGuest: () => boolean;
+  // Clear any active Emulation.setDeviceMetricsOverride on the guest.
+  // Best-effort and idempotent (clearing an inactive override is a no-op in
+  // Chromium). Called whenever a panel takes the guest visible again, so a
+  // stuck oversized-viewport override from an older session (before device
+  // emulation was refused outright -- see dispatch-command.ts) can't survive
+  // a re-show.
+  resetGuestViewport: (targetId: BrowserTargetId) => void;
   // Record renderer-reported DOM focus/blur on a guest's `<webview>` element.
   // `webContents.isFocused()` is unreliable for `<webview>` guests (it can get
   // stuck `true` after focus moves to a plain host-page element), so
@@ -464,6 +471,29 @@ export function createBrowserViewManager(): BrowserViewManager {
     return true;
   }
 
+  function resetGuestViewport(targetId: BrowserTargetId) {
+    if (!entries.has(targetId)) {
+      return;
+    }
+    // Unconditional and harmless if nothing is overridden: clearing an
+    // inactive override is a no-op in Chromium. This exists to heal a guest
+    // whose viewport was left emulated by an older CDP session (device
+    // emulation is no longer accepted going forward -- see
+    // dispatch-command.ts -- but a session from before that guard can still
+    // be carrying a stale override).
+    sendCommand({
+      ensureDebuggerAttached,
+      entries,
+      method: "Emulation.clearDeviceMetricsOverride",
+      params: undefined,
+      targetId,
+    }).catch((error: unknown) => {
+      log.warn(
+        `resetGuestViewport failed targetId=${targetId} err=${String(error)}`,
+      );
+    });
+  }
+
   function reloadFocusedGuest(): boolean {
     const wc = focusedGuestWebContents();
     if (!wc) {
@@ -504,6 +534,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       })),
     navigateFocusedGuest,
     reloadFocusedGuest,
+    resetGuestViewport,
     setGuestFocus,
     teardown: () => {
       for (const targetId of entries.keys()) {

@@ -39,7 +39,17 @@ const syncFocus = base
     getBrowserViewManager()?.setGuestFocus(input.targetId, input.focused);
   });
 
+// Defensive reset the renderer calls whenever a panel takes a guest visible
+// again, clearing any Emulation.setDeviceMetricsOverride an agent session left
+// active (no-op if none is active). See resetGuestViewport in manager.ts.
+const resetViewport = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    getBrowserViewManager()?.resetGuestViewport(input.targetId);
+  });
+
 export const browser = {
   live,
+  resetViewport,
   syncFocus,
 };

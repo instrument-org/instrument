@@ -58,6 +58,15 @@ export function useBrowserFind({
     };
   }, [active, targetId]);
 
+  // The guest outlives this panel (it's pooled, not reaped on panel close), so a
+  // find left highlighted stays highlighted when the panel remounts with the bar
+  // closed. Clear the guest's highlight on unmount so a reopen starts clean.
+  useEffect(() => {
+    return () => {
+      getWebviewElement(targetId)?.stopFindInPage("clearSelection");
+    };
+  }, [targetId]);
+
   // Register this panel as the find target while it's the foreground browser, so
   // the Cmd+F app command opens (and re-focuses) its find bar. See
   // browser-find-registry for why Cmd+F can't be a renderer keydown.

@@ -77,6 +77,29 @@ describe("pruneForeignBinaries", () => {
     `);
   });
 
+  it("keeps win32-x64 agent-browser for a win32-arm64 build", () => {
+    const { agentBrowserBin, pnpmDist, unpackedDir } = makeUnpackedFixture();
+
+    pruneForeignBinaries({
+      arch: Arch.arm64,
+      platformName: "win32",
+      unpackedDir,
+    });
+
+    expect(readdirSync(agentBrowserBin).sort()).toMatchInlineSnapshot(`
+      [
+        "agent-browser-win32-x64.exe",
+        "agent-browser.js",
+      ]
+    `);
+    expect(readdirSync(pnpmDist).sort()).toMatchInlineSnapshot(`
+      [
+        "pnpm.cjs",
+        "reflink.win32-arm64-msvc-Q6BARPPB.node",
+      ]
+    `);
+  });
+
   it("keeps both linux glibc and musl agent-browser binaries for the arch", () => {
     const { agentBrowserBin, unpackedDir } = makeUnpackedFixture();
 

@@ -38,7 +38,7 @@ export const AGENT_BROWSER_COMMAND = {
     Control a built-in Chromium browser to navigate the web, interact with pages, and extract content.
     IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
     IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.
-    Do NOT pass connection, provider, profile, or state flags; the browser session is managed automatically.
+    Do NOT pass connection, provider, profile, session, restore, or state flags; the browser session is managed automatically.
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,
 } as const;
@@ -47,10 +47,18 @@ export const AGENT_BROWSER_COMMAND = {
 // data into the wrong browser context.
 const BLOCKED_FLAGS = new Set([
   "--auto-connect", // Would discover a real Chrome instance instead of our bridge.
+  "--config", // Would let task-local config override managed connection/profile policy.
   "--cdp", // Harness injects this; agent override would point at the wrong target.
+  "--namespace", // Would move daemon/restore state outside the workspace-owned namespace.
   "--profile", // Copies a real Chrome profile; meaningless for our proxied target.
   "--provider", // Would launch a cloud browser
+  "--restore", // Upstream persistence duplicates our workspace-owned profile/state.
+  "--restore-check-fn",
+  "--restore-check-text",
+  "--restore-check-url",
+  "--restore-save",
   "--session", // Harness injects this; tied to our session id.
+  "--session-name", // Legacy restore/session key alias.
   "--state", // Loads cookies/localStorage into a context our bridge doesn't own.
 ]);
 
@@ -61,11 +69,16 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "auth", // Credential vault; we don't expose it.
   "chat", // Built-in AI REPL; the agent is the AI.
   "close", // Lifecycle managed by the workspace.
+  "connect", // Harness injects the only allowed CDP endpoint.
   "dashboard", // We have our own UI.
   "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
+  "install", // Browser binary is bundled with the app.
   "inspect", // Opens Chrome DevTools, which doesn't work against our WebContentsView CDP bridge.
   "launch", // We don't launch; we proxy an existing target.
+  "mcp", // MCP tool hosting is managed outside the in-app browser wrapper.
+  "plugin", // Plugin capabilities would bypass workspace policy.
   "profiles", // Lists real Chrome profiles; N/A.
+  "session", // Session metadata is owned by the workspace.
   "skills", // Workspace manages skill loading.
   "state", // Persistence managed by the workspace.
   "stream", // Streaming managed by the workspace.
@@ -100,14 +113,16 @@ const WORKSPACE_HELP = dedent`
     4. Re-run snapshot -i after navigation or DOM changes
 
   Reading page content:
-    agent-browser wait --load networkidle
-    agent-browser get text body > page.txt
+    agent-browser read                 Read the active page as agent-friendly text
+    agent-browser read <url>           Fetch a URL as Markdown or readable text
+    agent-browser get text body        Fallback for visible page copy
 
   Use snapshot -i --urls when following links. Never fabricate deep URLs from
   memory; discover them from search, root pages, provided URLs, or page links.
 
   Common commands:
     open <url>                  Navigate to a URL
+    read [url]                  Read active page text or fetch a URL
     snapshot -i [--urls]        Get interactive refs, optionally with link URLs
     click @ref                  Click an element, scrolling into view first
     fill @ref <text>            Clear and fill an element
@@ -124,7 +139,7 @@ const WORKSPACE_HELP = dedent`
     is visible|enabled|checked  Check element state
     find role|text|label ...    Use semantic locators as an alternative to refs
 
-  Do not pass connection, provider, profile, session, or state flags.
+  Do not pass connection, provider, profile, session, restore, or state flags.
   These are blocked because the workspace owns the in-app browser context.
 `.trim();
 
@@ -195,14 +210,16 @@ export function createAgentBrowserCommand({
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
     const resolvedArgs = resolvePathArgs(strippedArgs, taskId, ctx);
+    const isStandaloneRead = isExplicitUrlRead(strippedArgs);
 
     // Info-only invocations (--help, --version) print and exit without ever
     // touching a browser target, so don't spin up a WebContentsView or attach
     // to the CDP bridge.
-    const commandArgs: string[] = isInfoOnly ? [...resolvedArgs] : [];
+    const commandArgs: string[] =
+      isInfoOnly || isStandaloneRead ? [...resolvedArgs] : [];
     let targetId: BrowserTargetId | undefined;
 
-    if (!isInfoOnly) {
+    if (!isInfoOnly && !isStandaloneRead) {
       // Idempotent: createTarget returns the existing view for this
       // (id, sessionId) pair if one is already live, so sub-agents and
       // repeat invocations within the same session reuse the same browsing
@@ -236,12 +253,13 @@ export function createAgentBrowserCommand({
     // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
     // download path); this is a per-task sink for anything that falls back
-    // to $HOME (e.g. ~/.agent-browser/config reads, future writes).
+    // to $HOME.
     const homeDir = absolutePathJoin(
       taskDir(taskId),
       TASK_FOLDER_NAMES.private,
       "agent-browser-home",
     );
+    const configPath = path.join(homeDir, "config.json");
 
     // Stored without the `agent-browser` prefix: the context-item kind
     // already discriminates these as agent-browser invocations, so the
@@ -251,17 +269,18 @@ export function createAgentBrowserCommand({
     // Open the observation before invoking the binary so the UI can render
     // a pending card immediately and so a record exists even if execa
     // throws or the process is canceled mid-flight. Info-only invocations
-    // (--help, --version) never touch the browser target, so we skip
-    // observation entirely; everything else gets a start+end screenshot
-    // pair (deduped by content hash on disk).
-    const observation = isInfoOnly
-      ? undefined
-      : await beginBrowserCommandObservation({
-          sessionId,
-          subcommand: subcommandText,
-          taskId: id,
-          upsertContextItem,
-        });
+    // (--help, --version) and standalone URL reads never touch the browser
+    // target, so we skip observation entirely; everything else gets a
+    // start+end screenshot pair (deduped by content hash on disk).
+    const observation =
+      isInfoOnly || isStandaloneRead
+        ? undefined
+        : await beginBrowserCommandObservation({
+            sessionId,
+            subcommand: subcommandText,
+            taskId: id,
+            upsertContextItem,
+          });
 
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
     try {
@@ -279,20 +298,29 @@ export function createAgentBrowserCommand({
           // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
           // can't bypass the rejection above.
           AGENT_BROWSER_AUTO_CONNECT: undefined,
+          AGENT_BROWSER_CONFIG: undefined,
           AGENT_BROWSER_CDP: undefined,
           // Uncomment this to enable debug mode.
           // AGENT_BROWSER_DEBUG:
           //   process.env.NODE_ENV === "development" ? "1" : undefined,
           AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
           AGENT_BROWSER_IDLE_TIMEOUT_MS: IDLE_TIMEOUT_MS,
+          AGENT_BROWSER_NAMESPACE: undefined,
           AGENT_BROWSER_PROFILE: undefined,
           AGENT_BROWSER_PROVIDER: undefined,
+          AGENT_BROWSER_RESTORE: undefined,
+          AGENT_BROWSER_RESTORE_CHECK_FN: undefined,
+          AGENT_BROWSER_RESTORE_CHECK_TEXT: undefined,
+          AGENT_BROWSER_RESTORE_CHECK_URL: undefined,
+          AGENT_BROWSER_RESTORE_SAVE: undefined,
           AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
+          AGENT_BROWSER_SESSION_NAME: undefined,
           AGENT_BROWSER_SOCKET_DIR,
           AGENT_BROWSER_STATE: undefined,
           HOME: homeDir,
         },
         input: latin1FromBytes(ctx.stdin) || undefined,
+        managedConfigPath: isInfoOnly ? undefined : configPath,
         stateDir: agentBrowserStateDir,
       });
     } finally {
@@ -383,6 +411,7 @@ async function runAgentBrowser({
   cwd,
   env,
   input,
+  managedConfigPath,
   stateDir,
 }: {
   args: string[];
@@ -390,10 +419,20 @@ async function runAgentBrowser({
   cwd: string;
   env: Record<string, string | undefined>;
   input: string | undefined;
+  managedConfigPath: string | undefined;
   stateDir: string;
 }) {
+  const managedArgs = managedConfigPath
+    ? ["--config", managedConfigPath, ...args]
+    : args;
+
+  if (managedConfigPath) {
+    await fs.mkdir(path.dirname(managedConfigPath), { recursive: true });
+    await fs.writeFile(managedConfigPath, "{}\n");
+  }
+
   if (process.platform !== "win32") {
-    return await execa(AGENT_BROWSER_PATH, args, {
+    return await execa(AGENT_BROWSER_PATH, managedArgs, {
       cancelSignal,
       cwd,
       env,
@@ -415,7 +454,7 @@ async function runAgentBrowser({
     // detached daemon that can keep inherited stdout/stderr pipe handles alive;
     // waiting directly on the CLI process exit avoids treating pipe EOF as part
     // of command completion.
-    const child = spawn(AGENT_BROWSER_PATH, args, {
+    const child = spawn(AGENT_BROWSER_PATH, managedArgs, {
       cwd,
       env,
       stdio: ["pipe", stdoutFd, stderrFd],
@@ -481,3 +520,34 @@ function stripHarnessControlledFlags(args: string[]): string[] {
   }
   return out;
 }
+
+function isExplicitUrlRead(args: string[]) {
+  const readIndex = args.findIndex((arg) => arg === "read");
+  if (readIndex === -1) {
+    return false;
+  }
+
+  for (let i = readIndex + 1; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined) {
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      if (READ_FLAGS_WITH_VALUE.has(arg) && !arg.includes("=")) {
+        i++;
+      }
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+const READ_FLAGS_WITH_VALUE = new Set([
+  "--allowed-domains",
+  "--filter",
+  "--headers",
+  "--llms",
+  "--max-output",
+  "--timeout",
+]);

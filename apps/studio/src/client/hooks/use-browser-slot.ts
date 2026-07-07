@@ -1,4 +1,5 @@
 import { setPaintHost, showOverSlot } from "@/client/lib/browser-pool";
+import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useLayoutEffect, useRef, useState } from "react";
 
@@ -40,6 +41,17 @@ export function useBrowserSlot({
       setPaintHost(targetId, slotOwner);
       return;
     }
+
+    // Defensive reset: an agent CDP session may have left the guest's
+    // viewport emulated at some other size (e.g. a full-page-screenshot
+    // workaround via Emulation.setDeviceMetricsOverride). Showing the guest
+    // over our own measured slot only makes sense at its natural size, so
+    // clear any override the moment this panel takes over as the visible one
+    // -- a no-op if none is active.
+    rpcClient.browser.resetViewport.call({ targetId }).catch(() => {
+      // Best-effort; a transient RPC failure just leaves a stale override
+      // (if any) for the next show to clear.
+    });
 
     const measure = () => {
       const rect = slot.getBoundingClientRect();

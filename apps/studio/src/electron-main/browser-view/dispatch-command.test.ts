@@ -311,6 +311,30 @@ describe("sendCommand", () => {
     });
   });
 
+  describe("Emulation.setDeviceMetricsOverride", () => {
+    it("rejects device emulation and points the agent at PDF export", async () => {
+      const wcSendCommand = vi.fn();
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      await expect(
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method: "Emulation.setDeviceMetricsOverride",
+          params: {
+            deviceScaleFactor: 0,
+            height: 8000,
+            mobile: false,
+            width: 1920,
+          },
+          targetId: TARGET_ID,
+        }),
+      ).rejects.toThrow(/pdf/i);
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+  });
+
   describe("screencast", () => {
     it("returns {} for Page.startScreencast and {} for Page.stopScreencast", async () => {
       vi.useFakeTimers();

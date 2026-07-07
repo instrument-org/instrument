@@ -76,12 +76,11 @@ export async function sendCommand({
     // Viewport captures (no clip, no beyond-viewport) -- the shape the recorder
     // polls at 10fps and plain `screenshot` uses -- can't be served by the
     // debugger's Page.captureScreenshot: with fromSurface it blocks on a
-    // compositor frame the occluded WebContentsView never produces, so the
+    // compositor frame that an occluded/minimized window never produces, so the
     // capture hangs until the 20s timeout and recordings come out empty.
-    // capturePage with stayHidden holds the capturer count so Chromium keeps
-    // compositing an occluded/background view, matching how the emulated
-    // screencast and observation screenshots capture. Full-page/element clips
-    // still need real CDP and fall through above.
+    // capturePage reads the paint-host guest's live surface instead, matching
+    // how the emulated screencast and observation screenshots capture.
+    // Full-page/element clips still need real CDP and fall through above.
     const p = (params ?? {}) as Protocol.Page.CaptureScreenshotRequest;
     if (!p.clip && p.captureBeyondViewport !== true) {
       return await captureViewportScreenshot(entry, p);
@@ -166,10 +165,13 @@ export async function sendCommand({
 }
 
 // Serve a viewport Page.captureScreenshot from webContents.capturePage instead
-// of the debugger. stayHidden holds the capturer count so an occluded/background
-// view keeps compositing; without it the CDP screenshot blocks indefinitely.
-// Throws fast on timeout/empty so the recorder skips a frame rather than the
-// caller hanging 20s -- we never fall back to the CDP path that hangs.
+// of the debugger. The paint-host guest is always composited (visibility:visible
+// in a visible window), so capturePage reads its live surface; the debugger's
+// fromSurface screenshot would instead block on a compositor frame when the
+// whole window is occluded/minimized. Plain capturePage (no stayHidden) lets
+// Electron force a frame if the window is hidden, matching the app's other
+// capture paths. Throws fast on timeout/empty so the recorder skips a frame
+// rather than the caller hanging.
 async function captureViewportScreenshot(
   entry: BrowserEntry,
   p: Protocol.Page.CaptureScreenshotRequest,
@@ -181,7 +183,7 @@ async function captureViewportScreenshot(
   const CAPTURE_TIMEOUT_MS = 5000;
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const image = await Promise.race([
-    wc.capturePage(undefined, { stayHidden: true }),
+    wc.capturePage(),
     new Promise<never>((_, reject) => {
       timeout = setTimeout(() => {
         reject(new Error("capturePage timed out"));

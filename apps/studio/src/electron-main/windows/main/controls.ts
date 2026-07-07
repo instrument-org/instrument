@@ -17,6 +17,10 @@ const TRAFFIC_LIGHT_X = 12;
 // than via `webContents.setZoomLevel`, so app zoom leaves unfocused embedded web
 // content views untouched and stays independent of them.
 
+export function closeMainWindow() {
+  getMainWindow()?.close();
+}
+
 export function focusMainContents() {
   getMainWindow()?.webContents.focus();
 }
@@ -35,6 +39,18 @@ export function goForward() {
     return;
   }
   sendAppCommand({ type: "navigateForward" });
+}
+
+export function isMainWindowMaximized() {
+  return getMainWindow()?.isMaximized() ?? false;
+}
+
+// Window controls for the custom (frameless) title bar on Windows/Linux, where
+// the renderer draws its own minimize/maximize/close buttons instead of the
+// native window-controls overlay. macOS keeps its native traffic lights but can
+// still drive these (e.g. the dev force-show toggle).
+export function minimizeMainWindow() {
+  getMainWindow()?.minimize();
 }
 
 export function reload() {
@@ -63,6 +79,19 @@ export function setTrafficLightForZoom(zoom: number) {
     Math.round((TOOLBAR_HEIGHT * zoom - TRAFFIC_LIGHT_CLUSTER_HEIGHT) / 2),
   );
   window.setWindowButtonPosition({ x: TRAFFIC_LIGHT_X, y });
+}
+
+export function toggleMaximizeMainWindow() {
+  const window = getMainWindow();
+  if (!window) {
+    return;
+  }
+  // cspell:ignore unmaximize
+  if (window.isMaximized()) {
+    window.unmaximize();
+  } else {
+    window.maximize();
+  }
 }
 
 export function zoomIn() {

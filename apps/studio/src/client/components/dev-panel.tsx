@@ -3,6 +3,7 @@ import { featuresAtom } from "@/client/atoms/features";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openWelcome } from "@/client/atoms/welcome-modal";
+import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
 import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
 import { useTheme } from "@/client/components/theme-provider";
 import {
@@ -34,6 +35,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { isMacOS } from "@/client/lib/utils";
 import {
   componentPages,
   debugNavigationRoutes,
@@ -85,6 +87,9 @@ export function DevPanel() {
   const [crash, setCrash] = useState(false);
   const setDevToolsPanel = useSetAtom(devToolsPanelAtom);
   const [zoom, setZoom] = useAtom(zoomAtom);
+  const [forceWindowControls, setForceWindowControls] = useAtom(
+    forceWindowControlsAtom,
+  );
 
   const features = useAtomValue(featuresAtom);
 
@@ -620,6 +625,16 @@ export function DevPanel() {
               >
                 Show breakpoint
               </MenubarCheckboxItem>
+              {isMacOS() && (
+                <MenubarCheckboxItem
+                  checked={forceWindowControls}
+                  className="font-mono text-xs"
+                  onCheckedChange={setForceWindowControls}
+                  title="Render the Windows/Linux window controls on macOS for layout debugging"
+                >
+                  Force window controls
+                </MenubarCheckboxItem>
+              )}
               <MenubarSeparator />
               <MenubarItem
                 className="font-mono text-xs"

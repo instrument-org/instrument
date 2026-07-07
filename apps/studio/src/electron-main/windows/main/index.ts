@@ -2,10 +2,7 @@ import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { openExternal } from "@/electron-main/lib/open-external";
-import {
-  getMainWindowBackgroundColor,
-  getTitleBarOverlay,
-} from "@/electron-main/lib/theme-utils";
+import { getMainWindowBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -57,9 +54,9 @@ export async function createMainWindow({
     // On macOS keep the native NSWindow frame (titleBarStyle hiddenInset already
     // gives the chromeless look); a frameless window can't host modal sheets, so
     // native dialogs would fall back to the slow app-modal path. frame:false is
-    // only needed for the custom title bar on Windows/Linux.
+    // only needed for the custom title bar on Windows/Linux, which draws its own
+    // window controls (see WindowControls) rather than using the native overlay.
     frame: process.platform === "darwin" ? true : false,
-    titleBarOverlay: getTitleBarOverlay(),
     webPreferences: {
       additionalArguments: ["--windowType=main"],
       contextIsolation: true,
@@ -193,17 +190,6 @@ export function updateMainWindowBackgroundColor() {
   }
 }
 
-export function updateTitleBarOverlay() {
-  const window = getMainWindow();
-  if (
-    window &&
-    !window.isDestroyed() &&
-    (process.platform === "linux" || process.platform === "win32")
-  ) {
-    window.setTitleBarOverlay(getTitleBarOverlay());
-  }
-}
-
 function isWindowNormal(mainWindow: BrowserWindow) {
   return (
     !mainWindow.isMaximized() &&
@@ -232,13 +218,18 @@ function setupWindowEventListeners({
     onResize();
   });
 
-  // These were added when fixing Linux and may not be needed
+  // These were added when fixing Linux and may not be needed. The custom
+  // window controls (Windows/Linux, and macOS when force-shown) read the
+  // maximized state, so republish it here to keep the restore/maximize glyph
+  // in sync with OS-driven maximize (snap, double-click, Win+Up).
   mainWindow.on("maximize", () => {
     onResize();
+    publisher.publish("window.maximized-changed", null);
   });
   // cspell:ignore unmaximize
   mainWindow.on("unmaximize", () => {
     onResize();
+    publisher.publish("window.maximized-changed", null);
   });
 }
 

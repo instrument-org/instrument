@@ -13,7 +13,13 @@ import {
 } from "@/electron-main/lib/server-exceptions";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { setTrafficLightForZoom } from "@/electron-main/windows/main/controls";
+import {
+  closeMainWindow,
+  isMainWindowMaximized,
+  minimizeMainWindow,
+  setTrafficLightForZoom,
+  toggleMaximizeMainWindow,
+} from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
   OpenTaskInTypeSchema,
@@ -377,7 +383,22 @@ const syncZoom = base
     setTrafficLightForZoom(input.zoom);
   });
 
+// Custom title-bar window controls (Windows/Linux, and macOS when force-shown).
+const minimizeWindow = base.input(z.void()).handler(() => {
+  minimizeMainWindow();
+});
+
+const toggleMaximizeWindow = base.input(z.void()).handler(() => {
+  toggleMaximizeMainWindow();
+});
+
+const closeWindow = base.input(z.void()).handler(() => {
+  closeMainWindow();
+});
+
 const live = {
+  // Current maximized state, so the custom controls can toggle the
+  // maximize/restore glyph. Re-yields on OS-driven maximize/unmaximize.
   onWindowFocus: base.handler(async function* ({ signal }) {
     for await (const _ of publisher.subscribe("window.focus-changed", {
       signal,
@@ -409,6 +430,17 @@ const live = {
         signal,
       })) {
         yield getServerExceptions();
+      }
+    }),
+  windowMaximized: base
+    .output(eventIterator(z.object({ maximized: z.boolean() })))
+    .handler(async function* ({ signal }) {
+      yield { maximized: isMainWindowMaximized() };
+
+      for await (const _ of publisher.subscribe("window.maximized-changed", {
+        signal,
+      })) {
+        yield { maximized: isMainWindowMaximized() };
       }
     }),
 };
@@ -520,12 +552,14 @@ const showFolderPicker = base
 
 export const utils = {
   clearExceptions,
+  closeWindow,
   copyFileToClipboard,
   copyProjectPathToClipboard,
   copyTaskPathToClipboard,
   exportZip,
   getSupportedEditors,
   live,
+  minimizeWindow,
   openExternalLink,
   openFolder,
   openTaskIn,
@@ -534,4 +568,5 @@ export const utils = {
   showProjectInFolder,
   showTaskFileInFolder,
   syncZoom,
+  toggleMaximizeWindow,
 };

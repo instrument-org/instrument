@@ -179,21 +179,26 @@ async function captureViewportScreenshot(
     throw new Error("webContents unavailable");
   }
   const CAPTURE_TIMEOUT_MS = 5000;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   const image = await Promise.race([
     wc.capturePage(undefined, { stayHidden: true }),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => {
+    new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
         reject(new Error("capturePage timed out"));
-      }, CAPTURE_TIMEOUT_MS),
-    ),
-  ]);
+      }, CAPTURE_TIMEOUT_MS);
+    }),
+  ]).finally(() => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  });
   if (image.isEmpty()) {
     throw new Error("capturePage returned an empty frame");
   }
   const data =
-    p.format === "png"
-      ? image.toPNG().toString("base64")
-      : image.toJPEG(p.quality ?? 80).toString("base64");
+    p.format === "jpeg"
+      ? image.toJPEG(p.quality ?? 80).toString("base64")
+      : image.toPNG().toString("base64");
   return { data };
 }
 

@@ -229,7 +229,7 @@ describe("sendCommand", () => {
       expect(result).toEqual({ data: Buffer.from("PNG").toString("base64") });
     });
 
-    it("encodes as JPEG with the requested quality by default", async () => {
+    it("defaults to PNG when no format is requested", async () => {
       const capturePage = vi.fn().mockResolvedValue(fakeImage());
       const entry = makeEntry({ capturePage });
       const entries = new Map([[TARGET_ID, entry]]);
@@ -238,7 +238,23 @@ describe("sendCommand", () => {
         ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.captureScreenshot",
-        params: { quality: 42 },
+        params: {},
+        targetId: TARGET_ID,
+      });
+
+      expect(result).toEqual({ data: Buffer.from("PNG").toString("base64") });
+    });
+
+    it("encodes as JPEG with the requested quality when requested", async () => {
+      const capturePage = vi.fn().mockResolvedValue(fakeImage());
+      const entry = makeEntry({ capturePage });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      const result = await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Page.captureScreenshot",
+        params: { format: "jpeg", quality: 42 },
         targetId: TARGET_ID,
       });
 

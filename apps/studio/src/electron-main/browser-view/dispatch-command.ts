@@ -5,7 +5,6 @@ import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 
 import type { BrowserEntry } from "./entry";
 
-import { sendCdpCommand } from "../lib/cdp";
 import {
   DEFAULT_VIEWPORT_HEIGHT,
   DEFAULT_VIEWPORT_WIDTH,
@@ -69,20 +68,23 @@ export async function sendCommand({
   }
 
   if (method === "Page.captureScreenshot") {
-    const rescaled = await rescaleFullPageScreenshotClip(entry, params);
-    if (rescaled) {
-      return rescaled;
-    }
-    // Viewport captures (no clip, no beyond-viewport) -- the shape the recorder
-    // polls at 10fps and plain `screenshot` uses -- can't be served by the
-    // debugger's Page.captureScreenshot: with fromSurface it blocks on a
-    // compositor frame that an occluded/minimized window never produces, so the
-    // capture hangs until the 20s timeout and recordings come out empty.
-    // capturePage reads the paint-host guest's live surface instead, matching
-    // how the emulated screencast and observation screenshots capture.
-    // Full-page/element clips still need real CDP and fall through above.
     const p = (params ?? {}) as Protocol.Page.CaptureScreenshotRequest;
-    if (!p.clip && p.captureBeyondViewport !== true) {
+    // Full-page capture (captureBeyondViewport) isn't supported on the `<webview>`
+    // guest: its compositor surface is pinned to the viewport, so Chromium fills an
+    // over-viewport clip by tiling the top of the page (growing the element grows
+    // layout but not the rasterized surface). Rather than return a misleading
+    // viewport crop or a tiled image, fail with a message pointing the agent at PDF
+    // capture, which renders the whole document via the print path and works here.
+    if (p.captureBeyondViewport === true) {
+      throw new Error(
+        "Full-page screenshots are not supported in this browser. To capture the full height of the page, export it to PDF instead: `agent-browser pdf <path>`.",
+      );
+    }
+    // Plain viewport capture (no clip) -- the shape the recorder polls at 10fps and
+    // `screenshot` uses. capturePage reads the paint-host guest's live surface,
+    // which the debugger's fromSurface screenshot can't when the window is
+    // occluded. Element clips (a clip without beyond-viewport) still use real CDP.
+    if (!p.clip) {
       return await captureViewportScreenshot(entry, p);
     }
   }
@@ -219,66 +221,4 @@ function getWindowForTargetStub(): Protocol.Browser.GetWindowForTargetResponse {
     },
     windowId: 1,
   };
-}
-
-// FP-922: agent-browser builds its full-page clip from contentSize (device
-// pixels) at scale: 1.0. Embedded in a HiDPI host window, Electron's layout
-// metrics report contentSize = dsf * cssContentSize regardless of Emulation
-// overrides (the override only affects window.devicePixelRatio, not
-// Page.getLayoutMetrics). That makes both the clip rectangle AND the
-// resulting PNG 2x too large in each axis: the document is painted in the
-// top half and the area below contentHeight is rendered as a second tiled
-// paint. Convert the clip to CSS px so it matches actual document bounds.
-// Returns the rewritten capture result, or null to fall through to the
-// default debugger.sendCommand path.
-async function rescaleFullPageScreenshotClip(
-  entry: BrowserEntry,
-  params: unknown,
-): Promise<null | Protocol.Page.CaptureScreenshotResponse> {
-  const p = (params ?? {}) as Protocol.Page.CaptureScreenshotRequest;
-  if (p.captureBeyondViewport !== true || !p.clip) {
-    return null;
-  }
-  const wc = entry.webContents;
-  if (!wc || wc.isDestroyed() || !wc.debugger.isAttached()) {
-    return null;
-  }
-  try {
-    // We rely on the deprecated contentSize specifically: it reports the
-    // scrollable area in device pixels as Electron's CDP layer sees it,
-    // which is the exact scale agent-browser inherits when it builds its
-    // clip from the same field. Comparing against cssContentSize is the
-    // only reliable way to recover that effective DSF (host display
-    // scaleFactor and Emulation overrides don't match it in practice).
-    // The cast strips the @deprecated marker from contentSize since we have
-    // no non-deprecated equivalent for this diagnostic.
-    const metrics = (await sendCdpCommand(wc, "Page.getLayoutMetrics")) as Omit<
-      Protocol.Page.GetLayoutMetricsResponse,
-      "contentSize"
-    > & {
-      contentSize: Protocol.DOM.Rect;
-    };
-    const dpW = metrics.contentSize.width;
-    const cssW = metrics.cssContentSize.width;
-    const dsf = cssW > 0 ? dpW / cssW : 1;
-    if (dsf === 1) {
-      return null;
-    }
-    const newClip: Protocol.Page.Viewport = {
-      height: Math.round(p.clip.height / dsf),
-      scale: p.clip.scale,
-      width: Math.round(p.clip.width / dsf),
-      x: Math.round(p.clip.x / dsf),
-      y: Math.round(p.clip.y / dsf),
-    };
-    return await sendCdpCommand(wc, "Page.captureScreenshot", {
-      ...p,
-      clip: newClip,
-    });
-  } catch (error) {
-    log.warn(
-      `captureScreenshot rescale failed targetId=${entry.targetId} err=${String(error)}`,
-    );
-    return null;
-  }
 }

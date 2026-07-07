@@ -244,8 +244,10 @@ function getAriaLabel(state: UpdateStatusBadgeState) {
 }
 
 // The one place raw updater status strings become a typed badge; everything
-// downstream keys off {@link BADGE_META} via the returned union. Returns null
-// for statuses that get no toolbar pill (available, canceled, inactive).
+// downstream keys off {@link BADGE_META} via the returned union. `available`
+// renders as downloading at 0% so the badge never blanks between the check and
+// the first progress event (autoDownload is always on). Returns null for
+// statuses that get no toolbar pill (canceled, inactive).
 function getBadgeState({
   errorMessage,
   progress,
@@ -258,6 +260,12 @@ function getBadgeState({
   version: string | undefined;
 }): null | UpdateStatusBadgeState {
   switch (status) {
+    case "available": {
+      return {
+        progress: progress ?? 0,
+        type: "downloading",
+      };
+    }
     case "checking": {
       return {
         type: "checking",

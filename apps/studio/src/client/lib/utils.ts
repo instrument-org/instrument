@@ -26,3 +26,11 @@ export function isMacOS(): boolean {
 export function isWindows(): boolean {
   return window.electron.process.platform === "win32";
 }
+
+const WHEEL_LINE_TO_PX = 16;
+
+// deltaY is pixels for trackpad pinch and most wheels, but lines when
+// `deltaMode` is 1, so line deltas are normalized to px first.
+export function normalizeWheelDeltaPx(event: WheelEvent) {
+  return event.deltaMode === 1 ? event.deltaY * WHEEL_LINE_TO_PX : event.deltaY;
+}

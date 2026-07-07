@@ -1,12 +1,11 @@
 import { clampZoom, zoomAtom } from "@/client/atoms/zoom";
+import { IMAGE_PANZOOM_VIEWPORT_CLASS } from "@/client/hooks/use-image-panzoom";
+import { normalizeWheelDeltaPx } from "@/client/lib/utils";
 import { useSetAtom } from "jotai";
 import { useEffect } from "react";
 
-// Per-event exponent scale mapping wheel delta to a zoom multiplier. deltaY is
-// pixels for trackpad pinch and most wheels, but lines when `deltaMode` is 1, so
-// line deltas are normalized to px first.
+// Per-event exponent scale mapping wheel delta to a zoom multiplier.
 const ZOOM_WHEEL_SENSITIVITY = 0.0015;
-const LINES_TO_PX = 16;
 
 /**
  * Drives the shared UI zoom from ctrl+wheel and trackpad pinch. Chromium delivers
@@ -17,7 +16,7 @@ const LINES_TO_PX = 16;
  * so wheel/pinch zoom uses the identical clamped mechanism as the menu
  * accelerators.
  *
- * Bails over a react-zoom-pan-pinch surface (the file viewer), which runs its own
+ * Bails over the file viewer's image panzoom surface, which runs its own
  * wheel zoom and already prevents native zoom there, so app zoom doesn't
  * double-fire on top of it.
  */
@@ -31,13 +30,12 @@ export function useZoomWheel() {
       }
       if (
         event.target instanceof Element &&
-        event.target.closest(".react-transform-wrapper")
+        event.target.closest(`.${IMAGE_PANZOOM_VIEWPORT_CLASS}`)
       ) {
         return;
       }
       event.preventDefault();
-      const deltaPx =
-        event.deltaMode === 1 ? event.deltaY * LINES_TO_PX : event.deltaY;
+      const deltaPx = normalizeWheelDeltaPx(event);
       setZoom((z) =>
         clampZoom(z * Math.exp(-deltaPx * ZOOM_WHEEL_SENSITIVITY)),
       );

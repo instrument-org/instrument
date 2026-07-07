@@ -286,130 +286,28 @@ describe("sendCommand", () => {
     });
   });
 
-  describe("Page.captureScreenshot rescale", () => {
-    it("falls through to the debugger when captureBeyondViewport is set without a clip", async () => {
-      const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
-
-      await sendCommand({
-        ensureDebuggerAttached: vi.fn(),
-        entries,
-        method: "Page.captureScreenshot",
-        params: { captureBeyondViewport: true },
-        targetId: TARGET_ID,
-      });
-
-      expect(sendCdpCommandMock).not.toHaveBeenCalled();
-      expect(wcSendCommand).toHaveBeenCalled();
-    });
-
-    it("falls through when device-scale factor is 1 (no rescale needed)", async () => {
-      sendCdpCommandMock.mockResolvedValueOnce({
-        contentSize: { width: 1280 },
-        cssContentSize: { width: 1280 },
-      } as never);
-      const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
-
-      const result = await sendCommand({
-        ensureDebuggerAttached: vi.fn(),
-        entries,
-        method: "Page.captureScreenshot",
-        params: {
-          captureBeyondViewport: true,
-          clip: { height: 1600, scale: 1, width: 2560, x: 0, y: 0 },
-        },
-        targetId: TARGET_ID,
-      });
-
-      expect(result).toEqual({ data: "FALLTHROUGH" });
-      expect(wcSendCommand).toHaveBeenCalled();
-    });
-
-    it("rescales the clip by the HiDPI factor and returns the rewritten capture", async () => {
-      sendCdpCommandMock
-        .mockResolvedValueOnce({
-          // 2x HiDPI: contentSize is 2x cssContentSize.
-          contentSize: { width: 2560 },
-          cssContentSize: { width: 1280 },
-        } as never)
-        .mockResolvedValueOnce({ data: "RESCALED" } as never);
-
+  describe("Page.captureScreenshot full page (captureBeyondViewport)", () => {
+    it("rejects a full-page request and points the agent at PDF export", async () => {
+      const capturePage = vi.fn();
       const wcSendCommand = vi.fn();
-      const entry = makeEntry({ sendCommand: wcSendCommand });
+      const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
       const entries = new Map([[TARGET_ID, entry]]);
 
-      const result = await sendCommand({
-        ensureDebuggerAttached: vi.fn(),
-        entries,
-        method: "Page.captureScreenshot",
-        params: {
-          captureBeyondViewport: true,
-          clip: { height: 1600, scale: 1, width: 2560, x: 100, y: 200 },
-          format: "png",
-        },
-        targetId: TARGET_ID,
-      });
-
-      expect(result).toEqual({ data: "RESCALED" });
-      expect(wcSendCommand).not.toHaveBeenCalled();
-      const lastCall = sendCdpCommandMock.mock.calls.at(-1);
-      expect(lastCall?.[1]).toBe("Page.captureScreenshot");
-      expect(lastCall?.[2]).toMatchInlineSnapshot(`
-        {
-          "captureBeyondViewport": true,
-          "clip": {
-            "height": 800,
-            "scale": 1,
-            "width": 1280,
-            "x": 50,
-            "y": 100,
+      await expect(
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method: "Page.captureScreenshot",
+          params: {
+            captureBeyondViewport: true,
+            clip: { height: 999, scale: 1, width: 999, x: 0, y: 0 },
           },
-          "format": "png",
-        }
-      `);
-    });
-
-    it("falls through when getLayoutMetrics throws", async () => {
-      sendCdpCommandMock.mockRejectedValueOnce(new Error("metrics boom"));
-      const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
-
-      const result = await sendCommand({
-        ensureDebuggerAttached: vi.fn(),
-        entries,
-        method: "Page.captureScreenshot",
-        params: {
-          captureBeyondViewport: true,
-          clip: { height: 1600, scale: 1, width: 2560, x: 0, y: 0 },
-        },
-        targetId: TARGET_ID,
-      });
-
-      expect(result).toEqual({ data: "FALLTHROUGH" });
-    });
-
-    it("falls through when the debugger is not attached", async () => {
-      const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
-      const entry = makeEntry({ attached: false, sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
-
-      await sendCommand({
-        ensureDebuggerAttached: vi.fn(),
-        entries,
-        method: "Page.captureScreenshot",
-        params: {
-          captureBeyondViewport: true,
-          clip: { height: 1600, scale: 1, width: 2560, x: 0, y: 0 },
-        },
-        targetId: TARGET_ID,
-      });
-
-      expect(sendCdpCommandMock).not.toHaveBeenCalled();
-      expect(wcSendCommand).toHaveBeenCalled();
+          targetId: TARGET_ID,
+        }),
+      ).rejects.toThrow(/pdf/i);
+      // Never emits a tiled/viewport image or touches the debugger for full page.
+      expect(capturePage).not.toHaveBeenCalled();
+      expect(wcSendCommand).not.toHaveBeenCalled();
     });
   });
 

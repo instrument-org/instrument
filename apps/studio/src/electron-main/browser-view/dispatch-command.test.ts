@@ -31,6 +31,7 @@ interface FakeDebugger {
 }
 
 interface FakeWebContents {
+  capturePage?: ReturnType<typeof vi.fn>;
   debugger: FakeDebugger;
   isDestroyed: () => boolean;
   printToPDF?: ReturnType<typeof vi.fn>;
@@ -38,6 +39,7 @@ interface FakeWebContents {
 
 function makeEntry({
   attached = true,
+  capturePage,
   destroyed = false,
   printToPDF,
   sendCommand: wcSendCommand = vi.fn(),
@@ -45,6 +47,7 @@ function makeEntry({
   webContents = true,
 }: {
   attached?: boolean;
+  capturePage?: ReturnType<typeof vi.fn>;
   destroyed?: boolean;
   printToPDF?: ReturnType<typeof vi.fn>;
   sendCommand?: ReturnType<typeof vi.fn>;
@@ -53,6 +56,7 @@ function makeEntry({
 } = {}): BrowserEntry {
   const wc: FakeWebContents | null = webContents
     ? {
+        capturePage,
         debugger: {
           isAttached: () => attached,
           sendCommand: wcSendCommand,
@@ -196,10 +200,19 @@ describe("sendCommand", () => {
     ).rejects.toThrow("webContents unavailable");
   });
 
-  describe("Page.captureScreenshot rescale", () => {
-    it("falls through when captureBeyondViewport is not set", async () => {
-      const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
-      const entry = makeEntry({ sendCommand: wcSendCommand });
+  describe("Page.captureScreenshot viewport", () => {
+    function fakeImage() {
+      return {
+        isEmpty: () => false,
+        toJPEG: (quality: number) => Buffer.from(`JPEG:${quality}`),
+        toPNG: () => Buffer.from("PNG"),
+      };
+    }
+
+    it("serves a viewport capture from capturePage(stayHidden) instead of the debugger", async () => {
+      const capturePage = vi.fn().mockResolvedValue(fakeImage());
+      const wcSendCommand = vi.fn();
+      const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
       const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await sendCommand({
@@ -210,11 +223,55 @@ describe("sendCommand", () => {
         targetId: TARGET_ID,
       });
 
+      expect(capturePage).toHaveBeenCalledWith(undefined, { stayHidden: true });
+      expect(wcSendCommand).not.toHaveBeenCalled();
       expect(sendCdpCommandMock).not.toHaveBeenCalled();
-      expect(result).toEqual({ data: "FALLTHROUGH" });
+      expect(result).toEqual({ data: Buffer.from("PNG").toString("base64") });
     });
 
-    it("falls through when no clip is provided", async () => {
+    it("encodes as JPEG with the requested quality by default", async () => {
+      const capturePage = vi.fn().mockResolvedValue(fakeImage());
+      const entry = makeEntry({ capturePage });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      const result = await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Page.captureScreenshot",
+        params: { quality: 42 },
+        targetId: TARGET_ID,
+      });
+
+      expect(result).toEqual({
+        data: Buffer.from("JPEG:42").toString("base64"),
+      });
+    });
+
+    it("throws fast on an empty frame rather than falling back to the debugger", async () => {
+      const capturePage = vi.fn().mockResolvedValue({
+        isEmpty: () => true,
+        toJPEG: () => Buffer.from(""),
+        toPNG: () => Buffer.from(""),
+      });
+      const wcSendCommand = vi.fn();
+      const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      await expect(
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method: "Page.captureScreenshot",
+          params: {},
+          targetId: TARGET_ID,
+        }),
+      ).rejects.toThrow("empty frame");
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Page.captureScreenshot rescale", () => {
+    it("falls through to the debugger when captureBeyondViewport is set without a clip", async () => {
       const wcSendCommand = vi.fn().mockResolvedValue({ data: "FALLTHROUGH" });
       const entry = makeEntry({ sendCommand: wcSendCommand });
       const entries = new Map([[TARGET_ID, entry]]);

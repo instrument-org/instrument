@@ -73,6 +73,19 @@ export async function sendCommand({
     if (rescaled) {
       return rescaled;
     }
+    // Viewport captures (no clip, no beyond-viewport) -- the shape the recorder
+    // polls at 10fps and plain `screenshot` uses -- can't be served by the
+    // debugger's Page.captureScreenshot: with fromSurface it blocks on a
+    // compositor frame the occluded WebContentsView never produces, so the
+    // capture hangs until the 20s timeout and recordings come out empty.
+    // capturePage with stayHidden holds the capturer count so Chromium keeps
+    // compositing an occluded/background view, matching how the emulated
+    // screencast and observation screenshots capture. Full-page/element clips
+    // still need real CDP and fall through above.
+    const p = (params ?? {}) as Protocol.Page.CaptureScreenshotRequest;
+    if (!p.clip && p.captureBeyondViewport !== true) {
+      return await captureViewportScreenshot(entry, p);
+    }
   }
 
   if (method === "Browser.getWindowForTarget") {
@@ -150,6 +163,38 @@ export async function sendCommand({
     );
     throw error;
   }
+}
+
+// Serve a viewport Page.captureScreenshot from webContents.capturePage instead
+// of the debugger. stayHidden holds the capturer count so an occluded/background
+// view keeps compositing; without it the CDP screenshot blocks indefinitely.
+// Throws fast on timeout/empty so the recorder skips a frame rather than the
+// caller hanging 20s -- we never fall back to the CDP path that hangs.
+async function captureViewportScreenshot(
+  entry: BrowserEntry,
+  p: Protocol.Page.CaptureScreenshotRequest,
+): Promise<Protocol.Page.CaptureScreenshotResponse> {
+  const wc = entry.webContents;
+  if (!wc || wc.isDestroyed()) {
+    throw new Error("webContents unavailable");
+  }
+  const CAPTURE_TIMEOUT_MS = 5000;
+  const image = await Promise.race([
+    wc.capturePage(undefined, { stayHidden: true }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => {
+        reject(new Error("capturePage timed out"));
+      }, CAPTURE_TIMEOUT_MS),
+    ),
+  ]);
+  if (image.isEmpty()) {
+    throw new Error("capturePage returned an empty frame");
+  }
+  const data =
+    p.format === "png"
+      ? image.toPNG().toString("base64")
+      : image.toJPEG(p.quality ?? 80).toString("base64");
+  return { data };
 }
 
 // Electron's debugger does not implement the Browser domain. agent-browser

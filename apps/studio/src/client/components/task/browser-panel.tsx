@@ -161,6 +161,14 @@ export function TaskBrowserPanel({
       if (!editingUrlRef.current && detail.validatedURL) {
         setDraftUrl(detail.validatedURL);
       }
+      // A committed error page makes the prior page a back entry, but
+      // did-navigate doesn't reliably fire on error-page commit, so refresh the
+      // nav buttons here instead of leaving them stale (back stuck disabled).
+      try {
+        setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
+      } catch {
+        // Guest not attached yet; a later did-navigate will sync.
+      }
     };
     sync();
     webview.addEventListener("did-navigate", onNavigate);

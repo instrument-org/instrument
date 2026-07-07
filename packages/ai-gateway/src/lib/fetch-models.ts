@@ -17,6 +17,8 @@ import { fetchAndParseWorkersAiModels } from "./fetch-models/workers-ai";
 import { type ModelCache } from "./model-cache";
 
 const capturedErrors = new Set<string>();
+const TRANSIENT_FETCH_ERROR_PATTERN =
+  /network|timed out|fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i;
 
 export function fetchModelsForProvider(
   config: AIGatewayProviderConfig.Type,
@@ -78,15 +80,36 @@ export function fetchModelsForProvider(
       }
     })
     .recover((error) => {
-      // Network failed — fall back to the cached models so a slow or
-      // unreachable provider does not block workspace operations on app
-      // restart. With no cache (e.g. first-ever launch), keep the original
-      // error so behavior is unchanged.
       const cached = modelCache.read(config.cacheIdentifier);
-      return cached ? Result.ok(cached) : Result.error(error);
+      if (cached && shouldUseCachedModels(error)) {
+        return Result.ok(cached);
+      }
+      return Result.error(error);
     });
 }
 
 function getCaptureKey(config: AIGatewayProviderConfig.Type, error: Error) {
   return `${config.type}:${config.id}:${error.message}`;
+}
+
+function shouldUseCachedModels(error: Error) {
+  let current: unknown = error;
+
+  while (current instanceof Error || current instanceof DOMException) {
+    if (current instanceof TypeError) {
+      return true;
+    }
+
+    if (
+      current.name === "AbortError" ||
+      current.name === "TimeoutError" ||
+      TRANSIENT_FETCH_ERROR_PATTERN.test(current.message)
+    ) {
+      return true;
+    }
+
+    current = "cause" in current ? current.cause : undefined;
+  }
+
+  return false;
 }

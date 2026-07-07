@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type AIGatewayModel } from "../schemas/model";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
+import { TypedError } from "./errors";
 import { fetchModelsForProvider } from "./fetch-models";
 import { type ModelCache } from "./model-cache";
 
@@ -75,8 +76,10 @@ describe("fetchModelsForProvider", () => {
     expect(cache.store.get(config.cacheIdentifier)).toEqual(CACHED);
   });
 
-  it("falls back to cached models when the fetch fails", async () => {
-    fetchAndParseAnthropicModels.mockRejectedValue(new Error("network down"));
+  it("falls back to cached models when the fetch fails transiently", async () => {
+    fetchAndParseAnthropicModels.mockRejectedValue(
+      new TypeError("fetch failed"),
+    );
     const cache = createMemoryCache(CACHED);
 
     const result = await fetchModelsForProvider(config, {
@@ -87,8 +90,24 @@ describe("fetchModelsForProvider", () => {
     expect(result.getOrNull()).toEqual(CACHED);
   });
 
+  it("returns the error when parsing fails even with a cache", async () => {
+    fetchAndParseAnthropicModels.mockRejectedValue(
+      new TypedError.Parse("invalid response"),
+    );
+    const cache = createMemoryCache(CACHED);
+
+    const result = await fetchModelsForProvider(config, {
+      captureException,
+      modelCache: cache,
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
   it("returns the error when the fetch fails and there is no cache", async () => {
-    fetchAndParseAnthropicModels.mockRejectedValue(new Error("network down"));
+    fetchAndParseAnthropicModels.mockRejectedValue(
+      new TypeError("fetch failed"),
+    );
     const cache = createMemoryCache();
 
     const result = await fetchModelsForProvider(config, {

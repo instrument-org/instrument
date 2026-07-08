@@ -28,12 +28,14 @@ import {
   IMAGE_PANZOOM_VIEWPORT_CLASS,
   useImagePanzoom,
 } from "../hooks/use-image-panzoom";
+import { useOpenTaskFile } from "../hooks/use-open-task-file";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
+import { NativeFileIcon } from "./native-file-icon";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -311,6 +313,7 @@ export function FileViewer({
   const imageLoadError = imageErrorUrl === url;
   const contentRef = useRef<HTMLDivElement>(null);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
+  const openTaskFile = useOpenTaskFile();
   const revealFileMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
       onError: (error) => {
@@ -400,6 +403,21 @@ export function FileViewer({
           </TooltipContent>
         </Tooltip>
         <div className="ml-auto flex min-w-7 shrink items-center justify-end gap-1 overflow-hidden">
+          {fileActions.showOpen && (
+            <Button
+              className={fileViewerHeaderActionClassName}
+              onClick={() => {
+                openTaskFile(file);
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              <NativeFileIcon className="size-4" file={file} />
+              <span className="hidden min-w-0 truncate @min-[380px]:inline">
+                Open
+              </span>
+            </Button>
+          )}
           {fileActions.showDownload && (
             <Button
               className={fileViewerHeaderActionClassName}

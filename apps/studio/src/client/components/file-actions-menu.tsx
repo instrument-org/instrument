@@ -12,9 +12,11 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { useOpenTaskFile } from "../hooks/use-open-task-file";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { getRevealInFolderLabel } from "../lib/utils";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
+import { NativeFileIcon } from "./native-file-icon";
 import { Button, type ButtonVariant } from "./ui/button";
 import {
   DropdownMenu,
@@ -41,6 +43,7 @@ export function FileActionsMenu({
     !onAddToChat &&
     !fileActions.showCopy &&
     !fileActions.showDownload &&
+    !fileActions.showOpen &&
     !fileActions.showReveal
   ) {
     return null;
@@ -75,6 +78,7 @@ export function FileActionsMenuItems({
 }) {
   const { Item, Separator } = menuComponents;
   const fileActions = useFileActionVisibility(file);
+  const openTaskFile = useOpenTaskFile();
 
   const showTaskFileInFolderMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
@@ -123,6 +127,19 @@ export function FileActionsMenuItems({
 
   return (
     <>
+      {fileActions.showOpen && (
+        <>
+          <Item
+            onClick={() => {
+              openTaskFile(file);
+            }}
+          >
+            <NativeFileIcon className="size-4" file={file} />
+            <span>Open</span>
+          </Item>
+          {(onAddToChat != null || hasFileActions) && <Separator />}
+        </>
+      )}
       {onAddToChat && (
         <>
           <Item onClick={onAddToChat}>

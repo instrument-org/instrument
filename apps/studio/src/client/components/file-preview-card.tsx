@@ -8,8 +8,7 @@ import {
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { cn } from "@/client/lib/utils";
 import {
   ArrowLineDownIcon,
   CheckIcon,
@@ -17,17 +16,16 @@ import {
   ImageBrokenIcon,
   PlayIcon,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
 
+import { useOpenTaskFile } from "../hooks/use-open-task-file";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
-import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
 import { MediaCardShell } from "./media-card-shell";
 import { MediaOverlayButton } from "./media-overlay-button";
+import { NativeFileIcon } from "./native-file-icon";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -255,9 +253,7 @@ function ImagePreviewCard({
 
   const hasActions =
     !hideActionsMenu &&
-    (fileActions.showCopy ||
-      fileActions.showDownload ||
-      fileActions.showReveal);
+    (fileActions.showCopy || fileActions.showDownload || fileActions.showOpen);
 
   return (
     <MediaCardShell
@@ -295,13 +291,15 @@ function ImagePreviewCard({
                 }}
               />
             )}
-            {fileActions.showReveal && (
+            {fileActions.showOpen && (
               <MediaOverlayButton
-                icon={<RevealInFolderIcon className="size-3.5 shrink-0" />}
-                label={getRevealInFolderLabel()}
+                icon={
+                  <NativeFileIcon className="size-3.5 shrink-0" file={file} />
+                }
+                label="Open"
                 onClick={(e) => {
                   e.stopPropagation();
-                  actions.revealInFolder();
+                  actions.open();
                 }}
               />
             )}
@@ -366,25 +364,14 @@ function MissingMediaCard({
 }
 
 function useFileActions(file: TaskFileViewerFile) {
-  const showTaskFileInFolderMutation = useMutation(
-    rpcClient.utils.showTaskFileInFolder.mutationOptions({
-      onError: (error) => {
-        const label = getRevealInFolderLabel();
-        const lower = label.charAt(0).toLowerCase() + label.slice(1);
-        toast.error(`Failed to ${lower}`, { description: error.message });
-      },
-    }),
-  );
+  const openTaskFile = useOpenTaskFile();
 
   return {
     download: async () => {
       await downloadFile(file);
     },
-    revealInFolder: () => {
-      showTaskFileInFolderMutation.mutate({
-        filePath: file.filePath,
-        id: file.taskId,
-      });
+    open: () => {
+      openTaskFile(file);
     },
   };
 }
@@ -423,7 +410,7 @@ function VideoPreviewCard({
   const actions = useFileActions(file);
 
   const hasActions =
-    !hideActionsMenu && (fileActions.showDownload || fileActions.showReveal);
+    !hideActionsMenu && (fileActions.showDownload || fileActions.showOpen);
 
   const displayTime =
     isPlaying && timeRemaining !== null ? timeRemaining : videoDuration;
@@ -465,13 +452,15 @@ function VideoPreviewCard({
                 }}
               />
             )}
-            {fileActions.showReveal && (
+            {fileActions.showOpen && (
               <MediaOverlayButton
-                icon={<RevealInFolderIcon className="size-3.5 shrink-0" />}
-                label={getRevealInFolderLabel()}
+                icon={
+                  <NativeFileIcon className="size-3.5 shrink-0" file={file} />
+                }
+                label="Open"
                 onClick={(e) => {
                   e.stopPropagation();
-                  actions.revealInFolder();
+                  actions.open();
                 }}
               />
             )}

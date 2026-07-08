@@ -269,6 +269,77 @@ const openTaskIn = base
     }
   });
 
+const openTaskFile = base
+  .errors({
+    ERROR_OPENING_FILE: {
+      message: "Error opening file",
+    },
+    FILE_NOT_FOUND: {
+      message: "File not found",
+    },
+    INVALID_PATH: {
+      message: "Invalid file path",
+    },
+  })
+  .input(
+    z.object({
+      filePath: RelativeTaskPathSchema,
+      id: TaskIdSchema,
+    }),
+  )
+  .handler(async ({ errors, input }) => {
+    const fullPath = resolvePathWithinTaskDir({
+      dir: taskDir(input.id),
+      filePath: input.filePath,
+    });
+    if (!fullPath) {
+      throw errors.INVALID_PATH();
+    }
+
+    try {
+      await fs.access(fullPath);
+    } catch {
+      throw errors.FILE_NOT_FOUND();
+    }
+
+    // openPath resolves with "" on success and an error string on failure.
+    const errorMessage = await shell.openPath(fullPath);
+    if (errorMessage) {
+      captureServerException(errorMessage);
+      throw errors.ERROR_OPENING_FILE({ message: errorMessage });
+    }
+  });
+
+// OS icon for the app associated with the file type, for "Open" affordances.
+// Null when the platform can't resolve one; callers fall back to a generic icon.
+const getTaskFileIcon = base
+  .input(
+    z.object({
+      filePath: RelativeTaskPathSchema,
+      id: TaskIdSchema,
+    }),
+  )
+  .output(z.object({ dataUrl: z.string() }).nullable())
+  .handler(async ({ input }) => {
+    const fullPath = resolvePathWithinTaskDir({
+      dir: taskDir(input.id),
+      filePath: input.filePath,
+    });
+    if (!fullPath) {
+      return null;
+    }
+
+    try {
+      const icon = await app.getFileIcon(fullPath, { size: "normal" });
+      if (icon.isEmpty()) {
+        return null;
+      }
+      return { dataUrl: icon.toDataURL() };
+    } catch {
+      return null;
+    }
+  });
+
 const showFileInFolder = base
   .errors({
     FILE_NOT_FOUND: {
@@ -558,10 +629,12 @@ export const utils = {
   copyTaskPathToClipboard,
   exportZip,
   getSupportedEditors,
+  getTaskFileIcon,
   live,
   minimizeWindow,
   openExternalLink,
   openFolder,
+  openTaskFile,
   openTaskIn,
   showFileInFolder,
   showFolderPicker,

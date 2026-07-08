@@ -36,6 +36,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "EnterWorktree",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/worktree-setup.sh\"",
+            "timeout": 600
+          }
+        ]
       }
     ],
     "Stop": [

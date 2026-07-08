@@ -50,6 +50,29 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
           },
           label: "Reload All Web Views",
         },
+        { type: "separator" as const },
+        {
+          accelerator: "CmdOrCtrl+Shift+L",
+          click: () => {
+            sendAppCommand({ theme: "light", type: "setTheme" });
+          },
+          label: "Set Theme: Light",
+        },
+        {
+          accelerator: "CmdOrCtrl+Shift+D",
+          click: () => {
+            sendAppCommand({ theme: "dark", type: "setTheme" });
+          },
+          label: "Set Theme: Dark",
+        },
+        {
+          accelerator: "CmdOrCtrl+Shift+M",
+          click: () => {
+            sendAppCommand({ theme: "system", type: "setTheme" });
+          },
+          label: "Set Theme: System",
+        },
+        { type: "separator" as const },
         {
           label: "Browser DevTools",
           submenu: [

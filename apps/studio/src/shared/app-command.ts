@@ -14,6 +14,7 @@ import { type StudioPath } from "@/shared/studio-path";
  */
 export type AppCommand =
   | { index: number; type: "selectByIndex" }
+  | { theme: "dark" | "light" | "system"; type: "setTheme" }
   | {
       newTab?: boolean;
       params?: Record<string, string>;

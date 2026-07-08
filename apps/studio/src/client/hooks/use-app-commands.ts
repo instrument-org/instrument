@@ -22,6 +22,7 @@ import { useEffect } from "react";
 const MODAL_SAFE_COMMANDS = new Set<AppCommand["type"]>([
   "openSettings",
   "reload",
+  "setTheme",
   "toggleCommandMenu",
   "toggleSidebar",
   "zoomIn",
@@ -128,6 +129,12 @@ export function useAppCommands() {
               }
               case "reopen": {
                 store.set(tabsAtom, reopenTab);
+                break;
+              }
+              case "setTheme": {
+                void rpcClient.preferences.setTheme.call({
+                  theme: command.theme,
+                });
                 break;
               }
               case "selectByIndex": {

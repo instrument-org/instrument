@@ -60,7 +60,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 type NavigateTo = Parameters<ReturnType<typeof useNavigate>>[0]["to"];
@@ -673,26 +673,6 @@ const THEME_SHORTCUTS: Record<Theme, string> = {
 function ThemeToggle() {
   const { setTheme, theme } = useTheme();
   const mod = isMacOS() ? "⌘⇧" : "^⇧";
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const modifierHeld = isMacOS() ? e.metaKey : e.ctrlKey;
-      if (!modifierHeld || !e.shiftKey) return;
-
-      for (const { value } of THEME_OPTIONS) {
-        if (e.key.toUpperCase() === THEME_SHORTCUTS[value]) {
-          e.preventDefault();
-          setTheme(value);
-          return;
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [setTheme]);
 
   return (
     <div className="flex items-center gap-x-0.5">

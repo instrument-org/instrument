@@ -23,6 +23,11 @@ import { getEffectiveProjectContext } from "./effective-project-context";
 import { isToolPart } from "./is-tool-part";
 import { Store } from "./store";
 
+interface TimestampRange {
+  endedAt?: Date;
+  startedAt: Date;
+}
+
 export async function getSessionMarkdown({
   frontMatter,
   includeContextMessages = false,
@@ -76,6 +81,28 @@ export async function getSessionMarkdown({
   });
 }
 
+function buildMessageTimestampQueues(
+  messages: SessionMessage.WithParts[],
+): Map<ModelMessage["role"], TimestampRange[]> {
+  const queues = new Map<ModelMessage["role"], TimestampRange[]>();
+
+  for (const message of messages) {
+    const role =
+      message.role === "session-context"
+        ? message.metadata.realRole
+        : message.role;
+    const endedAt = getEndedAt(message.metadata);
+    const queue = queues.get(role) ?? [];
+    queue.push({
+      endedAt,
+      startedAt: message.metadata.createdAt,
+    });
+    queues.set(role, queue);
+  }
+
+  return queues;
+}
+
 function buildTaskSessionIdMap(
   session: Session.WithMessagesAndParts,
 ): Map<string, StoreId.Session> {
@@ -85,6 +112,25 @@ function buildTaskSessionIdMap(
       if (part.type === "tool-agent" && part.state === "output-available") {
         map.set(part.toolCallId, part.output.sessionId);
       }
+    }
+  }
+  return map;
+}
+
+function buildToolCallTimestampMap(
+  session: Session.WithMessagesAndParts,
+): Map<string, TimestampRange> {
+  const map = new Map<string, TimestampRange>();
+  for (const message of session.messages) {
+    for (const part of message.parts) {
+      if (!isToolPart(part)) {
+        continue;
+      }
+      const endedAt = getEndedAt(part.metadata);
+      map.set(part.toolCallId, {
+        endedAt,
+        startedAt: part.metadata.createdAt,
+      });
     }
   }
   return map;
@@ -101,6 +147,38 @@ function fenceText(text: string, language = "markdown"): string {
   );
   const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
   return `${fence}${language}\n${text}\n${fence}`;
+}
+
+function formatDuration(ms: number) {
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+
+  const seconds = ms / 1000;
+  return `${seconds.toFixed(seconds >= 10 ? 1 : 3)}s`;
+}
+
+function formatTimestamp(timestamps: TimestampRange | undefined) {
+  return timestamps ? ` @ ${timestamps.startedAt.toISOString()}` : "";
+}
+
+function formatTimestampRange(timestamps: TimestampRange | undefined) {
+  if (!timestamps) {
+    return "";
+  }
+
+  const start = timestamps.startedAt.toISOString();
+  if (!timestamps.endedAt) {
+    return ` @ ${start}`;
+  }
+
+  const durationMs =
+    timestamps.endedAt.getTime() - timestamps.startedAt.getTime();
+  return ` @ ${start} +${formatDuration(durationMs)}`;
+}
+
+function getEndedAt(metadata: Record<string, unknown>) {
+  return metadata.endedAt instanceof Date ? metadata.endedAt : undefined;
 }
 
 function inputToXml(toolName: string, input: unknown): string {
@@ -129,15 +207,23 @@ async function renderAssistantMessage(
   toolMessage: ToolModelMessage | undefined,
   childSessions: Map<StoreId.Session, Session.WithMessagesAndParts>,
   taskSessionIds: Map<string, StoreId.Session>,
+  toolTimestamps: Map<string, TimestampRange>,
   turn: number,
   toolCounter: { count: number },
+  timestamps?: TimestampRange,
 ): Promise<string[]> {
-  const lines: string[] = [`## Assistant (Turn ${turn})`, ""];
+  const lines: string[] = [
+    `## Assistant (Turn ${turn})${formatTimestamp(timestamps)}`,
+    "",
+  ];
 
   // Build a map of toolCallId -> tool result from the tool message
   const toolResultMap = new Map<
     string,
-    { output: ToolResultPart["output"]; toolName: string }
+    {
+      output: ToolResultPart["output"];
+      toolName: string;
+    }
   >();
   if (toolMessage) {
     for (const part of toolMessage.content) {
@@ -180,7 +266,10 @@ async function renderAssistantMessage(
         toolCounter.count++;
         lines.push(
           "",
-          `### Tool Call ${toolCounter.count}: ${part.toolName}`,
+          [
+            `### Tool Call ${toolCounter.count}: ${part.toolName}`,
+            formatTimestampRange(toolTimestamps.get(part.toolCallId)),
+          ].join(""),
           "",
           inputToXml(part.toolName, part.input),
         );
@@ -241,8 +330,10 @@ async function renderMessage(
   message: ModelMessage,
   childSessions: Map<StoreId.Session, Session.WithMessagesAndParts>,
   taskSessionIds: Map<string, StoreId.Session>,
+  toolTimestamps: Map<string, TimestampRange>,
   turn: number,
   toolCounter: { count: number },
+  timestamps?: TimestampRange,
 ): Promise<string[]> {
   switch (message.role) {
     case "assistant": {
@@ -251,18 +342,20 @@ async function renderMessage(
         undefined,
         childSessions,
         taskSessionIds,
+        toolTimestamps,
         turn,
         toolCounter,
+        timestamps,
       );
     }
     case "system": {
-      return renderSystemMessage(message);
+      return renderSystemMessage(message, timestamps);
     }
     case "tool": {
       return renderOrphanedToolMessage(message, toolCounter);
     }
     case "user": {
-      return renderUserMessage(message, turn);
+      return renderUserMessage(message, turn, timestamps);
     }
   }
 }
@@ -364,12 +457,15 @@ function renderProjectContext(
   return ["## Project Context", "", fenceText(blocks.join("\n\n"), "xml")];
 }
 
-function renderSystemMessage(message: SystemModelMessage): string[] {
+function renderSystemMessage(
+  message: SystemModelMessage,
+  timestamps?: TimestampRange,
+): string[] {
   const indented = message.content
     .split("\n")
     .map((l) => `> ${l}`)
     .join("\n");
-  return ["## System", "", indented];
+  return [`## System${formatTimestamp(timestamps)}`, "", indented];
 }
 
 function renderToolResult(
@@ -426,8 +522,15 @@ function renderToolResult(
   return lines;
 }
 
-function renderUserMessage(message: UserModelMessage, turn: number): string[] {
-  const lines: string[] = [`## User (Turn ${turn})`, ""];
+function renderUserMessage(
+  message: UserModelMessage,
+  turn: number,
+  timestamps?: TimestampRange,
+): string[] {
+  const lines: string[] = [
+    `## User (Turn ${turn})${formatTimestamp(timestamps)}`,
+    "",
+  ];
 
   const content = message.content;
   if (typeof content === "string") {
@@ -488,6 +591,8 @@ async function sessionToMarkdown(
   );
 
   const taskSessionIds = buildTaskSessionIdMap(rootSession);
+  const toolTimestamps = buildToolCallTimestampMap(rootSession);
+  const messageTimestamps = buildMessageTimestampQueues(orderedMessages);
 
   const parts: string[] = [`# Session: ${rootSession.title}`, ""];
 
@@ -523,8 +628,10 @@ async function sessionToMarkdown(
         toolMessage,
         childSessions,
         taskSessionIds,
+        toolTimestamps,
         turn,
         toolCounter,
+        takeMessageTimestamp(messageTimestamps, message.role),
       );
       for (const line of rendered) {
         parts.push(line);
@@ -550,8 +657,10 @@ async function sessionToMarkdown(
       message,
       childSessions,
       taskSessionIds,
+      toolTimestamps,
       turn,
       toolCounter,
+      takeMessageTimestamp(messageTimestamps, message.role),
     );
     for (const line of rendered) {
       parts.push(line);
@@ -600,4 +709,11 @@ async function sessionToMarkdown(
   });
 
   return `---\n${yamlLines.join("\n")}\n---\n\n${body}`;
+}
+
+function takeMessageTimestamp(
+  queues: Map<ModelMessage["role"], TimestampRange[]>,
+  role: ModelMessage["role"],
+) {
+  return queues.get(role)?.shift();
 }

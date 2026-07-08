@@ -131,12 +131,6 @@ export function useAppCommands() {
                 store.set(tabsAtom, reopenTab);
                 break;
               }
-              case "setTheme": {
-                void rpcClient.preferences.setTheme.call({
-                  theme: command.theme,
-                });
-                break;
-              }
               case "selectByIndex": {
                 store.set(tabsAtom, (m) =>
                   selectByIndex(m, { index: command.index }),
@@ -155,6 +149,12 @@ export function useAppCommands() {
               }
               case "selectPrevious": {
                 store.set(tabsAtom, (m) => selectAdjacent(m, { delta: -1 }));
+                break;
+              }
+              case "setTheme": {
+                void rpcClient.preferences.setTheme.call({
+                  theme: command.theme,
+                });
                 break;
               }
               case "toggleCommandMenu": {

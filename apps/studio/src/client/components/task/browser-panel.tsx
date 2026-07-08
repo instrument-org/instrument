@@ -4,7 +4,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import {
@@ -19,6 +24,10 @@ import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { getWebviewElement } from "@/client/lib/browser-pool";
+import {
+  EMULATED_DEVICES,
+  type EmulatedDevice,
+} from "@/client/lib/emulated-devices";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type BrowserTargetId,
@@ -33,6 +42,7 @@ import {
   ArrowRightIcon,
   ArrowSquareOutIcon,
   CopyIcon,
+  DeviceMobileIcon,
   DotsThreeVerticalIcon,
   MagnifyingGlassIcon,
   WarningCircleIcon,
@@ -78,6 +88,13 @@ export function TaskBrowserPanel({
   const [nav, setNav] = useState({ back: false, forward: false });
   const [zoomLevel, setZoomLevel] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  // null = the panel's natural size ("Actual size"). Applied via CDP device
+  // emulation with a scale computed from the panel's live bounds (see
+  // device-emulation.ts) rather than resizing the webview element, which
+  // doesn't reliably re-layout an already-loaded guest.
+  const [emulatedDevice, setEmulatedDevice] = useState<EmulatedDevice | null>(
+    null,
+  );
   // Set when a main-frame navigation fails (bad host, no network, ...). The
   // guest is parked and we show a light error state over the slot instead of its
   // blank error page. Cleared when a new load starts or succeeds.
@@ -92,6 +109,8 @@ export function TaskBrowserPanel({
   const find = useBrowserFind({ active, isActiveTab, targetId });
   const slotRef = useBrowserSlot({
     active,
+    emulatedDeviceHeight: emulatedDevice?.height,
+    emulatedDeviceWidth: emulatedDevice?.width,
     hasLoadError: Boolean(loadError),
     isActiveTab,
     targetId,
@@ -381,6 +400,42 @@ export function TaskBrowserPanel({
                 percent={Math.round(1.2 ** zoomLevel * 100)}
               />
             </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <DeviceMobileIcon className="size-4" />
+                View as
+                {emulatedDevice && (
+                  <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
+                    {emulatedDevice.label}
+                  </span>
+                )}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  onValueChange={(value) => {
+                    setEmulatedDevice(
+                      EMULATED_DEVICES.find((device) => device.id === value) ??
+                        null,
+                    );
+                  }}
+                  value={emulatedDevice?.id ?? "actual-size"}
+                >
+                  <DropdownMenuRadioItem value="actual-size">
+                    Actual size
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuSeparator />
+                  {EMULATED_DEVICES.map((device) => (
+                    <DropdownMenuRadioItem key={device.id} value={device.id}>
+                      {device.label}
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {device.width}×{device.height}
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => {

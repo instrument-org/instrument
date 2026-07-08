@@ -39,17 +39,28 @@ const syncFocus = base
     getBrowserViewManager()?.setGuestFocus(input.targetId, input.focused);
   });
 
-// Defensive reset the renderer calls whenever a panel takes a guest visible
-// again, clearing any Emulation.setDeviceMetricsOverride an agent session left
-// active (no-op if none is active). See resetGuestViewport in manager.ts.
-const resetViewport = base
-  .input(z.object({ targetId: BrowserTargetIdSchema }))
+// The browser panel's device-preview menu calls this on every show and on
+// every device change; `device: null` clears emulation (also the no-op-safe
+// default that self-heals a guest left emulated by a stale session).
+const setEmulatedDevice = base
+  .input(
+    z.object({
+      device: z
+        .object({
+          height: z.number(),
+          scale: z.number(),
+          width: z.number(),
+        })
+        .nullable(),
+      targetId: BrowserTargetIdSchema,
+    }),
+  )
   .handler(({ input }) => {
-    getBrowserViewManager()?.resetGuestViewport(input.targetId);
+    getBrowserViewManager()?.setEmulatedDevice(input.targetId, input.device);
   });
 
 export const browser = {
   live,
-  resetViewport,
+  setEmulatedDevice,
   syncFocus,
 };

@@ -17,6 +17,7 @@ import fs from "node:fs";
 import { noop } from "radashi";
 
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
+import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
 import {
   attachDownloadHandler,
@@ -58,13 +59,15 @@ export interface BrowserViewManager {
   // Lets keyboard Cmd+R reload the focused guest instead of the whole renderer
   // (which the app-level reload command would otherwise do).
   reloadFocusedGuest: () => boolean;
-  // Clear any active Emulation.setDeviceMetricsOverride on the guest.
-  // Best-effort and idempotent (clearing an inactive override is a no-op in
-  // Chromium). Called whenever a panel takes the guest visible again, so a
-  // stuck oversized-viewport override from an older session (before device
-  // emulation was refused outright -- see dispatch-command.ts) can't survive
-  // a re-show.
-  resetGuestViewport: (targetId: BrowserTargetId) => void;
+  // Apply (or, with `device: null`, clear) device emulation on a guest via
+  // CDP -- the panel's "View as" menu. See device-emulation.ts for why
+  // this is safe here (the caller always computes scale from live bounds and
+  // only offers a few bounded, real device sizes) when the same CDP method is
+  // refused outright for agent-browser callers.
+  setEmulatedDevice: (
+    targetId: BrowserTargetId,
+    device: DeviceEmulation | null,
+  ) => void;
   // Record renderer-reported DOM focus/blur on a guest's `<webview>` element.
   // `webContents.isFocused()` is unreliable for `<webview>` guests (it can get
   // stuck `true` after focus moves to a plain host-page element), so
@@ -471,27 +474,20 @@ export function createBrowserViewManager(): BrowserViewManager {
     return true;
   }
 
-  function resetGuestViewport(targetId: BrowserTargetId) {
-    if (!entries.has(targetId)) {
+  // The panel calls this to reconcile a guest's device emulation to the
+  // currently-desired state every time it shows the guest (and whenever the
+  // selected device changes): `device: null` clears any override, which also
+  // self-heals a guest left emulated by an older CDP session or a park (see
+  // setDeviceEmulation's rationale).
+  function setEmulatedDevice(
+    targetId: BrowserTargetId,
+    device: DeviceEmulation | null,
+  ) {
+    const entry = entries.get(targetId);
+    if (!entry) {
       return;
     }
-    // Unconditional and harmless if nothing is overridden: clearing an
-    // inactive override is a no-op in Chromium. This exists to heal a guest
-    // whose viewport was left emulated by an older CDP session (device
-    // emulation is no longer accepted going forward -- see
-    // dispatch-command.ts -- but a session from before that guard can still
-    // be carrying a stale override).
-    sendCommand({
-      ensureDebuggerAttached,
-      entries,
-      method: "Emulation.clearDeviceMetricsOverride",
-      params: undefined,
-      targetId,
-    }).catch((error: unknown) => {
-      log.warn(
-        `resetGuestViewport failed targetId=${targetId} err=${String(error)}`,
-      );
-    });
+    setDeviceEmulation({ device, ensureDebuggerAttached, entry });
   }
 
   function reloadFocusedGuest(): boolean {
@@ -534,7 +530,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       })),
     navigateFocusedGuest,
     reloadFocusedGuest,
-    resetGuestViewport,
+    setEmulatedDevice,
     setGuestFocus,
     teardown: () => {
       for (const targetId of entries.keys()) {

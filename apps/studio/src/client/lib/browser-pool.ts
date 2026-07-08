@@ -180,11 +180,22 @@ export function setPaintHost(targetId: BrowserTargetId, owner: symbol) {
  * alive, so this can fire freely on every resize. No-ops if the guest doesn't
  * exist (the main process owns creation via the desired-targets stream).
  * Claims visibility ownership for `owner` so only this slot can later park it.
+ *
+ * `renderedSize`, when given, shrinks and centers the webview element within
+ * `bounds` to that size instead of filling it -- purely a visual/compositing
+ * crop, used for the panel's device-preview menu so a device narrower or
+ * shorter than the panel doesn't just flush its rendered content into a
+ * corner. The guest's actual emulated layout (what the page inside thinks
+ * its viewport is) is set separately via `rpcClient.browser.setEmulatedDevice`
+ * (CDP, main-process side): Electron does not reliably re-layout an
+ * already-loaded guest just because its host element was resized, so that
+ * concern and this one are deliberately independent -- see device-emulation.ts.
  */
 export function showOverSlot(
   targetId: BrowserTargetId,
   bounds: Bounds,
   owner: symbol,
+  renderedSize?: null | { height: number; width: number },
 ) {
   const pooled = pool.get(targetId);
   if (!pooled) {
@@ -211,13 +222,29 @@ export function showOverSlot(
     zIndex: "0",
   } satisfies Partial<CSSStyleDeclaration>);
 
-  Object.assign(webview.style, {
-    borderRadius: `0 0 ${VISIBLE_BOTTOM_RADIUS} ${VISIBLE_BOTTOM_RADIUS}`,
-    height: `${bounds.height}px`,
-    transform: "",
-    transformOrigin: "",
-    width: `${bounds.width}px`,
-  } satisfies Partial<CSSStyleDeclaration>);
+  if (renderedSize) {
+    Object.assign(webview.style, {
+      borderRadius: "",
+      height: `${renderedSize.height}px`,
+      left: `${(bounds.width - renderedSize.width) / 2}px`,
+      position: "absolute",
+      top: `${(bounds.height - renderedSize.height) / 2}px`,
+      transform: "",
+      transformOrigin: "",
+      width: `${renderedSize.width}px`,
+    } satisfies Partial<CSSStyleDeclaration>);
+  } else {
+    Object.assign(webview.style, {
+      borderRadius: `0 0 ${VISIBLE_BOTTOM_RADIUS} ${VISIBLE_BOTTOM_RADIUS}`,
+      height: `${bounds.height}px`,
+      left: "",
+      position: "",
+      top: "",
+      transform: "",
+      transformOrigin: "",
+      width: `${bounds.width}px`,
+    } satisfies Partial<CSSStyleDeclaration>);
+  }
 }
 
 /** useSyncExternalStore glue for {@link attachedTargets} (see use-browser-targets). */
@@ -256,6 +283,9 @@ function applyPaintHost(pooled: PooledWebview) {
   Object.assign(webview.style, {
     borderRadius: "",
     height: `${height}px`,
+    left: "",
+    position: "",
+    top: "",
     transform: "",
     transformOrigin: "",
     width: `${width}px`,

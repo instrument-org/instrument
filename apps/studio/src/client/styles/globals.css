@@ -303,6 +303,13 @@ body {
   --tw-prose-pre-bg: var(--muted);
   --tw-prose-pre-code: var(--foreground);
 
+  /* Table borders: use the theme-aware `--border` token instead of Tailwind
+     Typography's default blue-gray. */
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+  --tw-prose-invert-th-borders: var(--border);
+  --tw-prose-invert-td-borders: var(--border);
+
   h1,
   h2,
   h3,

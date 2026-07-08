@@ -254,7 +254,7 @@ function TextView({
 }
 
 const fileViewerVariants = tv({
-  base: "flex w-full flex-col overflow-hidden rounded-[20px] bg-card shadow-panel",
+  base: "flex w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm",
   defaultVariants: {
     error: false,
     fileType: "default",

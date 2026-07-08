@@ -51,7 +51,7 @@ interface PricingPlan {
 
 const planCardVariants = tv({
   slots: {
-    card: "relative flex flex-col overflow-hidden border border-border/50 bg-card p-6 shadow-none transition-all",
+    card: "relative flex flex-col overflow-hidden bg-card p-6 transition-all",
     title: "text-4xl font-bold",
   },
   variants: {
@@ -364,7 +364,7 @@ function SubscribePage() {
             </div>
 
             <div className="mx-auto mt-12 max-w-4xl">
-              <Card className="relative overflow-hidden border border-border/50 bg-card p-8">
+              <Card className="relative overflow-hidden bg-card p-8">
                 <div className="text-center">
                   <h2 className="mb-2 text-2xl font-bold">Custom Plans</h2>
                   <p className="mx-auto mb-6 max-w-xl text-sm text-muted-foreground">

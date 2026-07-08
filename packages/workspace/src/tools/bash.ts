@@ -169,20 +169,6 @@ export const BashTool = setupTool({
       );
     }
 
-    if (
-      hasErrors &&
-      (displayOutput.includes("Cannot find module") ||
-        displayOutput.includes("Cannot find package") ||
-        displayOutput.includes("ERR_MODULE_NOT_FOUND"))
-    ) {
-      outputParts.push(
-        systemNote`
-          This error indicates a required module is missing. You may need to install dependencies by running:
-          \`${PNPM_COMMAND.name} install\`
-        `,
-      );
-    }
-
     return {
       type: hasErrors ? "error-text" : "text",
       value: [exitLine, "", ...outputParts, "", durationLine].join("\n"),

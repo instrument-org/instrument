@@ -21,6 +21,7 @@ export type AppCommand =
       to: StudioPath;
       type: "navigate";
     }
+  | { theme: "dark" | "light" | "system"; type: "setTheme" }
   | { type: "close" }
   | { type: "findInPage" }
   | { type: "navigateBack" }

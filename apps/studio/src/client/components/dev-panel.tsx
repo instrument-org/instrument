@@ -22,8 +22,6 @@ import {
   MenubarContent,
   MenubarItem,
   MenubarMenu,
-  MenubarRadioGroup,
-  MenubarRadioItem,
   MenubarSeparator,
   MenubarSub,
   MenubarSubContent,
@@ -62,7 +60,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 type NavigateTo = Parameters<ReturnType<typeof useNavigate>>[0]["to"];
@@ -89,7 +87,6 @@ const THEME_OPTIONS = [
 
 export function DevPanel() {
   const navigate = useNavigate();
-  const { setTheme, theme } = useTheme();
   const [hidden, setHidden] = useState(false);
   const [showBreakpoint, setShowBreakpoint] = useState(false);
   const [crash, setCrash] = useState(false);
@@ -510,54 +507,6 @@ export function DevPanel() {
                   </MenubarSubContent>
                 </MenubarSub>
               )}
-              <MenubarSeparator />
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  {theme === "light" ? (
-                    <>
-                      <SunIcon className="size-3" />
-                      Light
-                    </>
-                  ) : theme === "dark" ? (
-                    <>
-                      <MoonIcon className="size-3" />
-                      Dark
-                    </>
-                  ) : (
-                    "Theme"
-                  )}
-                </MenubarSubTrigger>
-                <MenubarSubContent>
-                  <MenubarRadioGroup
-                    onValueChange={(v) => {
-                      setTheme(v as "dark" | "light" | "system");
-                    }}
-                    value={theme}
-                  >
-                    <MenubarRadioItem
-                      className="font-mono text-xs"
-                      value="light"
-                    >
-                      <SunIcon className="size-3" />
-                      Light
-                    </MenubarRadioItem>
-                    <MenubarRadioItem
-                      className="font-mono text-xs"
-                      value="dark"
-                    >
-                      <MoonIcon className="size-3" />
-                      Dark
-                    </MenubarRadioItem>
-                    <MenubarRadioItem
-                      className="font-mono text-xs"
-                      value="system"
-                    >
-                      <MonitorIcon className="size-3" />
-                      System
-                    </MenubarRadioItem>
-                  </MenubarRadioGroup>
-                </MenubarSubContent>
-              </MenubarSub>
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Zoom
@@ -715,8 +664,35 @@ function CrashProbe(): never {
   throw new Error("Simulated render crash (dev panel)");
 }
 
+const THEME_SHORTCUTS: Record<Theme, string> = {
+  dark: "D",
+  light: "L",
+  system: "M",
+};
+
 function ThemeToggle() {
   const { setTheme, theme } = useTheme();
+  const mod = isMacOS() ? "⌘⇧" : "^⇧";
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const modifierHeld = isMacOS() ? e.metaKey : e.ctrlKey;
+      if (!modifierHeld || !e.shiftKey) return;
+
+      for (const { value } of THEME_OPTIONS) {
+        if (e.key.toUpperCase() === THEME_SHORTCUTS[value]) {
+          e.preventDefault();
+          setTheme(value);
+          return;
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [setTheme]);
 
   return (
     <div className="flex items-center gap-x-0.5">
@@ -743,7 +719,13 @@ function ThemeToggle() {
                 <OptionIcon className="size-2.5" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{label}</TooltipContent>
+            <TooltipContent side="bottom">
+              {label}{" "}
+              <span className="opacity-60">
+                {mod}
+                {THEME_SHORTCUTS[value]}
+              </span>
+            </TooltipContent>
           </Tooltip>
         );
       })}

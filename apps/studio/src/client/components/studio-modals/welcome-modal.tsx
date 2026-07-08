@@ -203,11 +203,9 @@ function WelcomeModalContent({
       className={cn(
         `flex max-h-[calc((100vh-3rem)/var(--content-zoom))]
         w-[calc((100vw-2.5rem)/var(--content-zoom))] max-w-xl flex-col gap-0
-        overflow-hidden border-0 bg-gray-25 p-0
-        shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] drop-shadow-2xl outline-none
+        overflow-hidden border-0 bg-gray-25 p-0 shadow-2xl outline-none
         focus:outline-none focus-visible:outline-none
-        sm:max-w-xl dark:bg-gray-800
-        dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]`,
+        sm:max-w-xl dark:bg-gray-800`,
       )}
       onEscapeKeyDown={(event) => {
         event.preventDefault();

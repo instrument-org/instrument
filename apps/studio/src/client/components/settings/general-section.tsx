@@ -283,7 +283,7 @@ function About() {
             <div className="shrink-0">{getActionButton()}</div>
           </div>
         </Card>
-        <Card className="border-black/5 bg-muted/30 p-4 shadow-none dark:border-white/5">
+        <Card className="bg-muted/30 p-4">
           <div className="space-y-3">
             <div className="space-y-1">
               <div className="text-sm font-medium">Open Source</div>

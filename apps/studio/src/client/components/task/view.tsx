@@ -19,6 +19,7 @@ import {
   type StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
+import { XIcon } from "@phosphor-icons/react";
 import {
   keepPreviousData,
   skipToken,
@@ -28,6 +29,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 
+import { Button } from "../ui/button";
 import { TaskBrowserPanel } from "./browser-panel";
 import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
 
@@ -229,12 +231,44 @@ export function TaskView({
                       }}
                     />
                   </div>
+                ) : filePanel ? (
+                  <MissingArtifactPanel
+                    filePath={filePanel.filePath}
+                    onClose={handleArtifactPanelClose}
+                  />
                 ) : null}
               </div>
             </ResizablePanel>
           </>
         )}
       </ResizablePanelGroup>
+    </div>
+  );
+}
+
+function MissingArtifactPanel({
+  filePath,
+  onClose,
+}: {
+  filePath: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border bg-background">
+      <div className="flex h-10 shrink-0 items-center justify-between gap-3 border-b px-3">
+        <div className="min-w-0 truncate text-sm font-medium">{filePath}</div>
+        <Button onClick={onClose} size="icon-sm" variant="ghost">
+          <XIcon className="size-4" />
+        </Button>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+        <div className="max-w-sm text-center">
+          <div className="text-sm font-medium">File not found</div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            This chat references a file that is not present in the task folder.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

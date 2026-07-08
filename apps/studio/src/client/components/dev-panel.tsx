@@ -35,7 +35,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { isMacOS } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import {
   componentPages,
   debugNavigationRoutes,
@@ -47,9 +47,9 @@ import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
 import {
   ArrowLineDownIcon,
   ArrowsClockwiseIcon,
-  BugIcon,
   ChartBarIcon,
   DatabaseIcon,
+  type Icon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   MonitorIcon,
@@ -78,6 +78,14 @@ const pillTriggerClassName =
   "flex items-center gap-x-1 rounded-sm px-1.5 py-0.5" +
   " text-dev-700/50 hover:bg-dev-500/10 hover:text-dev-700/80 aria-expanded:bg-dev-500/10 aria-expanded:text-dev-700/80" +
   " dark:text-dev-300/50 dark:hover:bg-dev-400/10 dark:hover:text-dev-300/80 dark:aria-expanded:bg-dev-400/10 dark:aria-expanded:text-dev-300/80";
+
+type Theme = "dark" | "light" | "system";
+
+const THEME_OPTIONS = [
+  { Icon: SunIcon, label: "Light", value: "light" },
+  { Icon: MoonIcon, label: "Dark", value: "dark" },
+  { Icon: MonitorIcon, label: "System", value: "system" },
+] as const satisfies { Icon: Icon; label: string; value: Theme }[];
 
 export function DevPanel() {
   const navigate = useNavigate();
@@ -163,10 +171,10 @@ export function DevPanel() {
     <>
       {crash && <CrashProbe />}
       <div className="flex items-center gap-x-1.5">
+        <ThemeToggle />
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
             <MenubarTrigger className={pillTriggerClassName}>
-              <BugIcon className="size-2.5" />
               <span className="font-mono text-[9px] leading-none">
                 {envLabel}
               </span>
@@ -705,4 +713,40 @@ export function DevPanel() {
 /** Throws during render to exercise the top-level error boundary. */
 function CrashProbe(): never {
   throw new Error("Simulated render crash (dev panel)");
+}
+
+function ThemeToggle() {
+  const { setTheme, theme } = useTheme();
+
+  return (
+    <div className="flex items-center gap-x-0.5">
+      {THEME_OPTIONS.map(({ Icon: OptionIcon, label, value }) => {
+        const active = theme === value;
+
+        return (
+          <Tooltip delayDuration={300} key={value}>
+            <TooltipTrigger asChild>
+              <button
+                aria-label={label}
+                aria-pressed={active}
+                className={cn(
+                  "flex size-4 items-center justify-center rounded-sm transition-colors",
+                  active
+                    ? "bg-dev-500/15 text-dev-700/90 dark:bg-dev-400/15 dark:text-dev-300/90"
+                    : "text-dev-700/40 hover:bg-dev-500/10 hover:text-dev-700/70 dark:text-dev-300/40 dark:hover:bg-dev-400/10 dark:hover:text-dev-300/70",
+                )}
+                onClick={() => {
+                  setTheme(value);
+                }}
+                type="button"
+              >
+                <OptionIcon className="size-2.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{label}</TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
 }

@@ -324,9 +324,9 @@ export function TaskChat({
         {!isNearBottom && (
           <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-4">
             <Button
-              className="pointer-events-auto border border-border bg-background shadow-lg hover:bg-background/90"
+              className="pointer-events-auto rounded-full bg-background shadow-lg hover:bg-background/90"
               onClick={() => scrollToBottom()}
-              size="icon"
+              size="icon-sm"
               variant="secondary"
             >
               <CaretDownIcon className="size-3" />

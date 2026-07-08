@@ -18,7 +18,7 @@ function TextareaContainer({
   return (
     <div
       className={cn(
-        "relative flex min-h-16 w-full flex-col rounded-md border border-input bg-transparent p-2 shadow-xs transition-colors focus-within:border-black/15 hover:border-black/15 dark:bg-input/30 dark:focus-within:border-white/15 dark:hover:border-white/15",
+        "relative flex min-h-16 w-full flex-col rounded-md bg-transparent p-2 shadow-xs transition-shadow focus-within:ring-1 focus-within:ring-black/5 dark:bg-input/30 dark:focus-within:ring-white/5",
         className,
       )}
       data-slot="textarea-container"

@@ -3,6 +3,11 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 const api: Window["api"] = {
   getFilePath: (file: File) => webUtils.getPathForFile(file),
+  // One-way bridge for forwarding renderer errors to the main-process dev log.
+  // The main side only listens in development, so this is a no-op in production.
+  rendererLog: (entry) => {
+    ipcRenderer.send("renderer-log", entry);
+  },
 };
 
 const windowType = process.argv

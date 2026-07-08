@@ -1,7 +1,14 @@
 import { setPaintHost, showOverSlot } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
 import { useLayoutEffect, useRef, useState } from "react";
+
+interface DeviceEmulation {
+  height: number;
+  scale: number;
+  width: number;
+}
 
 /**
  * Measures a host slot and drives the pooled guest to paint over it while the
@@ -11,11 +18,21 @@ import { useLayoutEffect, useRef, useState } from "react";
  */
 export function useBrowserSlot({
   active,
+  emulatedDeviceHeight,
+  emulatedDeviceWidth,
   hasLoadError,
   isActiveTab,
   targetId,
 }: {
   active: boolean;
+  // Device size to emulate (see emulated-devices.ts presets), or
+  // null/undefined for the panel's natural size. Passed as separate
+  // primitives rather than an object so a new object identity per render
+  // doesn't force this effect to re-run. Applied via CDP
+  // (rpcClient.browser.setEmulatedDevice), not by resizing the guest -- see
+  // device-emulation.ts.
+  emulatedDeviceHeight?: null | number;
+  emulatedDeviceWidth?: null | number;
   hasLoadError: boolean;
   isActiveTab: boolean;
   targetId: BrowserTargetId;
@@ -35,27 +52,39 @@ export function useBrowserSlot({
       return;
     }
 
+    // Reconciles the guest's device emulation to `device` (null clears it).
+    // Always sends, not deduped against the last value this hook sent: a
+    // stale/pre-fix session's leftover override should still clear on the
+    // next show even if this hook's own desired state (null) hasn't changed.
+    const syncEmulation = (device: DeviceEmulation | null) => {
+      // Best-effort; a transient RPC failure just leaves the guest at its
+      // last-applied state until the next sync.
+      void safe(rpcClient.browser.setEmulatedDevice.call({ device, targetId }));
+    };
+
     // On a load error, park the guest so its blank error page doesn't cover our
     // own error state rendered in the slot.
     if (!isActiveTab || hasLoadError) {
       setPaintHost(targetId, slotOwner);
+      syncEmulation(null);
       return;
     }
-
-    // Defensive reset: an agent CDP session may have left the guest's
-    // viewport emulated at some other size (e.g. a full-page-screenshot
-    // workaround via Emulation.setDeviceMetricsOverride). Showing the guest
-    // over our own measured slot only makes sense at its natural size, so
-    // clear any override the moment this panel takes over as the visible one
-    // -- a no-op if none is active.
-    rpcClient.browser.resetViewport.call({ targetId }).catch(() => {
-      // Best-effort; a transient RPC failure just leaves a stale override
-      // (if any) for the next show to clear.
-    });
 
     const measure = () => {
       const rect = slot.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
+        const device =
+          emulatedDeviceWidth && emulatedDeviceHeight
+            ? {
+                height: emulatedDeviceHeight,
+                scale: Math.min(
+                  rect.width / emulatedDeviceWidth,
+                  rect.height / emulatedDeviceHeight,
+                  1,
+                ),
+                width: emulatedDeviceWidth,
+              }
+            : null;
         showOverSlot(
           targetId,
           {
@@ -65,9 +94,17 @@ export function useBrowserSlot({
             y: rect.y,
           },
           slotOwner,
+          device
+            ? {
+                height: device.height * device.scale,
+                width: device.width * device.scale,
+              }
+            : null,
         );
+        syncEmulation(device);
       } else {
         setPaintHost(targetId, slotOwner);
+        syncEmulation(null);
       }
       return rect;
     };
@@ -98,8 +135,17 @@ export function useBrowserSlot({
       observer.disconnect();
       window.removeEventListener("resize", measure);
       setPaintHost(targetId, slotOwner);
+      syncEmulation(null);
     };
-  }, [active, isActiveTab, hasLoadError, slotOwner, targetId]);
+  }, [
+    active,
+    isActiveTab,
+    hasLoadError,
+    slotOwner,
+    targetId,
+    emulatedDeviceWidth,
+    emulatedDeviceHeight,
+  ]);
 
   return slotRef;
 }

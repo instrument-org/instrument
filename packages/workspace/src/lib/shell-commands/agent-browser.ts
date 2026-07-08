@@ -516,14 +516,15 @@ function isExplicitUrlRead(args: string[]) {
     return false;
   }
 
-  for (let i = readIndex + 1; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === undefined) {
+  let shouldSkipNextArg = false;
+  for (const arg of args.slice(readIndex + 1)) {
+    if (shouldSkipNextArg) {
+      shouldSkipNextArg = false;
       continue;
     }
     if (arg.startsWith("-")) {
       if (READ_FLAGS_WITH_VALUE.has(arg) && !arg.includes("=")) {
-        i++;
+        shouldSkipNextArg = true;
       }
       continue;
     }

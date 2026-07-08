@@ -33,7 +33,14 @@ app.get("/assets/*", async (c) => {
 
   const fullPath = absolutePathJoin(taskDir(taskId), assetPath);
 
-  c.header("Cache-Control", "no-store");
+  // A `version` query is the file's mtime, and clients resolve it to the live
+  // value, so a versioned URL is a content fingerprint: a change yields a new
+  // URL. Cache those immutably; serve unversioned URLs fresh since they carry no
+  // fingerprint to invalidate on.
+  c.header(
+    "Cache-Control",
+    c.req.query("version") ? "public, max-age=31536000, immutable" : "no-store",
+  );
 
   const result = await serveStaticFile(c, {
     filePath: fullPath,

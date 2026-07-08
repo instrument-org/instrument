@@ -1,5 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useCurrentTaskFile } from "@/client/components/task/current-task-files";
+import { useLiveAssetUrl } from "@/client/components/task/current-task-files";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 
@@ -18,11 +18,9 @@ export function FilePreviewListItem({
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, filePath, mimeType, url } = file;
+  const { filename, filePath, mimeType } = file;
   const fileType = getFileType(file);
-  const currentFile = useCurrentTaskFile(filePath);
-  const isStale =
-    currentFile !== undefined && currentFile.modifiedAt !== file.modifiedAt;
+  const url = useLiveAssetUrl(file);
 
   if (url && fileType === "image") {
     return (
@@ -46,11 +44,6 @@ export function FilePreviewListItem({
               showCheckerboard
               src={url}
             />
-            {isStale && (
-              <span className="absolute inset-x-0 bottom-0 bg-background/90 py-0.5 text-[9px] font-medium">
-                Updated
-              </span>
-            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent
@@ -73,7 +66,7 @@ export function FilePreviewListItem({
         />
       }
       isSelected={isSelected}
-      label={isStale ? `${filename} (updated)` : filename}
+      label={filename}
       onClick={onClick}
       tooltipContent={filePath}
     />

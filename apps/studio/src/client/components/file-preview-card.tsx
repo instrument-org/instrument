@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useTaskFileReferenceStatus } from "@/client/components/task/current-task-files";
+import { useLiveAssetUrl } from "@/client/components/task/current-task-files";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
@@ -50,13 +50,11 @@ export function FilePreviewCard({
   const [timeRemaining, setTimeRemaining] = useState<null | number>(null);
   const [videoDuration, setVideoDuration] = useState<null | number>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const referenceStatus = useTaskFileReferenceStatus(file);
-  const isStale = referenceStatus === "stale";
 
   const fileType = getFileType({ filename, mimeType });
 
   const handleMouseEnter = () => {
-    if (!isStale && fileType === "video" && videoRef.current) {
+    if (fileType === "video" && videoRef.current) {
       videoTimeoutRef.current = window.setTimeout(() => {
         void videoRef.current?.play();
         setIsPlaying(true);
@@ -82,7 +80,6 @@ export function FilePreviewCard({
         file={file}
         hideActionsMenu={hideActionsMenu}
         isSelected={isSelected}
-        isStale={isStale}
         onClick={onClick}
       />
     );
@@ -97,7 +94,6 @@ export function FilePreviewCard({
         hideActionsMenu={hideActionsMenu}
         isPlaying={isPlaying}
         isSelected={isSelected}
-        isStale={isStale}
         onClick={onClick}
         onLoadedMetadata={(e) => {
           setVideoDuration(e.currentTarget.duration);
@@ -120,7 +116,6 @@ export function FilePreviewCard({
       file={file}
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
-      isStale={isStale}
       onClick={onClick}
     />
   );
@@ -130,13 +125,11 @@ function FileRowCard({
   file,
   hideActionsMenu,
   isSelected,
-  isStale,
   onClick,
 }: {
   file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
-  isStale: boolean;
   onClick: () => void;
 }) {
   const { filename, filePath } = file;
@@ -170,9 +163,7 @@ function FileRowCard({
               </TooltipContent>
             </Tooltip>
             <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-              {isStale
-                ? "Updated since this message"
-                : fileKindLabel(getFileType(file))}
+              {fileKindLabel(getFileType(file))}
             </span>
           </div>
           {!hideActionsMenu && (
@@ -207,16 +198,15 @@ function ImagePreviewCard({
   file,
   hideActionsMenu,
   isSelected,
-  isStale,
   onClick,
 }: {
   file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
-  isStale: boolean;
   onClick: () => void;
 }) {
-  const { filename, mimeType, url } = file;
+  const { filename, mimeType } = file;
+  const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
   const actions = useFileActions(file);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
@@ -290,7 +280,6 @@ function ImagePreviewCard({
         ) : undefined
       }
       scrim={<div className="absolute inset-0 bg-black/20" />}
-      statusLabel={isStale ? "Updated since this message" : undefined}
     >
       <div className="flex size-full items-center justify-center">
         <ImageWithFallback
@@ -337,7 +326,6 @@ function VideoPreviewCard({
   hideActionsMenu,
   isPlaying,
   isSelected,
-  isStale,
   onClick,
   onLoadedMetadata,
   onTimeUpdate,
@@ -352,7 +340,6 @@ function VideoPreviewCard({
   hideActionsMenu?: boolean;
   isPlaying: boolean;
   isSelected?: boolean;
-  isStale: boolean;
   onClick: () => void;
   onLoadedMetadata: React.ReactEventHandler<HTMLVideoElement>;
   onTimeUpdate: React.ReactEventHandler<HTMLVideoElement>;
@@ -361,6 +348,7 @@ function VideoPreviewCard({
   videoProgress: number;
   videoRef: RefObject<HTMLVideoElement | null>;
 }) {
+  const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
   const actions = useFileActions(file);
 
@@ -421,7 +409,6 @@ function VideoPreviewCard({
         ) : undefined
       }
       scrim={<div className="absolute inset-0 bg-black/20" />}
-      statusLabel={isStale ? "Updated since this message" : undefined}
     >
       <video
         className="size-full bg-black object-contain"
@@ -430,7 +417,7 @@ function VideoPreviewCard({
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
         ref={videoRef}
-        src={file.url}
+        src={url}
       />
       <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0">
         {!isPlaying && (

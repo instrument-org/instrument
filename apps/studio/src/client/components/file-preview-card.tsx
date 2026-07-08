@@ -25,7 +25,7 @@ import { FileThumbnail } from "./file-thumbnail";
 import { ImageWithFallback } from "./image-with-fallback";
 import { MediaCardShell } from "./media-card-shell";
 import { MediaOverlayButton } from "./media-overlay-button";
-import { NativeFileIcon } from "./native-file-icon";
+import { OpenTargetIcon } from "./open-target-icon";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -294,7 +294,7 @@ function ImagePreviewCard({
             {fileActions.showOpen && (
               <MediaOverlayButton
                 icon={
-                  <NativeFileIcon className="size-3.5 shrink-0" file={file} />
+                  <OpenTargetIcon className="size-3.5 shrink-0" file={file} />
                 }
                 label="Open"
                 onClick={(e) => {
@@ -455,7 +455,7 @@ function VideoPreviewCard({
             {fileActions.showOpen && (
               <MediaOverlayButton
                 icon={
-                  <NativeFileIcon className="size-3.5 shrink-0" file={file} />
+                  <OpenTargetIcon className="size-3.5 shrink-0" file={file} />
                 }
                 label="Open"
                 onClick={(e) => {

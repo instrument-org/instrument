@@ -30,12 +30,13 @@ import {
 } from "../hooks/use-image-panzoom";
 import { useOpenTaskFile } from "../hooks/use-open-task-file";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
+import { useTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
-import { NativeFileIcon } from "./native-file-icon";
+import { OpenTargetIcon } from "./open-target-icon";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -314,6 +315,7 @@ export function FileViewer({
   const contentRef = useRef<HTMLDivElement>(null);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
   const openTaskFile = useOpenTaskFile();
+  const { openLabel } = useTaskFileOpenTarget(file);
   const revealFileMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
       onError: (error) => {
@@ -412,9 +414,9 @@ export function FileViewer({
               size="sm"
               variant="ghost"
             >
-              <NativeFileIcon className="size-4" file={file} />
+              <OpenTargetIcon className="size-4" file={file} />
               <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                Open
+                {openLabel}
               </span>
             </Button>
           )}
@@ -524,6 +526,7 @@ export function FileViewer({
           <div className="flex size-full items-center justify-center">
             <FilePreviewFallback
               fallbackExtension={mediaErrorType}
+              file={file}
               filename={filename}
               onDownload={fileActions.showDownload ? handleDownload : undefined}
             />
@@ -541,6 +544,7 @@ export function FileViewer({
             <div className="flex size-full items-center justify-center">
               <FilePreviewFallback
                 fallbackExtension="jpg"
+                file={file}
                 filename={filename}
                 onDownload={
                   fileActions.showDownload ? handleDownload : undefined
@@ -615,6 +619,7 @@ export function FileViewer({
           <div className="flex size-full items-center justify-center">
             <FilePreviewFallback
               fallbackExtension="bin"
+              file={file}
               filename={filename}
               onDownload={fileActions.showDownload ? handleDownload : undefined}
             />

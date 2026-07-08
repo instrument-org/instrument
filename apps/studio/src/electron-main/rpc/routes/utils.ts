@@ -6,6 +6,7 @@ import type {
 
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { getFileOpenTarget } from "@/electron-main/lib/file-open-target";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
   clearServerExceptions,
@@ -310,34 +311,30 @@ const openTaskFile = base
     }
   });
 
-// OS icon for the app associated with the file type, for "Open" affordances.
-// Null when the platform can't resolve one; callers fall back to a generic icon.
-const getTaskFileIcon = base
+// Default-app name and icon for "Open in {app}" affordances. Fields are null
+// when the platform can't resolve them; callers fall back to generic ones.
+const getTaskFileOpenTarget = base
   .input(
     z.object({
       filePath: RelativeTaskPathSchema,
       id: TaskIdSchema,
     }),
   )
-  .output(z.object({ dataUrl: z.string() }).nullable())
+  .output(
+    z.object({
+      appName: z.string().nullable(),
+      iconDataUrl: z.string().nullable(),
+    }),
+  )
   .handler(async ({ input }) => {
     const fullPath = resolvePathWithinTaskDir({
       dir: taskDir(input.id),
       filePath: input.filePath,
     });
     if (!fullPath) {
-      return null;
+      return { appName: null, iconDataUrl: null };
     }
-
-    try {
-      const icon = await app.getFileIcon(fullPath, { size: "normal" });
-      if (icon.isEmpty()) {
-        return null;
-      }
-      return { dataUrl: icon.toDataURL() };
-    } catch {
-      return null;
-    }
+    return await getFileOpenTarget(fullPath);
   });
 
 const showFileInFolder = base
@@ -629,7 +626,7 @@ export const utils = {
   copyTaskPathToClipboard,
   exportZip,
   getSupportedEditors,
-  getTaskFileIcon,
+  getTaskFileOpenTarget,
   live,
   minimizeWindow,
   openExternalLink,

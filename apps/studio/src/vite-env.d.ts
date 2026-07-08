@@ -48,6 +48,7 @@ declare namespace NodeJS {
       WIN_GCP_KMS_KEY_VERSION: string | undefined;
       WIN_TIMESTAMP_URL: string | undefined;
       XDG_CURRENT_DESKTOP: string | undefined;
+      XDG_DATA_DIRS: string | undefined;
     };
   }
 }

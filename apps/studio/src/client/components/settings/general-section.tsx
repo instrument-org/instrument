@@ -309,7 +309,7 @@ function InterfaceAndTheme() {
   return (
     <SettingsSection title="Interface">
       <Card className="p-4">
-        <div className="space-y-3">
+        <div className="space-y-5">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label htmlFor="theme-toggle">Theme</Label>

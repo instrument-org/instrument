@@ -7,12 +7,14 @@ import {
   clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
   migrateWorkspaceLayout,
+  stopAllTaskFileWatchers,
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
 import path from "node:path";
+import { noop } from "radashi";
 import { createActor } from "xstate";
 
 import { createBrowserViewManager } from "../browser-view/manager";
@@ -263,8 +265,28 @@ export function createWorkspaceActor({
           }
           hasExited = true;
           browserViewManager.teardown();
-          actor.stop();
-          app.exit(0);
+
+          let finalized = false;
+          const finalize = () => {
+            if (finalized) {
+              return;
+            }
+            finalized = true;
+            actor.stop();
+            app.exit(0);
+          };
+          // @parcel/watcher aborts the process (SIGABRT) if a live subscription
+          // is torn down while Node frees the environment, so stop watchers and
+          // await their unsubscribe before app.exit. Runs before actor.stop so
+          // watchers still held by an in-flight turn are captured. Bounded so a
+          // stuck unsubscribe can't wedge the quit.
+          const forceFinalize = setTimeout(finalize, 2000);
+          void stopAllTaskFileWatchers()
+            .catch(noop)
+            .finally(() => {
+              clearTimeout(forceFinalize);
+              finalize();
+            });
         };
         const timeout = setTimeout(() => {
           captureServerException(

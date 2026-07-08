@@ -13,6 +13,7 @@ import {
   beginTurnChangeTracking,
   consumeTurnChanges,
   getCurrentTaskFiles,
+  stopAllTaskFileWatchers,
 } from "./task-file-watcher";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -101,6 +102,27 @@ describe("task file watcher turn tracking", () => {
     await fs.writeFile(ephemeral, "x");
     await fs.rm(ephemeral);
 
+    const { changes } = await consumeTurnChanges({ id, sessionId });
+    expect(changes).toEqual([]);
+  }, 15_000);
+});
+
+describe("stopAllTaskFileWatchers", () => {
+  it("disposes watchers still held by an in-flight turn", async () => {
+    await setupTask();
+    await fs.writeFile(path.join(dir, "a.txt"), "a");
+
+    const sessionId = StoreId.newSessionId();
+    await beginTurnChangeTracking({ id, sessionId, workspaceConfig });
+    expect(getCurrentTaskFiles(id)).toBeDefined();
+
+    await stopAllTaskFileWatchers();
+
+    // The watcher (and its native subscription) is gone even though the turn
+    // never released its ref -- the case that aborts the process on quit.
+    expect(getCurrentTaskFiles(id)).toBeUndefined();
+
+    // Consuming the now-orphaned turn is a safe no-op.
     const { changes } = await consumeTurnChanges({ id, sessionId });
     expect(changes).toEqual([]);
   }, 15_000);

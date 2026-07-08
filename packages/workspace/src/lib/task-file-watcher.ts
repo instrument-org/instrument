@@ -78,6 +78,9 @@ interface WatcherEntry {
   // Null until the first seed completes; seeding always precedes event handling.
   ignore: Ignore | null;
   index: TaskFileIndex;
+  // Settles once seeding + the native subscribe have run, so shutdown can await
+  // in-flight setup before tearing the watcher down.
+  init: Promise<void>;
   // Absolute paths buffered between debounce flushes.
   pendingPaths: Set<string>;
   // Resolves once the initial seed completes, so turn snapshots are accurate.
@@ -227,6 +230,8 @@ export function startWatchingTaskFiles({
     id,
     ignore: null,
     index: new Map(),
+    // Replaced with the real init promise immediately after registration.
+    init: Promise.resolve(),
     pendingPaths: new Set(),
     ready,
     refCount: 1,
@@ -237,11 +242,41 @@ export function startWatchingTaskFiles({
   };
   REGISTRY.set(id, entry);
 
-  void initWatcher(entry);
+  entry.init = initWatcher(entry);
 
   return () => {
     releaseWatcher(id);
   };
+}
+
+/**
+ * Stops every active watcher and awaits each native unsubscribe. Call during
+ * app shutdown, before the process tears down: @parcel/watcher registers a napi
+ * async cleanup hook, and if a subscription is still live when Node frees the
+ * environment the hook fires into a half-destroyed env and calls
+ * `napi_fatal_error`, aborting the process (SIGABRT). Awaiting unsubscribe joins
+ * the native watcher threads first, closing that race. Disposes regardless of
+ * refcount; nothing should acquire a new watcher after this resolves.
+ */
+export async function stopAllTaskFileWatchers(): Promise<void> {
+  const entries = [...REGISTRY.values()];
+  REGISTRY.clear();
+  await Promise.all(
+    entries.map(async (entry) => {
+      entry.disposed = true;
+      if (entry.debounceTimer) {
+        clearTimeout(entry.debounceTimer);
+      }
+      if (entry.fallbackTimer) {
+        clearInterval(entry.fallbackTimer);
+      }
+      // Wait for in-flight setup so a subscription created moments before quit
+      // is torn down here rather than during environment teardown. A disposed
+      // entry unsubscribes itself inside initWatcher, leaving subscription null.
+      await entry.init.catch(noop);
+      await entry.subscription?.unsubscribe().catch(noop);
+    }),
+  );
 }
 
 /** Reflects a single changed absolute path into the index. Returns true when the index actually changed. */

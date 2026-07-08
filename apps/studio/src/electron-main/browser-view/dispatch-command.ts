@@ -111,16 +111,20 @@ export async function sendCommand({
     return applyDownloadBehavior(entry, params);
   }
 
-  // Device emulation (Emulation.setDeviceMetricsOverride) isn't supported on
-  // the `<webview>` guest for the same reason captureBeyondViewport isn't
-  // (above): its rendered surface is pinned to whatever the on-screen panel
-  // slot currently measures, which varies with the split layout and is never
-  // known to this main-process command dispatcher. Any override wider or
-  // taller than that slot -- clamping to a fixed safe max included, since the
-  // slot is very often smaller than any reasonable clamp -- makes the guest
-  // paint only a corner of its emulated layout into the slot, leaving the
-  // rest blank. Refuse it outright rather than risk that mismatch; agents
-  // needing a larger capture should use PDF export instead (see above).
+  // Device emulation (Emulation.setDeviceMetricsOverride) isn't supported for
+  // agent-browser, for the same underlying reason captureBeyondViewport isn't
+  // (above): this guest's compositor can't reliably rasterize a layout much
+  // larger than its actual on-screen size. Two different attempts at making
+  // an override "safe" (scaling it to fit the panel, then routing capture
+  // through real CDP instead of capturePage()) each traded the corruption for
+  // a different one -- capturePage() painted only a corner of the emulated
+  // layout and left the rest transparent; real CDP capture at the full
+  // emulated size hit Chromium's own tiling limitation and returned the
+  // page's content repeated in a grid instead of laid out once. Refuse it
+  // outright rather than keep chasing new failure modes; agents needing a
+  // larger capture should use PDF export instead (see above). The browser
+  // panel's own device-preview menu (device-emulation.ts) is unaffected: it
+  // only offers a few bounded, real device sizes, which don't provoke this.
   if (method === "Emulation.setDeviceMetricsOverride") {
     throw new Error(
       "Device/viewport emulation is not supported in this browser. The guest always renders at its on-screen panel size; to capture more than what's visible, export to PDF instead: `agent-browser pdf <path>`.",

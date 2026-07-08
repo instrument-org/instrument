@@ -2,6 +2,11 @@
 
 **Status:** open — workaround in place (PDF export). Last updated 2026-07-07.
 
+See also
+[in-app-browser-device-emulation.md](in-app-browser-device-emulation.md):
+`Emulation.setDeviceMetricsOverride` (an agent's `set viewport`) hits the same
+root cause via a different CDP entry point.
+
 ## Symptom
 
 `agent-browser screenshot --full` against the in-app browser produces a

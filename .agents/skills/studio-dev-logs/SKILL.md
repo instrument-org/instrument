@@ -43,12 +43,24 @@ Fields:
 
 - `level` — `debug` | `info` | `warn` | `error`
 - `time` — ISO 8601 timestamp
+- `source` — present only on entries forwarded from the **renderer** process (value `"renderer"`). Absent on main-process entries.
 - `msg` — string for plain messages; object for `Error` instances (`name`, `message`, `stack`, optional `cause`); array when multiple arguments were passed
+
+Most entries are from the Electron **main** process. Renderer errors (uncaught
+exceptions, unhandled promise rejections, and explicit `logger.error` calls) are
+forwarded over IPC and tagged `"source":"renderer"`; other renderer `console.*`
+output still only lands in the DevTools console, not this file.
 
 Filter to errors only:
 
 ```bash
 grep '"level":"error"' apps/studio/.logs/current.jsonl | jq .
+```
+
+Filter to renderer-forwarded entries:
+
+```bash
+grep '"source":"renderer"' apps/studio/.logs/current.jsonl | jq .
 ```
 
 Tail the live log while Studio is running:

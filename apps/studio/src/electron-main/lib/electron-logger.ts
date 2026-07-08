@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, ipcMain } from "electron";
 import log, { type Transport } from "electron-log";
 import path from "node:path";
 
@@ -45,6 +45,22 @@ export function initializeElectronLogging() {
     }) as unknown as Transport;
 
     openDevLog();
+    // Renderer processes can't write to the dev log directly; forward their
+    // errors (uncaught, unhandled rejections, explicit logger.error) over IPC
+    // and tag them with source "renderer" so they're filterable.
+    ipcMain.on("renderer-log", (_event, entry: unknown) => {
+      if (
+        typeof entry === "object" &&
+        entry !== null &&
+        "level" in entry &&
+        "args" in entry &&
+        typeof entry.level === "string" &&
+        Array.isArray(entry.args)
+      ) {
+        writeDevLogEntry(entry.level, entry.args, "renderer");
+      }
+    });
+
     // Write directly to stdout so this banner never enters the log file itself.
     process.stdout.write(
       `[dev-log] Writing to ${getDevLogFilePath() ?? "unknown"}\n`,

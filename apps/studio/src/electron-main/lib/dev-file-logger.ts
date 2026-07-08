@@ -44,7 +44,11 @@ export function openDevLog() {
   }
 }
 
-export function writeDevLogEntry(level: string, args: unknown[]) {
+export function writeDevLogEntry(
+  level: string,
+  args: unknown[],
+  source?: string,
+) {
   if (!logStream) {
     return;
   }
@@ -55,6 +59,10 @@ export function writeDevLogEntry(level: string, args: unknown[]) {
     time: new Date().toISOString(),
   };
 
+  if (source) {
+    entry.source = source;
+  }
+
   if (cleaned.length === 1) {
     const [first] = cleaned;
     entry.msg = typeof first === "string" ? first : serializeArg(first);
@@ -62,7 +70,21 @@ export function writeDevLogEntry(level: string, args: unknown[]) {
     entry.msg = cleaned.map(serializeArg);
   }
 
-  logStream.write(JSON.stringify(entry) + "\n");
+  let line: string;
+  try {
+    line = JSON.stringify(entry);
+  } catch (error) {
+    // Guard against non-serializable payloads (bigint, circular refs) so a
+    // single bad log arg can't throw out of the logging path.
+    const detail = error instanceof Error ? error.message : "unknown error";
+    line = JSON.stringify({
+      level,
+      msg: `[dev-log serialization failed: ${detail}]`,
+      time: entry.time,
+      ...(source ? { source } : {}),
+    });
+  }
+  logStream.write(line + "\n");
 }
 
 function serializeArg(arg: unknown): unknown {

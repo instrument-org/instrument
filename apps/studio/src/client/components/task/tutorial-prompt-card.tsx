@@ -23,7 +23,7 @@ export function TutorialPromptCard({
         {isVisible && (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
-            className="pointer-events-none absolute inset-0 -z-10 rounded-[24px] border border-black/5 bg-gradient-to-t from-gray-50 from-[24.779%] to-yellow-50 drop-shadow-[0_1px_4px_rgba(0,0,0,0.04)] dark:border-transparent dark:bg-[color-mix(in_srgb,var(--yellow-300)_15%,var(--background))] dark:bg-none dark:shadow-[0px_1px_8px_-4px_rgba(0,0,0,0.04)] dark:drop-shadow-none"
+            className="pointer-events-none absolute inset-0 -z-10 rounded-[24px] bg-gradient-to-t from-gray-50 from-[24.779%] to-yellow-50 shadow-xs dark:bg-[color-mix(in_srgb,var(--yellow-300)_15%,var(--background))] dark:bg-none"
             exit={{
               opacity: 0,
               transition: { damping: 22, stiffness: 320, type: "spring" },

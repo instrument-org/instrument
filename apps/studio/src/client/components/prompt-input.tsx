@@ -531,9 +531,7 @@ export const PromptInput = ({
       <TextareaContainer
         className={cn(
           "relative overflow-hidden rounded-[20px] p-4",
-          "border-[rgba(0,0,0,0.08)] bg-white shadow-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.04)]",
-          "focus-within:border-[rgba(0,0,0,0.08)] hover:border-[rgba(0,0,0,0.08)]",
-          "dark:border-[rgba(0,0,0,0.08)] dark:bg-gray-800 dark:shadow-[0_1px_8px_-4px_rgba(0,0,0,0.04)] dark:drop-shadow-none dark:focus-within:border-[rgba(0,0,0,0.08)] dark:hover:border-[rgba(0,0,0,0.08)]",
+          "bg-white shadow-xs dark:bg-gray-800",
           className,
         )}
         ref={textareaRef}

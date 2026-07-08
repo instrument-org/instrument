@@ -105,7 +105,7 @@ function SettingsModalContent({
   return (
     <DialogContent
       aria-describedby={undefined}
-      className="h-175 max-h-[calc(96vh/var(--content-zoom))] w-225 max-w-[calc(96vw/var(--content-zoom))] gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none sm:max-w-[calc(96vw/var(--content-zoom))]"
+      className="h-180 max-h-[calc(96vh/var(--content-zoom))] w-225 max-w-[calc(96vw/var(--content-zoom))] gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none sm:max-w-[calc(96vw/var(--content-zoom))]"
       onExitComplete={onExitComplete}
       onOpenAutoFocus={(event) => {
         event.preventDefault();

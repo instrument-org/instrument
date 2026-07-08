@@ -1,5 +1,6 @@
 import { AccountInfo } from "@/client/components/account-info";
 import { ExternalLink } from "@/client/components/external-link";
+import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
@@ -282,7 +283,7 @@ function About() {
             <div className="shrink-0">{getActionButton()}</div>
           </div>
         </Card>
-        <Card className="border-black/5 bg-muted/30 p-4 shadow-none dark:border-white/5">
+        <Card className="bg-muted/30 p-4">
           <div className="space-y-3">
             <div className="space-y-1">
               <div className="text-sm font-medium">Open Source</div>
@@ -308,14 +309,25 @@ function InterfaceAndTheme() {
   return (
     <SettingsSection title="Interface">
       <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label>Zoom</Label>
-            <p className="text-xs text-muted-foreground">
-              Scale the interface. Independent of web view zoom.
-            </p>
+        <div className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="theme-toggle">Theme</Label>
+              <p className="text-xs text-muted-foreground">
+                Choose your preferred color scheme.
+              </p>
+            </div>
+            <ThemeToggle />
           </div>
-          <ZoomStepper />
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Zoom</Label>
+              <p className="text-xs text-muted-foreground">
+                Scale the interface. Independent of web view zoom.
+              </p>
+            </div>
+            <ZoomStepper />
+          </div>
         </div>
       </Card>
     </SettingsSection>

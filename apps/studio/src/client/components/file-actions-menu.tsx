@@ -117,6 +117,10 @@ export function FileActionsMenuItems({
   const hasFileActions =
     fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
 
+  if (!onAddToChat && !hasFileActions) {
+    return null;
+  }
+
   return (
     <>
       {onAddToChat && (

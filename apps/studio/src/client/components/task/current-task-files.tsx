@@ -42,3 +42,28 @@ export function useLiveAssetUrl(file: { filePath: string; url: string }) {
     ? withAssetUrlVersion(file.url, currentFile.modifiedAt)
     : file.url;
 }
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useTaskFileReferenceStatus(file: {
+  filePath: string;
+  modifiedAt?: number;
+}) {
+  const files = useContext(CurrentTaskFilesContext);
+  if (!files) {
+    return;
+  }
+
+  const currentFile = files.get(file.filePath);
+  if (!currentFile) {
+    return "missing";
+  }
+
+  if (
+    file.modifiedAt !== undefined &&
+    currentFile.modifiedAt !== file.modifiedAt
+  ) {
+    return "stale";
+  }
+
+  return "current";
+}

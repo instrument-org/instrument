@@ -1,7 +1,10 @@
 import type { RefObject } from "react";
 
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useLiveAssetUrl } from "@/client/components/task/current-task-files";
+import {
+  useLiveAssetUrl,
+  useTaskFileReferenceStatus,
+} from "@/client/components/task/current-task-files";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
@@ -11,6 +14,7 @@ import {
   ArrowLineDownIcon,
   CheckIcon,
   CopyIcon,
+  ImageBrokenIcon,
   PlayIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -52,6 +56,7 @@ export function FilePreviewCard({
   const [isPlaying, setIsPlaying] = useState(false);
 
   const fileType = getFileType({ filename, mimeType });
+  const referenceStatus = useTaskFileReferenceStatus(file);
 
   const handleMouseEnter = () => {
     if (fileType === "video" && videoRef.current) {
@@ -73,6 +78,20 @@ export function FilePreviewCard({
       setIsPlaying(false);
     }
   };
+
+  if (
+    referenceStatus === "missing" &&
+    (fileType === "image" || fileType === "video")
+  ) {
+    return (
+      <MissingMediaCard
+        aspectRatio={fileType === "image" ? "square" : "video"}
+        file={file}
+        isSelected={isSelected}
+        onClick={onClick}
+      />
+    );
+  }
 
   if (fileType === "image") {
     return (
@@ -133,51 +152,61 @@ function FileRowCard({
   onClick: () => void;
 }) {
   const { filename, filePath } = file;
+  const isMissing = useTaskFileReferenceStatus(file) === "missing";
+  const fileActions = useFileActionVisibility(file);
+  const hasFileActions =
+    fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
+
+  const row = (
+    <div
+      className={cn(
+        "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 transition-colors select-none",
+        isSelected
+          ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
+          : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
+      )}
+      onClick={onClick}
+    >
+      <FileThumbnail
+        file={file}
+        isActive={isSelected ?? false}
+        variant="primary"
+      />
+      <div className="flex min-w-0 flex-1 flex-col justify-center text-left">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="truncate text-sm leading-5 text-foreground">
+              {filename}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span className="break-all">{filePath}</span>
+          </TooltipContent>
+        </Tooltip>
+        <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
+          {isMissing ? "File not found" : fileKindLabel(getFileType(file))}
+        </span>
+      </div>
+      {!hideActionsMenu && hasFileActions && (
+        <div
+          className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <FileActionsMenu file={file} />
+        </div>
+      )}
+    </div>
+  );
+
+  if (!hasFileActions) {
+    return row;
+  }
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div
-          className={cn(
-            "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 transition-colors select-none",
-            isSelected
-              ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
-              : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
-          )}
-          onClick={onClick}
-        >
-          <FileThumbnail
-            file={file}
-            isActive={isSelected ?? false}
-            variant="primary"
-          />
-          <div className="flex min-w-0 flex-1 flex-col justify-center text-left">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="truncate text-sm leading-5 text-foreground">
-                  {filename}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span className="break-all">{filePath}</span>
-              </TooltipContent>
-            </Tooltip>
-            <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-              {fileKindLabel(getFileType(file))}
-            </span>
-          </div>
-          {!hideActionsMenu && (
-            <div
-              className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <FileActionsMenu file={file} />
-            </div>
-          )}
-        </div>
-      </ContextMenuTrigger>
+      <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
       <ContextMenuContent>
         <FileActionsMenuItems
           file={file}
@@ -292,6 +321,47 @@ function ImagePreviewCard({
         />
       </div>
     </MediaCardShell>
+  );
+}
+
+// Inline media previews resolve their bytes from disk; when the referenced file
+// is gone (e.g. an imported task whose output was renamed) the raw <img>/<video>
+// would render a broken thumbnail with no explanation. Swap in a labeled state
+// that mirrors the missing-file artifact panel and drops the now-dead actions.
+function MissingMediaCard({
+  aspectRatio,
+  file,
+  isSelected,
+  onClick,
+}: {
+  aspectRatio: "square" | "video";
+  file: TaskFileViewerFile;
+  isSelected?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className={cn(
+            "relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-card p-3 text-center shadow-sm dark:bg-muted",
+            aspectRatio === "square" ? "aspect-square" : "aspect-video",
+            isSelected &&
+              "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
+          )}
+          onClick={onClick}
+          type="button"
+        >
+          <ImageBrokenIcon className="size-6 text-muted-foreground/60" />
+          <span className="text-xs font-medium text-muted-foreground">
+            File not found
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <span className="break-all">{file.filePath}</span>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

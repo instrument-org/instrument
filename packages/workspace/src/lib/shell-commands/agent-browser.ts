@@ -20,6 +20,10 @@ import {
   beginBrowserCommandObservation,
   type UpsertContextItem,
 } from "../capture-browser-screenshot";
+import {
+  browserChallengeAdvisory,
+  detectBrowserChallenge,
+} from "../detect-browser-challenge";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import {
@@ -96,6 +100,25 @@ const STRIPPED_VALUE_FLAGS = new Set([
 // browser target. Skip target creation / --cdp / --session injection so the
 // agent doesn't accidentally spawn a browser view just by running --help.
 const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
+
+// Subcommands after which it's safe to append a security-challenge advisory to
+// stdout: navigation/interaction verbs whose output the agent reads inline.
+// Read verbs (get, eval, is, cookies, ...) are excluded because the agent
+// captures their stdout via `$(...)` or redirects it to a file, where extra
+// text would corrupt the parse.
+const CHALLENGE_ADVISORY_SUBCOMMANDS = new Set([
+  "back",
+  "click",
+  "dblclick",
+  "forward",
+  "goto",
+  "navigate",
+  "open",
+  "press",
+  "reload",
+  "snapshot",
+  "wait",
+]);
 
 // cspell:ignore networkidle scrollintoview
 const WORKSPACE_HELP = dedent`
@@ -280,6 +303,9 @@ export function createAgentBrowserCommand({
         });
 
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
+    // Post-command page meta (url/title), used to detect a bot/security
+    // challenge the agent can't clear. Populated by enrichBrowserState below.
+    let challengeTargetMeta: undefined | { title?: string; url?: string };
     try {
       result = await runAgentBrowser({
         args: commandArgs,
@@ -322,7 +348,7 @@ export function createAgentBrowserCommand({
       });
     } finally {
       if (targetId) {
-        await enrichBrowserState({
+        challengeTargetMeta = await enrichBrowserState({
           id,
           sessionId,
           targetId,
@@ -332,6 +358,22 @@ export function createAgentBrowserCommand({
     }
 
     const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
+
+    // If the command left the page on a bot/security challenge (Cloudflare,
+    // captcha, ...), append a hand-off advisory -- but only after
+    // navigation/interaction verbs, never after read verbs whose stdout the
+    // agent captures/redirects (see CHALLENGE_ADVISORY_SUBCOMMANDS).
+    const challenge =
+      subcommand &&
+      CHALLENGE_ADVISORY_SUBCOMMANDS.has(subcommand) &&
+      challengeTargetMeta
+        ? detectBrowserChallenge(challengeTargetMeta)
+        : null;
+    const stdout = challenge
+      ? [combined, browserChallengeAdvisory(challenge)]
+          .filter(Boolean)
+          .join("\n\n")
+      : combined;
 
     const exitCode = result.exitCode ?? 1;
     if (observation) {
@@ -348,7 +390,7 @@ export function createAgentBrowserCommand({
     return {
       exitCode,
       stderr: "",
-      stdout: combined,
+      stdout,
     };
   });
 }
@@ -363,7 +405,7 @@ async function enrichBrowserState({
   sessionId: StoreId.Session;
   targetId: BrowserTargetId;
   taskId: TaskId;
-}) {
+}): Promise<undefined | { title?: string; url?: string }> {
   try {
     const targets = await getWorkspaceConfig().browser.listTargets(id);
     const target = targets.find((t) => t.id === targetId);
@@ -374,10 +416,15 @@ async function enrichBrowserState({
         title: target.title,
         url: target.url,
       });
+      return {
+        ...(target.title ? { title: target.title } : {}),
+        ...(target.url ? { url: target.url } : {}),
+      };
     }
   } catch (error) {
     getWorkspaceConfig().captureException(error);
   }
+  return undefined;
 }
 
 async function recordBrowserUseBestEffort({

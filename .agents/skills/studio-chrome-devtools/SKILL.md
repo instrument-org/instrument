@@ -13,7 +13,7 @@ Use it alongside the generic `chrome-devtools` or `chrome-devtools-cli` skill fo
 
 Studio exposes a remote debugging endpoint on port `48160`.
 
-- CLI: start with `pnpm exec chrome-devtools start --browserUrl http://127.0.0.1:48160`
+- CLI: start with `CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1 pnpm exec chrome-devtools start --browserUrl http://127.0.0.1:48160`
 - MCP config: launch `pnpm exec chrome-devtools-mcp` with `--browserUrl=http://127.0.0.1:48160`
 
 Useful probe endpoints:
@@ -25,11 +25,12 @@ The `chrome-devtools-mcp` package is installed as a dev dependency at the monore
 Always invoke it via `pnpm exec`, never a global install:
 
 ```bash
-pnpm exec chrome-devtools <subcommand>
+CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1 pnpm exec chrome-devtools <subcommand>
 ```
 
 Important CLI nuances:
 
+- `CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1` suppresses the CLI's package update notice.
 - `--browserUrl` belongs on `chrome-devtools start`, not on `list_pages`, `take_snapshot`, or other subcommands.
 - After `start`, later subcommands talk to the local CLI daemon and do not need `--browserUrl`.
 - `pnpm exec chrome-devtools start` may print very little on success. Verify with `pnpm exec chrome-devtools list_pages`.

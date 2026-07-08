@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-CHROME_DEVTOOLS=(pnpm exec chrome-devtools)
+CHROME_DEVTOOLS=(env CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1 pnpm exec chrome-devtools)
 
 browser_url="${1:-http://127.0.0.1:48160}"
 page_hint="${2:-}"

@@ -1,3 +1,4 @@
+import { withAssetUrlVersion } from "@/client/lib/get-asset-url";
 import { type RPCOutput } from "@/client/rpc/client";
 import { createContext, type ReactNode, useContext } from "react";
 
@@ -30,23 +31,14 @@ export function useCurrentTaskFile(filePath: string) {
   return useContext(CurrentTaskFilesContext)?.get(filePath);
 }
 
+// Resolves an asset URL to the file's current on-disk version so previews of a
+// past message follow later overwrites in place instead of pinning stale bytes.
+// Falls back to the URL as built (e.g. the file was deleted) so the preview can
+// degrade to its not-available state.
 // eslint-disable-next-line react-refresh/only-export-components
-export function useTaskFileReferenceStatus({
-  filePath,
-  modifiedAt,
-}: {
-  filePath: string;
-  modifiedAt: number | undefined;
-}) {
-  const files = useContext(CurrentTaskFilesContext);
-  if (!files || modifiedAt === undefined) {
-    return;
-  }
-  const currentFile = files.get(filePath);
-  if (!currentFile) {
-    return "missing" as const;
-  }
-  return currentFile.modifiedAt === modifiedAt
-    ? ("current" as const)
-    : ("stale" as const);
+export function useLiveAssetUrl(file: { filePath: string; url: string }) {
+  const currentFile = useCurrentTaskFile(file.filePath);
+  return currentFile
+    ? withAssetUrlVersion(file.url, currentFile.modifiedAt)
+    : file.url;
 }

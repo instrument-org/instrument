@@ -11,7 +11,6 @@ import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
-import { useCurrentTaskFile } from "../task/current-task-files";
 import { FileToolCard } from "./file-tool-card";
 
 type ReadFilePart = Extract<
@@ -148,11 +147,6 @@ function ReadFileCard({
   modifiedAt?: number;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const currentFile = useCurrentTaskFile(filePath);
-  const isStale =
-    modifiedAt !== undefined &&
-    currentFile !== undefined &&
-    currentFile.modifiedAt !== modifiedAt;
   const appendToPrompt = useSetAtom(appendToPromptAtom);
   const navigate = useNavigate({ from: "/tasks/$id/" });
 
@@ -175,11 +169,6 @@ function ReadFileCard({
 
   return (
     <div className="relative mt-2 overflow-hidden rounded-2xl border border-border bg-card">
-      {isStale && (
-        <span className="absolute right-3 bottom-3 z-10 rounded-full bg-background/90 px-2 py-1 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
-          Updated since this message
-        </span>
-      )}
       <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <FileIcon

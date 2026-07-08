@@ -257,12 +257,10 @@ function GeneratedImage({
 }) {
   const filename = filenameFromFilePath(filePath);
   const currentFile = useCurrentTaskFile(filePath);
-  const isStale =
-    currentFile !== undefined && currentFile.modifiedAt !== modifiedAt;
   const src = getAssetUrl({
     assetBase: assetBaseUrl,
     filePath,
-    version: modifiedAt,
+    version: currentFile?.modifiedAt ?? modifiedAt,
   });
 
   const handleClick = () => {
@@ -302,11 +300,6 @@ function GeneratedImage({
         filename={filename}
         src={src}
       />
-      {isStale && (
-        <span className="absolute right-2 bottom-2 rounded-full bg-background/90 px-2 py-1 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
-          Updated since this message
-        </span>
-      )}
     </button>
   );
 }

@@ -116,3 +116,12 @@ expression. The function must return a JSON-serializable value.
 - If an interaction fails, re-run `list_pages` and `take_snapshot` before retrying.
 - For route-specific work, prefer selecting the page that already has the target route open over trying to navigate the wrong renderer into place.
 - `pnpm exec chrome-devtools list_pages --output-format=json` is useful when a script needs stable page ids for the current CLI session.
+
+## Reproducing A Bug End-To-End
+
+See [references/repro-recipes.md](references/repro-recipes.md) for: replaying
+a recorded task instead of live-driving the agent (fast, free, deterministic),
+the `#/debug/*` pages, the chat composer's controlled-input gotcha (`fill`
+looks like it works but leaves the send button disabled), reading a
+`<webview>` guest's real internal state, and why screenshot pixel math should
+never be hand-converted.

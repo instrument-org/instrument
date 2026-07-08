@@ -47,8 +47,8 @@ export const AGENT_BROWSER_COMMAND = {
 // data into the wrong browser context.
 const BLOCKED_FLAGS = new Set([
   "--auto-connect", // Would discover a real Chrome instance instead of our bridge.
-  "--config", // Would let task-local config override managed connection/profile policy.
   "--cdp", // Harness injects this; agent override would point at the wrong target.
+  "--config", // Would let task-local config override managed connection/profile policy.
   "--namespace", // Would move daemon/restore state outside the workspace-owned namespace.
   "--profile", // Copies a real Chrome profile; meaningless for our proxied target.
   "--provider", // Would launch a cloud browser
@@ -72,8 +72,8 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "connect", // Harness injects the only allowed CDP endpoint.
   "dashboard", // We have our own UI.
   "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
-  "install", // Browser binary is bundled with the app.
   "inspect", // Opens Chrome DevTools, which doesn't work against our WebContentsView CDP bridge.
+  "install", // Browser binary is bundled with the app.
   "launch", // We don't launch; we proxy an existing target.
   "mcp", // MCP tool hosting is managed outside the in-app browser wrapper.
   "plugin", // Plugin capabilities would bypass workspace policy.
@@ -298,8 +298,8 @@ export function createAgentBrowserCommand({
           // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
           // can't bypass the rejection above.
           AGENT_BROWSER_AUTO_CONNECT: undefined,
-          AGENT_BROWSER_CONFIG: undefined,
           AGENT_BROWSER_CDP: undefined,
+          AGENT_BROWSER_CONFIG: undefined,
           // Uncomment this to enable debug mode.
           // AGENT_BROWSER_DEBUG:
           //   process.env.NODE_ENV === "development" ? "1" : undefined,
@@ -501,28 +501,17 @@ async function runAgentBrowser({
   }
 }
 
-function stripHarnessControlledFlags(args: string[]): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === undefined) {
-      continue;
-    }
-    if (STRIPPED_VALUE_FLAGS.has(arg)) {
-      i++;
-      continue;
-    }
-    const eqIdx = arg.indexOf("=");
-    if (eqIdx > 0 && STRIPPED_VALUE_FLAGS.has(arg.slice(0, eqIdx))) {
-      continue;
-    }
-    out.push(arg);
-  }
-  return out;
-}
+const READ_FLAGS_WITH_VALUE = new Set([
+  "--allowed-domains",
+  "--filter",
+  "--headers",
+  "--llms",
+  "--max-output",
+  "--timeout",
+]);
 
 function isExplicitUrlRead(args: string[]) {
-  const readIndex = args.findIndex((arg) => arg === "read");
+  const readIndex = args.indexOf("read");
   if (readIndex === -1) {
     return false;
   }
@@ -543,11 +532,22 @@ function isExplicitUrlRead(args: string[]) {
   return false;
 }
 
-const READ_FLAGS_WITH_VALUE = new Set([
-  "--allowed-domains",
-  "--filter",
-  "--headers",
-  "--llms",
-  "--max-output",
-  "--timeout",
-]);
+function stripHarnessControlledFlags(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined) {
+      continue;
+    }
+    if (STRIPPED_VALUE_FLAGS.has(arg)) {
+      i++;
+      continue;
+    }
+    const eqIdx = arg.indexOf("=");
+    if (eqIdx > 0 && STRIPPED_VALUE_FLAGS.has(arg.slice(0, eqIdx))) {
+      continue;
+    }
+    out.push(arg);
+  }
+  return out;
+}

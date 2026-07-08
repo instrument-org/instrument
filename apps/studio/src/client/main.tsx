@@ -5,6 +5,7 @@ import ReactDOM, { type Root } from "react-dom/client";
 import { App } from "./app";
 import { MainWindow } from "./components/main-window";
 import { initBrowserPool } from "./lib/browser-pool";
+import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { applyInitialTheme } from "./lib/initial-theme";
 
 declare global {
@@ -13,6 +14,7 @@ declare global {
 
 // Apply the theme class before React mounts to avoid a light-mode flash.
 applyInitialTheme();
+initDebugRpcBridge();
 
 const rootElement = document.querySelector("#root");
 

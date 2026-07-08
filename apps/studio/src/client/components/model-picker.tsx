@@ -542,7 +542,7 @@ function ModelGroups({
           if (row.type === "header") {
             return (
               <div
-                className="absolute top-0 left-0 w-full px-2 py-1.5 text-xs font-medium text-muted-foreground"
+                className="absolute top-0 right-1 left-1 px-2 py-1.5 text-xs font-medium text-muted-foreground"
                 data-index={virtualItem.index}
                 key={virtualItem.key}
                 ref={virtualizer.measureElement}
@@ -557,7 +557,7 @@ function ModelGroups({
           const { model, nameRanges, providerRanges } = matched;
           return (
             <div
-              className="absolute top-0 left-0 w-full"
+              className="absolute top-0 right-1 left-1"
               data-index={virtualItem.index}
               key={virtualItem.key}
               ref={virtualizer.measureElement}

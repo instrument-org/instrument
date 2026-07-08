@@ -6,6 +6,7 @@ import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { APP_NAME, PORTS } from "@instrument-org/shared";
 import {
   StoreId,
+  taskDir,
   TaskIdSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
@@ -17,7 +18,7 @@ import { z } from "zod";
 
 import { browserViewManagerDebugRoutes } from "../../browser-view/debug-snapshot";
 
-function buildSystemFrontMatter() {
+function buildSystemFrontMatter(taskDirPath: string) {
   const platform = os.platform();
   const osName =
     platform === "darwin"
@@ -35,6 +36,10 @@ function buildSystemFrontMatter() {
     locale: app.getLocale(),
     node: process.version,
     os: `${osName} ${os.release()} / ${os.arch()}`,
+    // Absolute path to the task's on-disk folder so an agent reading this
+    // transcript can inspect its artifacts (screenshots, output, task.db).
+    // Safe to expose unconditionally: this route is dev-only.
+    taskDir: taskDirPath,
   };
 }
 
@@ -65,7 +70,7 @@ const sessionMarkdown = devOnly
   )
   .output(z.object({ markdown: z.string() }))
   .handler(async ({ context, input, signal }) => {
-    const frontMatter = buildSystemFrontMatter();
+    const frontMatter = buildSystemFrontMatter(taskDir(input.id));
     return call(
       workspaceRouter.session.toMarkdown,
       { frontMatter, id: input.id, sessionId: input.sessionId },

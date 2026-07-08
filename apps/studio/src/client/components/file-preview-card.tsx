@@ -19,6 +19,10 @@ import {
 import { useRef, useState } from "react";
 
 import { useOpenTaskFile } from "../hooks/use-open-task-file";
+import {
+  usePrefetchTaskFileOpenTarget,
+  useTaskFileOpenTarget,
+} from "../hooks/use-task-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
@@ -154,6 +158,7 @@ function FileRowCard({
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
     fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
+  const prefetchOpenTarget = usePrefetchTaskFileOpenTarget();
 
   const row = (
     <div
@@ -164,6 +169,9 @@ function FileRowCard({
           : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
       )}
       onClick={onClick}
+      onMouseEnter={() => {
+        prefetchOpenTarget(file);
+      }}
     >
       <FileThumbnail
         file={file}
@@ -253,7 +261,7 @@ function ImagePreviewCard({
 
   const hasActions =
     !hideActionsMenu &&
-    (fileActions.showCopy || fileActions.showDownload || fileActions.showOpen);
+    (fileActions.showCopy || fileActions.showDownload || actions.showOpen);
 
   return (
     <MediaCardShell
@@ -291,7 +299,7 @@ function ImagePreviewCard({
                 }}
               />
             )}
-            {fileActions.showOpen && (
+            {actions.showOpen && (
               <MediaOverlayButton
                 icon={
                   <OpenTargetIcon className="size-3.5 shrink-0" file={file} />
@@ -365,6 +373,7 @@ function MissingMediaCard({
 
 function useFileActions(file: TaskFileViewerFile) {
   const openTaskFile = useOpenTaskFile();
+  const { appName, isPending } = useTaskFileOpenTarget(file);
 
   return {
     download: async () => {
@@ -373,6 +382,9 @@ function useFileActions(file: TaskFileViewerFile) {
     open: () => {
       openTaskFile(file);
     },
+    // Offer open while resolving and once an app is known; hide it only when
+    // the type has no associated app.
+    showOpen: isPending || appName != null,
   };
 }
 
@@ -410,7 +422,7 @@ function VideoPreviewCard({
   const actions = useFileActions(file);
 
   const hasActions =
-    !hideActionsMenu && (fileActions.showDownload || fileActions.showOpen);
+    !hideActionsMenu && (fileActions.showDownload || actions.showOpen);
 
   const displayTime =
     isPlaying && timeRemaining !== null ? timeRemaining : videoDuration;
@@ -452,7 +464,7 @@ function VideoPreviewCard({
                 }}
               />
             )}
-            {fileActions.showOpen && (
+            {actions.showOpen && (
               <MediaOverlayButton
                 icon={
                   <OpenTargetIcon className="size-3.5 shrink-0" file={file} />

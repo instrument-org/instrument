@@ -15,9 +15,10 @@ import { toast } from "sonner";
 import { useOpenTaskFile } from "../hooks/use-open-task-file";
 import { useTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
-import { getRevealInFolderLabel } from "../lib/utils";
+import { getRevealInFolderLabel, isMacOS } from "../lib/utils";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { OpenTargetIcon } from "./open-target-icon";
+import { OpenWithMenu } from "./open-with-menu";
 import { Button, type ButtonVariant } from "./ui/button";
 import {
   DropdownMenu,
@@ -80,7 +81,13 @@ export function FileActionsMenuItems({
   const { Item, Separator } = menuComponents;
   const fileActions = useFileActionVisibility(file);
   const openTaskFile = useOpenTaskFile();
-  const { openLabel } = useTaskFileOpenTarget(file);
+  const { appName, isPending, openLabel } = useTaskFileOpenTarget(file);
+
+  // Show "Open" while resolving (usually instant from cache) and once an app is
+  // known; hide it only when the type resolves to no associated app, so we
+  // never surface an action that would just fail.
+  const showOpen = isPending || appName != null;
+  const showOpenWith = appName != null && isMacOS();
 
   const showTaskFileInFolderMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
@@ -129,7 +136,7 @@ export function FileActionsMenuItems({
 
   return (
     <>
-      {fileActions.showOpen && (
+      {showOpen && (
         <>
           <Item
             onClick={() => {
@@ -139,6 +146,9 @@ export function FileActionsMenuItems({
             <OpenTargetIcon className="size-4" file={file} />
             <span>{openLabel}</span>
           </Item>
+          {showOpenWith && (
+            <OpenWithMenu file={file} menuComponents={menuComponents} />
+          )}
           {(onAddToChat != null || hasFileActions) && <Separator />}
         </>
       )}

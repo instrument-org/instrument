@@ -1,9 +1,13 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useTaskFileOpenTarget } from "@/client/hooks/use-task-file-open-target";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { cn } from "@/client/lib/utils";
 
-// Icon of the default app for the file (file-type icon where the platform
-// can't resolve the app), with a generic open icon as fallback.
+import { FileIcon } from "./file-icon";
+
+// Icon of the default app for the file. While the app is still resolving it
+// renders an invisible box of the same size (so it appears only once ready,
+// with no jarring placeholder), and falls back to the file-type icon when the
+// platform can't resolve an app.
 export function OpenTargetIcon({
   className,
   file,
@@ -11,13 +15,18 @@ export function OpenTargetIcon({
   className?: string;
   file: Pick<TaskFileViewerFile, "filePath" | "taskId">;
 }) {
-  const { iconDataUrl } = useTaskFileOpenTarget(file);
+  const { iconDataUrl, isPending } = useTaskFileOpenTarget(file);
 
-  if (!iconDataUrl) {
-    return <ArrowSquareOutIcon className={className} />;
+  if (iconDataUrl) {
+    return (
+      <img alt="" className={className} draggable={false} src={iconDataUrl} />
+    );
   }
 
-  return (
-    <img alt="" className={className} draggable={false} src={iconDataUrl} />
-  );
+  if (isPending) {
+    return <span aria-hidden className={cn("inline-block", className)} />;
+  }
+
+  const filename = file.filePath.split("/").pop() ?? file.filePath;
+  return <FileIcon className={className} filename={filename} />;
 }

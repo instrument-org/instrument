@@ -6,7 +6,10 @@ import type {
 
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
-import { getFileOpenTarget } from "@/electron-main/lib/file-open-target";
+import {
+  getFileOpenCandidates,
+  getFileOpenTarget,
+} from "@/electron-main/lib/file-open-target";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
   clearServerExceptions,
@@ -39,7 +42,7 @@ import {
 import { call, eventIterator } from "@orpc/server";
 import { app, clipboard, dialog, nativeImage, shell } from "electron";
 import { isBinaryFile } from "isbinaryfile";
-import { exec } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -53,6 +56,7 @@ interface EditorConfig {
 }
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const EDITORS_BY_PLATFORM: Record<string, EditorConfig[]> = {
   darwin: [
@@ -303,11 +307,65 @@ const openTaskFile = base
       throw errors.FILE_NOT_FOUND();
     }
 
-    // openPath resolves with "" on success and an error string on failure.
+    // openPath resolves with "" on success and an error string on failure
+    // (e.g. no app is associated with the type). That's an expected
+    // user-environment outcome, not an app bug, so it's surfaced to the client
+    // as a typed error and skipped by the RPC exception capture.
     const errorMessage = await shell.openPath(fullPath);
     if (errorMessage) {
-      captureServerException(errorMessage);
       throw errors.ERROR_OPENING_FILE({ message: errorMessage });
+    }
+  });
+
+const openTaskFileWith = base
+  .errors({
+    ERROR_OPENING_FILE: {
+      message: "Error opening file",
+    },
+    FILE_NOT_FOUND: {
+      message: "File not found",
+    },
+    INVALID_PATH: {
+      message: "Invalid file path",
+    },
+    UNSUPPORTED_PLATFORM: {
+      message: "Choosing an app is only supported on macOS",
+    },
+  })
+  .input(
+    z.object({
+      appPath: z.string().refine((val) => path.isAbsolute(val)),
+      filePath: RelativeTaskPathSchema,
+      id: TaskIdSchema,
+    }),
+  )
+  .handler(async ({ errors, input }) => {
+    if (os.platform() !== "darwin") {
+      throw errors.UNSUPPORTED_PLATFORM();
+    }
+
+    const fullPath = resolvePathWithinTaskDir({
+      dir: taskDir(input.id),
+      filePath: input.filePath,
+    });
+    if (!fullPath) {
+      throw errors.INVALID_PATH();
+    }
+
+    try {
+      await fs.access(fullPath);
+    } catch {
+      throw errors.FILE_NOT_FOUND();
+    }
+
+    try {
+      // execFile (not a shell) so the app path and file path can't be
+      // interpreted as shell syntax.
+      await execFileAsync("open", ["-a", input.appPath, fullPath]);
+    } catch (error) {
+      throw errors.ERROR_OPENING_FILE({
+        message: error instanceof Error ? error.message : undefined,
+      });
     }
   });
 
@@ -335,6 +393,37 @@ const getTaskFileOpenTarget = base
       return { appName: null, iconDataUrl: null };
     }
     return await getFileOpenTarget(fullPath);
+  });
+
+// Every app that can open the file (default first), for an "Open with" picker.
+// Empty on non-macOS platforms, which lack a portable enumeration.
+const getTaskFileOpenCandidates = base
+  .input(
+    z.object({
+      filePath: RelativeTaskPathSchema,
+      id: TaskIdSchema,
+    }),
+  )
+  .output(
+    z.object({
+      apps: z.array(
+        z.object({
+          appName: z.string(),
+          appPath: z.string(),
+          iconDataUrl: z.string().nullable(),
+        }),
+      ),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const fullPath = resolvePathWithinTaskDir({
+      dir: taskDir(input.id),
+      filePath: input.filePath,
+    });
+    if (!fullPath) {
+      return { apps: [] };
+    }
+    return { apps: await getFileOpenCandidates(fullPath) };
   });
 
 const showFileInFolder = base
@@ -626,12 +715,14 @@ export const utils = {
   copyTaskPathToClipboard,
   exportZip,
   getSupportedEditors,
+  getTaskFileOpenCandidates,
   getTaskFileOpenTarget,
   live,
   minimizeWindow,
   openExternalLink,
   openFolder,
   openTaskFile,
+  openTaskFileWith,
   openTaskIn,
   showFileInFolder,
   showFolderPicker,

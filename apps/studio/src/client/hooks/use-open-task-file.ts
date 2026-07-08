@@ -22,3 +22,27 @@ export function useOpenTaskFile() {
     });
   };
 }
+
+// Opens a task file with a specific chosen application ("Open with").
+export function useOpenTaskFileWith() {
+  const openTaskFileWithMutation = useMutation(
+    rpcClient.utils.openTaskFileWith.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to open file", {
+          description: error.message,
+        });
+      },
+    }),
+  );
+
+  return (
+    file: Pick<TaskFileViewerFile, "filePath" | "taskId">,
+    appPath: string,
+  ) => {
+    openTaskFileWithMutation.mutate({
+      appPath,
+      filePath: file.filePath,
+      id: file.taskId,
+    });
+  };
+}

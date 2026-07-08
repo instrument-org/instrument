@@ -29,12 +29,23 @@ function isHandledNotFound(error: unknown): boolean {
   return error instanceof ORPCError && error.code === "NOT_FOUND";
 }
 
+// Opening a file can fail for user-environment reasons (no app associated with
+// the type, app removed) rather than an app bug. Like NOT_FOUND we still
+// rethrow so the UI can toast, but skip the exception capture to avoid noise.
+function isHandledOpenError(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === "ERROR_OPENING_FILE";
+}
+
 // Offline / unreachable-server failures (fetch failed, connection timeouts, DNS
 // errors) reflect the user's network rather than an app bug. Like NOT_FOUND we
 // still rethrow them to the client so the UI can show a retry, but skip the
 // exception capture so telemetry isn't flooded with non-actionable noise.
 function shouldSkipCapture(error: unknown): boolean {
-  return isHandledNotFound(error) || isExpectedNetworkError(error);
+  return (
+    isHandledNotFound(error) ||
+    isHandledOpenError(error) ||
+    isExpectedNetworkError(error)
+  );
 }
 
 const handler = new RPCHandler<InitialRPCContext>(router, {

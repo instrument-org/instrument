@@ -6,7 +6,7 @@ export const Route = createFileRoute("/_app/_authenticated")({
   beforeLoad: async () => {
     const { data: hasToken } = await safe(rpcClient.auth.hasToken.call());
     if (!hasToken) {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      // oxlint-disable-next-line typescript/only-throw-error
       throw redirect({ to: "/" });
     }
   },

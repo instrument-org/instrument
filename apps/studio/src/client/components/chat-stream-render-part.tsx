@@ -222,7 +222,7 @@ export function renderChatPart({
   }
 
   // Still checking condition just in case schema and type mismatch
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  // oxlint-disable-next-line typescript/no-unnecessary-condition
   if (part.type === "file") {
     // eslint-disable-next-line no-console
     console.warn("File part not supported yet", part);

@@ -50,7 +50,7 @@ export const Route = createFileRoute("/_app/projects/$id/")({
       rpcClient.workspace.project.byId.call({ id: params.id }),
     );
     if (error && isDefined && error.code === "NOT_FOUND") {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      // oxlint-disable-next-line typescript/only-throw-error
       throw redirect({ replace: true, to: "/new-tab" });
     }
     // Allow route to load on transient/workspace-not-ready errors

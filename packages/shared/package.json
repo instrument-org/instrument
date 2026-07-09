@@ -19,9 +19,9 @@
     "./shim": "./src/shim.ts"
   },
   "scripts": {
-    "check:lint": "eslint . --max-warnings 0",
+    "check:lint": "eslint . --max-warnings 0 && oxlint --type-aware",
     "check:types": "tsgo --noEmit",
-    "fix:lint": "eslint . --max-warnings 0 --fix",
+    "fix:lint": "eslint . --max-warnings 0 --fix && oxlint --type-aware --fix",
     "turbo:check": "turbo run check:types check:lint"
   },
   "dependencies": {

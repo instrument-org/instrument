@@ -2,10 +2,7 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/client";
-import {
-  type AIProviderConfigId,
-  OUR_PROVIDER_CONFIG,
-} from "@instrument-org/shared";
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 import {
   type SessionMessage,
   type SessionMessagePart,
@@ -150,7 +147,7 @@ export function createDefaultAIGatewayModel(): AIGatewayModel.Type {
     name: "Claude 3.5 Sonnet",
     params: {
       provider: OUR_PROVIDER_CONFIG.type,
-      providerConfigId: OUR_PROVIDER_CONFIG.id as AIProviderConfigId,
+      providerConfigId: OUR_PROVIDER_CONFIG.id,
     },
     providerId: "anthropic-sonnet-4.5" as AIGatewayModel.ProviderId,
     providerName: "Anthropic",

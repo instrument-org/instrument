@@ -1,0 +1,143 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true
+  },
+  "categories": {
+    "correctness": "off"
+  },
+  "ignorePatterns": [
+    "**/node_modules",
+    "**/dist",
+    "**/out",
+    "**/coverage",
+    "**/.vite",
+    "**/.tmp",
+    "**/.turbo",
+    "**/fixtures",
+    "**/templates",
+    "registry",
+    "**/*.snap",
+    "**/*.gen.ts",
+    "**/routeTree.gen.ts",
+    ".claude/worktrees",
+    "**/bin",
+    "**/tailwind-browser.js"
+  ],
+  "rules": {
+    "typescript/await-thenable": ["error"],
+    "typescript/consistent-type-exports": ["error"],
+    "typescript/dot-notation": [
+      "error",
+      {
+        "allowIndexSignaturePropertyAccess": false,
+        "allowKeywords": true,
+        "allowPattern": "",
+        "allowPrivateClassPropertyAccess": false,
+        "allowProtectedClassPropertyAccess": false
+      }
+    ],
+    "typescript/no-array-delete": ["error"],
+    "typescript/no-base-to-string": ["error"],
+    "typescript/no-confusing-void-expression": ["error"],
+    "typescript/no-duplicate-type-constituents": ["error"],
+    "typescript/no-floating-promises": ["error"],
+    "typescript/no-for-in-array": ["error"],
+    "typescript/no-implied-eval": ["error"],
+    "typescript/no-meaningless-void-operator": ["error"],
+    "typescript/no-misused-promises": [
+      "error",
+      {
+        "checksVoidReturn": {
+          "arguments": true,
+          "attributes": false
+        }
+      }
+    ],
+    "typescript/no-misused-spread": ["error"],
+    "typescript/no-mixed-enums": ["error"],
+    "typescript/no-redundant-type-constituents": ["error"],
+    "typescript/no-unnecessary-boolean-literal-compare": ["error"],
+    "typescript/no-unnecessary-condition": [
+      "error",
+      {
+        "allowConstantLoopConditions": true
+      }
+    ],
+    "typescript/no-unnecessary-template-expression": ["error"],
+    "typescript/no-unnecessary-type-arguments": ["error"],
+    "typescript/no-unnecessary-type-assertion": ["error"],
+    "typescript/no-unnecessary-type-conversion": ["error"],
+    "typescript/no-unnecessary-type-parameters": ["error"],
+    "typescript/no-unsafe-argument": ["error"],
+    "typescript/no-unsafe-assignment": ["error"],
+    "typescript/no-unsafe-call": ["error"],
+    "typescript/no-unsafe-enum-comparison": ["error"],
+    "typescript/no-unsafe-member-access": ["error"],
+    "typescript/no-unsafe-return": ["error"],
+    "typescript/no-unsafe-unary-minus": ["error"],
+    "typescript/non-nullable-type-assertion-style": ["error"],
+    "typescript/only-throw-error": ["error"],
+    "typescript/prefer-find": ["error"],
+    "typescript/prefer-includes": ["error"],
+    "typescript/prefer-nullish-coalescing": [
+      "error",
+      {
+        "ignorePrimitives": true
+      }
+    ],
+    "typescript/prefer-optional-chain": ["error"],
+    "typescript/prefer-promise-reject-errors": ["error"],
+    "typescript/prefer-reduce-type-parameter": ["error"],
+    "typescript/prefer-regexp-exec": ["error"],
+    "typescript/prefer-return-this-type": ["error"],
+    "typescript/prefer-string-starts-ends-with": ["error"],
+    "typescript/related-getter-setter-pairs": ["error"],
+    "typescript/require-await": ["error"],
+    "typescript/restrict-plus-operands": [
+      "error",
+      {
+        "allowAny": false,
+        "allowBoolean": false,
+        "allowNullish": false,
+        "allowNumberAndString": false,
+        "allowRegExp": false
+      }
+    ],
+    "typescript/restrict-template-expressions": [
+      "error",
+      {
+        "allow": [
+          {
+            "from": "lib",
+            "name": ["Error", "URL", "URLSearchParams"]
+          }
+        ],
+        "allowAny": false,
+        "allowBoolean": false,
+        "allowNever": false,
+        "allowNullish": false,
+        "allowNumber": true,
+        "allowRegExp": false
+      }
+    ],
+    "typescript/return-await": ["error", "error-handling-correctness-only"],
+    "typescript/unbound-method": ["error"],
+    "typescript/use-unknown-in-catch-callback-variable": ["error"]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.*"],
+      "rules": {
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off"
+      }
+    },
+    {
+      "files": ["**/machines/session.test.ts"],
+      "rules": {
+        "typescript/no-unnecessary-type-assertion": "off"
+      }
+    }
+  ]
+}

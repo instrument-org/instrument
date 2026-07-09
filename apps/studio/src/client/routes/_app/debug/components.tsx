@@ -50,7 +50,7 @@ function RouteComponent() {
   const defaultSessionId = presetSessions[0]?.id;
   const activeSessionId = search.session ?? defaultSessionId;
   const isChatStreamRoute =
-    chatStreamPage !== undefined && pathname === chatStreamPage.to;
+    pathname === chatStreamPage?.to;
   const isOnboardingRoute =
     onboardingPage !== undefined &&
     pathname.startsWith(onboardingPage.to + "/");

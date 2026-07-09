@@ -48,7 +48,7 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
       }
       case "output-available": {
         // Tool outputs are intentionally generic in this snapshot serializer.
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        // oxlint-disable-next-line typescript/no-unsafe-assignment
         const output =
           part.type === "tool-generate_image" && part.output.state === "success"
             ? {
@@ -60,7 +60,7 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         content += `\n${indent("<output>")}\n${indent(
           JSON.stringify(
             output,
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            // oxlint-disable-next-line typescript/no-unsafe-return
             (key, value) => (key === "modifiedAt" ? undefined : value),
             2,
           ),

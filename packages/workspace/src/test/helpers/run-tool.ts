@@ -25,7 +25,7 @@ export async function runTool<T extends AnyAgentTool>(
     partId: StoreId.newPartId(),
     sessionId: StoreId.newSessionId(),
     ...options,
-  } as ExecuteOptions<T>);
+  });
 
   if (isAsyncIterable(result)) {
     let lastOutput: Result<unknown, ExecuteError> | undefined;

@@ -245,7 +245,7 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
     // Look for the matching last line after this first line
     for (let j = i + 2; j < originalLines.length; j++) {
       const lastLine = originalLines[j];
-      if (lastLine && lastLine.trim() === lastLineSearch) {
+      if (lastLine?.trim() === lastLineSearch) {
         candidates.push({ endLine: j, startLine: i });
         break; // Only match the first occurrence of the last line
       }
@@ -591,7 +591,7 @@ const ContextAwareReplacer: Replacer = function* (content, find) {
     // Look for the matching last line
     for (let j = i + 2; j < contentLines.length; j++) {
       const endLine = contentLines[j];
-      if (endLine && endLine.trim() === lastLine) {
+      if (endLine?.trim() === lastLine) {
         // Found a potential context block
         const blockLines = contentLines.slice(i, j + 1);
         const block = blockLines.join("\n");

@@ -6,7 +6,6 @@ import vitest from "@vitest/eslint-plugin";
 import eslintConfigPrettier from "eslint-config-prettier";
 import { importX } from "eslint-plugin-import-x";
 import jsonc from "eslint-plugin-jsonc";
-import markdown from "eslint-plugin-markdown";
 import n from "eslint-plugin-n";
 import "eslint-plugin-only-warn";
 import packageJson from "eslint-plugin-package-json/configs/recommended";
@@ -36,7 +35,6 @@ export default tseslint.config(
   },
   eslint.configs.recommended,
   ...jsonc.configs["flat/recommended-with-json"],
-  markdown.configs.recommended,
   ...yml.configs["flat/recommended"],
   ...yml.configs["flat/prettier"],
   comments.recommended,
@@ -48,43 +46,31 @@ export default tseslint.config(
   importX.flatConfigs.recommended,
   importX.flatConfigs.typescript,
   {
-    extends: [
-      tseslint.configs.strictTypeChecked,
-      tseslint.configs.stylisticTypeChecked,
-    ],
+    // Type-aware rules run via oxlint (`oxlint --type-aware`, see .oxlintrc.json),
+    // which uses typescript-go for near-native speed. ESLint keeps only the
+    // syntactic rules, so it no longer builds a TypeScript program.
+    extends: [tseslint.configs.strict, tseslint.configs.stylistic],
     files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        // Pin the parser's root dir. Accessing `tseslint.configs.*` registers each
+        // loaded eslint.config.ts's directory as a candidate root; when one ESLint
+        // server loads several package configs (the editor across the monorepo),
+        // the parser sees multiple candidates and throws unless a root is set. No
+        // typed linting runs here (type-aware rules live in oxlint), so the exact
+        // value is irrelevant -- it only needs to be a stable string.
         tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
-      "@typescript-eslint/consistent-type-exports": "error",
       "@typescript-eslint/consistent-type-imports": [
         "error",
         // Required or it can create invalid code
         { fixStyle: "inline-type-imports" },
       ],
-      "@typescript-eslint/no-deprecated": ERROR_IN_CI, // Too slow to run live
-      // "@typescript-eslint/no-invalid-void-type": "off", // Disabled until generics work https://github.com/typescript-eslint/typescript-eslint/issues/8113
-      "@typescript-eslint/no-misused-promises": [
-        "error",
-        {
-          checksVoidReturn: {
-            arguments: true,
-            attributes: false,
-          },
-        },
-      ],
       "@typescript-eslint/no-namespace": "off", // We use namespaces for organization
       "@typescript-eslint/no-redeclare": "error",
       "@typescript-eslint/no-shadow": "error",
-      "@typescript-eslint/no-unnecessary-condition": [
-        "error",
-        { allowConstantLoopConditions: true },
-      ],
-      "@typescript-eslint/no-unnecessary-template-expression": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -103,27 +89,6 @@ export default tseslint.config(
           ignoreTypeReferences: true,
           typedefs: true,
           variables: true,
-        },
-      ],
-      "@typescript-eslint/prefer-nullish-coalescing": [
-        "error",
-        { ignorePrimitives: true },
-      ],
-      "@typescript-eslint/restrict-template-expressions": [
-        "error",
-        {
-          allow: [
-            {
-              from: "lib",
-              name: ["Error", "URL", "URLSearchParams"],
-            },
-          ],
-          allowAny: false,
-          allowBoolean: false,
-          allowNever: false,
-          allowNullish: false,
-          allowNumber: true,
-          allowRegExp: false,
         },
       ],
       // --------
@@ -206,10 +171,6 @@ export default tseslint.config(
     },
   },
   {
-    extends: [tseslint.configs.disableTypeChecked],
-    files: ["**/*.md/*.ts"],
-  },
-  {
     files: ["**/*.test.*"],
     languageOptions: {
       globals: vitest.environments.env.globals,
@@ -217,9 +178,6 @@ export default tseslint.config(
     plugins: { vitest },
     rules: {
       ...vitest.configs.recommended.rules,
-      // These on-by-default rules aren't useful in test files.
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unsafe-call": "off",
       "unicorn/consistent-function-scoping": "off", // Don't care in tests
       "vitest/no-focused-tests": "error",
     },
@@ -262,6 +220,8 @@ export default tseslint.config(
       "no-console": "off",
     },
   },
+  // Disables ESLint rules that impose formatting (e.g. unicorn/template-indent),
+  // which would otherwise conflict with the formatter (oxfmt).
   eslintConfigPrettier,
 );
 

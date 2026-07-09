@@ -165,7 +165,7 @@ describe("attachDownloadHandler", () => {
     attachDownloadHandler({ entries, session, targetId: TARGET_ID });
 
     vi.spyOn(crypto, "randomUUID").mockReturnValue(
-      "00000000-0000-0000-0000-000000000001" as `${string}-${string}-${string}-${string}-${string}`,
+      "00000000-0000-0000-0000-000000000001",
     );
 
     const item = makeFakeItem();

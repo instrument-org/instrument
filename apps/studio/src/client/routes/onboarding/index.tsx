@@ -9,7 +9,7 @@ import { useState } from "react";
 export const Route = createFileRoute("/onboarding/")({
   beforeLoad: ({ context: { hasProviders, hasToken } }) => {
     if (hasToken || hasProviders) {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      // oxlint-disable-next-line typescript/only-throw-error
       throw redirect({ to: "/onboarding/theme" });
     }
   },

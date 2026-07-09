@@ -84,10 +84,7 @@ export const captureServerException: CaptureExceptionFunction = function (
           error.cause instanceof Error
             ? error.cause.message
             : JSON.stringify(error.cause);
-        console.groupCollapsed(
-          "%c▶︎ Cause: " + causeMessage,
-          "color: #f44336",
-        );
+        console.groupCollapsed("%c▶︎ Cause: " + causeMessage, "color: #f44336");
         logger.error(error.cause);
         console.groupEnd();
       }

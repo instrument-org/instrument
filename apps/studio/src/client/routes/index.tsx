@@ -6,7 +6,7 @@ export const Route = createFileRoute("/")({
     // router, so only the onboarding window reaches here.
     const to =
       window.api.windowType === "onboarding" ? "/onboarding" : "/new-tab";
-    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    // oxlint-disable-next-line typescript/only-throw-error
     throw redirect({ to });
   },
   component: RouteComponent,

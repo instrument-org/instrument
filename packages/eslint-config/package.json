@@ -7,29 +7,25 @@
   "exports": {
     "./base": "./base.ts",
     "./format": "./format.ts",
-    "./react": "./react.ts",
-    "./react-with-tailwind": "./react-with-tailwind.ts"
+    "./react": "./react.ts"
   },
   "scripts": {
-    "check:lint": "eslint . --max-warnings 0",
+    "check:lint": "eslint . --max-warnings 0 && oxlint --type-aware",
     "check:types": "tsgo --noEmit",
-    "fix:lint": "eslint . --max-warnings 0 --fix"
+    "fix:lint": "eslint . --max-warnings 0 --fix && oxlint --type-aware --fix"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
     "@eslint/js": "^9.32.0",
     "@instrument-org/typescript-config": "workspace:*",
-    "@types/eslint-plugin-markdown": "^2.0.2",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
     "@vitest/eslint-plugin": "^1.3.4",
     "eslint": "^9.31.0",
     "eslint-config-prettier": "^10.1.7",
     "eslint-import-resolver-typescript": "^4.4.4",
-    "eslint-plugin-better-tailwindcss": "^4.1.1",
     "eslint-plugin-import-x": "^4.16.1",
     "eslint-plugin-jsonc": "^2.20.1",
-    "eslint-plugin-markdown": "^5.1.0",
     "eslint-plugin-n": "^17.21.3",
     "eslint-plugin-only-warn": "^1.1.0",
     "eslint-plugin-package-json": "^0.18.0",

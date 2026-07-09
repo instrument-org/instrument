@@ -54,7 +54,7 @@ pnpm monorepo for the Instrument desktop app platform.
 - Avoid interfaces for component props; use inline types.
 - Avoid `useEffect` when logic can be declarative.
 - React Compiler is set up for Studio; basic `memo`, `useMemo`, and `useCallback` are unnecessary.
-- Ignore "Incorrect class order" errors from eslint-plugin-better-tailwindcss. They are auto-fixed and do not need manual correction.
+- Ignore `tailwindcss/enforce-sort-order` warnings (oxlint-tailwindcss). They are auto-fixed and do not need manual correction.
 
 ## Monorepo checks (Turbo)
 
@@ -69,6 +69,13 @@ that invoke turbo).
 - `pnpm check-and-test` — full local check (includes spelling, format, etc.)
 - `pnpm check-and-test:ci` — what CI runs (omits pedantic checks that don't affect correctness)
 - `pnpm turbo:fix:lint` — fix lint
+
+`check:lint` / `fix:lint` run **both** ESLint and `oxlint --type-aware`. ESLint
+handles syntactic rules (perfectionist, react-compiler, regexp, yml/jsonc, turbo);
+oxlint handles all TypeScript type-aware rules (via tsgolint, see `.oxlintrc.json`)
+and Tailwind class rules (oxlint-tailwindcss, per-package `.oxlintrc.json`). ESLint
+no longer builds a TypeScript program, so it is fast. There is no typed linting in
+the ESLint config.
 
 Single test file: `cd packages/<name> && pnpm test run <file>` or
 `cd apps/studio && pnpm test run <file>`.

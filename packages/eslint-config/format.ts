@@ -1,6 +1,5 @@
 import comments from "@eslint-community/eslint-plugin-eslint-comments/configs";
 import eslint from "@eslint/js";
-import eslintPluginBetterTailwindcss from "eslint-plugin-better-tailwindcss";
 import { importX } from "eslint-plugin-import-x";
 import n from "eslint-plugin-n";
 import "eslint-plugin-only-warn";
@@ -28,7 +27,6 @@ const config: ReturnType<typeof tseslint.config> = tseslint.config(
   importX.flatConfigs.recommended,
   importX.flatConfigs.typescript,
   reactPlugin.configs.flat.recommended ?? {},
-  eslintPluginBetterTailwindcss.configs.recommended,
   {
     files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
@@ -49,9 +47,6 @@ const config: ReturnType<typeof tseslint.config> = tseslint.config(
         "error",
         { fixStyle: "inline-type-imports" },
       ],
-      "better-tailwindcss/enforce-canonical-classes": "off",
-      "better-tailwindcss/enforce-consistent-line-wrapping": "off",
-      "better-tailwindcss/no-unknown-classes": "off",
       "import-x/default": "off",
       "import-x/named": "off",
       "import-x/namespace": "off",
@@ -72,9 +67,6 @@ const config: ReturnType<typeof tseslint.config> = tseslint.config(
       "react/prop-types": "off",
     },
     settings: {
-      "better-tailwindcss": {
-        entryPoint: "./src/client/styles/globals.css",
-      },
       react: { version: "19.2" },
     },
   },

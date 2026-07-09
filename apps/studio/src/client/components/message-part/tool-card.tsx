@@ -96,7 +96,7 @@ export function ToolCardSection({
     <div className={cn("relative", borderBottom && "border-b border-border")}>
       <div
         className={cn(
-          "overflow-auto px-4 py-3 scrollbar-color scrollbar-thin",
+          "scrollbar-thin scrollbar-color overflow-auto px-4 py-3",
           maxHeight,
         )}
       >

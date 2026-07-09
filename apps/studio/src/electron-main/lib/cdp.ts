@@ -24,6 +24,6 @@ export async function sendCdpCommand<M extends Method>(
 ): Promise<Return<M>> {
   // Electron's debugger.sendCommand types params as `any` and returns `any`.
   // The mapping above is the source of truth; cast at the boundary only.
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  // oxlint-disable-next-line typescript/no-unsafe-return
   return await wc.debugger.sendCommand(method, args[0]);
 }

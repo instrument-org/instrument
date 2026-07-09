@@ -67,7 +67,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 
     if (sessionError) {
       if (isDefined && sessionError.code === "NOT_FOUND") {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        // oxlint-disable-next-line typescript/only-throw-error
         throw notFound();
       }
       // Allow route to load if not defined or not a NOT_FOUND error
@@ -102,7 +102,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
     const newestSession = sessions.at(-1);
 
     if (needsSessionDefault && newestSession) {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      // oxlint-disable-next-line typescript/only-throw-error
       throw redirect({
         params: { id: params.id },
         // Replace, not push: otherwise the sessionless entry stays in history

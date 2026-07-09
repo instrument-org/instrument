@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_app/debug/components/provider-icons")({
 
 const providers: AIProviderType[] = [
   ...AIProviderTypeSchema.options,
-  OUR_MODELS.providerType as AIProviderType,
+  OUR_MODELS.providerType,
 ];
 
 const SIZES = ["size-4", "size-5", "size-6", "size-8"] as const;

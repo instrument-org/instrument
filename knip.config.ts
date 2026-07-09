@@ -1,6 +1,11 @@
 import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
+  // Namespace members are exported for organization (see AGENTS.md), not always
+  // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
+  rules: {
+    namespaceMembers: "off",
+  },
   ignore: [
     "registry/**/*",
     ".agents/**/*",
@@ -10,10 +15,11 @@ const config: KnipConfig = {
   workspaces: {
     ".": {
       entry: ["scripts/*.ts"],
+      ignoreBinaries: ["actionlint", "electron"],
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands
         "@posthog/cli", // Used in .github/workflows/release.yml to upload source maps to PostHog
-        "tailwindcss", // Required because tailwindcss is loaded in root by Knip because of eslint-plugin-better-tailwindcss
+        "tailwindcss", // Runtime dependency of oxlint-tailwindcss
         "markdownlint", // markdownlint used by VSCode Extension for the markdownlint/style/prettier
         "chrome-devtools-mcp", // Used in .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh
       ],
@@ -38,7 +44,7 @@ const config: KnipConfig = {
         "validate-env.ts",
       ],
       ignore: ["fixtures/**/*", "templates/**/*", "__mocks__/**/*"],
-      ignoreBinaries: ["tail", "op"],
+      ignoreBinaries: ["tail", "op", "gh", "powershell.exe", "which", "xdg-open"],
       ignoreDependencies: [
         "@derhuerst/ffprobe-static", // Imported in Vite build to fix import issues
         "ffmpeg-static", // Imported in Vite build to fix import issues
@@ -66,7 +72,7 @@ const config: KnipConfig = {
     "packages/workspace": {
       entry: ["__mocks__/*"],
       ignore: ["fixtures/**/*"],
-      ignoreBinaries: ["which"],
+      ignoreBinaries: ["which", "ldd"],
     },
   },
 };

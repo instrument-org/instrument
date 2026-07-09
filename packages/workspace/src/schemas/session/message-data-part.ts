@@ -11,6 +11,7 @@ export namespace SessionMessageDataPart {
     "browserStatus",
     "externalFileChanges",
     "fileChanges",
+    "maxSteps",
     "projectChanges",
     "projectContext",
   ]);
@@ -134,6 +135,17 @@ export namespace SessionMessageDataPart {
     typeof BrowserStatusDataPartSchema
   >;
 
+  // Attached to the synthetic assistant message written when a run stops after
+  // reaching the max unattended step count. Hidden from the chat UI (the
+  // "Resume the agent" alert is the visible affordance); surfaced to the model
+  // as a system note on the next user turn so it knows the prior run was cut
+  // off at the cap rather than finished.
+  const MaxStepsDataPartSchema = z.object({
+    maxStepCount: z.number(),
+  });
+
+  export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.attachedFolderChanges]:
@@ -142,6 +154,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
+    [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
   });

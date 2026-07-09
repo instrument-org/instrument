@@ -10,6 +10,7 @@ import { AttachedFolderChangesDebugCard } from "./attached-folder-changes-debug-
 import { BrowserStatusDebugCard } from "./browser-status-debug-card";
 import { ExternalFileChangesDebugCard } from "./external-file-changes-debug-card";
 import { FileChangesCard } from "./file-changes-card";
+import { MaxStepsDebugCard } from "./max-steps-debug-card";
 import { type RenderStream } from "./message-part/tool-agent";
 import { ToolCall } from "./message-part/tool-call";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
@@ -105,6 +106,19 @@ export function renderChatPart({
 
   if (part.type === "data-attachments") {
     return null;
+  }
+
+  if (part.type === "data-maxSteps") {
+    if (!ctx.isDeveloperMode) {
+      return null;
+    }
+    return (
+      <MaxStepsDebugCard
+        className="mt-2"
+        data={part.data}
+        key={part.metadata.id}
+      />
+    );
   }
 
   if (part.type === "data-projectContext") {

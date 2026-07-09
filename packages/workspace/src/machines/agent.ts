@@ -137,17 +137,21 @@ export const agentMachine = setup({
             sessionId: input.sessionId,
             synthetic: true,
           },
+          // Hidden data part rather than assistant text: the "Resume the agent"
+          // alert is the visible affordance, and the model gets a system note on
+          // the next user turn (see `maxStepsModelNote`) instead of a line that
+          // reads as its own words. `finishReason: "max-steps"` still drives the
+          // UI resume prompt.
           parts: [
             {
+              data: { maxStepCount: input.maxStepCount },
               metadata: {
                 createdAt: now,
-                endedAt: now,
                 id: StoreId.newPartId(),
                 messageId,
                 sessionId: input.sessionId,
               },
-              text: `Agent stopped due to maximum steps (${input.maxStepCount}).`,
-              type: "text",
+              type: "data-maxSteps",
             },
           ],
           role: "assistant",

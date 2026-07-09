@@ -7,8 +7,7 @@
   "exports": {
     "./base": "./base.ts",
     "./format": "./format.ts",
-    "./react": "./react.ts",
-    "./react-with-tailwind": "./react-with-tailwind.ts"
+    "./react": "./react.ts"
   },
   "scripts": {
     "check:lint": "eslint . --max-warnings 0 && oxlint --type-aware",

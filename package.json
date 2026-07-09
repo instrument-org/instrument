@@ -58,7 +58,7 @@
     "cspell": "^8.19.4",
     "cspell-check-unused-words": "^1.5.4",
     "eslint": "^9.31.0",
-    "knip": "^5.75.2",
+    "knip": "6.23.0",
     "markdownlint": "^0.40.0",
     "markdownlint-cli2": "^0.21.0",
     "oxlint": "1.72.0",

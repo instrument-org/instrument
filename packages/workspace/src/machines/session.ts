@@ -305,7 +305,7 @@ export const sessionMachine = setup({
       agent: input.agent,
       baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
       llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
-      maxStepCount: input.maxStepCount ?? 50,
+      maxStepCount: input.maxStepCount ?? 200,
       model: input.model,
       parentRef: input.parentRef,
       parentSessionId: input.parentSessionId,

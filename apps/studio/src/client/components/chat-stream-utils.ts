@@ -4,6 +4,7 @@ import {
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
+import { dataPartVisibility, isDataPart } from "./chat-stream-data-parts";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
 import { isReasoningPartVisible } from "./reasoning-utils";
 
@@ -105,19 +106,16 @@ export function isVisibleAssistantPart({
     return isReasoningPartVisible(part);
   }
 
-  return (
-    part.type !== "step-start" &&
-    part.type !== "data-attachments" &&
-    part.type !== "data-projectContext" &&
-    part.type !== "data-browserStatus" &&
-    part.type !== "data-externalFileChanges" &&
-    part.type !== "source-document" &&
-    part.type !== "source-url" &&
-    part.type !== "file"
-  );
+  if (isDataPart(part)) {
+    return dataPartVisibility(part.type) === "always";
+  }
+
+  // Remaining parts (step-start, file, source-*) never count as visible content.
+  return false;
 }
 
-// Whether a part renders inline. Must mirror `renderChatPart`'s null cases.
+// Whether a part renders inline. Data parts derive from `dataPartVisibility`,
+// the same source `renderChatPart` uses, so the two stay consistent.
 function isRenderableInlinePart({
   hideUserMessages,
   isDeveloperMode,
@@ -141,19 +139,19 @@ function isRenderableInlinePart({
     return true;
   }
 
-  if (
-    part.type === "data-browserStatus" ||
-    part.type === "data-externalFileChanges"
-  ) {
+  if (isDataPart(part)) {
+    const visibility = dataPartVisibility(part.type);
+    if (visibility === "hidden") {
+      return false;
+    }
     // Developer-mode-only debug peek; otherwise hidden like attachments.
-    return isDeveloperMode;
+    if (visibility === "dev") {
+      return isDeveloperMode;
+    }
+    return true;
   }
 
-  if (
-    part.type === "step-start" ||
-    part.type === "data-attachments" ||
-    part.type === "data-projectContext"
-  ) {
+  if (part.type === "step-start") {
     return false;
   }
 
@@ -169,9 +167,6 @@ function isRenderableInlinePart({
     return isToolCallVisible({ isDeveloperMode, isStreaming, part });
   }
 
-  if (part.type === "reasoning") {
-    return isReasoningPartVisible(part);
-  }
-
-  return true;
+  // Only reasoning parts remain; visibility depends on their content.
+  return isReasoningPartVisible(part);
 }

@@ -249,7 +249,14 @@ export function createWorkspaceActor({
     void (async () => {
       isQuitHandling = true;
       try {
+        // Dev hot reload quits the app (SIGTERM -> before-quit) on every
+        // main-process rebuild. Skip the running-agents prompt in dev so a
+        // reload is never blocked waiting on a dialog nobody sees, which would
+        // strand the old instance while electron-vite launches a new one.
+        // Teardown below still runs to clean up agent-browser sessions and
+        // file watchers.
         if (
+          !is.dev &&
           !isQuitAlreadyConfirmed() &&
           !(await confirmQuitWithRunningAgents())
         ) {

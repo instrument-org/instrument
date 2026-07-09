@@ -1,5 +1,4 @@
 import { taskDraftFamily } from "@/client/atoms/prompt-value";
-import { DuplicateTaskModal } from "@/client/components/task/duplicate-modal";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskSidebarModeSchema } from "@/client/components/task/sidebar";
 import { TaskView } from "@/client/components/task/view";
@@ -32,7 +31,6 @@ import { z } from "zod";
 const taskSearchSchema = z.object({
   artifactPanel: artifactPanelSchema.optional(),
   selectedSessionId: StoreId.SessionSchema.optional(),
-  showDuplicate: z.boolean().optional(),
   showSettings: z.boolean().optional(),
   sidebar: TaskSidebarModeSchema.optional(),
 });
@@ -137,23 +135,9 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 
 function RouteComponent() {
   const { id } = Route.useParams();
-  const {
-    artifactPanel,
-    selectedSessionId,
-    showDuplicate,
-    showSettings,
-    sidebar,
-  } = Route.useSearch();
+  const { artifactPanel, selectedSessionId, showSettings, sidebar } =
+    Route.useSearch();
   const navigate = useNavigate();
-
-  const handleDuplicateDialogChange = (open: boolean) => {
-    void navigate({
-      from: "/tasks/$id/",
-      params: { id },
-      replace: true,
-      search: (prev) => ({ ...prev, showDuplicate: open || undefined }),
-    });
-  };
 
   const handleSettingsDialogChange = (open: boolean) => {
     void navigate({
@@ -245,14 +229,6 @@ function RouteComponent() {
         selectedSessionId={selectedSessionId}
         showTutorial={taskState.showTutorial}
         sidebar={sidebar ?? "chat"}
-        task={task}
-      />
-
-      <DuplicateTaskModal
-        isOpen={showDuplicate ?? false}
-        onClose={() => {
-          handleDuplicateDialogChange(false);
-        }}
         task={task}
       />
 

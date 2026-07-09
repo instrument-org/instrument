@@ -24,7 +24,6 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { TaskProjectMenuItem } from "../project/task-project-menu-item";
@@ -48,7 +47,6 @@ export function TaskActionsMenu({
   projectId: null | ProjectId | undefined;
   selectedSessionId?: StoreId.Session;
 }) {
-  const navigate = useNavigate();
   const isDeveloperMode = useDeveloperMode();
 
   const { data: pinnedTaskIds } = useQuery(
@@ -111,18 +109,6 @@ export function TaskActionsMenu({
         >
           <PushPinIcon className="text-muted-foreground" />
           <span>{isPinned ? "Unpin" : "Pin"}</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            void navigate({
-              from: "/tasks/$id/",
-              params: { id },
-              search: (prev) => ({ ...prev, showDuplicate: true }),
-            });
-          }}
-        >
-          <CopyIcon className="size-4" />
-          <span>Duplicate</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onSettingsClick}>
           <PencilSimpleLineIcon className="size-4" />

@@ -27,7 +27,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import {
   ArrowUpRightIcon,
-  CopyIcon,
   DotsThreeOutlineVerticalIcon,
   PushPinIcon,
 } from "@phosphor-icons/react";
@@ -81,19 +80,6 @@ export const NavTaskItem = memo(function NavTaskItem({
     const { Item, Separator } = menuComponents;
     return (
       <TaskMenuItems
-        duplicate={
-          <InternalLink
-            openInCurrentTab
-            params={{ id: task.id }}
-            search={{ showDuplicate: true }}
-            to="/tasks/$id"
-          >
-            <Item>
-              <CopyIcon className="text-muted-foreground" />
-              <span>Duplicate</span>
-            </Item>
-          </InternalLink>
-        }
         extras={
           <>
             <TaskProjectMenuItem

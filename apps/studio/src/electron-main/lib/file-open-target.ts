@@ -8,13 +8,13 @@ import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
 
-export interface FileOpenCandidate {
+interface FileOpenCandidate {
   appName: string;
   appPath: string;
   iconDataUrl: null | string;
 }
 
-export interface FileOpenTarget {
+interface FileOpenTarget {
   appName: null | string;
   iconDataUrl: null | string;
 }

@@ -1,7 +1,7 @@
 import { formatBytes } from "@instrument-org/workspace/client";
-import { XIcon } from "@phosphor-icons/react";
 
 import { AttachedItemPreview } from "./attached-item-preview";
+import { AttachmentRemoveButton } from "./attachment-remove-button";
 import { FileIcon } from "./file-icon";
 import { ImageWithFallback } from "./image-with-fallback";
 import { Badge } from "./ui/badge";
@@ -53,15 +53,7 @@ export function AttachedFilePreview({
                 src={url}
               />
             </Button>
-            {onRemove && (
-              <button
-                className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border border-border bg-background opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-muted"
-                onClick={onRemove}
-                type="button"
-              >
-                <XIcon className="size-3" />
-              </button>
-            )}
+            {onRemove && <AttachmentRemoveButton onRemove={onRemove} />}
           </div>
         </TooltipTrigger>
         <TooltipContent

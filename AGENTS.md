@@ -8,7 +8,7 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## Readability
 
-- Wrap long lines when it helps scan code, prompts, or docs. Not needed for Git commits.
+- When editing a file, wrap long lines to match the file's own wrapping and to break up comments or string/prompt literals too long to read. Leave prose you compose as output (not written into a file) as single lines.
 
 ## Product terminology
 

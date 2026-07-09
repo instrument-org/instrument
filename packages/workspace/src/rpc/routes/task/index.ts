@@ -4,9 +4,9 @@ import { call, eventIterator } from "@orpc/server";
 import { parallel } from "radashi";
 import { z } from "zod";
 
+import { branchTask } from "../../../lib/branch-task";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
-import { duplicateTask } from "../../../lib/duplicate-task";
 import { exportTaskZip } from "../../../lib/export-task-zip";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
 import { getTask, getTasks } from "../../../lib/get-tasks";
@@ -364,10 +364,17 @@ const createTutorial = base
     };
   });
 
-const duplicate = base
+const branch = base
   .input(
     z.object({
-      keepHistory: z.boolean().optional().default(false),
+      // When set, the branch keeps the conversation only up to and including
+      // this message. Omit to branch the whole task.
+      branchPoint: z
+        .object({
+          messageId: StoreId.MessageSchema,
+          sessionId: StoreId.SessionSchema,
+        })
+        .optional(),
       sourceTaskId: TaskIdSchema,
     }),
   )
@@ -376,12 +383,12 @@ const duplicate = base
     async ({
       context,
       errors,
-      input: { keepHistory, sourceTaskId },
+      input: { branchPoint, sourceTaskId },
       signal,
     }) => {
-      const result = await duplicateTask(
+      const result = await branchTask(
         {
-          keepHistory,
+          branchPoint,
           sourceTaskId,
           workspaceConfig: context.workspaceConfig,
         },
@@ -697,11 +704,11 @@ const liveUsageSummary = base
 
 export const task = {
   agentStatus: taskAgentStatus,
+  branch,
   byId,
   byIds,
   create,
   createTutorial,
-  duplicate,
   exportZip,
   files: taskFiles,
   import: importTask,

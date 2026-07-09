@@ -211,11 +211,9 @@ export function ChatStream({
       const prevMessage = regularMessages[messageIndex - 1];
       const nextMessage = regularMessages[messageIndex + 1];
       const isFirstInConsecutiveAssistantGroup =
-        message.role === "assistant" &&
-        (prevMessage?.role !== "assistant");
+        message.role === "assistant" && prevMessage?.role !== "assistant";
       const isLastInConsecutiveAssistantGroup =
-        message.role === "assistant" &&
-        (nextMessage?.role !== "assistant");
+        message.role === "assistant" && nextMessage?.role !== "assistant";
       const isLastMessage = messageIndex === regularMessages.length - 1;
 
       // Attachments are hoisted into per-message chrome below.

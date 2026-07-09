@@ -18,6 +18,7 @@ export default [
     ".next",
     "registry",
     ".claude/worktrees",
+    "docs/",
   ]),
   ...baseConfig,
   {

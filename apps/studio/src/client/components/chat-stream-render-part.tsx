@@ -6,17 +6,12 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { AssistantMessage } from "./assistant-message";
-import { AttachedFolderChangesDebugCard } from "./attached-folder-changes-debug-card";
-import { BrowserStatusDebugCard } from "./browser-status-debug-card";
-import { ExternalFileChangesDebugCard } from "./external-file-changes-debug-card";
-import { FileChangesCard } from "./file-changes-card";
+import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { type RenderStream } from "./message-part/tool-agent";
 import { ToolCall } from "./message-part/tool-call";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
-import { ProjectChangesNote } from "./project-changes-note";
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
-import { ContextMessage } from "./session-context-message";
 import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
 
@@ -36,8 +31,8 @@ export interface RenderPartContext {
   task: Task;
 }
 
-// Returns null for parts that don't render inline (kept in sync with
-// `isRenderableInlinePart`).
+// Returns null for parts that don't render inline. Data-part visibility comes
+// from `dataPartVisibility`, so this stays consistent with the utils.
 export function renderChatPart({
   browserStatusContextAdded,
   ctx,
@@ -66,21 +61,14 @@ export function renderChatPart({
           />
         );
       }
-      case "session-context": {
-        return (
-          <ContextMessage
-            key={part.metadata.id}
-            message={message}
-            part={part}
-          />
-        );
-      }
       case "user": {
         if (ctx.hideUserMessages) {
           return null;
         }
         return <UserMessage key={part.metadata.id} part={part} />;
       }
+      // session-context messages are partitioned out before this loop and shown
+      // only via ContextMessages, so they never reach here.
       default: {
         return null;
       }
@@ -91,67 +79,8 @@ export function renderChatPart({
     return null;
   }
 
-  if (part.type === "data-fileChanges") {
-    return (
-      <FileChangesCard
-        assetBaseUrl={ctx.assetBaseUrl}
-        className="mt-2"
-        files={part.data.files}
-        key={part.metadata.id}
-        taskId={ctx.task.id}
-      />
-    );
-  }
-
-  if (part.type === "data-attachments") {
-    return null;
-  }
-
-  if (part.type === "data-projectContext") {
-    return null;
-  }
-
-  if (part.type === "data-projectChanges") {
-    return <ProjectChangesNote data={part.data} key={part.metadata.id} />;
-  }
-
-  if (part.type === "data-attachedFolderChanges") {
-    if (!ctx.isDeveloperMode) {
-      return null;
-    }
-    return (
-      <AttachedFolderChangesDebugCard
-        className="mt-2"
-        data={part.data}
-        key={part.metadata.id}
-      />
-    );
-  }
-
-  if (part.type === "data-browserStatus") {
-    if (!ctx.isDeveloperMode || !browserStatusContextAdded) {
-      return null;
-    }
-    return (
-      <BrowserStatusDebugCard
-        className="mt-2"
-        data={part.data}
-        key={part.metadata.id}
-      />
-    );
-  }
-
-  if (part.type === "data-externalFileChanges") {
-    if (!ctx.isDeveloperMode) {
-      return null;
-    }
-    return (
-      <ExternalFileChangesDebugCard
-        className="mt-2"
-        files={part.data.files}
-        key={part.metadata.id}
-      />
-    );
+  if (isDataPart(part)) {
+    return renderDataPart({ browserStatusContextAdded, ctx, part });
   }
 
   if (isToolPart(part)) {

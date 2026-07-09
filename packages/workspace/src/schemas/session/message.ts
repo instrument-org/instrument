@@ -16,6 +16,7 @@ import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text"
 import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
+import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { injectContextItemsIntoOutput } from "../../lib/tool-output-context-items";
 import { StoreId } from "../store-id";
@@ -207,8 +208,22 @@ export namespace SessionMessage {
     tools: ToolSet,
   ): Promise<ModelMessage[]> {
     let previousBrowserStatusNote: string | undefined;
+    // A max-steps stop is recorded on the assistant message where the run
+    // halted, but the note belongs on the user turn that resumes it (injection
+    // only runs for user messages). Carry it forward to the next user message.
+    let pendingMaxStepsNote: string | undefined;
 
     const uiMessages: UIMessage[] = messages.map((message) => {
+      const maxStepsPart = message.parts.find(
+        (
+          part,
+        ): part is SessionMessagePart.DataPart & { type: "data-maxSteps" } =>
+          part.type === "data-maxSteps",
+      );
+      if (maxStepsPart) {
+        pendingMaxStepsNote = maxStepsModelNote(maxStepsPart.data);
+      }
+
       const filteredParts = message.parts
         .filter(
           (part) =>
@@ -334,6 +349,11 @@ export namespace SessionMessage {
           if (note) {
             injectedParts.push({ text: note, type: "text" });
           }
+        }
+
+        if (pendingMaxStepsNote) {
+          injectedParts.push({ text: pendingMaxStepsNote, type: "text" });
+          pendingMaxStepsNote = undefined;
         }
 
         // When the harness appends synthetic context (uploaded files, attached

@@ -67,6 +67,11 @@ export const componentPages = [
     to: "/debug/components/chat-stream",
   },
   {
+    id: "data-parts",
+    label: "Data Parts",
+    to: "/debug/components/data-parts",
+  },
+  {
     id: "error-card",
     label: "Error Card",
     to: "/debug/components/error-card",
@@ -125,6 +130,22 @@ export const onboardingScreens = [
     to: "/debug/components/onboarding/theme",
   },
 ] as const;
+
+// Flat, searchable list of every navigable debug page, for the command menu.
+export const debugPages: { label: string; to: string }[] = [
+  ...debugNavigationRoutes.map((route) => ({
+    label: route.label,
+    to: route.to,
+  })),
+  ...componentPages.map((page) => ({
+    label: `Component: ${page.label}`,
+    to: page.to,
+  })),
+  ...onboardingScreens.map((screen) => ({
+    label: `Onboarding: ${screen.label}`,
+    to: screen.to,
+  })),
+];
 
 type ComponentPageId = (typeof componentPages)[number]["id"];
 type DebugRouteId = (typeof debugRoutes)[number]["id"];

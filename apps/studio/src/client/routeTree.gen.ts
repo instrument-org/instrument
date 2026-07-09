@@ -35,6 +35,7 @@ import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_a
 import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/debug/components/onboarding'
 import { Route as AppDebugComponentsFormElementsRouteImport } from './routes/_app/debug/components/form-elements'
 import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
+import { Route as AppDebugComponentsDataPartsRouteImport } from './routes/_app/debug/components/data-parts'
 import { Route as AppDebugComponentsColorsRouteImport } from './routes/_app/debug/components/colors'
 import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/debug/components/chat-stream'
 import { Route as AppDebugComponentsAlertsRouteImport } from './routes/_app/debug/components/alerts'
@@ -179,6 +180,12 @@ const AppDebugComponentsErrorCardRoute =
     path: '/error-card',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
+const AppDebugComponentsDataPartsRoute =
+  AppDebugComponentsDataPartsRouteImport.update({
+    id: '/data-parts',
+    path: '/data-parts',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsColorsRoute =
   AppDebugComponentsColorsRouteImport.update({
     id: '/colors',
@@ -255,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
+  '/debug/components/data-parts': typeof AppDebugComponentsDataPartsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
@@ -287,6 +295,7 @@ export interface FileRoutesByTo {
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
+  '/debug/components/data-parts': typeof AppDebugComponentsDataPartsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
@@ -324,6 +333,7 @@ export interface FileRoutesById {
   '/_app/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/_app/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/_app/debug/components/colors': typeof AppDebugComponentsColorsRoute
+  '/_app/debug/components/data-parts': typeof AppDebugComponentsDataPartsRoute
   '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/_app/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/_app/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
@@ -361,6 +371,7 @@ export interface FileRouteTypes {
     | '/debug/components/alerts'
     | '/debug/components/chat-stream'
     | '/debug/components/colors'
+    | '/debug/components/data-parts'
     | '/debug/components/error-card'
     | '/debug/components/form-elements'
     | '/debug/components/onboarding'
@@ -393,6 +404,7 @@ export interface FileRouteTypes {
     | '/debug/components/alerts'
     | '/debug/components/chat-stream'
     | '/debug/components/colors'
+    | '/debug/components/data-parts'
     | '/debug/components/error-card'
     | '/debug/components/form-elements'
     | '/debug/components/provider-icons'
@@ -429,6 +441,7 @@ export interface FileRouteTypes {
     | '/_app/debug/components/alerts'
     | '/_app/debug/components/chat-stream'
     | '/_app/debug/components/colors'
+    | '/_app/debug/components/data-parts'
     | '/_app/debug/components/error-card'
     | '/_app/debug/components/form-elements'
     | '/_app/debug/components/onboarding'
@@ -634,6 +647,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsErrorCardRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/data-parts': {
+      id: '/_app/debug/components/data-parts'
+      path: '/data-parts'
+      fullPath: '/debug/components/data-parts'
+      preLoaderRoute: typeof AppDebugComponentsDataPartsRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/colors': {
       id: '/_app/debug/components/colors'
       path: '/colors'
@@ -744,6 +764,7 @@ interface AppDebugComponentsRouteChildren {
   AppDebugComponentsAlertsRoute: typeof AppDebugComponentsAlertsRoute
   AppDebugComponentsChatStreamRoute: typeof AppDebugComponentsChatStreamRoute
   AppDebugComponentsColorsRoute: typeof AppDebugComponentsColorsRoute
+  AppDebugComponentsDataPartsRoute: typeof AppDebugComponentsDataPartsRoute
   AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
   AppDebugComponentsFormElementsRoute: typeof AppDebugComponentsFormElementsRoute
   AppDebugComponentsOnboardingRoute: typeof AppDebugComponentsOnboardingRouteWithChildren
@@ -756,6 +777,7 @@ const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
   AppDebugComponentsAlertsRoute: AppDebugComponentsAlertsRoute,
   AppDebugComponentsChatStreamRoute: AppDebugComponentsChatStreamRoute,
   AppDebugComponentsColorsRoute: AppDebugComponentsColorsRoute,
+  AppDebugComponentsDataPartsRoute: AppDebugComponentsDataPartsRoute,
   AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
   AppDebugComponentsFormElementsRoute: AppDebugComponentsFormElementsRoute,
   AppDebugComponentsOnboardingRoute:

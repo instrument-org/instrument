@@ -13,6 +13,7 @@ export { isInteractiveTool } from "./lib/is-interactive-tool";
 export { isTaskAgentName } from "./lib/is-task-agent-name";
 export * from "./lib/is-task-id";
 export { isToolPart } from "./lib/is-tool-part";
+export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { FileUpload } from "./schemas/file-upload";

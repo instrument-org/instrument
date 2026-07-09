@@ -29,7 +29,7 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
 
       {part.errorText && (
         <div className="relative">
-          <div className="max-h-44 overflow-auto px-4 py-3 pr-10 scrollbar-color scrollbar-thin">
+          <div className="max-h-44 scrollbar-thin scrollbar-color overflow-auto px-4 py-3 pr-10">
             <pre className="font-mono text-sm leading-relaxed break-words whitespace-pre-wrap text-destructive">
               {part.errorText}
             </pre>
@@ -63,7 +63,7 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
 
           {isRawOpen && (
             <div className="relative border-t border-border">
-              <div className="max-h-32 overflow-auto px-4 py-3 pr-10 scrollbar-color scrollbar-thin">
+              <div className="max-h-32 scrollbar-thin scrollbar-color overflow-auto px-4 py-3 pr-10">
                 <pre className="font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
                   {inputText}
                 </pre>

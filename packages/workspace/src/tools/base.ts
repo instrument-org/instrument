@@ -30,7 +30,7 @@ export function toolInputSchemaForLLM<TSchema extends z.ZodType>(
       validate: async (value) => {
         const result = await schema.safeParseAsync(value);
         return result.success
-          ? { success: true, value: result.data as z.output<TSchema> }
+          ? { success: true, value: result.data }
           : { error: result.error, success: false };
       },
     },

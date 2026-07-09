@@ -7,6 +7,6 @@
     "**/*.local/**",
     ".cursor/plans/**",
     ".claude/worktrees/**",
-    "docs/**"
-  ]
+    "docs/**",
+  ],
 }

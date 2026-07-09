@@ -3,7 +3,6 @@ import { html } from "hono/html";
 import { proxy } from "hono/proxy";
 
 import { FALLBACK_PAGE_META_NAME, SHIM_SCRIPT_PATH } from "../constants";
-import { RuntimeList } from "../runtime-list";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
 
@@ -37,13 +36,7 @@ app.all("/*", async (c, next) => {
         await next();
         return;
       }
-      const snapshot = c.var.parentRef.getSnapshot();
-      return c.html(
-        RuntimeList({
-          runtimeRefs: snapshot.context.runtimeRefs,
-          workspaceConfig: c.var.workspaceConfig,
-        }),
-      );
+      return c.html(fallbackPage);
     } else if (uriDetails.error === "invalid-domain") {
       return c.notFound();
     } else {

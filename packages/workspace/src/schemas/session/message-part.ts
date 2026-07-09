@@ -27,8 +27,7 @@ export namespace SessionMessagePart {
     | AgentBrowserCommandContextItemComplete
     | AgentBrowserCommandContextItemPending;
 
-  export interface AgentBrowserCommandContextItemComplete
-    extends AgentBrowserCommandContextItemBase {
+  export interface AgentBrowserCommandContextItemComplete extends AgentBrowserCommandContextItemBase {
     endedAt: Date;
     // Captured after the command finishes. Optional only because a CDP
     // capture can fail mid-flight (e.g. the debugger detached because the
@@ -38,8 +37,7 @@ export namespace SessionMessagePart {
     status: "complete";
   }
 
-  export interface AgentBrowserCommandContextItemPending
-    extends AgentBrowserCommandContextItemBase {
+  export interface AgentBrowserCommandContextItemPending extends AgentBrowserCommandContextItemBase {
     status: "pending";
   }
 
@@ -128,8 +126,7 @@ export namespace SessionMessagePart {
     state: "output-available";
   };
 
-  export interface ToolPartOutputAvailableMetadata
-    extends ToolPartBaseMetadata {
+  export interface ToolPartOutputAvailableMetadata extends ToolPartBaseMetadata {
     endedAt: Date;
   }
 

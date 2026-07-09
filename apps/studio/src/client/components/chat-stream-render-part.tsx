@@ -136,8 +136,7 @@ export function renderChatPart({
     return null;
   }
 
-  // Still checking condition just in case schema and type mismatch
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- defensive guard: the schema could emit a `file` part the type union treats as unreachable
   if (part.type === "file") {
     // eslint-disable-next-line no-console
     console.warn("File part not supported yet", part);

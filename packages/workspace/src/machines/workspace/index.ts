@@ -369,7 +369,7 @@ export const workspaceMachine = setup({
       uvBinPath: string;
       uvDataDir: string;
     },
-    output: {} as { error?: unknown },
+    output: {},
   },
 }).createMachine({
   context: ({ input, self, spawn }) => {

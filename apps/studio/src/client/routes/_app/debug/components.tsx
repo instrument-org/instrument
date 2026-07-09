@@ -50,10 +50,8 @@ function RouteComponent() {
   );
   const defaultSessionId = presetSessions[0]?.id;
   const activeSessionId = search.session ?? defaultSessionId;
-  const isChatStreamRoute =
-    chatStreamPage !== undefined && pathname === chatStreamPage.to;
-  const isDataPartsRoute =
-    dataPartsPage !== undefined && pathname === dataPartsPage.to;
+  const isChatStreamRoute = pathname === chatStreamPage?.to;
+  const isDataPartsRoute = pathname === dataPartsPage?.to;
   // data-parts is a chat rendering, so it lives under the Chat section rather
   // than as its own top-level entry. Keep the section open on either route.
   const isChatSectionOpen = isChatStreamRoute || isDataPartsRoute;

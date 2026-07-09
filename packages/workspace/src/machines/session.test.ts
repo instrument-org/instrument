@@ -206,7 +206,7 @@ describe("sessionMachine", () => {
   }) {
     let currentChunkIndex = 0;
     const mockLanguageModel = new MockLanguageModelV3({
-      // eslint-disable-next-line @typescript-eslint/require-await
+      // oxlint-disable-next-line typescript/require-await
       doStream: async () => {
         const currentChunks = chunkSets[currentChunkIndex];
         if (!currentChunks) {
@@ -661,7 +661,7 @@ describe("sessionMachine", () => {
     ] as const satisfies LanguageModelV3StreamPart[];
 
     const mockWebSearchModel = new MockLanguageModelV3({
-      // eslint-disable-next-line @typescript-eslint/require-await
+      // oxlint-disable-next-line typescript/require-await
       doStream: async () => ({
         rawCall: { rawPrompt: null, rawSettings: {} },
         stream: simulateReadableStream({

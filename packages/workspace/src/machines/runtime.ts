@@ -59,7 +59,7 @@ function errorToString(error: Error): string {
     const causeStr =
       error.cause instanceof Error
         ? errorToString(error.cause)
-        : // eslint-disable-next-line @typescript-eslint/no-base-to-string
+        : // oxlint-disable-next-line typescript/no-base-to-string
           String(error.cause);
 
     parts.push(`(caused by: ${causeStr})`);
@@ -130,7 +130,7 @@ export const runtimeMachine = setup({
     input: {} as {
       taskId: TaskId;
     },
-    output: {} as { error?: unknown },
+    output: {},
     tags: {} as Exclude<TaskStatus, "not-found" | "unavailable">,
   },
 }).createMachine({

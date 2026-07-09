@@ -409,12 +409,13 @@ export const llmRequestLogic = fromPromise<
         }
         case "tool-call": {
           const existingPart = toolCalls[part.toolCallId];
-          if (existingPart && existingPart.state === "input-streaming") {
+          if (existingPart?.state === "input-streaming") {
             const updatedPart: SessionMessagePart.ToolPart = {
               ...existingPart,
               ...(part.providerMetadata !== undefined && {
                 callProviderMetadata: part.providerMetadata,
               }),
+              // oxlint-disable-next-line typescript/no-unsafe-assignment -- the AI SDK types a streaming tool-call `input` as `any`
               input: part.input,
               providerExecuted: part.providerExecuted,
               state: "input-available",
@@ -438,6 +439,7 @@ export const llmRequestLogic = fromPromise<
               ...(part.providerMetadata !== undefined && {
                 callProviderMetadata: part.providerMetadata,
               }),
+              // oxlint-disable-next-line typescript/no-unsafe-assignment -- the AI SDK types a streaming tool-call `input` as `any`
               input: part.input,
               metadata: {
                 createdAt: getCurrentDate(),
@@ -482,6 +484,7 @@ export const llmRequestLogic = fromPromise<
               const updatedPart: SessionMessagePart.ToolPart = {
                 ...toolCall,
                 errorText,
+                // oxlint-disable-next-line typescript/no-unsafe-assignment -- the AI SDK types a stored tool-call `input` as `any`
                 input:
                   toolCall.state === "input-streaming"
                     ? undefined
@@ -536,7 +539,7 @@ export const llmRequestLogic = fromPromise<
         }
         case "tool-input-delta": {
           const toolCall = toolCalls[part.id];
-          if (toolCall && toolCall.state === "input-streaming") {
+          if (toolCall?.state === "input-streaming") {
             toolCallInputText[part.id] =
               (toolCallInputText[part.id] || "") + part.delta;
             const { value: partialArgs } = await parsePartialJson(

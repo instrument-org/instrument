@@ -23,10 +23,9 @@ export async function* mergeGenerators<T, U>(
   ).map((gen, index) => gen.next().then((result) => ({ index, result })));
 
   while (promises.some(Boolean)) {
-    const promise = await Promise.race(promises.filter(Boolean));
-    if (!promise) {
-      continue;
-    }
+    const promise = await Promise.race(
+      promises.filter((p): p is IteratorPromise => p !== null),
+    );
 
     const { index, result } = promise;
 

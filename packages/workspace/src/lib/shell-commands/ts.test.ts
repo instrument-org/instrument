@@ -73,7 +73,7 @@ describe("tsCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "hello",
       exitCode: 0,
-    } as never);
+    });
 
     const result = await command.execute(
       ["-e", "console.log('hello')"],
@@ -101,7 +101,7 @@ describe("tsCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "hello",
       exitCode: 0,
-    } as never);
+    });
 
     const result = await command.execute(
       ["--eval", "console.log('hello')"],
@@ -139,7 +139,7 @@ describe("tsCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
-    } as never);
+    });
 
     const result = await command.execute(
       [
@@ -175,7 +175,7 @@ describe("tsCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
-    } as never);
+    });
 
     await command.execute(["/scripts/run.ts"], mockCtx);
 

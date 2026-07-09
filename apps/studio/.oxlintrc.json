@@ -1,0 +1,34 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "extends": ["../../.oxlintrc.json"],
+  "ignorePatterns": [
+    "**/tailwind-browser.js",
+    "**/routeTree.gen.ts",
+    "**/*.gen.ts",
+    "**/fixtures",
+    "**/templates",
+    "**/out",
+    "**/dist",
+    "**/bin",
+    "**/coverage"
+  ],
+  "jsPlugins": ["oxlint-tailwindcss"],
+  "settings": {
+    "tailwindcss": {
+      "entryPoint": "src/client/styles/globals.css"
+    }
+  },
+  "rules": {
+    "tailwindcss/enforce-sort-order": "warn",
+    "tailwindcss/no-conflicting-classes": "error",
+    "tailwindcss/no-deprecated-classes": "error",
+    "tailwindcss/no-duplicate-classes": "error",
+    "tailwindcss/no-unnecessary-whitespace": "error",
+    "tailwindcss/no-unknown-classes": [
+      "error",
+      {
+        "allowlist": ["toaster"]
+      }
+    ]
+  }
+}

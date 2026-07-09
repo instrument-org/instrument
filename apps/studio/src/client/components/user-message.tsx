@@ -60,7 +60,7 @@ export const UserMessage = memo(function UserMessage({
 
   return (
     <div className="group flex w-full flex-col items-end">
-      <div className="relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-gradient-to-b from-card to-gray-25 px-4 py-2 text-foreground shadow-sm dark:from-card dark:to-card">
+      <div className="relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 text-foreground shadow-sm dark:from-card dark:to-card">
         <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
           <div
             className={cn(

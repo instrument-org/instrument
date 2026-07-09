@@ -19,10 +19,10 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "check:lint": "eslint . --max-warnings 0",
+    "check:lint": "eslint . --max-warnings 0 && oxlint --type-aware",
     "check:types": "tsgo --noEmit",
     "eval": "NODE_ENV=test NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx evals/cli.ts",
-    "fix:lint": "eslint . --max-warnings 0 --fix",
+    "fix:lint": "eslint . --max-warnings 0 --fix && oxlint --type-aware --fix",
     "script:dump-session-transcript": "tsx scripts/dump-session-transcript.ts",
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",
     "script:query-task-db": "tsx scripts/query-task-db.ts",

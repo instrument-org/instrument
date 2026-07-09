@@ -54,7 +54,7 @@ export function SourceImagesChip({
   const sourceImages: { filePath: string; modifiedAt?: number }[] =
     part.state === "output-available" && part.output.state === "success"
       ? // `sourceImages` was added after initial release; old persisted outputs lack it
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        // oxlint-disable-next-line typescript/no-unnecessary-condition
         (part.output.sourceImages ?? [])
       : Array.isArray(part.input?.sourceImages)
         ? part.input.sourceImages.flatMap((p) =>

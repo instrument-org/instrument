@@ -7,17 +7,15 @@ import { forwardRendererLog } from "./forward-renderer-logs";
  * DevTools.
  */
 export const logger = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  debug: (...msg: any[]) => {
+  debug: (...msg: unknown[]) => {
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, no-console
+      // eslint-disable-next-line no-console
       console.debug(`[${APP_NAME_SLUG}]`, ...msg);
     }
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  error: (...error: any[]) => {
+  error: (...error: unknown[]) => {
     forwardRendererLog("error", error);
-    // eslint-disable-next-line no-console, @typescript-eslint/no-unsafe-argument
+    // eslint-disable-next-line no-console
     console.error(`[${APP_NAME_SLUG}]`, ...error);
   },
 };

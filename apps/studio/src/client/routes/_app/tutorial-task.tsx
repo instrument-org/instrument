@@ -9,11 +9,11 @@ export const Route = createFileRoute("/_app/tutorial-task")({
     );
 
     if (error) {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      // oxlint-disable-next-line typescript/only-throw-error
       throw redirect({ replace: true, to: "/new-tab" });
     }
 
-    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    // oxlint-disable-next-line typescript/only-throw-error
     throw redirect({
       params: { id: result.id },
       replace: true,

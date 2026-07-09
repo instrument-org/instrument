@@ -211,11 +211,9 @@ export function ChatStream({
       const prevMessage = regularMessages[messageIndex - 1];
       const nextMessage = regularMessages[messageIndex + 1];
       const isFirstInConsecutiveAssistantGroup =
-        message.role === "assistant" &&
-        (!prevMessage || prevMessage.role !== "assistant");
+        message.role === "assistant" && prevMessage?.role !== "assistant";
       const isLastInConsecutiveAssistantGroup =
-        message.role === "assistant" &&
-        (!nextMessage || nextMessage.role !== "assistant");
+        message.role === "assistant" && nextMessage?.role !== "assistant";
       const isLastMessage = messageIndex === regularMessages.length - 1;
 
       // Attachments are hoisted into per-message chrome below.
@@ -419,8 +417,7 @@ export function ChatStream({
     }
     const lastMessage = messages.at(-1);
     return (
-      lastMessage &&
-      lastMessage.role === "assistant" &&
+      lastMessage?.role === "assistant" &&
       lastMessage.metadata.finishReason === "max-steps"
     );
   }, [messages, isAgentRunning]);

@@ -59,7 +59,7 @@ function makeStopAfterTscCommand(
     const command = getTscCommand(part);
     const matches = equivalents
       ? command !== undefined && equivalents.has(command.trim())
-      : command !== undefined && command.trim() === expectedCommand;
+      : command?.trim() === expectedCommand;
     return matches && "state" in part && part.state === "output-available";
   };
 }

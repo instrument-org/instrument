@@ -1,10 +1,11 @@
 {
   "[github-actions-workflow]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[yaml]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "oxc.oxc-vscode"
   },
+  "editor.defaultFormatter": "oxc.oxc-vscode",
   "eslint.probe": [
     "javascript",
     "javascriptreact",
@@ -50,6 +51,7 @@
     "**/routeTree.gen.ts": true,
     ".claude/worktrees/**": true
   },
+  "oxc.fmt.configPath": ".oxfmtrc.json",
   // Can't use useIgnoreFiles because "files to include" still includes those
   // results due to: https://github.com/microsoft/vscode/issues/26574
   "search.exclude": {
@@ -69,7 +71,7 @@
     ".claude/worktrees": true
   },
   "tailwindCSS.classFunctions": ["cn", "tv"],
-  "tailwindCSS.lint.suggestCanonicalClasses": "ignore", // Handled by better-tailwindcss in ESLint
+  "tailwindCSS.lint.suggestCanonicalClasses": "ignore", // Handled by oxlint-tailwindcss
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "typescript.tsdk": "node_modules/typescript/lib",
   "vitest.configSearchPatternInclude": "**/vitest*.config*.{ts,js,mjs,cjs,cts,mts}",

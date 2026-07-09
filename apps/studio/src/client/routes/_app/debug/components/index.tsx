@@ -6,7 +6,7 @@ export const Route = createFileRoute("/_app/debug/components/")({
   beforeLoad: () => {
     const defaultSessionId = presetSessions[0]?.id;
 
-    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    // oxlint-disable-next-line typescript/only-throw-error
     throw redirect({
       search: defaultSessionId ? { session: defaultSessionId } : undefined,
       to: "/debug/components/chat-stream",

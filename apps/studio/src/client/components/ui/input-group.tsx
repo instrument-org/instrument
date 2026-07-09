@@ -11,7 +11,7 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "group/input-group relative flex w-full items-center rounded-xl border-0 bg-gradient-to-b from-white to-[#fafaf9] shadow-sm transition-[color,outline] outline-none dark:border dark:border-input dark:bg-input/30 dark:bg-none dark:from-transparent dark:to-transparent",
+        "group/input-group relative flex w-full items-center rounded-xl border-0 bg-linear-to-b from-white to-[#fafaf9] shadow-sm transition-[color,outline] outline-none dark:border dark:border-input dark:bg-input/30 dark:bg-none dark:from-transparent dark:to-transparent",
         "h-9 min-w-0 has-[>textarea]:h-auto",
 
         // Variants based on alignment.

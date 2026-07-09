@@ -57,9 +57,8 @@ export async function aiSDKForProviderConfig(
       return createOpenAISDK(config, workspaceServerURL);
     }
     case "@ai-sdk/openai-compatible": {
-      const { createOpenAICompatible } = await import(
-        "@ai-sdk/openai-compatible"
-      );
+      const { createOpenAICompatible } =
+        await import("@ai-sdk/openai-compatible");
       return createOpenAICompatible({
         apiKey,
         baseURL,

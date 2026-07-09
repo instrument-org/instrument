@@ -47,7 +47,7 @@ function baseExecuteArgs() {
 
 async function createSkill({
   description = "A test skill",
-  extraFiles = {} as Record<string, string>,
+  extraFiles = {},
   name,
 }: {
   description?: string;

@@ -63,7 +63,7 @@ export function ProvidersSection({
             {!hasToken && (
               <div
                 className="pointer-events-none absolute inset-x-0 bottom-0 flex h-48
-                  items-end justify-center bg-gradient-to-t from-brand-500/5
+                  items-end justify-center bg-linear-to-t from-brand-500/5
                   to-transparent dark:from-brand-500/5"
               >
                 <div className="pointer-events-auto flex items-center gap-4 pb-4">

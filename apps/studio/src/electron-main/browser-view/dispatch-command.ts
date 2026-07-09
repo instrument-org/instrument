@@ -161,7 +161,7 @@ export async function sendCommand({
       >
     >(["Input.dispatchMouseEvent", "Input.synthesizeTapGesture"]);
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
       wc.debugger.sendCommand(method, params),
       new Promise<never>((_, reject) =>

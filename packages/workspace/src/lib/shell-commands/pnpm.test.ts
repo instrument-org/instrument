@@ -108,8 +108,8 @@ describe("createPnpmCommand", () => {
       .mockResolvedValueOnce({
         all: "ERR_PNPM_PEER_DEP_ISSUES",
         exitCode: 1,
-      } as never)
-      .mockResolvedValueOnce({ all: "script output", exitCode: 0 } as never);
+      })
+      .mockResolvedValueOnce({ all: "script output", exitCode: 0 });
 
     const result = await command.execute(["run", "build"], mockCtx);
 
@@ -129,7 +129,7 @@ describe("createPnpmCommand", () => {
     execaNodeForTaskMock.mockResolvedValueOnce({
       all: "10.33.0",
       exitCode: 0,
-    } as never);
+    });
 
     const result = await command.execute(["--version"], mockCtx);
 
@@ -143,7 +143,7 @@ describe("createPnpmCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "packages installed",
       exitCode: 0,
-    } as never);
+    });
 
     const result = await command.execute(
       ["add", "--global", "lodash"],
@@ -166,7 +166,7 @@ describe("createPnpmCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "packages installed",
       exitCode: 0,
-    } as never);
+    });
 
     const result = await command.execute(["add", "-g", "lodash"], mockCtx);
 
@@ -192,7 +192,7 @@ describe("createPnpmCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "1",
       exitCode: 0,
-    } as never);
+    });
 
     const result = await command.execute(args, mockCtx);
 
@@ -269,7 +269,7 @@ describe("createPnpmCommand", () => {
       vi.mocked(execaNodeForTask).mockResolvedValueOnce({
         all: "hello",
         exitCode: 0,
-      } as never);
+      });
 
       const dlxCommand = createCommand(taskId);
       const result = await dlxCommand.execute(args, mockCtx);

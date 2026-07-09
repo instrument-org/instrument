@@ -85,7 +85,8 @@ export function renderAuthPage({
       </div>`;
   };
 
-  return html`<!DOCTYPE html>
+  return html`
+    <!DOCTYPE html>
     <html lang="en">
       <head>
         <meta charset="UTF-8" />
@@ -120,9 +121,7 @@ export function renderAuthPage({
         <title>${title ?? `Log in to ${APP_NAME}`}</title>
       </head>
       <body class="min-h-svh">
-        <div
-          class="flex min-h-svh flex-col items-center justify-center gap-8 p-6"
-        >
+        <div class="flex min-h-svh flex-col items-center justify-center gap-8 p-6">
           <div id="icon-container" class="flex items-center justify-center">
             <img
               id="app-icon"
@@ -146,5 +145,6 @@ export function renderAuthPage({
             });
         </script>
       </body>
-    </html>`;
+    </html>
+  `;
 }

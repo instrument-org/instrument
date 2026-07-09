@@ -1,6 +1,6 @@
 import type { ConfigArray } from "@instrument-org/eslint-config/base";
 
-import baseConfig from "@instrument-org/eslint-config/react-with-tailwind";
+import baseConfig from "@instrument-org/eslint-config/react";
 import { globalIgnores } from "eslint/config";
 
 export default [
@@ -20,13 +20,6 @@ export default [
     "resources/tailwind-browser.js",
   ]),
   ...baseConfig,
-  {
-    settings: {
-      "better-tailwindcss": {
-        entryPoint: "./src/client/styles/globals.css",
-      },
-    },
-  },
   {
     files: ["**/*.{js,jsx,ts,tsx}"],
     rules: {

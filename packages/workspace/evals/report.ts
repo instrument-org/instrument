@@ -145,7 +145,9 @@ export async function generateReport({
       }
       const sessions = sessionsWithParts;
       const assertionResults: AssertionResult[] = await Promise.all(
-        evalCase.assertions.map((a) => a.check({ sessions, taskId })),
+        evalCase.assertions.map((a) =>
+          Promise.resolve(a.check({ sessions, taskId })),
+        ),
       );
       const passed = assertionResults.filter((r) => r.passed).length;
       const failed = assertionResults.filter((r) => !r.passed).length;

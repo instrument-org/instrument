@@ -48,9 +48,8 @@ vi.mock(import("../lib/agent-browser-cleanup"), () => ({
   closeAllAgentBrowserSessions: vi.fn(asyncNoop),
 }));
 
-const { closeAgentBrowserSessionsForSessions } = await import(
-  "../lib/agent-browser-cleanup"
-);
+const { closeAgentBrowserSessionsForSessions } =
+  await import("../lib/agent-browser-cleanup");
 
 const createTargetMock: BrowserConfig["createTarget"] = (id, sessionId) =>
   Promise.resolve({ targetId: encodeBrowserTargetId(id, sessionId) });

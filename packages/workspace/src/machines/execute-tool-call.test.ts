@@ -34,9 +34,8 @@ describe("executeToolCallMachine", () => {
     // snapshots. Returning a constant means `end - start === 0`.
     vi.spyOn(performance, "now").mockReturnValue(0);
 
-    const { execaNodeForTask: execaElectronNode } = await import(
-      "../lib/execa-node-for-task"
-    );
+    const { execaNodeForTask: execaElectronNode } =
+      await import("../lib/execa-node-for-task");
     vi.mocked(execaElectronNode).mockImplementation(
       async (_taskConfig, file, args, _options) => {
         const command = [file, ...(args ?? [])].join(" ");

@@ -94,6 +94,8 @@
     "openrouter",
     "orpc",
     "overscan",
+    "oxfmt ",
+    "oxfmtrc",
     "oxlint",
     "oxlintrc",
     "panzoom",

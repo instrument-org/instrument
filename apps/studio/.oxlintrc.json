@@ -1,8 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
-  "extends": [
-    "../../.oxlintrc.json"
-  ],
+  "extends": ["../../.oxlintrc.json"],
   "ignorePatterns": [
     "**/tailwind-browser.js",
     "**/routeTree.gen.ts",
@@ -14,9 +12,7 @@
     "**/bin",
     "**/coverage"
   ],
-  "jsPlugins": [
-    "oxlint-tailwindcss"
-  ],
+  "jsPlugins": ["oxlint-tailwindcss"],
   "settings": {
     "tailwindcss": {
       "entryPoint": "src/client/styles/globals.css"
@@ -31,9 +27,7 @@
     "tailwindcss/no-unknown-classes": [
       "error",
       {
-        "allowlist": [
-          "toaster"
-        ]
+        "allowlist": ["toaster"]
       }
     ]
   }

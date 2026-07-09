@@ -6,7 +6,6 @@ import vitest from "@vitest/eslint-plugin";
 import eslintConfigPrettier from "eslint-config-prettier";
 import { importX } from "eslint-plugin-import-x";
 import jsonc from "eslint-plugin-jsonc";
-import markdown from "eslint-plugin-markdown";
 import n from "eslint-plugin-n";
 import "eslint-plugin-only-warn";
 import packageJson from "eslint-plugin-package-json/configs/recommended";
@@ -36,7 +35,6 @@ export default tseslint.config(
   },
   eslint.configs.recommended,
   ...jsonc.configs["flat/recommended-with-json"],
-  markdown.configs.recommended,
   ...yml.configs["flat/recommended"],
   ...yml.configs["flat/prettier"],
   comments.recommended,

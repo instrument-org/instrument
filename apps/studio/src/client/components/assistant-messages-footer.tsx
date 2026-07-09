@@ -3,7 +3,7 @@ import {
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { FileTextIcon } from "@phosphor-icons/react";
+import { FileTextIcon, GitBranchIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { sift } from "radashi";
 import { useMemo, useState } from "react";
@@ -17,6 +17,7 @@ import { Favicon } from "./favicon";
 import { ModelChip } from "./model-chip";
 import { RelativeTime } from "./relative-time";
 import { SourceLink } from "./source-link";
+import { BranchTaskModal } from "./task/branch-modal";
 import { Button } from "./ui/button";
 import {
   Collapsible,
@@ -46,7 +47,12 @@ export function AssistantMessagesFooter({
   messages,
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isBranchOpen, setIsBranchOpen] = useState(false);
   const isDeveloperMode = useDeveloperMode();
+
+  // Branch from the last message of this assistant turn: the new task keeps the
+  // conversation through here and drops everything after.
+  const branchFrom = messages.at(-1);
 
   const messageRefs = useMemo(
     () =>
@@ -187,167 +193,202 @@ export function AssistantMessagesFooter({
   const uniqueUrls = extractUniqueUrls(sources);
 
   return (
-    <Collapsible
-      className="mt-2 flex flex-col gap-2"
-      onOpenChange={setIsExpanded}
-      open={isExpanded}
-    >
-      <div
-        className={cn(
-          "flex min-w-0 items-center gap-2 transition-opacity",
-          sources.length > 0
-            ? "opacity-100"
-            : "opacity-0 group-hover/assistant-message-footer:opacity-100",
-        )}
+    <>
+      {branchFrom && (
+        <BranchTaskModal
+          branchPoint={{
+            messageId: branchFrom.id,
+            sessionId: branchFrom.metadata.sessionId,
+          }}
+          isOpen={isBranchOpen}
+          onClose={() => {
+            setIsBranchOpen(false);
+          }}
+          sourceTaskId={id}
+        />
+      )}
+      <Collapsible
+        className="mt-2 flex flex-col gap-2"
+        onOpenChange={setIsExpanded}
+        open={isExpanded}
       >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <CopyButton className="text-muted-foreground" onCopy={handleCopy} />
-          </TooltipTrigger>
-          <TooltipContent>Copy message</TooltipContent>
-        </Tooltip>
-        {totalDuration > 0 && (
+        <div
+          className={cn(
+            "flex min-w-0 items-center gap-2 transition-opacity",
+            sources.length > 0
+              ? "opacity-100"
+              : "opacity-0 group-hover/assistant-message-footer:opacity-100",
+          )}
+        >
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="cursor-default text-xs text-muted-foreground">
-                {formatDuration(totalDuration)}
-              </span>
+              <CopyButton
+                className="text-muted-foreground"
+                onCopy={handleCopy}
+              />
             </TooltipTrigger>
-            <TooltipContent className="p-3 text-xs">
-              <div className="space-y-2">
-                <TooltipRow
-                  label="Generation time:"
-                  tabular
-                  value={formatDuration(totalDuration)}
-                />
-                {elapsedDuration != null && (
-                  <TooltipRow
-                    label="Total time:"
-                    tabular
-                    value={formatDuration(elapsedDuration)}
-                  />
-                )}
-              </div>
-            </TooltipContent>
+            <TooltipContent>Copy message</TooltipContent>
           </Tooltip>
-        )}
-        {sources.length > 0 && (
-          <CollapsibleTrigger asChild>
-            <Button size="sm" variant="ghost">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="shrink-0 text-xs font-medium">Sources</span>
-                {uniqueUrls.length > 0 && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    {uniqueUrls.map((url) => (
-                      <Favicon className="size-5" key={url} url={url} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Button>
-          </CollapsibleTrigger>
-        )}
-        {modelsUsed.length > 0 && (
-          <div className="flex min-w-0 items-center gap-2">
-            {modelsUsed.map((model, index) => (
-              <div
-                className="flex min-w-0 items-center gap-1.5"
-                key={model.aiGatewayModel?.uri ?? model.modelId}
-              >
-                {index > 0 && (
-                  <span className="mr-1 text-muted-foreground/30">•</span>
-                )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="min-w-0">
-                      <ModelChip
-                        aiGatewayModel={model.aiGatewayModel}
-                        modelId={model.modelId}
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    align="start"
-                    className="p-3 text-xs"
-                    side="top"
-                  >
-                    <div className="space-y-2">
-                      {getModelInfoRows(model).map((row) => (
-                        <TooltipRow key={row.label} {...row} />
+          {branchFrom && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label="Branch from here"
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    setIsBranchOpen(true);
+                  }}
+                  type="button"
+                >
+                  <GitBranchIcon size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Branch from here</TooltipContent>
+            </Tooltip>
+          )}
+          {totalDuration > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-default text-xs text-muted-foreground">
+                  {formatDuration(totalDuration)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="p-3 text-xs">
+                <div className="space-y-2">
+                  <TooltipRow
+                    label="Generation time:"
+                    tabular
+                    value={formatDuration(totalDuration)}
+                  />
+                  {elapsedDuration != null && (
+                    <TooltipRow
+                      label="Total time:"
+                      tabular
+                      value={formatDuration(elapsedDuration)}
+                    />
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {sources.length > 0 && (
+            <CollapsibleTrigger asChild>
+              <Button size="sm" variant="ghost">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0 text-xs font-medium">Sources</span>
+                  {uniqueUrls.length > 0 && (
+                    <div className="flex shrink-0 items-center gap-1">
+                      {uniqueUrls.map((url) => (
+                        <Favicon className="size-5" key={url} url={url} />
                       ))}
                     </div>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            ))}
-          </div>
-        )}
-        {isDeveloperMode && usageSummary && (
-          <UsageStatsTooltip
-            messageCount={usageSummary.messageCount}
-            stats={{
-              inputTokenDetails: usageSummary.inputTokenDetails,
-              inputTokens: usageSummary.inputTokens,
-              outputTokenDetails: usageSummary.outputTokenDetails,
-              outputTokens: usageSummary.outputTokens,
-              totalDuration: usageSummary.msToFinish,
-              totalTokens: usageSummary.totalTokens,
-            }}
-          >
-            <UsageSummaryText
-              className="min-w-0 text-[10px] text-dev-700/60 transition-colors hover:text-dev-700 dark:text-dev-300/60 dark:hover:text-dev-300"
-              messageCount={usageSummary.messageCount}
-              totalTokens={usageSummary.totalTokens}
-            />
-          </UsageStatsTooltip>
-        )}
-        {latestCreatedAt && (
-          <RelativeTime
-            className="ml-auto cursor-default text-xs whitespace-nowrap text-muted-foreground"
-            date={latestCreatedAt}
-          />
-        )}
-      </div>
-
-      {sources.length > 0 && (
-        <CollapsibleContent>
-          <div className="mt-2 space-y-2 pl-1">
-            {sources.map((source) => {
-              if (source.type === "source-url") {
-                return (
-                  <SourceLink
-                    key={source.metadata.id}
-                    title={source.title}
-                    url={source.url}
-                  />
-                );
-              }
-
-              return (
-                <div
-                  className="flex items-center gap-2 text-sm"
-                  key={source.metadata.id}
-                >
-                  <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="font-medium text-foreground">
-                      {source.title}
-                    </span>
-                    {(source.filename || source.mediaType) && (
-                      <span className="truncate text-xs text-muted-foreground">
-                        {source.filename && source.mediaType
-                          ? `${source.filename} • ${source.mediaType}`
-                          : source.filename || source.mediaType}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        </CollapsibleContent>
-      )}
-    </Collapsible>
+              </Button>
+            </CollapsibleTrigger>
+          )}
+          {modelsUsed.length > 0 && (
+            <div className="flex min-w-0 items-center gap-2">
+              {modelsUsed.map((model, index) => (
+                <div
+                  className="flex min-w-0 items-center gap-1.5"
+                  key={model.aiGatewayModel?.uri ?? model.modelId}
+                >
+                  {index > 0 && (
+                    <span className="mr-1 text-muted-foreground/30">•</span>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="min-w-0">
+                        <ModelChip
+                          aiGatewayModel={model.aiGatewayModel}
+                          modelId={model.modelId}
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      align="start"
+                      className="p-3 text-xs"
+                      side="top"
+                    >
+                      <div className="space-y-2">
+                        {getModelInfoRows(model).map((row) => (
+                          <TooltipRow key={row.label} {...row} />
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              ))}
+            </div>
+          )}
+          {isDeveloperMode && usageSummary && (
+            <UsageStatsTooltip
+              messageCount={usageSummary.messageCount}
+              stats={{
+                inputTokenDetails: usageSummary.inputTokenDetails,
+                inputTokens: usageSummary.inputTokens,
+                outputTokenDetails: usageSummary.outputTokenDetails,
+                outputTokens: usageSummary.outputTokens,
+                totalDuration: usageSummary.msToFinish,
+                totalTokens: usageSummary.totalTokens,
+              }}
+            >
+              <UsageSummaryText
+                className="min-w-0 text-[10px] text-dev-700/60 transition-colors hover:text-dev-700 dark:text-dev-300/60 dark:hover:text-dev-300"
+                messageCount={usageSummary.messageCount}
+                totalTokens={usageSummary.totalTokens}
+              />
+            </UsageStatsTooltip>
+          )}
+          {latestCreatedAt && (
+            <RelativeTime
+              className="ml-auto cursor-default text-xs whitespace-nowrap text-muted-foreground"
+              date={latestCreatedAt}
+            />
+          )}
+        </div>
+
+        {sources.length > 0 && (
+          <CollapsibleContent>
+            <div className="mt-2 space-y-2 pl-1">
+              {sources.map((source) => {
+                if (source.type === "source-url") {
+                  return (
+                    <SourceLink
+                      key={source.metadata.id}
+                      title={source.title}
+                      url={source.url}
+                    />
+                  );
+                }
+
+                return (
+                  <div
+                    className="flex items-center gap-2 text-sm"
+                    key={source.metadata.id}
+                  >
+                    <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-medium text-foreground">
+                        {source.title}
+                      </span>
+                      {(source.filename || source.mediaType) && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          {source.filename && source.mediaType
+                            ? `${source.filename} • ${source.mediaType}`
+                            : source.filename || source.mediaType}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CollapsibleContent>
+        )}
+      </Collapsible>
+    </>
   );
 }
 

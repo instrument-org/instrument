@@ -9,14 +9,12 @@ import { type ReactNode } from "react";
 /**
  * The shared skeleton of a task's action menu, rendered under both a dropdown
  * (the "..." button) and a context menu (right click) via {@link MenuComponents}.
- * Pin / Rename / Delete are identical everywhere; the context-specific pieces are
- * slots: `duplicate` (the sidebar navigates the active tab via InternalLink, a
- * project row navigates in its own router) and `extras` (change-project + dev
- * items in the sidebar, remove-from-project in a project row). Every item uses
- * `onSelect` so keyboard and pointer activation behave the same.
+ * Pin / Rename / Delete are identical everywhere; the context-specific piece is
+ * the `extras` slot (change-project + dev items in the sidebar, remove-from-project
+ * in a project row). Every item uses `onSelect` so keyboard and pointer activation
+ * behave the same.
  */
 export function TaskMenuItems({
-  duplicate,
   extras,
   isPinned,
   menuComponents,
@@ -24,7 +22,6 @@ export function TaskMenuItems({
   onRename,
   onTogglePin,
 }: {
-  duplicate: ReactNode;
   extras?: ReactNode;
   isPinned: boolean;
   menuComponents: MenuComponents;
@@ -39,7 +36,6 @@ export function TaskMenuItems({
         <PushPinIcon className="text-muted-foreground" />
         <span>{isPinned ? "Unpin" : "Pin"}</span>
       </Item>
-      {duplicate}
       <Item onSelect={onRename}>
         <PencilSimpleLineIcon className="text-muted-foreground" />
         <span>Rename</span>

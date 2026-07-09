@@ -22,13 +22,11 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
 import {
-  CopyIcon,
   DotsThreeOutlineVerticalIcon,
   PushPinIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { format, formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 
@@ -41,7 +39,6 @@ export function ProjectTaskRow({
   onDelete: (task: Task) => void;
   task: Task;
 }) {
-  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const { mutateAsync: renameTask } = useMutation(
@@ -72,20 +69,6 @@ export function ProjectTaskRow({
     const { Item } = menuComponents;
     return (
       <TaskMenuItems
-        duplicate={
-          <Item
-            onSelect={() => {
-              void navigate({
-                params: { id: task.id },
-                search: { showDuplicate: true },
-                to: "/tasks/$id",
-              });
-            }}
-          >
-            <CopyIcon className="text-muted-foreground" />
-            <span>Duplicate</span>
-          </Item>
-        }
         extras={
           <Item
             onSelect={() => {

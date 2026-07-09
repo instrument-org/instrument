@@ -10,67 +10,64 @@ import {
 } from "@/client/components/ui/alert-dialog";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { type Task } from "@instrument-org/workspace/client";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { TaskStatsCard } from "./stats-card";
-
-export function DuplicateTaskModal({
+export function BranchTaskModal({
+  branchPoint,
   isOpen,
   onClose,
-  task,
+  sourceTaskId,
 }: {
+  branchPoint: { messageId: StoreId.Message; sessionId: StoreId.Session };
   isOpen: boolean;
   onClose: () => void;
-  task: Task;
+  sourceTaskId: TaskId;
 }) {
   const { addTab } = useTabActions();
 
-  const duplicateMutation = useMutation(
-    rpcClient.workspace.task.duplicate.mutationOptions({
+  const branchMutation = useMutation(
+    rpcClient.workspace.task.branch.mutationOptions({
       onError: (error: Error) => {
-        toast.error("Failed to duplicate task", {
+        toast.error("Failed to branch task", {
           description: error.message,
         });
       },
-      onSuccess: (duplicatedTask) => {
+      onSuccess: (branchedTask) => {
         onClose();
 
         void addTab({
-          params: { id: duplicatedTask.id },
+          params: { id: branchedTask.id },
           to: "/tasks/$id",
         });
       },
     }),
   );
 
-  const handleDuplicate = (e: React.MouseEvent) => {
+  const handleBranch = (e: React.MouseEvent) => {
     e.preventDefault();
-    duplicateMutation.mutate({
-      keepHistory: true,
-      sourceTaskId: task.id,
-    });
+    branchMutation.mutate({ branchPoint, sourceTaskId });
   };
 
   return (
     <AlertDialog onOpenChange={onClose} open={isOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Duplicate Task?</AlertDialogTitle>
+          <AlertDialogTitle>Branch from here?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will create a copy of the task with all of its messages and
-            files as a new task.
+            Creates a new task with the conversation up to this point and a copy
+            of the current files, so you can continue from here without changing
+            this task.
           </AlertDialogDescription>
-          <TaskStatsCard task={task} />
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            disabled={duplicateMutation.isPending}
-            onClick={handleDuplicate}
+            disabled={branchMutation.isPending}
+            onClick={handleBranch}
           >
-            {duplicateMutation.isPending ? "Duplicating..." : "Duplicate task"}
+            {branchMutation.isPending ? "Branching..." : "Branch"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

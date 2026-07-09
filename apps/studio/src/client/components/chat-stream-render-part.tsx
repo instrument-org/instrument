@@ -15,6 +15,7 @@ import { ToolCall } from "./message-part/tool-call";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
 import { ProjectChangesNote } from "./project-changes-note";
 import { ReasoningMessage } from "./reasoning-message";
+import { isReasoningPartVisible } from "./reasoning-utils";
 import { ContextMessage } from "./session-context-message";
 import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
@@ -184,6 +185,9 @@ export function renderChatPart({
   }
 
   if (part.type === "reasoning") {
+    if (!isReasoningPartVisible(part)) {
+      return null;
+    }
     return (
       <ReasoningMessage
         createdAt={part.metadata.createdAt}

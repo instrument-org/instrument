@@ -5,6 +5,7 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { isToolCallVisible } from "./message-part/tool-call-utils";
+import { isReasoningPartVisible } from "./reasoning-utils";
 
 interface ToolBoundaryInfo {
   isToolCall: boolean;
@@ -100,6 +101,10 @@ export function isVisibleAssistantPart({
     return isToolCallVisible({ isDeveloperMode, isStreaming, part });
   }
 
+  if (part.type === "reasoning") {
+    return isReasoningPartVisible(part);
+  }
+
   return (
     part.type !== "step-start" &&
     part.type !== "data-attachments" &&
@@ -162,6 +167,10 @@ function isRenderableInlinePart({
 
   if (isToolPart(part)) {
     return isToolCallVisible({ isDeveloperMode, isStreaming, part });
+  }
+
+  if (part.type === "reasoning") {
+    return isReasoningPartVisible(part);
   }
 
   return true;

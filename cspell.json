@@ -4,6 +4,7 @@
   "ignorePaths": [
     "pnpm-lock.yaml",
     "registry/",
+    "docs/",
     "apps/studio/resources/tailwind-browser.js"
   ],
   "useGitignore": true,

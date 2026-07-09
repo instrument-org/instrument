@@ -21,13 +21,6 @@ export default [
   ]),
   ...baseConfig,
   {
-    settings: {
-      "better-tailwindcss": {
-        entryPoint: "./src/client/styles/globals.css",
-      },
-    },
-  },
-  {
     files: ["**/*.{js,jsx,ts,tsx}"],
     rules: {
       "no-restricted-properties": [

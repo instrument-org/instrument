@@ -34,7 +34,7 @@ export const buttonVariants = tv({
       "ghost-overlay":
         "text-white not-disabled:hover:bg-white/20 not-disabled:hover:text-white",
       "input-select":
-        "border-0 bg-gradient-to-b from-white to-[#fafaf9] text-foreground shadow-sm not-disabled:hover:brightness-95 dark:border dark:border-input dark:bg-input/30 dark:bg-none dark:from-transparent dark:to-transparent dark:not-disabled:hover:bg-input/50",
+        "border-0 bg-linear-to-b from-white to-[#fafaf9] text-foreground shadow-sm not-disabled:hover:brightness-95 dark:border dark:border-input dark:bg-input/30 dark:bg-none dark:from-transparent dark:to-transparent dark:not-disabled:hover:bg-input/50",
       link: "text-primary underline-offset-4 not-disabled:hover:underline",
       outline:
         "border border-black/5 text-muted-foreground not-disabled:hover:bg-black/5 dark:border-white/10 dark:not-disabled:hover:bg-white/10",

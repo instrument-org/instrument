@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 80,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    ".all-contributorsrc",
+    ".husky/",
+    "coverage/",
+    "pnpm-lock.yaml",
+    "llm-cache.local/",
+    "routeTree.gen.ts",
+    "apps/studio/electron.vite.config.*.mjs",
+    "apps/studio/resources/tailwind-browser.js",
+    "dist/",
+    "registry/",
+    "**/out/",
+    "_tmp_*",
+    ".claude/worktrees/"
+  ]
+}

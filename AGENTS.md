@@ -106,6 +106,19 @@ Scope-first style: `scope: description of what changed`. No conventional types
 (`feat:`/`fix:`/etc.) -- let the description imply the change. See
 `.agents/skills/instrument-commit-message/SKILL.md`.
 
+## Repository knowledge base
+
+Durable, versioned docs are the system of record; prefer them over chat/history.
+Keep them evergreen and safe to share: leave out secrets and anything tied to one
+machine, person, or moment.
+
+- `docs/findings/` — non-obvious issues, what we tried, what might resolve them
+  later. One file per finding.
+- `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`).
+  One file per plan.
+- `docs/decisions/` — why we chose one approach over another, dated. One file per
+  decision.
+
 ## Additional guidance
 
 - `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.

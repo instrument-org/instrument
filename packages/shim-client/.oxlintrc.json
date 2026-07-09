@@ -1,11 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
-  "extends": [
-    "../../.oxlintrc.json"
-  ],
-  "jsPlugins": [
-    "oxlint-tailwindcss"
-  ],
+  "extends": ["../../.oxlintrc.json"],
+  "jsPlugins": ["oxlint-tailwindcss"],
   "settings": {
     "tailwindcss": {
       "entryPoint": "src/iframe/globals.css"

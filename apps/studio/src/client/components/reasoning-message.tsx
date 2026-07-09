@@ -5,6 +5,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
 import { PlanningDotIcon } from "./icons/planning-dot";
+import { reasoningDisplayText } from "./reasoning-utils";
 import { SessionMarkdown } from "./session-markdown";
 import {
   Collapsible,
@@ -74,7 +75,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
     };
   }, [isExpanded, isLoading, text]);
 
-  const displayText = text.replaceAll("[REDACTED]", "");
+  const displayText = reasoningDisplayText(text);
 
   if (!isLoading && !displayText.trim()) {
     return null;

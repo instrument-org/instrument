@@ -13,7 +13,7 @@ describe("runPnpmCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
-    } as never);
+    });
 
     const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
     await runPnpmCommand({ args: ["install"], taskId });
@@ -49,7 +49,7 @@ describe("runPnpmCommand", () => {
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
-    } as never);
+    });
 
     const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
     await runPnpmCommand({

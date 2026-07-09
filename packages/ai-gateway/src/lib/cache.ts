@@ -10,12 +10,12 @@ export function clearCachedResults() {
   globalCache.clear();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters
 export function getCachedResult<T>(key: string): T | undefined {
   return globalCache.get(key) as T | undefined;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters
 export function setCachedResult<T extends object>(
   key: string,
   value: T,

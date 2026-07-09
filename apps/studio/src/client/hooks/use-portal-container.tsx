@@ -1,12 +1,6 @@
 import { zoomAtom } from "@/client/atoms/zoom";
 import { useAtomValue } from "jotai";
-import {
-  createContext,
-  type CSSProperties,
-  type ReactNode,
-  useContext,
-  useState,
-} from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 
 const PortalContainerContext = createContext<HTMLElement | undefined>(
   undefined,
@@ -29,7 +23,7 @@ export function PortalContainerProvider({ children }: { children: ReactNode }) {
       <div
         data-slot="portal-container"
         ref={setContainer}
-        style={zoom === 1 ? undefined : ({ zoom: 1 / zoom } as CSSProperties)}
+        style={zoom === 1 ? undefined : { zoom: 1 / zoom }}
       />
     </PortalContainerContext>
   );

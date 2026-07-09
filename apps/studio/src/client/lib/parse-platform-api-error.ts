@@ -42,8 +42,7 @@ export function parsePlatformApiError(
 ): null | PlatformApiError {
   const metadataError = message.metadata.error;
   if (
-    !metadataError ||
-    metadataError.kind !== "api-call" ||
+    metadataError?.kind !== "api-call" ||
     message.metadata.aiGatewayModel?.params.provider !== OUR_MODELS.providerType
   ) {
     return null;

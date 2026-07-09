@@ -13,9 +13,9 @@ declare const __FFPROBE_STATIC_PATH__: string;
 // correctly at runtime.
 const req = createRequire(import.meta.url);
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+// oxlint-disable-next-line typescript/no-unsafe-assignment
 const ffmpegPath: null | string = req(__FFMPEG_STATIC_PATH__);
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+// oxlint-disable-next-line typescript/no-unsafe-assignment
 const ffprobePath: null | string = req(__FFPROBE_STATIC_PATH__);
 
 export const FFMPEG_PATH = unpackAsarPath(ffmpegPath ?? "ffmpeg");

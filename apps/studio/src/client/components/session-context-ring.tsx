@@ -56,7 +56,9 @@ function getContextWindowForModel(canonicalId: string): number {
 // at this threshold regardless of the model's actual maximum. The tooltip still
 // shows the true context size so users know the model's real limit.
 const RING_CAP = 200_000;
-const RADIUS = 7;
+const SIZE = 20;
+const CENTER = SIZE / 2;
+const RADIUS = 8;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function SessionContextRing({
@@ -98,31 +100,31 @@ export function SessionContextRing({
 
   return (
     <Tooltip>
-      <TooltipTrigger className="flex items-center">
+      <TooltipTrigger className="flex size-8 items-center justify-center">
         <svg
           className={strokeColor}
           fill="none"
-          height={18}
-          viewBox="0 0 18 18"
-          width={18}
+          height={SIZE}
+          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          width={SIZE}
         >
           <circle
             className="opacity-20"
-            cx={9}
-            cy={9}
+            cx={CENTER}
+            cy={CENTER}
             r={RADIUS}
             stroke="currentColor"
-            strokeWidth={2}
+            strokeWidth={2.5}
           />
           <circle
-            cx={9}
-            cy={9}
+            cx={CENTER}
+            cy={CENTER}
             r={RADIUS}
             stroke="currentColor"
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={dashOffset}
             strokeLinecap="round"
-            strokeWidth={2}
+            strokeWidth={2.5}
             style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}
           />
         </svg>

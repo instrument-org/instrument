@@ -8,11 +8,16 @@ export interface DroppedFolder {
 }
 
 interface UseWindowFileDropOptions {
+  // Gates the window listeners so only the active tab reacts. Every open tab
+  // stays mounted in one web contents, so without this a single drop fans out
+  // to every tab's PromptInput.
+  enabled?: boolean;
   onFilesDropped: (files: FileList) => void;
   onFoldersDropped?: (folders: DroppedFolder[]) => void;
 }
 
 export const useWindowFileDrop = ({
+  enabled = true,
   onFilesDropped,
   onFoldersDropped,
 }: UseWindowFileDropOptions) => {
@@ -20,6 +25,10 @@ export const useWindowFileDrop = ({
   const dragCounterRef = useRef(0);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     const handleDragEnter = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -104,7 +113,7 @@ export const useWindowFileDrop = ({
       window.removeEventListener("dragover", handleDragOver);
       window.removeEventListener("drop", handleDrop);
     };
-  }, [onFilesDropped, onFoldersDropped]);
+  }, [enabled, onFilesDropped, onFoldersDropped]);
 
-  return { isDragging };
+  return { isDragging: enabled && isDragging };
 };

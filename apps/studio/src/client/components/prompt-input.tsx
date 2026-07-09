@@ -283,6 +283,7 @@ export const PromptInput = ({
   };
 
   const { isDragging } = useWindowFileDrop({
+    enabled: isActiveTab,
     onFilesDropped: processFiles,
     onFoldersDropped: (folders: DroppedFolder[]) => {
       setAttachedItems((prev) => {

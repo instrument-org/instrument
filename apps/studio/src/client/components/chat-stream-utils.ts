@@ -111,6 +111,7 @@ export function isVisibleAssistantPart({
     part.type !== "data-projectContext" &&
     part.type !== "data-browserStatus" &&
     part.type !== "data-externalFileChanges" &&
+    part.type !== "data-maxSteps" &&
     part.type !== "source-document" &&
     part.type !== "source-url" &&
     part.type !== "file"
@@ -143,7 +144,8 @@ function isRenderableInlinePart({
 
   if (
     part.type === "data-browserStatus" ||
-    part.type === "data-externalFileChanges"
+    part.type === "data-externalFileChanges" ||
+    part.type === "data-maxSteps"
   ) {
     // Developer-mode-only debug peek; otherwise hidden like attachments.
     return isDeveloperMode;

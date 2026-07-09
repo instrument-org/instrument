@@ -1504,7 +1504,7 @@ describe("sessionMachine", () => {
         <session-context main realRole="system" />
         <session-context main realRole="user" />
         <assistant finishReason="max-steps" model="instrument-synthetic" provider="system">
-          <text>Agent stopped due to maximum steps (2).</text>
+          <data-maxSteps maxStepCount="2" />
         </assistant>
       </session>"
     `);

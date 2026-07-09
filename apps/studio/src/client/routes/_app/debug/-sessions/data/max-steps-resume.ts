@@ -9,9 +9,13 @@ const builder = new SessionBuilder();
 const sessionId = builder.getSessionId();
 const maxStepsMessageId = StoreId.newMessageId();
 
-// The "Resume the agent" prompt only renders when the last message is a
-// synthetic assistant message with finishReason "max-steps" and the agent is
-// no longer running. Toggle "Agent Running" off in the debug controls to see it.
+// The "Resume the agent" prompt renders when the last message is a synthetic
+// assistant message with finishReason "max-steps" and the agent is no longer
+// running. The max-steps state is carried by a hidden `data-maxSteps` part
+// (not visible assistant text), so the alert is the only user-facing affordance.
+// Toggle "Agent Running" off in the debug controls to see the alert; toggle
+// "Developer Mode" on to reveal the `data-maxSteps` debug card (the system note
+// injected into the model's prompt on resume).
 registerSession({
   messages: [
     builder.userMessage(
@@ -31,10 +35,16 @@ registerSession({
         synthetic: true,
       },
       parts: [
-        builder.textPart(
-          `Agent stopped due to maximum steps (${MAX_STEP_COUNT}).`,
-          maxStepsMessageId,
-        ),
+        {
+          data: { maxStepCount: MAX_STEP_COUNT },
+          metadata: {
+            createdAt: builder.nextTime(),
+            id: StoreId.newPartId(),
+            messageId: maxStepsMessageId,
+            sessionId,
+          },
+          type: "data-maxSteps",
+        },
       ],
       role: "assistant",
     },

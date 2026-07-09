@@ -1,17 +1,17 @@
 import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
-  // Namespace members are exported for organization (see AGENTS.md), not always
-  // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
-  rules: {
-    namespaceMembers: "off",
-  },
   ignore: [
     "registry/**/*",
     ".agents/**/*",
     ".cursor/**/*",
     ".claude/worktrees/**/*",
   ],
+  // Namespace members are exported for organization (see AGENTS.md), not always
+  // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
+  rules: {
+    namespaceMembers: "off",
+  },
   workspaces: {
     ".": {
       entry: ["scripts/*.ts"],
@@ -44,7 +44,14 @@ const config: KnipConfig = {
         "validate-env.ts",
       ],
       ignore: ["fixtures/**/*", "templates/**/*", "__mocks__/**/*"],
-      ignoreBinaries: ["tail", "op", "gh", "powershell.exe", "which", "xdg-open"],
+      ignoreBinaries: [
+        "tail",
+        "op",
+        "gh",
+        "powershell.exe",
+        "which",
+        "xdg-open",
+      ],
       ignoreDependencies: [
         "@derhuerst/ffprobe-static", // Imported in Vite build to fix import issues
         "ffmpeg-static", // Imported in Vite build to fix import issues

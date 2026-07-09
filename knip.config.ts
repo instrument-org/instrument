@@ -1,6 +1,9 @@
 import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
+  // knip does not reliably skip gitignored paths, so keep these explicit.
+  // .claude/worktrees especially: in the main checkout it holds every agent
+  // worktree, which knip would otherwise scan.
   ignore: [
     "registry/**/*",
     ".agents/**/*",
@@ -18,21 +21,16 @@ const config: KnipConfig = {
       ignoreBinaries: ["actionlint", "electron"],
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands
-        "@posthog/cli", // Used in .github/workflows/release.yml to upload source maps to PostHog
         "tailwindcss", // Runtime dependency of oxlint-tailwindcss
         "markdownlint", // markdownlint used by VSCode Extension for the markdownlint/style/prettier
         "chrome-devtools-mcp", // Used in .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh
       ],
-    },
-    "apps/api": {
-      entry: ["scripts/*.{ts,tsx}"],
     },
     "apps/studio": {
       entry: [
         "scripts/*.{ts,tsx,js}",
         "electron-builder/win-cloud-hsm-sign.js",
         "src/client/components/ui/*.tsx",
-        "src/client/routeTree.gen.ts",
         "src/client/router.tsx",
         "src/client/main.tsx",
         "src/electron-main/index.ts",
@@ -43,7 +41,6 @@ const config: KnipConfig = {
         "electron-builder.ts",
         "validate-env.ts",
       ],
-      ignore: ["fixtures/**/*", "templates/**/*", "__mocks__/**/*"],
       ignoreBinaries: [
         "tail",
         "op",
@@ -65,15 +62,11 @@ const config: KnipConfig = {
       },
       postcss: true, // Not getting picked up by the plugin
     },
-    "packages/components": {
-      entry: ["index.html", "src/main.tsx"],
-      ignoreDependencies: ["tailwindcss"],
-    },
     "packages/eslint-config": {
       ignore: ["ignore.ts"],
     },
     "packages/shim-client": {
-      entry: ["src/client/index.ts", "src/iframe/index.tsx"],
+      entry: ["src/client/index.ts"],
     },
     "packages/typescript-config": {},
     "packages/workspace": {

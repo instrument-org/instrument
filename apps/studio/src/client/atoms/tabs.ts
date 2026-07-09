@@ -17,11 +17,29 @@ function freshTabsModel(): TabsModel {
 
 const json = createJSONStorage<TabsModel>(() => localStorage);
 
-// Coalesce the burst of writes that navigation/selection produce; persistence is
-// best-effort, so a dropped final write on a fast quit is acceptable.
-const persist = debounce({ delay: 300 }, (key: string, value: TabsModel) => {
-  json.setItem(key, value);
-});
+// Latest scheduled write, held so teardown can flush it synchronously rather than
+// relying on the debounce timer surviving.
+let pendingWrite: null | { key: string; value: TabsModel } = null;
+
+const flushWrite = () => {
+  if (!pendingWrite) {
+    return;
+  }
+  json.setItem(pendingWrite.key, pendingWrite.value);
+  pendingWrite = null;
+};
+
+// Coalesce the burst of writes that navigation/selection produce. A quit or reload
+// (including a dev relaunch) can fire inside the debounce window, so flush the
+// pending write on teardown to avoid dropping the last navigation. radashi's
+// `debounce().flush()` re-invokes with fresh args instead of replaying the pending
+// call, so the pending value is tracked here rather than through it.
+const persist = debounce({ delay: 300 }, flushWrite);
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", flushWrite);
+  window.addEventListener("beforeunload", flushWrite);
+}
 
 /**
  * localStorage backing for {@link tabsAtom}. The main window shares one origin,
@@ -44,10 +62,12 @@ const tabsStorage: typeof json = {
     return { ...stored, selectedId: stored.tabs[0]?.id ?? null };
   },
   removeItem: (key: string) => {
+    pendingWrite = null;
     json.removeItem(key);
   },
   setItem: (key: string, value: TabsModel) => {
-    persist(key, value);
+    pendingWrite = { key, value };
+    persist();
   },
 };
 

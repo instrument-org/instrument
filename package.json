@@ -23,7 +23,7 @@
     "check:md": "markdownlint-cli2 \"**/*.md\" \".github/**/*.md\"",
     "check:packages:dedupe": "pnpm dedupe --check",
     "check:packages:install": "pnpm install --frozen-lockfile",
-    "check:spelling": "cspell --no-progress \"**\" \".github/**/*\" \".vscode/**/*\"",
+    "check:spelling": "cspell --no-progress --gitignore-root . \"**\" \".github/**/*\" \".vscode/**/*\"",
     "check:types": "tsgo --noEmit",
     "check:unused": "knip",
     "check:unused-words": "cspell-check-unused-words",

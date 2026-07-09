@@ -209,6 +209,8 @@ export default tseslint.config(
       "no-console": "off",
     },
   },
+  // Disables ESLint rules that impose formatting (e.g. unicorn/template-indent),
+  // which would otherwise conflict with the formatter (oxfmt).
   eslintConfigPrettier,
 );
 

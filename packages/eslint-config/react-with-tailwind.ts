@@ -1,29 +1,6 @@
-import eslintPluginBetterTailwindcss from "eslint-plugin-better-tailwindcss";
-import tseslint from "typescript-eslint";
-
-import { ERROR_IN_CI } from "./base";
-import reactConfig from "./react";
-
-const config: ReturnType<typeof tseslint.config> = tseslint.config(
-  ...reactConfig,
-  {
-    extends: [eslintPluginBetterTailwindcss.configs.recommended],
-    rules: {
-      // Too slow to run live and not worth enforcing in CI. Instead, we turn this on manually occasionally and --fix.
-      "better-tailwindcss/enforce-canonical-classes": "off",
-      // Causes formatting infinite loop due to Prettier conflicting
-      // Also, bad for LLMs, which will rarely generate accurate wrapping
-      "better-tailwindcss/enforce-consistent-line-wrapping": "off",
-      "better-tailwindcss/no-unknown-classes": [
-        // Slow rule
-        ERROR_IN_CI,
-        {
-          detectComponentClasses: true,
-          ignore: ["toaster", "dark"],
-        },
-      ],
-    },
-  },
-);
-
-export default config;
+// Tailwind class ordering and linting now run via oxlint-tailwindcss (each
+// consuming package's .oxlintrc.json), which is far faster than the ESLint
+// plugin and shares one class order with the formatter. This config is now
+// just the React config; the export is kept so consumers need not change their
+// import path.
+export { default } from "./react";

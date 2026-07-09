@@ -137,7 +137,7 @@ export function VirtualizedScrollingText({
         className={
           autoScrollToBottom
             ? "pointer-events-none overflow-hidden"
-            : "overflow-auto scrollbar-color scrollbar-thin"
+            : "scrollbar-thin scrollbar-color overflow-auto"
         }
         ref={scrollContainerRef}
         // 7.5 lines × (14px × 1.625 leading) ≈ 170px; cuts off mid-line to imply scrolling

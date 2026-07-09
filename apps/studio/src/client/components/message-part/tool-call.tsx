@@ -84,7 +84,7 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
           Stopped while <span className="font-mono">{part.state}</span>
         </span>
       </div>
-      <div className="max-h-64 overflow-auto px-4 py-3 scrollbar-color scrollbar-thin">
+      <div className="max-h-64 scrollbar-thin scrollbar-color overflow-auto px-4 py-3">
         <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap text-foreground/70">
           {JSON.stringify(part.input, null, 2)}
         </pre>

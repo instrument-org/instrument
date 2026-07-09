@@ -1,13 +1,13 @@
 ---
-name: design-review
-description: Generate a designer-facing review queue from recent Instrument commits. Use when asked for design review, UI review, design changelog, designer handoff, or UI changes that may need design attention.
+name: find-ui-changes
+description: Find recent product UI surfaces changed by Instrument commits that may need human review. Use when asked to find UI changes, surface UI changes, create a design or UI review queue, prepare a designer handoff, or identify app changes needing design attention.
 ---
 
-# Design Review
+# Find UI Changes
 
-Create a concise designer-facing review queue from recent commits. This is not
-a release changelog. The goal is to identify UI surfaces a designer may want to
-inspect, with enough repo context for a human or agent to follow up.
+Create a concise queue of review-worthy UI changes from recent commits. This is
+not a release changelog. The goal is to identify product surfaces a human may
+want to inspect, with enough repo context for a designer or agent to follow up.
 
 ## Inputs
 
@@ -16,7 +16,9 @@ Accept ranges such as:
 - `HEAD~20..HEAD`
 - `v1.3.0..HEAD`
 - `since Monday`
+- `last 48 hours`
 - `last two weeks`
+- `since the last public release`
 - `since the previous stable tag`
 
 If the range is ambiguous, state the assumption. For relative dates, include the

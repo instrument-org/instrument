@@ -210,16 +210,14 @@ export function createAgentBrowserCommand({
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
     const resolvedArgs = resolvePathArgs(strippedArgs, taskId, ctx);
-    const isStandaloneRead = isExplicitUrlRead(strippedArgs);
 
     // Info-only invocations (--help, --version) print and exit without ever
     // touching a browser target, so don't spin up a WebContentsView or attach
     // to the CDP bridge.
-    const commandArgs: string[] =
-      isInfoOnly || isStandaloneRead ? [...resolvedArgs] : [];
+    const commandArgs: string[] = isInfoOnly ? [...resolvedArgs] : [];
     let targetId: BrowserTargetId | undefined;
 
-    if (!isInfoOnly && !isStandaloneRead) {
+    if (!isInfoOnly) {
       // Idempotent: createTarget returns the existing view for this
       // (id, sessionId) pair if one is already live, so sub-agents and
       // repeat invocations within the same session reuse the same browsing
@@ -269,18 +267,17 @@ export function createAgentBrowserCommand({
     // Open the observation before invoking the binary so the UI can render
     // a pending card immediately and so a record exists even if execa
     // throws or the process is canceled mid-flight. Info-only invocations
-    // (--help, --version) and standalone URL reads never touch the browser
-    // target, so we skip observation entirely; everything else gets a
-    // start+end screenshot pair (deduped by content hash on disk).
-    const observation =
-      isInfoOnly || isStandaloneRead
-        ? undefined
-        : await beginBrowserCommandObservation({
-            sessionId,
-            subcommand: subcommandText,
-            taskId: id,
-            upsertContextItem,
-          });
+    // (--help, --version) never touch the browser target, so we skip
+    // observation entirely; everything else gets a start+end screenshot pair
+    // (deduped by content hash on disk).
+    const observation = isInfoOnly
+      ? undefined
+      : await beginBrowserCommandObservation({
+          sessionId,
+          subcommand: subcommandText,
+          taskId: id,
+          upsertContextItem,
+        });
 
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
     try {
@@ -499,38 +496,6 @@ async function runAgentBrowser({
       fs.rm(stderrPath, { force: true }),
     ]);
   }
-}
-
-const READ_FLAGS_WITH_VALUE = new Set([
-  "--allowed-domains",
-  "--filter",
-  "--headers",
-  "--llms",
-  "--max-output",
-  "--timeout",
-]);
-
-function isExplicitUrlRead(args: string[]) {
-  const readIndex = args.indexOf("read");
-  if (readIndex === -1) {
-    return false;
-  }
-
-  let shouldSkipNextArg = false;
-  for (const arg of args.slice(readIndex + 1)) {
-    if (shouldSkipNextArg) {
-      shouldSkipNextArg = false;
-      continue;
-    }
-    if (arg.startsWith("-")) {
-      if (READ_FLAGS_WITH_VALUE.has(arg) && !arg.includes("=")) {
-        shouldSkipNextArg = true;
-      }
-      continue;
-    }
-    return true;
-  }
-  return false;
 }
 
 function stripHarnessControlledFlags(args: string[]): string[] {

@@ -9,9 +9,12 @@ page_hint="${2:-}"
 
 BROWSER_URL="$browser_url" node << 'NODE'
 const browserUrl = process.env.BROWSER_URL;
+const timeoutMs = 5_000;
 
 const probe = async (path) => {
-  const response = await fetch(`${browserUrl}${path}`);
+  const response = await fetch(`${browserUrl}${path}`, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   if (!response.ok) {
     throw new Error(`${path} returned ${response.status}`);
   }
@@ -31,7 +34,12 @@ const main = async () => {
 };
 
 main().catch((error) => {
-  console.error(`[error] Could not reach ${browserUrl}: ${error.message}`);
+  const detail =
+    error.name === "TimeoutError"
+      ? `timed out after ${timeoutMs / 1_000} seconds; another Studio process may own the port without responding`
+      : error.message;
+
+  console.error(`[error] Could not reach ${browserUrl}: ${detail}`);
   process.exit(1);
 });
 NODE

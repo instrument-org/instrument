@@ -102,10 +102,10 @@ export default tseslint.config(
       "import-x/no-duplicates": "error",
       "import-x/no-named-as-default-member": "off",
       "import-x/no-unresolved": "off",
-      // For performance we only run these in CI
-      "import-x/no-cycle": ERROR_IN_CI,
+      // no-cycle and no-named-as-default run always-on via oxlint (import/*),
+      // which is fast enough not to gate behind CI.
       "import-x/no-deprecated": "off", // Doesn't support multiple function signatures, so using @typescript-eslint/no-deprecated instead
-      "import-x/no-named-as-default": ERROR_IN_CI,
+      // For performance we only run this in CI
       "import-x/no-unused-modules": ERROR_IN_CI,
 
       // -

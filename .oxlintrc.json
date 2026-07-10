@@ -3,6 +3,7 @@
   "options": {
     "typeAware": true
   },
+  "plugins": ["unicorn", "typescript", "oxc", "import"],
   "categories": {
     "correctness": "off"
   },
@@ -25,6 +26,8 @@
     "**/tailwind-browser.js"
   ],
   "rules": {
+    "import/no-cycle": ["error"],
+    "import/no-named-as-default": ["error"],
     "typescript/await-thenable": ["error"],
     "typescript/consistent-type-exports": ["error"],
     "typescript/dot-notation": [

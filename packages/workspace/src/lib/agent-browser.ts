@@ -41,7 +41,7 @@ function getBinaryName() {
   let archKey: string;
   switch (cpuArch) {
     case "arm64": {
-      archKey = "arm64";
+      archKey = userPlatform === "win32" ? "x64" : "arm64";
       break;
     }
     case "x64": {

@@ -81,6 +81,8 @@ function pruneAgentBrowser({
   if (!existsSync(binDir)) {
     return [];
   }
+  const agentBrowserArch =
+    platform === "win32" && arch === "arm64" ? "x64" : arch;
 
   const removed: string[] = [];
   for (const entry of readdirSync(binDir)) {
@@ -93,9 +95,9 @@ function pruneAgentBrowser({
       .slice("agent-browser-".length)
       .replace(/\.exe$/i, "");
     const keep =
-      descriptor === `${platform}-${arch}` ||
+      descriptor === `${platform}-${agentBrowserArch}` ||
       // Linux musl variant for the same arch is still a valid linux target.
-      (platform === "linux" && descriptor === `linux-musl-${arch}`);
+      (platform === "linux" && descriptor === `linux-musl-${agentBrowserArch}`);
     if (keep) {
       continue;
     }

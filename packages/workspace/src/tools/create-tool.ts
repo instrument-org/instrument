@@ -50,9 +50,9 @@ function buildTool<
   return {
     ...setup,
     ...options,
-    aiSDKTool: async ({ agentName, taskId }) => {
+    aiSDKTool: async ({ agentName, model, taskId }) => {
       const description = await (typeof options.description === "function"
-        ? options.description({ agentName, taskId })
+        ? options.description({ agentName, model, taskId })
         : options.description);
 
       const inputSchema =

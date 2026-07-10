@@ -67,7 +67,6 @@ export function AssistantMessagesFooter({
     ...rpcClient.workspace.message.usageSummary.queryOptions({
       input: { id, messages: messageRefs },
     }),
-    enabled: isDeveloperMode,
   });
 
   const {
@@ -190,6 +189,7 @@ export function AssistantMessagesFooter({
     await navigator.clipboard.writeText(messageText);
   };
 
+  const generationDuration = usageSummary?.msToFinish ?? totalDuration;
   const uniqueUrls = extractUniqueUrls(sources);
 
   return (
@@ -246,11 +246,11 @@ export function AssistantMessagesFooter({
               <TooltipContent>Branch from here</TooltipContent>
             </Tooltip>
           )}
-          {totalDuration > 0 && (
+          {generationDuration > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="cursor-default text-xs text-muted-foreground">
-                  {formatDuration(totalDuration)}
+                  {formatDuration(generationDuration)}
                 </span>
               </TooltipTrigger>
               <TooltipContent className="p-3 text-xs">
@@ -258,7 +258,7 @@ export function AssistantMessagesFooter({
                   <TooltipRow
                     label="Generation time:"
                     tabular
-                    value={formatDuration(totalDuration)}
+                    value={formatDuration(generationDuration)}
                   />
                   {elapsedDuration != null && (
                     <TooltipRow

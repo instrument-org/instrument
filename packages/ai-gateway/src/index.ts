@@ -11,6 +11,7 @@ export * from "./lib/fetch-model";
 export * from "./lib/fetch-model-results";
 export * from "./lib/get-ai-sdk-image-model";
 export * from "./lib/get-ai-sdk-web-search-model";
+export * from "./lib/image-capabilities";
 export * from "./lib/model-cache";
 export { baseURLWithDefault } from "./lib/providers/base-url-with-default";
 export { fetchCredits } from "./lib/providers/fetch-credits";
@@ -20,6 +21,7 @@ export {
 } from "./lib/providers/metadata";
 export type { ImageGenerationProviderType } from "./lib/providers/metadata";
 export * from "./lib/select-provider-configs";
+export * from "./lib/stream-image";
 export { verifyAPIKey } from "./lib/verify-api-key";
 export * from "./schemas/model";
 export * from "./schemas/model-uri";

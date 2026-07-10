@@ -1,0 +1,43 @@
+{
+  "folders": [{ "path": "." }],
+  "settings": {
+    // Personal editor preference, committed to sync across machines. Opening the
+    // folder never applies these; only opening this .code-workspace does.
+    // Team-wide settings live in .vscode/settings.json; the window-scoped keys
+    // here are duplicated from there because VS Code ignores window-scoped
+    // folder settings when a repo is opened via a .code-workspace.
+    "cSpell.autoFormatConfigFile": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit",
+      "source.fixAll.oxc": "explicit",
+    },
+    "editor.formatOnSave": true,
+    "files.autoSave": "onFocusChange",
+    "js/ts.experimental.useTsgo": true,
+    "peacock.color": "#0b6056",
+    "tailwindCSS.classFunctions": ["cn", "tv"],
+    "vitest.configSearchPatternInclude": "**/vitest*.config*.{ts,js,mjs,cjs,cts,mts}",
+    "workbench.colorCustomizations": {
+      "activityBar.activeBackground": "#108e7f",
+      "activityBar.background": "#108e7f",
+      "activityBar.foreground": "#e7e7e7",
+      "activityBar.inactiveForeground": "#e7e7e799",
+      "activityBarBadge.background": "#80108f",
+      "activityBarBadge.foreground": "#e7e7e7",
+      "commandCenter.border": "#e7e7e799",
+      "sash.hoverBorder": "#108e7f",
+      "statusBar.background": "#0b6056",
+      "statusBar.foreground": "#e7e7e7",
+      "statusBarItem.hoverBackground": "#108e7f",
+      "statusBarItem.remoteBackground": "#0b6056",
+      "statusBarItem.remoteForeground": "#e7e7e7",
+      "titleBar.activeBackground": "#0b6056",
+      "titleBar.activeForeground": "#e7e7e7",
+      "titleBar.inactiveBackground": "#0b605699",
+      "titleBar.inactiveForeground": "#e7e7e799",
+    },
+    "yaml.schemas": {
+      "https://json.schemastore.org/pnpm-workspace": "pnpm-workspace.yaml",
+    },
+  },
+}

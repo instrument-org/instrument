@@ -25,6 +25,7 @@ import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
+import { setTaskIndicator } from "../../lib/task-indicators";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
@@ -291,6 +292,13 @@ export const workspaceMachine = setup({
         }
       },
     ),
+
+    // Persist an unread indicator so the sidebar/tab can surface a dot until
+    // the user views the task. Writing task settings publishes task.updated,
+    // which the live indicators stream re-reads from.
+    markTaskUnread: (_, { id }: { id: TaskId }) => {
+      void setTaskIndicator(id, "completed");
+    },
 
     releaseBrowserPresence: enqueueActions(
       ({ context }, { id }: { id: TaskId }) => {
@@ -682,40 +690,34 @@ export const workspaceMachine = setup({
         },
       },
     ],
-    "session.done": [
-      {
-        actions: raise(({ event }) => {
-          return {
-            type: "restartRuntime",
-            value: { id: event.value.taskId },
-          };
-        }),
-        guard: ({ context, event }) =>
+    "session.done": {
+      actions: enqueueActions(({ context, enqueue, event }) => {
+        // The task's turn is done once its root session finishes; subagent
+        // completions don't count (the parent turn is still running). Keying on
+        // the root session avoids depending on every session ref reaching a
+        // non-alive state, which a lingering subagent ref could block forever.
+        if (event.value.parentSessionId === undefined) {
+          enqueue({
+            params: { id: event.value.taskId },
+            type: "markTaskUnread",
+          });
+        }
+
+        if (
           // Only restart if non-read-only tools were used
           event.value.usedNonReadOnlyTools &&
-          // Don't restart if the runtime if it isn't running
-          context.runtimeRefs.has(event.value.taskId),
-      },
-      {
-        // No restart needed if only read-only tools were used
-      },
-      // TODO: Add this back once we have another way to show "done" sessions
-      // in the UI because we want to garbage collect them eagerly.
-      // actions: assign(({ context, event }) => {
-      //   const { id } = event.value.taskId;
-      //   const { [id]: sessionActorRefs = [], ...otherRefs } =
-      //     context.sessionRefsByTaskId;
-      //   const newSessionActorRefs = sessionActorRefs.filter(
-      //     (ref) => ref.id !== event.value.actorId,
-      //   );
-      //   return {
-      //     sessionRefsByTaskId: {
-      //       ...otherRefs,
-      //       [id]: newSessionActorRefs,
-      //     },
-      //   };
-      // }),
-    ],
+          // Don't restart the runtime if it isn't running
+          context.runtimeRefs.has(event.value.taskId)
+        ) {
+          enqueue.raise({
+            type: "restartRuntime",
+            value: { id: event.value.taskId },
+          });
+        }
+      }),
+      // TODO: Garbage collect "done" session refs here once the UI has another
+      // way to show finished sessions; we want to drop them eagerly.
+    },
     "session.spawnSubAgent": {
       actions: raise(({ event }) => ({
         type: "internal.spawnSession" as const,

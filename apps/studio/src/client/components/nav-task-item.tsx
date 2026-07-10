@@ -27,6 +27,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import {
   ArrowUpRightIcon,
+  CircleIcon,
   DotsThreeOutlineVerticalIcon,
   PushPinIcon,
 } from "@phosphor-icons/react";
@@ -36,6 +37,7 @@ import { memo, useState } from "react";
 import { InlineRenameInput } from "./inline-rename-input";
 import { TaskProjectMenuItem } from "./project/task-project-menu-item";
 import { TaskStatusIcon } from "./session-status-icon";
+import { UnreadDot } from "./unread-dot";
 
 interface NavTaskItemProps {
   isActive: boolean;
@@ -53,6 +55,7 @@ export const NavTaskItem = memo(function NavTaskItem({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const menuOpen = dropdownOpen || contextOpen;
+  const isUnread = Boolean(task.unreadIndicator);
 
   const { mutateAsync: renameTask } = useMutation(
     rpcClient.workspace.task.update.mutationOptions(),
@@ -72,6 +75,13 @@ export const NavTaskItem = memo(function NavTaskItem({
     rpcClient.workspace.pin.remove.mutationOptions(),
   );
 
+  const { mutateAsync: markUnread } = useMutation(
+    rpcClient.workspace.task.markUnread.mutationOptions(),
+  );
+  const { mutateAsync: markRead } = useMutation(
+    rpcClient.workspace.task.clearIndicator.mutationOptions(),
+  );
+
   const handleTogglePin = async () => {
     await (isPinned ? removePin({ id: task.id }) : addPin({ id: task.id }));
   };
@@ -82,6 +92,19 @@ export const NavTaskItem = memo(function NavTaskItem({
       <TaskMenuItems
         extras={
           <>
+            <Item
+              onSelect={() => {
+                void (isUnread
+                  ? markRead({ id: task.id })
+                  : markUnread({ id: task.id }));
+              }}
+            >
+              <CircleIcon
+                className="text-muted-foreground"
+                weight={isUnread ? "regular" : "fill"}
+              />
+              <span>{isUnread ? "Mark as read" : "Mark as unread"}</span>
+            </Item>
             <TaskProjectMenuItem
               currentProjectId={task.projectId}
               menuComponents={menuComponents}
@@ -161,10 +184,14 @@ export const NavTaskItem = memo(function NavTaskItem({
 
           {!menuOpen && (
             <div
-              className="pointer-events-none absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md group-hover:hidden"
+              className="pointer-events-none absolute inset-y-0 right-1 flex w-5 items-center justify-center rounded-md group-hover:hidden"
               data-task-status
             >
-              <TaskStatusIcon className="mt-1 size-4 shrink-0" id={task.id} />
+              {isUnread ? (
+                <UnreadDot />
+              ) : (
+                <TaskStatusIcon className="size-4 shrink-0" id={task.id} />
+              )}
             </div>
           )}
 

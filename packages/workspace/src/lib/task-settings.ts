@@ -70,6 +70,10 @@ export function updateTaskSettings(
     if (validatedUpdates.pinnedAt === null) {
       delete merged.pinnedAt;
     }
+    // Same for unreadIndicator: `null` marks read by removing the key.
+    if (validatedUpdates.unreadIndicator === null) {
+      delete merged.unreadIndicator;
+    }
 
     yield* ResultAsync.fromPromise(
       fs

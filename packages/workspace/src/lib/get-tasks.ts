@@ -110,6 +110,7 @@ async function readTask({ dir }: { dir: TaskDir }) {
     pinnedAt: settings?.pinnedAt,
     projectId: settings?.projectId,
     title: settings?.name ?? rawFolderName,
+    unreadIndicator: settings?.unreadIndicator,
   };
   return ok(task);
 }

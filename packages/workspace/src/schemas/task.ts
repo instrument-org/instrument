@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { ProjectIdSchema } from "./project-id";
 import { TaskIdSchema } from "./task-id";
+import { TaskIndicatorSchema } from "./task-indicator";
 
 // The loaded representation of a task: id + metadata read from disk. This is
 // the "full thing" the client fetches when it needs more than an id.
@@ -12,6 +13,8 @@ export const TaskSchema = z.object({
   pinnedAt: z.date().optional(),
   projectId: ProjectIdSchema.optional(),
   title: z.string(),
+  // Set when the task is unread (agent finished, or user marked it unread).
+  unreadIndicator: TaskIndicatorSchema.optional(),
   updatedAt: z.date(),
 });
 

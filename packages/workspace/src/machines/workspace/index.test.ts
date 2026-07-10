@@ -1,8 +1,14 @@
 import { aiGatewayApp, noopModelCache } from "@instrument-org/ai-gateway";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { noop } from "radashi";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { type AnyActorLogic, createActor, fromCallback } from "xstate";
 
+import { taskDir } from "../../lib/task-dir-utils";
+import { getTaskSettings } from "../../lib/task-settings";
+import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import {
   createStubBrowserConfig,
@@ -27,7 +33,7 @@ const stubActors = {
 
 const testMachine = workspaceMachine.provide({ actors: stubActors });
 
-function createWorkspaceActor() {
+function createWorkspaceActor(rootDir = "/tmp/workspace") {
   return createActor(testMachine, {
     input: {
       aiGatewayApp,
@@ -41,7 +47,7 @@ function createWorkspaceActor() {
       nodeExecEnv: {},
       pnpmBinPath: "/tmp/pnpm",
       registryDir: MOCK_WORKSPACE_DIRS.registry,
-      rootDir: "/tmp/workspace",
+      rootDir,
       shimClientDir: "dev-server",
       trashItem: () => Promise.resolve(),
       uvBinPath: "/tmp/uv",
@@ -90,5 +96,59 @@ describe("workspaceMachine task trashing", () => {
     expect(actor.getSnapshot().context.runtimeRefs.has(newId)).toBe(true);
 
     actor.stop();
+  });
+});
+
+describe("workspaceMachine unread indicators", () => {
+  it("marks a task unread when its root session finishes", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "wsm-indicator-"));
+    const taskId = TaskIdSchema.parse("finished-task");
+
+    const actor = createWorkspaceActor(root);
+    actor.start();
+
+    // Root session: no parentSessionId. Exercises the mark + write path.
+    actor.send({
+      type: "session.done",
+      value: { actorId: "session-1", taskId, usedNonReadOnlyTools: false },
+    });
+
+    // The mark is fire-and-forget, so wait for the settings write to land.
+    await vi.waitFor(async () => {
+      const settings = await getTaskSettings(taskDir(taskId));
+      expect(settings?.unreadIndicator).toEqual({ kind: "completed" });
+    });
+
+    actor.stop();
+    await fs.rm(root, { force: true, recursive: true });
+  });
+
+  it("does not mark a task unread when a subagent session finishes", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "wsm-indicator-sub-"));
+    const taskId = TaskIdSchema.parse("running-task");
+
+    const actor = createWorkspaceActor(root);
+    actor.start();
+
+    // Subagent session: parentSessionId is set, so the parent turn is still
+    // running -- the task must not be marked unread yet.
+    actor.send({
+      type: "session.done",
+      value: {
+        actorId: "subagent-1",
+        parentSessionId: StoreId.newSessionId(),
+        taskId,
+        usedNonReadOnlyTools: false,
+      },
+    });
+
+    // Give the fire-and-forget path a chance to (wrongly) write, then assert it
+    // did not.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const settings = await getTaskSettings(taskDir(taskId));
+    expect(settings?.unreadIndicator).toBeUndefined();
+
+    actor.stop();
+    await fs.rm(root, { force: true, recursive: true });
   });
 });

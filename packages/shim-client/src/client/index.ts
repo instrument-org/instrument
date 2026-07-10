@@ -191,10 +191,10 @@ window.addEventListener("message", (event) => {
     }
 
     if (message.type === "dismiss-recovery") {
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      // oxlint-disable-next-line no-use-before-define
       isShowingRecovery = false;
       iframe.classList.remove(IFRAME_CLASSES.visible);
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      // oxlint-disable-next-line no-use-before-define
       stopRecoveryChecks?.();
     }
 

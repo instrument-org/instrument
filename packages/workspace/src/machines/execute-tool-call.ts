@@ -45,7 +45,7 @@ const executeToolLogic = fromPromise<
 export const executeToolCallMachine = setup({
   actors: {
     cancelToolCallLogic: fromPromise<
-      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         part: SessionMessagePart.ToolPartInputAvailable;

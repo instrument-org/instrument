@@ -49,7 +49,7 @@ export type WorkspaceServerParentEvent =
 
 export type WorkspaceServerParentRef = ActorRef<
   // Needed so we can access the types-safe context from the parent
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   MachineSnapshot<WorkspaceContext, any, any, any, any, any, any, any>,
   WorkspaceServerParentEvent
 >;

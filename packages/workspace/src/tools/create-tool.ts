@@ -63,7 +63,7 @@ function buildTool<
       return (
         // Ideally we wouldn't cast, but this isn't needed because the generic
         // is declared in the type
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // oxlint-disable-next-line typescript/no-explicit-any
         tool<any, any>({
           description,
           inputSchema: toolInputSchemaForLLM(inputSchema),
@@ -90,7 +90,7 @@ function buildTool<
           : setup.inputSchema;
 
       return (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // oxlint-disable-next-line typescript/no-explicit-any
         tool<any, any>({
           description: "", // None because this is never shown to agent
           inputSchema,

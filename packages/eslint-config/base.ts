@@ -7,6 +7,7 @@ import eslintConfigPrettier from "eslint-config-prettier";
 import { importX } from "eslint-plugin-import-x";
 import jsonc from "eslint-plugin-jsonc";
 import n from "eslint-plugin-n";
+import oxlint from "eslint-plugin-oxlint";
 import "eslint-plugin-only-warn";
 import packageJson from "eslint-plugin-package-json/configs/recommended";
 import perfectionist from "eslint-plugin-perfectionist";
@@ -15,6 +16,7 @@ import turboPlugin from "eslint-plugin-turbo";
 import eslintPluginUnicorn from "eslint-plugin-unicorn";
 import yml from "eslint-plugin-yml";
 import globals from "globals";
+import path from "node:path";
 import tseslint from "typescript-eslint";
 
 export const ERROR_IN_CI = process.env.CI === "true" ? "error" : "off";
@@ -171,6 +173,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ["**/.oxlintrc.json"],
+    rules: {
+      "jsonc/no-comments": "off",
+    },
+  },
+  {
     files: ["**/*.test.*"],
     languageOptions: {
       globals: vitest.environments.env.globals,
@@ -223,6 +231,11 @@ export default tseslint.config(
   // Disables ESLint rules that impose formatting (e.g. unicorn/template-indent),
   // which would otherwise conflict with the formatter (oxfmt).
   eslintConfigPrettier,
+  // Must be last: turns off ESLint's copy of every rule the root
+  // .oxlintrc.json already enables, so the two linters don't double-report.
+  ...oxlint.buildFromOxlintConfigFile(
+    path.join(import.meta.dirname, "../../.oxlintrc.json"),
+  ),
 );
 
 export type { ConfigArray } from "typescript-eslint";

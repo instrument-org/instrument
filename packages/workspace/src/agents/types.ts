@@ -38,7 +38,7 @@ export interface Agent<T extends AgentTools> {
 }
 
 export const RETRIEVAL_AGENT_NAME = "retrieval";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// oxlint-disable-next-line no-unused-vars
 const AGENT_NAMES = ["main", RETRIEVAL_AGENT_NAME] as const;
 
 export type AgentName = (typeof AGENT_NAMES)[number];

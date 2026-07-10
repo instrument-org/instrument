@@ -281,7 +281,7 @@ export const llmRequestLogic = fromPromise<
               text: reasoningPart.text.trimEnd(),
             };
             await scopedStore.savePart(updatedPart);
-            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+            // oxlint-disable-next-line typescript/no-dynamic-delete
             delete reasoningMap[part.id];
           }
           break;

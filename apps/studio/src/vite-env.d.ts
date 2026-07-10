@@ -1,15 +1,15 @@
 /// <reference types="vite/client" />
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 interface ImportMetaEnv extends ImportMetaEnvAugmented {
   // Now import.meta.env is totally type-safe and based on your `env.ts` schema definition
   // You can also add custom variables that are not defined in your schema
 }
 
 type ImportMetaEnvAugmented =
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  // oxlint-disable-next-line typescript/consistent-type-imports
   import("@julr/vite-plugin-validate-env").ImportMetaEnvAugmented<
-    // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+    // oxlint-disable-next-line typescript/consistent-type-imports
     typeof import("../validate-env").default
   >;
 

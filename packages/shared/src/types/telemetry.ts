@@ -189,7 +189,7 @@ type LLMAnalyticsError =
       tool_name: string;
     };
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// oxlint-disable-next-line typescript/no-empty-object-type
 type WithModelProperties<T extends Record<string, unknown> = {}> = T & {
   modelId: string;
   providerId: string;

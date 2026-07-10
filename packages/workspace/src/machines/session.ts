@@ -41,6 +41,9 @@ export type SessionMachineParentEvent =
       value: {
         actorId: string;
         error?: unknown;
+        // Undefined for the root session; set for subagents. The task's turn is
+        // done when the root session finishes, regardless of subagent refs.
+        parentSessionId?: StoreId.Session;
         taskId: TaskId;
         usedNonReadOnlyTools: boolean;
       };
@@ -480,6 +483,7 @@ export const sessionMachine = setup({
           value: {
             actorId: self.id,
             error: context.error,
+            parentSessionId: context.parentSessionId,
             taskId: context.taskId,
             usedNonReadOnlyTools: context.usedNonReadOnlyTools,
           },

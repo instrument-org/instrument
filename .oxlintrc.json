@@ -1,9 +1,5 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
-  "options": {
-    "typeAware": true
-  },
-  "plugins": ["unicorn", "typescript", "oxc", "import"],
   "categories": {
     "correctness": "off"
   },
@@ -25,9 +21,60 @@
     "**/bin",
     "**/tailwind-browser.js"
   ],
+  "options": {
+    "typeAware": true
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.*"],
+      "rules": {
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off"
+      }
+    },
+    {
+      "files": ["**/machines/session.test.ts"],
+      "rules": {
+        "typescript/no-unnecessary-type-assertion": "off"
+      }
+    }
+  ],
+  "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
     "import/no-cycle": ["error"],
     "import/no-named-as-default": ["error"],
+
+    // Syntactic (non-type-aware) rules, mirroring typescript-eslint's `strict`
+    // + `stylistic` configs and the explicit rules in
+    // packages/eslint-config/base.ts. eslint-plugin-oxlint reads this file to
+    // turn off the matching ESLint copies -- keep options in sync with base.ts.
+    "no-array-constructor": ["error"],
+    "no-empty-function": ["error"],
+    "no-redeclare": ["error"],
+    "no-shadow": ["error"],
+    "no-unused-expressions": ["error"],
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "caughtErrors": "all",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "no-use-before-define": [
+      "error",
+      {
+        "allowNamedExports": false,
+        "classes": true,
+        "enums": true,
+        "functions": false,
+        "ignoreTypeReferences": true,
+        "typedefs": true,
+        "variables": true
+      }
+    ],
+    "no-useless-constructor": ["error"],
+    "typescript/adjacent-overload-signatures": ["error"],
     "typescript/await-thenable": ["error"],
     "typescript/consistent-type-exports": ["error"],
     "typescript/dot-notation": [
@@ -126,21 +173,44 @@
     ],
     "typescript/return-await": ["error", "error-handling-correctness-only"],
     "typescript/unbound-method": ["error"],
-    "typescript/use-unknown-in-catch-callback-variable": ["error"]
-  },
-  "overrides": [
-    {
-      "files": ["**/*.test.*"],
-      "rules": {
-        "typescript/no-unsafe-assignment": "off",
-        "typescript/no-unsafe-call": "off"
-      }
-    },
-    {
-      "files": ["**/machines/session.test.ts"],
-      "rules": {
-        "typescript/no-unnecessary-type-assertion": "off"
-      }
-    }
-  ]
+    "typescript/use-unknown-in-catch-callback-variable": ["error"],
+    "typescript/array-type": ["error"],
+    "typescript/ban-ts-comment": ["error", { "minimumDescriptionLength": 10 }],
+    "typescript/ban-tslint-comment": ["error"],
+    "typescript/class-literal-property-style": ["error"],
+    "typescript/consistent-generic-constructors": ["error"],
+    "typescript/consistent-indexed-object-style": ["error"],
+    "typescript/consistent-type-assertions": ["error"],
+    "typescript/consistent-type-definitions": ["error"],
+    "typescript/consistent-type-imports": [
+      "error",
+      { "fixStyle": "inline-type-imports" }
+    ],
+    "typescript/no-confusing-non-null-assertion": ["error"],
+    "typescript/no-duplicate-enum-values": ["error"],
+    "typescript/no-dynamic-delete": ["error"],
+    "typescript/no-empty-object-type": ["error"],
+    "typescript/no-explicit-any": ["error"],
+    "typescript/no-extra-non-null-assertion": ["error"],
+    "typescript/no-extraneous-class": ["error"],
+    "typescript/no-inferrable-types": ["error"],
+    "typescript/no-invalid-void-type": ["error"],
+    "typescript/no-misused-new": ["error"],
+    "typescript/no-non-null-asserted-nullish-coalescing": ["error"],
+    "typescript/no-non-null-asserted-optional-chain": ["error"],
+    "typescript/no-non-null-assertion": ["error"],
+    "typescript/no-require-imports": ["error"],
+    "typescript/no-this-alias": ["error"],
+    "typescript/no-unnecessary-type-constraint": ["error"],
+    "typescript/no-unsafe-declaration-merging": ["error"],
+    "typescript/no-unsafe-function-type": ["error"],
+    "typescript/no-wrapper-object-types": ["error"],
+    "typescript/prefer-as-const": ["error"],
+    "typescript/prefer-for-of": ["error"],
+    "typescript/prefer-function-type": ["error"],
+    "typescript/prefer-literal-enum-member": ["error"],
+    "typescript/prefer-namespace-keyword": ["error"],
+    "typescript/triple-slash-reference": ["error"],
+    "typescript/unified-signatures": ["error"]
+  }
 }

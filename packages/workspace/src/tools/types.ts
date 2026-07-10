@@ -60,7 +60,7 @@ export interface AgentTool<
   }) => LanguageModelV2ToolResultOutput;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any
 export type AnyAgentTool = AgentTool<any, any, any>;
 
 export type ToolName = z.output<typeof ToolNameSchema>;

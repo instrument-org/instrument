@@ -743,6 +743,9 @@ importers:
       eslint-plugin-only-warn:
         specifier: ^1.1.0
         version: 1.1.0
+      eslint-plugin-oxlint:
+        specifier: ^1.72.0
+        version: 1.72.0(oxlint@1.72.0(oxlint-tsgolint@0.24.0))
       eslint-plugin-package-json:
         specifier: ^0.18.0
         version: 0.18.0(eslint@9.31.0(jiti@2.7.0))(jsonc-eslint-parser@2.4.0)
@@ -5887,6 +5890,11 @@ packages:
   eslint-plugin-only-warn@1.1.0:
     resolution: {integrity: sha512-2tktqUAT+Q3hCAU0iSf4xAN1k9zOpjK5WO8104mB0rT/dGhOa09582HN5HlbxNbPRZ0THV7nLGvzugcNOSjzfA==}
     engines: {node: '>=6'}
+
+  eslint-plugin-oxlint@1.72.0:
+    resolution: {integrity: sha512-WBPQdXRRatC2/8wWZ16iM/p+Eg3YTwa7As8IouMWnoAUYPOqa6QW3/kExifTpU7e9tFta5MT36+Z4eAWsg35Ag==}
+    peerDependencies:
+      oxlint: ~1.72.0
 
   eslint-plugin-package-json@0.18.0:
     resolution: {integrity: sha512-ZyDaHm3c+vDMNoOVyO+KcJxlBnNNFeRML8Ui/WATrQ+F/dyAIR6aIyu50691gll3dCBT26llL2DXMre30x23ug==}
@@ -14536,6 +14544,11 @@ snapshots:
       - typescript
 
   eslint-plugin-only-warn@1.1.0: {}
+
+  eslint-plugin-oxlint@1.72.0(oxlint@1.72.0(oxlint-tsgolint@0.24.0)):
+    dependencies:
+      jsonc-parser: 3.3.1
+      oxlint: 1.72.0(oxlint-tsgolint@0.24.0)
 
   eslint-plugin-package-json@0.18.0(eslint@9.31.0(jiti@2.7.0))(jsonc-eslint-parser@2.4.0):
     dependencies:

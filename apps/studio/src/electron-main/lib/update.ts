@@ -67,15 +67,17 @@ interface BaseAppUpdaterStatus {
 }
 
 export class StudioAppUpdater {
+  // perfectionist/sort-classes orders this public getter before the private
+  // fields below, which keeps it apart from the private setter.
+  // oxlint-disable-next-line typescript/adjacent-overload-signatures
   public get status() {
     return this.#status;
   }
-
   #confirmQuit: ConfirmQuit | undefined;
   #notify = false;
+
   #status: AppUpdaterStatus | null = null;
 
-  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
   private set status(status: AppUpdaterStatus | null) {
     if (status && !this.#shouldApplyStatus(status)) {
       return;

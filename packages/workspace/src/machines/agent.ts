@@ -79,7 +79,7 @@ export const agentMachine = setup({
     llmRequestLogic,
 
     onFinish: fromPromise<
-      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         agent: AnyAgent;
@@ -99,7 +99,7 @@ export const agentMachine = setup({
     }),
 
     onStart: fromPromise<
-      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         agent: AnyAgent;
@@ -115,7 +115,7 @@ export const agentMachine = setup({
     }),
 
     saveMaxStepsMessage: fromPromise<
-      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+      // oxlint-disable-next-line typescript/no-invalid-void-type
       void,
       {
         maxStepCount: number;

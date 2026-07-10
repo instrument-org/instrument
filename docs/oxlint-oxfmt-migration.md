@@ -14,23 +14,43 @@ deferred to keep this branch mergeable ahead of other in-flight branches.
   (`oxc.oxc-vscode`) use oxfmt. The agent-hooks `format.mjs` runs oxfmt too.
 - Dropped deprecated `eslint-plugin-markdown` (repo has no fenced code blocks).
 - Bumped markdownlint/cli2; upgraded knip 5→6.
+- **Untyped TypeScript rules → oxlint** (`eslint-plugin-oxlint`). Added oxlint
+  equivalents of typescript-eslint's `strict` + `stylistic` configs, plus the
+  explicit `no-shadow` / `no-redeclare` / `no-unused-vars` / `no-use-before-define`
+  / `consistent-type-imports` rules, to `.oxlintrc.json` (bare names for rules
+  oxlint reimplements under core `eslint`, e.g. `no-shadow`; `typescript/*` for
+  the rest) with matching options. `base.ts`'s last config entry,
+  `oxlint.buildFromOxlintConfigFile(...)`, turns off the now-redundant ESLint
+  copies. Validated empirically first: across ~988 files, enabling the full set
+  surfaced exactly one real finding (an `adjacent-overload-signatures` case in
+  `apps/studio/src/electron-main/lib/update.ts`, where a public getter and
+  private setter are intentionally kept apart by `perfectionist/sort-classes` —
+  suppressed with `oxlint-disable-next-line`, same as the pre-existing
+  `eslint-disable` it replaced). Existing `eslint-disable` comments for the
+  migrated rules were converted to `oxlint-disable` (oxlint also honors the old
+  `@typescript-eslint/*` disable-comment spelling for interop, but leaving them
+  as `eslint-disable` would trip ESLint's `reportUnusedDisableDirectives` once
+  its copy of the rule is off).
 
 ### Current split (who owns what)
 
-- **oxlint**: all TypeScript type-aware rules + Tailwind.
+- **oxlint**: all TypeScript rules, type-aware and syntactic, + Tailwind.
 - **oxfmt**: all formatting (JS/TS/JSON/CSS/MD/YAML/HTML).
 - **ESLint**: everything else — perfectionist (sorting), react-hooks (React
   Compiler rules), unicorn, import-x, react, regexp, n, yml, jsonc,
-  package-json, turbo, vitest, eslint-comments, core, untyped TS syntax rules.
+  package-json, turbo, vitest, eslint-comments, core.
 - **eslint-config-prettier**: kept. It is config-only (no rules); it disables
   ESLint's formatting rules (e.g. `unicorn/template-indent`) so they don't fight
   oxfmt. Per oxc's own migration guidance, keep it while ESLint stays.
 
 ## Deferred (do after the other branches merge)
 
-Both items reformat/​autofix across the tree; doing them now would conflict
-heavily with the 5-10 open branches targeting main. Do them as dedicated
-follow-ups once the tree is quiet.
+Import sorting reformats/autofixes across the tree; doing it now would conflict
+heavily with the 5-10 open branches targeting main. Do it as a dedicated
+follow-up once the tree is quiet. (The untyped-TypeScript-rules step that used
+to be listed here is done — see "Done" above. It turned out to be low-risk:
+config + a couple of comment edits, no tree-wide autofix, so it didn't need to
+wait.)
 
 ### 1. Import sorting → oxfmt (drop `perfectionist/sort-imports`)
 
@@ -64,22 +84,27 @@ Steps:
 Note: `newlinesBetween` is a boolean in oxfmt (no "ignore" mode), so it enforces
 one policy tree-wide — that's the source of the churn.
 
-### 2. Move untyped rules to oxlint via `eslint-plugin-oxlint`
+### 2. Move remaining untyped rules (unicorn/import/react/core) to oxlint
 
-Consolidation step, not a speed win (the ESLint floor is
-`react-hooks/static-components` ~4.5s, which oxlint has no equivalent for).
+The TypeScript-eslint slice of this is done (see "Done" above); this covers
+what's left. Consolidation step, not a speed win (the ESLint floor is
+`react-hooks/static-components` ~4.5s, which oxlint has no equivalent for) —
+unlike the TypeScript-rules step, this one is unvalidated, so check for
+tree-wide noise before committing to it (same approach: build a scratch
+`.oxlintrc.json`, run `oxlint --type-aware` repo-wide, and look at the diff
+before touching config for real).
 
 Steps:
 
-1. `pnpm add -D eslint-plugin-oxlint` (in `packages/eslint-config`).
-2. Enable oxlint's native rule sets that mirror the currently-enabled ESLint
+1. Enable oxlint's native rule sets that mirror the currently-enabled ESLint
    rules (unicorn / import / react / core) in `.oxlintrc.json`. Match rule
    config, not whole categories — enabling `pedantic`/`style` surfaces
    thousands of opinionated findings.
-3. Add `...oxlint.buildFromOxlintConfigFile("./.oxlintrc.json")` as the **last**
-   entry in `base.ts` to turn off the ESLint copies of whatever oxlint runs.
-4. Reconcile findings (expect a few TS7-precision diffs, like the type-aware
-   migration), watch for orphaned `eslint-disable` comments and knip.
+2. `oxlint.buildFromOxlintConfigFile(...)` (already wired in `base.ts`, see
+   "Done") picks up any new rules automatically — no further `base.ts` changes
+   needed, just extend `.oxlintrc.json`.
+3. Reconcile findings, watch for orphaned `eslint-disable` comments (convert to
+   `oxlint-disable` the way the TypeScript-rules step did) and knip.
 
 Stays in ESLint (no oxlint equivalent): perfectionist, react-hooks React
 Compiler rules, most of regexp, yml, jsonc, package-json, turbo, vitest,

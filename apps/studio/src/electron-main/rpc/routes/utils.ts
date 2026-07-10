@@ -359,6 +359,10 @@ const openTaskFileWith = base
     }
 
     try {
+      const candidates = await getFileOpenCandidates(fullPath);
+      if (!candidates.some(({ appPath }) => appPath === input.appPath)) {
+        throw errors.ERROR_OPENING_FILE();
+      }
       // execFile (not a shell) so the app path and file path can't be
       // interpreted as shell syntax.
       await execFileAsync("open", ["-a", input.appPath, fullPath]);

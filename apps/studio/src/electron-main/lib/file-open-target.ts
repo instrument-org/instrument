@@ -25,6 +25,7 @@ interface PersistedEntry extends FileOpenTarget {
 
 const ICON_SIZE = 64;
 const MAX_CANDIDATES = 12;
+const LOOKUP_TIMEOUT_MS = 10_000;
 
 // Resolution spawns helper processes and only depends on the file type, so the
 // default target is cached per extension and persisted so the first open of a
@@ -36,6 +37,7 @@ const MAX_PERSISTED = 256;
 const SAVE_DEBOUNCE_MS = 1000;
 
 let diskCache: Map<string, PersistedEntry> | null = null;
+let diskCacheLoad: null | Promise<Map<string, PersistedEntry>> = null;
 let saveTimer: null | ReturnType<typeof setTimeout> = null;
 const inFlightTargets = new Map<string, Promise<FileOpenTarget>>();
 const sessionTargets = new Map<string, Promise<FileOpenTarget>>();
@@ -153,6 +155,11 @@ export async function getFileOpenCandidates(
   }
   const pending = resolveCandidates(fullPath);
   candidatesCache.set(key, pending);
+  void pending.catch(() => {
+    if (candidatesCache.get(key) === pending) {
+      candidatesCache.delete(key);
+    }
+  });
   return pending;
 }
 
@@ -170,6 +177,11 @@ export async function getFileOpenTarget(
     }
     const pending = resolveTarget(fullPath);
     sessionTargets.set(fullPath, pending);
+    void pending.catch(() => {
+      if (sessionTargets.get(fullPath) === pending) {
+        sessionTargets.delete(fullPath);
+      }
+    });
     return pending;
   }
 
@@ -208,23 +220,35 @@ async function getFileTypeIconDataUrl(fullPath: string) {
   }
 }
 
+function isLookupTimeout(error: unknown) {
+  return (
+    error instanceof Error && "killed" in error && error.killed === true
+  );
+}
+
 async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
   if (diskCache) {
     return diskCache;
   }
-  diskCache = new Map();
-  try {
-    const raw = await fs.readFile(cacheFilePath(), "utf8");
-    const parsed = PersistedCacheSchema.parse(JSON.parse(raw));
-    if (parsed.version === CACHE_VERSION) {
-      for (const [ext, entry] of Object.entries(parsed.entries)) {
-        diskCache.set(ext, entry);
+  diskCacheLoad ??= (async () => {
+    const loaded = new Map<string, PersistedEntry>();
+    try {
+      const raw = await fs.readFile(cacheFilePath(), "utf8");
+      const parsed = PersistedCacheSchema.parse(JSON.parse(raw));
+      if (parsed.version === CACHE_VERSION) {
+        for (const [ext, entry] of Object.entries(parsed.entries)) {
+          loaded.set(ext, entry);
+        }
       }
+    } catch {
+      // Missing or unreadable cache is fine; it repopulates on demand.
     }
-  } catch {
-    // Missing or unreadable cache is fine; it repopulates on demand.
-  }
-  return diskCache;
+    diskCache ??= loaded;
+    return diskCache;
+  })().finally(() => {
+    diskCacheLoad = null;
+  });
+  return diskCacheLoad;
 }
 
 function pngBase64ToDataUrl(base64: string) {
@@ -308,9 +332,7 @@ async function resolveAssociatedApp(
   }
 }
 
-async function resolveCandidates(
-  fullPath: string,
-): Promise<FileOpenCandidate[]> {
+async function resolveCandidates(fullPath: string): Promise<FileOpenCandidate[]> {
   if (process.platform !== "darwin") {
     // Only macOS has a portable enumeration of every app that can open a file.
     return [];
@@ -326,7 +348,7 @@ async function resolveCandidates(
         fullPath,
         String(MAX_CANDIDATES),
       ],
-      { maxBuffer: 64 * 1024 * 1024 },
+      { maxBuffer: 64 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
     );
     const parsed = DarwinCandidatesSchema.parse(JSON.parse(stdout));
     return parsed.apps.map((candidate) => ({
@@ -334,7 +356,10 @@ async function resolveCandidates(
       appPath: candidate.appPath,
       iconDataUrl: pngBase64ToDataUrl(candidate.iconBase64),
     }));
-  } catch {
+  } catch (error) {
+    if (isLookupTimeout(error)) {
+      throw error;
+    }
     return [];
   }
 }
@@ -344,7 +369,7 @@ async function resolveDarwin(fullPath: string) {
     "osascript",
     ["-l", "JavaScript", "-e", DARWIN_RESOLVE_SCRIPT, fullPath],
     // The icon PNG can be ~1MB of base64 (icons ship at 1024px).
-    { maxBuffer: 16 * 1024 * 1024 },
+    { maxBuffer: 16 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
   );
   const result = DarwinResultSchema.parse(JSON.parse(stdout));
   if (!result.appName) {
@@ -357,20 +382,20 @@ async function resolveDarwin(fullPath: string) {
 }
 
 async function resolveLinux(fullPath: string) {
-  const { stdout: mimeOut } = await execFileAsync("xdg-mime", [
-    "query",
-    "filetype",
-    fullPath,
-  ]);
+  const { stdout: mimeOut } = await execFileAsync(
+    "xdg-mime",
+    ["query", "filetype", fullPath],
+    { timeout: LOOKUP_TIMEOUT_MS },
+  );
   const mime = mimeOut.trim();
   if (!mime) {
     return null;
   }
-  const { stdout: desktopOut } = await execFileAsync("xdg-mime", [
-    "query",
-    "default",
-    mime,
-  ]);
+  const { stdout: desktopOut } = await execFileAsync(
+    "xdg-mime",
+    ["query", "default", mime],
+    { timeout: LOOKUP_TIMEOUT_MS },
+  );
   const desktopId = desktopOut.trim();
   if (!desktopId || desktopId.includes("/")) {
     return null;
@@ -384,7 +409,14 @@ async function resolveLinux(fullPath: string) {
 }
 
 async function resolveTarget(fullPath: string): Promise<FileOpenTarget> {
-  const resolved = await resolveAssociatedApp(fullPath).catch(() => null);
+  const resolved = await resolveAssociatedApp(fullPath).catch(
+    (error: unknown) => {
+      if (isLookupTimeout(error)) {
+        throw error;
+      }
+      return null;
+    },
+  );
   const iconDataUrl =
     resolved?.iconDataUrl ?? (await getFileTypeIconDataUrl(fullPath));
   return { appName: resolved?.appName ?? null, iconDataUrl };
@@ -413,12 +445,11 @@ $name = (Get-Item -LiteralPath $exe).VersionInfo.FileDescription
 if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
 @{ appName = $name; exePath = $exe } | ConvertTo-Json -Compress
 `;
-  const { stdout } = await execFileAsync("powershell", [
-    "-NoProfile",
-    "-NonInteractive",
-    "-Command",
-    script,
-  ]);
+  const { stdout } = await execFileAsync(
+    "powershell",
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    { timeout: LOOKUP_TIMEOUT_MS },
+  );
   const trimmed = stdout.trim();
   if (!trimmed) {
     return null;

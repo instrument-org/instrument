@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { useOpenTaskFile } from "../hooks/use-open-task-file";
 import { useTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
-import { getRevealInFolderLabel, isMacOS } from "../lib/utils";
+import { getRevealInFolderLabel } from "../lib/utils";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { OpenTargetIcon } from "./open-target-icon";
 import { OpenWithMenu } from "./open-with-menu";
@@ -40,12 +40,13 @@ export function FileActionsMenu({
   variant?: ButtonVariant;
 }) {
   const fileActions = useFileActionVisibility(file);
+  const { showOpen } = useTaskFileOpenTarget(file);
 
   if (
     !onAddToChat &&
     !fileActions.showCopy &&
     !fileActions.showDownload &&
-    !fileActions.showOpen &&
+    !showOpen &&
     !fileActions.showReveal
   ) {
     return null;
@@ -81,13 +82,7 @@ export function FileActionsMenuItems({
   const { Item, Separator } = menuComponents;
   const fileActions = useFileActionVisibility(file);
   const openTaskFile = useOpenTaskFile();
-  const { appName, isPending, openLabel } = useTaskFileOpenTarget(file);
-
-  // Show "Open" while resolving (usually instant from cache) and once an app is
-  // known; hide it only when the type resolves to no associated app, so we
-  // never surface an action that would just fail.
-  const showOpen = isPending || appName != null;
-  const showOpenWith = appName != null && isMacOS();
+  const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
 
   const showTaskFileInFolderMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
@@ -128,7 +123,10 @@ export function FileActionsMenuItems({
   };
 
   const hasFileActions =
-    fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
+    showOpen ||
+    fileActions.showCopy ||
+    fileActions.showDownload ||
+    fileActions.showReveal;
 
   if (!onAddToChat && !hasFileActions) {
     return null;

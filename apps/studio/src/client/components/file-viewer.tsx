@@ -2,7 +2,7 @@ import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { getFileType } from "@/client/lib/get-file-type";
-import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
+import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowLineDownIcon,
@@ -320,9 +320,9 @@ export function FileViewer({
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
   const openTaskFile = useOpenTaskFile();
   const {
-    appName,
-    isPending: openTargetPending,
     openLabel,
+    showOpen,
+    showOpenWith,
   } = useTaskFileOpenTarget(file);
   const revealFileMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
@@ -343,8 +343,6 @@ export function FileViewer({
   const fileType = getFileType(file);
   const hasPreview = fileType === "markdown" || fileType === "html";
   const fileActions = useFileActionVisibility(file);
-  const showOpen = openTargetPending || appName != null;
-  const showOpenWith = appName != null && isMacOS();
   const hasHeaderMenuActions =
     onExpand != null ||
     showOpenWith ||

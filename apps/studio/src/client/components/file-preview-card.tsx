@@ -157,7 +157,10 @@ function FileRowCard({
   const isMissing = useTaskFileReferenceStatus(file) === "missing";
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
-    fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
+    fileActions.showCopy ||
+    fileActions.showDownload ||
+    fileActions.showOpen ||
+    fileActions.showReveal;
   const prefetchOpenTarget = usePrefetchTaskFileOpenTarget();
 
   const row = (
@@ -243,7 +246,8 @@ function ImagePreviewCard({
   const { filename, mimeType } = file;
   const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
-  const actions = useFileActions(file);
+  const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
+  const actions = useFileActions(file, { resolveOpenTarget });
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
 
   const handleCopy = async () => {
@@ -270,6 +274,9 @@ function ImagePreviewCard({
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
       onClick={onClick}
+      onMouseEnter={() => {
+        setResolveOpenTarget(true);
+      }}
       overlayActions={
         hasActions ? (
           <>
@@ -371,9 +378,14 @@ function MissingMediaCard({
   );
 }
 
-function useFileActions(file: TaskFileViewerFile) {
+function useFileActions(
+  file: TaskFileViewerFile,
+  { resolveOpenTarget }: { resolveOpenTarget: boolean },
+) {
   const openTaskFile = useOpenTaskFile();
-  const { appName, isPending } = useTaskFileOpenTarget(file);
+  const { showOpen } = useTaskFileOpenTarget(
+    resolveOpenTarget ? file : undefined,
+  );
 
   return {
     download: async () => {
@@ -382,9 +394,7 @@ function useFileActions(file: TaskFileViewerFile) {
     open: () => {
       openTaskFile(file);
     },
-    // Offer open while resolving and once an app is known; hide it only when
-    // the type has no associated app.
-    showOpen: isPending || appName != null,
+    showOpen,
   };
 }
 
@@ -419,7 +429,8 @@ function VideoPreviewCard({
 }) {
   const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
-  const actions = useFileActions(file);
+  const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
+  const actions = useFileActions(file, { resolveOpenTarget });
 
   const hasActions =
     !hideActionsMenu && (fileActions.showDownload || actions.showOpen);
@@ -449,7 +460,10 @@ function VideoPreviewCard({
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
       onClick={onClick}
-      onMouseEnter={handleMouseEnter}
+      onMouseEnter={() => {
+        setResolveOpenTarget(true);
+        handleMouseEnter();
+      }}
       onMouseLeave={handleMouseLeave}
       overlayActions={
         hasActions ? (

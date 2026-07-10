@@ -2,6 +2,8 @@ import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { rpcClient } from "@/client/rpc/client";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { isMacOS } from "../lib/utils";
+
 type FileRef = Pick<TaskFileViewerFile, "filePath" | "taskId">;
 
 const openTargetQueryOptions = (file: FileRef | undefined) =>
@@ -48,11 +50,14 @@ export function useTaskFileOpenTarget(file: FileRef | undefined) {
   const { data, isPending } = useQuery(openTargetQueryOptions(file));
 
   const appName = data?.appName ?? null;
+  const showOpen = file != null && (isPending || appName != null);
 
   return {
     appName,
     iconDataUrl: data?.iconDataUrl ?? null,
     isPending,
     openLabel: appName ? `Open in ${appName}` : "Open",
+    showOpen,
+    showOpenWith: showOpen && appName != null && isMacOS(),
   };
 }

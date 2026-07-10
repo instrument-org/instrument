@@ -124,14 +124,29 @@ describe("streamOpenRouterImage", () => {
     ]);
   });
 
-  it("yields an error event on a non-ok response", async () => {
+  it("maps a fetch rejection to an error event", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("network down")),
+    );
+
+    expect(await collect()).toEqual([
+      { message: "network down", type: "error" },
+    ]);
+  });
+
+  it("surfaces the status and response body on a non-ok response", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("nope", { status: 500 })),
     );
 
-    const events = await collect();
-    expect(events).toHaveLength(1);
-    expect(events[0]?.type).toBe("error");
+    expect(await collect()).toEqual([
+      {
+        message: "Image stream failed: HTTP 500",
+        responseBody: "nope",
+        type: "error",
+      },
+    ]);
   });
 });

@@ -35,6 +35,9 @@ node_modules/
 
 # Editor Files and Workspaces
 *.code-workspace
+# Committed exception: a personal workspace file, tracked so its editor prefs
+# sync across machines. Team-wide settings live in .vscode/settings.json.
+!instrument.code-workspace
 .idea/
 
 # Cursor (per-user plugin prefs)

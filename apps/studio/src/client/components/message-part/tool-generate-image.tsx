@@ -1,4 +1,4 @@
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import {
   type SessionMessagePart,
   type TaskId,
@@ -8,15 +8,19 @@ import {
   ChatIcon,
   CopyIcon,
   ImagesIcon,
+  QuotesIcon,
 } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
+import { useEffect, useState } from "react";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { copyFileToClipboard } from "../../lib/file-actions";
 import { getAssetUrl } from "../../lib/get-asset-url";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { cn } from "../../lib/utils";
+import { AIProviderIcon } from "../ai-provider-icon";
+import { isActiveToolPart } from "../chat-stream-utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
@@ -131,6 +135,18 @@ export function ToolGenerateImage({
   const filename = filenameFromFilePath(primaryFilePath ?? "");
   const prompt = typeof part.input.prompt === "string" ? part.input.prompt : "";
 
+  // While the tool is still running (or yielding preliminary partial frames),
+  // show a filling preview square instead of the final image render.
+  const isGenerating = isActiveToolPart(part);
+  const previewImage = successOutput?.images[0];
+  // Prefer the parameters actually applied (unsupported ones dropped); fall back
+  // to the requested input before the first output arrives or for old outputs.
+  const parameterTags = extractParameterTags(
+    successOutput?.appliedParameters ?? part.input.parameters,
+  );
+  const modelName = resolveImageModelName(successOutput?.modelId);
+  const modelProviderType = successOutput?.provider.type;
+
   const openInPanel = ({
     filePath,
     modifiedAt,
@@ -167,6 +183,7 @@ export function ToolGenerateImage({
         )}
 
         {successOutput &&
+          !isGenerating &&
           primaryFilePath &&
           primaryModifiedAt !== undefined && (
             <ImageActions
@@ -177,18 +194,56 @@ export function ToolGenerateImage({
           )}
       </ToolCardHeader>
 
-      {successOutput?.images.map((image, index) => (
-        <GeneratedImage
+      {isGenerating ? (
+        <StreamingImagePreview
           assetBaseUrl={assetBaseUrl}
-          filePath={image.filePath}
-          key={index}
-          modifiedAt={image.modifiedAt}
-          onOpen={openInPanel}
+          image={previewImage}
         />
-      ))}
+      ) : (
+        successOutput?.images.map((image, index) => (
+          <GeneratedImage
+            assetBaseUrl={assetBaseUrl}
+            filePath={image.filePath}
+            key={index}
+            maxHeight="max-h-80"
+            modifiedAt={image.modifiedAt}
+            onOpen={openInPanel}
+          />
+        ))
+      )}
 
       {!failureOutput && (
         <ToolCardSection maxHeight="max-h-32">
+          {(modelName || parameterTags.length > 0) && (
+            <div className="mb-2 flex flex-wrap gap-1">
+              {modelName && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                  {modelProviderType && (
+                    <AIProviderIcon
+                      className="size-3 shrink-0 opacity-70"
+                      displayName={successOutput.provider.displayName}
+                      showTooltip
+                      type={modelProviderType}
+                    />
+                  )}
+                  <span className="font-medium text-foreground/80">
+                    {modelName}
+                  </span>
+                </span>
+              )}
+              {parameterTags.map(({ label, value }) => (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
+                  key={label}
+                >
+                  <span className="text-muted-foreground/60">{label}</span>
+                  <span className="font-medium text-foreground/80">
+                    {value}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
           {sourceImageFiles.length > 0 ? (
             <div className="flex items-start gap-3">
               <div className="shrink-0">
@@ -214,10 +269,10 @@ export function ToolGenerateImage({
                   Reference
                 </p>
               </div>
-              <p className="text-sm text-muted-foreground">{prompt}</p>
+              <PromptText prompt={prompt} />
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">{prompt}</p>
+            <PromptText prompt={prompt} />
           )}
         </ToolCardSection>
       )}
@@ -238,6 +293,32 @@ export function ToolGenerateImage({
       )}
     </ToolCard>
   );
+}
+
+function extractParameterTags(
+  parameters: unknown,
+): { label: string; value: string }[] {
+  if (
+    parameters === null ||
+    typeof parameters !== "object" ||
+    Array.isArray(parameters)
+  ) {
+    return [];
+  }
+  return Object.entries(parameters).flatMap(([key, value]) =>
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+      ? [{ label: humanizeParamKey(key), value: String(value) }]
+      : [],
+  );
+}
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 function GeneratedImage({
@@ -304,6 +385,43 @@ function GeneratedImage({
   );
 }
 
+function GeneratingPill() {
+  const [elapsedMs, setElapsedMs] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => {
+      setElapsedMs(Date.now() - start);
+    }, 1000);
+    return () => {
+      clearInterval(id);
+    };
+  }, []);
+
+  return (
+    <span className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-medium ring-1 ring-border/50 backdrop-blur-sm">
+      <span className="shiny-text">Generating</span>
+      {/* Reassure the user it isn't frozen once it's been a few seconds. */}
+      {elapsedMs >= 3000 && (
+        <span className="text-[10px] text-muted-foreground/70 tabular-nums">
+          {formatElapsed(elapsedMs)}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function humanizeParamKey(key: string): string {
+  const spaced = key
+    .replaceAll("_", " ")
+    .replaceAll(/([a-z])([A-Z])/g, "$1 $2")
+    .trim()
+    .toLowerCase();
+  return spaced.length > 0
+    ? spaced.charAt(0).toUpperCase() + spaced.slice(1)
+    : key;
+}
+
 function ImageActions({
   filePath,
   id,
@@ -358,6 +476,85 @@ function ImageActions({
         tooltip="Copy image"
         variant="ghost"
       />
+    </div>
+  );
+}
+
+function PreviewSkeleton() {
+  return (
+    <div className="flex size-full animate-pulse items-center justify-center bg-muted">
+      <ImagesIcon className="size-6 text-muted-foreground/40" />
+    </div>
+  );
+}
+
+// A quiet quote glyph marks the text as the generation prompt without a
+// technical label.
+function PromptText({ prompt }: { prompt: string }) {
+  return (
+    <div className="flex items-start gap-1.5">
+      <QuotesIcon
+        className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/40"
+        weight="fill"
+      />
+      <p className="text-sm text-muted-foreground">{prompt}</p>
+    </div>
+  );
+}
+
+// Our auto model persists its raw id; show its friendly name. Other providers'
+// ids are already meaningful once the provider prefix is dropped.
+function resolveImageModelName(
+  modelId: string | undefined,
+): string | undefined {
+  if (!modelId) {
+    return undefined;
+  }
+  if (modelId === OUR_MODELS.image.id) {
+    return OUR_MODELS.image.name;
+  }
+  return modelId.split("/").at(-1) ?? modelId;
+}
+
+function StreamingImagePreview({
+  assetBaseUrl,
+  image,
+}: {
+  assetBaseUrl: string;
+  image?: { filePath: string; modifiedAt: number };
+}) {
+  return (
+    // Fixed height reserved for the whole stream so a frame landing over the
+    // skeleton doesn't shift the card; matches the finalized image's max height.
+    <div className="relative h-80 w-full overflow-hidden">
+      {image ? (
+        <ImageWithFallback
+          alt="Generating preview"
+          className="size-full object-contain"
+          fallback={<PreviewSkeleton />}
+          filename={filenameFromFilePath(image.filePath)}
+          src={getAssetUrl({
+            assetBase: assetBaseUrl,
+            filePath: image.filePath,
+            version: image.modifiedAt,
+          })}
+        />
+      ) : (
+        <PreviewSkeleton />
+      )}
+
+      {/* Faint edge glow that breathes to signal generation is still active,
+          without motion competing with the streaming preview itself. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 animate-pulse"
+        style={{
+          boxShadow:
+            "inset 0 0 26px -4px color-mix(in srgb, var(--ring) 60%, transparent)",
+        }}
+      />
+
+      <GeneratingPill />
     </div>
   );
 }

@@ -16,6 +16,10 @@ import {
 } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
 import {
+  describeImageParameters,
+  imageCapabilitiesForProvider,
+} from "./image-capabilities";
+import {
   filterImageGenerationConfigs,
   type ImageGenerationProviderType,
 } from "./providers/metadata";
@@ -62,13 +66,7 @@ export async function getImageModel({
     );
   }
 
-  const supportedConfigs = filterImageGenerationConfigs(configs);
-
-  const configsToTry = selectProviderConfigs({
-    configs: supportedConfigs,
-    preferredProviderConfig,
-    providerTypePriority: PROVIDER_TYPE_PRIORITY,
-  });
+  const configsToTry = selectImageProviderConfigs({ callingModel, configs });
 
   if (configsToTry.length === 0) {
     return Result.error(
@@ -88,6 +86,49 @@ export async function getImageModel({
   return Result.error(
     new TypedError.NotFound("No provider with image generation support found"),
   );
+}
+
+// Human-readable description of the parameters the selected image model
+// supports, for the generate_image tool. Falls back to "no parameters" when no
+// image provider resolves.
+export function imageParametersDescription({
+  callingModel,
+  configs,
+}: {
+  callingModel: AIGatewayModel.Type;
+  configs: AIGatewayProviderConfig.Type[];
+}): string {
+  const [selected] = selectImageProviderConfigs({ callingModel, configs });
+  return describeImageParameters(
+    selected
+      ? imageCapabilitiesForProvider(selected.type)
+      : { params: {}, supportsStreaming: false },
+  );
+}
+
+// Deterministically resolves the ordered image-provider configs `getImageModel`
+// would try for a calling model, without constructing any SDK. Building the
+// tool description reuses this so the advertised capabilities match the model
+// that actually runs. Returns [] when the calling model's provider is missing
+// or no image-capable provider is configured.
+export function selectImageProviderConfigs({
+  callingModel,
+  configs,
+}: {
+  callingModel: AIGatewayModel.Type;
+  configs: AIGatewayProviderConfig.Type[];
+}): (AIGatewayProviderConfig.Type & { type: ImageGenerationProviderType })[] {
+  const preferredProviderConfig = configs.find(
+    (c) => c.id === callingModel.params.providerConfigId,
+  );
+  if (!preferredProviderConfig) {
+    return [];
+  }
+  return selectProviderConfigs({
+    configs: filterImageGenerationConfigs(configs),
+    preferredProviderConfig,
+    providerTypePriority: PROVIDER_TYPE_PRIORITY,
+  });
 }
 
 async function getAISDKImageModel({
@@ -125,7 +166,7 @@ async function getAISDKImageModel({
     }
     case "openai": {
       const sdk = await createOpenAISDK(config, workspaceServerURL);
-      const model = sdk.image("gpt-image-1-mini");
+      const model = sdk.image("gpt-image-2");
       return Result.ok({ model, type: "image" as const });
     }
     case "openrouter": {

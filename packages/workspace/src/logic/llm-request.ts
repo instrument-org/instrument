@@ -117,6 +117,7 @@ export const llmRequestLogic = fromPromise<
   for (const tool of agentTools) {
     tools[tool.name as string] = await tool.aiSDKTool({
       agentName: input.agent.name,
+      model: input.model,
       taskId: input.taskId,
     });
   }

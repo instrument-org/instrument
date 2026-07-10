@@ -16,6 +16,10 @@ export { isToolPart } from "./lib/is-tool-part";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
+export {
+  getUsageSummaryFromMessages,
+  type UsageSummary,
+} from "./lib/usage-summary-compute";
 export { FileUpload } from "./schemas/file-upload";
 export type { Project } from "./schemas/project";
 export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";

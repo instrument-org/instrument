@@ -21,11 +21,13 @@ export interface AgentTool<
 > {
   aiSDKTool: (options: {
     agentName: AgentName;
+    model: AIGatewayModel.Type;
     taskId: TaskId;
   }) => Promise<Tool<z.output<TInputSchema>, z.output<TOutputSchema>>>;
   description:
     | ((options: {
         agentName: AgentName;
+        model: AIGatewayModel.Type;
         taskId: TaskId;
       }) => Promise<string> | string)
     | string;

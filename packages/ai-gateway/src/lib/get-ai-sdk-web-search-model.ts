@@ -83,9 +83,7 @@ export async function getAISDKWebSearchModel({
       result = {
         model: sdk("gemini-3-pro-preview"),
         tools: {
-          web_search: sdk.tools.googleSearch({
-            mode: "MODE_UNSPECIFIED", // Ensures search always runs
-          }),
+          web_search: sdk.tools.googleSearch({}),
         },
       };
       break;

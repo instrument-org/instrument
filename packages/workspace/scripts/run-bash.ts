@@ -89,6 +89,11 @@ const tasksDir = args.tasksDir
 
 await fs.mkdir(tasksDir, { recursive: true });
 
+// The workspace machine creates this at boot; without it the /connectors
+// mount is skipped (buildBashFs only mounts dirs that exist on disk).
+const connectorsDir = path.join(rootDir, "connectors");
+await fs.mkdir(connectorsDir, { recursive: true });
+
 const uvBinPath = AbsolutePathSchema.parse(
   await execa({ reject: false })`which uv`.then(
     ({ stdout }) => stdout.trim() || "/usr/bin/uv",
@@ -104,6 +109,8 @@ setWorkspaceConfig({
   captureException: () => {
     return;
   },
+  connectors: { getCredential: () => Promise.resolve(null) },
+  connectorsDir: AbsolutePathSchema.parse(connectorsDir),
   defaultTaskTemplateDir: AbsolutePathSchema.parse(
     path.join(rootDir, "default-task-template"),
   ),

@@ -15,6 +15,7 @@ import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
+import { getConnectorsDirIfInitialized } from "./connectors/paths";
 import {
   AGENT_BROWSER_COMMAND,
   createAgentBrowserCommand,
@@ -55,6 +56,7 @@ import { taskDir } from "./task-dir-utils";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
+  CONNECTORS_MOUNT_POINT,
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
 
@@ -310,6 +312,9 @@ export function createBashDescription() {
     or process an attached file, copy it into the task first (e.g.
     \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
 
+    The workspace's data connectors live at \`${CONNECTORS_MOUNT_POINT}/\`
+    (writable; one folder per connector holding connector.json and guide.md).
+
     IMPORTANT: Python is available via the specialized
     \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\`
     commands below (backed by a per-task virtualenv in work/.venv), and
@@ -327,8 +332,9 @@ export function createBashDescription() {
     IMPORTANT: Not a persistent terminal -- each call starts fresh from the
     task root (\`${TASK_MOUNT_POINT}\`, your working directory), so \`cd .\` is
     always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only
-    \`${TASK_MOUNT_POINT}\` and the \`/mnt\` mounts exist; writing anywhere else
-    (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env
+    \`${TASK_MOUNT_POINT}\`, the \`/mnt\` mounts, and
+    \`${CONNECTORS_MOUNT_POINT}\` exist; writing anywhere else (e.g. \`/tmp\`)
+    fails -- use \`work/\` for scratch files. Shell state (env
     vars, exported functions, cwd) does NOT carry across calls; to run somewhere
     else, prefix your command (\`cd subdir && ...\`) within a single call.
 
@@ -382,6 +388,7 @@ export async function createBashEnv({
   // it so they agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
+    connectorsHostRoot: getConnectorsDirIfInitialized(),
     taskHostRoot: taskDir(taskId),
   });
   const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });

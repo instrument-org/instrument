@@ -2,6 +2,7 @@ import {
   settingsModalAtom,
   type SettingsTab,
 } from "@/client/atoms/settings-modal";
+import { ConnectorsSection } from "@/client/components/settings/connectors";
 import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
@@ -33,6 +34,7 @@ import {
   FadersHorizontalIcon,
   FlagIcon,
   HardDrivesIcon,
+  PlugsIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -176,6 +178,9 @@ function SettingsSectionBody({
   tab: SettingsTab;
 }) {
   switch (tab) {
+    case "Connectors": {
+      return <ConnectorsSection />;
+    }
     case "Debug": {
       return <DebugSection />;
     }
@@ -215,6 +220,11 @@ function useNavItems(): NavItem[] {
       icon: CpuIcon,
       tab: "Providers",
       title: "Providers",
+    },
+    {
+      icon: PlugsIcon,
+      tab: "Connectors",
+      title: "Connectors",
     },
     ...(hasUnrecognizedFolders
       ? [

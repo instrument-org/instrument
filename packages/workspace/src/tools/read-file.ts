@@ -19,8 +19,7 @@ import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
 } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
+import { buildTaskFsLayout } from "../lib/task-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -224,10 +223,7 @@ export const ReadFile = setupTool({
     - You can read images, PDFs, audio files, and video files by using this tool.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = buildTaskFsLayout(taskId, taskState);
     const pathResult = resolveExistingFilePath({
       inputPath: input.filePath,
       layout,

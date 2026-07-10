@@ -22,6 +22,7 @@ import {
 import { Spinner } from "../ui/spinner";
 import { BashCommandChip, BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";
+import { isPendingInteractiveToolCall } from "./tool-call-utils";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
@@ -74,8 +75,12 @@ export function ToolCallSummary({
     };
   }, [isCurrentTool]);
 
-  const isCollapsibleOpen = isManuallyOpen || isAutoOpen;
-  const isEmphasized = isCollapsibleOpen && !isStreaming && !isAgentRunning;
+  // A parked interactive tool call (credential prompt, choose) is an inline
+  // question: keep it expanded so its input is visible until the user answers.
+  const isAwaitingInput = isPendingInteractiveToolCall(part);
+  const isCollapsibleOpen = isManuallyOpen || isAutoOpen || isAwaitingInput;
+  const isEmphasized =
+    isCollapsibleOpen && !isStreaming && !isAgentRunning && !isAwaitingInput;
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);

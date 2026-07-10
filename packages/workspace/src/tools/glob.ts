@@ -4,11 +4,8 @@ import { z } from "zod";
 
 import { globSortedByMtime, resolveGlobPattern } from "../lib/glob";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
-import {
-  buildWorkspaceFsLayout,
-  resolveVirtualPath,
-} from "../lib/workspace-fs-layout";
+import { buildTaskFsLayout } from "../lib/task-fs-layout";
+import { resolveVirtualPath } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -35,10 +32,7 @@ export const Glob = setupTool({
   description:
     "Find files matching a glob pattern in the codebase. Specify a path to search within a specific folder (including a read-only attached folder at /mnt/<name>), or omit to search from the task root.",
   execute: async ({ input, signal, taskId, taskState }) => {
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = buildTaskFsLayout(taskId, taskState);
     const pathResult = resolveAgentPath({
       inputPath: input.path,
       isRequired: false,
@@ -54,20 +48,20 @@ export const Glob = setupTool({
       });
     }
 
-    const { absolutePath: searchRoot, attachedMount } = pathResult.value;
+    const { absolutePath: searchRoot, mount } = pathResult.value;
 
     // Inside an attached mount, glob the real folder and map host paths back
     // to their /mnt/... mount path so the results are usable with the other
     // tools. Mirrors grep; without this the agent gets paths relative to the
     // host folder that read_file would resolve in the wrong place.
     const sorted = await globSortedByMtime({
-      absolute: attachedMount !== null,
+      absolute: mount !== null,
       cwd: searchRoot,
       pattern: resolveGlobPattern({ cwd: searchRoot, pattern: input.pattern }),
       signal,
     });
 
-    const files = attachedMount
+    const files = mount
       ? sorted.map((p) => resolveVirtualPath(layout, p) ?? p)
       : sorted;
 

@@ -7,11 +7,11 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { guardConnectorManifestOverwrite } from "../lib/connectors/guard-write";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
+import { buildTaskFsLayout } from "../lib/task-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -55,10 +55,7 @@ export const WriteFile = setupTool({
     - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = buildTaskFsLayout(taskId, taskState);
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,
       layout,
@@ -67,6 +64,12 @@ export const WriteFile = setupTool({
       return err(pathResult.error);
     }
     const { absolutePath, displayPath: fixedPath } = pathResult.value;
+
+    // Refuse to clobber an enabled connector's manifest via a full rewrite.
+    const connectorGuard = await guardConnectorManifestOverwrite(absolutePath);
+    if (connectorGuard !== null) {
+      return executeError(connectorGuard);
+    }
 
     const isNewFile = !(await pathExists(absolutePath));
 

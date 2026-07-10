@@ -12,6 +12,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
+import { detectConnectorChanges } from "./connectors/connector-changes";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectExternalFileChanges } from "./external-file-changes";
@@ -106,6 +107,19 @@ export async function newMessage({
     parts.push(externalChanges.value);
   }
 
+  // Notify agent of connectors added/enabled/removed since last turn (by the
+  // user in Settings, or the agent itself) so its awareness stays current.
+  const connectorChanges = await detectConnectorChanges({
+    messageId,
+    sessionId,
+    taskId,
+  });
+  if (connectorChanges.isErr()) {
+    // Awareness of connector changes is best-effort; never block sending.
+    getWorkspaceConfig().captureException(connectorChanges.error);
+  } else if (connectorChanges.value) {
+    parts.push(connectorChanges.value);
+  }
   // Notify agent when the live project's instructions or folders drift from the
   // task's frozen snapshot. Also writes folder additions/removals into task
   // state so they become standing context.

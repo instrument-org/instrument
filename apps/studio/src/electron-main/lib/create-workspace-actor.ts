@@ -2,7 +2,7 @@ import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-config
 import { diskModelCache } from "@/electron-main/stores/model-cache";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, PORTS } from "@instrument-org/shared";
 import {
   clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
@@ -18,6 +18,8 @@ import { noop } from "radashi";
 import { createActor } from "xstate";
 
 import { createBrowserViewManager } from "../browser-view/manager";
+import { getConnectorCredential } from "../stores/connector-credentials";
+import { connectorOAuthStore } from "../stores/connector-oauth";
 import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
@@ -84,6 +86,15 @@ export function createWorkspaceActor({
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
       captureException: captureServerException,
+      connectors: {
+        getCredential: (slug) => Promise.resolve(getConnectorCredential(slug)),
+        oauth: {
+          redirectUrl: `http://localhost:${
+            is.dev ? PORTS.authCallback.dev : PORTS.authCallback.prod
+          }/auth/callback/connector`,
+          store: connectorOAuthStore,
+        },
+      },
       defaultTaskTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,

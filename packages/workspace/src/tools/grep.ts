@@ -6,10 +6,8 @@ import { z } from "zod";
 import { grep } from "../lib/grep";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
-import {
-  buildWorkspaceFsLayout,
-  resolveVirtualPath,
-} from "../lib/workspace-fs-layout";
+import { buildTaskFsLayout } from "../lib/task-fs-layout";
+import { resolveVirtualPath } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -62,10 +60,7 @@ export const Grep = setupTool({
     - Use this tool when you need to find files containing specific patterns.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = buildTaskFsLayout(taskId, taskState);
     const pathResult = resolveAgentPath({
       inputPath: input.path,
       isRequired: false,
@@ -74,7 +69,7 @@ export const Grep = setupTool({
     if (pathResult.isErr()) {
       return err(pathResult.error);
     }
-    const { absolutePath, attachedMount, displayPath } = pathResult.value;
+    const { absolutePath, displayPath, mount } = pathResult.value;
 
     // Inside an attached mount (/mnt/<name>/...), search the real folder on
     // disk; otherwise search the task-relative displayPath (the task root when
@@ -84,11 +79,11 @@ export const Grep = setupTool({
       include: input.include,
       limit: GREP_LIMIT,
       pattern: input.pattern,
-      searchPath: attachedMount ? absolutePath : displayPath,
+      searchPath: mount ? absolutePath : displayPath,
       signal,
     });
 
-    if (!attachedMount) {
+    if (!mount) {
       return ok(result);
     }
 

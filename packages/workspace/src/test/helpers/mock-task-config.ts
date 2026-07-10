@@ -98,6 +98,8 @@ export function createMockTaskConfig(
       // eslint-disable-next-line no-console
       console.error("captureException", args);
     },
+    connectors: { getCredential: () => Promise.resolve(null) },
+    connectorsDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/connectors`),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
     ),

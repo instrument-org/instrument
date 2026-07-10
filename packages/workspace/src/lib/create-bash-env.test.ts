@@ -18,6 +18,9 @@ describe("createBashDescription", () => {
       or process an attached file, copy it into the task first (e.g.
       \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
 
+      The workspace's data connectors live at \`/connectors/\`
+      (writable; one folder per connector holding connector.json and guide.md).
+
       IMPORTANT: Python is available via the specialized
       \`python\`/\`python3\`/\`pip\`/\`uv\`
       commands below (backed by a per-task virtualenv in work/.venv), and
@@ -35,8 +38,9 @@ describe("createBashDescription", () => {
       IMPORTANT: Not a persistent terminal -- each call starts fresh from the
       task root (\`/task\`, your working directory), so \`cd .\` is
       always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only
-      \`/task\` and the \`/mnt\` mounts exist; writing anywhere else
-      (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env
+      \`/task\`, the \`/mnt\` mounts, and
+      \`/connectors\` exist; writing anywhere else (e.g. \`/tmp\`)
+      fails -- use \`work/\` for scratch files. Shell state (env
       vars, exported functions, cwd) does NOT carry across calls; to run somewhere
       else, prefix your command (\`cd subdir && ...\`) within a single call.
 

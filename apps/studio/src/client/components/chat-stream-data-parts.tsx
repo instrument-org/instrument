@@ -8,6 +8,7 @@ import {
 import { type ReactNode } from "react";
 
 import { type RenderPartContext } from "./chat-stream-render-part";
+import { ConnectorChangesNote } from "./connector-changes-note";
 import { FileChangesCard } from "./file-changes-card";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
@@ -26,6 +27,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "dev",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
+  "data-connectorChanges": "always",
   "data-externalFileChanges": "dev",
   "data-fileChanges": "always",
   "data-maxSteps": "dev",
@@ -82,6 +84,9 @@ export function renderDataPart({
           text={browserStatusModelNote(part.data)}
         />
       );
+    }
+    case "data-connectorChanges": {
+      return <ConnectorChangesNote data={part.data} key={part.metadata.id} />;
     }
     case "data-externalFileChanges": {
       const note = externalFileChangesModelNote(part.data);

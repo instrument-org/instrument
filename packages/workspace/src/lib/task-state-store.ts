@@ -11,6 +11,10 @@ import { getTaskPrivateDir } from "./task-dir-utils";
 const StoredTaskStateSchema = z
   .object({
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+    // Connector slugs whose guide.md the agent has already been shown in this
+    // task. The connector_request tool returns the guide (instead of calling
+    // the API) until the slug appears here.
+    connectorGuidesRead: z.array(z.string()).optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
     showTutorial: z.boolean().optional(),
@@ -19,6 +23,7 @@ const StoredTaskStateSchema = z
 
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+  connectorGuidesRead: z.array(z.string()).optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
   showTutorial: z.boolean().optional(),

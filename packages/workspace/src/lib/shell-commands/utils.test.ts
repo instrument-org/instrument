@@ -47,6 +47,16 @@ describe("resolvePathArgs native-binary bridge", () => {
     });
     expect(resolved).toEqual([`${dir}/tmp/scratch.txt`]);
   });
+
+  it("quarantines the writable /connectors mount too", () => {
+    // /connectors is writable for bash and the file tools, but its real host
+    // dir must never be handed to a native subprocess.
+    const resolved = resolvePathArgs(["/connectors/linear/connector.json"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    expect(resolved).toEqual([`${dir}/connectors/linear/connector.json`]);
+  });
 });
 
 describe("extractFileAndScriptArgs", () => {

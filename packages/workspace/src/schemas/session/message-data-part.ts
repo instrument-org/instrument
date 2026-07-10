@@ -9,6 +9,7 @@ export namespace SessionMessageDataPart {
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
+    "connectorChanges",
     "externalFileChanges",
     "fileChanges",
     "maxSteps",
@@ -119,6 +120,25 @@ export namespace SessionMessageDataPart {
     typeof ProjectChangesDataPartSchema
   >;
 
+  // Connectors added, removed, enabled, or disabled since the last turn (by the
+  // user in Settings, or by the agent itself), attached to the next user
+  // message so the agent's connector awareness stays current mid-session.
+  const ConnectorChangeSchema = z.object({
+    change: z.enum(["added", "disabled", "enabled", "removed"]),
+    displayName: z.string(),
+    slug: z.string(),
+  });
+
+  export type ConnectorChange = z.output<typeof ConnectorChangeSchema>;
+
+  const ConnectorChangesDataPartSchema = z.object({
+    connectors: z.array(ConnectorChangeSchema),
+  });
+
+  export type ConnectorChangesDataPart = z.output<
+    typeof ConnectorChangesDataPartSchema
+  >;
+
   const BrowserTargetSchema = z.object({
     title: z.string().optional(),
     url: z.string(),
@@ -156,6 +176,7 @@ export namespace SessionMessageDataPart {
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.connectorChanges]: ConnectorChangesDataPartSchema,
     [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,

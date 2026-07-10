@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 
 import { type TASK_STATUSES } from "./constants";
+import { type McpOAuthStore } from "./lib/connectors/mcp/oauth-provider";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
@@ -109,6 +110,8 @@ export interface WorkspaceConfig {
   browser: BrowserConfig;
   captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
+  connectors: WorkspaceConnectorsConfig;
+  connectorsDir: AbsolutePath;
   defaultTaskTemplateDir: AbsolutePath;
   getAIProviderConfigs: GetProviderConfigs;
   modelCache: ModelCache;
@@ -124,6 +127,24 @@ export interface WorkspaceConfig {
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
   // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
   uvDataDir: AbsolutePath;
+}
+
+/**
+ * Host-app-provided access to connector credentials. Values live in the app's
+ * encrypted store (Electron safeStorage in Studio); the workspace only ever
+ * pulls them at request time, keyed by connector slug, so secrets never touch
+ * connector folders, task files, or the model.
+ */
+export interface WorkspaceConnectorsConfig {
+  getCredential: (slug: string) => Promise<null | string>;
+  // Present only in the desktop app: backs OAuth MCP connectors (token
+  // read/refresh) with the app's encrypted store. Optional so headless/test
+  // contexts run without OAuth. `oauthRedirectUrl` is the loopback callback the
+  // interactive sign-in registers.
+  oauth?: {
+    redirectUrl: string;
+    store: McpOAuthStore;
+  };
 }
 type CdpMethod = keyof ProtocolMapping.Commands;
 type CdpParams<M extends CdpMethod> = ProtocolMapping.Commands[M]["paramsType"];

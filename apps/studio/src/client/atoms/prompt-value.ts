@@ -81,6 +81,12 @@ const createTaskPromptStorage = (id: TaskId) => {
 // Ephemeral, in-memory compose drafts, one per tab.
 const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
 
+// A one-shot prompt handed to the next new-tab compose surface. Set by callers
+// that open a new tab and want its input pre-filled (e.g. "Set up" on a
+// connector in Settings), consumed and cleared by the new-tab route on mount so
+// it never leaks into an unrelated later tab.
+export const pendingComposePromptAtom = atom<null | string>(null);
+
 // Task follow-up drafts, persisted with the task via task-state storage.
 export const taskDraftFamily = atomFamily((taskId: TaskId) =>
   atomWithStorage(

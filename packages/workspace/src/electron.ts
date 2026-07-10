@@ -1,5 +1,27 @@
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
 export {
+  type ConnectorCatalogEntry,
+  getConnectorCatalog,
+} from "./lib/connectors/catalog";
+export {
+  type ConnectorAuth,
+  type ConnectorManifest,
+  ConnectorSlugSchema,
+} from "./lib/connectors/manifest";
+export {
+  beginMcpOAuth,
+  cancelMcpOAuth,
+  completeMcpOAuth,
+} from "./lib/connectors/mcp/oauth-flow";
+
+export { type McpOAuthStore } from "./lib/connectors/mcp/oauth-provider";
+export { mcpAuthProviderForTool } from "./lib/connectors/mcp/tool-auth";
+export { listConnectors } from "./lib/connectors/store";
+export {
+  type ConnectorTestReport,
+  runConnectorTestAndEnable,
+} from "./lib/connectors/test-connector";
+export {
   migrateWorkspaceLayout,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
@@ -37,3 +59,7 @@ export {
   encodeBrowserTargetId,
   type WorkspaceConfig,
 } from "./types";
+export {
+  type OAuthClientInformationFull,
+  type OAuthTokens,
+} from "@modelcontextprotocol/sdk/shared/auth.js";

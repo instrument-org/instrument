@@ -21,8 +21,8 @@ import {
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import { buildTaskFsLayout } from "../lib/task-fs-layout";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
@@ -148,10 +148,7 @@ export const GenerateImage = setupTool({
     })}
   `,
   async *execute({ input, model, signal, taskId, taskState }) {
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = buildTaskFsLayout(taskId, taskState);
     const filePathResult = resolveWritableToolPath({
       inputPath: input.filePath,
       layout,

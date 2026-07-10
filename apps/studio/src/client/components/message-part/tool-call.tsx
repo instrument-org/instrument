@@ -7,8 +7,19 @@ import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallSessionProvider } from "./tool-call-session";
 import { ToolCallSummary } from "./tool-call-summary";
-import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
+import {
+  hasTerminalToolState,
+  isPendingInteractiveToolCall,
+  isToolCallVisible,
+} from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
+import {
+  ToolConnectorMcp,
+  ToolConnectorRequest,
+  ToolConnectorTest,
+} from "./tool-connector";
+import { ToolConnectorCredentialPrompt } from "./tool-connector-credential-prompt";
+import { ToolConnectorOAuthPrompt } from "./tool-connector-oauth-prompt";
 import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolGlob } from "./tool-glob";
@@ -42,8 +53,14 @@ export function ToolCall({
     return null;
   }
 
+  // A parked interactive tool call (credential prompt, choose) is non-terminal
+  // and not streaming, but it is genuinely awaiting the user -- not a stopped
+  // run -- so it must render its real body, not the dead-dev-mode placeholder.
   const isDeadDevMode =
-    !hasTerminalToolState(part) && !isStreaming && isDeveloperMode;
+    !hasTerminalToolState(part) &&
+    !isStreaming &&
+    isDeveloperMode &&
+    !isPendingInteractiveToolCall(part);
 
   return (
     <ToolCallSessionProvider
@@ -109,6 +126,21 @@ function ToolCallBody({
     }
     case "tool-choose": {
       return <ToolChoose part={part} />;
+    }
+    case "tool-connector_credential_prompt": {
+      return <ToolConnectorCredentialPrompt part={part} taskId={task.id} />;
+    }
+    case "tool-connector_mcp": {
+      return <ToolConnectorMcp part={part} />;
+    }
+    case "tool-connector_oauth_prompt": {
+      return <ToolConnectorOAuthPrompt part={part} taskId={task.id} />;
+    }
+    case "tool-connector_request": {
+      return <ToolConnectorRequest part={part} />;
+    }
+    case "tool-connector_test": {
+      return <ToolConnectorTest part={part} />;
     }
     case "tool-edit_file": {
       return <ToolEditFile id={task.id} part={part} />;

@@ -115,6 +115,7 @@ const actor = createActor(workspaceMachine, {
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
+    connectors: { getCredential: () => Promise.resolve(null) },
     defaultTaskTemplateDir: path.resolve(
       import.meta.dirname,
       "../templates/default",

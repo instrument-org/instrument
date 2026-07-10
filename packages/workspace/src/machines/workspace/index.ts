@@ -9,6 +9,7 @@ import {
   type CaptureExceptionFunction,
 } from "@instrument-org/shared";
 import ms from "ms";
+import { mkdirSync } from "node:fs";
 import {
   type ActorRefFrom,
   assign,
@@ -21,7 +22,11 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import {
+  CONNECTORS_DIR_NAME,
+  PROJECTS_DIR_NAME,
+  TASKS_DIR_NAME,
+} from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
@@ -41,6 +46,7 @@ import {
   type BrowserConfig,
   type BrowserTargetId,
   type WorkspaceConfig,
+  type WorkspaceConnectorsConfig,
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
 import { runtimeMachine } from "../runtime";
@@ -389,6 +395,7 @@ export const workspaceMachine = setup({
       browser: BrowserConfig;
       captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
+      connectors: WorkspaceConnectorsConfig;
       defaultTaskTemplateDir: string;
       getAIProviderConfigs: GetProviderConfigs;
       modelCache: ModelCache;
@@ -411,6 +418,8 @@ export const workspaceMachine = setup({
       browser: input.browser,
       captureEvent: input.captureEvent,
       captureException: input.captureException,
+      connectors: input.connectors,
+      connectorsDir: absolutePathJoin(rootDir, CONNECTORS_DIR_NAME),
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
         input.defaultTaskTemplateDir,
       ),
@@ -429,6 +438,13 @@ export const workspaceMachine = setup({
     // Publish the single per-process config so code can read it via
     // getWorkspaceConfig() instead of threading it through every TaskId.
     setWorkspaceConfig(workspaceConfig);
+    // The /connectors mount and connector discovery expect the folder to
+    // exist; create it up front so a fresh workspace starts connector-ready.
+    try {
+      mkdirSync(workspaceConfig.connectorsDir, { recursive: true });
+    } catch {
+      // Non-fatal: connector features degrade gracefully when missing.
+    }
     return {
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),

@@ -8,8 +8,10 @@ import { type AnyActorLogic, createActor, fromCallback } from "xstate";
 
 import { taskDir } from "../../lib/task-dir-utils";
 import { getTaskSettings } from "../../lib/task-settings";
+import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import {
   createStubBrowserConfig,
   MOCK_WORKSPACE_DIRS,
@@ -150,5 +152,109 @@ describe("workspaceMachine unread indicators", () => {
 
     actor.stop();
     await fs.rm(root, { force: true, recursive: true });
+  });
+});
+
+describe("workspaceMachine session ref lifecycle", () => {
+  const buildUserMessage = (): SessionMessage.UserWithParts => {
+    const sessionId = StoreId.newSessionId();
+    const messageId = StoreId.newMessageId();
+    return {
+      id: messageId,
+      metadata: { createdAt: new Date(0), sessionId },
+      parts: [
+        {
+          metadata: {
+            createdAt: new Date(0),
+            id: StoreId.newPartId(),
+            messageId,
+            sessionId,
+          },
+          text: "hi",
+          type: "text",
+        },
+      ],
+      role: "user",
+    };
+  };
+
+  const spawnSession = (
+    actor: ReturnType<typeof createWorkspaceActor>,
+    taskId: TaskId,
+    parentSessionId?: StoreId.Session,
+  ) => {
+    actor.send({
+      type: "internal.spawnSession",
+      value: {
+        agentName: "main",
+        message: buildUserMessage(),
+        model: createMockAIGatewayModel(),
+        parentSessionId,
+        sessionId: StoreId.newSessionId(),
+        taskId,
+      },
+    });
+  };
+
+  it("drops a session ref when that session finishes", () => {
+    const taskId = TaskIdSchema.parse("gc-task");
+
+    const actor = createWorkspaceActor();
+    actor.start();
+
+    spawnSession(actor, taskId);
+
+    const sessionRef = actor
+      .getSnapshot()
+      .context.sessionRefsByTaskId.get(taskId)?.[0];
+    expect(sessionRef).toBeDefined();
+
+    actor.send({
+      type: "session.done",
+      value: {
+        actorId: sessionRef?.id ?? "",
+        taskId,
+        usedNonReadOnlyTools: false,
+      },
+    });
+
+    // The finished session's ref is gone, and with no refs left the task key is
+    // removed so it stops counting as active.
+    expect(actor.getSnapshot().context.sessionRefsByTaskId.has(taskId)).toBe(
+      false,
+    );
+
+    actor.stop();
+  });
+
+  it("keeps other session refs when one of several finishes", () => {
+    const taskId = TaskIdSchema.parse("gc-multi-task");
+
+    const actor = createWorkspaceActor();
+    actor.start();
+
+    spawnSession(actor, taskId);
+    spawnSession(actor, taskId, StoreId.newSessionId());
+
+    const refs = actor.getSnapshot().context.sessionRefsByTaskId.get(taskId);
+    expect(refs).toHaveLength(2);
+    const [first, second] = refs ?? [];
+
+    actor.send({
+      type: "session.done",
+      value: {
+        actorId: first?.id ?? "",
+        taskId,
+        usedNonReadOnlyTools: false,
+      },
+    });
+
+    const remaining = actor
+      .getSnapshot()
+      .context.sessionRefsByTaskId.get(taskId);
+    expect(remaining).toHaveLength(1);
+    expect(remaining?.[0]?.id).toBe(second?.id);
+
+    actor.stop();
   });
 });

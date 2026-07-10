@@ -120,7 +120,11 @@ function RouteComponent() {
     }
     return new Set<TaskId>(
       agentStatuses
-        .filter((state) => state.sessionActors.length > 0)
+        .filter((state) =>
+          state.sessionActors.some((actor) =>
+            actor.tags.includes("agent.alive"),
+          ),
+        )
         .map((state) => state.taskId)
         .filter((id) => isTaskId(id)),
     );

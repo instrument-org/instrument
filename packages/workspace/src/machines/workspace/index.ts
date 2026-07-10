@@ -296,6 +296,30 @@ export const workspaceMachine = setup({
     // Persist an unread indicator so the sidebar/tab can surface a dot until
     // the user views the task. Writing task settings publishes task.updated,
     // which the live indicators stream re-reads from.
+    dropSessionRef: assign(
+      ({ context }, { actorId, id }: { actorId: string; id: TaskId }) => {
+        const existingSessionActorRefs = context.sessionRefsByTaskId.get(id);
+        if (!existingSessionActorRefs) {
+          return {};
+        }
+
+        const remaining = existingSessionActorRefs.filter(
+          (ref) => ref.id !== actorId,
+        );
+
+        const newSessionRefsByTaskId = new Map(context.sessionRefsByTaskId);
+        if (remaining.length > 0) {
+          newSessionRefsByTaskId.set(id, remaining);
+        } else {
+          newSessionRefsByTaskId.delete(id);
+        }
+
+        return {
+          sessionRefsByTaskId: newSessionRefsByTaskId,
+        };
+      },
+    ),
+
     markTaskUnread: (_, { id }: { id: TaskId }) => {
       void setTaskIndicator(id, "completed");
     },
@@ -714,9 +738,18 @@ export const workspaceMachine = setup({
             value: { id: event.value.taskId },
           });
         }
+
+        // Drop the finished session's ref so the task stops counting as active.
+        // Later messages resolve their session from persisted store state and
+        // the runtime ref, so nothing reads a done ref.
+        enqueue({
+          params: {
+            actorId: event.value.actorId,
+            id: event.value.taskId,
+          },
+          type: "dropSessionRef",
+        });
       }),
-      // TODO: Garbage collect "done" session refs here once the UI has another
-      // way to show finished sessions; we want to drop them eagerly.
     },
     "session.spawnSubAgent": {
       actions: raise(({ event }) => ({

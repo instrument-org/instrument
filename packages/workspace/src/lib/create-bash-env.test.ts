@@ -12,11 +12,13 @@ describe("createBashDescription", () => {
 
       IMPORTANT: Folders the user attaches appear as read-only mounts under \`/mnt/\` (one directory per folder). You can read, list, and search them (\`ls\`, \`cat\`, \`grep\`, \`find\`) but cannot write into them -- any write, or a script/command that outputs into \`/mnt/\`, fails with EROFS. They live outside the task root, so address them by their \`/mnt/...\` path. To modify or process an attached file, copy it into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
 
+      The workspace's data connectors live at \`/connectors/\` (writable; one folder per connector holding connector.json and guide.md).
+
       IMPORTANT: Python is available via the specialized \`python\`/\`python3\`/\`pip\`/\`uv\` commands below (backed by a per-task virtualenv in work/.venv), and TypeScript/JavaScript via the specialized \`tsx\` command. If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`/task/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
 
       IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all package management.
 
-      IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\`, the \`/mnt\` mounts, and \`/skills\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+      IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\`, the \`/mnt\` mounts, \`/skills\`, and \`/connectors\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
       IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
 

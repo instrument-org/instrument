@@ -17,6 +17,13 @@ export interface AnalyticsEvents {
   "auth.logged_out": never;
   "auth.login_started": never;
   "command_menu.opened": never;
+  "connector.credential_set": {
+    connector_slug: string;
+  };
+  "connector.tested": {
+    connector_slug: string;
+    passed: boolean;
+  };
   "eval.created": {
     eval_names: string[];
     model_ids: string[];

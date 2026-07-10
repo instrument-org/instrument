@@ -7,10 +7,8 @@ import { redactTaskDir } from "../lib/filter-shell-output";
 import { grep } from "../lib/grep";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
-import {
-  buildWorkspaceFsLayout,
-  resolveVirtualPath,
-} from "../lib/workspace-fs-layout";
+import { buildTaskFsLayout } from "../lib/task-fs-layout";
+import { resolveVirtualPath } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -63,10 +61,7 @@ export const Grep = setupTool({
     - Use this tool when you need to find files containing specific patterns.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = buildTaskFsLayout(taskId, taskState);
     const pathResult = resolveAgentPath({
       inputPath: input.path,
       isRequired: false,

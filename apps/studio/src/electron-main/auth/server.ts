@@ -20,6 +20,10 @@ import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { serve } from "@hono/node-server";
 import { PORTS } from "@instrument-org/shared";
+import {
+  cancelMcpOAuth,
+  completeMcpOAuth,
+} from "@instrument-org/workspace/electron";
 import { detect } from "detect-port";
 import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
@@ -192,6 +196,38 @@ export async function startAuthCallbackServer() {
     // before the window comes to front -- keeps the entrance animation visible.
     setTimeout(focusAppWindow, 400);
     captureServerEvent("auth.logged_in");
+    return c.html(renderAuthPage({}));
+  });
+
+  // MCP connector OAuth: the browser lands here after the user approves. Finish
+  // the parked flow (exchange the code for tokens), then let the app re-list and
+  // enable the connector via connectors.updated.
+  app.get("/auth/callback/connector", async (c) => {
+    const code = c.req.query("code");
+    const state = c.req.query("state");
+    const oauthError = c.req.query("error");
+    focusAppWindow();
+    if (
+      state !== undefined &&
+      (oauthError !== undefined || code === undefined)
+    ) {
+      // Denied / cancelled: tear down the parked flow so it doesn't leak.
+      await cancelMcpOAuth(state);
+      publisher.publish("connectors.updated", null);
+      return c.html(renderAuthPage({ isError: true }), 400);
+    }
+    if (code === undefined || state === undefined) {
+      return c.html(renderAuthPage({ isError: true }), 400);
+    }
+    const result = await completeMcpOAuth({ code, state });
+    if (result.isErr()) {
+      captureServerException(
+        new Error(`Connector OAuth failed: ${result.error.message}`),
+        { scopes: ["auth"] },
+      );
+      return c.html(renderAuthPage({ isError: true }), 400);
+    }
+    publisher.publish("connectors.updated", null);
     return c.html(renderAuthPage({}));
   });
 

@@ -12,6 +12,7 @@ import {
   buildProjectContextText,
   projectFoldersIntro,
 } from "../lib/build-project-context-text";
+import { buildConnectorsContextText } from "../lib/connectors/context";
 import { getEffectiveProjectContext } from "../lib/effective-project-context";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
@@ -98,6 +99,11 @@ async function getProjectContextSnapshot({
 
 export const mainAgent = setupAgent({
   agentTools: pick(TOOLS, [
+    "ConnectorCredentialPrompt",
+    "ConnectorMcp",
+    "ConnectorOAuthPrompt",
+    "ConnectorRequest",
+    "ConnectorTest",
     "EditFile",
     "GenerateImage",
     "Glob",
@@ -218,6 +224,15 @@ export const mainAgent = setupAgent({
     - Surfacing a file from \`${F.work}/\` to the user: copy or move it into \`${F.output}/\` with \`${agentTools.BashTool.name}\` (e.g. \`cp ${F.work}/foo.html ${F.output}/foo.html\`).
     - CRITICAL: Do NOT use \`${agentTools.WriteFile.name}\` to re-emit content you have already produced or read from disk. That wastes tokens and risks corrupting bytes (line endings, whitespace, base64-ish or minified content). Use \`cp\`/\`mv\` instead.
 
+    ## Data Connectors
+    The workspace can hold data connectors: per-service folders at \`/connectors/<slug>/\` holding a \`connector.json\` manifest and a \`guide.md\`, giving you authenticated access to external services (e.g. Notion) via the \`${agentTools.ConnectorRequest.name}\` tool.
+    - Credentials are stored by the app and injected at request time. NEVER ask the user to paste an API key into the chat, NEVER write a credential into any file, and never add your own auth headers. When a credential is missing, use \`${agentTools.ConnectorCredentialPrompt.name}\` -- it shows a secure entry field; you only learn granted or denied.
+    - The first \`${agentTools.ConnectorRequest.name}\` call for a connector returns its guide; read it, then repeat the request.
+    - You can create or repair a connector by editing its files under \`/connectors/<slug>/\` and validating with \`${agentTools.ConnectorTest.name}\` until it passes (a pass enables the connector).
+    - When setting up a new connector, research the service's API first: \`curl https://integrations.sh/api/<domain>/detect\` (or \`/discover\`) returns known API surfaces with credential-acquisition steps, and \`${agentTools.WebSearch.name}\` covers the rest. Write what you learn into the connector's \`guide.md\`.
+    - Connectors come in two types. \`type: "api"\` connectors make authenticated HTTP requests via \`${agentTools.ConnectorRequest.name}\`. \`type: "mcp"\` connectors point at a hosted MCP server (e.g. \`https://mcp.linear.app/mcp\`); use \`${agentTools.ConnectorMcp.name}\` to list and call their tools. Both are validated and enabled by \`${agentTools.ConnectorTest.name}\`.
+    - For an MCP connector whose \`auth.kind\` is \`"oauth"\` (one-click sign-in, no key -- e.g. Linear, Notion, Sentry), do NOT collect a credential. After creating its folder + guide, use \`${agentTools.ConnectorOAuthPrompt.name}\` to show the user a Connect button; once they sign in the connector is enabled automatically.
+
     ## Web Search
     You have the \`${agentTools.WebSearch.name}\` tool. For any question or task that turns on a present-day fact about the world, search before answering -- do not answer from training data, and do not merely offer to check.
     - Your confidence is not a reason to skip search. Facts like who holds a role, what something costs, the current version of a library or product, whether something still exists or is still recommended, and what is newest in a category change over time and cannot come from priors.
@@ -310,6 +325,11 @@ export const mainAgent = setupAgent({
           folders: userAttachedFolders,
           intro:
             "The user has attached these folders to this task. They are mounted read-only for direct access:",
+        }),
+        await buildConnectorsContextText({
+          connectorsDir: getWorkspaceConfig().connectorsDir,
+          getCredential: (slug) =>
+            getWorkspaceConfig().connectors.getCredential(slug),
         }),
         taskLayout,
       ],

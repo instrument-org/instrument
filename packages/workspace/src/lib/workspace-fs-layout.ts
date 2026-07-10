@@ -51,14 +51,24 @@ const DEV_MOUNT_POINT = "/dev";
 export const SKILLS_MOUNT_POINT = "/skills";
 
 /**
+ * Virtual mount point of the workspace-level connectors folder. Unlike /mnt
+ * mounts it is writable: the agent creates and repairs connector configs and
+ * guides here with its ordinary file tools. Secrets never live in this folder;
+ * they stay in the app's encrypted credential store.
+ */
+export const CONNECTORS_MOUNT_POINT = "/connectors";
+
+/**
  * The complete virtual filesystem layout for a task: the writable task mount,
- * the writable workspace skills mount, and any read-only user-attached folders.
- * This is the single source of truth shared by the bash sandbox (just-bash
- * filesystem), the native-binary path bridge, and the dedicated file tools, so
- * all three agree on what the agent can see and where.
+ * the writable workspace skills mount, any read-only user-attached folders, and
+ * the writable workspace connectors folder. This is the single source of truth
+ * shared by the bash sandbox (just-bash filesystem), the native-binary path
+ * bridge, and the dedicated file tools, so all three agree on what the agent
+ * can see and where.
  */
 export interface WorkspaceFsLayout {
   attached: WorkspaceFsMount[];
+  connectors: null | WorkspaceFsMount;
   skills: WorkspaceFsMount;
   task: WorkspaceFsMount & { hostRoot: TaskDir; readOnly: false };
 }
@@ -149,6 +159,16 @@ export async function buildBashFs(
     new ReadWriteFs({ maxFileReadSize, root: layout.skills.hostRoot }),
   );
 
+  if (layout.connectors && (await pathExists(layout.connectors.hostRoot))) {
+    fs.mount(
+      layout.connectors.mountPoint,
+      new ReadWriteFs({
+        maxFileReadSize,
+        root: layout.connectors.hostRoot,
+      }),
+    );
+  }
+
   return fs;
 }
 
@@ -159,9 +179,11 @@ export async function buildBashFs(
  */
 export function buildWorkspaceFsLayout({
   attachedFolders,
+  connectorsHostRoot,
   taskHostRoot,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  connectorsHostRoot?: AbsolutePath;
   taskHostRoot: TaskDir;
 }): WorkspaceFsLayout {
   const attached: WorkspaceFsMount[] = assignAttachedMounts(
@@ -174,6 +196,13 @@ export function buildWorkspaceFsLayout({
 
   return {
     attached,
+    connectors: connectorsHostRoot
+      ? {
+          hostRoot: connectorsHostRoot,
+          mountPoint: CONNECTORS_MOUNT_POINT,
+          readOnly: false,
+        }
+      : null,
     skills: {
       hostRoot: getWorkspaceSkillsDir(),
       mountPoint: SKILLS_MOUNT_POINT,
@@ -222,9 +251,17 @@ export function hostPathEscapesMount(
   return !pathIsWithin(canonicalPath, canonicalRoot);
 }
 
-/** Every mount other than the task, in the order they are advertised. */
+/**
+ * Every mount except the task, in the order they are advertised: read-only
+ * attached folders under /mnt plus the writable /skills and /connectors mounts.
+ * Steering errors and mount-path hints iterate these.
+ */
 export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
-  return [...layout.attached, layout.skills];
+  return [
+    ...layout.attached,
+    layout.skills,
+    ...(layout.connectors ? [layout.connectors] : []),
+  ];
 }
 
 /** Virtual mount point of the masked-off private dir under the task mount. */

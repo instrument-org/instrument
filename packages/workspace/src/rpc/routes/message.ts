@@ -14,8 +14,57 @@ import { FileUpload } from "../../schemas/file-upload";
 import { SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { TOOL_NAMES } from "../../tools/name";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
+
+// One schema per interactive tool: the renderer resolves a pending
+// (never-executed) tool call with a typed output. Keep in sync with
+// isInteractiveTool and each tool's outputSchema.
+const InteractiveToolResolutionSchema = z.discriminatedUnion("toolName", [
+  z.object({
+    output: z.object({ selectedChoice: z.string() }),
+    toolName: z.literal(TOOL_NAMES.choose),
+  }),
+  z.object({
+    output: z.object({
+      slug: z.string(),
+      state: z.enum(["granted", "denied"]),
+    }),
+    toolName: z.literal(TOOL_NAMES.connectorCredentialPrompt),
+  }),
+  z.object({
+    output: z.object({
+      slug: z.string(),
+      state: z.enum(["connected", "dismissed"]),
+    }),
+    toolName: z.literal(TOOL_NAMES.connectorOauthPrompt),
+  }),
+]);
+
+const resolveInteractiveToolCall = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      resolution: InteractiveToolResolutionSchema,
+      toolCallId: z.string(),
+    }),
+  )
+  .handler(({ context, input }) => {
+    // The workspace machine fans this out to the task's sessions; the agent
+    // machine writes the output onto the pending part and resumes the turn.
+    context.workspaceRef.send({
+      type: "updateInteractiveToolCall",
+      value: {
+        id: input.id,
+        update: {
+          toolCallId: input.toolCallId,
+          type: "success",
+          value: input.resolution,
+        },
+      },
+    });
+  });
 
 const listWithParts = base
   .input(
@@ -276,4 +325,5 @@ export const message = {
   create,
   list: listWithParts,
   live,
+  resolveInteractiveToolCall,
 };

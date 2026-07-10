@@ -4,11 +4,8 @@ import { z } from "zod";
 
 import { globSortedByMtime, resolveGlobPattern } from "../lib/glob";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
-import {
-  buildWorkspaceFsLayout,
-  resolveVirtualPath,
-} from "../lib/workspace-fs-layout";
+import { buildTaskFsLayout } from "../lib/task-fs-layout";
+import { resolveVirtualPath } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -35,10 +32,7 @@ export const Glob = setupTool({
   description:
     "Find files matching a glob pattern in the codebase. Specify a path to search within a specific folder (including a read-only attached folder at /mnt/<name>), or omit to search from the task root.",
   execute: async ({ input, signal, taskId, taskState }) => {
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = buildTaskFsLayout(taskId, taskState);
     const pathResult = resolveAgentPath({
       inputPath: input.path,
       isRequired: false,

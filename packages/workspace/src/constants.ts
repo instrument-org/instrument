@@ -25,6 +25,9 @@ export const TASK_FOLDER_NAMES = {
   work: "work",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
+// Workspace-level connector folders (one per connector slug); mounted writable
+// at /connectors inside the agent sandbox. Secrets never live here.
+export const CONNECTORS_DIR_NAME = "connectors";
 // Projects are real folders at the workspace root, named by the (sanitized)
 // project name. Their identity + instructions live inside each folder.
 export const PROJECTS_DIR_NAME = "projects";

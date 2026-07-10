@@ -18,6 +18,7 @@ import { attachedFolderChangesModelNote } from "../../lib/attached-folder-change
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
+import { connectorChangesModelNote } from "../../lib/connector-changes-model-text";
 import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
@@ -332,6 +333,20 @@ export namespace SessionMessage {
         );
         if (folderChangesPart) {
           const note = attachedFolderChangesModelNote(folderChangesPart.data);
+          if (note) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+        }
+
+        const connectorChangesPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-connectorChanges";
+          } => part.type === "data-connectorChanges",
+        );
+        if (connectorChangesPart) {
+          const note = connectorChangesModelNote(connectorChangesPart.data);
           if (note) {
             injectedParts.push({ text: note, type: "text" });
           }

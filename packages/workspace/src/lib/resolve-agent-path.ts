@@ -115,13 +115,15 @@ export async function getSimilarPathSuggestions({
 /**
  * Resolve a read-path input against the workspace layout. Accepts task-relative
  * paths, the task's own virtual paths (/task/...), attached-folder mount paths
- * (/mnt/<name>/...), and the workspace skills mount (/skills/...). Any other
- * absolute path is an error that steers the agent back into the layout.
+ * (/mnt/<name>/...), the workspace skills mount (/skills/...), and the
+ * connectors mount (/connectors/...). Any other absolute path is an error that
+ * steers the agent back into the layout.
  *
  * Returns `{ absolutePath, displayPath, mount }`:
  * - `absolutePath` — real host path; use for all file I/O.
  * - `displayPath` — what to echo back to the agent: task-relative for the task
- *   (./work/...), the virtual mount path everywhere else (/mnt/..., /skills/...).
+ *   (./work/...), the virtual mount path everywhere else (/mnt/..., /skills/...,
+ *   /connectors/...).
  * - `mount` — the non-task mount that owns the path, or null when the path is in
  *   the task. Callers that emit host paths (glob/grep results) must map them
  *   back through resolveVirtualPath when this is set.

@@ -6,6 +6,9 @@
     "streetsidesoftware.code-spell-checker",
     "vitest.explorer",
     "redhat.vscode-yaml",
-    "csstools.postcss"
+    "csstools.postcss",
+    "bradlc.vscode-tailwindcss",
+    "GitHub.vscode-github-actions",
+    "TypeScriptTeam.native-preview"
   ]
 }

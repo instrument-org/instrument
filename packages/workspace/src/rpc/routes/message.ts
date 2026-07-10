@@ -1,7 +1,6 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
-import { parallel } from "radashi";
 import { z } from "zod";
 
 import { createSession } from "../../lib/create-session";
@@ -9,11 +8,6 @@ import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user
 import { newMessage } from "../../lib/new-message";
 import { Store } from "../../lib/store";
 import { updateSessionTitle } from "../../lib/update-session-title";
-import {
-  emptyUsageSummary,
-  getUsageSummaryFromMessages,
-  UsageSummarySchema,
-} from "../../lib/usage-summary";
 import { FileUpload } from "../../schemas/file-upload";
 import { SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -229,47 +223,9 @@ const live = {
     }),
 };
 
-const MessageRefSchema = z.object({
-  messageId: StoreId.MessageSchema,
-  sessionId: StoreId.SessionSchema,
-});
-
-const usageSummary = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      messages: z.array(MessageRefSchema),
-    }),
-  )
-  .output(UsageSummarySchema)
-  .handler(async ({ input, signal }) => {
-    const { id, messages } = input;
-    const taskId = id;
-
-    const results = await parallel(
-      { limit: 10, signal },
-      messages,
-      async ({ messageId, sessionId }) => {
-        const result = await Store.getMessageWithParts(
-          { messageId, sessionId, taskId },
-          { signal },
-        );
-        return result.isOk() ? result.value : null;
-      },
-    );
-
-    const loaded = results.filter((m) => m !== null);
-    if (loaded.length === 0) {
-      return emptyUsageSummary();
-    }
-
-    return getUsageSummaryFromMessages(loaded);
-  });
-
 export const message = {
   count,
   create,
   list: listWithParts,
   live,
-  usageSummary,
 };

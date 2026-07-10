@@ -606,6 +606,7 @@ describe("sessionMachine", () => {
             </input>
             <output>
               {
+                "appliedParameters": {},
                 "images": [
                   {
                     "filePath": "generated-image.png",

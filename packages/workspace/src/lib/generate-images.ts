@@ -47,7 +47,9 @@ function appliedParametersFrom({
   aspectRatio?: `${number}:${number}`;
   providerParams: ImageGenerationParameters;
 }): ImageGenerationParameters {
-  return aspectRatio ? { ...providerParams, aspectRatio } : { ...providerParams };
+  return aspectRatio
+    ? { ...providerParams, aspectRatio }
+    : { ...providerParams };
 }
 
 const SOURCE_IMAGE_LIMITS: Partial<
@@ -151,7 +153,10 @@ export async function generateBufferedImage({
       });
 
       return {
-        appliedParameters: appliedParametersFrom({ aspectRatio, providerParams }),
+        appliedParameters: appliedParametersFrom({
+          aspectRatio,
+          providerParams,
+        }),
         config,
         images: imageResult.images,
         modelId: model.modelId,
@@ -260,7 +265,10 @@ async function* streamViaOpenRouter(args: {
     parameters: args.parameters,
     providerType: args.config.type,
   });
-  const appliedParameters = appliedParametersFrom({ aspectRatio, providerParams });
+  const appliedParameters = appliedParametersFrom({
+    aspectRatio,
+    providerParams,
+  });
   const fail = (message: string, responseBody?: string) => {
     const error = new TypedError.APICall(message, { responseBody });
     args.workspaceConfig.captureException(error);

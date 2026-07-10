@@ -93,7 +93,7 @@ describe("generateBufferedImage parameter mapping", () => {
     expect(lastAspectRatio()).toBeUndefined();
   });
 
-  it("routes quality under the openai key for a byok openai model", async () => {
+  it("routes quality under the openai key for an openai provider config", async () => {
     await callBuffered("openai", { quality: "high" });
 
     expect(lastProviderOptions()).toEqual({ openai: { quality: "high" } });

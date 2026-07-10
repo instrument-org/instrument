@@ -1,8 +1,11 @@
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { TaskIcon } from "@/client/components/task-icon";
+import { UnreadDot } from "@/client/components/unread-dot";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { type Tab as TabData } from "@/shared/tabs";
 import { XIcon } from "@phosphor-icons/react";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { motion, Reorder, useReducedMotion } from "motion/react";
 
 const SkeletonTitle = () => {
@@ -58,6 +61,13 @@ export const Tab = ({
         initial: { maxWidth: 0, opacity: 0 },
       };
 
+  const { data: task } = useQuery(
+    rpcClient.workspace.task.live.byId.experimental_liveOptions({
+      input: item.taskId ? { id: item.taskId } : skipToken,
+    }),
+  );
+  const isUnread = Boolean(task?.unreadIndicator);
+
   return (
     <Reorder.Item
       animate={motionStates.animate}
@@ -112,9 +122,13 @@ export const Tab = ({
         )}
       </motion.div>
       <div className="flex shrink-0 items-center gap-1 pl-1">
-        {item.taskId && !isSelected ? (
-          <div className="group-hover:hidden">
-            <TaskStatusIcon className="size-3 shrink-0" id={item.taskId} />
+        {item.taskId ? (
+          <div className="flex items-center group-hover:hidden">
+            {isUnread ? (
+              <UnreadDot />
+            ) : isSelected ? null : (
+              <TaskStatusIcon className="size-3 shrink-0" id={item.taskId} />
+            )}
           </div>
         ) : null}
         <button

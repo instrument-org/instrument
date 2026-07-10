@@ -5,6 +5,7 @@ import { TaskView } from "@/client/components/task/view";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAutoOpenBrowserArtifact } from "@/client/hooks/use-auto-open-browser-artifact";
 import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-artifact";
+import { useClearTaskIndicatorOnView } from "@/client/hooks/use-clear-task-indicator-on-view";
 import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
@@ -138,6 +139,8 @@ function RouteComponent() {
   const { artifactPanel, selectedSessionId, showSettings, sidebar } =
     Route.useSearch();
   const navigate = useNavigate();
+
+  useClearTaskIndicatorOnView(id);
 
   const handleSettingsDialogChange = (open: boolean) => {
     void navigate({

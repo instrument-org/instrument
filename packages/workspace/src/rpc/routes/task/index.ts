@@ -19,6 +19,10 @@ import { getProject, normalizeProjectInstructions } from "../../../lib/project";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {
+  clearTaskIndicator,
+  setTaskIndicator,
+} from "../../../lib/task-indicators";
+import {
   getTaskSettings,
   updateTaskSettings,
 } from "../../../lib/task-settings";
@@ -470,7 +474,35 @@ const trash = base
       id,
     });
 
+    // The unread indicator lives in the task's settings.json, so it is gone
+    // with the folder -- no separate cleanup needed.
+
     context.workspaceConfig.captureEvent("task.trashed");
+  });
+
+// Unread indicators: marked when an agent finishes (see the workspace machine's
+// session.done handler) and cleared once the user has viewed the task. Both
+// writes go through task settings, which publishes task.updated.
+const clearIndicator = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(z.void())
+  .handler(async ({ errors, input }) => {
+    const result = await clearTaskIndicator(input.id);
+    if (result.isErr()) {
+      throw toORPCError(result.error, errors);
+    }
+  });
+
+// Explicit "mark as unread". Like an automatic completion mark, it clears once
+// the user next views the task; clearIndicator ("mark as read") clears it now.
+const markUnread = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(z.void())
+  .handler(async ({ errors, input }) => {
+    const result = await setTaskIndicator(input.id, "completed");
+    if (result.isErr()) {
+      throw toORPCError(result.error, errors);
+    }
   });
 
 const update = base
@@ -707,6 +739,7 @@ export const task = {
   branch,
   byId,
   byIds,
+  clearIndicator,
   create,
   createTutorial,
   exportZip,
@@ -717,6 +750,7 @@ export const task = {
     ...live,
     usageSummary: liveUsageSummary,
   },
+  markUnread,
   state: taskState,
   trash,
   update,

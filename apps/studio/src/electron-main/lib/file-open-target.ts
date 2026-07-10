@@ -221,9 +221,7 @@ async function getFileTypeIconDataUrl(fullPath: string) {
 }
 
 function isLookupTimeout(error: unknown) {
-  return (
-    error instanceof Error && "killed" in error && error.killed === true
-  );
+  return error instanceof Error && "killed" in error && error.killed === true;
 }
 
 async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
@@ -332,7 +330,9 @@ async function resolveAssociatedApp(
   }
 }
 
-async function resolveCandidates(fullPath: string): Promise<FileOpenCandidate[]> {
+async function resolveCandidates(
+  fullPath: string,
+): Promise<FileOpenCandidate[]> {
   if (process.platform !== "darwin") {
     // Only macOS has a portable enumeration of every app that can open a file.
     return [];

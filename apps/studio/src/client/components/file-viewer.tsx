@@ -319,11 +319,7 @@ export function FileViewer({
   const contentRef = useRef<HTMLDivElement>(null);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
   const openTaskFile = useOpenTaskFile();
-  const {
-    openLabel,
-    showOpen,
-    showOpenWith,
-  } = useTaskFileOpenTarget(file);
+  const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
   const revealFileMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
       onError: (error) => {

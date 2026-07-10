@@ -5,6 +5,7 @@
   "[yaml]": {
     "editor.defaultFormatter": "oxc.oxc-vscode"
   },
+  "cSpell.autoFormatConfigFile": true,
   "editor.defaultFormatter": "oxc.oxc-vscode",
   "eslint.probe": [
     "javascript",
@@ -51,6 +52,7 @@
     "**/routeTree.gen.ts": true,
     ".claude/worktrees/**": true
   },
+  "js/ts.experimental.useTsgo": true,
   "oxc.fmt.configPath": ".oxfmtrc.json",
   // Can't use useIgnoreFiles because "files to include" still includes those
   // results due to: https://github.com/microsoft/vscode/issues/26574

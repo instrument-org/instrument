@@ -60,7 +60,9 @@ export const OUR_MODELS = {
   cacheIdentifier: OUR_MODELS_GROUP_ID,
   image: {
     // Should technically be a ProviderId, but that's defined in the ai-gateway package
-    id: `${OUR_MODELS_GROUP_ID}/auto-image`,
+    id: `${OUR_MODELS_GROUP_ID}/auto-image-2`,
+    // Friendly label for the auto-selected image model, shown in place of the id.
+    name: "Auto",
   },
   prefix: OUR_MODELS_GROUP_ID,
   providerType: OUR_MODELS_GROUP_ID,

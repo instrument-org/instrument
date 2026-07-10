@@ -1,3 +1,4 @@
+import { OUR_MODELS } from "@instrument-org/shared";
 import { StoreId } from "@instrument-org/workspace/client";
 
 import { registerSession, SessionBuilder } from "../helpers";
@@ -527,6 +528,10 @@ describe("slugify", () => {
           input: {
             explanation: "Generate a task icon for the helpers library",
             filePath: "./assets/helpers-icon",
+            parameters: {
+              background: "opaque",
+              quality: "high",
+            },
             prompt:
               "A minimal flat vector icon representing a code utility library. Features interlocking gear and wrench symbols in a modern blue gradient style on a transparent background.",
           },
@@ -539,11 +544,11 @@ describe("slugify", () => {
                 width: 1024,
               },
             ],
-            modelId: "gpt-5-image",
+            modelId: OUR_MODELS.image.id,
             provider: {
-              displayName: "OpenAI",
-              id: "openai-default",
-              type: "openai",
+              displayName: "Instrument",
+              id: OUR_MODELS.providerType,
+              type: OUR_MODELS.providerType,
             },
             state: "success",
             usage: {

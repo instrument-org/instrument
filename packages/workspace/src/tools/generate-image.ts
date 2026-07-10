@@ -1,3 +1,4 @@
+import { imageParametersDescription } from "@instrument-org/ai-gateway";
 import { imageSize } from "image-size";
 import mime from "mime-types";
 import ms from "ms";
@@ -11,7 +12,7 @@ import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
-import { generateImages } from "../lib/generate-images";
+import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
 import { resolveToolPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
@@ -28,6 +29,7 @@ import { setupTool } from "./create-tool";
 
 const INPUT_PARAMS = {
   filePath: "filePath",
+  parameters: "parameters",
   prompt: "prompt",
   sourceImages: "sourceImages",
 } as const;
@@ -37,11 +39,22 @@ const GeneratedImageFileSchema = z.object({
   modifiedAt: z.number(),
 });
 
+// Base64 image frames are large; coalesce progressive writes to at most one per
+// interval. The final frame is always written regardless.
+const PARTIAL_THROTTLE_MS = 400;
+
 export const GenerateImage = setupTool({
   inputSchema: BaseInputSchema.extend({
     [INPUT_PARAMS.filePath]: z.string().meta({
       description: `Relative path including filename WITHOUT extension where the image(s) should be saved (e.g., ./output/image-name-here). Extension will be added automatically. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
+    [INPUT_PARAMS.parameters]: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+      .optional()
+      .meta({
+        description:
+          "Optional model-specific image parameters (e.g. quality, aspect ratio). The tool description lists which parameters and values the currently selected image model supports; unsupported entries are ignored.",
+      }),
     [INPUT_PARAMS.prompt]: z.string().meta({
       description: "Detailed description of the image to generate",
     }),
@@ -53,6 +66,10 @@ export const GenerateImage = setupTool({
   name: "generate_image",
   outputSchema: z.discriminatedUnion("state", [
     z.object({
+      // Parameters actually forwarded to the model (unsupported ones dropped).
+      appliedParameters: z
+        .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+        .optional(),
       images: z.array(
         GeneratedImageFileSchema.extend({
           height: z.number().optional(),
@@ -75,7 +92,7 @@ export const GenerateImage = setupTool({
   ]),
 }).create({
   // cspell:ignore img2img, inpainting
-  description: dedent`
+  description: ({ model }) => dedent`
     Generate an image using AI from a text description, or edit/composite existing images using img2img.
 
     Good for:
@@ -101,11 +118,17 @@ export const GenerateImage = setupTool({
     "from" existing images, always pass those images as ${INPUT_PARAMS.sourceImages}
     for img2img conditioning. Do not re-describe them from scratch in the
     ${INPUT_PARAMS.prompt} alone.
+
+    ${imageParametersDescription({
+      callingModel: model,
+      configs: getWorkspaceConfig().getAIProviderConfigs(),
+    })}
   `,
-  execute: async ({ input, model, signal, taskId }) => {
+  async *execute({ input, model, signal, taskId }) {
     const filePathResult = resolveToolPath(taskDir(taskId), input.filePath);
     if (filePathResult.isErr()) {
-      return err(filePathResult.error);
+      yield err(filePathResult.error);
+      return;
     }
     const { displayPath: fixedPath } = filePathResult.value;
 
@@ -122,7 +145,8 @@ export const GenerateImage = setupTool({
       for (const relativePath of input.sourceImages) {
         const pathResult = resolveToolPath(taskDir(taskId), relativePath);
         if (pathResult.isErr()) {
-          return err(pathResult.error);
+          yield err(pathResult.error);
+          return;
         }
         resolvedSourcePaths.push(pathResult.value.absolutePath);
         const stats = await fs.stat(pathResult.value.absolutePath);
@@ -136,112 +160,135 @@ export const GenerateImage = setupTool({
       );
     }
 
-    const result = await generateImages({
+    // Each frame overwrites the same path so the UI preview fills in place.
+    const writeFrame = (frameImages: { base64: string; mediaType: string }[]) =>
+      Promise.all(
+        frameImages.map(async (image, index) => {
+          const mimeExt = mime.extension(image.mediaType);
+          // Fall back to png because most image models default to it
+          const ext = typeof mimeExt === "string" ? mimeExt : "png";
+
+          // Create unique filename for multiple images
+          const filename =
+            frameImages.length > 1
+              ? `${pathWithoutExt}-${index + 1}.${ext}`
+              : `${pathWithoutExt}.${ext}`;
+
+          const absolutePath = absolutePathJoin(taskDir(taskId), filename);
+          const imageBuffer = Buffer.from(image.base64, "base64");
+
+          await writeFileWithDir(absolutePath, imageBuffer, { signal });
+          const stats = await fs.stat(absolutePath);
+
+          // Try to get image dimensions, but don't fail if it doesn't work
+          let dimensions: { height?: number; width?: number } = {};
+          try {
+            const size = imageSize(imageBuffer);
+            dimensions = {
+              height: size.height,
+              width: size.width,
+            };
+          } catch {
+            // Ignore failed image size calculation
+          }
+
+          return {
+            filePath: RelativePathSchema.parse(filename),
+            ...dimensions,
+            modifiedAt: stats.mtimeMs,
+            sizeBytes: imageBuffer.length,
+          };
+        }),
+      );
+
+    let lastPartialWriteMs = 0;
+
+    for await (const chunk of generateImageStream({
       callingModel: model,
       configs: getWorkspaceConfig().getAIProviderConfigs(),
       count: 1,
+      parameters: input.parameters,
       prompt: input.prompt,
       signal,
       sourceImages: sourceImageBuffers,
       workspaceConfig: getWorkspaceConfig(),
       workspaceServerURL: getWorkspaceServerURL(),
-    });
+    })) {
+      if (chunk.isErr()) {
+        const generateError = chunk.error;
 
-    if (result.isErr()) {
-      const generateError = result.error;
-
-      switch (generateError.type) {
-        case "gateway-not-found-error": {
-          return ok({
-            errorMessage:
-              "No AI provider with image generation capability is available.",
-            errorType: "no-image-model" as const,
-            state: "failure" as const,
-          });
-        }
-        case "workspace-api-call-error": {
-          return ok({
-            errorMessage: generateError.message,
-            errorType: "api-call" as const,
-            responseBody: generateError.responseBody,
-            state: "failure" as const,
-          });
-        }
-        case "workspace-provider-limitation-error": {
-          return ok({
-            errorMessage: generateError.message,
-            errorType: "provider-limitation" as const,
-            state: "failure" as const,
-          });
-        }
-        default: {
-          generateError satisfies never;
-          return executeError(JSON.stringify(generateError));
+        switch (generateError.type) {
+          case "gateway-not-found-error": {
+            yield ok({
+              errorMessage:
+                "No AI provider with image generation capability is available.",
+              errorType: "no-image-model" as const,
+              state: "failure" as const,
+            });
+            return;
+          }
+          case "workspace-api-call-error": {
+            yield ok({
+              errorMessage: generateError.message,
+              errorType: "api-call" as const,
+              responseBody: generateError.responseBody,
+              state: "failure" as const,
+            });
+            return;
+          }
+          case "workspace-provider-limitation-error": {
+            yield ok({
+              errorMessage: generateError.message,
+              errorType: "provider-limitation" as const,
+              state: "failure" as const,
+            });
+            return;
+          }
+          default: {
+            generateError satisfies never;
+            yield executeError(JSON.stringify(generateError));
+            return;
+          }
         }
       }
-    }
 
-    const { config, images, modelId, usage } = result.value;
+      const { appliedParameters, config, images, kind, modelId, usage } =
+        chunk.value;
 
-    const writtenImages = await Promise.all(
-      images.map(async (image, index) => {
-        const mimeExt = mime.extension(image.mediaType);
-        // Fall back to png because most image models default to it
-        const ext = typeof mimeExt === "string" ? mimeExt : "png";
-
-        // Create unique filename for multiple images
-        const filename =
-          images.length > 1
-            ? `${pathWithoutExt}-${index + 1}.${ext}`
-            : `${pathWithoutExt}.${ext}`;
-
-        const absolutePath = absolutePathJoin(taskDir(taskId), filename);
-        const imageBuffer = Buffer.from(image.base64, "base64");
-
-        await writeFileWithDir(absolutePath, imageBuffer, { signal });
-        const stats = await fs.stat(absolutePath);
-
-        // Try to get image dimensions, but don't fail if it doesn't work
-        let dimensions: { height?: number; width?: number } = {};
-        try {
-          const size = imageSize(imageBuffer);
-          dimensions = {
-            height: size.height,
-            width: size.width,
-          };
-        } catch {
-          // Ignore failed image size calculation
+      if (kind === "partial") {
+        const now = Date.now();
+        if (now - lastPartialWriteMs < PARTIAL_THROTTLE_MS) {
+          continue;
         }
+        lastPartialWriteMs = now;
+      }
 
-        return {
-          filePath: RelativePathSchema.parse(filename),
-          ...dimensions,
-          modifiedAt: stats.mtimeMs,
-          sizeBytes: imageBuffer.length,
-        };
-      }),
-    );
+      const writtenImages = await writeFrame(images);
 
-    return ok({
-      images: writtenImages,
-      modelId,
-      provider: {
-        displayName: config.displayName,
-        id: config.id,
-        type: config.type,
-      },
-      sourceImages,
-      state: "success" as const,
-      usage: {
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        totalTokens: usage.totalTokens,
-      },
-    });
+      yield ok({
+        appliedParameters,
+        images: writtenImages,
+        modelId,
+        provider: {
+          displayName: config.displayName,
+          id: config.id,
+          type: config.type,
+        },
+        sourceImages,
+        state: "success" as const,
+        usage: {
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          totalTokens: usage?.totalTokens,
+        },
+      });
+    }
   },
   readOnly: false,
-  timeoutMs: ms("2 minutes"),
-  toModelOutput: ({ output }) => {
+  // Image generation (esp. high-quality gpt-image-2) can run for several
+  // minutes; streaming previews keep the user informed while it works.
+  timeoutMs: ms("5 minutes"),
+  toModelOutput: ({ input, output }) => {
     if (output.state === "failure") {
       return {
         type: "error-text",
@@ -267,16 +314,36 @@ export const GenerateImage = setupTool({
       })
       .join("\n");
 
-    if (imageCount === 1) {
-      return {
-        type: "text",
-        value: `Successfully generated image and saved to ${imageList}`,
-      };
-    }
+    const summary =
+      imageCount === 1
+        ? `Successfully generated image and saved to ${imageList}`
+        : `Successfully generated ${imageCount} images:\n${imageList}`;
+
+    const droppedNote = unsupportedParametersNote(
+      input.parameters,
+      output.appliedParameters,
+    );
 
     return {
       type: "text",
-      value: `Successfully generated ${imageCount} images:\n${imageList}`,
+      value: droppedNote ? `${summary}\n\n${droppedNote}` : summary,
     };
   },
 });
+
+// Tells the agent which requested parameters the selected model ignored, so it
+// can adjust (e.g. steer dimensions through the prompt) on a retry.
+function unsupportedParametersNote(
+  requested: Record<string, boolean | number | string> | undefined,
+  applied: Record<string, boolean | number | string> | undefined,
+): string | undefined {
+  if (!requested) {
+    return undefined;
+  }
+  const appliedKeys = new Set(Object.keys(applied ?? {}));
+  const dropped = Object.keys(requested).filter((key) => !appliedKeys.has(key));
+  if (dropped.length === 0) {
+    return undefined;
+  }
+  return `Note: these requested parameters were not applied by the selected model (unsupported or invalid value) and had no effect: ${dropped.join(", ")}. Describe those aspects in the prompt if they matter.`;
+}

@@ -101,6 +101,11 @@ export function authMiddleware(
           input: {
             explanation: "Generate a sunset image",
             filePath: "./images/sunset.png",
+            parameters: {
+              aspectRatio: "16:9",
+              background: "opaque",
+              quality: "high",
+            },
             prompt: "A beautiful sunset over mountains",
           },
           type: "tool-generate_image",

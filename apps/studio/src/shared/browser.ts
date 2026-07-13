@@ -1,8 +1,9 @@
 // Contract shared by the main process (browser-view manager) and the renderer
 // (browser webview pool). The browser guest is a renderer `<webview>`; the main
 // process drives it over CDP after grabbing the guest WebContents in
-// `did-attach-webview`, and keeps per-task isolation by overriding the guest
-// session in `will-attach-webview`.
+// `did-attach-webview`. The partition carries each guest's target id to the
+// main process, which selects its workspace browser session in
+// `will-attach-webview`.
 
 import {
   type BrowserTargetId,
@@ -13,10 +14,9 @@ import {
  * The renderer sets the guest's `partition` to this prefix + the encoded target
  * id. `will-attach-webview` only surfaces recognized webview attributes (not
  * arbitrary `data-*`), so the partition string is how the renderer tells the
- * main process which target a guest belongs to. Main then overrides the guest
- * session with `session.fromPath(partitionDir)` (which takes precedence over a
- * partition string), so the guest keeps the same on-disk, per-task profile; this
- * partition value is just a carrier.
+ * main process which target a guest belongs to. Main overrides the guest
+ * session with the workspace browser profile (which takes precedence over a
+ * partition string), so this partition value is just a carrier.
  */
 const BROWSER_PARTITION_PREFIX = "persist:browser-route:";
 

@@ -231,9 +231,8 @@ export function createBrowserViewManager(): BrowserViewManager {
         return;
       }
 
-      // The trick that preserves per-task isolation: override the guest session
-      // with our path-based profile. When both `session` and `partition` are
-      // set, Electron prefers `session`.
+      // The partition carries the target id for this attach. The workspace
+      // profile keeps cookies and storage shared across its tasks.
       webPreferences.session = sessionForEntry(entry);
       webPreferences.contextIsolation = true;
       webPreferences.nodeIntegration = false;
@@ -570,7 +569,7 @@ function notifyEntriesChanged() {
 }
 
 // session.fromPath requires the directory to exist (Chromium opens the profile
-// in-place). The workspace's .private dir is created lazily, so ensure it
+// in-place). The workspace's .instrument dir is created lazily, so ensure it
 // exists before handing the path to Electron.
 function sessionForEntry(entry: BrowserEntry) {
   fs.mkdirSync(entry.partitionDir, { recursive: true });

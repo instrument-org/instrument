@@ -26,6 +26,7 @@ declare namespace NodeJS {
     env: {
       ANALYZE_BUILD: string | undefined;
       APPLE_NOTARIZATION_ENABLED: string | undefined;
+      APPLE_TEAM_ID: string | undefined;
       ARCH: string | undefined;
       BUILDER_PUBLISH_S3_ENDPOINT: string | undefined;
       CI: string | undefined;
@@ -35,6 +36,7 @@ declare namespace NodeJS {
       ELECTRON_RENDERER_URL: string | undefined;
       ELECTRON_USE_NEW_USER_FOLDER: string | undefined;
       ELECTRON_USER_DATA_DIR: string | undefined;
+      ENABLE_TOUCH_ID_WEBAUTHN: string | undefined;
       FORCE_DEV_AUTO_UPDATE: string | undefined;
       GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace

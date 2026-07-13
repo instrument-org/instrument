@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template entitlements for the macOS Touch ID / Secure Enclave WebAuthn
+  platform authenticator (see docs/plans/active/passkeys-touch-id-webauthn.md).
+
+  NOT wired into electron-builder.ts by default: enabling passkeys requires the
+  app's Apple App ID to carry the Keychain Sharing capability plus a matching
+  provisioning profile, and signing with a `keychain-access-groups` a profile
+  doesn't authorize will fail. To enable, replace TEAMID below with the Apple
+  Developer team id (or generate this file from $APPLE_TEAM_ID at build time)
+  and point `mac.entitlements` + `mac.entitlementsInherit` at it.
+
+  The keychain group here must match `configureWebAuthn`'s keychainAccessGroup
+  at runtime: `<TEAM_ID>.<APP_BUNDLE_ID>.webauthn` (see web-authn.ts).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>keychain-access-groups</key>
+    <array>
+      <string>TEAMID.com.finalpoint.instrument.webauthn</string>
+    </array>
+  </dict>
+</plist>

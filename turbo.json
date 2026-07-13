@@ -7,6 +7,7 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "env": [
         "ANALYZE_BUILD",
+        "APPLE_TEAM_ID",
         "CI",
         "DEV",
         "ELECTRON_RENDERER_URL",
@@ -15,6 +16,7 @@
         "ELECTRON_ENABLE_CONSOLE_LOGGING",
         "ELECTRON_USER_DATA_DIR",
         "ELECTRON_USE_NEW_USER_FOLDER",
+        "ENABLE_TOUCH_ID_WEBAUTHN",
         "FORCE_DEV_AUTO_UPDATE",
         "GLOBAL_AGENT_HTTP_PROXY",
         "HOME",

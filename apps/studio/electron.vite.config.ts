@@ -169,6 +169,13 @@ export default defineConfig(({ command }) => {
       },
       define: {
         __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
+        // Apple Developer team id + opt-in flag for the macOS Touch ID WebAuthn
+        // authenticator, read from the signing env. Empty/false unless a
+        // passkey-enabled signed build sets them (see web-authn.ts).
+        __APPLE_TEAM_ID__: JSON.stringify(process.env.APPLE_TEAM_ID ?? ""),
+        __ENABLE_TOUCH_ID_WEBAUTHN__: JSON.stringify(
+          process.env.ENABLE_TOUCH_ID_WEBAUTHN === "true",
+        ),
         __FFMPEG_STATIC_PATH__: JSON.stringify(ffmpegStaticValue),
         __FFPROBE_STATIC_PATH__: JSON.stringify(ffprobeStaticValue),
       },

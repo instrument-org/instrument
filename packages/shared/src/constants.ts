@@ -7,6 +7,10 @@ export const APP_PROTOCOL =
     ? `${APP_NAME_SLUG}-local`
     : APP_NAME_SLUG;
 export const APP_EXECUTABLE = "instrument";
+// macOS/Windows bundle identifier the app is code-signed under (electron-builder
+// `appId`). Derived entitlements (e.g. the Touch ID WebAuthn keychain group)
+// reference it, so keep it as the single source of truth.
+export const APP_BUNDLE_ID = "com.finalpoint.instrument";
 export const APP_CLIENT_NAME_STUDIO = `${APP_NAME_SLUG}-studio`;
 
 export const APP_REPO_NAME = "instrument";

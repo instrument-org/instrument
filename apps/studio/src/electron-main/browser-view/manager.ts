@@ -34,6 +34,7 @@ import {
 import { attachGuestInteractions } from "./guest-interactions";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
+import { attachWebauthnAccountSelection } from "./web-authn";
 
 // How long createTarget waits for the renderer to mount the guest `<webview>`
 // and Electron to fire `did-attach-webview`. The main-window renderer is alive
@@ -585,6 +586,9 @@ function sessionForEntry(entry: BrowserEntry) {
   // Normalize the guest's User-Agent to a standard Chrome UA (and matching
   // client hints) so third-party services treat it like an ordinary browser.
   applyStandardUserAgent(guestSession);
+  // Let a Touch ID passkey (or roaming key) with multiple resident credentials
+  // resolve which account to use; no-op unless the platform authenticator is on.
+  attachWebauthnAccountSelection(guestSession);
   return guestSession;
 }
 

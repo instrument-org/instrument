@@ -2,6 +2,7 @@
 
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { configurePlatformWebAuthn } from "@/electron-main/browser-view/web-authn";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { StudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
@@ -121,6 +122,10 @@ void app.whenReady().then(async () => {
   // app's own remote requests (user avatars, embedded remote images), for
   // compatibility with services that respond differently to the Electron UA.
   applyStandardUserAgent(session.defaultSession);
+
+  // Enable the macOS Touch ID platform authenticator for browser-guest passkey
+  // flows. No-op unless this is a passkey-enabled signed build (see web-authn.ts).
+  configurePlatformWebAuthn();
 
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, permission, callback) => {

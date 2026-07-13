@@ -2,7 +2,7 @@ import { toggleCommandMenu } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { tabsAtom } from "@/client/atoms/tabs";
-import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
+import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { toggleSidebar } from "@/client/hooks/use-sidebar";
 import { requestBrowserFind } from "@/client/lib/browser-find-registry";
 import { closeSelectedTab, openTab, reopenTab } from "@/client/lib/tab-actions";
@@ -10,6 +10,7 @@ import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { selectAdjacent, selectByIndex } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
 import { type AppCommand } from "@/shared/app-command";
+import { steppedZoom } from "@/shared/zoom";
 import { useStore } from "jotai";
 import { sleep } from "radashi";
 import { useEffect } from "react";
@@ -166,11 +167,25 @@ export function useAppCommands() {
                 break;
               }
               case "zoomIn": {
-                store.set(zoomAtom, (z) => clampZoom(z + ZOOM_STEP));
+                store.set(zoomAtom, (z) =>
+                  steppedZoom({
+                    direction: "in",
+                    factor: z,
+                    max: ZOOM_MAX,
+                    min: ZOOM_MIN,
+                  }),
+                );
                 break;
               }
               case "zoomOut": {
-                store.set(zoomAtom, (z) => clampZoom(z - ZOOM_STEP));
+                store.set(zoomAtom, (z) =>
+                  steppedZoom({
+                    direction: "out",
+                    factor: z,
+                    max: ZOOM_MAX,
+                    min: ZOOM_MIN,
+                  }),
+                );
                 break;
               }
               case "zoomReset": {

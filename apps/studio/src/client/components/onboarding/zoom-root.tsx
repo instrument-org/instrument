@@ -1,7 +1,8 @@
-import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
+import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
 import { rpcClient } from "@/client/rpc/client";
+import { steppedZoom } from "@/shared/zoom";
 import { useSetAtom } from "jotai";
 import { sleep } from "radashi";
 import { type ReactNode, useEffect } from "react";
@@ -37,11 +38,25 @@ export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
           for await (const command of commands) {
             switch (command.type) {
               case "zoomIn": {
-                setZoom((z) => clampZoom(z + ZOOM_STEP));
+                setZoom((z) =>
+                  steppedZoom({
+                    direction: "in",
+                    factor: z,
+                    max: ZOOM_MAX,
+                    min: ZOOM_MIN,
+                  }),
+                );
                 break;
               }
               case "zoomOut": {
-                setZoom((z) => clampZoom(z - ZOOM_STEP));
+                setZoom((z) =>
+                  steppedZoom({
+                    direction: "out",
+                    factor: z,
+                    max: ZOOM_MAX,
+                    min: ZOOM_MIN,
+                  }),
+                );
                 break;
               }
               case "zoomReset": {

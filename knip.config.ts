@@ -1,15 +1,7 @@
 import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
-  // knip does not reliably skip gitignored paths, so keep these explicit.
-  // .claude/worktrees especially: in the main checkout it holds every agent
-  // worktree, which knip would otherwise scan.
-  ignore: [
-    "registry/**/*",
-    ".agents/**/*",
-    ".cursor/**/*",
-    ".claude/worktrees/**/*",
-  ],
+  ignore: ["registry/**/*"],
   // Namespace members are exported for organization (see AGENTS.md), not always
   // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
   rules: {

@@ -4,8 +4,11 @@ import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useInlineRename } from "@/client/hooks/use-inline-rename";
+import { rpcClient } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { FileArchiveIcon, FolderIcon } from "@phosphor-icons/react";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
@@ -16,7 +19,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { TaskActionsMenu } from "./actions-menu";
+import { type MenuComponents } from "../ui/menu-components";
+import { TaskActionsMenu, TaskActionsMenuItems } from "./actions-menu";
 import { TaskDebugDialog } from "./debug-dialog";
 import { TaskBreadcrumb } from "./task-breadcrumb";
 import { TaskUsageSummary } from "./usage-summary";
@@ -39,6 +43,41 @@ export function TaskToolbar({
 
   const isDeveloperMode = useDeveloperMode();
 
+  // Inline rename is the quick path from double-clicking the title itself. The
+  // menus (overflow and right-click) open the dialog instead: a menu item can
+  // sit far from the title, and returning focus into an inline input from there
+  // fights the trigger's own focus restore.
+  const { mutateAsync: renameTask } = useMutation(
+    rpcClient.workspace.task.update.mutationOptions(),
+  );
+  const rename = useInlineRename({
+    onSave: async (next) => {
+      await renameTask({ id: task.id, name: next });
+    },
+    value: task.title,
+  });
+
+  const renderMenuItems = (menuComponents: MenuComponents) => (
+    <TaskActionsMenuItems
+      id={task.id}
+      menuComponents={menuComponents}
+      onDebugClick={() => {
+        setDebugDialogOpen(true);
+      }}
+      onDelete={() => {
+        openDeleteTask(task);
+      }}
+      onRename={() => {
+        setSettingsDialogOpen(true);
+      }}
+      onReplayClick={() => {
+        setReplayModalOpen(true);
+      }}
+      projectId={task.projectId}
+      selectedSessionId={selectedSessionId}
+    />
+  );
+
   return (
     <>
       <div className="@container w-full bg-background p-3">
@@ -48,6 +87,8 @@ export function TaskToolbar({
               onChatClick={() => {
                 onSidebarChange("chat");
               }}
+              rename={rename}
+              renderMenuItems={renderMenuItems}
               sidebar={sidebar}
               task={task}
             />
@@ -110,23 +151,7 @@ export function TaskToolbar({
                 </DropdownMenuContent>
               </DropdownMenu>
               <div className="shrink-0">
-                <TaskActionsMenu
-                  id={task.id}
-                  onDebugClick={() => {
-                    setDebugDialogOpen(true);
-                  }}
-                  onDelete={() => {
-                    openDeleteTask(task);
-                  }}
-                  onReplayClick={() => {
-                    setReplayModalOpen(true);
-                  }}
-                  onSettingsClick={() => {
-                    setSettingsDialogOpen(true);
-                  }}
-                  projectId={task.projectId}
-                  selectedSessionId={selectedSessionId}
-                />
+                <TaskActionsMenu renderMenuItems={renderMenuItems} />
               </div>
             </div>
           </div>

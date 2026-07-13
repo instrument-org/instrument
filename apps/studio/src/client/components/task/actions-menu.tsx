@@ -2,8 +2,6 @@ import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
@@ -25,29 +23,66 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { TaskProjectMenuItem } from "../project/task-project-menu-item";
-import { dropdownMenuComponents } from "../ui/menu-components";
+import {
+  dropdownMenuComponents,
+  type MenuComponents,
+} from "../ui/menu-components";
 import { TaskOpenInSubmenu } from "./open-in-submenu";
 
 export function TaskActionsMenu({
+  renderMenuItems,
+}: {
+  renderMenuItems: (menuComponents: MenuComponents) => ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          className={toolbarClassName({
+            className:
+              "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+            pressed: false,
+          })}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom">
+        {renderMenuItems(dropdownMenuComponents)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// The task's action items, authored once and rendered under both the overflow
+// "..." dropdown and the header title's right-click context menu via
+// {@link MenuComponents}.
+export function TaskActionsMenuItems({
   id,
+  menuComponents,
   onDebugClick,
   onDelete,
+  onRename,
   onReplayClick,
-  onSettingsClick,
   projectId,
   selectedSessionId,
 }: {
   id: TaskId;
+  menuComponents: MenuComponents;
   onDebugClick: () => void;
   onDelete: () => void;
+  onRename: () => void;
   onReplayClick: () => void;
-  onSettingsClick: () => void;
   projectId: null | ProjectId | undefined;
   selectedSessionId?: StoreId.Session;
 }) {
+  const { Item, Separator } = menuComponents;
   const isDeveloperMode = useDeveloperMode();
 
   const { data: pinnedTaskIds } = useQuery(
@@ -84,95 +119,75 @@ export function TaskActionsMenu({
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className={toolbarClassName({
-            className:
-              "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
-            pressed: false,
-          })}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="bottom">
-        <DropdownMenuItem
-          onSelect={() => {
-            if (isPinned) {
-              void removePin({ id });
-            } else {
-              void addPin({ id });
-            }
-          }}
-        >
-          {isPinned ? (
-            <PushPinSlashIcon className="text-muted-foreground" />
-          ) : (
-            <PushPinIcon className="text-muted-foreground" />
-          )}
-          <span>{isPinned ? "Unpin" : "Pin"}</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onSettingsClick}>
-          <PencilSimpleLineIcon className="size-4" />
-          <span>Rename</span>
-        </DropdownMenuItem>
-        <TaskProjectMenuItem
-          currentProjectId={projectId}
-          menuComponents={dropdownMenuComponents}
-          taskId={id}
-        />
-
-        {isDeveloperMode && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-dev-700 dark:text-dev-300"
-              disabled={!selectedSessionId}
-              onClick={handleDebugChat}
-            >
-              <BugIcon className="size-4 text-dev-700 dark:text-dev-300" />
-              Debug chat
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-dev-700 dark:text-dev-300"
-              disabled={!selectedSessionId}
-              onClick={() => {
-                if (selectedSessionId) {
-                  onReplayClick();
-                }
-              }}
-            >
-              <ArrowCounterClockwiseIcon className="size-4 text-dev-700 dark:text-dev-300" />
-              Replay chat
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-dev-700 dark:text-dev-300"
-              onClick={() => {
-                void copyFolderPathMutation.mutateAsync({ id });
-              }}
-            >
-              <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />
-              Copy folder path
-            </DropdownMenuItem>
-            <TaskOpenInSubmenu id={id} />
-          </>
+    <>
+      <Item
+        onSelect={() => {
+          if (isPinned) {
+            void removePin({ id });
+          } else {
+            void addPin({ id });
+          }
+        }}
+      >
+        {isPinned ? (
+          <PushPinSlashIcon className="text-muted-foreground" />
+        ) : (
+          <PushPinIcon className="text-muted-foreground" />
         )}
+        <span>{isPinned ? "Unpin" : "Pin"}</span>
+      </Item>
+      <Item onSelect={onRename}>
+        <PencilSimpleLineIcon className="size-4" />
+        <span>Rename</span>
+      </Item>
+      <TaskProjectMenuItem
+        currentProjectId={projectId}
+        menuComponents={menuComponents}
+        taskId={id}
+      />
 
-        <DropdownMenuSeparator />
+      {isDeveloperMode && (
+        <>
+          <Separator />
+          <Item
+            className="text-dev-700 dark:text-dev-300"
+            disabled={!selectedSessionId}
+            onSelect={handleDebugChat}
+          >
+            <BugIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            Debug chat
+          </Item>
+          <Item
+            className="text-dev-700 dark:text-dev-300"
+            disabled={!selectedSessionId}
+            onSelect={() => {
+              if (selectedSessionId) {
+                onReplayClick();
+              }
+            }}
+          >
+            <ArrowCounterClockwiseIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            Replay chat
+          </Item>
+          <Item
+            className="text-dev-700 dark:text-dev-300"
+            onSelect={() => {
+              void copyFolderPathMutation.mutateAsync({ id });
+            }}
+          >
+            <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            Copy folder path
+          </Item>
+          <TaskOpenInSubmenu id={id} menuComponents={menuComponents} />
+        </>
+      )}
 
-        <DropdownMenuItem
-          onSelect={() => {
-            onDelete();
-          }}
-          variant="destructive"
-        >
-          <TrashIcon />
-          <span>Delete</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      <Separator />
+
+      <Item onSelect={onDelete} variant="destructive">
+        <TrashIcon />
+        <span>Delete</span>
+      </Item>
+    </>
   );
 }

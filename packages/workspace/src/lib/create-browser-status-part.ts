@@ -23,6 +23,20 @@ export async function createBrowserStatusPart({
     );
 
     if (target) {
+      const browserStateResult = await getBrowserState(taskId, sessionId);
+      if (browserStateResult.isErr()) {
+        getWorkspaceConfig().captureException(browserStateResult.error);
+        return undefined;
+      }
+
+      const browserState = browserStateResult.value;
+      if (
+        browserState?.lastUrl === target.url &&
+        browserState.lastTitle === target.title
+      ) {
+        return undefined;
+      }
+
       return createPart({
         createdAt,
         data: {

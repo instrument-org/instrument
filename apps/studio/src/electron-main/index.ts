@@ -31,10 +31,10 @@ import {
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { logger } from "./lib/electron-logger";
-import { generateUserAgent } from "./lib/generate-user-agent";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import { watchThemePreferenceAndApply } from "./lib/theme-utils";
+import { applyStandardUserAgent } from "./lib/user-agent";
 import { initializeRPC } from "./rpc/initialize";
 let appUpdater: StudioAppUpdater | undefined;
 
@@ -52,11 +52,6 @@ protocol.registerSchemesAsPrivileged([
 app.setAsDefaultProtocolClient(APP_PROTOCOL);
 
 registerTelemetry(app);
-
-const userAgent = generateUserAgent();
-if (userAgent) {
-  app.userAgentFallback = userAgent;
-}
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -122,6 +117,11 @@ void app.whenReady().then(async () => {
       }
     }
   }
+
+  // Present a standard Chrome User-Agent + consistent client hints for the
+  // app's own remote requests (user avatars, embedded remote images), for
+  // compatibility with services that respond differently to the Electron UA.
+  applyStandardUserAgent(session.defaultSession);
 
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, permission, callback) => {

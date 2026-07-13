@@ -16,6 +16,7 @@ import { session, type WebContents } from "electron";
 import fs from "node:fs";
 import { noop } from "radashi";
 
+import { applyStandardUserAgent } from "../lib/user-agent";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -582,6 +583,9 @@ function sessionForEntry(entry: BrowserEntry) {
     callback(false);
   });
   guestSession.setPermissionCheckHandler(() => false);
+  // Normalize the guest's User-Agent to a standard Chrome UA (and matching
+  // client hints) so third-party services treat it like an ordinary browser.
+  applyStandardUserAgent(guestSession);
   return guestSession;
 }
 

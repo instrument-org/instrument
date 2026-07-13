@@ -5,8 +5,10 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { APP_NAME, PORTS } from "@instrument-org/shared";
 import {
+  getTaskSettings,
   StoreId,
   taskDir,
+  type TaskId,
   TaskIdSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
@@ -18,7 +20,7 @@ import { z } from "zod";
 
 import { browserViewManagerDebugRoutes } from "../../browser-view/debug-snapshot";
 
-function buildSystemFrontMatter(taskDirPath: string) {
+async function buildSystemFrontMatter(taskId: TaskId) {
   const platform = os.platform();
   const osName =
     platform === "darwin"
@@ -31,8 +33,15 @@ function buildSystemFrontMatter(taskDirPath: string) {
 
   const env = app.isPackaged ? "production" : "development";
 
+  const taskDirPath = taskDir(taskId);
+  // Prefer the version the task was created under so exported/imported
+  // transcripts report the original app version rather than whatever instance
+  // is running now (import preserves this in .instrument/settings.json).
+  const settings = await getTaskSettings(taskDirPath);
+  const appVersion = settings?.createdWithAppVersion ?? app.getVersion();
+
   return {
-    app: `${APP_NAME} v${app.getVersion()} (${env})`,
+    app: `${APP_NAME} v${appVersion} (${env})`,
     locale: app.getLocale(),
     node: process.version,
     os: `${osName} ${os.release()} / ${os.arch()}`,
@@ -70,7 +79,7 @@ const sessionMarkdown = devOnly
   )
   .output(z.object({ markdown: z.string() }))
   .handler(async ({ context, input, signal }) => {
-    const frontMatter = buildSystemFrontMatter(taskDir(input.id));
+    const frontMatter = await buildSystemFrontMatter(input.id);
     return call(
       workspaceRouter.session.toMarkdown,
       { frontMatter, id: input.id, sessionId: input.sessionId },

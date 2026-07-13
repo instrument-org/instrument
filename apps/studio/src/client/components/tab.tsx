@@ -102,8 +102,12 @@ export const Tab = ({
       value={item}
     >
       <motion.div
-        className={cn("flex min-w-0 flex-1 items-center", iconSlot && "gap-2")}
+        className={cn(
+          "flex min-w-0 flex-1 items-center",
+          (iconSlot ?? isUnread) && "gap-2",
+        )}
       >
+        {isUnread ? <UnreadDot className="shrink-0" /> : null}
         {iconSlot ? <div className="shrink-0">{iconSlot}</div> : null}
         {item.title ? (
           <motion.span
@@ -122,13 +126,9 @@ export const Tab = ({
         )}
       </motion.div>
       <div className="flex shrink-0 items-center gap-1 pl-1">
-        {item.taskId ? (
+        {item.taskId && !isUnread && !isSelected ? (
           <div className="flex items-center group-hover:hidden">
-            {isUnread ? (
-              <UnreadDot />
-            ) : isSelected ? null : (
-              <TaskStatusIcon className="size-3 shrink-0" id={item.taskId} />
-            )}
+            <TaskStatusIcon className="size-3 shrink-0" id={item.taskId} />
           </div>
         ) : null}
         <button

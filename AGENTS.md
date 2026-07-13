@@ -99,6 +99,14 @@ are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
   path, so the workspace no longer matches a normal local install.
 - `pnpm test` / `pnpm check-and-test`: sandbox OK.
 
+## Worktrees
+
+After a manual `git worktree add`, run
+`.claude/hooks/worktree-setup.sh <path-to-worktree>`: copies the gitignored
+env files (required to boot Studio), inits `registry/`, installs deps.
+Idempotent. Hooks do this automatically only for sessions started inside a
+worktree or via EnterWorktree.
+
 ## Tests
 
 - Use `it.each` for testing repetitive cases.

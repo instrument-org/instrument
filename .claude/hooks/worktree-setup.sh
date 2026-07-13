@@ -6,9 +6,16 @@
 # over gitignored state that `git worktree add` does not: env files, the
 # registry/ submodule, and installed node_modules.
 #
+# Also runnable by hand against a worktree created with plain `git worktree
+# add` (which the hooks never see): worktree-setup.sh <path-to-worktree>
+#
 # Idempotent: copies env files only when missing, installs only when the root
 # node_modules is absent. stdout is surfaced to the agent as session context.
 set -euo pipefail
+
+if [[ $# -ge 1 ]]; then
+  cd "$1"
+fi
 
 git_dir=$(git rev-parse --git-dir 2> /dev/null || true)
 git_common_dir=$(git rev-parse --git-common-dir 2> /dev/null || true)

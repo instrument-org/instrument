@@ -1,6 +1,7 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { SubdomainPartSchema } from "../schemas/subdomain-part";
 import { absolutePathJoin } from "./absolute-path-join";
+import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
 import { taskFolderSlug } from "./task-folder-slug";
@@ -20,14 +21,16 @@ export async function generateBranchFolderName({
 }) {
   const base = sourceFolderName.replace(/-\d+$/, "");
 
-  let candidate = base;
-  let suffix = 1;
-  while (await pathExists(absolutePathJoin(tasksDir, candidate))) {
-    suffix += 1;
-    candidate = `${base}-${suffix}`;
-  }
+  const { name, renamed } = await findAvailableName({
+    isTaken: (candidate) => pathExists(absolutePathJoin(tasksDir, candidate)),
+    name: base,
+  });
+  // Recover the trailing counter so the display name can share it; an
+  // un-renamed bare base is suffix 1. `base` has any prior `-N` stripped, so
+  // the appended suffix is unambiguous.
+  const suffix = renamed ? Number(name.slice(base.length + 1)) : 1;
 
-  return { name: SubdomainPartSchema.parse(candidate), suffix };
+  return { name: SubdomainPartSchema.parse(name), suffix };
 }
 
 // Sortable, human-readable name used as the on-disk task id (e.g.
@@ -43,14 +46,12 @@ export async function generateTaskFolderName({
   const slug = (prompt && taskFolderSlug(prompt)) || "task";
   const base = `${formatDatePrefix(getCurrentDate())}-${slug}`;
 
-  let candidate = base;
-  let suffix = 1;
-  while (await pathExists(absolutePathJoin(tasksDir, candidate))) {
-    suffix += 1;
-    candidate = `${base}-${suffix}`;
-  }
+  const { name } = await findAvailableName({
+    isTaken: (candidate) => pathExists(absolutePathJoin(tasksDir, candidate)),
+    name: base,
+  });
 
-  return SubdomainPartSchema.parse(candidate);
+  return SubdomainPartSchema.parse(name);
 }
 
 function formatDatePrefix(date: Date): string {

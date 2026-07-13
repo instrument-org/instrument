@@ -8,6 +8,7 @@ export { readTaskFile } from "./lib/read-task-file";
 export { resolvePathWithinTaskDir } from "./lib/resolve-path-within-task-dir";
 export { taskDir } from "./lib/task-dir-utils";
 export { stopAllTaskFileWatchers } from "./lib/task-file-watcher";
+export { getTaskSettings } from "./lib/task-settings";
 export {
   type WorkspaceActorRef,
   type WorkspaceEvent,

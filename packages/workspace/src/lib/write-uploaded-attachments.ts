@@ -18,8 +18,10 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
+import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
 import { getMimeType } from "./get-mime-type";
+import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getTaskAttachmentsDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-state-store";
@@ -172,28 +174,15 @@ async function getUniqueFilename(
   filename: string,
   reservedFilenames: ReadonlySet<string>,
 ): Promise<string> {
-  const ext = path.extname(filename);
-  const base = path.basename(filename, ext);
-
-  let candidate = filename;
-  let counter = 1;
-
-  while (true) {
-    const filePath = absolutePathJoin(inputDir, candidate);
-    if (reservedFilenames.has(candidate)) {
-      candidate = `${base}-${counter}${ext}`;
-      counter++;
-      continue;
-    }
-
-    try {
-      await fs.access(filePath);
-      candidate = `${base}-${counter}${ext}`;
-      counter++;
-    } catch {
-      return candidate;
-    }
-  }
+  const { name } = await findAvailableName({
+    isTaken: (candidate) =>
+      reservedFilenames.has(candidate) ||
+      pathExists(absolutePathJoin(inputDir, candidate)),
+    name: filename,
+    splitExtension: true,
+    startAt: 1,
+  });
+  return name;
 }
 
 function getUniqueFolderName(

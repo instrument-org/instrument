@@ -8,6 +8,7 @@ import { z } from "zod";
 import { TASK_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { executeError } from "../lib/execute-error";
+import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { glob, resolveGlobPattern } from "../lib/glob";
 import { pathExists } from "../lib/path-exists";
@@ -51,21 +52,14 @@ async function getUniqueFilename(
   attachmentsDir: AbsolutePath,
   filename: string,
 ): Promise<string> {
-  const ext = path.extname(filename);
-  const base = path.basename(filename, ext);
-
-  let candidate = filename;
-  let counter = 1;
-
-  while (true) {
-    const filePath = absolutePathJoin(attachmentsDir, candidate);
-    const exists = await pathExists(filePath);
-    if (!exists) {
-      return candidate;
-    }
-    candidate = `${base}-${counter}${ext}`;
-    counter++;
-  }
+  const { name } = await findAvailableName({
+    isTaken: (candidate) =>
+      pathExists(absolutePathJoin(attachmentsDir, candidate)),
+    name: filename,
+    splitExtension: true,
+    startAt: 1,
+  });
+  return name;
 }
 
 export const CopyToTask = setupTool({

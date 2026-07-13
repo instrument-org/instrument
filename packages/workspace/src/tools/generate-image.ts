@@ -11,6 +11,7 @@ import { z } from "zod";
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { executeError } from "../lib/execute-error";
+import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
@@ -28,6 +29,7 @@ import {
 import { setupTool } from "./create-tool";
 
 const INPUT_PARAMS = {
+  allowOverwrite: "allowOverwrite",
   filePath: "filePath",
   parameters: "parameters",
   prompt: "prompt",
@@ -45,8 +47,14 @@ const PARTIAL_THROTTLE_MS = 400;
 
 export const GenerateImage = setupTool({
   inputSchema: BaseInputSchema.extend({
+    [INPUT_PARAMS.allowOverwrite]: z
+      .boolean()
+      .optional()
+      .meta({
+        description: `Replace an existing file at ${INPUT_PARAMS.filePath} instead of saving under a new name. Only set when the user clearly wants to replace the earlier image in place.`,
+      }),
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Relative path including filename WITHOUT extension where the image(s) should be saved (e.g., ./output/image-name-here). Extension will be added automatically. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,
+      description: `Relative path with filename but WITHOUT extension (e.g. ./output/image-name); the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
     [INPUT_PARAMS.parameters]: z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
@@ -79,6 +87,8 @@ export const GenerateImage = setupTool({
       ),
       modelId: z.string(),
       provider: ProviderOutputSchema,
+      // The requested path was taken, so the image was saved under a new name.
+      renamedToAvoidOverwrite: z.boolean(),
       sourceImages: z.array(GeneratedImageFileSchema),
       state: z.literal("success"),
       usage: UsageOutputSchema,
@@ -134,9 +144,26 @@ export const GenerateImage = setupTool({
 
     // Strip extension if mistakenly provided
     const parsedPath = path.parse(fixedPath);
-    const pathWithoutExt = normalizePath(
+
+    // Auto-version the path unless allowOverwrite is set, so iterating on the
+    // same filePath doesn't clobber an earlier image. Resolved once before
+    // streaming so this call's partial frames don't bump its own final frame.
+    let pathWithoutExt = normalizePath(
       path.join(parsedPath.dir, parsedPath.name),
     );
+    let renamedToAvoidOverwrite = false;
+    if (!input.allowOverwrite) {
+      const dirAbsolute = absolutePathJoin(taskDir(taskId), parsedPath.dir);
+      // Match on name without extension: the output extension is model-derived,
+      // so a prior foo.jpg must block a new foo.png.
+      const existingNames = await readExistingBaseNames(dirAbsolute);
+      const { name, renamed } = await findAvailableName({
+        isTaken: (candidate) => existingNames.has(candidate),
+        name: parsedPath.name,
+      });
+      renamedToAvoidOverwrite = renamed;
+      pathWithoutExt = normalizePath(path.join(parsedPath.dir, name));
+    }
 
     let sourceImageBuffers: Buffer[] | undefined;
     const sourceImages: z.output<typeof GeneratedImageFileSchema>[] = [];
@@ -274,6 +301,7 @@ export const GenerateImage = setupTool({
           id: config.id,
           type: config.type,
         },
+        renamedToAvoidOverwrite,
         sourceImages,
         state: "success" as const,
         usage: {
@@ -314,9 +342,15 @@ export const GenerateImage = setupTool({
       })
       .join("\n");
 
+    // State the outcome factually and terminally. Deliberately no "use
+    // allowOverwrite to replace" call-to-action: that baited agents into a
+    // retry loop trying to overwrite a path that was intentionally versioned.
+    const keptEarlier = output.renamedToAvoidOverwrite
+      ? ` (${input.filePath} already existed and was kept)`
+      : "";
     const summary =
       imageCount === 1
-        ? `Successfully generated image and saved to ${imageList}`
+        ? `Successfully generated image and saved to ${imageList}${keptEarlier}`
         : `Successfully generated ${imageCount} images:\n${imageList}`;
 
     const droppedNote = unsupportedParametersNote(
@@ -330,6 +364,17 @@ export const GenerateImage = setupTool({
     };
   },
 });
+
+// Extension-less names of a directory's entries, for collision checks before
+// the model-derived output extension is known. Empty if the dir is absent.
+async function readExistingBaseNames(dir: string): Promise<Set<string>> {
+  try {
+    const entries = await fs.readdir(dir);
+    return new Set(entries.map((entry) => path.parse(entry).name));
+  } catch {
+    return new Set();
+  }
+}
 
 // Tells the agent which requested parameters the selected model ignored, so it
 // can adjust (e.g. steer dimensions through the prompt) on a retry.

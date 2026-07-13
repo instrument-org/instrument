@@ -8,6 +8,7 @@ import { branchTask } from "../../../lib/branch-task";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
 import { exportTaskZip } from "../../../lib/export-task-zip";
+import { findAvailableName } from "../../../lib/find-available-name";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
 import { getTask, getTasks } from "../../../lib/get-tasks";
 import { importTask as importTaskLib } from "../../../lib/import-task";
@@ -571,15 +572,15 @@ const exportZip = base
         .replaceAll(/^-|-$/g, "")
         .slice(0, 50);
 
-      let counter = 1;
-      let filename = `${safeName}.zip`;
-      let filepath = `${input.outputPath}/${filename}`;
-
-      while (await pathExists(AbsolutePathSchema.parse(filepath))) {
-        counter++;
-        filename = `${safeName}-${counter}.zip`;
-        filepath = `${input.outputPath}/${filename}`;
-      }
+      const { name: filename } = await findAvailableName({
+        isTaken: (candidate) =>
+          pathExists(
+            AbsolutePathSchema.parse(`${input.outputPath}/${candidate}`),
+          ),
+        name: `${safeName}.zip`,
+        splitExtension: true,
+      });
+      const filepath = `${input.outputPath}/${filename}`;
 
       const result = await exportTaskZip({
         dir: taskDir(taskId),

@@ -620,6 +620,7 @@ describe("sessionMachine", () => {
                   "id": "mock-provider-config-id",
                   "type": "instrument"
                 },
+                "renamedToAvoidOverwrite": false,
                 "state": "success",
                 "usage": {
                   "inputTokens": 10,

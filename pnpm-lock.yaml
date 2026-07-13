@@ -290,9 +290,6 @@ importers:
       tailwind-variants:
         specifier: ^3.2.2
         version: 3.2.2(tailwind-merge@3.3.1)(tailwindcss@4.3.2)
-      top-user-agents:
-        specifier: ^2.1.84
-        version: 2.1.84
       ulid:
         specifier: ^3.0.1
         version: 3.0.1
@@ -8923,9 +8920,6 @@ packages:
   token-types@6.1.2:
     resolution: {integrity: sha512-dRXchy+C0IgK8WPC6xvCHFRIWYUbqqdEIKPaKo/AcTUNzwLTK6AH7RjdLWsEZcAN/TBdtfUw3PYEgPr5VPr6ww==}
     engines: {node: '>=14.16'}
-
-  top-user-agents@2.1.84:
-    resolution: {integrity: sha512-T9CNp3Tmus0Pn33GAVSL7QqcbZGJTsVR14m12FCT9xjemimwMhlSGcc8FNWE+xEwKzpbnOuYP0vVUcd+qvk+mA==}
 
   tough-cookie@4.1.4:
     resolution: {integrity: sha512-Loo5UUvLD9ScZ6jh8beX1T6sO1w2/MpCRpEP7V280GKMVUQ0Jzar2U3UJPsrdbziLEMMhu3Ujnq//rhiFuIeag==}
@@ -18142,8 +18136,6 @@ snapshots:
       '@borewit/text-codec': 0.2.2
       '@tokenizer/token': 0.3.0
       ieee754: 1.2.1
-
-  top-user-agents@2.1.84: {}
 
   tough-cookie@4.1.4:
     dependencies:

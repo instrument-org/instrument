@@ -19,6 +19,7 @@ import {
   DotsThreeOutlineVerticalIcon,
   PencilSimpleLineIcon,
   PushPinIcon,
+  PushPinSlashIcon,
   StopCircleIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
@@ -112,7 +113,11 @@ export function TaskActionsCell({
               }
             }}
           >
-            <PushPinIcon className="text-muted-foreground" />
+            {isPinned ? (
+              <PushPinSlashIcon className="text-muted-foreground" />
+            ) : (
+              <PushPinIcon className="text-muted-foreground" />
+            )}
             <span>{isPinned ? "Unpin" : "Pin"}</span>
           </DropdownMenuItem>
           <DropdownMenuItem

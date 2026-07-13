@@ -2,6 +2,7 @@ import { type MenuComponents } from "@/client/components/ui/menu-components";
 import {
   PencilSimpleLineIcon,
   PushPinIcon,
+  PushPinSlashIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
 import { type ReactNode } from "react";
@@ -33,7 +34,11 @@ export function TaskMenuItems({
   return (
     <>
       <Item onSelect={onTogglePin}>
-        <PushPinIcon className="text-muted-foreground" />
+        {isPinned ? (
+          <PushPinSlashIcon className="text-muted-foreground" />
+        ) : (
+          <PushPinIcon className="text-muted-foreground" />
+        )}
         <span>{isPinned ? "Unpin" : "Pin"}</span>
       </Item>
       <Item onSelect={onRename}>

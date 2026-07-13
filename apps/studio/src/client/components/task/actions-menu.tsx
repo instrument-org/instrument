@@ -21,6 +21,7 @@ import {
   DotsThreeOutlineVerticalIcon,
   PencilSimpleLineIcon,
   PushPinIcon,
+  PushPinSlashIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -107,7 +108,11 @@ export function TaskActionsMenu({
             }
           }}
         >
-          <PushPinIcon className="text-muted-foreground" />
+          {isPinned ? (
+            <PushPinSlashIcon className="text-muted-foreground" />
+          ) : (
+            <PushPinIcon className="text-muted-foreground" />
+          )}
           <span>{isPinned ? "Unpin" : "Pin"}</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onSettingsClick}>

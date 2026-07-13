@@ -41,6 +41,15 @@ export interface BrowserGuestTarget {
   id: BrowserTargetId;
 }
 
+/**
+ * Zoom range for the browser guest, matching desktop Chrome's 25%–500%. The
+ * shared `steppedZoom` ladder (see `@/shared/zoom`) is restricted to this range
+ * so the panel's zoom widget (renderer) and the keyboard shortcuts (main
+ * process) step and clamp identically.
+ */
+export const BROWSER_ZOOM_MAX = 5;
+export const BROWSER_ZOOM_MIN = 0.25;
+
 export function browserPartition(targetId: BrowserTargetId): string {
   // Encode so the target id's `/` doesn't complicate the partition string.
   return `${BROWSER_PARTITION_PREFIX}${encodeURIComponent(targetId)}`;

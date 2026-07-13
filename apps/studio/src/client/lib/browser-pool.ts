@@ -66,13 +66,13 @@ interface WebviewElement extends HTMLElement {
   ): number;
   getTitle(): string;
   getURL(): string;
-  getZoomLevel(): number;
+  getZoomFactor(): number;
   goBack(): void;
   goForward(): void;
   loadURL(url: string): Promise<void>;
   reload(): void;
   reloadIgnoringCache(): void;
-  setZoomLevel(level: number): void;
+  setZoomFactor(factor: number): void;
   stopFindInPage(
     action: "activateSelection" | "clearSelection" | "keepSelection",
   ): void;

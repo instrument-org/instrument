@@ -30,6 +30,8 @@ import {
 } from "@/client/lib/emulated-devices";
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
 import { rpcClient } from "@/client/rpc/client";
+import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
+import { steppedZoom } from "@/shared/zoom";
 import {
   type BrowserTargetId,
   encodeBrowserTargetId,
@@ -87,7 +89,7 @@ export function TaskBrowserPanel({
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
   const [nav, setNav] = useState({ back: false, forward: false });
-  const [zoomLevel, setZoomLevel] = useState(0);
+  const [zoomFactor, setZoomFactor] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
   // null = the panel's natural size ("Actual size"). Applied via CDP device
   // emulation with a scale computed from the panel's live bounds (see
@@ -251,13 +253,13 @@ export function TaskBrowserPanel({
       });
   };
 
-  const applyZoom = (level: number) => {
+  const applyZoom = (factor: number) => {
     const webview = webviewFor();
     if (!webview) {
       return;
     }
-    webview.setZoomLevel(level);
-    setZoomLevel(level);
+    webview.setZoomFactor(factor);
+    setZoomFactor(factor);
   };
 
   const currentUrl = () => {
@@ -370,9 +372,9 @@ export function TaskBrowserPanel({
               const webview = webviewFor();
               if (webview) {
                 try {
-                  setZoomLevel(webview.getZoomLevel());
+                  setZoomFactor(webview.getZoomFactor());
                 } catch {
-                  // Not dom-ready yet; keep the last known level.
+                  // Not dom-ready yet; keep the last known zoom.
                 }
               }
             }
@@ -390,15 +392,29 @@ export function TaskBrowserPanel({
               <span className="text-sm">Zoom</span>
               <ZoomStepperControl
                 onReset={() => {
-                  applyZoom(0);
+                  applyZoom(1);
                 }}
                 onZoomIn={() => {
-                  applyZoom(zoomLevel + 0.5);
+                  applyZoom(
+                    steppedZoom({
+                      direction: "in",
+                      factor: zoomFactor,
+                      max: BROWSER_ZOOM_MAX,
+                      min: BROWSER_ZOOM_MIN,
+                    }),
+                  );
                 }}
                 onZoomOut={() => {
-                  applyZoom(zoomLevel - 0.5);
+                  applyZoom(
+                    steppedZoom({
+                      direction: "out",
+                      factor: zoomFactor,
+                      max: BROWSER_ZOOM_MAX,
+                      min: BROWSER_ZOOM_MIN,
+                    }),
+                  );
                 }}
-                percent={Math.round(1.2 ** zoomLevel * 100)}
+                percent={Math.round(zoomFactor * 100)}
               />
             </div>
             <DropdownMenuSeparator />

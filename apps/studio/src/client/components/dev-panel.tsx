@@ -4,7 +4,7 @@ import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openWelcome } from "@/client/atoms/welcome-modal";
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
-import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
+import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   AlertDialog,
@@ -42,6 +42,7 @@ import {
 import { presetSessions } from "@/client/routes/_app/debug/-sessions";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
+import { steppedZoom } from "@/shared/zoom";
 import {
   ArrowLineDownIcon,
   ArrowsClockwiseIcon,
@@ -519,7 +520,14 @@ export function DevPanel() {
                     className="font-mono text-xs"
                     onSelect={(e) => {
                       e.preventDefault();
-                      setZoom((z) => clampZoom(z + ZOOM_STEP));
+                      setZoom((z) =>
+                        steppedZoom({
+                          direction: "in",
+                          factor: z,
+                          max: ZOOM_MAX,
+                          min: ZOOM_MIN,
+                        }),
+                      );
                     }}
                   >
                     <MagnifyingGlassPlusIcon className="size-3" />
@@ -529,7 +537,14 @@ export function DevPanel() {
                     className="font-mono text-xs"
                     onSelect={(e) => {
                       e.preventDefault();
-                      setZoom((z) => clampZoom(z - ZOOM_STEP));
+                      setZoom((z) =>
+                        steppedZoom({
+                          direction: "out",
+                          factor: z,
+                          max: ZOOM_MAX,
+                          min: ZOOM_MIN,
+                        }),
+                      );
                     }}
                   >
                     <MagnifyingGlassMinusIcon className="size-3" />

@@ -1,5 +1,6 @@
-import { clampZoom, ZOOM_STEP, zoomAtom } from "@/client/atoms/zoom";
+import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { cn } from "@/client/lib/utils";
+import { steppedZoom } from "@/shared/zoom";
 import {
   ArrowCounterClockwiseIcon,
   MinusIcon,
@@ -25,10 +26,24 @@ export function ZoomStepper() {
         setZoom(1);
       }}
       onZoomIn={() => {
-        setZoom((z) => clampZoom(z + ZOOM_STEP));
+        setZoom((z) =>
+          steppedZoom({
+            direction: "in",
+            factor: z,
+            max: ZOOM_MAX,
+            min: ZOOM_MIN,
+          }),
+        );
       }}
       onZoomOut={() => {
-        setZoom((z) => clampZoom(z - ZOOM_STEP));
+        setZoom((z) =>
+          steppedZoom({
+            direction: "out",
+            factor: z,
+            max: ZOOM_MAX,
+            min: ZOOM_MIN,
+          }),
+        );
       }}
       percent={Math.round(zoom * 100)}
     />
@@ -38,7 +53,7 @@ export function ZoomStepper() {
 /**
  * Presentational `-` / `%` / `+` stepper shell. Shared by the main-window UI
  * zoom ({@link ZoomStepper}) and the browser guest's per-page zoom, which drive
- * distinct mechanisms (CSS `zoom` on the window vs. the guest's `setZoomLevel`)
+ * distinct mechanisms (CSS `zoom` on the window vs. the guest's `setZoomFactor`)
  * but render the same control. Callers supply the readout and handlers.
  */
 export function ZoomStepperControl({

@@ -1,8 +1,11 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  BROWSER_ZOOM_MAX,
+  BROWSER_ZOOM_MIN,
   type BrowserGuestTarget,
   targetIdFromPartition,
 } from "@/shared/browser";
+import { steppedZoom } from "@/shared/zoom";
 import {
   type AbsolutePath,
   type BrowserConfig,
@@ -593,10 +596,15 @@ function zoomGuest(wc: WebContents, direction: "in" | "out" | "reset") {
     return;
   }
   if (direction === "reset") {
-    wc.setZoomLevel(0);
-  } else if (direction === "in") {
-    wc.setZoomLevel(wc.getZoomLevel() + 0.5);
+    wc.setZoomFactor(1);
   } else {
-    wc.setZoomLevel(wc.getZoomLevel() - 0.5);
+    wc.setZoomFactor(
+      steppedZoom({
+        direction,
+        factor: wc.getZoomFactor(),
+        max: BROWSER_ZOOM_MAX,
+        min: BROWSER_ZOOM_MIN,
+      }),
+    );
   }
 }

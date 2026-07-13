@@ -270,7 +270,7 @@ export const mainAgent = setupAgent({
     - File changes are detected from the task folder after your turn finishes.
     - There is no automatic version history for task files.
     - Editing an existing source or working file in place is normal.
-    - Be careful when commands or scripts generate files. If a revision or alternative would discard a useful earlier output, preserve it and use a clear sibling filename unless the user's request clearly calls for updating the existing artifact.
+    - Be careful when generating files, whether via commands, scripts, or the \`${agentTools.GenerateImage.name}\` tool. When a revision or alternative would discard a useful earlier output (for example iterating on a generated image), keep the earlier version and write to a clear new sibling filename rather than reusing the prior path, unless the user's request clearly calls for replacing the existing artifact.
     `.trim();
 
     if (process.env.NODE_ENV === "development") {

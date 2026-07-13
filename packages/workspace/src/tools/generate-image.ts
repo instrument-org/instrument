@@ -11,6 +11,7 @@ import { z } from "zod";
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { executeError } from "../lib/execute-error";
+import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
@@ -28,6 +29,7 @@ import {
 import { setupTool } from "./create-tool";
 
 const INPUT_PARAMS = {
+  allowOverwrite: "allowOverwrite",
   filePath: "filePath",
   parameters: "parameters",
   prompt: "prompt",
@@ -45,8 +47,14 @@ const PARTIAL_THROTTLE_MS = 400;
 
 export const GenerateImage = setupTool({
   inputSchema: BaseInputSchema.extend({
+    [INPUT_PARAMS.allowOverwrite]: z
+      .boolean()
+      .optional()
+      .meta({
+        description: `Set to true to replace an existing file at ${INPUT_PARAMS.filePath} in place. Default (omitted): if a file already exists at that path, the image is saved under a new name so the earlier version is preserved. Only pass true when the user clearly wants to overwrite the earlier image.`,
+      }),
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Relative path including filename WITHOUT extension where the image(s) should be saved (e.g., ./output/image-name-here). Extension will be added automatically. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,
+      description: `Relative path including filename WITHOUT extension where the image(s) should be saved (e.g., ./output/image-name-here). Extension will be added automatically. When revising or generating an alternative to an earlier image the user may still want, choose a new descriptive or versioned filename (e.g. ./output/image-name-v2). By default a path that already has a file is saved under a new name so an earlier version is never overwritten; pass ${INPUT_PARAMS.allowOverwrite}: true only when the user clearly wants to replace it in place. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
     [INPUT_PARAMS.parameters]: z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
@@ -79,6 +87,9 @@ export const GenerateImage = setupTool({
       ),
       modelId: z.string(),
       provider: ProviderOutputSchema,
+      // True when the requested path already had a file, so the image was
+      // saved under a fresh sibling name instead of overwriting it.
+      renamedToAvoidOverwrite: z.boolean(),
       sourceImages: z.array(GeneratedImageFileSchema),
       state: z.literal("success"),
       usage: UsageOutputSchema,
@@ -134,9 +145,29 @@ export const GenerateImage = setupTool({
 
     // Strip extension if mistakenly provided
     const parsedPath = path.parse(fixedPath);
-    const pathWithoutExt = normalizePath(
+
+    // By default never overwrite an earlier image at this path: iterating with
+    // the same filePath saves under a fresh sibling name so a version the user
+    // may still want is preserved. The model opts into replacing in place with
+    // `allowOverwrite`. Resolved once here, before streaming, so the partial
+    // frames written during a single call don't push the final frame off its
+    // name.
+    let pathWithoutExt = normalizePath(
       path.join(parsedPath.dir, parsedPath.name),
     );
+    let renamedToAvoidOverwrite = false;
+    if (!input.allowOverwrite) {
+      const dirAbsolute = absolutePathJoin(taskDir(taskId), parsedPath.dir);
+      // Match on name without extension: the on-disk extension is derived from
+      // the model's output, so a prior `foo.jpg` must block a new `foo.png`.
+      const existingNames = await readExistingBaseNames(dirAbsolute);
+      const { name, renamed } = await findAvailableName({
+        isTaken: (candidate) => existingNames.has(candidate),
+        name: parsedPath.name,
+      });
+      renamedToAvoidOverwrite = renamed;
+      pathWithoutExt = normalizePath(path.join(parsedPath.dir, name));
+    }
 
     let sourceImageBuffers: Buffer[] | undefined;
     const sourceImages: z.output<typeof GeneratedImageFileSchema>[] = [];
@@ -274,6 +305,7 @@ export const GenerateImage = setupTool({
           id: config.id,
           type: config.type,
         },
+        renamedToAvoidOverwrite,
         sourceImages,
         state: "success" as const,
         usage: {
@@ -319,17 +351,38 @@ export const GenerateImage = setupTool({
         ? `Successfully generated image and saved to ${imageList}`
         : `Successfully generated ${imageCount} images:\n${imageList}`;
 
+    const notes: string[] = [];
+    if (output.renamedToAvoidOverwrite) {
+      notes.push(
+        `Note: a file already existed at the requested path, so this image was saved under the new name shown above to preserve the earlier version. Refer to it by that path. To replace an earlier image in place instead, call again with the same path and ${INPUT_PARAMS.allowOverwrite}: true.`,
+      );
+    }
     const droppedNote = unsupportedParametersNote(
       input.parameters,
       output.appliedParameters,
     );
+    if (droppedNote) {
+      notes.push(droppedNote);
+    }
 
     return {
       type: "text",
-      value: droppedNote ? `${summary}\n\n${droppedNote}` : summary,
+      value: [summary, ...notes].join("\n\n"),
     };
   },
 });
+
+// Extension-less names of every entry in a directory, used to detect a
+// name collision when the on-disk extension isn't known yet (it's derived from
+// the model's output). Empty when the directory doesn't exist yet.
+async function readExistingBaseNames(dir: string): Promise<Set<string>> {
+  try {
+    const entries = await fs.readdir(dir);
+    return new Set(entries.map((entry) => path.parse(entry).name));
+  } catch {
+    return new Set();
+  }
+}
 
 // Tells the agent which requested parameters the selected model ignored, so it
 // can adjust (e.g. steer dimensions through the prompt) on a retry.

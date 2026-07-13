@@ -2,18 +2,16 @@ import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-// Delay before a viewed task is marked read. Short enough that a genuine glance
-// clears the dot, but long enough to skip an accidental flick past the task
-// (rapid tab-cycling, arrowing through the list).
-const VIEW_CLEAR_DELAY_MS = 500;
+import { planClearOnView } from "./clear-task-indicator-plan";
 
-// Clears a task's unread indicator a few seconds after its page is actually
-// being viewed. Every tab stays mounted (hidden via CSS visibility) in a single
-// renderer, so `document.visibilityState` can't tell tabs apart -- gate on the
-// foreground tab via `useIsActiveTab`, and additionally require the window to be
-// shown so a background/minimized window doesn't clear it.
+// Clears a task's unread indicator once it is actually being viewed -- i.e. it is
+// the foreground tab (every tab stays mounted in one renderer, so `useIsActiveTab`
+// is what distinguishes them) and the window is visible (not minimized/occluded).
+// The clear/hold/debounce decision lives in `planClearOnView`; this hook is the
+// React plumbing around it: subscribe to the task, remember the prior view state,
+// run the timer, and gate on window visibility.
 export function useClearTaskIndicatorOnView(id: TaskId) {
   // The task page already subscribes to this same byId stream, so this shares
   // its data rather than adding a fetch.
@@ -22,41 +20,62 @@ export function useClearTaskIndicatorOnView(id: TaskId) {
       input: { id },
     }),
   );
-  const isUnread = Boolean(task?.unreadIndicator);
+  const indicator = task?.unreadIndicator;
+  const isUnread = Boolean(indicator);
+  const isManual = Boolean(indicator?.manual);
   const isActiveTab = useIsActiveTab();
   const { mutate: clearIndicator } = useMutation(
     rpcClient.workspace.task.clearIndicator.mutationOptions(),
   );
 
+  // Previous render's foreground state and viewed task id, so the plan can tell
+  // a fresh arrival from sitting on a task that was already open. Both `null`
+  // until the first render, which counts as an arrival.
+  const wasActive = useRef<boolean | null>(null);
+  const previousId = useRef<null | TaskId>(null);
+
   useEffect(() => {
-    if (!isUnread || !isActiveTab) {
+    const plan = planClearOnView({
+      currentId: id,
+      isActiveTab,
+      isManual,
+      isUnread,
+      previousId: previousId.current,
+      wasActive: wasActive.current,
+    });
+    wasActive.current = isActiveTab;
+    previousId.current = id;
+
+    if (!plan) {
       return;
     }
 
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const stop = () => {
+    const cancel = () => {
       if (timer !== undefined) {
         clearTimeout(timer);
         timer = undefined;
       }
     };
 
-    const start = () => {
-      stop();
+    // Arm the clear only while the window is on screen; re-check on every
+    // visibility change so hiding the window pauses it and showing it resumes.
+    const scheduleWhileVisible = () => {
+      cancel();
       if (document.visibilityState !== "visible") {
         return;
       }
       timer = setTimeout(() => {
         clearIndicator({ id });
-      }, VIEW_CLEAR_DELAY_MS);
+      }, plan.delayMs);
     };
 
-    start();
-    document.addEventListener("visibilitychange", start);
+    scheduleWhileVisible();
+    document.addEventListener("visibilitychange", scheduleWhileVisible);
     return () => {
-      stop();
-      document.removeEventListener("visibilitychange", start);
+      cancel();
+      document.removeEventListener("visibilitychange", scheduleWhileVisible);
     };
-  }, [id, isUnread, isActiveTab, clearIndicator]);
+  }, [id, isUnread, isManual, isActiveTab, clearIndicator]);
 }

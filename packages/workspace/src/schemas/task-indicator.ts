@@ -11,4 +11,11 @@ export type TaskIndicatorKind = z.output<typeof TaskIndicatorKindSchema>;
 
 export const TaskIndicatorSchema = z.object({
   kind: TaskIndicatorKindSchema,
+  // Set when the user explicitly marked the task unread, distinguishing a hand
+  // mark from an automatic completion mark. A manual mark clears only on a
+  // genuine re-visit (leaving and returning), so viewing the task it was set
+  // from does not clear it; an automatic mark clears as soon as it is viewed.
+  manual: z.boolean().optional(),
 });
+
+export type TaskIndicator = z.output<typeof TaskIndicatorSchema>;

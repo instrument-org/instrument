@@ -319,7 +319,7 @@ export function TaskBrowserPanel({
         >
           <InputGroup className="h-8 rounded-lg border border-input from-transparent to-transparent shadow-none dark:bg-transparent">
             <InputGroupInput
-              className="h-full text-ellipsis dark:border-0"
+              className="h-full bg-none text-ellipsis dark:border-0"
               disabled={!active}
               onBlur={() => {
                 editingUrlRef.current = false;

@@ -2,7 +2,7 @@ import { eventIterator } from "@orpc/server";
 import invariant from "tiny-invariant";
 import { z } from "zod";
 
-import { getBrowserSessionDir, taskDir } from "../../lib/task-dir-utils";
+import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { BrowserTargetIdSchema } from "../../types";
@@ -26,7 +26,7 @@ const open = base
   .output(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(async ({ context, errors, input }) => {
     const { id, sessionId } = input;
-    const partitionDir = getBrowserSessionDir(taskDir(id));
+    const partitionDir = getBrowserSessionDir();
 
     const target = await context.workspaceConfig.browser
       .createTarget(id, sessionId, partitionDir)

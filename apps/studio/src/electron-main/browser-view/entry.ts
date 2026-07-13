@@ -36,10 +36,9 @@ export interface BrowserEntry {
   // fresh guest instead of stranding the destroyed one.
   generation: number;
   id: TaskId;
-  // Chromium profile partition directory; threaded through so callers like
-  // BrowserConfig.getTargetMeta can correlate the target back to its session
-  // dir without re-deriving it. Read in `will-attach-webview` to override the
-  // guest's session with `session.fromPath(partitionDir)`.
+  // Workspace browser profile directory, threaded through BrowserConfig so the
+  // task lifecycle can correlate a target with its storage without re-deriving
+  // the path.
   partitionDir: AbsolutePath;
   // Maps download URL -> GUID from Page.downloadWillBegin, consumed by will-download.
   pendingDownloadGuids: Map<string, string>;

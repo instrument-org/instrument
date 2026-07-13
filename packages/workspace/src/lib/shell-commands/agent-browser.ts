@@ -222,7 +222,7 @@ export function createAgentBrowserCommand({
       // (id, sessionId) pair if one is already live, so sub-agents and
       // repeat invocations within the same session reuse the same browsing
       // surface (cookies, page, debugger).
-      const partitionDir = getBrowserSessionDir(taskDir(taskId));
+      const partitionDir = getBrowserSessionDir();
       const target = await workspaceConfig.browser.createTarget(
         id,
         sessionId,

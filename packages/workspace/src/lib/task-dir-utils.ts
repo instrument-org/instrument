@@ -11,9 +11,10 @@ import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
 
-export function getBrowserSessionDir(dir: TaskDir): AbsolutePath {
+export function getBrowserSessionDir(): AbsolutePath {
   return absolutePathJoin(
-    getTaskPrivateDir(dir),
+    getWorkspaceConfig().rootDir,
+    TASK_FOLDER_NAMES.private,
     TASK_FOLDER_NAMES.browserSession,
   );
 }

@@ -63,6 +63,7 @@ describe("createBashDescription", () => {
       IMPORTANT: You MUST load the \`agent-browser\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
       IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`web_search\` first to discover the correct URL before opening the browser.
       Do NOT pass connection, provider, profile, session, restore, or state flags; the browser session is managed automatically.
+        computer - Control native macOS apps in the background through an installed Cua Driver. Run \`computer --help\` before first use.
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.

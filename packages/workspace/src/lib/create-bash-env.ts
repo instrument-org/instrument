@@ -20,6 +20,10 @@ import {
   AGENT_BROWSER_COMMAND,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
+import {
+  COMPUTER_COMMAND,
+  createComputerCommand,
+} from "./shell-commands/computer";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
   createFfprobeCommand,
@@ -181,6 +185,12 @@ interface CustomCommandDef {
 }
 
 const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
+  {
+    description: COMPUTER_COMMAND.description,
+    factory: createComputerCommand,
+    listInDescription: true,
+    name: COMPUTER_COMMAND.name,
+  },
   {
     description: FFMPEG_COMMAND.description,
     factory: createFfmpegCommand,

@@ -19,6 +19,7 @@ import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
+import { COMPUTER_COMMAND } from "../lib/shell-commands/computer";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
@@ -206,6 +207,7 @@ export const mainAgent = setupAgent({
     - Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter for tools instead of replying when possible.
     - Use the \`${agentTools.BashTool.name}\` tool to install dependencies when needed. When a skill has been loaded, check the skill's package.json before installing anything -- its dependencies are already available.
     - You have access to a full Chromium browser via the \`${AGENT_BROWSER_COMMAND.name}\` bash command. Load the \`${AGENT_BROWSER_COMMAND.name}\` skill for full usage instructions.
+    - When the user asks you to interact with native macOS apps, use the \`${COMPUTER_COMMAND.name}\` bash command. It controls the user's real desktop, so run \`${COMPUTER_COMMAND.name} --help\` before first use and target only the relevant app and window.
     - Before installing packages or writing a script that needs domain-specific libraries, check \`${agentTools.LoadSkill.name}\` for a matching skill. If a skill provides a script, read and use or adapt it before writing an alternative. Small scripts using only Node.js built-in APIs do not require a skill.
     - You do not automatically see files written to disk. Read generated or downloaded media back before reporting completion, especially when the user provided visual criteria or a reference. A successful command alone does not verify the result.
     - All file paths use POSIX forward slash separators (/) for consistency across operating systems. Both tool outputs and your path inputs should use forward slashes.

@@ -13,6 +13,11 @@ export const IMAGE_PANZOOM_VIEWPORT_CLASS = "image-panzoom-viewport";
 const ZOOMED_IN_THRESHOLD = 1.01;
 const PANNED_THRESHOLD_PX = 2;
 const MIN_SCALE = 1;
+// Smallest the native-resolution cap is ever allowed to be. A small image is
+// shown at (or below) native size to begin with, so its native cap alone would
+// equal MIN_SCALE and leave nothing to zoom; this guarantees any image can be
+// enlarged at least this far beyond its fit size (see getNativeMaxScale).
+const MIN_MAX_SCALE = 3;
 // Used only until the image's natural size is known (see getNativeMaxScale);
 // any transient overshoot before then is snapped back once it is.
 const INITIAL_MAX_SCALE = Infinity;
@@ -115,6 +120,15 @@ export function useImagePanzoom({
     const handleChange = (event: Event) => {
       // panzoomchange's detail isn't in lib.dom's CustomEvent typing.
       const { scale, x, y } = (event as CustomEvent<PanzoomEventDetail>).detail;
+      // Focal (cursor-anchored) zoom-out leaves a residual pan offset even once
+      // scale is back at the fit floor, where panOnlyWhenZoomed then blocks the
+      // user from dragging it back. Snap it re-centered so zooming all the way
+      // out always lands centered, without needing the reset button. The
+      // resulting pan(0,0) re-enters here with x/y already 0, so it settles.
+      if (scale <= MIN_SCALE && (x !== 0 || y !== 0)) {
+        panzoom.pan(0, 0, { animate: true, force: true });
+        return;
+      }
       setCanReset(
         scale > ZOOMED_IN_THRESHOLD ||
           Math.abs(x) > PANNED_THRESHOLD_PX ||
@@ -183,12 +197,14 @@ export function useImagePanzoom({
 
 // `clientWidth` is the pre-transform layout size (CSS transforms don't affect
 // it), so this stays correct regardless of the current zoom. Caps zoom at 1
-// image pixel per CSS pixel -- past that, zooming a raster image further just
-// blows up pixels with no new detail, and an unbounded cap reads as broken
-// rather than intentional.
+// image pixel per CSS pixel for images large enough to be downscaled into the
+// viewport -- past that, zooming a raster image further just blows up pixels
+// with no new detail, and an unbounded cap reads as broken rather than
+// intentional. Small images already shown at native size would cap at
+// MIN_SCALE, so MIN_MAX_SCALE floors the cap to keep them enlargeable.
 function getNativeMaxScale(img: HTMLImageElement) {
   if (!img.naturalWidth || !img.clientWidth) {
     return null;
   }
-  return Math.max(img.naturalWidth / img.clientWidth, MIN_SCALE);
+  return Math.max(img.naturalWidth / img.clientWidth, MIN_MAX_SCALE);
 }

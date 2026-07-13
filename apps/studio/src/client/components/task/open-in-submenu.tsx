@@ -5,6 +5,7 @@ import type {
 import type { TaskId } from "@instrument-org/workspace/client";
 
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { OpenTaskInTypeSchema } from "@/shared/schemas/editors";
@@ -20,13 +21,6 @@ import {
   MacOSTerminal,
   VSCode,
 } from "../service-icons";
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "../ui/dropdown-menu";
 
 const EDITOR_ICON_MAP: Record<
   SupportedEditorId,
@@ -47,7 +41,15 @@ const devSubTriggerClass =
 const devSubItemClass =
   "text-dev-700 focus:bg-dev-500/10 focus:text-dev-700 dark:text-dev-300 dark:focus:text-dev-300 [&_svg]:text-dev-700! dark:[&_svg]:text-dev-300!";
 
-export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
+export function TaskOpenInSubmenu({
+  id,
+  menuComponents,
+}: {
+  id: TaskId;
+  menuComponents: MenuComponents;
+}) {
+  const { Item, Separator, Sub, SubContent, SubTrigger } = menuComponents;
+
   const { data: supportedEditors = [] } = useQuery<SupportedEditor[]>(
     rpcClient.utils.getSupportedEditors.queryOptions(),
   );
@@ -73,13 +75,13 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
   );
 
   return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger className={devSubTriggerClass}>
+    <Sub>
+      <SubTrigger className={devSubTriggerClass}>
         <FolderOpenIcon className="size-4" />
         Open in
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="min-w-48">
-        <DropdownMenuItem
+      </SubTrigger>
+      <SubContent className="min-w-48">
+        <Item
           className={devSubItemClass}
           onClick={() => {
             void openTaskInMutation.mutateAsync({
@@ -90,16 +92,16 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
         >
           <RevealInFolderIcon className="size-4" />
           {getRevealInFolderLabel()}
-        </DropdownMenuItem>
+        </Item>
 
         {availableEditors.length > 0 && (
           <>
-            <DropdownMenuSeparator />
+            <Separator />
             {availableEditors.map((editor) => {
               const Icon = EDITOR_ICON_MAP[editor.id];
 
               return (
-                <DropdownMenuItem
+                <Item
                   className={devSubItemClass}
                   key={editor.id}
                   onClick={() => {
@@ -111,7 +113,7 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
                 >
                   <Icon className="size-4" />
                   {editor.name}
-                </DropdownMenuItem>
+                </Item>
               );
             })}
           </>
@@ -119,12 +121,12 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
 
         {availableTerminals.length > 0 && (
           <>
-            <DropdownMenuSeparator />
+            <Separator />
             {availableTerminals.map((editor) => {
               const Icon = EDITOR_ICON_MAP[editor.id];
 
               return (
-                <DropdownMenuItem
+                <Item
                   className={devSubItemClass}
                   key={editor.id}
                   onClick={() => {
@@ -136,12 +138,12 @@ export function TaskOpenInSubmenu({ id }: { id: TaskId }) {
                 >
                   <Icon className="size-4" />
                   {editor.name}
-                </DropdownMenuItem>
+                </Item>
               );
             })}
           </>
         )}
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
+      </SubContent>
+    </Sub>
   );
 }

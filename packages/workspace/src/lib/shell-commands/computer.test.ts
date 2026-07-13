@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { createComputerCommand } from "./computer";
+import { createComputerCommand, getCuaDriverCandidates } from "./computer";
 
 vi.mock("execa");
 
@@ -20,7 +20,9 @@ const CUA_DRIVER_MACOS_PATH =
 
 describe("createComputerCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("computer-test"));
-  const command = createComputerCommand(taskId, "darwin");
+  const command = createComputerCommand(taskId, "darwin", {
+    driverPath: CUA_DRIVER_MACOS_PATH,
+  });
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -32,6 +34,70 @@ describe("createComputerCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("computer list_windows");
     expect(result.stdout).toContain("user's real desktop");
+    expect(execa).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      expected: "/Applications/CuaDriver.app/Contents/MacOS/cua-driver",
+      homeDir: "/Users/test",
+      platform: "darwin" as const,
+    },
+    {
+      expected: "/home/test/.local/bin/cua-driver",
+      homeDir: "/home/test",
+      platform: "linux" as const,
+    },
+    {
+      env: { LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local" },
+      expected:
+        "C:\\Users\\test\\AppData\\Local\\Programs\\Cua\\cua-driver\\bin\\cua-driver.exe",
+      homeDir: "C:\\Users\\test",
+      platform: "win32" as const,
+    },
+  ])("discovers the canonical $platform install", (input) => {
+    const candidates = getCuaDriverCandidates({
+      env: input.env ?? {},
+      homeDir: input.homeDir,
+      platform: input.platform,
+    });
+
+    expect(candidates).toContain(input.expected);
+  });
+
+  it("prefers an explicit driver path over canonical installs", () => {
+    const candidates = getCuaDriverCandidates({
+      env: { CUA_DRIVER_PATH: "/opt/instrument/cua-driver" },
+      homeDir: "/home/test",
+      platform: "linux",
+    });
+
+    expect(candidates[0]).toBe("/opt/instrument/cua-driver");
+  });
+
+  it("shows user-run setup without invoking the driver", async () => {
+    const windowsCommand = createComputerCommand(taskId, "win32", {
+      driverPath: null,
+    });
+
+    const result = await windowsCommand.execute(["setup"], mockCtx);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Install from PowerShell");
+    expect(result.stdout).toContain("agent must not install");
+    expect(execa).not.toHaveBeenCalled();
+  });
+
+  it("explains setup when the driver cannot be found", async () => {
+    const linuxCommand = createComputerCommand(taskId, "linux", {
+      driverPath: null,
+    });
+
+    const result = await linuxCommand.execute(["doctor"], mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("not installed or could not be found");
+    expect(result.stdout).toContain("Linux also requires a live desktop");
     expect(execa).not.toHaveBeenCalled();
   });
 
@@ -116,6 +182,53 @@ describe("createComputerCommand", () => {
     );
   });
 
+  it("delegates readiness to the stable diagnostics tool", async () => {
+    vi.mocked(execa).mockResolvedValueOnce({ all: "ok", exitCode: 0 } as never);
+
+    await command.execute(["doctor"], mockCtx);
+
+    expect(execa).toHaveBeenCalledWith(
+      CUA_DRIVER_MACOS_PATH,
+      [
+        "call",
+        "health_report",
+        '{"include":["binary_version","platform_supported","session_active","bundle_identity","tcc_accessibility","tcc_screen_recording"]}',
+      ],
+      expect.any(Object),
+    );
+  });
+
+  it("falls back to CLI diagnostics for an older driver", async () => {
+    vi.mocked(execa)
+      .mockResolvedValueOnce({
+        all: "Unknown tool: health_report",
+        exitCode: 64,
+      } as never)
+      .mockResolvedValueOnce({ all: '{"ok":true}', exitCode: 0 } as never);
+
+    const result = await command.execute(["doctor"], mockCtx);
+
+    expect(result.exitCode).toBe(0);
+    expect(execa).toHaveBeenLastCalledWith(
+      CUA_DRIVER_MACOS_PATH,
+      ["doctor", "--json"],
+      expect.any(Object),
+    );
+  });
+
+  it("uses cross-platform readiness checks outside macOS", async () => {
+    const windowsCommand = createComputerCommand(taskId, "win32", {
+      driverPath: "C:\\Cua\\cua-driver.exe",
+    });
+
+    const result = await windowsCommand.execute(["permissions"], mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("permissions is macOS-only");
+    expect(result.stdout).toContain("computer doctor");
+    expect(execa).not.toHaveBeenCalled();
+  });
+
   it("explains how the user can start a stopped daemon", async () => {
     vi.mocked(execa).mockResolvedValueOnce({
       all: "Cua Driver daemon is not running",
@@ -131,7 +244,7 @@ describe("createComputerCommand", () => {
     );
   });
 
-  it("explains how to install a missing driver", async () => {
+  it("explains recovery when the driver cannot start", async () => {
     vi.mocked(execa).mockRejectedValueOnce(
       new Error("spawn cua-driver ENOENT"),
     );
@@ -139,7 +252,7 @@ describe("createComputerCommand", () => {
     const result = await command.execute(["status"], mockCtx);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain("Cua Driver is not available");
-    expect(result.stdout).toContain("cua.ai/docs/cua-driver");
+    expect(result.stdout).toContain("Cua Driver could not be started");
+    expect(result.stdout).toContain("computer setup");
   });
 });

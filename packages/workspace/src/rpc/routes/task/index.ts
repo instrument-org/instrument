@@ -494,13 +494,16 @@ const clearIndicator = base
     }
   });
 
-// Explicit "mark as unread". Like an automatic completion mark, it clears once
-// the user next views the task; clearIndicator ("mark as read") clears it now.
+// Explicit "mark as unread". Flagged manual so viewing the task it was set from
+// does not clear it -- it holds until the user leaves and returns, or clears now
+// via clearIndicator ("mark as read").
 const markUnread = base
   .input(z.object({ id: TaskIdSchema }))
   .output(z.void())
   .handler(async ({ errors, input }) => {
-    const result = await setTaskIndicator(input.id, "completed");
+    const result = await setTaskIndicator(input.id, "completed", {
+      manual: true,
+    });
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }

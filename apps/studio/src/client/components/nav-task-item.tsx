@@ -27,8 +27,8 @@ import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import {
   ArrowUpRightIcon,
-  CircleIcon,
   DotsThreeOutlineVerticalIcon,
+  NotificationIcon,
   PushPinIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -99,10 +99,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                   : markUnread({ id: task.id }));
               }}
             >
-              <CircleIcon
-                className="text-muted-foreground"
-                weight={isUnread ? "regular" : "fill"}
-              />
+              <NotificationIcon className="text-muted-foreground" />
               <span>{isUnread ? "Mark as read" : "Mark as unread"}</span>
             </Item>
             <TaskProjectMenuItem

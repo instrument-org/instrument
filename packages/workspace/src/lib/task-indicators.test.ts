@@ -20,8 +20,8 @@ async function clear(id: TaskId) {
   result._unsafeUnwrap();
 }
 
-async function mark(id: TaskId) {
-  const result = await setTaskIndicator(id, "completed");
+async function mark(id: TaskId, options?: { manual?: boolean }) {
+  const result = await setTaskIndicator(id, "completed", options);
   result._unsafeUnwrap();
 }
 
@@ -59,5 +59,36 @@ describe("task indicators", () => {
     await clear(taskA);
     const cleared = await getTaskSettings(taskDir(taskA));
     expect(cleared?.unreadIndicator).toBeUndefined();
+  });
+
+  it("flags a manual mark and keeps it under a later automatic mark", async () => {
+    await mark(taskA, { manual: true });
+    const manual = await getTaskSettings(taskDir(taskA));
+    expect(manual?.unreadIndicator).toEqual({
+      kind: "completed",
+      manual: true,
+    });
+
+    // An agent completion mark landing after a hand mark must not downgrade it
+    // to one that clears just by viewing the task.
+    await mark(taskA);
+    const afterAuto = await getTaskSettings(taskDir(taskA));
+    expect(afterAuto?.unreadIndicator).toEqual({
+      kind: "completed",
+      manual: true,
+    });
+  });
+
+  it("escalates a prior automatic mark when the user marks it unread", async () => {
+    await mark(taskA);
+    const auto = await getTaskSettings(taskDir(taskA));
+    expect(auto?.unreadIndicator).toEqual({ kind: "completed" });
+
+    await mark(taskA, { manual: true });
+    const escalated = await getTaskSettings(taskDir(taskA));
+    expect(escalated?.unreadIndicator).toEqual({
+      kind: "completed",
+      manual: true,
+    });
   });
 });

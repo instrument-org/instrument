@@ -1,5 +1,4 @@
 import { zoomAtom } from "@/client/atoms/zoom";
-import { useSuppressWheelZoom } from "@/client/hooks/use-suppress-wheel-zoom";
 import { useAtomValue } from "jotai";
 import { type CSSProperties, type ReactNode } from "react";
 
@@ -12,15 +11,15 @@ import { type CSSProperties, type ReactNode } from "react";
  * this keeps the one wrapper implementation in sync between them.
  *
  * `zoom` rescales the box, so the viewport sizing is divided by the same factor
- * to keep the root covering the real viewport. Suppresses Chromium's native
- * ctrl+wheel and trackpad-pinch zoom (via {@link useSuppressWheelZoom}) so it
- * can't fight the CSS `zoom` shell, identically for both windows. It does not
- * wire up the menu zoom commands or persistence; callers own that (MainWindow via
- * `useAppCommands`, onboarding via {@link OnboardingZoomRoot}).
+ * to keep the root covering the real viewport. It does not wire up the menu zoom
+ * commands or persistence; callers own that (MainWindow via `useAppCommands`,
+ * onboarding via {@link OnboardingZoomRoot}). Ctrl+wheel and trackpad-pinch need
+ * no handling here: Electron pins the page-scale limits to 1 (see
+ * `default_minimum/maximum_page_scale_factor`), so those gestures don't natively
+ * zoom the shell.
  */
 export function ZoomRoot({ children }: { children: ReactNode }) {
   const zoom = useAtomValue(zoomAtom);
-  useSuppressWheelZoom();
 
   return (
     <div

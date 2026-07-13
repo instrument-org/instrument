@@ -6,8 +6,8 @@ import Panzoom, {
 import { clamp } from "radashi";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
-// Shared with use-zoom-wheel.ts, which bails out of the app-wide ctrl+wheel
-// zoom over this surface since it runs its own wheel handling below.
+// The file viewer tags the panzoom viewport element with this class (see
+// file-viewer), which runs its own wheel zoom below.
 export const IMAGE_PANZOOM_VIEWPORT_CLASS = "image-panzoom-viewport";
 
 const ZOOMED_IN_THRESHOLD = 1.01;
@@ -23,8 +23,7 @@ const MIN_MAX_SCALE = 3;
 const INITIAL_MAX_SCALE = Infinity;
 
 // Percentage change per wheel pixel, so it feels consistent whether
-// wheel/trackpad deltas are large or small, and at any zoom level. Matches
-// the app-wide ctrl+wheel UI zoom in use-zoom-wheel.ts.
+// wheel/trackpad deltas are large or small, and at any zoom level.
 const WHEEL_ZOOM_SENSITIVITY = 0.0015;
 
 /**

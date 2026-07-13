@@ -19,81 +19,54 @@ export function createContextMenu({
   inspectMode?: InspectMode;
   windowOrWebContentsView: BrowserWindow | WebContentsView;
 }) {
+  // Keep the library's native default template (spellcheck suggestions, Learn
+  // Spelling, Look Up, cut/copy/paste, image/link/video actions) and shape it
+  // with flags + append/prepend instead of replacing it with a custom `menu`.
+  // A full override has to re-implement every default and silently loses native
+  // items as the template evolves, which is how right-click spellcheck went
+  // missing.
   return contextMenu({
-    menu: (defaultActions, parameters) => {
-      const menuItems = [];
-
-      const isFileUrl = parameters.linkURL.startsWith("file://");
-
-      if (parameters.linkURL && !isFileUrl) {
-        menuItems.push(defaultActions.copyLink({}));
+    append: (defaultActions, parameters) => {
+      if (!isDeveloperMode()) {
+        return [];
       }
-
-      if (parameters.mediaType === "image") {
-        menuItems.push(
-          defaultActions.copyImage({}),
-          defaultActions.saveImageAs({}),
-        );
+      if (inspectMode === "default") {
+        return [defaultActions.inspect()];
       }
-
-      if (parameters.mediaType === "video") {
-        menuItems.push(defaultActions.saveVideoAs({}));
-      }
-
-      if (parameters.isEditable || parameters.selectionText) {
-        if (menuItems.length > 0) {
-          menuItems.push(defaultActions.separator());
-        }
-        menuItems.push(
-          defaultActions.cut({}),
-          defaultActions.copy({}),
-          defaultActions.paste({}),
-          defaultActions.separator(),
-          defaultActions.selectAll({}),
-        );
-      } else if (
-        !parameters.linkURL &&
-        parameters.mediaType !== "image" &&
-        parameters.mediaType !== "video"
-      ) {
-        if (menuItems.length > 0) {
-          menuItems.push(defaultActions.separator());
-        }
-        menuItems.push(defaultActions.selectAll({}));
-      }
-
-      if (parameters.selectionText && menuItems.length > 0) {
-        menuItems.push(defaultActions.separator());
-      }
-
-      if (isDeveloperMode()) {
-        if (menuItems.length > 0) {
-          menuItems.push(defaultActions.separator());
-        }
-
-        if (inspectMode === "default") {
-          menuItems.push(defaultActions.inspect());
-        } else {
-          menuItems.push({
-            click: () => {
-              windowOrWebContentsView.webContents?.openDevTools({
-                mode: inspectMode,
-              });
-              windowOrWebContentsView.webContents?.inspectElement(
-                parameters.x,
-                parameters.y,
-              );
-            },
-            label:
-              inspectMode === "detach"
-                ? "Inspect Element in New Window"
-                : "Inspect Element",
-          });
-        }
-      }
-
-      return menuItems;
+      return [
+        {
+          click: () => {
+            windowOrWebContentsView.webContents?.openDevTools({
+              mode: inspectMode,
+            });
+            windowOrWebContentsView.webContents?.inspectElement(
+              parameters.x,
+              parameters.y,
+            );
+          },
+          label:
+            inspectMode === "detach"
+              ? "Inspect Element in New Window"
+              : "Inspect Element",
+        },
+      ];
     },
+    // Offer "Copy Link" for real links only. A `file://` link is a local path an
+    // agent emitted in markdown; copying `file:///…` to the clipboard isn't
+    // useful.
+    prepend: (defaultActions, parameters) =>
+      parameters.linkURL && !parameters.linkURL.startsWith("file://")
+        ? [defaultActions.copyLink({})]
+        : [],
+    // Provided via `append` so the developer-mode check runs per right-click.
+    showInspectElement: false,
+    // Off by default on macOS; kept to match prior behavior.
+    showSaveImageAs: true,
+    showSaveVideoAs: true,
+    // Opening the external browser from a desktop text field is out of place.
+    showSearchWithGoogle: false,
+    // Off by default on macOS; kept so editable/selection menus still offer it.
+    showSelectAll: true,
     window: windowOrWebContentsView,
   });
 }

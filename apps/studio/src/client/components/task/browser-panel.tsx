@@ -28,6 +28,7 @@ import {
   EMULATED_DEVICES,
   type EmulatedDevice,
 } from "@/client/lib/emulated-devices";
+import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type BrowserTargetId,
@@ -306,7 +307,7 @@ export function TaskBrowserPanel({
           className="min-w-0 flex-1"
           onSubmit={(event) => {
             event.preventDefault();
-            const target = normalizeUrl(draftUrl);
+            const target = resolveUrlOrSearch(draftUrl);
             if (target) {
               navigateTo(target);
               // Blur so the "editing" guard releases and the resolved final URL
@@ -544,12 +545,4 @@ export function TaskBrowserPanel({
       )}
     </div>
   );
-}
-
-function normalizeUrl(input: string): string | undefined {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  return /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }

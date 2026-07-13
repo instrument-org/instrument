@@ -56,9 +56,8 @@ export function BranchTaskModal({
         <AlertDialogHeader>
           <AlertDialogTitle>Branch from here?</AlertDialogTitle>
           <AlertDialogDescription>
-            Creates a new task with the conversation up to this point and a copy
-            of the current files, so you can continue from here without changing
-            this task.
+            Create a new task with the conversation up to this point, and a copy
+            of the current files.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -27,7 +27,7 @@
     "check:types": "tsgo --noEmit",
     "check:unused": "knip",
     "check:unused-words": "cspell-check-unused-words",
-    "dev:studio": "turbo run dev --filter=@instrument-org/studio --filter=@instrument-org/shim-client --ui tui",
+    "dev:studio": "turbo run dev --filter=@instrument-org/studio --ui tui",
     "fix:format": "oxfmt .",
     "fix:lint": "eslint . --fix && oxlint --type-aware --fix scripts *.ts",
     "fix:unused": "knip --fix",

@@ -107,6 +107,10 @@ env files (required to boot Studio), inits `registry/`, installs deps.
 Idempotent. Hooks do this automatically only for sessions started inside a
 worktree or via EnterWorktree.
 
+Multiple worktrees can run `pnpm dev` at once: dev skips the single-instance
+lock, shares one dev userData dir, and all server ports fall back to free
+ones. For CDP, give each instance a distinct `REMOTE_DEBUGGING_PORT`.
+
 ## Tests
 
 - Use `it.each` for testing repetitive cases.

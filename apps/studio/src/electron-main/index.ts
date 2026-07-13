@@ -30,7 +30,6 @@ import {
 
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
-import { logger } from "./lib/electron-logger";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import { watchThemePreferenceAndApply } from "./lib/theme-utils";
@@ -53,7 +52,10 @@ app.setAsDefaultProtocolClient(APP_PROTOCOL);
 
 registerTelemetry(app);
 
-const gotTheLock = app.requestSingleInstanceLock();
+// Dev skips the single-instance lock so multiple worktrees can boot side by
+// side. Packaged builds keep it so second launches (deep links) forward to
+// the running instance.
+const gotTheLock = is.dev || app.requestSingleInstanceLock();
 
 if (gotTheLock) {
   app.on("second-instance", (_event, commandLine) => {
@@ -65,9 +67,6 @@ if (gotTheLock) {
     }
   });
 } else {
-  if (is.dev) {
-    logger.info("App already running, quitting");
-  }
   app.quit();
 }
 

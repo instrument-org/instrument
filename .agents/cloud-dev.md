@@ -9,7 +9,6 @@ pnpm manages Node via `devEngines.runtime` (`onFail: "download"`). Bootstrap: `c
 Set `NO_SANDBOX=1` (read by electron-vite's `startElectron`). Turbo doesn't forward it reliably; run services directly:
 
 ```bash
-cd packages/shim-client && pnpm dev # port 48350
 cd apps/studio && NO_SANDBOX=1 REMOTE_DEBUGGING_PORT=48160 pnpm dev
 ```
 

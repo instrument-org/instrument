@@ -14,6 +14,9 @@ import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { runTool } from "../test/helpers/run-tool";
 import { LoadSkill } from "./load-skill";
 
+vi.mock(import("../lib/install-python-skill"));
+vi.mock(import("../lib/run-pnpm"));
+
 const model = createMockAIGatewayModel();
 
 let tmpDir: string;
@@ -22,6 +25,7 @@ let registryDir: string;
 let skillsDir: string;
 
 beforeEach(async () => {
+  vi.clearAllMocks();
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "load-skill-test-"));
   dir = path.join(tmpDir, "app");
   registryDir = path.join(tmpDir, "registry");
@@ -241,6 +245,89 @@ describe("LoadSkill", () => {
       return;
     }
     expect(result.files).toMatchInlineSnapshot(`[]`);
+  });
+
+  it("installs locked Python dependencies for a Python skill", async () => {
+    const { installPythonSkill } = await import("../lib/install-python-skill");
+    vi.mocked(installPythonSkill).mockResolvedValueOnce({ state: "success" });
+    await createSkill({
+      extraFiles: {
+        "pyproject.toml": "[project]\nname = 'python-skill'\n",
+        "uv.lock": "version = 1\n",
+      },
+      name: "python-skill",
+    });
+
+    const args = {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "python-skill" },
+    };
+    const result = (await runTool(LoadSkill, args))._unsafeUnwrap();
+
+    expect(installPythonSkill).toHaveBeenCalledWith({
+      signal: args.signal,
+      skillDir: path.join(dir, "work", "skills", "python-skill"),
+      taskId: args.taskId,
+    });
+    expect(result).toMatchObject({
+      installResults: [{ runtime: "python", state: "success" }],
+      state: "success",
+    });
+  });
+
+  it("does not install Node dependencies for a development-only manifest", async () => {
+    const { runPnpmCommand } = await import("../lib/run-pnpm");
+    await createSkill({
+      extraFiles: {
+        "package.json": JSON.stringify({ scripts: { test: "vitest" } }),
+      },
+      name: "metadata-only",
+    });
+
+    await runTool(LoadSkill, {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "metadata-only" },
+    });
+
+    expect(runPnpmCommand).not.toHaveBeenCalled();
+  });
+
+  it("installs both runtimes for mixed skills", async () => {
+    const { installPythonSkill } = await import("../lib/install-python-skill");
+    const { runPnpmCommand } = await import("../lib/run-pnpm");
+    vi.mocked(installPythonSkill).mockResolvedValueOnce({ state: "success" });
+    vi.mocked(runPnpmCommand).mockResolvedValueOnce({
+      combined: "",
+      command: "pnpm install",
+      exitCode: 0,
+    });
+    await createSkill({
+      extraFiles: {
+        "package.json": JSON.stringify({
+          dependencies: { example: "1.0.0" },
+        }),
+        "pyproject.toml": "[project]\nname = 'mixed-skill'\n",
+        "uv.lock": "version = 1\n",
+      },
+      name: "mixed-skill",
+    });
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "mixed-skill" },
+      })
+    )._unsafeUnwrap();
+
+    expect(runPnpmCommand).toHaveBeenCalledTimes(1);
+    expect(installPythonSkill).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      installResults: [
+        { runtime: "node", state: "success" },
+        { runtime: "python", state: "success" },
+      ],
+      state: "success",
+    });
   });
 });
 /* eslint-enable unicorn/no-await-expression-member */

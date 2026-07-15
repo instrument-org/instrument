@@ -1,17 +1,12 @@
 import { execa } from "execa";
 import { type CommandContext, defineCommand, latin1FromBytes } from "just-bash";
-import { existsSync } from "node:fs";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
+import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
-import {
-  getUvBinPath,
-  MANAGED_PYTHON_VERSION,
-  taskVenvDir,
-  taskVenvPython,
-} from "../uv";
+import { getUvBinPath } from "../uv";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
 export const UV_COMMAND = {
@@ -33,7 +28,7 @@ export function createUvCommand(taskId: TaskId) {
     // Ensure it here so `uv pip install` works even before any `python`/`pip`
     // call has run, matching the behavior of the `pip` custom command.
     if (args[0] === "pip") {
-      const venvError = await ensureTaskVenv({ ctx, env, taskCwd, taskId });
+      const venvError = await ensureTaskVenv({ ctx, taskId });
       if (venvError !== undefined) {
         return { exitCode: 1, stderr: "", stdout: venvError };
       }
@@ -50,55 +45,20 @@ export function createUvCommand(taskId: TaskId) {
   });
 }
 
-// Deduplicate concurrent venv creation per task. Tool calls within a session run
-// sequentially, but multiple sessions/agents in the same task share work/.venv
-// and can race two `uv venv` runs on the same dir, corrupting it. Keyed by taskId
-// (module-level, so it spans sessions in the single workspace process); cleared
-// once creation settles.
-const inFlightVenvCreation = new Map<TaskId, Promise<string | undefined>>();
-
 /**
  * Create the task's `work/.venv` if it does not yet have a usable interpreter.
- * Returns the uv output when creation fails (so callers can surface it) or
- * `undefined` on success. The first call (machine-wide) downloads a managed
- * CPython, so it can take a few seconds.
+ * The first call (machine-wide) downloads a managed CPython, so it can take a
+ * few seconds.
  */
 export async function ensureTaskVenv({
   ctx,
-  env,
-  taskCwd,
   taskId,
 }: {
   ctx: CommandContext;
-  env: Record<string, string>;
-  taskCwd: AbsolutePath;
   taskId: TaskId;
 }): Promise<string | undefined> {
-  // Gate on the interpreter, not the dir: an interrupted first run (aborted
-  // download, timeout) can leave work/.venv present but without a usable
-  // python. A dir-only check would short-circuit forever and never repair it;
-  // `uv venv` recreates the dir cleanly on the retry.
-  if (existsSync(taskVenvPython(taskId))) {
-    return undefined;
-  }
-
-  const existing = inFlightVenvCreation.get(taskId);
-  if (existing) {
-    return existing;
-  }
-
-  const creation = runUv({
-    args: ["venv", "--python", MANAGED_PYTHON_VERSION, taskVenvDir(taskId)],
-    ctx,
-    env,
-    taskCwd,
-    taskId,
-  })
-    .then((result) => (result.exitCode === 0 ? undefined : result.stdout))
-    .finally(() => inFlightVenvCreation.delete(taskId));
-
-  inFlightVenvCreation.set(taskId, creation);
-  return creation;
+  const result = await ensureTaskVenvForTask({ signal: ctx.signal, taskId });
+  return result?.output;
 }
 
 /**

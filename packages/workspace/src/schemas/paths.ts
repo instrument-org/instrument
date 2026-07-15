@@ -30,3 +30,21 @@ export const RelativeTaskPathSchema = RelativePathSchema.refine(
   (val) => !val.split(/[/\\]/).includes(".."),
   "Path must not contain '..' segments",
 );
+
+const MountedWorkspacePathSchema = z
+  .string()
+  .startsWith("/mnt/")
+  .refine(
+    (val) =>
+      !val.includes("\\") &&
+      !val.includes("//") &&
+      !val.split("/").includes(".."),
+    "Mounted path must not contain traversal or invalid separators",
+  );
+
+/** A task-relative path or an attached folder's absolute virtual mount path. */
+export const WorkspaceFilePathSchema = z.union([
+  RelativeTaskPathSchema,
+  MountedWorkspacePathSchema,
+]);
+export type WorkspaceFilePath = z.output<typeof WorkspaceFilePathSchema>;

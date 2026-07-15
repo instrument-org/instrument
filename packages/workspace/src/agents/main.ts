@@ -209,7 +209,8 @@ export const mainAgent = setupAgent({
       (\`${agentTools.ReadFile.name}\`, \`${agentTools.Glob.name}\`, \`${agentTools.Grep.name}\`)
       or the \`${agentTools.BashTool.name}\` tool (\`ls\`, \`cat\`, \`grep\`/\`rg\`, \`find\`).
       They are NOT under the task root, so reach them by their \`/mnt/...\` path, not a
-      relative one.
+      relative one. When referencing an attached file from agent-authored HTML or CSS,
+      use its absolute \`/mnt/...\` path so the static asset origin resolves it.
     - These mounts are read-only and reflect the user's real files: do not try to
       edit, write into, or build outputs inside \`/mnt/\` (it will fail). Native tools
       (ffmpeg, python, scripts) also cannot read from \`/mnt/\` directly. To edit, run,

@@ -4,6 +4,7 @@ import {
   OverlayFs,
   ReadWriteFs,
 } from "just-bash";
+import { realpathSync } from "node:fs";
 
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
@@ -11,6 +12,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { assignAttachedMounts } from "./attached-folder-mounts";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
+import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 
 /**
@@ -117,6 +119,31 @@ export function buildWorkspaceFsLayout({
       readOnly: false,
     },
   };
+}
+
+/**
+ * True when an existing host path escapes its owning mount through a symlink.
+ * Missing paths or roots are left to normal not-found handling.
+ */
+export function hostPathEscapesMount(
+  hostPath: string,
+  hostRoot: string,
+): boolean {
+  let canonicalRoot: string;
+  try {
+    canonicalRoot = realpathSync(hostRoot);
+  } catch {
+    return false;
+  }
+
+  let canonicalPath: string;
+  try {
+    canonicalPath = realpathSync(hostPath);
+  } catch {
+    return false;
+  }
+
+  return !pathIsWithin(canonicalPath, canonicalRoot);
 }
 
 /**

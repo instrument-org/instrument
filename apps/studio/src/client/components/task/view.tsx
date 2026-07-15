@@ -21,7 +21,6 @@ import {
 } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react";
 import {
-  keepPreviousData,
   skipToken,
   useMutation,
   useQuery,
@@ -110,23 +109,24 @@ export function TaskView({
             taskId: task.id,
           }
         : skipToken,
-      placeholderData: keepPreviousData,
     }),
   );
 
   const currentFileMetadata = files?.find(
     (file) => file.filePath === filePanel?.filePath,
   );
+  const currentModifiedAt =
+    currentFileMetadata?.modifiedAt ?? fileInfo?.modifiedAt;
   const currentFile: null | TaskFileViewerFile =
-    fileInfo && currentFileMetadata
+    fileInfo && currentModifiedAt !== undefined
       ? {
           ...fileInfo,
-          modifiedAt: currentFileMetadata.modifiedAt,
+          modifiedAt: currentModifiedAt,
           taskId: task.id,
           url: getAssetUrl({
             assetBase: assetBaseUrl,
             filePath: fileInfo.filePath,
-            version: currentFileMetadata.modifiedAt,
+            version: currentModifiedAt,
           }),
         }
       : null;

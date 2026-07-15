@@ -9,9 +9,15 @@ export function getAssetUrl({
   filePath: string;
   version?: number;
 }): string {
-  const url = `${assetBase}/${normalizeTaskFilePath(filePath)}`;
+  const normalizedPath = normalizeTaskFilePath(filePath);
+  const url = normalizedPath.startsWith("/")
+    ? `${assetBase}${normalizedPath}`
+    : `${assetBase}/${normalizedPath}`;
 
-  if (version === undefined) {
+  // Attached folders are mutable but not watched by the task file index, so a
+  // stored tool-output mtime can go stale. Keep mount URLs unversioned so the
+  // asset server serves them with no-store semantics.
+  if (version === undefined || normalizedPath.startsWith("/mnt/")) {
     return url;
   }
 

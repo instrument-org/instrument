@@ -50,10 +50,12 @@ export const workspaceServerLogic = fromCallback<
     await next();
   });
 
+  // Asset origins own their entire root, so claim them before app-runtime and
+  // infrastructure routes inspect the request.
+  app.route("/", assetsRoute);
   app.route("/", shimScriptRoute);
   app.route("/", shimIFrameRoute);
   app.route("/", heartbeatRoute);
-  app.route("/", assetsRoute);
   app.route("/", redirectRoute);
   app.route("/", cdpBridgeRoute);
   // Note: Must be after all app-specific routes

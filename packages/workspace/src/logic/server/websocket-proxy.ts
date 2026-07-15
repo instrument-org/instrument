@@ -26,7 +26,7 @@ export function setupWebSocketProxy(
     const host = req.headers.host || "";
     const uriDetails = uriDetailsForHost(host);
 
-    if (uriDetails.isErr()) {
+    if (uriDetails.isErr() || uriDetails.value.origin !== "app") {
       socket.destroy();
       return;
     }

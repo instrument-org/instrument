@@ -82,12 +82,6 @@ export function SourceImagesChip({
             <ImagesIcon className="size-2.5 text-muted-foreground/50" />
           </span>
         );
-        // Read-only mount sources (/mnt/...) live outside the task, so the
-        // task asset server cannot serve them; show the icon chip without
-        // attempting a doomed request.
-        if (file.filePath.startsWith("/")) {
-          return fallback;
-        }
         const src = getAssetUrl({
           assetBase: assetBaseUrl,
           filePath: file.filePath,

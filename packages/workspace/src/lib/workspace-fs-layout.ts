@@ -123,7 +123,9 @@ export function buildWorkspaceFsLayout({
 
 /**
  * True when an existing host path escapes its owning mount through a symlink.
- * Missing paths or roots are left to normal not-found handling.
+ * A missing path or root is not an escape (nothing to read; normal not-found
+ * handling applies). Any other resolution failure (permission error, symlink
+ * loop, ...) means containment cannot be verified, so it fails closed.
  */
 export function hostPathEscapesMount(
   hostPath: string,
@@ -132,15 +134,15 @@ export function hostPathEscapesMount(
   let canonicalRoot: string;
   try {
     canonicalRoot = realpathSync(hostRoot);
-  } catch {
-    return false;
+  } catch (error) {
+    return !isEnoent(error);
   }
 
   let canonicalPath: string;
   try {
     canonicalPath = realpathSync(hostPath);
-  } catch {
-    return false;
+  } catch (error) {
+    return !isEnoent(error);
   }
 
   return !pathIsWithin(canonicalPath, canonicalRoot);
@@ -251,6 +253,10 @@ export function resolveVirtualPath(
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [layout.task, ...layout.attached];
+}
+
+function isEnoent(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 /**

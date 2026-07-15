@@ -43,6 +43,7 @@ export const ATTACHED_FOLDERS_MOUNT_ROOT = "/mnt";
 const MountedWorkspacePathSchema = z
   .string()
   .startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
+  .brand("MountedWorkspacePath")
   .refine(
     (val) =>
       !val.includes("\\") &&

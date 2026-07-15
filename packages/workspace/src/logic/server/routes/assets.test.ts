@@ -31,6 +31,8 @@ describe("assetsRoute", () => {
     await fs.mkdir(path.join(taskRoot, "escaped-index"));
     await fs.writeFile(path.join(taskRoot, "index.html"), "task index");
     await fs.writeFile(path.join(taskRoot, "style.css"), "task styles");
+    await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
+    await fs.writeFile(path.join(taskRoot, ".instrument", "task.db"), "private");
     const styleStats = await fs.stat(path.join(taskRoot, "style.css"));
     styleModifiedAt = styleStats.mtimeMs;
     await fs.writeFile(path.join(photosRoot, "cat.png"), "mounted image");
@@ -113,6 +115,14 @@ describe("assetsRoute", () => {
     const response = await requestAsset("/style.css", { method: "POST" });
     expect(response.status).toBe(404);
   });
+
+  it.each(["/.instrument", "/.instrument/task.db"])(
+    "never serves private task metadata at %s",
+    async (pathname) => {
+      const response = await requestAsset(pathname);
+      expect(response.status).toBe(404);
+    },
+  );
 
   it("leaves the bare task origin to the app routes", async () => {
     const host = `${taskId}.localhost:${getWorkspaceServerPort()}`;

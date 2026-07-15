@@ -47,6 +47,12 @@ app.all("/*", async (c, next) => {
     return c.notFound();
   }
 
+  // The task mount root also holds private per-task metadata under
+  // `.instrument/` (task.db, state.json); never serve it over the asset origin.
+  if (assetPath === "/.instrument" || assetPath.startsWith("/.instrument/")) {
+    return c.notFound();
+  }
+
   const taskHostRoot = taskDir(id);
   const taskState = await getTaskState(taskHostRoot);
   const layout = buildWorkspaceFsLayout({

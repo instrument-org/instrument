@@ -131,6 +131,8 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 Keep them evergreen and safe to share: leave out secrets and anything tied to one
 machine, person, or moment.
 
+- `docs/architecture/` — evergreen maps of a subsystem or domain and how it
+  layers together, edited in place as the code changes. One file per subsystem.
 - `docs/findings/` — non-obvious issues, what we tried, what might resolve them
   later. One file per finding.
 - `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`).
@@ -142,7 +144,7 @@ machine, person, or moment.
 
 - `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
 - `.agents/env.md` — Environment variables for Studio and workspace.
-- `.agents/sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
+- `docs/architecture/agent-sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, shim + Studio startup, CDP port 48160, Xvfb, pnpm checks.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
 - `.agents/skills/studio-dev-logs/SKILL.md` — Read NDJSON logs written to `apps/studio/.logs/` on each dev boot.

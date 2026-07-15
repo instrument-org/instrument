@@ -9,10 +9,10 @@ import { z } from "zod";
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
-import { resolveToolPath } from "../lib/resolve-agent-path";
+import { resolveWritableToolPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
-import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { ReadFile } from "./read-file";
@@ -37,7 +37,8 @@ export const WriteFile = setupTool({
   name: "write_file",
   outputSchema: z.object({
     content: z.string(),
-    filePath: RelativePathSchema,
+    // Task-relative today; a writable mount path once those exist.
+    filePath: z.string(),
     isNewFile: z.boolean(),
     modifiedAt: z.number(),
   }),
@@ -53,8 +54,15 @@ export const WriteFile = setupTool({
     - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
     - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
   `,
-  execute: async ({ input, signal, taskId }) => {
-    const pathResult = resolveToolPath(taskDir(taskId), input.filePath);
+  execute: async ({ input, signal, taskId, taskState }) => {
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders: taskState.attachedFolders,
+      taskHostRoot: taskDir(taskId),
+    });
+    const pathResult = resolveWritableToolPath({
+      inputPath: input.filePath,
+      layout,
+    });
     if (pathResult.isErr()) {
       return err(pathResult.error);
     }

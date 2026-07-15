@@ -35,7 +35,7 @@ export function getScreenshotsDir(dir: TaskDir): AbsolutePath {
   );
 }
 
-// The user's inputs (uploads + retrieval copies). A user-visible top-level dir.
+// The user's inputs (uploads + copies from attached folders). A user-visible top-level dir.
 export function getTaskAttachmentsDir(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(dir, TASK_FOLDER_NAMES.attachments);
 }

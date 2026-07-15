@@ -7,7 +7,6 @@ import {
 
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
-import { type RenderStream } from "./message-part/tool-agent";
 import { ToolCall } from "./message-part/tool-call";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
 import { ReasoningMessage } from "./reasoning-message";
@@ -18,7 +17,6 @@ import { UserMessage } from "./user-message";
 export interface RenderPartContext {
   assetBaseUrl: string;
   currentToolId: string | undefined;
-  hideUserMessages: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isToolStreaming: (
@@ -27,7 +25,6 @@ export interface RenderPartContext {
   ) => boolean;
   lastMessageId: string | undefined;
   onRetry: (prompt: string) => void;
-  renderStream: RenderStream;
   task: Task;
 }
 
@@ -62,9 +59,6 @@ export function renderChatPart({
         );
       }
       case "user": {
-        if (ctx.hideUserMessages) {
-          return null;
-        }
         return <UserMessage key={part.metadata.id} part={part} />;
       }
       // session-context messages are partitioned out before this loop and shown
@@ -107,7 +101,6 @@ export function renderChatPart({
         key={part.metadata.id}
         onRetry={ctx.onRetry}
         part={part}
-        renderStream={ctx.renderStream}
         task={ctx.task}
       />
     );

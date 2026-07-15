@@ -436,133 +436,28 @@ describe("Grep", () => {
         ]
       `);
     });
-  });
 
-  describe("retrieval agent", () => {
-    const fixturesPath = path.join(
-      import.meta.dirname,
-      "../../fixtures/file-system",
-    );
-    const attachedFolders: Record<string, FolderAttachment.Type> = {
-      "test-folder": {
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("test-folder-id"),
-        name: "Test Folder",
-        path: TaskDirSchema.parse(fixturesPath),
-        source: "user",
-      },
-    };
-
-    it("should require a path parameter", async () => {
-      const result = await runTool(TOOLS.Grep, {
-        agentName: "retrieval",
-        input: {
-          pattern: "async function",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      const error = result._unsafeUnwrapErr();
-      expect(error.message).toContain("Must specify a path parameter");
-      expect(error.message).toContain("Test Folder");
-    });
-
-    it("should reject relative paths", async () => {
-      const result = await runTool(TOOLS.Grep, {
-        agentName: "retrieval",
-        input: {
-          path: "./nested",
-          pattern: "async function",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      expect(result._unsafeUnwrapErr().message).toContain(
-        "Path must be absolute",
+    it("searches a read-only attached folder by mount path, returning mount paths", async () => {
+      // The attached folder is a distinct directory (a subfolder of the task
+      // fixtures) so its host path maps back to the /mnt mount, not the task.
+      const attachedPath = path.join(
+        import.meta.dirname,
+        "../../fixtures/file-system/nested",
       );
-    });
-
-    it("should reject paths outside attached folders", async () => {
-      const result = await runTool(TOOLS.Grep, {
-        agentName: "retrieval",
-        input: {
-          path: "/some/random/path",
-          pattern: "async function",
+      const attachedFolders: Record<string, FolderAttachment.Type> = {
+        "test-folder": {
+          createdAt: Date.now(),
+          id: FolderAttachment.IdSchema.parse("test-folder-id"),
+          name: "Test Folder",
+          path: TaskDirSchema.parse(attachedPath),
+          source: "user",
         },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
+      };
 
-      const error = result._unsafeUnwrapErr();
-      expect(error.message).toContain("Path is not within any attached folder");
-      expect(error.message).toContain("Test Folder");
-    });
-
-    it("should find matches within attached folder", async () => {
       const result = await runTool(TOOLS.Grep, {
-        agentName: "retrieval",
+        agentName: "main",
         input: {
-          path: fixturesPath,
-          pattern: "async function",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      const normalizedMatches = sortMatchesForTesting(
-        result
-          ._unsafeUnwrap()
-          .matches.map(({ modifiedAt: _modifiedAt, path: p, ...rest }) => ({
-            ...rest,
-            path: p.replace(fixturesPath, "<FIXTURES>"),
-          })),
-      );
-      expect(normalizedMatches).toMatchInlineSnapshot(`
-        [
-          {
-            "lineNum": 4,
-            "lineText": "- async functions",
-            "path": "<FIXTURES>/grep-test-2.txt",
-          },
-          {
-            "lineNum": 21,
-            "lineText": "async function testGrep() {",
-            "path": "<FIXTURES>/grep-test-2.txt",
-          },
-          {
-            "lineNum": 4,
-            "lineText": "- async functions",
-            "path": "<FIXTURES>/grep-test.txt",
-          },
-          {
-            "lineNum": 21,
-            "lineText": "async function testGrep() {",
-            "path": "<FIXTURES>/grep-test.txt",
-          },
-        ]
-      `);
-    });
-
-    it("should find matches in nested subdirectory of attached folder", async () => {
-      const nestedPath = path.join(fixturesPath, "nested");
-      const result = await runTool(TOOLS.Grep, {
-        agentName: "retrieval",
-        input: {
-          path: nestedPath,
+          path: "/mnt/Test Folder",
           pattern: "vertical\\|bar",
         },
         model,
@@ -572,25 +467,24 @@ describe("Grep", () => {
         taskState: { attachedFolders },
       });
 
-      const normalizedMatches = sortMatchesForTesting(
-        result
-          ._unsafeUnwrap()
-          .matches.map(({ modifiedAt: _modifiedAt, path: p, ...rest }) => ({
-            ...rest,
-            path: p.replace(nestedPath, "<NESTED>"),
-          })),
-      );
-      expect(normalizedMatches).toMatchInlineSnapshot(`
+      expect(result.isOk()).toBe(true);
+      expect(
+        sortMatchesForTesting(
+          result
+            ._unsafeUnwrap()
+            .matches.map(({ modifiedAt: _modifiedAt, ...rest }) => rest),
+        ),
+      ).toMatchInlineSnapshot(`
         [
           {
             "lineNum": 4,
             "lineText": "- vertical|bars|everywhere",
-            "path": "<NESTED>/another/file.txt",
+            "path": "/mnt/Test Folder/another/file.txt",
           },
           {
             "lineNum": 6,
             "lineText": "- vertical|bar|separator",
-            "path": "<NESTED>/level1/test-deep.txt",
+            "path": "/mnt/Test Folder/level1/test-deep.txt",
           },
         ]
       `);

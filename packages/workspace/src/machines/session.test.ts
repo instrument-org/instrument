@@ -760,63 +760,6 @@ describe("sessionMachine", () => {
     `);
   });
 
-  it("should handle task tool calls", async () => {
-    const session = await createAndRunTestMachine({
-      chunkSets: [
-        [
-          {
-            id: "test-call-task",
-            toolName: "agent",
-            type: "tool-input-start",
-          },
-          {
-            input: JSON.stringify({
-              agent_type: "retrieval",
-              prompt: "Write a test file",
-            }),
-            toolCallId: "test-call-task",
-            toolName: "agent",
-            type: "tool-call",
-          },
-        ],
-        finishChunks,
-      ],
-    });
-
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="5">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="agent" state="output-available" callId="test-call-task">
-            <input>
-              {
-                "agent_type": "retrieval",
-                "prompt": "Write a test file"
-              }
-            </input>
-            <output>
-              {
-                "result": "Task completed",
-                "sessionId": "ses_00000000ZC888888888888888F",
-                "status": "done",
-                "summary": "nothing"
-              }
-            </output>
-          </tool>
-        </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <text state="done">I'm done.</text>
-        </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
-      </session>"
-    `);
-  });
-
   it("should handle multiple actors running in parallel", async () => {
     const result1 = await createActorAndTask({
       chunkSets: [
@@ -937,7 +880,7 @@ describe("sessionMachine", () => {
                 "filePath": "test.txt"
               }
             </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, glob, grep, load_skill, read_file, bash, agent, web_search, write_file.</error>
+            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, glob, grep, load_skill, read_file, bash, web_search, write_file.</error>
           </tool>
         </assistant>
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">

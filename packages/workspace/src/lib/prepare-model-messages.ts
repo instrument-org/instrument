@@ -44,10 +44,7 @@ export async function prepareModelMessages({
   function isSessionContextMessage(
     message: SessionMessage.WithParts,
   ): message is SessionMessage.ContextWithParts {
-    return (
-      message.role === "session-context" &&
-      message.metadata.agentName === agent.name
-    );
+    return message.role === "session-context";
   }
 
   const existingSessionContextMessages = messages.filter(

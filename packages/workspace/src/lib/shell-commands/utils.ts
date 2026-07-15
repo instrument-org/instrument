@@ -2,11 +2,11 @@ import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import { type TaskId } from "../../schemas/task-id";
-import { absolutePathJoin } from "../absolute-path-join";
 import { normalizePath } from "../normalize-path";
 import { taskDir } from "../task-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
+import { resolveNativeHostPath } from "../workspace-fs-layout";
 
 /**
  * Extract the resolved file path and trailing script args from positionals + original args.
@@ -99,7 +99,7 @@ export function resolveCommandContext(
       ...Object.fromEntries(ctx.env),
       ...uvSubprocessEnv({ taskId }),
     },
-    taskCwd: absolutePathJoin(
+    taskCwd: resolveNativeHostPath(
       taskDir(taskId),
       ctx.fs.resolvePath(ctx.cwd, "."),
     ),
@@ -124,7 +124,7 @@ export function resolvePathArgs(
       return arg;
     }
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
-    return absolutePathJoin(taskDir(taskId), virtualPath);
+    return resolveNativeHostPath(taskDir(taskId), virtualPath);
   });
 }
 
@@ -163,7 +163,7 @@ function virtualToRealRelative(
   resolvePath: (p: string) => string,
 ): string {
   const normalizedVirtualPath = normalizePath(virtualPath);
-  const realAbs = absolutePathJoin(
+  const realAbs = resolveNativeHostPath(
     taskDir(taskId),
     resolvePath(normalizedVirtualPath),
   );

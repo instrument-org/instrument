@@ -3,10 +3,8 @@ import { type z } from "zod";
 
 import type { AnyAgentTool, ToolName } from "./types";
 
-import { Agent } from "./agent";
 import { BashTool } from "./bash";
 import { Choose } from "./choose";
-import { CopyToTask } from "./copy-to-task";
 import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
 import { Glob } from "./glob";
@@ -18,10 +16,8 @@ import { WebSearch } from "./web-search";
 import { WriteFile } from "./write-file";
 
 export const TOOLS = {
-  Agent,
   BashTool,
   Choose,
-  CopyToTask,
   EditFile,
   GenerateImage,
   Glob,
@@ -36,10 +32,8 @@ export const TOOLS = {
 export type InternalToolName = keyof typeof TOOLS;
 
 export const TOOLS_BY_NAME = {
-  [TOOLS.Agent.name]: TOOLS.Agent,
   [TOOLS.BashTool.name]: TOOLS.BashTool,
   [TOOLS.Choose.name]: TOOLS.Choose,
-  [TOOLS.CopyToTask.name]: TOOLS.CopyToTask,
   [TOOLS.EditFile.name]: TOOLS.EditFile,
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
   [TOOLS.Glob.name]: TOOLS.Glob,

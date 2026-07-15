@@ -37,14 +37,10 @@ export interface Agent<T extends AgentTools> {
   }) => Promise<boolean>;
 }
 
-export const RETRIEVAL_AGENT_NAME = "retrieval";
 // oxlint-disable-next-line no-unused-vars
-const AGENT_NAMES = ["main", RETRIEVAL_AGENT_NAME] as const;
+const AGENT_NAMES = ["main"] as const;
 
 export type AgentName = (typeof AGENT_NAMES)[number];
 export type AgentTools = Partial<Record<InternalToolName, AnyAgentTool>>;
 
 export type AnyAgent = Agent<AgentTools>;
-
-export const TASK_AGENT_NAMES = ["retrieval"] as const satisfies AgentName[];
-export type TaskAgentName = (typeof TASK_AGENT_NAMES)[number];

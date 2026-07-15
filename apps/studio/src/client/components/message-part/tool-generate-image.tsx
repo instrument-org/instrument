@@ -73,6 +73,21 @@ export function SourceImagesChip({
   return (
     <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
       {sourceImages.slice(0, 3).map((file, index) => {
+        const fallback = (
+          <span
+            className="-ml-0.5 flex size-4 items-center justify-center rounded-full border border-border/50 bg-muted first:ml-0"
+            key={index}
+            title={filenameFromFilePath(file.filePath)}
+          >
+            <ImagesIcon className="size-2.5 text-muted-foreground/50" />
+          </span>
+        );
+        // Read-only mount sources (/mnt/...) live outside the task, so the
+        // task asset server cannot serve them; show the icon chip without
+        // attempting a doomed request.
+        if (file.filePath.startsWith("/")) {
+          return fallback;
+        }
         const src = getAssetUrl({
           assetBase: assetBaseUrl,
           filePath: file.filePath,
@@ -82,11 +97,7 @@ export function SourceImagesChip({
           <ImageWithFallback
             alt="Reference"
             className="-ml-0.5 size-4 rounded-full border border-border/50 object-cover first:ml-0"
-            fallback={
-              <span className="-ml-0.5 flex size-4 items-center justify-center rounded-full border border-border/50 bg-muted first:ml-0">
-                <ImagesIcon className="size-2.5 text-muted-foreground/50" />
-              </span>
-            }
+            fallback={fallback}
             filename={filenameFromFilePath(file.filePath)}
             key={index}
             src={src}

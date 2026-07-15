@@ -55,6 +55,17 @@ The task ID is printed to stderr on every run.
 pnpm --silent script:run-bash -- --task TASK_ID "python -c 'import numpy'"
 ```
 
+### Attached-folder mounts
+
+Mount host folders read-only under `/mnt/<basename>` (repeatable), the same way
+user-attached folders appear to the agent:
+
+```bash
+pnpm --silent script:run-bash -- --attach ~/Documents/Photos \
+  "ls /mnt/Photos" \
+  "cp '/mnt/Photos/pic.jpg' attachments/"
+```
+
 ### Piped sequential commands
 
 Pipe a newline-separated script when you need multiple commands sharing one task dir
@@ -90,8 +101,9 @@ task: 01kv...  session: ses_01KV...
 
 Same environment as the real agent:
 
-- **FS**: reads/writes are sandboxed to the task dir (FS root = `/`); no access
-  to the host filesystem outside it
+- **FS**: the task dir mounts writable at `/task` (the working directory) and
+  `--attach` folders mount read-only under `/mnt/<name>`; everything else is a
+  read-only empty root, so there is no access to the host filesystem
 - **Network**: full internet access; private/loopback ranges blocked (SSRF guard)
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
 - **Custom shims**: `tsx`, `pnpm`, `pnx`, `npx`, `uv`, `python`/`python3`,

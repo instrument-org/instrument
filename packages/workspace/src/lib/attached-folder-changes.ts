@@ -12,11 +12,16 @@ import { getTaskState } from "./task-state-store";
 
 /**
  * Diffs the task's current attached folders against the session's persisted
- * baseline to find folders the user removed between turns, then advances the
- * baseline to the current set. Returns a `data-attachedFolderChanges` part to
- * attach to the user message, or undefined when there is no baseline yet or
- * nothing was removed. Keyed by session so an idle chat only learns about
- * removals once it next sends a message.
+ * baseline to find folders removed or renamed since the baseline was last
+ * set, then advances the baseline to the current set. Returns a
+ * `data-attachedFolderChanges` part to attach to the user message, or
+ * undefined when there is no baseline yet or nothing changed. Keyed by
+ * session so an idle chat only learns about changes once it next sends a
+ * message.
+ *
+ * Must run after any folder attach for this message (writeUploadedAttachments,
+ * detectProjectChanges), so a rename either of them triggers is read here as
+ * part of "current" and reported the same turn instead of lagging behind.
  */
 export function detectAttachedFolderChanges({
   messageId,
@@ -48,18 +53,27 @@ export function detectAttachedFolderChanges({
         return ok(undefined);
       }
 
-      const currentPaths = new Set<string>(
-        current.map((folder) => folder.path),
+      const currentByPath = new Map<string, string>(
+        current.map((folder) => [folder.path, folder.name]),
       );
       const removed = baseline.filter(
-        (folder) => !currentPaths.has(folder.path),
+        (folder) => !currentByPath.has(folder.path),
       );
-      if (removed.length === 0) {
+      const renamed = baseline.flatMap((folder) => {
+        const currentName = currentByPath.get(folder.path);
+        if (currentName === undefined || currentName === folder.name) {
+          return [];
+        }
+        return [
+          { newName: currentName, oldName: folder.name, path: folder.path },
+        ];
+      });
+      if (removed.length === 0 && renamed.length === 0) {
         return ok(undefined);
       }
 
       return ok({
-        data: { removed },
+        data: { removed, renamed },
         metadata: {
           createdAt: new Date(),
           id: StoreId.newPartId(),

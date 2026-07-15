@@ -36,15 +36,6 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {
-            agent_type: "retrieval",
-            explanation: "Launch retrieval agent to search external folder",
-            prompt:
-              "Search the attached folder for any existing TypeScript config files and report what you find.",
-          },
-          type: "tool-agent",
-        }),
-        builder.toolPart(assistantMessageId, "input-available", {
-          input: {
             explanation: "Find all TypeScript files in the src directory",
             pattern: "src/**/*.ts",
           },
@@ -185,14 +176,6 @@ describe("slugify", () => {
             timeoutMs: 15_000,
           },
           type: "tool-bash",
-        }),
-        builder.toolPart(assistantMessageId, "input-available", {
-          input: {
-            explanation: "Copy TypeScript config from attached folder",
-            path: "/Users/user/external-project",
-            pattern: "tsconfig*.json",
-          },
-          type: "tool-copy_to_task",
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {},

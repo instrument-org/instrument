@@ -18,6 +18,7 @@ const VISIBLE_DELAY_MS = 400;
 export function MediaCardShell({
   aspectRatio,
   bottomBar,
+  canCopy,
   children,
   file,
   hideActionsMenu,
@@ -30,6 +31,7 @@ export function MediaCardShell({
 }: {
   aspectRatio: "square" | "video";
   bottomBar?: React.ReactNode;
+  canCopy?: boolean;
   children: React.ReactNode;
   file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
@@ -135,6 +137,7 @@ export function MediaCardShell({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <FileActionsMenuItems
+          canCopy={canCopy}
           file={file}
           menuComponents={contextMenuComponents}
         />

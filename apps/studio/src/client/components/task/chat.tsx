@@ -13,7 +13,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
-import { CaretDownIcon } from "@phosphor-icons/react";
 import {
   skipToken,
   useMutation,
@@ -24,12 +23,19 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useStickToBottom } from "use-stick-to-bottom";
 
 import { ChatStream } from "../chat-stream";
 import { PromptInput } from "../prompt-input";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+  useMessageScroller,
+} from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
@@ -60,10 +66,8 @@ export function TaskChat({
   // id as much as possible to keep this from being an issue.
   const isTaskRouteSettled = task.id === id;
 
-  const { contentRef, isNearBottom, scrollRef, scrollToBottom } =
-    // Less animation when sticking to bottom
-    useStickToBottom({ mass: 0.8 });
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions({
       onError: (error) => {
@@ -227,7 +231,6 @@ export function TaskChat({
           },
           {
             onSuccess: ({ sessionId }) => {
-              void scrollToBottom();
               void navigate({
                 params: { id },
                 replace: true,
@@ -247,110 +250,162 @@ export function TaskChat({
     />
   );
 
+  // The composer is a sticky footer inside the scroll viewport: the transcript
+  // scrolls behind its rounded top corners (the peek), and because a sticky
+  // element reserves its height in normal flow, content can't get trapped
+  // behind it. A flex-1 spacer holds it to the bottom when the transcript is
+  // short. The rounded backdrop is skipped when the tutorial card (its own
+  // background) shows, and showTutorial === undefined skips the tutorial motion.
   return (
-    <div
-      className="relative flex h-full min-h-0 flex-col overflow-y-auto"
-      ref={scrollRef}
+    <MessageScrollerProvider
+      autoScroll
+      defaultScrollPosition="end"
+      key={selectedSessionId}
     >
-      <div
-        className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 pb-16"
-        ref={contentRef}
-      >
-        {selectedSessionId ? (
-          isTaskRouteSettled ? (
-            isLoadingMessages ? (
-              <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
-                <Spinner className="size-4 text-muted-foreground" />
+      <PinToBottomWhileOpening />
+      <div className="relative flex h-full min-h-0 flex-col">
+        <MessageScroller className="min-h-0 flex-1">
+          <MessageScrollerViewport className="flex flex-col">
+            <MessageScrollerContent className="group/assistant-message-footer mx-auto w-full max-w-2xl gap-2 p-4 pb-16">
+              {selectedSessionId ? (
+                isTaskRouteSettled ? (
+                  isLoadingMessages ? (
+                    <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
+                      <Spinner className="size-4 text-muted-foreground" />
+                    </div>
+                  ) : messageError ? (
+                    <Alert className="mt-4" variant="warning">
+                      <AlertDescription className="flex flex-col gap-4">
+                        <div className="font-semibold">
+                          Failed to load messages
+                        </div>
+                        <div className="text-sm">
+                          {messageError.message || "Unknown error occurred"}
+                        </div>
+                        <div className="flex gap-2">
+                          <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <Button
+                                onClick={handleStartNewTask}
+                                variant="secondary"
+                              >
+                                Start new task
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Starts a new task</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <Button onClick={() => refetch()}>Retry</Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Retry loading messages</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ) : !isAgentRunning && messages.length === 0 ? (
+                    <ChatZeroState
+                      id={id}
+                      selectedSessionId={selectedSessionId}
+                    />
+                  ) : (
+                    <ChatStream
+                      isAgentRunning={isAgentRunning}
+                      isDeveloperMode={isDeveloperMode}
+                      messages={messages}
+                      onContinue={handleContinue}
+                      onModelChange={setSelectedModelURI}
+                      onRetry={handleRetry}
+                      onStartNewTask={handleStartNewTask}
+                      renderAsItems
+                      task={task}
+                    />
+                  )
+                ) : (
+                  <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
+                    <Spinner className="size-4 text-muted-foreground" />
+                  </div>
+                )
+              ) : (
+                <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
+              )}
+            </MessageScrollerContent>
+
+            <div className="flex-1" />
+
+            <div className="sticky bottom-0 flex w-full">
+              <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-4">
+                <MessageScrollerButton className="pointer-events-auto" />
               </div>
-            ) : messageError ? (
-              <Alert className="mt-4" variant="warning">
-                <AlertDescription className="flex flex-col gap-4">
-                  <div className="font-semibold">Failed to load messages</div>
-                  <div className="text-sm">
-                    {messageError.message || "Unknown error occurred"}
-                  </div>
-                  <div className="flex gap-2">
-                    <Tooltip delayDuration={0}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={handleStartNewTask}
-                          variant="secondary"
-                        >
-                          Start new task
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Starts a new task</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip delayDuration={0}>
-                      <TooltipTrigger asChild>
-                        <Button onClick={() => refetch()}>Retry</Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Retry loading messages</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            ) : !isAgentRunning && messages.length === 0 ? (
-              <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
-            ) : (
-              <ChatStream
-                isAgentRunning={isAgentRunning}
-                isDeveloperMode={isDeveloperMode}
-                messages={messages}
-                onContinue={handleContinue}
-                onModelChange={setSelectedModelURI}
-                onRetry={handleRetry}
-                onStartNewTask={handleStartNewTask}
-                task={task}
-              />
-            )
-          ) : (
-            <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
-              <Spinner className="size-4 text-muted-foreground" />
+              <div className="relative mx-auto w-full max-w-2xl px-3 pb-3">
+                {!isTutorialVisible && (
+                  <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-[20px] bg-background" />
+                )}
+                {showTutorial === undefined ? (
+                  promptInput
+                ) : (
+                  <TutorialPromptCard
+                    isDismissPending={dismissTutorial.isPending}
+                    isVisible={isTutorialVisible}
+                    onDismiss={handleDismissTutorial}
+                  >
+                    {promptInput}
+                  </TutorialPromptCard>
+                )}
+              </div>
             </div>
-          )
-        ) : (
-          <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
-        )}
+          </MessageScrollerViewport>
+        </MessageScroller>
       </div>
-
-      <div className="flex-1" />
-
-      <div className="sticky bottom-0 flex w-full">
-        {!isNearBottom && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-4">
-            <Button
-              className="pointer-events-auto rounded-full bg-background shadow-lg hover:bg-background/90"
-              onClick={() => scrollToBottom()}
-              size="icon-sm"
-              variant="secondary"
-            >
-              <CaretDownIcon className="size-3" />
-            </Button>
-          </div>
-        )}
-        <div className="relative mx-auto w-full max-w-2xl px-3 pb-3">
-          {!isTutorialVisible && (
-            <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-[20px] bg-background" />
-          )}
-          {/* undefined = server never set tutorial; skip motion overhead */}
-          {showTutorial === undefined ? (
-            promptInput
-          ) : (
-            <TutorialPromptCard
-              isDismissPending={dismissTutorial.isPending}
-              isVisible={isTutorialVisible}
-              onDismiss={handleDismissTutorial}
-            >
-              {promptInput}
-            </TutorialPromptCard>
-          )}
-        </div>
-      </div>
-    </div>
+    </MessageScrollerProvider>
   );
+}
+
+// The scroller applies "start at the end" once, but on task open the live
+// messages query briefly serves the previous task's (shorter) messages, so it
+// can pin to that stale height and never re-pin once the real, taller messages
+// swap in (leaving a long chat parked mid-scroll). Hold the view at the bottom
+// across the opening settle window; any manual scroll cancels it so we never
+// fight the user. Runs once per session (the provider is keyed by session id).
+function PinToBottomWhileOpening() {
+  const { scrollToEnd } = useMessageScroller();
+  useLayoutEffect(() => {
+    let raf = 0;
+    let frames = 0;
+    let active = true;
+    const stop = () => {
+      active = false;
+    };
+    // Any manual scroll intent cancels the opening pin so we never fight the
+    // user: wheel/touch, keyboard (Page/Arrow/Space/Home/End), and a
+    // scrollbar/pointer drag.
+    window.addEventListener("wheel", stop, { passive: true });
+    window.addEventListener("touchmove", stop, { passive: true });
+    window.addEventListener("keydown", stop);
+    window.addEventListener("pointerdown", stop, { passive: true });
+    const step = () => {
+      if (!active) {
+        return;
+      }
+      scrollToEnd({ behavior: "auto" });
+      frames += 1;
+      if (frames < 40) {
+        raf = requestAnimationFrame(step);
+      }
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      active = false;
+      cancelAnimationFrame(raf);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("touchmove", stop);
+      window.removeEventListener("keydown", stop);
+      window.removeEventListener("pointerdown", stop);
+    };
+  }, [scrollToEnd]);
+  return null;
 }

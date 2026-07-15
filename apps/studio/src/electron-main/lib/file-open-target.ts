@@ -19,6 +19,11 @@ interface FileOpenTarget {
   iconDataUrl: null | string;
 }
 
+interface PersistedCandidateEntry {
+  candidates: FileOpenCandidate[];
+  resolvedAt: number;
+}
+
 interface PersistedEntry extends FileOpenTarget {
   resolvedAt: number;
 }
@@ -45,16 +50,20 @@ const COMMON_FILE_EXTENSIONS = [
   ".pptx",
 ];
 
-// Resolution spawns helper processes and only depends on the file type, so the
-// default target is cached per extension and persisted so the first open of a
-// type is instant on later runs. Candidate lists (with many icons) are heavier
-// and only needed on demand, so they stay in memory for the session.
-const CACHE_VERSION = 2;
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_PERSISTED = 256;
+// Resolution spawns helper processes and only depends on the file type, so
+// both target and candidate results are application-wide extension caches.
+// Candidate icons make those entries larger, so they refresh more frequently.
+const CACHE_VERSION = 3;
+const TARGET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const CANDIDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_PERSISTED_CANDIDATES = 128;
+const MAX_PERSISTED_TARGETS = 256;
 const SAVE_DEBOUNCE_MS = 1000;
 
+// diskCache doubles as the "loaded" sentinel for both persisted maps: await
+// loadDiskCache() before touching diskCandidateCache.
 let diskCache: Map<string, PersistedEntry> | null = null;
+let diskCandidateCache = new Map<string, PersistedCandidateEntry>();
 let diskCacheLoad: null | Promise<Map<string, PersistedEntry>> = null;
 let saveTimer: null | ReturnType<typeof setTimeout> = null;
 const inFlightTargets = new Map<string, Promise<FileOpenTarget>>();
@@ -67,7 +76,21 @@ const PersistedEntrySchema = z.object({
   resolvedAt: z.number(),
 });
 
+const FileOpenCandidateSchema = z.object({
+  appName: z.string(),
+  appPath: z.string(),
+  iconDataUrl: z.string().nullable(),
+});
+
+const PersistedCandidateEntrySchema = z.object({
+  candidates: z.array(FileOpenCandidateSchema),
+  resolvedAt: z.number(),
+});
+
 const PersistedCacheSchema = z.object({
+  candidateEntries: z
+    .record(z.string(), PersistedCandidateEntrySchema)
+    .optional(),
   entries: z.record(z.string(), PersistedEntrySchema),
   version: z.number(),
 });
@@ -167,12 +190,15 @@ function run(argv) {
 export async function getFileOpenCandidates(
   fullPath: string,
 ): Promise<FileOpenCandidate[]> {
-  const key = path.extname(fullPath).toLowerCase() || fullPath;
+  const ext = path.extname(fullPath).toLowerCase();
+  const key = ext || fullPath;
   const existing = candidatesCache.get(key);
   if (existing) {
     return existing.catch(() => []);
   }
-  const pending = resolveCandidates(fullPath);
+  const pending = ext
+    ? getOrResolveCandidates(key, fullPath)
+    : resolveCandidates(fullPath);
   candidatesCache.set(key, pending);
   void pending.catch(() => {
     if (candidatesCache.get(key) === pending) {
@@ -210,7 +236,7 @@ export async function getFileOpenTarget(
   const cache = await loadDiskCache();
   const entry = cache.get(ext);
   if (entry) {
-    if (Date.now() - entry.resolvedAt >= CACHE_TTL_MS) {
+    if (Date.now() - entry.resolvedAt >= TARGET_CACHE_TTL_MS) {
       // Serve the cached value immediately but refresh in the background so a
       // changed default app is picked up without ever blocking the caller.
       refreshTargetInBackground(ext, fullPath);
@@ -281,6 +307,21 @@ async function getFileTypeIconDataUrl(fullPath: string) {
   }
 }
 
+async function getOrResolveCandidates(
+  key: string,
+  fullPath: string,
+): Promise<FileOpenCandidate[]> {
+  await loadDiskCache();
+  const entry = diskCandidateCache.get(key);
+  if (entry) {
+    if (Date.now() - entry.resolvedAt >= CANDIDATE_CACHE_TTL_MS) {
+      refreshCandidatesInBackground(key, fullPath);
+    }
+    return entry.candidates;
+  }
+  return resolveAndStoreCandidates(key, fullPath);
+}
+
 async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
   if (diskCache) {
     return diskCache;
@@ -290,9 +331,14 @@ async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
     try {
       const raw = await fs.readFile(cacheFilePath(), "utf8");
       const parsed = PersistedCacheSchema.parse(JSON.parse(raw));
-      if (parsed.version === CACHE_VERSION) {
+      if (parsed.version === 2 || parsed.version === CACHE_VERSION) {
         for (const [ext, entry] of Object.entries(parsed.entries)) {
           loaded.set(ext, entry);
+        }
+        for (const [key, entry] of Object.entries(
+          parsed.candidateEntries ?? {},
+        )) {
+          diskCandidateCache.set(key, entry);
         }
       }
     } catch {
@@ -343,6 +389,19 @@ async function readDesktopEntryName(desktopId: string) {
   return null;
 }
 
+function refreshCandidatesInBackground(key: string, fullPath: string) {
+  const pending = resolveAndStoreCandidates(key, fullPath);
+  void pending.then(
+    (candidates) => {
+      candidatesCache.set(key, Promise.resolve(candidates));
+    },
+    // A failed refresh changes nothing: the in-memory entry already resolved
+    // with the stale list, and the persisted entry stays past its TTL so the
+    // next session retries.
+    () => null,
+  );
+}
+
 function refreshTargetInBackground(ext: string, fullPath: string) {
   if (inFlightTargets.has(ext)) {
     return;
@@ -366,6 +425,17 @@ async function resolveAndStore(
   } finally {
     inFlightTargets.delete(ext);
   }
+}
+
+async function resolveAndStoreCandidates(
+  key: string,
+  fullPath: string,
+): Promise<FileOpenCandidate[]> {
+  const candidates = await resolveCandidates(fullPath);
+  await loadDiskCache();
+  diskCandidateCache.set(key, { candidates, resolvedAt: Date.now() });
+  scheduleSave();
+  return candidates;
 }
 
 async function resolveAssociatedApp(
@@ -513,15 +583,14 @@ async function saveDiskCache() {
   if (!diskCache) {
     return;
   }
-  let entries = [...diskCache.entries()];
-  if (entries.length > MAX_PERSISTED) {
-    entries = entries
-      .sort((a, b) => b[1].resolvedAt - a[1].resolvedAt)
-      .slice(0, MAX_PERSISTED);
-    diskCache = new Map(entries);
-  }
+  diskCache = trimToNewest(diskCache, MAX_PERSISTED_TARGETS);
+  diskCandidateCache = trimToNewest(
+    diskCandidateCache,
+    MAX_PERSISTED_CANDIDATES,
+  );
   const payload = {
-    entries: Object.fromEntries(entries),
+    candidateEntries: Object.fromEntries(diskCandidateCache),
+    entries: Object.fromEntries(diskCache),
     version: CACHE_VERSION,
   };
   try {
@@ -539,4 +608,18 @@ function scheduleSave() {
     saveTimer = null;
     void saveDiskCache();
   }, SAVE_DEBOUNCE_MS);
+}
+
+function trimToNewest<T extends { resolvedAt: number }>(
+  entries: Map<string, T>,
+  max: number,
+) {
+  if (entries.size <= max) {
+    return entries;
+  }
+  return new Map(
+    [...entries.entries()]
+      .sort((a, b) => b[1].resolvedAt - a[1].resolvedAt)
+      .slice(0, max),
+  );
 }

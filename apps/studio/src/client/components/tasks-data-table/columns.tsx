@@ -91,6 +91,7 @@ export function createColumns({
               className="flex min-w-0 items-center gap-x-2"
               openInCurrentTab
               params={{ id: task.id }}
+              preload="intent"
               to="/tasks/$id"
             >
               {isPinned && (

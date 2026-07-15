@@ -8,6 +8,7 @@ import {
   createRouter as createTanStackRouter,
 } from "@tanstack/react-router";
 
+import { shouldRestoreScroll } from "./lib/scroll-restoration";
 import { captureComponentError, capturePageView } from "./lib/telemetry";
 import { routeTree } from "./routeTree.gen";
 
@@ -28,10 +29,14 @@ function createRouter(options?: { history?: RouterHistory }) {
     defaultErrorComponent: DefaultErrorComponent,
     defaultNotFoundComponent: NotFoundRouteComponent,
     defaultOnCatch: captureComponentError,
-    defaultPreload: false, // 99% of data is local, so no preload. We preload JS for certain routs in _app/route.tsx.
+    // Preload is opt-in per link: task links pass preload="intent" so hover
+    // warms the task route's loader (local data is fast, not instant). A
+    // global default would also preload routes with mutating loaders, e.g.
+    // /tutorial-task. JS for certain routes is preloaded in _app/route.tsx.
+    defaultPreload: false,
     history: options?.history,
     routeTree,
-    scrollRestoration: true,
+    scrollRestoration: shouldRestoreScroll,
   });
 
   router.subscribe("onRendered", () => {

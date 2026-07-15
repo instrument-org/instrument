@@ -106,6 +106,7 @@ export function ProjectTaskRow({
             className="min-w-0 flex-1 truncate rounded-sm text-sm text-muted-foreground outline-none group-hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
             openInCurrentTab
             params={{ id: task.id }}
+            preload="intent"
             to="/tasks/$id"
           >
             {task.title}

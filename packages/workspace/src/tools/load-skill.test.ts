@@ -355,6 +355,31 @@ describe("LoadSkill", () => {
     );
   });
 
+  it.each([
+    ["dependencies", []],
+    ["dependencies", { example: 1 }],
+    ["optionalDependencies", []],
+    ["optionalDependencies", { example: 1 }],
+  ])("rejects an invalid %s field before copying it", async (field, value) => {
+    await createSkill({
+      extraFiles: {
+        "package.json": JSON.stringify({ [field]: value }),
+      },
+      name: "invalid-dependencies",
+    });
+
+    const result = await runTool(LoadSkill, {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "invalid-dependencies" },
+    });
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().message).toBe(
+      'Skill "invalid-dependencies" has an invalid ' +
+        `${field} field in package.json.`,
+    );
+  });
+
   it("does not install Node dependencies for a development-only manifest", async () => {
     const { runPnpmCommand } = await import("../lib/run-pnpm");
     await createSkill({

@@ -71,16 +71,22 @@ export function FileActionsMenu({
 }
 
 export function FileActionsMenuItems({
+  canCopy = true,
   file,
   menuComponents,
   onAddToChat,
 }: {
+  // Overrides showCopy to false when the preview couldn't actually be decoded
+  // (e.g. a TIFF Chromium can't render) even though the file's mime type would
+  // otherwise mark it copyable.
+  canCopy?: boolean;
   file: TaskFileViewerFile;
   menuComponents: MenuComponents;
   onAddToChat?: () => void;
 }) {
   const { Item, Separator } = menuComponents;
   const fileActions = useFileActionVisibility(file);
+  const showCopy = fileActions.showCopy && canCopy;
   const openTaskFile = useOpenTaskFile();
   const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
 
@@ -123,10 +129,7 @@ export function FileActionsMenuItems({
   };
 
   const hasFileActions =
-    showOpen ||
-    fileActions.showCopy ||
-    fileActions.showDownload ||
-    fileActions.showReveal;
+    showOpen || showCopy || fileActions.showDownload || fileActions.showReveal;
 
   if (!onAddToChat && !hasFileActions) {
     return null;
@@ -159,7 +162,7 @@ export function FileActionsMenuItems({
           {hasFileActions && <Separator />}
         </>
       )}
-      {fileActions.showCopy && (
+      {showCopy && (
         <Item onClick={() => void handleCopy()}>
           {copied ? (
             <CheckIcon className="size-4" />
@@ -175,8 +178,9 @@ export function FileActionsMenuItems({
           <span>Download</span>
         </Item>
       )}
-      {(fileActions.showCopy || fileActions.showDownload) &&
-        fileActions.showReveal && <Separator />}
+      {(showCopy || fileActions.showDownload) && fileActions.showReveal && (
+        <Separator />
+      )}
       {fileActions.showReveal && (
         <Item onClick={handleRevealInFolder}>
           <RevealInFolderIcon className="size-4" />

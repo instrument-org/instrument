@@ -244,10 +244,12 @@ function ImagePreviewCard({
   const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const openControl = useTaskFileOpenControl(
     resolveOpenTarget ? file : undefined,
   );
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
+  const showCopy = fileActions.showCopy && !imageLoadError;
 
   const handleCopy = async () => {
     try {
@@ -264,11 +266,12 @@ function ImagePreviewCard({
 
   const hasActions =
     !hideActionsMenu &&
-    (fileActions.showCopy || fileActions.showDownload || openControl.showOpen);
+    (showCopy || fileActions.showDownload || openControl.showOpen);
 
   return (
     <MediaCardShell
       aspectRatio="square"
+      canCopy={!imageLoadError}
       file={file}
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
@@ -279,7 +282,7 @@ function ImagePreviewCard({
       overlayActions={
         hasActions ? (
           <>
-            {fileActions.showCopy && (
+            {showCopy && (
               <MediaOverlayButton
                 icon={
                   copied ? (
@@ -329,6 +332,9 @@ function ImagePreviewCard({
           className="max-h-full max-w-full object-contain"
           fallbackClassName="size-full"
           filename={filename}
+          onError={() => {
+            setImageLoadError(true);
+          }}
           showCheckerboard
           src={url}
         />

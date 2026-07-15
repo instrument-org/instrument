@@ -423,7 +423,7 @@ export function FileViewer({
             size="sm"
             variant="ghost"
           />
-          {fileActions.showCopy && (
+          {fileActions.showCopy && !imageLoadError && (
             <Button
               className={fileViewerHeaderActionClassName}
               onClick={() => void handleCopy()}

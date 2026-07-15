@@ -1,10 +1,19 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { ArrowLineDownIcon } from "@phosphor-icons/react";
+import { type ReactNode } from "react";
 
+import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
 import { OpenTaskFileButton } from "./open-task-file-button";
 import { Button } from "./ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "./ui/context-menu";
+import { contextMenuComponents } from "./ui/menu-components";
 
 export function FilePreviewFallback({
   fallbackExtension,
@@ -13,7 +22,7 @@ export function FilePreviewFallback({
   onDownload,
 }: {
   fallbackExtension?: string;
-  file?: Pick<TaskFileViewerFile, "filePath" | "taskId">;
+  file?: TaskFileViewerFile;
   filename: string;
   onDownload?: () => void;
 }) {
@@ -22,7 +31,7 @@ export function FilePreviewFallback({
   // error, so only promote open over download when an app is known.
   const canOpen = openControl.showOpen;
 
-  return (
+  const content = (
     <div className="flex w-full max-w-md flex-col items-center justify-center gap-4 p-8 text-center text-foreground">
       <div className="flex h-20 w-16 items-center justify-center rounded-lg bg-accent text-muted-foreground">
         <FileIcon
@@ -53,5 +62,47 @@ export function FilePreviewFallback({
         )
       )}
     </div>
+  );
+
+  if (!file) {
+    return content;
+  }
+
+  return (
+    <FilePreviewFallbackContextMenu file={file}>
+      {content}
+    </FilePreviewFallbackContextMenu>
+  );
+}
+
+// Rendering this component already means no preview could be produced, so there is
+// no decoded image/text data to put on the clipboard -- Copy stays hidden here
+// regardless of mime type, while file-level actions (download, reveal, open) still
+// operate on the underlying bytes and remain available.
+function FilePreviewFallbackContextMenu({
+  children,
+  file,
+}: {
+  children: ReactNode;
+  file: TaskFileViewerFile;
+}) {
+  const fileActions = useFileActionVisibility(file);
+  const hasFileActions = fileActions.showDownload || fileActions.showReveal;
+
+  if (!hasFileActions) {
+    return children;
+  }
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger className="contents">{children}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <FileActionsMenuItems
+          canCopy={false}
+          file={file}
+          menuComponents={contextMenuComponents}
+        />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

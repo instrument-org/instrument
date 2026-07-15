@@ -8,10 +8,8 @@ import { dedent } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { type TaskId } from "../../schemas/task-id";
-import { absolutePathJoin } from "../absolute-path-join";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
-import { taskDir } from "../task-dir-utils";
 import { createTsCommand, TS_COMMAND } from "./ts";
 import { resolveCommandContext } from "./utils";
 
@@ -161,7 +159,9 @@ export function createPnpmCommand(taskId: TaskId) {
 
     const env = Object.fromEntries(ctx.env);
 
-    const cwd = absolutePathJoin(taskDir(taskId), ctx.cwd);
+    // Map the virtual cwd to its real host dir via the shared bridge so pnpm
+    // runs in the right place regardless of where the task is mounted.
+    const { taskCwd: cwd } = resolveCommandContext(taskId, ctx);
 
     // The runnable workspace lives in `work/`; there is no manifest at the task
     // root. Fail fast with guidance instead of pnpm's opaque

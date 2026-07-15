@@ -154,24 +154,27 @@ describe("SessionMessage.toModelMessages", () => {
         parts: [
           {
             callProviderMetadata: undefined,
-            input: { agent_type: "retrieval", prompt: "Test task" },
+            input: { command: "sleep 5", explanation: "Test command", timeoutMs: 5000 },
             metadata: {
               createdAt: mockDate,
               endedAt: new Date("2024-01-01T10:01:00Z"),
               id: StoreId.newPartId(),
               messageId: assistantMessageId,
               sessionId,
-              toolName: "agent",
+              toolName: "bash",
             },
             output: {
-              sessionId,
-              status: "running",
+              command: "sleep 5",
+              commands: ["sleep"],
+              durationMs: 0,
+              exitCode: 0,
+              output: "",
             },
             preliminary: true,
             providerExecuted: true,
             state: "output-available",
             toolCallId,
-            type: "tool-agent",
+            type: "tool-bash",
           },
         ],
         role: "assistant",
@@ -189,21 +192,24 @@ describe("SessionMessage.toModelMessages", () => {
           "content": [
             {
               "input": {
-                "agent_type": "retrieval",
-                "prompt": "Test task",
+                "command": "sleep 5",
+                "explanation": "Test command",
+                "timeoutMs": 5000,
               },
               "providerExecuted": true,
               "toolCallId": "call_789",
-              "toolName": "agent",
+              "toolName": "bash",
               "type": "tool-call",
             },
             {
               "output": {
                 "type": "text",
-                "value": "Agent was stopped before it completed. Some tools may have been executed.",
+                "value": "Exit code: 0
+
+      Duration: 0 ms",
               },
               "toolCallId": "call_789",
-              "toolName": "agent",
+              "toolName": "bash",
               "type": "tool-result",
             },
           ],

@@ -106,19 +106,6 @@ export async function newMessage({
     parts.push(externalChanges.value);
   }
 
-  // Notify agent of folders removed since last turn (per-session baseline diff).
-  const folderChanges = await detectAttachedFolderChanges({
-    messageId,
-    sessionId,
-    taskId,
-  });
-  if (folderChanges.isErr()) {
-    // Awareness of folder removals is best-effort; never block sending.
-    getWorkspaceConfig().captureException(folderChanges.error);
-  } else if (folderChanges.value) {
-    parts.push(folderChanges.value);
-  }
-
   // Notify agent when the live project's instructions or folders drift from the
   // task's frozen snapshot. Also writes folder additions/removals into task
   // state so they become standing context.
@@ -132,6 +119,22 @@ export async function newMessage({
     getWorkspaceConfig().captureException(projectChanges.error);
   } else if (projectChanges.value) {
     parts.push(projectChanges.value);
+  }
+
+  // Notify agent of folders removed or renamed since last turn (per-session
+  // baseline diff). Runs after writeUploadedAttachments/detectProjectChanges
+  // above so a rename either of them triggers this message is read as part of
+  // "current" and reported now instead of lagging a turn behind.
+  const folderChanges = await detectAttachedFolderChanges({
+    messageId,
+    sessionId,
+    taskId,
+  });
+  if (folderChanges.isErr()) {
+    // Awareness of folder changes is best-effort; never block sending.
+    getWorkspaceConfig().captureException(folderChanges.error);
+  } else if (folderChanges.value) {
+    parts.push(folderChanges.value);
   }
 
   const message: SessionMessage.UserWithParts = {

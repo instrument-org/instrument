@@ -3,14 +3,12 @@ import {
   type Task,
 } from "@instrument-org/workspace/client";
 
-import { type RenderStream, ToolAgent } from "./tool-agent";
 import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallSessionProvider } from "./tool-call-session";
 import { ToolCallSummary } from "./tool-call-summary";
 import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
-import { ToolCopyToTask } from "./tool-copy-to-task";
 import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolGlob } from "./tool-glob";
@@ -29,7 +27,6 @@ export function ToolCall({
   isStreaming,
   onRetry,
   part,
-  renderStream,
   task,
 }: {
   assetBaseUrl: string;
@@ -39,7 +36,6 @@ export function ToolCall({
   isStreaming: boolean;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  renderStream: RenderStream;
   task: Task;
 }) {
   if (!isToolCallVisible({ isDeveloperMode, isStreaming, part })) {
@@ -67,7 +63,6 @@ export function ToolCall({
             assetBaseUrl={assetBaseUrl}
             onRetry={onRetry}
             part={part}
-            renderStream={renderStream}
             task={task}
           />
         )}
@@ -97,13 +92,11 @@ function ToolCallBody({
   assetBaseUrl,
   onRetry,
   part,
-  renderStream,
   task,
 }: {
   assetBaseUrl: string;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  renderStream: RenderStream;
   task: Task;
 }) {
   if (part.state === "output-error") {
@@ -111,17 +104,11 @@ function ToolCallBody({
   }
 
   switch (part.type) {
-    case "tool-agent": {
-      return <ToolAgent part={part} renderStream={renderStream} task={task} />;
-    }
     case "tool-bash": {
       return <ToolBash assetBaseUrl={assetBaseUrl} part={part} />;
     }
     case "tool-choose": {
       return <ToolChoose part={part} />;
-    }
-    case "tool-copy_to_task": {
-      return <ToolCopyToTask part={part} />;
     }
     case "tool-edit_file": {
       return <ToolEditFile id={task.id} part={part} />;

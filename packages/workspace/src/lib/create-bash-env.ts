@@ -5,13 +5,13 @@ import {
   defineCommand,
   getCommandNames,
   getNetworkCommandNames,
-  ReadWriteFs,
   type ScriptNode,
   type StatementNode,
   type TransformPlugin,
 } from "just-bash";
 import { dedent } from "radashi";
 
+import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
@@ -53,6 +53,11 @@ import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import { createWhichCommand } from "./shell-commands/which";
 import { taskDir } from "./task-dir-utils";
+import {
+  buildBashFs,
+  buildWorkspaceFsLayout,
+  TASK_MOUNT_POINT,
+} from "./workspace-fs-layout";
 
 // cspell:ignore mixmark
 
@@ -298,21 +303,35 @@ export function createBashDescription() {
 
     IMPORTANT: This is a unix-like (POSIX) shell, regardless of the host OS.
 
+    IMPORTANT: Folders the user attaches appear as read-only mounts under
+    \`/mnt/\` (one directory per folder). You can read, list, and search them
+    (\`ls\`, \`cat\`, \`grep\`, \`find\`) but cannot write into them -- any write,
+    or a script/command that outputs into \`/mnt/\`, fails with EROFS. They live
+    outside the task root, so address them by their \`/mnt/...\` path. To modify
+    or process an attached file, copy it into the task first (e.g.
+    \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
+
     IMPORTANT: Python is available via the specialized
     \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\`
     commands below (backed by a per-task virtualenv in work/.venv), and
     TypeScript/JavaScript via the specialized \`${TS_COMMAND.name}\` command. If a
     system command is unavailable, don't keep probing for equivalent binaries
     -- a short script can usually do the job, and a missing command does not
-    mean the task is impossible.
+    mean the task is impossible. Inside script code run by these commands, use
+    task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are
+    translated for them, but virtual paths like \`${TASK_MOUNT_POINT}/...\` or
+    \`/mnt/...\` embedded in source code are not.
 
     IMPORTANT: \`npm\` is NOT available. Use \`${PNPM_COMMAND.name}\` for all
     package management.
 
     IMPORTANT: Not a persistent terminal -- each call starts fresh from the
-    task root, so \`cd .\` is always a no-op. Shell state (env vars, exported
-    functions, cwd) does NOT carry across calls; to run somewhere else, prefix
-    your command (\`cd subdir && ...\`) within a single call.
+    task root (\`${TASK_MOUNT_POINT}\`, your working directory), so \`cd .\` is
+    always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only
+    \`${TASK_MOUNT_POINT}\` and the \`/mnt\` mounts exist; writing anywhere else
+    (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env
+    vars, exported functions, cwd) does NOT carry across calls; to run somewhere
+    else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Backgrounding is NOT supported. Each call must complete within
     \`timeoutMs\`.
@@ -348,19 +367,27 @@ export function createBashDescription() {
   `.trim();
 }
 
-export function createBashEnv({
+export async function createBashEnv({
+  attachedFolders,
   sessionId,
   taskId,
   upsertContextItem,
 }: {
+  attachedFolders?: Record<string, FolderAttachment.Type>;
   sessionId: StoreId.Session;
   taskId: TaskId;
   upsertContextItem: UpsertContextItem;
 }) {
-  const fs = new ReadWriteFs({
-    maxFileReadSize: SANDBOX_MAX_BYTES,
-    root: taskDir(taskId),
+  // The layout is the single source of truth for what the agent can see: the
+  // writable task directory mounted at /task (the working directory) plus any
+  // read-only user-attached folders under /mnt. The bash interpreter, the
+  // native-binary path bridge, and the dedicated file tools all route through
+  // it so they agree on virtual<->real mapping.
+  const layout = buildWorkspaceFsLayout({
+    attachedFolders,
+    taskHostRoot: taskDir(taskId),
   });
+  const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });
 
   const allowedCommands = [
     ...getCommandNames(),
@@ -387,7 +414,7 @@ export function createBashEnv({
       ),
       ...STATIC_STUB_COMMANDS,
     ],
-    cwd: "/",
+    cwd: TASK_MOUNT_POINT,
     executionLimits: {
       maxOutputSize: SANDBOX_MAX_BYTES,
       maxStringLength: SANDBOX_MAX_BYTES,

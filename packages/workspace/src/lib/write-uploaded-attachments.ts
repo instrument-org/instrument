@@ -17,6 +17,7 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { absolutePathJoin } from "./absolute-path-join";
+import { assignFolderNames } from "./assign-folder-names";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
@@ -112,33 +113,32 @@ export async function writeUploadedAttachments({
 
     if (folders && folders.length > 0) {
       const taskState = await getTaskState(dir);
-      const existingFolders = taskState.attachedFolders ?? {};
+      const existingFolders = Object.values(taskState.attachedFolders ?? {});
 
-      const newFolders: Record<string, FolderAttachment.Type> = {};
+      const newFolders: FolderAttachment.Type[] = folders.map((folder) => ({
+        createdAt: getCurrentDate().getTime(),
+        id: FolderAttachment.IdSchema.parse(ulid()),
+        name: "",
+        path: AbsolutePathSchema.parse(folder.path),
+        source: folder.source ?? "user",
+      }));
 
-      for (const folder of folders) {
-        const baseName = path.basename(folder.path) || folder.path;
-        const uniqueName = getUniqueFolderName(
-          baseName,
-          existingFolders,
-          newFolders,
-        );
+      const allFolders = [...existingFolders, ...newFolders].sort(
+        (a, b) => a.createdAt - b.createdAt,
+      );
+      const names = assignFolderNames(allFolders);
 
-        const folderAttachment: FolderAttachment.Type = {
-          createdAt: getCurrentDate().getTime(),
-          id: FolderAttachment.IdSchema.parse(ulid()),
-          name: uniqueName,
-          path: AbsolutePathSchema.parse(folder.path),
-          source: folder.source ?? "user",
-        };
-
-        newFolders[uniqueName] = folderAttachment;
-        folderAttachments.push(folderAttachment);
+      const nextFolders: Record<string, FolderAttachment.Type> = {};
+      for (const folder of allFolders) {
+        const name = names.get(folder.id) ?? folder.name;
+        nextFolders[name] = { ...folder, name };
       }
+      await setTaskState(dir, { attachedFolders: nextFolders });
 
-      await setTaskState(dir, {
-        attachedFolders: { ...existingFolders, ...newFolders },
-      });
+      for (const folder of newFolders) {
+        const name = names.get(folder.id) ?? folder.name;
+        folderAttachments.push({ ...folder, name });
+      }
     }
 
     const fileMetadata: SessionMessageDataPart.FileAttachmentDataPart[] =
@@ -183,22 +183,6 @@ async function getUniqueFilename(
     startAt: 1,
   });
   return name;
-}
-
-function getUniqueFolderName(
-  baseName: string,
-  existingFolders: Record<string, FolderAttachment.Type>,
-  newFolders: Record<string, FolderAttachment.Type>,
-): string {
-  let candidate = baseName;
-  let counter = 1;
-
-  while (candidate in existingFolders || candidate in newFolders) {
-    candidate = `${baseName}-${counter}`;
-    counter++;
-  }
-
-  return candidate;
 }
 
 function prepareUploadedFiles({

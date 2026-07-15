@@ -20,6 +20,7 @@ import {
   resolveExistingFilePath,
 } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -131,28 +132,22 @@ async function handleMediaFile({
 }
 
 export const ReadFile = setupTool({
-  inputSchema: (agentName) => {
-    const pathDescription =
-      agentName === "retrieval"
-        ? "Absolute path to the file to read (must be within an attached folder)"
-        : "Relative path to the file to read";
-
-    return BaseInputSchema.extend({
-      [INPUT_PARAMS.filePath]: z
-        .string()
-        .meta({ description: pathDescription }),
-      [INPUT_PARAMS.limit]: z
-        .number()
-        .optional()
-        .meta({
-          description: `The number of lines to read (defaults to ${DEFAULT_READ_LIMIT})`,
-        }),
-      [INPUT_PARAMS.offset]: z.number().optional().meta({
-        description:
-          "The line number to start reading from (1-based, defaults to 1)",
+  inputSchema: BaseInputSchema.extend({
+    [INPUT_PARAMS.filePath]: z.string().meta({
+      description:
+        "Relative path to the file to read, or a read-only attached-folder mount path (/mnt/<name>/...)",
+    }),
+    [INPUT_PARAMS.limit]: z
+      .number()
+      .optional()
+      .meta({
+        description: `The number of lines to read (defaults to ${DEFAULT_READ_LIMIT})`,
       }),
-    });
-  },
+    [INPUT_PARAMS.offset]: z.number().optional().meta({
+      description:
+        "The line number to start reading from (1-based, defaults to 1)",
+    }),
+  }),
   name: "read_file",
   outputSchema: z.discriminatedUnion("state", [
     z.object({
@@ -214,33 +209,28 @@ export const ReadFile = setupTool({
     }),
   ]),
 }).create({
-  description: ({ agentName }) => {
-    const pathExample =
-      agentName === "retrieval"
-        ? "/path/to/some/file.txt"
-        : `./${TASK_FOLDER_NAMES.attachments}/upload.txt`;
+  description: dedent`
+    Reads a file from the task, including read-only folders the user attached (mounted under /mnt/<name>/). You can access any file directly by using this tool.
 
-    return dedent`
-      Reads a file from the ${agentName === "retrieval" ? "attached folders" : "app directory"}. You can access any file directly by using this tool.
-
-      Usage:
-      - The ${INPUT_PARAMS.filePath} parameter must be ${agentName === "retrieval" ? "an absolute path to a file within one of the attached folders" : "a relative path to a file"}. E.g. ${pathExample}
-      - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file.
-      - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
-      - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.
-      - Any lines longer than ${MAX_LINE_LENGTH} characters will be truncated.
-      - Results are returned using cat -n format, with line numbers starting at the ${INPUT_PARAMS.offset} or 1.
-      - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful. 
-      - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
-      - You can read images, PDFs, audio files, and video files by using this tool.
-    `;
-  },
-  execute: async ({ agentName, input, signal, taskId, taskState }) => {
-    const pathResult = resolveExistingFilePath({
-      agentName,
+    Usage:
+    - The ${INPUT_PARAMS.filePath} parameter must be a relative path to a file in the task, or an attached folder's read-only mount path (/mnt/<name>/...). E.g. ./${TASK_FOLDER_NAMES.attachments}/upload.txt
+    - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file.
+    - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
+    - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.
+    - Any lines longer than ${MAX_LINE_LENGTH} characters will be truncated.
+    - Results are returned using cat -n format, with line numbers starting at the ${INPUT_PARAMS.offset} or 1.
+    - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
+    - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
+    - You can read images, PDFs, audio files, and video files by using this tool.
+  `,
+  execute: async ({ input, signal, taskId, taskState }) => {
+    const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
-      dir: taskDir(taskId),
+      taskHostRoot: taskDir(taskId),
+    });
+    const pathResult = resolveExistingFilePath({
       inputPath: input.filePath,
+      layout,
     });
 
     if (pathResult.isErr()) {
@@ -253,7 +243,6 @@ export const ReadFile = setupTool({
     if (!exists) {
       const suggestions = await getSimilarPathSuggestions({
         absolutePath,
-        agentName,
         displayPath,
       });
 

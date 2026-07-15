@@ -1,5 +1,4 @@
 import { ok, safeTry } from "neverthrow";
-import nodePath from "node:path";
 import { ulid } from "ulid";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
@@ -7,6 +6,7 @@ import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import { assignFolderNames } from "./assign-folder-names";
 import { getEffectiveProjectContext } from "./effective-project-context";
 import { getCurrentDate } from "./get-current-date";
 import { getProject } from "./project";
@@ -23,8 +23,12 @@ import { getTaskState, setTaskState } from "./task-state-store";
  * they become standing context; the returned `data-projectChanges` part is the
  * one-time announcement. Because instructions are read from the latest change
  * part and folders from task state, an already-reported change won't re-announce
- * on the next message. Returns undefined for non-project tasks, the first
- * message (snapshot not yet persisted), a deleted project, or no change.
+ * on the next message. Names for the whole surviving+new folder set are
+ * recomputed on every run, even with nothing added/removed -- cheap and
+ * idempotent, so it also corrects any folder named under an earlier version of
+ * assignFolderNames without a separate migration. Returns undefined for
+ * non-project tasks, the first message (snapshot not yet persisted), a deleted
+ * project, or no change.
  */
 export function detectProjectChanges({
   messageId,
@@ -77,16 +81,16 @@ export function detectProjectChanges({
       );
 
       const foldersRemoved: { name: string; path: string }[] = [];
-      const nextFolders: Record<string, FolderAttachment.Type> = {};
-      for (const [key, folder] of Object.entries(attachedFolders)) {
+      const survivingFolders: FolderAttachment.Type[] = [];
+      for (const folder of Object.values(attachedFolders)) {
         if (folder.source === "project" && !liveFolderPaths.has(folder.path)) {
           foldersRemoved.push({ name: folder.name, path: folder.path });
-          continue;
+        } else {
+          survivingFolders.push(folder);
         }
-        nextFolders[key] = folder;
       }
 
-      const foldersAdded: { name: string; path: string }[] = [];
+      const newFolders: FolderAttachment.Type[] = [];
       for (const folderPath of project.folders) {
         if (currentProjectPaths.has(folderPath)) {
           continue;
@@ -95,29 +99,46 @@ export function detectProjectChanges({
         if (!parsedPath.success) {
           continue;
         }
-        const baseName = nodePath.basename(folderPath) || folderPath;
-        const name = uniqueFolderName(baseName, nextFolders);
-        nextFolders[name] = {
+        newFolders.push({
           createdAt: getCurrentDate().getTime(),
           id: FolderAttachment.IdSchema.parse(ulid()),
-          name,
+          name: "",
           path: parsedPath.data,
           source: "project",
-        };
-        foldersAdded.push({ name, path: folderPath });
+        });
       }
 
-      if (
-        !instructionsChanged &&
-        foldersAdded.length === 0 &&
-        foldersRemoved.length === 0
-      ) {
+      // Any correction here reaches the agent via detectAttachedFolderChanges,
+      // which reads task state after this runs (see new-message.ts ordering).
+      const allFolders = [...survivingFolders, ...newFolders].sort(
+        (a, b) => a.createdAt - b.createdAt,
+      );
+      const names = assignFolderNames(allFolders);
+
+      const nextFolders: Record<string, FolderAttachment.Type> = {};
+      let stateChanged = foldersRemoved.length > 0;
+      for (const folder of allFolders) {
+        const name = names.get(folder.id) ?? folder.name;
+        if (name !== folder.name) {
+          stateChanged = true;
+        }
+        nextFolders[name] = { ...folder, name };
+      }
+
+      if (!instructionsChanged && !stateChanged) {
         return ok(undefined);
       }
 
-      if (foldersAdded.length > 0 || foldersRemoved.length > 0) {
+      if (stateChanged) {
         await setTaskState(dir, { attachedFolders: nextFolders });
       }
+
+      const foldersAdded: { name: string; path: string }[] = newFolders.map(
+        (folder) => ({
+          name: names.get(folder.id) ?? folder.path,
+          path: folder.path,
+        }),
+      );
 
       return ok({
         data: {
@@ -138,17 +159,4 @@ export function detectProjectChanges({
       } satisfies SessionMessagePart.Type);
     },
   );
-}
-
-function uniqueFolderName(
-  baseName: string,
-  folders: Record<string, FolderAttachment.Type>,
-): string {
-  let candidate = baseName;
-  let counter = 1;
-  while (candidate in folders) {
-    candidate = `${baseName}-${counter}`;
-    counter++;
-  }
-  return candidate;
 }

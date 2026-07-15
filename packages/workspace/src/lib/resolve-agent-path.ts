@@ -1,22 +1,24 @@
 import { ok } from "neverthrow";
-import { accessSync, constants } from "node:fs";
+import { accessSync, constants, realpathSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { type AgentName, RETRIEVAL_AGENT_NAME } from "../agents/types";
-import { type FolderAttachment } from "../schemas/folder-attachment";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
-  type TaskDir,
+  RelativePathSchema,
 } from "../schemas/paths";
-import { Agent } from "../tools/agent";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
+import { pathIsWithin } from "./path-is-within";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
-import { validateAttachedFolderPath } from "./validate-attached-folder-path";
+import {
+  resolveHostPath,
+  TASK_MOUNT_POINT,
+  type WorkspaceFsLayout,
+} from "./workspace-fs-layout";
 
 const NARROW_NO_BREAK_SPACE = "\u202F";
 
@@ -68,11 +70,9 @@ export function applyUnicodeFallbacks(
 
 export async function getSimilarPathSuggestions({
   absolutePath,
-  agentName,
   displayPath,
 }: {
   absolutePath: AbsolutePath;
-  agentName: AgentName;
   displayPath: string;
 }) {
   try {
@@ -97,14 +97,9 @@ export async function getSimilarPathSuggestions({
           entryWithoutExt.toLowerCase() === baseWithoutExt.toLowerCase()
         );
       })
-      .map((entry) => {
-        if (agentName === "retrieval") {
-          // For retrieval agent, return absolute paths
-          return path.join(dir, entry);
-        }
-        // For normal agent, return relative paths
-        return normalizePath(path.join(path.dirname(displayPath), entry));
-      })
+      .map((entry) =>
+        normalizePath(path.join(path.dirname(displayPath), entry)),
+      )
       .slice(0, 3);
 
     return suggestions;
@@ -113,54 +108,32 @@ export async function getSimilarPathSuggestions({
   }
 }
 
+/**
+ * Resolve a read-path input against the workspace layout. Accepts task-relative
+ * paths, the task's own virtual paths (/task/...), and attached-folder mount
+ * paths (/mnt/<name>/...). Any other absolute path is an error that steers the
+ * agent back into the layout.
+ *
+ * Returns `{ absolutePath, displayPath, attachedMount }`:
+ * - `absolutePath` — real host path; use for all file I/O.
+ * - `displayPath` — what to echo back to the agent: task-relative for the task
+ *   (./work/...), the virtual mount path for attached folders (/mnt/...).
+ * - `attachedMount` — the attached mount that owns the path, or null when the
+ *   path is in the task. Callers that emit host paths (glob/grep results) must
+ *   map them back through resolveVirtualPath when this is set.
+ */
 export function resolveAgentPath(options: {
-  agentName: AgentName;
-  attachedFolders?: Record<string, FolderAttachment.Type>;
-  dir: TaskDir;
   inputPath?: string;
   isRequired?: boolean;
+  layout: WorkspaceFsLayout;
 }) {
-  const {
-    agentName,
-    attachedFolders,
-    dir,
-    inputPath,
-    isRequired = true,
-  } = options;
+  const { inputPath, isRequired = true, layout } = options;
 
-  // Retrieval agent ALWAYS requires a path - it cannot operate in the current folder
-  if (agentName === "retrieval") {
-    if (!inputPath?.trim()) {
-      const folderList = attachedFolders
-        ? Object.values(attachedFolders)
-            .map((f) => `  - ${f.name}: ${f.path}`)
-            .join("\n")
-        : "";
-      const message = folderList
-        ? `Must specify a path parameter. Available folders:\n${folderList}`
-        : "Must specify an absolute path to an attached folder";
-      return executeError(message);
-    }
-
-    const trimmedPath = inputPath.trim();
-    const pathResult = attachedFolders
-      ? validateAttachedFolderPath(trimmedPath, attachedFolders)
-      : executeError("No attached folders available");
-
-    if (pathResult.isErr()) {
-      return pathResult;
-    }
-    return ok({
-      absolutePath: pathResult.value,
-      displayPath: trimmedPath,
-    });
-  }
-
-  // Non-retrieval agents: handle optional paths
   if (!inputPath?.trim()) {
     if (!isRequired) {
       return ok({
-        absolutePath: dir,
+        absolutePath: layout.task.hostRoot,
+        attachedMount: null,
         displayPath: "./",
       });
     }
@@ -168,20 +141,15 @@ export function resolveAgentPath(options: {
   }
 
   const trimmedPath = inputPath.trim();
-
-  if (path.isAbsolute(trimmedPath) && attachedFolders) {
-    const matchingFolder = Object.values(attachedFolders).find((folder) =>
-      trimmedPath.startsWith(folder.path),
-    );
-    if (matchingFolder) {
-      return executeError(
-        `The path "${trimmedPath}" is within the attached folder "${matchingFolder.name}". ` +
-          `Use the ${Agent.name} tool with agent_type "${RETRIEVAL_AGENT_NAME}" to access files from attached folders.`,
-      );
-    }
+  if (path.isAbsolute(trimmedPath)) {
+    return resolveVirtualAbsolutePath(layout, trimmedPath);
   }
 
-  return resolveToolPath(dir, trimmedPath);
+  const result = resolveToolPath(layout, trimmedPath);
+  if (result.isErr()) {
+    return result;
+  }
+  return ok({ ...result.value, attachedMount: null });
 }
 
 /**
@@ -190,43 +158,30 @@ export function resolveAgentPath(options: {
  * an already-existing file (read, edit). Do not use for writes/creates.
  */
 export function resolveExistingFilePath(options: {
-  agentName: AgentName;
-  attachedFolders?: Record<string, FolderAttachment.Type>;
-  dir: TaskDir;
   inputPath?: string;
+  layout: WorkspaceFsLayout;
 }) {
   const result = resolveAgentPath({ ...options, isRequired: true });
   if (result.isErr()) {
     return result;
   }
-  const { absolutePath, displayPath } = result.value;
   return ok({
-    absolutePath: applyUnicodeFallbacks(absolutePath),
-    displayPath,
+    ...result.value,
+    absolutePath: applyUnicodeFallbacks(result.value.absolutePath),
   });
 }
 
 /**
- * Resolves a raw agent-provided path string to a validated absolute path
- * within the task directory, plus the normalized display path.
+ * Resolve a raw agent-provided path to a validated absolute path within the
+ * task directory, plus the normalized display path. Rewrites sloppy input
+ * ("work/x", "/work/x") into task-relative form and rejects traversal out of
+ * the task, including Windows-style "./subdir\\..\\.." on all platforms.
  *
- * This is the standard entry point for every agent tool execute() function
- * that accepts a file path input. It combines:
- * 1. Format validation (ensureRelativePath) — rejects absolute paths and
- *    obviously malformed input.
- * 2. Containment check (resolvePathWithinTaskDir) — normalizes backslash
- *    separators then verifies the resolved path stays inside dir, so
- *    Windows-style traversal like "./subdir\\..\\.." is rejected on all
- *    platforms.
- *
- * Returns `{ absolutePath, displayPath }` on success:
- * - `absolutePath` — use for all file I/O operations.
- * - `displayPath` — use in tool output shown to the agent.
- *
- * For retrieval-agent / attached-folder paths use resolveAgentPath.
- * For reads where the file must already exist use resolveExistingFilePath.
+ * This is the relative-only resolver: virtual absolute paths (/task, /mnt)
+ * never reach it from resolveAgentPath/resolveWritableToolPath, which
+ * pre-handle them against the layout.
  */
-export function resolveToolPath(dir: TaskDir, inputPath: string) {
+export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
   const fixedPathResult = ensureRelativePath(inputPath);
   if (fixedPathResult.isErr()) {
     return fixedPathResult;
@@ -234,7 +189,7 @@ export function resolveToolPath(dir: TaskDir, inputPath: string) {
   const displayPath = fixedPathResult.value;
 
   const absolutePath = resolvePathWithinTaskDir({
-    dir,
+    dir: layout.task.hostRoot,
     filePath: displayPath,
   });
   if (!absolutePath) {
@@ -244,6 +199,66 @@ export function resolveToolPath(dir: TaskDir, inputPath: string) {
   return ok({ absolutePath, displayPath });
 }
 
+/**
+ * Resolve a write-path input against the workspace layout. Task-relative paths
+ * and the task's own virtual paths (/task/...) resolve normally; read-only
+ * mounts are rejected with copy-into-task guidance instead of silently landing
+ * somewhere else. A writable non-task mount (none today) would be allowed by
+ * its mount's readOnly flag, not by a special case here.
+ */
+export function resolveWritableToolPath(options: {
+  inputPath: string;
+  layout: WorkspaceFsLayout;
+}) {
+  const { inputPath, layout } = options;
+  const trimmedPath = inputPath.trim();
+
+  if (!path.isAbsolute(trimmedPath)) {
+    return resolveToolPath(layout, trimmedPath);
+  }
+
+  const result = resolveVirtualAbsolutePath(layout, trimmedPath);
+  if (result.isErr()) {
+    return result;
+  }
+  const { absolutePath, attachedMount, displayPath } = result.value;
+  if (attachedMount?.readOnly) {
+    return executeError(
+      `"${displayPath}" is in a read-only attached folder and cannot be written. ` +
+        `Copy the file into the task first (e.g. cp '${displayPath}' attachments/) and work on the copy.`,
+    );
+  }
+  return ok({ absolutePath, displayPath });
+}
+
+/**
+ * True when `hostPath`, after resolving symlinks, lands outside `hostRoot`.
+ * Mirrors the bash sandbox's refusal to follow symlinks out of a mount. A path
+ * that does not yet exist (or a missing root) is not an escape -- there is
+ * nothing to read, so normal not-found handling applies.
+ */
+function escapesMountRoot(
+  hostPath: AbsolutePath,
+  hostRoot: AbsolutePath,
+): boolean {
+  let canonicalRoot: string;
+  try {
+    canonicalRoot = realpathSync(hostRoot);
+  } catch {
+    return false;
+  }
+  let canonical: string;
+  try {
+    canonical = realpathSync(hostPath);
+  } catch {
+    return false;
+  }
+  return (
+    canonical !== canonicalRoot &&
+    !canonical.startsWith(canonicalRoot + path.sep)
+  );
+}
+
 function fileExistsSync(filePath: string): boolean {
   try {
     accessSync(filePath, constants.F_OK);
@@ -251,4 +266,73 @@ function fileExistsSync(filePath: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Resolve an absolute virtual path (/task/... or /mnt/<name>/...) through the
+ * layout. Absolute paths outside every mount error with steering: real host
+ * paths into an attached folder point at the folder's assigned mount path, and
+ * anything else lists what the layout actually exposes.
+ */
+function resolveVirtualAbsolutePath(
+  layout: WorkspaceFsLayout,
+  virtualPath: string,
+) {
+  const resolved = resolveHostPath(layout, virtualPath);
+
+  if (resolved === null) {
+    // The agent passed a real host path that points into an attached folder.
+    // Steer it to the mount path instead of leaking host paths around.
+    const owner = layout.attached.find((mount) =>
+      pathIsWithin(virtualPath, mount.hostRoot),
+    );
+    if (owner) {
+      return executeError(
+        `The path "${virtualPath}" is an attached folder's real location on disk. ` +
+          `Use its mount path "${owner.mountPoint}/..." instead.`,
+      );
+    }
+    const mountHint =
+      layout.attached.length > 0
+        ? `, or an attached-folder mount path (${layout.attached
+            .map((mount) => mount.mountPoint)
+            .join(", ")})`
+        : "";
+    return executeError(
+      `The absolute path "${virtualPath}" is outside the task. ` +
+        `Use a task-relative path (or ${TASK_MOUNT_POINT}/...)${mountHint}.`,
+    );
+  }
+
+  const { hostPath, mount } = resolved;
+
+  if (mount === layout.task) {
+    // Normalize /task/... input into the same task-relative form as relative
+    // input so display paths stay consistent across tools.
+    const normalized = normalizePath(virtualPath);
+    const relative =
+      normalized === TASK_MOUNT_POINT
+        ? "./"
+        : `./${normalized.slice(TASK_MOUNT_POINT.length + 1)}`;
+    return ok({
+      absolutePath: hostPath,
+      attachedMount: null,
+      displayPath: RelativePathSchema.parse(relative),
+    });
+  }
+
+  // The bash sandbox refuses to traverse symlinks out of a mount; the file
+  // tools go through node fs directly, so enforce the same containment here or
+  // a symlink inside the folder could read host files.
+  if (escapesMountRoot(hostPath, mount.hostRoot)) {
+    return executeError(
+      `The path "${virtualPath}" resolves outside the read-only attached folder (via a symlink) and cannot be accessed.`,
+    );
+  }
+
+  return ok({
+    absolutePath: hostPath,
+    attachedMount: mount,
+    displayPath: normalizePath(virtualPath),
+  });
 }

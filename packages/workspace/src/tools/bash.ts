@@ -11,6 +11,7 @@ import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { Store } from "../lib/store";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
+import { getTaskState } from "../lib/task-state-store";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -58,7 +59,9 @@ export const BashTool = setupTool({
 }).create({
   description: createBashDescription(),
   async execute({ input, messageId, partId, sessionId, signal, taskId }) {
-    const bash = createBashEnv({
+    const taskState = await getTaskState(taskDir(taskId));
+    const bash = await createBashEnv({
+      attachedFolders: taskState.attachedFolders,
       sessionId,
       taskId,
       upsertContextItem: async (item) => {
@@ -73,7 +76,25 @@ export const BashTool = setupTool({
       },
     });
     const startedAt = performance.now();
-    const result = await bash.exec(input.command, { signal });
+    let result;
+    try {
+      result = await bash.exec(input.command, { signal });
+    } catch (error) {
+      if (signal.aborted) {
+        throw error;
+      }
+      // just-bash surfaces some filesystem failures (e.g. a redirect into a
+      // read-only mount) as thrown errors instead of exit codes. Report them
+      // like a failed command so the agent adjusts its command instead of
+      // treating the tool itself as broken.
+      return ok({
+        command: input.command,
+        commands: [],
+        durationMs: Math.round(performance.now() - startedAt),
+        exitCode: 1,
+        output: error instanceof Error ? error.message : String(error),
+      });
+    }
     const durationMs = Math.round(performance.now() - startedAt);
     const commands = Array.isArray(result.metadata?.commands)
       ? result.metadata.commands

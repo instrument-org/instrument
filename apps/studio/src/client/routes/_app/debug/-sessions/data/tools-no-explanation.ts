@@ -56,19 +56,6 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
-            agent_type: "retrieval",
-            prompt: "Find TypeScript config files.",
-          },
-          output: {
-            result: "Found tsconfig.json.",
-            sessionId: StoreId.newSessionId(),
-            status: "done",
-            summary: "read 1 file",
-          },
-          type: "tool-agent",
-        }),
-        builder.toolPart(assistantMessageId, "output-available", {
-          input: {
             pattern: "src/**/*.ts",
           },
           output: {
@@ -147,25 +134,6 @@ registerSession({
             output: "hello",
           },
           type: "tool-bash",
-        }),
-        builder.toolPart(assistantMessageId, "output-available", {
-          input: {
-            path: "/Users/user/external-project",
-            pattern: "tsconfig*.json",
-          },
-          output: {
-            errors: [],
-            files: [
-              {
-                destinationPath: "./.instrument-retrieved/tsconfig.json",
-                size: 512,
-                sourcePath: "/Users/user/external-project/tsconfig.json",
-              },
-            ],
-            truncatedCount: 0,
-            truncationReason: null,
-          },
-          type: "tool-copy_to_task",
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {},

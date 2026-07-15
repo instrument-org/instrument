@@ -13,12 +13,14 @@ import { type IFileSystem, InMemoryFs } from "just-bash";
 export class ReadOnlyBaseFs implements IFileSystem {
   private readonly empty = new InMemoryFs();
 
-  appendFile: IFileSystem["appendFile"] = (path) => Promise.reject(erofs("appendFile", path));
+  appendFile: IFileSystem["appendFile"] = (path) =>
+    Promise.reject(erofs("appendFile", path));
   chmod: IFileSystem["chmod"] = (path) => Promise.reject(erofs("chmod", path));
   cp: IFileSystem["cp"] = (_src, dest) => Promise.reject(erofs("cp", dest));
   exists: IFileSystem["exists"] = (path) => this.empty.exists(path);
   getAllPaths: IFileSystem["getAllPaths"] = () => this.empty.getAllPaths();
-  link: IFileSystem["link"] = (_existingPath, newPath) => Promise.reject(erofs("link", newPath));
+  link: IFileSystem["link"] = (_existingPath, newPath) =>
+    Promise.reject(erofs("link", newPath));
   lstat: IFileSystem["lstat"] = (path) => this.empty.lstat(path);
   mkdir: IFileSystem["mkdir"] = (path) => Promise.reject(erofs("mkdir", path));
   mv: IFileSystem["mv"] = (_src, dest) => Promise.reject(erofs("mv", dest));
@@ -33,9 +35,12 @@ export class ReadOnlyBaseFs implements IFileSystem {
     this.empty.resolvePath(base, path);
   rm: IFileSystem["rm"] = (path) => Promise.reject(erofs("rm", path));
   stat: IFileSystem["stat"] = (path) => this.empty.stat(path);
-  symlink: IFileSystem["symlink"] = (_target, linkPath) => Promise.reject(erofs("symlink", linkPath));
-  utimes: IFileSystem["utimes"] = (path) => Promise.reject(erofs("utimes", path));
-  writeFile: IFileSystem["writeFile"] = (path) => Promise.reject(erofs("writeFile", path));
+  symlink: IFileSystem["symlink"] = (_target, linkPath) =>
+    Promise.reject(erofs("symlink", linkPath));
+  utimes: IFileSystem["utimes"] = (path) =>
+    Promise.reject(erofs("utimes", path));
+  writeFile: IFileSystem["writeFile"] = (path) =>
+    Promise.reject(erofs("writeFile", path));
 }
 
 function erofs(op: string, path: string) {

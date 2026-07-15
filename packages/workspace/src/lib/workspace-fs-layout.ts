@@ -174,7 +174,10 @@ export function resolveNativeHostPath(
   const normalized = normalizePath(virtualAbsPath);
   const relative = relativeWithin(TASK_MOUNT_POINT, normalized);
   if (relative !== null) {
-    return absolutePathJoin(taskHostRoot, relative === "/" ? "." : `.${relative}`);
+    return absolutePathJoin(
+      taskHostRoot,
+      relative === "/" ? "." : `.${relative}`,
+    );
   }
   return absolutePathJoin(taskHostRoot, normalized);
 }

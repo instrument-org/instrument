@@ -20,11 +20,7 @@ import {
   type Task,
 } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react";
-import {
-  skipToken,
-  useMutation,
-  useQuery,
-} from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 

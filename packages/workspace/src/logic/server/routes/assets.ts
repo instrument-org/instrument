@@ -83,8 +83,7 @@ app.all("/*", async (c, next) => {
     isPathAllowed: (filePath) =>
       !hostPathEscapesMount(filePath, resolved.mount.hostRoot),
     onFound: ({ stats }) => {
-      const versionMatches =
-        c.req.query("version") === String(stats.mtimeMs);
+      const versionMatches = c.req.query("version") === String(stats.mtimeMs);
       c.header(
         "Cache-Control",
         !isMountedFile && versionMatches

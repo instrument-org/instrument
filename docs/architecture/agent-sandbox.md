@@ -10,7 +10,7 @@ The main agent (`packages/workspace/src/agents/main.ts`) gets a fixed set of too
 
 ## The virtual filesystem layout
 
-`packages/workspace/src/lib/workspace-fs-layout.ts` defines what the agent can see, shared by the file tools, the bash sandbox, and the native-binary path bridge: the task dir mounts **writable at `/task`** (the working directory), user-attached folders mount **read-only under `/mnt/<name>`**, and everything else is an empty read-only base (writes outside the mounts fail EROFS). See `docs/findings/bash-sandbox-mounts-and-native-binaries.md` for the design constraints and known quirks.
+`packages/workspace/src/lib/workspace-fs-layout.ts` defines what the agent can see, shared by the file tools, the bash sandbox, and the native-binary path bridge: the task dir mounts **writable at `/task`** (the working directory), user-attached folders mount **read-only under `/mnt/<name>`**, and everything else is an empty read-only base (writes outside the mounts fail EROFS). See `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` for the design constraints and known quirks.
 
 ## Containment layers (strongest -> weakest)
 

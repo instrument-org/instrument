@@ -62,54 +62,45 @@ export const Grep = setupTool({
     - Use this tool when you need to find files containing specific patterns.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
-    if (input.path) {
-      const layout = buildWorkspaceFsLayout({
-        attachedFolders: taskState.attachedFolders,
-        taskHostRoot: taskDir(taskId),
-      });
-      const pathResult = resolveAgentPath({ inputPath: input.path, layout });
-      if (pathResult.isErr()) {
-        return err(pathResult.error);
-      }
-      const { absolutePath, attachedMount, displayPath } = pathResult.value;
-
-      // Inside an attached mount (/mnt/<name>/...), search the real folder on
-      // disk; otherwise search the task-relative displayPath.
-      const result = await grep({
-        cwd: taskDir(taskId),
-        include: input.include,
-        limit: GREP_LIMIT,
-        pattern: input.pattern,
-        searchPath: attachedMount ? absolutePath : displayPath,
-        signal,
-      });
-
-      if (!attachedMount) {
-        return ok(result);
-      }
-
-      // Map ripgrep's host paths back to their virtual mount path so no host
-      // path leaks and a follow-up read_file resolves to the same place.
-      return ok({
-        ...result,
-        matches: result.matches.map((match) => ({
-          ...match,
-          path: resolveVirtualPath(layout, match.path) ?? match.path,
-        })),
-      });
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders: taskState.attachedFolders,
+      taskHostRoot: taskDir(taskId),
+    });
+    const pathResult = resolveAgentPath({
+      inputPath: input.path,
+      isRequired: false,
+      layout,
+    });
+    if (pathResult.isErr()) {
+      return err(pathResult.error);
     }
+    const { absolutePath, attachedMount, displayPath } = pathResult.value;
 
-    // No path specified, search from root
+    // Inside an attached mount (/mnt/<name>/...), search the real folder on
+    // disk; otherwise search the task-relative displayPath (the task root when
+    // no path was given).
     const result = await grep({
       cwd: taskDir(taskId),
       include: input.include,
       limit: GREP_LIMIT,
       pattern: input.pattern,
-      searchPath: "./",
+      searchPath: attachedMount ? absolutePath : displayPath,
       signal,
     });
 
-    return ok(result);
+    if (!attachedMount) {
+      return ok(result);
+    }
+
+    // Map ripgrep's host paths back to their virtual mount path so no host
+    // path leaks and a follow-up read_file resolves to the same place.
+    return ok({
+      ...result,
+      matches: result.matches.map((match) => ({
+        ...match,
+        path: resolveVirtualPath(layout, match.path) ?? match.path,
+      })),
+    });
   },
   readOnly: true,
   timeoutMs: ms("30 seconds"),

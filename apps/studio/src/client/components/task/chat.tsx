@@ -250,6 +250,12 @@ export function TaskChat({
     />
   );
 
+  // The composer is a sticky footer inside the scroll viewport: the transcript
+  // scrolls behind its rounded top corners (the peek), and because a sticky
+  // element reserves its height in normal flow, content can't get trapped
+  // behind it. A flex-1 spacer holds it to the bottom when the transcript is
+  // short. The rounded backdrop is skipped when the tutorial card (its own
+  // background) shows, and showTutorial === undefined skips the tutorial motion.
   return (
     <MessageScrollerProvider
       autoScroll
@@ -329,26 +335,16 @@ export function TaskChat({
               )}
             </MessageScrollerContent>
 
-            {/* Holds the composer at the bottom when the transcript is short;
-                collapses to zero once the content overflows. */}
             <div className="flex-1" />
 
-            {/* Composer sticks to the bottom inside the scroll viewport so the
-                transcript scrolls behind its rounded top corners. Sticky
-                reserves its height in normal flow, so content is never trapped
-                behind it. */}
             <div className="sticky bottom-0 flex w-full">
               <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-4">
                 <MessageScrollerButton className="pointer-events-auto" />
               </div>
               <div className="relative mx-auto w-full max-w-2xl px-3 pb-3">
-                {/* Rounded-top backdrop behind the composer; the transcript
-                    peeks through the top corners. The tutorial card brings its
-                    own background, so skip it then. */}
                 {!isTutorialVisible && (
                   <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-[20px] bg-background" />
                 )}
-                {/* undefined = server never set tutorial; skip motion overhead */}
                 {showTutorial === undefined ? (
                   promptInput
                 ) : (
@@ -384,8 +380,13 @@ function PinToBottomWhileOpening() {
     const stop = () => {
       active = false;
     };
+    // Any manual scroll intent cancels the opening pin so we never fight the
+    // user: wheel/touch, keyboard (Page/Arrow/Space/Home/End), and a
+    // scrollbar/pointer drag.
     window.addEventListener("wheel", stop, { passive: true });
     window.addEventListener("touchmove", stop, { passive: true });
+    window.addEventListener("keydown", stop);
+    window.addEventListener("pointerdown", stop, { passive: true });
     const step = () => {
       if (!active) {
         return;
@@ -402,6 +403,8 @@ function PinToBottomWhileOpening() {
       cancelAnimationFrame(raf);
       window.removeEventListener("wheel", stop);
       window.removeEventListener("touchmove", stop);
+      window.removeEventListener("keydown", stop);
+      window.removeEventListener("pointerdown", stop);
     };
   }, [scrollToEnd]);
   return null;

@@ -47,7 +47,10 @@ testable.
    generic folds here instead of ad-hoc loop state:
    - "consecutive assistant grouping" → merge-consecutive-same-kind,
    - "tool-run boundaries" → find the `assistant-message` indices and treat each
-     gap between them as one collapsible activity slice.
+     gap between them as one collapsible activity slice. Activity before the
+     first assistant message and after the last is the same slice shape (a
+     leading/trailing gap), so no item is dropped; derivation tests cover both
+     edges as well as the middle.
 
 3. **Render = one row per turn, unit → component registry.** Replace the giant
    inline branch with a `kind → component` map. Each turn is one stable row
@@ -73,10 +76,13 @@ testable.
 
 - **Fixes the scroller fragility at the root.** Stable per-turn rows whose
   innards change without adding/removing top-level nodes let the scroller's
-  native new-turn anchoring work, and let us drop the explicit anchor
-  workaround. The "anchor the new turn near the top, then follow as it reaches
-  the bottom" behavior also becomes tractable once the transcript stops churning
-  on every turn.
+  native new-turn anchoring work. We already dropped the explicit per-turn
+  anchor (verified live); before leaning harder on native anchoring, lock the
+  behavior down with scroll regression tests: initial bottom positioning,
+  streaming follow, release after the user scrolls up, and rapid session
+  changes. The "anchor the new turn near the top, then follow as it reaches the
+  bottom" behavior also becomes tractable once the transcript stops churning on
+  every turn.
 - **It is the natural home for the collapsing roadmap.** The `collapsed-activity`
   unit + `detailLevel` is exactly the model that upcoming between-run collapsing
   needs, and it is much cheaper to build on a clean pipeline than to bolt onto

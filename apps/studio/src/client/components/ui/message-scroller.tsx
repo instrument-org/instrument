@@ -51,7 +51,9 @@ function MessageScrollerButton({
     >
       {children ?? (
         <>
-          <CaretDownIcon className="size-3" />
+          <CaretDownIcon
+            className={cn("size-3", direction === "start" && "rotate-180")}
+          />
           <span className="sr-only">
             {direction === "end" ? "Scroll to latest" : "Scroll to start"}
           </span>

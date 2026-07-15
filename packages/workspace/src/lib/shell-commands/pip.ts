@@ -50,7 +50,7 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
-    const venvError = await ensureTaskVenv({ ctx, env, taskCwd, taskId });
+    const venvError = await ensureTaskVenv({ ctx, taskId });
     if (venvError !== undefined) {
       return { exitCode: 1, stderr: "", stdout: venvError };
     }

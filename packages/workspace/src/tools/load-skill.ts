@@ -8,6 +8,7 @@ import { z } from "zod";
 import { TASK_FOLDER_NAMES } from "../constants";
 import { copySkill } from "../lib/copy-skill";
 import { executeError } from "../lib/execute-error";
+import { installPythonSkill } from "../lib/install-python-skill";
 import { normalizedPathJoin } from "../lib/normalize-path";
 import { runPnpmCommand } from "../lib/run-pnpm";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
@@ -34,12 +35,48 @@ const TAGS = {
   skillFiles: "skill_files",
 } as const;
 
-function skillHasPackageJson(registryDir: AbsolutePath, name: string) {
+const SkillInstallResultSchema = z.discriminatedUnion("state", [
+  z.object({
+    runtime: z.enum(["node", "python"]),
+    state: z.literal("success"),
+  }),
+  z.object({
+    exitCode: z.number(),
+    output: z.string(),
+    runtime: z.enum(["node", "python"]),
+    state: z.literal("failure"),
+  }),
+]);
+
+function hasNodeDependencies(skillDir: string) {
+  try {
+    const packageJson: unknown = JSON.parse(
+      fsSync.readFileSync(path.join(skillDir, "package.json"), "utf8"),
+    );
+    if (!isRecord(packageJson)) {
+      return false;
+    }
+
+    return ["dependencies", "optionalDependencies"].some((field) => {
+      const dependencies = packageJson[field];
+      return isRecord(dependencies) && Object.keys(dependencies).length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function skillNeedsDependencyInstall(registryDir: AbsolutePath, name: string) {
   const skillsDir = getSkillSources(registryDir)[0];
   try {
     return (
       skillsDir !== undefined &&
-      fsSync.existsSync(path.join(skillsDir, name, "package.json"))
+      (hasNodeDependencies(path.join(skillsDir, name)) ||
+        fsSync.existsSync(path.join(skillsDir, name, "pyproject.toml")))
     );
   } catch {
     return false;
@@ -57,16 +94,7 @@ export const LoadSkill = setupTool({
     z.object({
       content: z.string(),
       files: z.array(z.string()),
-      installResult: z
-        .discriminatedUnion("state", [
-          z.object({ state: z.literal("success") }),
-          z.object({
-            exitCode: z.number(),
-            output: z.string(),
-            state: z.literal("failure"),
-          }),
-        ])
-        .optional(),
+      installResults: z.array(SkillInstallResultSchema).optional(),
       name: z.string(),
       state: z.literal("success"),
       truncated: z.boolean(),
@@ -119,7 +147,7 @@ export const LoadSkill = setupTool({
 
       ${skillsBlock}
 
-      Note: if the skill includes a package.json, pnpm install will be run automatically in the task after the skill is copied.
+      Note: skills with declared Node.js or Python dependencies install them automatically after being copied into the task.
     `.trim();
   },
   execute: async ({ input, signal, taskId }) => {
@@ -159,24 +187,29 @@ export const LoadSkill = setupTool({
       signal,
     );
 
-    const hasPackageJson = copiedFiles.includes("package.json");
+    const installResults: z.output<typeof SkillInstallResultSchema>[] = [];
 
-    let installResult:
-      | undefined
-      | { exitCode: number; output: string; state: "failure" }
-      | { state: "success" };
-
-    if (hasPackageJson) {
+    if (hasNodeDependencies(destDir)) {
       const { combined, exitCode } = await runPnpmCommand({
         args: ["install"],
         cwd: getTaskWorkDir(taskDir(taskId)),
         signal,
         taskId,
       });
-      installResult =
+      installResults.push(
         exitCode === 0
-          ? { state: "success" as const }
-          : { exitCode, output: combined, state: "failure" as const };
+          ? { runtime: "node", state: "success" }
+          : { exitCode, output: combined, runtime: "node", state: "failure" },
+      );
+    }
+
+    if (fsSync.existsSync(path.join(destDir, "pyproject.toml"))) {
+      const installResult = await installPythonSkill({
+        signal,
+        skillDir: destDir,
+        taskId,
+      });
+      installResults.push({ ...installResult, runtime: "python" });
     }
 
     const files = copiedFiles.map((f) => `${relativeSkillRoot}/${f}`);
@@ -184,7 +217,7 @@ export const LoadSkill = setupTool({
     return ok({
       content: skill.content,
       files,
-      installResult,
+      ...(installResults.length > 0 ? { installResults } : {}),
       name: skill.name,
       state: "success" as const,
       truncated,
@@ -193,7 +226,7 @@ export const LoadSkill = setupTool({
   readOnly: false,
   timeoutMs: ({ input }) => {
     const base = ms("10 seconds");
-    const extra = skillHasPackageJson(
+    const extra = skillNeedsDependencyInstall(
       getWorkspaceConfig().registryDir,
       input.name,
     )
@@ -220,8 +253,8 @@ export const LoadSkill = setupTool({
       const skillRoot = `${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}/${output.name}`;
       const fileSectionText = [
         `The skill files below are copied into your task and are yours to edit.`,
-        `Before writing anything new, read the relevant script(s) and run them with \`${TS_COMMAND.name}\` if they fit.`,
-        `Run a script by its full path from the task root (e.g. \`${TS_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${TASK_FOLDER_NAMES.attachments}/\` and \`${TASK_FOLDER_NAMES.output}/\` won't be where your relative paths point.`,
+        `Before writing anything new, read the relevant script(s) and run them with \`${TS_COMMAND.name}\` (TypeScript) or \`python\` (Python) if they fit.`,
+        `Run a script by its full path from the task root (e.g. \`${TS_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\` or \`python ${skillRoot}/scripts/<script>.py ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${TASK_FOLDER_NAMES.attachments}/\` and \`${TASK_FOLDER_NAMES.output}/\` won't be where your relative paths point.`,
         `Only write a custom script if the existing ones cannot handle the task even with modification.`,
       ].join(" ");
 
@@ -239,20 +272,32 @@ export const LoadSkill = setupTool({
     }
 
     let installSection = "";
-    if (output.installResult) {
-      const text =
-        output.installResult.state === "success"
+    if (output.installResults) {
+      const installText = output.installResults.map((installResult) => {
+        if (installResult.state === "failure") {
+          const command =
+            installResult.runtime === "node"
+              ? `${PNPM_COMMAND.name} install`
+              : "locked Python dependency installation";
+          return [
+            `\`${command}\` exited with code ${installResult.exitCode}.`,
+            `The skill's ${installResult.runtime} dependencies may not be fully installed.`,
+            `Raw output:\n\`\`\`\n${installResult.output}\n\`\`\``,
+          ].join(" ");
+        }
+
+        return installResult.runtime === "node"
           ? [
               `\`${PNPM_COMMAND.name} install\` was run in \`${TASK_FOLDER_NAMES.work}/\`.`,
               `This is a monorepo -- skill dependencies are scoped to this skill's folder and are ready to use.`,
               `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
             ].join(" ")
           : [
-              `\`${PNPM_COMMAND.name} install\` was run in \`${TASK_FOLDER_NAMES.work}/\` but exited with code ${output.installResult.exitCode}.`,
-              `The skill's dependencies may not be fully installed.`,
-              `Raw output:\n\`\`\`\n${output.installResult.output}\n\`\`\``,
+              `The skill's locked Python dependencies were installed in \`${TASK_FOLDER_NAMES.work}/.venv\`.`,
+              `Run its Python scripts with \`python\`; do not install packages the skill already provides.`,
             ].join(" ");
-      installSection = `\n\n${text}`;
+      });
+      installSection = `\n\n${installText.join("\n\n")}`;
     }
 
     return {

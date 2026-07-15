@@ -365,52 +365,6 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   const browser: BrowserConfig = {
-    captureScreenshot: async (targetId) => {
-      const entry = entries.get(targetId);
-      if (!entry) {
-        return;
-      }
-      const wc = entry.webContents;
-      if (!wc || wc.isDestroyed()) {
-        return;
-      }
-      const url = wc.getURL();
-      if (!url || url === "about:blank") {
-        return;
-      }
-      let image: Electron.NativeImage;
-      try {
-        // The paint-host guest is visibility:visible, so the view itself is
-        // never occluded; capturePage only stalls when the whole window is
-        // occluded/minimized or the compositor hasn't produced a frame yet
-        // (modern Electron rejects such captures rather than hanging, but cap
-        // latency anyway). Observation screenshots must never block the pipeline.
-        const CAPTURE_TIMEOUT_MS = 5000;
-        image = await Promise.race([
-          wc.capturePage(),
-          new Promise<never>((_, reject) => {
-            setTimeout(() => {
-              reject(new Error("capturePage timed out"));
-            }, CAPTURE_TIMEOUT_MS);
-          }),
-        ]);
-      } catch (error) {
-        // Transient Chromium compositor failure (e.g. UnknownVizError) or
-        // timeout -- not actionable.
-        log.warn(
-          `captureScreenshot failed targetId=${targetId} err=${String(error)}`,
-        );
-        return;
-      }
-      if (image.isEmpty()) {
-        return;
-      }
-      const MAX_WIDTH = 800; // Aiming for <200KB encoded size.
-      const { width } = image.getSize();
-      const resized =
-        width > MAX_WIDTH ? image.resize({ width: MAX_WIDTH }) : image;
-      return resized.toJPEG(85);
-    },
     closeTarget: (targetId) =>
       new Promise<void>((resolve) => {
         // Resolve only after the destruction listener fires (which happens as

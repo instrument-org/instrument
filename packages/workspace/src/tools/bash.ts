@@ -8,7 +8,6 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
-import { Store } from "../lib/store";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-state-store";
@@ -58,22 +57,12 @@ export const BashTool = setupTool({
   }),
 }).create({
   description: createBashDescription(),
-  async execute({ input, messageId, partId, sessionId, signal, taskId }) {
+  async execute({ input, partId, sessionId, signal, taskId }) {
     const taskState = await getTaskState(taskDir(taskId));
     const bash = await createBashEnv({
       attachedFolders: taskState.attachedFolders,
       sessionId,
       taskId,
-      upsertContextItem: async (item) => {
-        // Best-effort side-channel write; if the part has been finalized or
-        // removed we silently skip, since the screenshot is still on disk.
-        await Store.upsertToolPartContextItem(
-          { messageId, partId, sessionId },
-          item,
-          taskId,
-          { signal },
-        );
-      },
     });
     const startedAt = performance.now();
     let result;

@@ -16,10 +16,6 @@ import { type BrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
 import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
 import { recordBrowserUse } from "../browser-state";
-import {
-  beginBrowserCommandObservation,
-  type UpsertContextItem,
-} from "../capture-browser-screenshot";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import {
@@ -151,11 +147,9 @@ const IDLE_TIMEOUT_MS = "30000";
 export function createAgentBrowserCommand({
   sessionId,
   taskId,
-  upsertContextItem,
 }: {
   sessionId: StoreId.Session;
   taskId: TaskId;
-  upsertContextItem: UpsertContextItem;
 }) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
     const workspaceConfig = getWorkspaceConfig();
@@ -259,26 +253,6 @@ export function createAgentBrowserCommand({
     );
     const configPath = path.join(homeDir, "config.json");
 
-    // Stored without the `agent-browser` prefix: the context-item kind
-    // already discriminates these as agent-browser invocations, so the
-    // prefix is dead weight in every record.
-    const subcommandText = args.join(" ");
-
-    // Open the observation before invoking the binary so the UI can render
-    // a pending card immediately and so a record exists even if execa
-    // throws or the process is canceled mid-flight. Info-only invocations
-    // (--help, --version) never touch the browser target, so we skip
-    // observation entirely; everything else gets a start+end screenshot pair
-    // (deduped by content hash on disk).
-    const observation = isInfoOnly
-      ? undefined
-      : await beginBrowserCommandObservation({
-          sessionId,
-          subcommand: subcommandText,
-          taskId: id,
-          upsertContextItem,
-        });
-
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
     try {
       result = await runAgentBrowser({
@@ -334,17 +308,6 @@ export function createAgentBrowserCommand({
     const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
 
     const exitCode = result.exitCode ?? 1;
-    if (observation) {
-      // Prefer stderr for the failure message (typical CLI convention);
-      // fall back to combined output so the agent always has *some*
-      // explanation when the command failed without writing to stderr.
-      const failureMessage =
-        exitCode === 0
-          ? undefined
-          : result.stderr || result.stdout || `exit code ${exitCode}`;
-      await observation.complete({ error: failureMessage });
-    }
-
     return {
       exitCode,
       stderr: "",

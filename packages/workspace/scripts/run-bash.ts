@@ -147,7 +147,6 @@ const bash = await createBashEnv({
   attachedFolders,
   sessionId,
   taskId,
-  upsertContextItem: () => Promise.resolve(),
 });
 
 process.stderr.write(

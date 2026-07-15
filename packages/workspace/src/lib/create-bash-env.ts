@@ -15,7 +15,6 @@ import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
-import { type UpsertContextItem } from "./capture-browser-screenshot";
 import {
   AGENT_BROWSER_COMMAND,
   createAgentBrowserCommand,
@@ -371,12 +370,10 @@ export async function createBashEnv({
   attachedFolders,
   sessionId,
   taskId,
-  upsertContextItem,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
   sessionId: StoreId.Session;
   taskId: TaskId;
-  upsertContextItem: UpsertContextItem;
 }) {
   // The layout is the single source of truth for what the agent can see: the
   // writable task directory mounted at /task (the working directory) plus any
@@ -402,7 +399,6 @@ export async function createBashEnv({
       createAgentBrowserCommand({
         sessionId,
         taskId,
-        upsertContextItem,
       }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       createWhichCommand(

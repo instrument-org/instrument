@@ -18,7 +18,6 @@ describe("createAgentBrowserCommand", () => {
   const command = createAgentBrowserCommand({
     sessionId: StoreId.newSessionId(),
     taskId,
-    upsertContextItem: () => Promise.resolve(),
   });
 
   it("returns managed help with read guidance", async () => {

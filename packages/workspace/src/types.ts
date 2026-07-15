@@ -16,7 +16,6 @@ import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
 
 export interface BrowserConfig {
-  captureScreenshot: (targetId: BrowserTargetId) => Promise<Buffer | undefined>;
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
   createTarget: (
     id: TaskId,

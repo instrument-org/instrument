@@ -4,7 +4,6 @@ import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { Favicon } from "../favicon";
-import { AgentBrowserPlayer } from "../tool-part/agent-browser-player";
 import { useToolCallSession } from "./tool-call-session";
 import {
   ToolCard,
@@ -18,11 +17,6 @@ export interface BrowserInfo {
   domains: string[];
 }
 type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
-
-type BrowserCommandObservation = Extract<
-  SessionMessagePart.ToolPartContextItem,
-  { kind: "agent-browser-command" }
->;
 
 const MAX_BASH_COMMAND_CHIPS = 3;
 
@@ -79,13 +73,7 @@ export function BrowserChip({
   );
 }
 
-export function ToolBash({
-  assetBaseUrl,
-  part,
-}: {
-  assetBaseUrl: string;
-  part: BashPart;
-}) {
+export function ToolBash({ part }: { part: BashPart }) {
   const { isStreaming } = useToolCallSession();
   const command = part.input?.command ?? "";
   const hasOutput = part.state === "output-available";
@@ -109,8 +97,6 @@ export function ToolBash({
 
   const hasExitError = hasOutput && part.output.exitCode !== 0;
   const isFailed = isError || hasExitError;
-  const contextItems = part.metadata.contextItems ?? [];
-  const browserObservations: BrowserCommandObservation[] = contextItems;
   const label = isStreaming
     ? getToolStreamingLabel("bash")
     : getToolLabel("bash");
@@ -142,36 +128,27 @@ export function ToolBash({
       </ToolCardSection>
 
       {(hasOutput || isError) && (
-        <>
-          {browserObservations.length > 0 && (
-            <AgentBrowserPlayer
-              assetBaseUrl={assetBaseUrl}
-              isStreaming={isStreaming}
-              observations={browserObservations}
-            />
+        <ToolCardSection
+          copyText={isStreaming ? undefined : outputText}
+          maxHeight="max-h-44"
+        >
+          {outputText.length > 0 ? (
+            <pre
+              className={cn(
+                "pr-7 font-mono text-sm break-words whitespace-pre-wrap",
+                isFailed
+                  ? "text-destructive"
+                  : "text-success-700 dark:text-success-300",
+              )}
+            >
+              {outputText}
+            </pre>
+          ) : (
+            <p className="font-mono text-sm leading-relaxed text-muted-foreground italic">
+              No output
+            </p>
           )}
-          <ToolCardSection
-            copyText={isStreaming ? undefined : outputText}
-            maxHeight="max-h-44"
-          >
-            {outputText.length > 0 ? (
-              <pre
-                className={cn(
-                  "pr-7 font-mono text-sm break-words whitespace-pre-wrap",
-                  isFailed
-                    ? "text-destructive"
-                    : "text-success-700 dark:text-success-300",
-                )}
-              >
-                {outputText}
-              </pre>
-            ) : (
-              <p className="font-mono text-sm leading-relaxed text-muted-foreground italic">
-                No output
-              </p>
-            )}
-          </ToolCardSection>
-        </>
+        </ToolCardSection>
       )}
     </ToolCard>
   );

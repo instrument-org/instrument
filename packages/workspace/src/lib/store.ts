@@ -585,9 +585,8 @@ export namespace Store {
   }
 
   // Read-modify-write helper that re-loads the part from storage before
-  // applying `updater`, so concurrent side-channel writes (e.g. browser
-  // screenshot context items appended while a tool is executing) are not
-  // clobbered by a stale in-memory snapshot held by the caller.
+  // applying `updater`, so concurrent updates are not clobbered by a stale
+  // in-memory snapshot held by the caller.
   export function updatePart(
     ids: {
       messageId: StoreId.Message;
@@ -616,61 +615,6 @@ export namespace Store {
       const saved = yield* savePart(next, taskId, { publish, signal });
       return ok(saved);
     });
-  }
-
-  // Insert or replace a context item on a tool part, keyed by `item.id`. The
-  // item is appended on first write and replaced in place on subsequent
-  // writes so callers can model lifecycle transitions (e.g. an agent-browser
-  // observation moving from `pending` to `complete`) without producing a
-  // second array entry for the same logical event. Order is preserved:
-  // existing items keep their slot; new items are appended.
-  export function upsertToolPartContextItem(
-    ids: {
-      messageId: StoreId.Message;
-      partId: StoreId.Part;
-      sessionId: StoreId.Session;
-    },
-    item: SessionMessagePart.ToolPartContextItem,
-    taskId: TaskId,
-    { signal }: { signal?: AbortSignal } = {},
-  ) {
-    return updatePart(
-      ids,
-      (part) => {
-        // Only tool parts carry contextItems; ignore otherwise to avoid
-        // accidentally mutating non-tool parts.
-        if (
-          part.type === "step-start" ||
-          !("state" in part) ||
-          (part.state !== "input-available" &&
-            part.state !== "input-streaming" &&
-            part.state !== "output-available" &&
-            part.state !== "output-error")
-        ) {
-          return part;
-        }
-        const existing =
-          ("contextItems" in part.metadata && part.metadata.contextItems) || [];
-        const index = existing.findIndex((existingItem) => {
-          return existingItem.id === item.id;
-        });
-        const next =
-          index === -1
-            ? [...existing, item]
-            : existing.map((existingItem, i) =>
-                i === index ? item : existingItem,
-              );
-        return {
-          ...part,
-          metadata: {
-            ...part.metadata,
-            contextItems: next,
-          },
-        } as SessionMessagePart.Type;
-      },
-      taskId,
-      { signal },
-    );
   }
 
   function removeSessionAndMessages(

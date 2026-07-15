@@ -25,6 +25,7 @@ export function useFileActionVisibility(file: TaskFileViewerFile) {
   return {
     showCopy: isCopyableByMime || (isTextLike && isDownloadable),
     showDownload: isDownloadable,
+    showOpen: true,
     showReveal: true,
   };
 }

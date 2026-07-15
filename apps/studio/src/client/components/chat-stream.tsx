@@ -368,12 +368,15 @@ export function ChatStream({
 
       if (renderAsItems) {
         if (messageElements.length > 0) {
+          // No scrollAnchor: opting into the primitive's per-turn
+          // anchor-to-top inflates a spacer and jumps the view up mid-stream
+          // as tool-call DOM churns in. We only want follow-bottom +
+          // release-on-scroll-up, so nothing is marked as an anchor.
           elements.push(
             <MessageScrollerItem
               className="flex flex-col gap-2"
               key={message.id}
               messageId={message.id}
-              scrollAnchor={message.role === "user"}
             >
               {messageElements}
             </MessageScrollerItem>,

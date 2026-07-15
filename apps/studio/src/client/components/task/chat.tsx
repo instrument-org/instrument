@@ -34,6 +34,7 @@ import {
   MessageScrollerContent,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -255,6 +256,7 @@ export function TaskChat({
       defaultScrollPosition="end"
       key={selectedSessionId}
     >
+      <PinToBottomWhileOpening />
       <div className="relative flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport className="flex flex-col">
@@ -365,4 +367,42 @@ export function TaskChat({
       </div>
     </MessageScrollerProvider>
   );
+}
+
+// The scroller applies "start at the end" once, but on task open the live
+// messages query briefly serves the previous task's (shorter) messages, so it
+// can pin to that stale height and never re-pin once the real, taller messages
+// swap in (leaving a long chat parked mid-scroll). Hold the view at the bottom
+// across the opening settle window; any manual scroll cancels it so we never
+// fight the user. Runs once per session (the provider is keyed by session id).
+function PinToBottomWhileOpening() {
+  const { scrollToEnd } = useMessageScroller();
+  useLayoutEffect(() => {
+    let raf = 0;
+    let frames = 0;
+    let active = true;
+    const stop = () => {
+      active = false;
+    };
+    window.addEventListener("wheel", stop, { passive: true });
+    window.addEventListener("touchmove", stop, { passive: true });
+    const step = () => {
+      if (!active) {
+        return;
+      }
+      scrollToEnd({ behavior: "auto" });
+      frames += 1;
+      if (frames < 40) {
+        raf = requestAnimationFrame(step);
+      }
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      active = false;
+      cancelAnimationFrame(raf);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("touchmove", stop);
+    };
+  }, [scrollToEnd]);
+  return null;
 }

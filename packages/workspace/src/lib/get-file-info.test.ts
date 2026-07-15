@@ -54,12 +54,7 @@ describe("getCurrentFileInfo", () => {
 
   it.each([
     ["notes.txt", "notes.txt", "text/plain", () => taskModifiedAt],
-    [
-      "/mnt/Photos/cat.png",
-      "cat.png",
-      "image/png",
-      () => mountedModifiedAt,
-    ],
+    ["/mnt/Photos/cat.png", "cat.png", "image/png", () => mountedModifiedAt],
   ] as const)(
     "returns live metadata for %s",
     async (filePath, filename, mimeType, expectedModifiedAt) => {

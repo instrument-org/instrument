@@ -32,7 +32,10 @@ describe("assetsRoute", () => {
     await fs.writeFile(path.join(taskRoot, "index.html"), "task index");
     await fs.writeFile(path.join(taskRoot, "style.css"), "task styles");
     await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
-    await fs.writeFile(path.join(taskRoot, ".instrument", "task.db"), "private");
+    await fs.writeFile(
+      path.join(taskRoot, ".instrument", "task.db"),
+      "private",
+    );
     // A sibling that merely shares the `.instrument` prefix is a normal task
     // file and must still be served (the deny rule is the exact dir, not a glob).
     await fs.mkdir(path.join(taskRoot, ".instrument-notes"));
@@ -102,9 +105,7 @@ describe("assetsRoute", () => {
   });
 
   it("keeps mounted files no-store even when a version is provided", async () => {
-    const response = await requestAsset(
-      "/mnt/Photos/cat.png?version=123",
-    );
+    const response = await requestAsset("/mnt/Photos/cat.png?version=123");
 
     expect(response.headers.get("cache-control")).toBe("no-store");
   });

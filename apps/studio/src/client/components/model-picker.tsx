@@ -13,7 +13,6 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
-import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import {
   getGroupedModelsEntries,
   groupAndFilterModels,
@@ -24,6 +23,7 @@ import { type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
+  modelNameFromURI,
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import uFuzzy from "@leeoniya/ufuzzy";
@@ -61,6 +61,8 @@ interface ModelPickerProps {
   isInvalidOurModel?: boolean;
   isLoading?: boolean;
   models?: AIGatewayModel.Type[];
+  /** The current selection, which the models list may no longer resolve. */
+  modelURI?: AIGatewayModelURI.Type;
   onAddProvider?: () => void;
   onClose?: () => void;
   onOpenChange?: (open: boolean) => void;
@@ -71,7 +73,7 @@ interface ModelPickerProps {
 
 type VirtualRow =
   | { groupName: string; type: "header" }
-  | { matched: MatchedModel; requiresPremium: boolean; type: "item" };
+  | { matched: MatchedModel; type: "item" };
 
 export function ModelPicker({
   className = "",
@@ -81,6 +83,7 @@ export function ModelPicker({
   isInvalidOurModel = false,
   isLoading = false,
   models,
+  modelURI,
   onAddProvider,
   onClose,
   onOpenChange,
@@ -91,17 +94,14 @@ export function ModelPicker({
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: subscription } = useLiveSubscriptionStatus();
-  const hasPremium =
-    subscription?.plan !== null && subscription?.plan !== undefined;
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
   const modelsWithoutAuto = useMemo(
     () => models?.filter((m) => m.providerId !== OUR_MODELS.text.id) ?? [],
     [models],
   );
   const groupedModels = useMemo(
-    () => groupAndFilterModels({ hasPremium, models: modelsWithoutAuto }),
-    [hasPremium, modelsWithoutAuto],
+    () => groupAndFilterModels({ models: modelsWithoutAuto }),
+    [modelsWithoutAuto],
   );
 
   type GroupedMatchedModels = Record<string, MatchedModel[]>;
@@ -184,6 +184,14 @@ export function ModelPicker({
 
   const hideModelList = isAutoMode && !searchQuery;
 
+  // A selection outlives the list it came from, so a model the list no longer
+  // resolves still gets named and flagged rather than silently reading as an
+  // empty picker.
+  const unresolvedName =
+    !selectedModel && modelURI ? modelNameFromURI(modelURI) : null;
+  const isUnavailable = isInvalidOurModel || !!unresolvedName;
+  const selectedName = selectedModel?.name.trim() ?? unresolvedName;
+
   const placeholderText = isLoading
     ? "Loading models..."
     : isError
@@ -220,32 +228,30 @@ export function ModelPicker({
           variant="ghost"
         >
           <div className="flex w-full min-w-0 items-center">
-            {selectedModel ? (
+            {selectedName ? (
               <div className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="shrink-0">
-                      {isInvalidOurModel ? (
-                        <WarningIcon className="size-4 text-destructive" />
-                      ) : (
+                      {selectedModel && !isUnavailable ? (
                         <AIProviderIcon
                           className="size-4"
                           type={selectedModel.params.provider}
                         />
+                      ) : (
+                        <WarningIcon className="size-4 text-muted-foreground/60" />
                       )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {isInvalidOurModel ? (
-                      <p>Model is not available.</p>
-                    ) : (
+                    {selectedModel && !isUnavailable ? (
                       <p>{selectedModel.providerName}</p>
+                    ) : (
+                      <p>Unavailable. Switch to Auto or pick another model.</p>
                     )}
                   </TooltipContent>
                 </Tooltip>
-                <span className="min-w-0 flex-1 truncate">
-                  {selectedModel.name}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{selectedName}</span>
               </div>
             ) : (
               <span className="text-xs leading-4 font-medium opacity-50">
@@ -261,7 +267,7 @@ export function ModelPicker({
           <AutoModeSwitch
             autoModel={autoModel}
             checked={isAutoMode}
-            isInvalidOurModel={isInvalidOurModel}
+            isUnavailable={isUnavailable}
             onCheckedChange={(checked) => {
               if (checked && autoModel) {
                 onValueChange(autoModel.uri);
@@ -269,6 +275,7 @@ export function ModelPicker({
                 onValueChange("" as AIGatewayModelURI.Type);
               }
             }}
+            selectedName={selectedName}
           />
           {autoModel && !hideModelList && <hr className="border-t" />}
           {hasModels && (
@@ -310,15 +317,14 @@ export function ModelPicker({
             {hasModels && (
               <ModelGroups
                 groupedModels={filteredGroupedModels}
-                hasPremium={hasPremium}
                 onAddProvider={() => {
                   closePopover();
                   onAddProvider?.();
                 }}
-                onSelectModel={(model, requiresPremium) => {
-                  if (requiresPremium) {
-                    toast.info("Model requires a paid plan", {
-                      description: `${model.name} is available with a paid ${APP_NAME} plan.`,
+                onSelectModel={(model) => {
+                  if (model.restricted) {
+                    toast.info(`${model.name.trim()} is unavailable`, {
+                      description: model.restricted.message,
                       dismissible: true,
                       duration: 7000,
                     });
@@ -344,19 +350,21 @@ export function ModelPicker({
 function AutoModeSwitch({
   autoModel,
   checked,
-  isInvalidOurModel,
+  isUnavailable,
   onCheckedChange,
+  selectedName,
 }: {
   autoModel?: AIGatewayModel.Type;
   checked: boolean;
-  isInvalidOurModel: boolean;
+  isUnavailable: boolean;
   onCheckedChange: (checked: boolean) => void;
+  selectedName: null | string;
 }) {
   if (!autoModel) {
     return null;
   }
 
-  if (isInvalidOurModel && !checked) {
+  if (isUnavailable && !checked) {
     return (
       <div
         className="flex flex-col gap-2 px-4 py-3"
@@ -364,10 +372,14 @@ function AutoModeSwitch({
           e.stopPropagation();
         }}
       >
-        <div className="flex items-start gap-1.5">
-          <WarningIcon className="mt-0.5 size-3 shrink-0 text-destructive/70" />
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium">
+            {selectedName
+              ? `${selectedName} is unavailable`
+              : "Selected model is unavailable"}
+          </span>
           <span className="text-xs text-muted-foreground">
-            Your selected model is not available.
+            Switch to Auto, or pick another model below.
           </span>
         </div>
         <div className="flex gap-2">
@@ -378,7 +390,6 @@ function AutoModeSwitch({
               onCheckedChange(true);
             }}
             size="sm"
-            variant="outline"
           >
             Switch to Auto
           </Button>
@@ -466,15 +477,13 @@ function ErrorsGroup({
 
 function ModelGroups({
   groupedModels,
-  hasPremium,
   onAddProvider,
   onSelectModel,
   selectedModel,
 }: {
   groupedModels: Record<string, MatchedModel[]>;
-  hasPremium: boolean;
   onAddProvider: () => void;
-  onSelectModel: (model: AIGatewayModel.Type, requiresPremium: boolean) => void;
+  onSelectModel: (model: AIGatewayModel.Type) => void;
   selectedModel?: AIGatewayModel.Type;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -487,16 +496,11 @@ function ModelGroups({
       }
       flat.push({ groupName, type: "header" });
       for (const matched of matchedGroup) {
-        flat.push({
-          matched,
-          requiresPremium:
-            matched.model.tags.includes("premium") && !hasPremium,
-          type: "item",
-        });
+        flat.push({ matched, type: "item" });
       }
     }
     return flat;
-  }, [groupedModels, hasPremium]);
+  }, [groupedModels]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
@@ -553,7 +557,7 @@ function ModelGroups({
             );
           }
 
-          const { matched, requiresPremium } = row;
+          const { matched } = row;
           const { model, nameRanges, providerRanges } = matched;
           return (
             <div
@@ -566,7 +570,7 @@ function ModelGroups({
               <CommandItem
                 className="flex w-full items-center justify-between px-2 py-2"
                 onSelect={() => {
-                  onSelectModel(model, requiresPremium);
+                  onSelectModel(model);
                 }}
                 value={model.uri}
               >
@@ -596,7 +600,7 @@ function ModelGroups({
                   </div>
                 </div>
                 <div className="mt-1 ml-2 flex gap-1 self-start">
-                  <ModelBadges hasPremium={hasPremium} model={model} />
+                  <ModelBadges model={model} />
                 </div>
               </CommandItem>
             </div>

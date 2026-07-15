@@ -34,7 +34,7 @@ export function addHeuristicTags(
   model: AIGatewayModel.Type,
   config: AIGatewayProviderConfig.Type,
 ): AIGatewayModel.Type {
-  const { author, canonicalId, params } = model;
+  const { author, canonicalId } = model;
   const staticTags = MODEL_TAGS[canonicalId] ?? [];
   const dynamicTags = getDynamicTags(canonicalId);
 
@@ -65,13 +65,6 @@ export function addHeuristicTags(
     if (model.providerId === OUR_MODELS.text.id) {
       tags.push("default");
     }
-  }
-
-  if (
-    params.provider === OUR_MODELS.providerType &&
-    model.providerId !== OUR_MODELS.text.id
-  ) {
-    tags.push("premium");
   }
 
   return {

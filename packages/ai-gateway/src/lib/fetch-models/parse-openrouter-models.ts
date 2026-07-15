@@ -17,6 +17,11 @@ const OpenRouterModelSchema = z.object({
   created: z.number(),
   description: z.string(),
   id: z.string(),
+  // Namespaced so our additions cannot collide with a field OpenRouter adds
+  // later. Only our own gateway sends this; a user's OpenRouter key will not.
+  instrument: z
+    .object({ restricted: AIGatewayModel.RestrictionSchema.optional() })
+    .optional(),
   name: z.string(),
   supported_parameters: z.array(z.string()).nullish(),
 });

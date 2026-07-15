@@ -14,6 +14,7 @@ interface OpenRouterShapedModel {
   };
   created: number;
   id: string;
+  instrument?: { restricted?: AIGatewayModel.Restriction };
   name: string;
   supported_parameters?: null | string[];
 }
@@ -59,6 +60,7 @@ export function mapOpenRouterShapedModel({
       params,
       providerId,
       providerName: config.displayName ?? metadata.name,
+      restricted: model.instrument?.restricted,
       tags,
       uri: AIGatewayModelURI.fromModel({ author, canonicalId, params }),
     },

@@ -15,7 +15,6 @@ import {
   TextareaInner,
 } from "@/client/components/ui/textarea-container";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
-import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import {
@@ -172,21 +171,18 @@ export const PromptInput = ({
     refetch: modelsRefetch,
   } = useQuery(rpcClient.gateway.models.live.list.experimental_liveOptions());
   const { errors: modelsErrors, models } = modelsData ?? {};
-  const { data: subscription } = useLiveSubscriptionStatus();
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
-  const hasPremium =
-    subscription?.plan !== null && subscription?.plan !== undefined;
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
 
   const isUnavailableModel = !!modelURI && !selectedModel && !!autoModel;
-  const isPremiumModelUnavailable =
-    !hasPremium && !!selectedModel?.tags.includes("premium");
-  const isInvalidSelectedModel =
-    isUnavailableModel || isPremiumModelUnavailable;
+  // A selection made before a policy change can turn restricted underneath the
+  // user, so the picked model is re-checked here and not only at pick time.
+  const restrictedModel = selectedModel?.restricted;
+  const isInvalidSelectedModel = isUnavailableModel || !!restrictedModel;
 
   const resetTextareaHeight = useCallback(() => {
     if (textareaInnerRef.current) {
@@ -387,21 +383,19 @@ export const PromptInput = ({
       return false;
     }
 
-    if (isPremiumModelUnavailable) {
-      if (autoModel) {
-        toast.error("Selected model requires a paid plan", {
+    if (restrictedModel) {
+      toast.error(`${selectedModel.name.trim()} is unavailable`, {
+        ...(autoModel && {
           action: {
             label: "Use Auto",
             onClick: () => {
               onModelChange(autoModel.uri);
             },
           },
-          description: "Switch to Auto to continue.",
-          duration: 7000,
-        });
-      } else {
-        toast.error("Selected model requires a paid plan");
-      }
+        }),
+        description: restrictedModel.message,
+        duration: 7000,
+      });
       return false;
     }
 
@@ -618,6 +612,7 @@ export const PromptInput = ({
                 isInvalidOurModel={isInvalidSelectedModel}
                 isLoading={modelsIsLoading}
                 models={models}
+                modelURI={modelURI}
                 onAddProvider={() => {
                   openLogin(
                     hasToken ? { reason: "provider-required" } : undefined,

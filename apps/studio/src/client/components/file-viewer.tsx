@@ -28,12 +28,16 @@ import {
   IMAGE_PANZOOM_VIEWPORT_CLASS,
   useImagePanzoom,
 } from "../hooks/use-image-panzoom";
+import { useOpenTaskFile } from "../hooks/use-open-task-file";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
+import { useTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
+import { OpenTargetIcon } from "./open-target-icon";
+import { OpenWithMenu } from "./open-with-menu";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -55,7 +59,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { contextMenuComponents } from "./ui/menu-components";
+import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+} from "./ui/menu-components";
 import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -311,6 +318,8 @@ export function FileViewer({
   const imageLoadError = imageErrorUrl === url;
   const contentRef = useRef<HTMLDivElement>(null);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
+  const openTaskFile = useOpenTaskFile();
+  const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
   const revealFileMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
       onError: (error) => {
@@ -330,9 +339,17 @@ export function FileViewer({
   const fileType = getFileType(file);
   const hasPreview = fileType === "markdown" || fileType === "html";
   const fileActions = useFileActionVisibility(file);
-  const hasHeaderMenuActions = onExpand != null || fileActions.showReveal;
+  const hasHeaderMenuActions =
+    onExpand != null ||
+    showOpenWith ||
+    fileActions.showDownload ||
+    fileActions.showReveal;
   const showOverflowMenu =
-    fileActions.showReveal || hasPreview || Boolean(onExpand);
+    showOpenWith ||
+    fileActions.showDownload ||
+    fileActions.showReveal ||
+    hasPreview ||
+    Boolean(onExpand);
 
   const handleDownload = async () => {
     await downloadFile(file);
@@ -388,7 +405,7 @@ export function FileViewer({
       <div className="@container flex min-w-0 shrink-0 items-center gap-2 px-4 py-3">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="min-w-0 truncate text-xs font-medium">
+            <span className="min-w-0 flex-1 truncate text-xs font-medium">
               {filename}
             </span>
           </TooltipTrigger>
@@ -399,17 +416,20 @@ export function FileViewer({
             {filePath}
           </TooltipContent>
         </Tooltip>
-        <div className="ml-auto flex min-w-7 shrink items-center justify-end gap-1 overflow-hidden">
-          {fileActions.showDownload && (
+        <div className="flex shrink-0 items-center gap-1">
+          {showOpen && (
             <Button
+              aria-label={openLabel}
               className={fileViewerHeaderActionClassName}
-              onClick={() => void handleDownload()}
+              onClick={() => {
+                openTaskFile(file);
+              }}
               size="sm"
               variant="ghost"
             >
-              <ArrowLineDownIcon className="size-4" />
-              <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                Download
+              <OpenTargetIcon className="size-4" file={file} />
+              <span className="hidden max-w-40 min-w-0 truncate @min-[380px]:inline">
+                {openLabel}
               </span>
             </Button>
           )}
@@ -449,6 +469,18 @@ export function FileViewer({
                   <DropdownMenuItem onClick={onExpand}>
                     <ArrowsOutSimpleIcon className="size-4" />
                     <span>Expand</span>
+                  </DropdownMenuItem>
+                )}
+                {showOpenWith && (
+                  <OpenWithMenu
+                    file={file}
+                    menuComponents={dropdownMenuComponents}
+                  />
+                )}
+                {fileActions.showDownload && (
+                  <DropdownMenuItem onClick={() => void handleDownload()}>
+                    <ArrowLineDownIcon className="size-4" />
+                    <span>Download</span>
                   </DropdownMenuItem>
                 )}
                 {fileActions.showReveal && (
@@ -506,6 +538,7 @@ export function FileViewer({
           <div className="flex size-full items-center justify-center">
             <FilePreviewFallback
               fallbackExtension={mediaErrorType}
+              file={file}
               filename={filename}
               onDownload={fileActions.showDownload ? handleDownload : undefined}
             />
@@ -523,6 +556,7 @@ export function FileViewer({
             <div className="flex size-full items-center justify-center">
               <FilePreviewFallback
                 fallbackExtension="jpg"
+                file={file}
                 filename={filename}
                 onDownload={
                   fileActions.showDownload ? handleDownload : undefined
@@ -597,6 +631,7 @@ export function FileViewer({
           <div className="flex size-full items-center justify-center">
             <FilePreviewFallback
               fallbackExtension="bin"
+              file={file}
               filename={filename}
               onDownload={fileActions.showDownload ? handleDownload : undefined}
             />

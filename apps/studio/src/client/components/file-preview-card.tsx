@@ -8,8 +8,7 @@ import {
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { cn } from "@/client/lib/utils";
 import {
   ArrowLineDownIcon,
   CheckIcon,
@@ -17,17 +16,20 @@ import {
   ImageBrokenIcon,
   PlayIcon,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
 
+import { useOpenTaskFile } from "../hooks/use-open-task-file";
+import {
+  usePrefetchTaskFileOpenTarget,
+  useTaskFileOpenTarget,
+} from "../hooks/use-task-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
-import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
 import { MediaCardShell } from "./media-card-shell";
 import { MediaOverlayButton } from "./media-overlay-button";
+import { OpenTargetIcon } from "./open-target-icon";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -155,7 +157,11 @@ function FileRowCard({
   const isMissing = useTaskFileReferenceStatus(file) === "missing";
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
-    fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
+    fileActions.showCopy ||
+    fileActions.showDownload ||
+    fileActions.showOpen ||
+    fileActions.showReveal;
+  const prefetchOpenTarget = usePrefetchTaskFileOpenTarget();
 
   const row = (
     <div
@@ -166,6 +172,9 @@ function FileRowCard({
           : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
       )}
       onClick={onClick}
+      onMouseEnter={() => {
+        prefetchOpenTarget(file);
+      }}
     >
       <FileThumbnail
         file={file}
@@ -237,7 +246,8 @@ function ImagePreviewCard({
   const { filename, mimeType } = file;
   const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
-  const actions = useFileActions(file);
+  const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
+  const actions = useFileActions(file, { resolveOpenTarget });
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
 
   const handleCopy = async () => {
@@ -255,9 +265,7 @@ function ImagePreviewCard({
 
   const hasActions =
     !hideActionsMenu &&
-    (fileActions.showCopy ||
-      fileActions.showDownload ||
-      fileActions.showReveal);
+    (fileActions.showCopy || fileActions.showDownload || actions.showOpen);
 
   return (
     <MediaCardShell
@@ -266,6 +274,9 @@ function ImagePreviewCard({
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
       onClick={onClick}
+      onMouseEnter={() => {
+        setResolveOpenTarget(true);
+      }}
       overlayActions={
         hasActions ? (
           <>
@@ -295,13 +306,15 @@ function ImagePreviewCard({
                 }}
               />
             )}
-            {fileActions.showReveal && (
+            {actions.showOpen && (
               <MediaOverlayButton
-                icon={<RevealInFolderIcon className="size-3.5 shrink-0" />}
-                label={getRevealInFolderLabel()}
+                icon={
+                  <OpenTargetIcon className="size-3.5 shrink-0" file={file} />
+                }
+                label="Open"
                 onClick={(e) => {
                   e.stopPropagation();
-                  actions.revealInFolder();
+                  actions.open();
                 }}
               />
             )}
@@ -365,27 +378,23 @@ function MissingMediaCard({
   );
 }
 
-function useFileActions(file: TaskFileViewerFile) {
-  const showTaskFileInFolderMutation = useMutation(
-    rpcClient.utils.showTaskFileInFolder.mutationOptions({
-      onError: (error) => {
-        const label = getRevealInFolderLabel();
-        const lower = label.charAt(0).toLowerCase() + label.slice(1);
-        toast.error(`Failed to ${lower}`, { description: error.message });
-      },
-    }),
+function useFileActions(
+  file: TaskFileViewerFile,
+  { resolveOpenTarget }: { resolveOpenTarget: boolean },
+) {
+  const openTaskFile = useOpenTaskFile();
+  const { showOpen } = useTaskFileOpenTarget(
+    resolveOpenTarget ? file : undefined,
   );
 
   return {
     download: async () => {
       await downloadFile(file);
     },
-    revealInFolder: () => {
-      showTaskFileInFolderMutation.mutate({
-        filePath: file.filePath,
-        id: file.taskId,
-      });
+    open: () => {
+      openTaskFile(file);
     },
+    showOpen,
   };
 }
 
@@ -420,10 +429,11 @@ function VideoPreviewCard({
 }) {
   const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
-  const actions = useFileActions(file);
+  const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
+  const actions = useFileActions(file, { resolveOpenTarget });
 
   const hasActions =
-    !hideActionsMenu && (fileActions.showDownload || fileActions.showReveal);
+    !hideActionsMenu && (fileActions.showDownload || actions.showOpen);
 
   const displayTime =
     isPlaying && timeRemaining !== null ? timeRemaining : videoDuration;
@@ -450,7 +460,10 @@ function VideoPreviewCard({
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
       onClick={onClick}
-      onMouseEnter={handleMouseEnter}
+      onMouseEnter={() => {
+        setResolveOpenTarget(true);
+        handleMouseEnter();
+      }}
       onMouseLeave={handleMouseLeave}
       overlayActions={
         hasActions ? (
@@ -465,13 +478,15 @@ function VideoPreviewCard({
                 }}
               />
             )}
-            {fileActions.showReveal && (
+            {actions.showOpen && (
               <MediaOverlayButton
-                icon={<RevealInFolderIcon className="size-3.5 shrink-0" />}
-                label={getRevealInFolderLabel()}
+                icon={
+                  <OpenTargetIcon className="size-3.5 shrink-0" file={file} />
+                }
+                label="Open"
                 onClick={(e) => {
                   e.stopPropagation();
-                  actions.revealInFolder();
+                  actions.open();
                 }}
               />
             )}

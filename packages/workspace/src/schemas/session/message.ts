@@ -9,8 +9,9 @@ import {
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { type AgentName, RETRIEVAL_AGENT_NAME } from "../../agents/types";
+import { type AgentName } from "../../agents/types";
 import { attachedFolderRemovalsModelNote } from "../../lib/attached-folder-changes-model-text";
+import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
 import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
@@ -290,8 +291,11 @@ export namespace SessionMessage {
           ).filter((folder) => folder.source !== "project");
           if (userAttachedFolders.length > 0) {
             const folderAttachmentText = buildAttachedFoldersText({
-              folderNames: userAttachedFolders.map((folder) => folder.name),
-              intro: `The user attached these external folders with this message. They are now available to the task via the ${RETRIEVAL_AGENT_NAME} agent. Assume they are directly relevant to the user's request.`,
+              folders: userAttachedFolders.map((folder) => ({
+                mountPoint: attachedFolderMountPoint(folder.name),
+                name: folder.name,
+              })),
+              intro: `The user attached these external folders with this message. They are mounted read-only in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
             });
 
             injectedParts.push({ text: folderAttachmentText, type: "text" });

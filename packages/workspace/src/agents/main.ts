@@ -6,6 +6,7 @@ import {
   TASK_FOLDER_NAMES as F,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
+import { assignAttachedMounts } from "../lib/attached-folder-mounts";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import {
   buildProjectContextText,
@@ -44,25 +45,32 @@ import {
   getTaskLayoutContext,
   shouldContinueWithToolCalls,
 } from "./shared";
-import { RETRIEVAL_AGENT_NAME } from "./types";
+
+interface MountedFolderAttachment {
+  folder: FolderAttachment.Type;
+  mountPoint: string;
+}
 
 async function buildAttachedFolderContext({
   folders,
   intro,
 }: {
-  folders: FolderAttachment.Type[];
+  folders: MountedFolderAttachment[];
   intro: string;
 }): Promise<null | string> {
   if (folders.length === 0) {
     return null;
   }
-  const folderNames = await Promise.all(
-    folders.map(async (folder) => {
+  const folderList = await Promise.all(
+    folders.map(async ({ folder, mountPoint }) => {
       const exists = await pathExists(folder.path);
-      return exists ? folder.name : `${folder.name} (no longer exists)`;
+      return {
+        mountPoint,
+        name: exists ? folder.name : `${folder.name} (no longer exists)`,
+      };
     }),
   );
-  return buildAttachedFoldersText({ folderNames, intro });
+  return buildAttachedFoldersText({ folders: folderList, intro });
 }
 
 async function getProjectContextSnapshot({
@@ -96,7 +104,6 @@ export const mainAgent = setupAgent({
     "LoadSkill",
     "ReadFile",
     "BashTool",
-    "Agent",
     "WebSearch",
     "WriteFile",
   ]),
@@ -192,12 +199,22 @@ export const mainAgent = setupAgent({
       visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
     Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`,
-    everything else in \`${F.work}/\`. Use relative paths within the task folder;
-    never absolute paths.
-    - Attached folders are external and reachable only by the ${RETRIEVAL_AGENT_NAME}
-      agent. Ask it to report findings without copying when you only need information;
-      when files must be processed in the task, ask it to find and copy them in the
-      same call.
+    everything else in \`${F.work}/\`. Your working directory is the task root
+    (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`).
+    The only absolute paths you use are the \`/mnt/...\` mount paths for attached
+    folders below; never use host paths like \`/Users/...\`.
+    - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory
+      per folder; the attached-folders context lists the exact paths). Browse, read,
+      and search them by their \`/mnt/...\` path with your normal file tools
+      (\`${agentTools.ReadFile.name}\`, \`${agentTools.Glob.name}\`, \`${agentTools.Grep.name}\`)
+      or the \`${agentTools.BashTool.name}\` tool (\`ls\`, \`cat\`, \`grep\`/\`rg\`, \`find\`).
+      They are NOT under the task root, so reach them by their \`/mnt/...\` path, not a
+      relative one.
+    - These mounts are read-only and reflect the user's real files: do not try to
+      edit, write into, or build outputs inside \`/mnt/\` (it will fail). Native tools
+      (ffmpeg, python, scripts) also cannot read from \`/mnt/\` directly. To edit, run,
+      or process an attached file, copy it into the task first (e.g.
+      \`cp '/mnt/<folder>/file' ${F.attachments}/\`) and operate on the copy.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
 
     # Tools Usage Guidance
@@ -302,12 +319,14 @@ export const mainAgent = setupAgent({
     // Split them by their source so each set is framed accordingly: project
     // folders as standing project context, the rest as folders the user attached.
     const taskState = await getTaskState(taskDir(taskId));
-    const attachedFolders = Object.values(taskState.attachedFolders ?? {});
+    const attachedFolders = assignAttachedMounts(
+      taskState.attachedFolders ?? {},
+    );
     const projectFolders = attachedFolders.filter(
-      (folder) => folder.source === "project",
+      ({ folder }) => folder.source === "project",
     );
     const userAttachedFolders = attachedFolders.filter(
-      (folder) => folder.source !== "project",
+      ({ folder }) => folder.source !== "project",
     );
 
     const userMessage = createContextMessage({
@@ -328,7 +347,8 @@ export const mainAgent = setupAgent({
         }),
         await buildAttachedFolderContext({
           folders: userAttachedFolders,
-          intro: "The user has attached these folders to this task.",
+          intro:
+            "The user has attached these folders to this task. They are mounted read-only for direct access:",
         }),
         taskLayout,
       ],

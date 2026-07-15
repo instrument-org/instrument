@@ -14,6 +14,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
+import { attachedFolderMountPoint } from "./attached-folder-mounts";
 import { buildAttachedFoldersText } from "./build-attached-folders-text";
 import {
   buildProjectContextText,
@@ -39,43 +40,12 @@ export async function getSessionMarkdown({
   sessionId: StoreId.Session;
   taskId: TaskId;
 }): Promise<string> {
-  const allSessionsResult = await Store.getSessions(taskId, {
-    includeChildSessions: true,
-  });
-
-  if (allSessionsResult.isErr()) {
-    throw allSessionsResult.error;
-  }
-
-  const allSessions = allSessionsResult.value;
-
-  const sessionMap = new Map<StoreId.Session, Session.WithMessagesAndParts>();
-  for (const session of allSessions) {
-    const result = await Store.getSessionWithMessagesAndParts(
-      session.id,
-      taskId,
-    );
-    if (result.isOk()) {
-      sessionMap.set(session.id, result.value);
-    }
-  }
-
-  const rootSession = sessionMap.get(sessionId);
-  if (!rootSession) {
+  const result = await Store.getSessionWithMessagesAndParts(sessionId, taskId);
+  if (result.isErr()) {
     throw new Error(`Session ${sessionId} not found`);
   }
 
-  const childSessions = new Map<
-    StoreId.Session,
-    Session.WithMessagesAndParts
-  >();
-  for (const [id, session] of sessionMap) {
-    if (id !== sessionId) {
-      childSessions.set(id, session);
-    }
-  }
-
-  return sessionToMarkdown(rootSession, childSessions, {
+  return sessionToMarkdown(result.value, {
     frontMatter,
     includeContextMessages,
   });
@@ -101,20 +71,6 @@ function buildMessageTimestampQueues(
   }
 
   return queues;
-}
-
-function buildTaskSessionIdMap(
-  session: Session.WithMessagesAndParts,
-): Map<string, StoreId.Session> {
-  const map = new Map<string, StoreId.Session>();
-  for (const message of session.messages) {
-    for (const part of message.parts) {
-      if (part.type === "tool-agent" && part.state === "output-available") {
-        map.set(part.toolCallId, part.output.sessionId);
-      }
-    }
-  }
-  return map;
 }
 
 function buildToolCallTimestampMap(
@@ -202,16 +158,14 @@ function inputToXml(toolName: string, input: unknown): string {
   return `<${toolName}>\n${inner}\n</${toolName}>`;
 }
 
-async function renderAssistantMessage(
+function renderAssistantMessage(
   message: AssistantModelMessage,
   toolMessage: ToolModelMessage | undefined,
-  childSessions: Map<StoreId.Session, Session.WithMessagesAndParts>,
-  taskSessionIds: Map<string, StoreId.Session>,
   toolTimestamps: Map<string, TimestampRange>,
   turn: number,
   toolCounter: { count: number },
   timestamps?: TimestampRange,
-): Promise<string[]> {
+): string[] {
   const lines: string[] = [
     `## Assistant (Turn ${turn})${formatTimestamp(timestamps)}`,
     "",
@@ -274,29 +228,6 @@ async function renderAssistantMessage(
           inputToXml(part.toolName, part.input),
         );
 
-        if (part.toolName === "agent") {
-          const childSessionId = taskSessionIds.get(part.toolCallId);
-          if (childSessionId) {
-            const childSession = childSessions.get(childSessionId);
-            if (childSession) {
-              const childMarkdown = await sessionToMarkdown(
-                childSession,
-                childSessions,
-              );
-              lines.push(
-                "",
-                "---",
-                "",
-                `> **Subagent: ${childSession.title}**`,
-                "",
-                ...childMarkdown.split("\n").map((line) => `> ${line}`),
-                "",
-                "---",
-              );
-            }
-          }
-        }
-
         const result = toolResultMap.get(part.toolCallId);
         if (result) {
           lines.push(
@@ -326,22 +257,18 @@ async function renderAssistantMessage(
   return lines;
 }
 
-async function renderMessage(
+function renderMessage(
   message: ModelMessage,
-  childSessions: Map<StoreId.Session, Session.WithMessagesAndParts>,
-  taskSessionIds: Map<string, StoreId.Session>,
   toolTimestamps: Map<string, TimestampRange>,
   turn: number,
   toolCounter: { count: number },
   timestamps?: TimestampRange,
-): Promise<string[]> {
+): string[] {
   switch (message.role) {
     case "assistant": {
       return renderAssistantMessage(
         message,
         undefined,
-        childSessions,
-        taskSessionIds,
         toolTimestamps,
         turn,
         toolCounter,
@@ -444,7 +371,10 @@ function renderProjectContext(
   if (projectFolderNames.length > 0) {
     blocks.push(
       buildAttachedFoldersText({
-        folderNames: projectFolderNames,
+        folders: projectFolderNames.map((name) => ({
+          mountPoint: attachedFolderMountPoint(name),
+          name,
+        })),
         intro: projectFoldersIntro(projectPart.data.projectName),
       }),
     );
@@ -562,7 +492,6 @@ function renderUserMessage(
 
 async function sessionToMarkdown(
   rootSession: Session.WithMessagesAndParts,
-  childSessions: Map<StoreId.Session, Session.WithMessagesAndParts>,
   {
     frontMatter,
     includeContextMessages = false,
@@ -590,7 +519,6 @@ async function sessionToMarkdown(
     TOOLS_FOR_MODEL_OUTPUT,
   );
 
-  const taskSessionIds = buildTaskSessionIdMap(rootSession);
   const toolTimestamps = buildToolCallTimestampMap(rootSession);
   const messageTimestamps = buildMessageTimestampQueues(orderedMessages);
 
@@ -623,11 +551,9 @@ async function sessionToMarkdown(
       const toolMessage =
         nextMessage?.role === "tool" ? nextMessage : undefined;
 
-      const rendered = await renderAssistantMessage(
+      const rendered = renderAssistantMessage(
         message,
         toolMessage,
-        childSessions,
-        taskSessionIds,
         toolTimestamps,
         turn,
         toolCounter,
@@ -653,10 +579,8 @@ async function sessionToMarkdown(
       continue;
     }
 
-    const rendered = await renderMessage(
+    const rendered = renderMessage(
       message,
-      childSessions,
-      taskSessionIds,
       toolTimestamps,
       turn,
       toolCounter,

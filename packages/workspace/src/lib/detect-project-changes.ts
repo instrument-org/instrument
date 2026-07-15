@@ -13,6 +13,7 @@ import { getProject } from "./project";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-state-store";
+import { uniqueFolderName } from "./unique-folder-name";
 
 /**
  * Compares the live project against the task's frozen project snapshot (folded
@@ -138,17 +139,4 @@ export function detectProjectChanges({
       } satisfies SessionMessagePart.Type);
     },
   );
-}
-
-function uniqueFolderName(
-  baseName: string,
-  folders: Record<string, FolderAttachment.Type>,
-): string {
-  let candidate = baseName;
-  let counter = 1;
-  while (candidate in folders) {
-    candidate = `${baseName}-${counter}`;
-    counter++;
-  }
-  return candidate;
 }

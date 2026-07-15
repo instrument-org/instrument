@@ -28,9 +28,6 @@ function sortFilesForTesting(files: string[]) {
   return [...files].sort((a, b) => a.localeCompare(b));
 }
 
-function stripFixturesPath(files: string[]) {
-  return files.map((f) => f.replace(FIXTURES_PATH + "/", ""));
-}
 
 describe("Glob", () => {
   it("should find files matching a specific pattern", async () => {
@@ -80,6 +77,47 @@ describe("Glob", () => {
     `);
   });
 
+  it("globs a read-only attached folder by mount path, returning mount paths", async () => {
+    // Distinct directory (a subfolder of the fixtures) so its host path maps
+    // back to the /mnt mount, not the task. Results must be /mnt/... so a
+    // follow-up read_file resolves to the same place.
+    const attachedPath = path.join(
+      import.meta.dirname,
+      "../../fixtures/file-system/nested",
+    );
+    const attachedFolders: Record<string, FolderAttachment.Type> = {
+      "test-folder": {
+        createdAt: Date.now(),
+        id: FolderAttachment.IdSchema.parse("test-folder-id"),
+        name: "Attached",
+        path: TaskDirSchema.parse(attachedPath),
+        source: "user",
+      },
+    };
+
+    const result = await runTool(TOOLS.Glob, {
+      agentName: "main",
+      input: {
+        explanation: "Find txt files in attached folder",
+        path: "/mnt/Attached",
+        pattern: "**/*.txt",
+      },
+      model,
+      signal: AbortSignal.timeout(10_000),
+      spawnAgent: vi.fn(),
+      taskId: createFixturesTaskConfig(),
+      taskState: { attachedFolders },
+    });
+
+    expect(sortFilesForTesting(result._unsafeUnwrap().files))
+      .toMatchInlineSnapshot(`
+      [
+        "/mnt/Attached/another/file.txt",
+        "/mnt/Attached/level1/test-deep.txt",
+      ]
+    `);
+  });
+
   it("should return empty array when no files match", async () => {
     const result = await runTool(TOOLS.Glob, {
       agentName: "main",
@@ -100,176 +138,4 @@ describe("Glob", () => {
     expect(output.truncated).toBe(false);
   });
 
-  describe("retrieval agent", () => {
-    const attachedFolders: Record<string, FolderAttachment.Type> = {
-      "test-folder": {
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("test-folder-id"),
-        name: "Test Folder",
-        path: TaskDirSchema.parse(FIXTURES_PATH),
-        source: "user",
-      },
-    };
-
-    it("should require a path parameter", async () => {
-      const result = await runTool(TOOLS.Glob, {
-        agentName: "retrieval",
-        input: {
-          explanation: "Find all txt files",
-          pattern: "*.txt",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      expect(result._unsafeUnwrap().error).toContain(
-        "Must specify a path parameter",
-      );
-      expect(result._unsafeUnwrap().error).toContain("Test Folder");
-      expect(result._unsafeUnwrap().files).toEqual([]);
-    });
-
-    it("should reject relative paths", async () => {
-      const result = await runTool(TOOLS.Glob, {
-        agentName: "retrieval",
-        input: {
-          explanation: "Find all txt files",
-          path: "./nested",
-          pattern: "*.txt",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      expect(result._unsafeUnwrap().error).toContain("Path must be absolute");
-      expect(result._unsafeUnwrap().files).toEqual([]);
-    });
-
-    it("should reject paths outside attached folders", async () => {
-      const result = await runTool(TOOLS.Glob, {
-        agentName: "retrieval",
-        input: {
-          explanation: "Find all txt files",
-          path: "/some/random/path",
-          pattern: "*.txt",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      expect(result._unsafeUnwrap().error).toContain(
-        "Path is not within any attached folder",
-      );
-      expect(result._unsafeUnwrap().error).toContain("Test Folder");
-      expect(result._unsafeUnwrap().files).toEqual([]);
-    });
-
-    it("should find ts files in attached folder with absolute paths", async () => {
-      const result = await runTool(TOOLS.Glob, {
-        agentName: "retrieval",
-        input: {
-          explanation: "Find all ts files",
-          path: FIXTURES_PATH,
-          pattern: "**/*.ts",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      const rawFiles = sortFilesForTesting(result._unsafeUnwrap().files);
-      expect(rawFiles.every((f) => path.isAbsolute(f))).toBe(true);
-      expect(stripFixturesPath(rawFiles)).toEqual([
-        "a-folder/built-in.ts",
-        "a-folder/external-module.ts",
-      ]);
-    });
-
-    it("should find files recursively in attached folder", async () => {
-      const result = await runTool(TOOLS.Glob, {
-        agentName: "retrieval",
-        input: {
-          explanation: "Find all txt files recursively",
-          path: FIXTURES_PATH,
-          pattern: "**/*.txt",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      const files = stripFixturesPath(
-        sortFilesForTesting(result._unsafeUnwrap().files),
-      );
-      expect(files).toEqual([
-        "empty-file.txt",
-        "folder/other2.txt",
-        "folder/test3.txt",
-        "grep-test-2.txt",
-        "grep-test.txt",
-        "nested/another/file.txt",
-        "nested/level1/test-deep.txt",
-        "other.txt",
-        "test1.txt",
-        "test2.txt",
-      ]);
-    });
-
-    it("should find a file when the pattern is the full absolute path to the file", async () => {
-      const absoluteFilePath = path.join(FIXTURES_PATH, "test1.txt");
-
-      const result = await runTool(TOOLS.Glob, {
-        agentName: "retrieval",
-        input: {
-          explanation: "Find a specific file",
-          path: FIXTURES_PATH,
-          pattern: absoluteFilePath,
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      const files = result._unsafeUnwrap().files;
-      expect(files).toHaveLength(1);
-      expect(files[0]).toContain("test1.txt");
-    });
-
-    it("should search within nested subdirectory of attached folder", async () => {
-      const nestedPath = path.join(FIXTURES_PATH, "nested");
-      const result = await runTool(TOOLS.Glob, {
-        agentName: "retrieval",
-        input: {
-          explanation: "Find files in nested folder",
-          path: nestedPath,
-          pattern: "**/*.txt",
-        },
-        model,
-        signal: AbortSignal.timeout(10_000),
-        spawnAgent: vi.fn(),
-        taskId: createFixturesTaskConfig(),
-        taskState: { attachedFolders },
-      });
-
-      const files = sortFilesForTesting(result._unsafeUnwrap().files).map((f) =>
-        f.replace(nestedPath + "/", ""),
-      );
-      expect(files).toEqual(["another/file.txt", "level1/test-deep.txt"]);
-    });
-  });
 });

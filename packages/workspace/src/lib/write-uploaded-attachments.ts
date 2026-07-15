@@ -25,6 +25,7 @@ import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getTaskAttachmentsDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-state-store";
+import { uniqueFolderName } from "./unique-folder-name";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
@@ -118,11 +119,10 @@ export async function writeUploadedAttachments({
 
       for (const folder of folders) {
         const baseName = path.basename(folder.path) || folder.path;
-        const uniqueName = getUniqueFolderName(
-          baseName,
-          existingFolders,
-          newFolders,
-        );
+        const uniqueName = uniqueFolderName(baseName, {
+          ...existingFolders,
+          ...newFolders,
+        });
 
         const folderAttachment: FolderAttachment.Type = {
           createdAt: getCurrentDate().getTime(),
@@ -183,22 +183,6 @@ async function getUniqueFilename(
     startAt: 1,
   });
   return name;
-}
-
-function getUniqueFolderName(
-  baseName: string,
-  existingFolders: Record<string, FolderAttachment.Type>,
-  newFolders: Record<string, FolderAttachment.Type>,
-): string {
-  let candidate = baseName;
-  let counter = 1;
-
-  while (candidate in existingFolders || candidate in newFolders) {
-    candidate = `${baseName}-${counter}`;
-    counter++;
-  }
-
-  return candidate;
 }
 
 function prepareUploadedFiles({

@@ -23,7 +23,7 @@ export function buildProjectContextText({
 }
 
 // Intro for the <attached_folders> block listing a project's folders, so they
-// carry the same retrieval-handling guidance as user-attached folders.
+// carry the same mount-handling guidance as user-attached folders.
 export function projectFoldersIntro(name: string): string {
   return `These folders belong to the "${name}" project and are available throughout this task.`;
 }

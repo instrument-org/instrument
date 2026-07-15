@@ -96,24 +96,6 @@ registerSession({
           type: "tool-load_skill",
         }),
         builder.toolPart(assistantMessageId, "output-error", {
-          errorText: "Subagent timed out after 120s",
-          input: {
-            agent_type: "retrieval",
-            explanation: "Launch retrieval agent",
-            prompt: "Search for config files",
-          },
-          type: "tool-agent",
-        }),
-        builder.toolPart(assistantMessageId, "output-error", {
-          errorText: "Source path does not exist: /Users/user/nonexistent-task",
-          input: {
-            explanation: "Copy files from missing folder",
-            path: "/Users/user/nonexistent-task",
-            pattern: "*.json",
-          },
-          type: "tool-copy_to_task",
-        }),
-        builder.toolPart(assistantMessageId, "output-error", {
           errorText: "Tool 'foobar' is not available",
           input: {},
           type: "tool-unavailable",

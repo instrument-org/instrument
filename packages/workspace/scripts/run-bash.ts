@@ -9,6 +9,7 @@
  *   pnpm script:run-bash -- --bail "setup" "verify"    # stop after first failure
  *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against existing task dir
  *   pnpm script:run-bash -- --tasks-dir /path/to/tasks # REPL with custom tasks root
+ *   pnpm script:run-bash -- --attach /some/dir "ls /mnt" # mount a folder read-only under /mnt
  *
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
@@ -26,13 +27,16 @@ import readline from "node:readline";
 import { ulid } from "ulid";
 
 import { createBashEnv } from "../src/lib/create-bash-env";
+import { uniqueFolderName } from "../src/lib/unique-folder-name";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
+import { FolderAttachment } from "../src/schemas/folder-attachment";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
 import { TaskIdSchema } from "../src/schemas/task-id";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 
 function parseArgs(argv: string[]) {
+  const attach: string[] = [];
   let bail = false;
   const commands: string[] = [];
   let taskId: string | undefined;
@@ -42,6 +46,14 @@ function parseArgs(argv: string[]) {
   while (remaining.length > 0) {
     const arg = remaining.shift();
     switch (arg) {
+      case "--attach": {
+        const dir = remaining.shift();
+        if (dir) {
+          attach.push(path.resolve(dir));
+        }
+
+        break;
+      }
       case "--bail": {
         bail = true;
 
@@ -65,7 +77,7 @@ function parseArgs(argv: string[]) {
     }
   }
 
-  return { bail, commands, taskId, tasksDir };
+  return { attach, bail, commands, taskId, tasksDir };
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -119,7 +131,23 @@ await fs.mkdir(taskDir, { recursive: true });
 
 const sessionId = StoreId.newSessionId();
 
-const bash = createBashEnv({
+const attachedFolders: Record<string, FolderAttachment.Type> = {};
+for (const folderPath of args.attach) {
+  const name = uniqueFolderName(
+    path.basename(folderPath) || folderPath,
+    attachedFolders,
+  );
+  attachedFolders[name] = {
+    createdAt: Date.now(),
+    id: FolderAttachment.IdSchema.parse(ulid()),
+    name,
+    path: AbsolutePathSchema.parse(folderPath),
+    source: "user",
+  };
+}
+
+const bash = await createBashEnv({
+  attachedFolders,
   sessionId,
   taskId,
   upsertContextItem: () => Promise.resolve(),
@@ -131,7 +159,19 @@ process.stderr.write(
 
 async function runCommand(cmd: string) {
   const started = performance.now();
-  const result = await bash.exec(cmd);
+  let result;
+  try {
+    result = await bash.exec(cmd);
+  } catch (error) {
+    // Mirror the bash tool: just-bash raises some filesystem failures (e.g. a
+    // redirect into a read-only mount) as thrown errors instead of exit codes.
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${message}\n`);
+    process.stderr.write(
+      `[exit 1 · ${Math.round(performance.now() - started)}ms]\n`,
+    );
+    return 1;
+  }
   const durationMs = Math.round(performance.now() - started);
 
   if (result.stdout) {
@@ -177,7 +217,7 @@ if (args.commands.length > 0) {
   });
 
   if (isInteractive) {
-    process.stderr.write("(FS root is task dir; type 'exit' to quit)\n");
+    process.stderr.write("(cwd is /task; type 'exit' to quit)\n");
     rl.prompt();
   }
 

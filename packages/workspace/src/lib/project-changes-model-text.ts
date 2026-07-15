@@ -1,4 +1,3 @@
-import { RETRIEVAL_AGENT_NAME } from "../agents/types";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
@@ -17,19 +16,19 @@ export function projectChangesModelNote(
 
   if (data.foldersAdded.length > 0) {
     const added = data.foldersAdded
-      .map((folder) => `- ${folder.name} (${folder.path})`)
+      .map((folder) => `- ${folder.name}`)
       .join("\n");
     lines.push(
-      `These folders were added to the "${data.projectName}" project and are now available via the ${RETRIEVAL_AGENT_NAME} agent:\n${added}`,
+      `These folders were added to the "${data.projectName}" project and are now mounted read-only under /mnt/ (the attached-folders context lists the exact paths):\n${added}`,
     );
   }
 
   if (data.foldersRemoved.length > 0) {
     const removed = data.foldersRemoved
-      .map((folder) => `- ${folder.name} (${folder.path})`)
+      .map((folder) => `- ${folder.name}`)
       .join("\n");
     lines.push(
-      `These folders were removed from the "${data.projectName}" project and are no longer available, so do not attempt to read or search them:\n${removed}`,
+      `These folders were removed from the "${data.projectName}" project and are no longer mounted, so do not attempt to read or search them:\n${removed}`,
     );
   }
 

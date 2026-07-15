@@ -4,8 +4,12 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { grep } from "../lib/grep";
-import { resolveAgentPath, resolveToolPath } from "../lib/resolve-agent-path";
+import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import {
+  buildWorkspaceFsLayout,
+  resolveVirtualPath,
+} from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -18,25 +22,19 @@ const INPUT_PARAMS = {
 const GREP_LIMIT = 100;
 
 export const Grep = setupTool({
-  inputSchema: (agentName) => {
-    const pathDescription =
-      agentName === "retrieval"
-        ? "Absolute path to search within (must be within an attached folder)"
-        : "The directory to search in (relative to task root). Defaults to the task root if not specified.";
-
-    return BaseInputSchema.extend({
-      [INPUT_PARAMS.include]: z.string().optional().meta({
-        description:
-          'File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")',
-      }),
-      [INPUT_PARAMS.path]: z.string().optional().meta({
-        description: pathDescription,
-      }),
-      [INPUT_PARAMS.pattern]: z
-        .string()
-        .meta({ description: "Valid ripgrep pattern to search for" }),
-    });
-  },
+  inputSchema: BaseInputSchema.extend({
+    [INPUT_PARAMS.include]: z.string().optional().meta({
+      description:
+        'File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")',
+    }),
+    [INPUT_PARAMS.path]: z.string().optional().meta({
+      description:
+        "The directory to search in (relative to task root), or a read-only attached-folder mount path (/mnt/<name>). Defaults to the task root if not specified.",
+    }),
+    [INPUT_PARAMS.pattern]: z
+      .string()
+      .meta({ description: "Valid ripgrep pattern to search for" }),
+  }),
   name: "grep",
   outputSchema: z.object({
     hasErrors: z.boolean().optional().default(false),
@@ -52,74 +50,53 @@ export const Grep = setupTool({
     truncated: z.boolean(),
   }),
 }).create({
-  description: ({ agentName }) => {
-    const pathExample =
-      agentName === "retrieval"
-        ? "/path/to/attached/folder"
-        : "./path/to/search";
-
-    return dedent`
-      - Fast content search tool that uses ripgrep (rg) that works with any codebase size.
-      - Searches file contents using regular expressions.
-      - Supports full regex syntax (eg. "log.*Error", "function\\s+\\w+", etc.).
-      - Uses smart case by default: searches case insensitively if ${INPUT_PARAMS.pattern} is all lowercase, otherwise searches case sensitively.
-      - Filter files by pattern with the ${INPUT_PARAMS.include} parameter (eg. "*.js", "*.{ts,tsx}").
-      - Search in specific directories by providing a ${INPUT_PARAMS.path} parameter.
-      - The ${INPUT_PARAMS.path} parameter must be ${agentName === "retrieval" ? "an absolute path within an attached folder" : "a relative path"}. E.g. ${pathExample}
-      - Returns file paths with line numbers and content, sorted by modification time.
-      - Use this tool when you need to find files containing specific patterns.
-    `;
-  },
-  execute: async ({ agentName, input, signal, taskId, taskState }) => {
-    // For retrieval agents: validate absolute path and search from that path
-    // For non-retrieval agents: resolve path and maintain relative paths in results
-    if (agentName === "retrieval") {
-      const pathResult = resolveAgentPath({
-        agentName,
-        attachedFolders: taskState.attachedFolders,
-        dir: taskDir(taskId),
-        inputPath: input.path,
-        isRequired: true,
-      });
-
-      if (pathResult.isErr()) {
-        return err(pathResult.error);
-      }
-
-      const { absolutePath: searchPath } = pathResult.value;
-
-      // Use dir as cwd, pass absolute path as searchPath
-      // This makes ripgrep return absolute paths in results
-      const result = await grep({
-        cwd: taskDir(taskId),
-        include: input.include,
-        limit: GREP_LIMIT,
-        pattern: input.pattern,
-        searchPath,
-        signal,
-      });
-
-      return ok(result);
-    }
-
-    // Non-retrieval agent: search from dir with optional relative searchPath
+  description: dedent`
+    - Fast content search tool that uses ripgrep (rg) that works with any codebase size.
+    - Searches file contents using regular expressions.
+    - Supports full regex syntax (eg. "log.*Error", "function\\s+\\w+", etc.).
+    - Uses smart case by default: searches case insensitively if ${INPUT_PARAMS.pattern} is all lowercase, otherwise searches case sensitively.
+    - Filter files by pattern with the ${INPUT_PARAMS.include} parameter (eg. "*.js", "*.{ts,tsx}").
+    - Search in specific directories by providing a ${INPUT_PARAMS.path} parameter.
+    - The ${INPUT_PARAMS.path} parameter must be a relative path. E.g. ./path/to/search
+    - Returns file paths with line numbers and content, sorted by modification time.
+    - Use this tool when you need to find files containing specific patterns.
+  `,
+  execute: async ({ input, signal, taskId, taskState }) => {
     if (input.path) {
-      const pathResult = resolveToolPath(taskDir(taskId), input.path);
+      const layout = buildWorkspaceFsLayout({
+        attachedFolders: taskState.attachedFolders,
+        taskHostRoot: taskDir(taskId),
+      });
+      const pathResult = resolveAgentPath({ inputPath: input.path, layout });
       if (pathResult.isErr()) {
         return err(pathResult.error);
       }
-      const searchPath = pathResult.value.displayPath;
+      const { absolutePath, attachedMount, displayPath } = pathResult.value;
 
+      // Inside an attached mount (/mnt/<name>/...), search the real folder on
+      // disk; otherwise search the task-relative displayPath.
       const result = await grep({
         cwd: taskDir(taskId),
         include: input.include,
         limit: GREP_LIMIT,
         pattern: input.pattern,
-        searchPath,
+        searchPath: attachedMount ? absolutePath : displayPath,
         signal,
       });
 
-      return ok(result);
+      if (!attachedMount) {
+        return ok(result);
+      }
+
+      // Map ripgrep's host paths back to their virtual mount path so no host
+      // path leaks and a follow-up read_file resolves to the same place.
+      return ok({
+        ...result,
+        matches: result.matches.map((match) => ({
+          ...match,
+          path: resolveVirtualPath(layout, match.path) ?? match.path,
+        })),
+      });
     }
 
     // No path specified, search from root

@@ -17,12 +17,10 @@ interface ToolBoundaryInfo {
 // Per-part adjacency for tool-call runs, keyed by part id. Skips non-inline
 // parts so they don't artificially split a run.
 export function buildToolBoundaryMap({
-  hideUserMessages,
   isDeveloperMode,
   isToolStreaming,
   regularMessages,
 }: {
-  hideUserMessages: boolean;
   isDeveloperMode: boolean;
   isToolStreaming: (
     part: SessionMessagePart.ToolPart,
@@ -48,10 +46,8 @@ export function buildToolBoundaryMap({
         : false;
       if (
         !isRenderableInlinePart({
-          hideUserMessages,
           isDeveloperMode,
           isStreaming,
-          message,
           part,
         })
       ) {
@@ -117,26 +113,16 @@ export function isVisibleAssistantPart({
 // Whether a part renders inline. Data parts derive from `dataPartVisibility`,
 // the same source `renderChatPart` uses, so the two stay consistent.
 function isRenderableInlinePart({
-  hideUserMessages,
   isDeveloperMode,
   isStreaming,
-  message,
   part,
 }: {
-  hideUserMessages: boolean;
   isDeveloperMode: boolean;
   isStreaming: boolean;
-  message: SessionMessage.WithParts;
   part: SessionMessagePart.Type;
 }) {
   if (part.type === "text") {
-    if (part.state === "done" && part.text.trim() === "") {
-      return false;
-    }
-    if (message.role === "user" && hideUserMessages) {
-      return false;
-    }
-    return true;
+    return part.state !== "done" || part.text.trim() !== "";
   }
 
   if (isDataPart(part)) {

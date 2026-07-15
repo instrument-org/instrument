@@ -76,6 +76,40 @@ describe("ReadFile", () => {
       }
     });
 
+    it("reads a file from a read-only attached folder by its mount path", async () => {
+      const value = (
+        await runTool(TOOLS.ReadFile, {
+          ...baseInput,
+          input: {
+            explanation: "read",
+            filePath: "/mnt/Test Folder/grep-test.txt",
+          },
+          taskState: { attachedFolders },
+        })
+      )._unsafeUnwrap();
+
+      expect(value.state).toBe("exists");
+      if (value.state === "exists") {
+        expect(value.content).toContain("async function testGrep");
+        expect(value.filePath).toBe("/mnt/Test Folder/grep-test.txt");
+      }
+    });
+
+    it("reads a task file addressed by its /task virtual path", async () => {
+      const value = (
+        await runTool(TOOLS.ReadFile, {
+          ...baseInput,
+          input: { explanation: "read", filePath: "/task/grep-test.txt" },
+        })
+      )._unsafeUnwrap();
+
+      expect(value.state).toBe("exists");
+      if (value.state === "exists") {
+        expect(value.content).toContain("async function testGrep");
+        expect(value.filePath).toBe("./grep-test.txt");
+      }
+    });
+
     it("should return does-not-exist with suggestions for a similarly-named file", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {
@@ -111,7 +145,7 @@ describe("ReadFile", () => {
       }
     });
 
-    it("should return a specialized error when an absolute path matches an attached folder", async () => {
+    it("steers a host path inside an attached folder to its mount path", async () => {
       const error = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
@@ -123,94 +157,9 @@ describe("ReadFile", () => {
         })
       )._unsafeUnwrapErr();
 
-      expect(error.message).toContain("retrieval");
-      expect(error.message).toContain("agent");
       expect(error.message).toContain("Test Folder");
-    });
-  });
-
-  describe("retrieval agent", () => {
-    const baseInput = {
-      agentName: "retrieval" as const,
-      model,
-      signal: AbortSignal.timeout(10_000),
-      spawnAgent: vi.fn(),
-      taskId,
-      taskState: { attachedFolders },
-    };
-
-    it("should reject relative paths", async () => {
-      const error = (
-        await runTool(TOOLS.ReadFile, {
-          ...baseInput,
-          input: { explanation: "read", filePath: "./grep-test.txt" },
-        })
-      )._unsafeUnwrapErr();
-
-      expect(error.message).toContain("Path must be absolute");
-    });
-
-    it("should reject paths outside attached folders", async () => {
-      const error = (
-        await runTool(TOOLS.ReadFile, {
-          ...baseInput,
-          input: { explanation: "read", filePath: "/some/random/file.txt" },
-        })
-      )._unsafeUnwrapErr();
-
-      expect(error.message).toContain("Path is not within any attached folder");
-      expect(error.message).toContain("Test Folder");
-    });
-
-    it("should read a file within an attached folder", async () => {
-      const value = (
-        await runTool(TOOLS.ReadFile, {
-          ...baseInput,
-          input: {
-            explanation: "read",
-            filePath: path.join(fixturesPath, "grep-test.txt"),
-          },
-        })
-      )._unsafeUnwrap();
-
-      expect(value.state).toBe("exists");
-      if (value.state === "exists") {
-        expect(value.content).toContain("async function testGrep");
-        expect(value.filePath).toBe(path.join(fixturesPath, "grep-test.txt"));
-      }
-    });
-
-    it("should read a file in a nested subdirectory of an attached folder", async () => {
-      const value = (
-        await runTool(TOOLS.ReadFile, {
-          ...baseInput,
-          input: {
-            explanation: "read",
-            filePath: path.join(fixturesPath, "nested/level1/test-deep.txt"),
-          },
-        })
-      )._unsafeUnwrap();
-
-      expect(value.state).toBe("exists");
-    });
-
-    it("should return does-not-exist with suggestions for a similarly-named file", async () => {
-      const value = (
-        await runTool(TOOLS.ReadFile, {
-          ...baseInput,
-          input: {
-            explanation: "read",
-            filePath: path.join(fixturesPath, "grep-test.ts"),
-          },
-        })
-      )._unsafeUnwrap();
-
-      expect(value.state).toBe("does-not-exist");
-      if (value.state === "does-not-exist") {
-        expect(value.suggestions).toContain(
-          path.join(fixturesPath, "grep-test.txt"),
-        );
-      }
+      expect(error.message).toContain("mount path");
+      expect(error.message).toContain("/mnt/Test Folder");
     });
   });
 });

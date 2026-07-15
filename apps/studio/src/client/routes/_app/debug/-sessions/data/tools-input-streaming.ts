@@ -118,24 +118,6 @@ export function authMiddleware(
           },
           type: "tool-load_skill",
         }),
-        builder.textPart("Calling task...", assistantMessageId),
-        builder.toolPart(assistantMessageId, "input-streaming", {
-          input: {
-            agent_type: "retrieval",
-            explanation: "Launch retrieval agent to search external folder",
-            prompt: "Search the attached folder for any existing TypeScript",
-          },
-          type: "tool-agent",
-        }),
-        builder.textPart("Calling copy_to_task...", assistantMessageId),
-        builder.toolPart(assistantMessageId, "input-streaming", {
-          input: {
-            explanation: "Copy TypeScript config from attached folder",
-            path: "/Users/user/external-proj",
-            pattern: "tsconfig",
-          },
-          type: "tool-copy_to_task",
-        }),
         builder.textPart("Calling glob...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {

@@ -1,4 +1,4 @@
-export type { AgentName, TaskAgentName } from "./agents/types";
+export type { AgentName } from "./agents/types";
 export {
   MAX_PROMPT_STORAGE_LENGTH,
   TASK_FOLDER_NAMES,
@@ -10,7 +10,6 @@ export { externalFileChangesModelNote } from "./lib/external-file-changes-model-
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export { isInteractiveTool } from "./lib/is-interactive-tool";
-export { isTaskAgentName } from "./lib/is-task-agent-name";
 export * from "./lib/is-task-id";
 export { isToolPart } from "./lib/is-tool-part";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";

@@ -18,11 +18,11 @@ import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import {
   applyUnicodeFallbacks,
-  resolveToolPath,
+  resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
-import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { ReadFile } from "./read-file";
@@ -716,7 +716,8 @@ export const EditFile = setupTool({
   name: "edit_file",
   outputSchema: z.object({
     diff: z.string().optional(),
-    filePath: RelativePathSchema,
+    // Task-relative today; a writable mount path once those exist.
+    filePath: z.string(),
     modifiedAt: z.number(),
   }),
 }).create({
@@ -734,12 +735,19 @@ export const EditFile = setupTool({
     - Multiple calls to this tool will be run in serial, ensuring that each edit is complete before the next one starts.
     - Using this tool multiple times in parallel will still greatly improve efficiency and reduce costs.
   `,
-  execute: async ({ input, signal, taskId }) => {
+  execute: async ({ input, signal, taskId, taskState }) => {
     if (input.oldString === input.newString) {
       return executeError("oldString and newString must be different");
     }
 
-    const pathResult = resolveToolPath(taskDir(taskId), input.filePath);
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders: taskState.attachedFolders,
+      taskHostRoot: taskDir(taskId),
+    });
+    const pathResult = resolveWritableToolPath({
+      inputPath: input.filePath,
+      layout,
+    });
     if (pathResult.isErr()) {
       return err(pathResult.error);
     }

@@ -1,4 +1,3 @@
-import { RETRIEVAL_AGENT_NAME } from "../agents/types";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
@@ -10,11 +9,11 @@ export function attachedFolderRemovalsModelNote(
   }
 
   const lines = data.removed
-    .map((folder) => `- ${folder.name} (${folder.path})`)
+    .map((folder) => `- ${folder.name}`)
     .join("\n");
 
   return systemNote`
-    The user removed these attached folders from this task since your last activity. They are no longer available via the ${RETRIEVAL_AGENT_NAME} agent, so do not attempt to read or search them.
+    The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them.
     ${lines}
   `;
 }

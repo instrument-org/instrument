@@ -109,13 +109,12 @@ export function ToolCallSummary({
         ? getToolStreamingLabel(toolName)
         : getToolLabelForPart({
             hasCapabilityFailure,
-            part,
             state: isFailed ? "tried" : "completed",
             toolName,
           });
 
   const deadLabel = isDeadDevMode
-    ? `${getToolLabelForPart({ part, state: "streaming", toolName })} stopped while ${part.state}`
+    ? `${getToolLabelForPart({ state: "streaming", toolName })} stopped while ${part.state}`
     : null;
 
   const trigger = (

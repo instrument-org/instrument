@@ -24,7 +24,6 @@ import {
 } from "./chat-stream-utils";
 import { ContextMessages } from "./context-messages";
 import { MessageError } from "./message-error";
-import { type RenderStream } from "./message-part/tool-agent";
 import { ProjectContextNote } from "./project-context-note";
 import { ReasoningMessage } from "./reasoning-message";
 import { Alert, AlertDescription } from "./ui/alert";
@@ -32,8 +31,6 @@ import { Button } from "./ui/button";
 import { Wordmark } from "./wordmark";
 
 interface ChatStreamProps {
-  hideLogo?: boolean;
-  hideUserMessages?: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   messages: SessionMessage.WithParts[];
@@ -45,8 +42,6 @@ interface ChatStreamProps {
 }
 
 export function ChatStream({
-  hideLogo = false,
-  hideUserMessages = false,
   isAgentRunning,
   isDeveloperMode,
   messages,
@@ -77,24 +72,6 @@ export function ChatStream({
   const lastRegularMessage = regularMessages.at(-1);
   const lastAssistantMessage =
     lastRegularMessage?.role === "assistant" ? lastRegularMessage : undefined;
-
-  const renderStream: RenderStream = useCallback(
-    ({ isAgentRunning: isNestedAgentRunning, messages: nestedMessages }) => (
-      <ChatStream
-        hideLogo
-        hideUserMessages
-        isAgentRunning={isNestedAgentRunning}
-        isDeveloperMode={isDeveloperMode}
-        messages={nestedMessages}
-        onContinue={onContinue}
-        onModelChange={onModelChange}
-        onRetry={onRetry}
-        onStartNewTask={onStartNewTask}
-        task={task}
-      />
-    ),
-    [isDeveloperMode, onContinue, onModelChange, onRetry, onStartNewTask, task],
-  );
 
   const isToolStreaming = useCallback(
     (part: SessionMessagePart.ToolPart, message: SessionMessage.WithParts) =>
@@ -164,38 +141,33 @@ export function ChatStream({
   const toolBoundaryMap = useMemo(
     () =>
       buildToolBoundaryMap({
-        hideUserMessages,
         isDeveloperMode,
         isToolStreaming,
         regularMessages,
       }),
-    [hideUserMessages, isDeveloperMode, isToolStreaming, regularMessages],
+    [isDeveloperMode, isToolStreaming, regularMessages],
   );
 
   const renderCtx: RenderPartContext = useMemo(
     () => ({
       assetBaseUrl,
       currentToolId,
-      hideUserMessages,
       isAgentRunning,
       isDeveloperMode,
       isToolStreaming,
       lastMessageId,
       onRetry,
-      renderStream,
       task,
     }),
     [
       assetBaseUrl,
       currentToolId,
-      hideUserMessages,
       isAgentRunning,
       isDeveloperMode,
       isToolStreaming,
       lastMessageId,
       onRetry,
       task,
-      renderStream,
     ],
   );
 
@@ -283,7 +255,6 @@ export function ChatStream({
       // --- Per-message chrome ---
 
       const isLogoVisible =
-        !hideLogo &&
         isFirstInConsecutiveAssistantGroup &&
         (!isLastMessage ||
           lastAssistantMessageHasVisibleParts ||
@@ -300,7 +271,7 @@ export function ChatStream({
         );
       }
 
-      if (!hideUserMessages && message.role === "user") {
+      if (message.role === "user") {
         const fileAttachmentsPart = fileAttachments.find(
           (part) => part.type === "data-attachments",
         );
@@ -397,8 +368,6 @@ export function ChatStream({
     regularMessages,
     renderCtx,
     toolBoundaryMap,
-    hideLogo,
-    hideUserMessages,
     assetBaseUrl,
     task.id,
     isAgentRunning,

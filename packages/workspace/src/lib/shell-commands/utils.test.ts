@@ -5,7 +5,11 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
-import { extractFileAndScriptArgs, parseScriptRunnerArgs } from "./utils";
+import {
+  extractFileAndScriptArgs,
+  parseScriptRunnerArgs,
+  resolvePathArgs,
+} from "./utils";
 
 const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
 const dir = taskDir(taskId);
@@ -14,6 +18,36 @@ const fs = new InMemoryFs();
 function resolvePath(cwd: string) {
   return (p: string) => fs.resolvePath(cwd, p);
 }
+
+describe("resolvePathArgs native-binary bridge", () => {
+  it("maps a /mnt path to a nonexistent task path, never the real folder", () => {
+    const resolved = resolvePathArgs(["/mnt/Photos/clip.mov"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    // A native binary can never be handed the real read-only attached-folder
+    // host path: only the bash and file-tool layers map /mnt to the real folder
+    // (and only for reads). Here it stays inside the task dir, where it does not
+    // exist, so the binary fails instead of touching the user's real files.
+    expect(resolved).toEqual([`${dir}/mnt/Photos/clip.mov`]);
+  });
+
+  it("maps /task paths to the real task dir", () => {
+    const resolved = resolvePathArgs(["/task/work/in.wav"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    expect(resolved).toEqual([`${dir}/work/in.wav`]);
+  });
+
+  it("quarantines any other virtual absolute path into the task dir", () => {
+    const resolved = resolvePathArgs(["/tmp/scratch.txt"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    expect(resolved).toEqual([`${dir}/tmp/scratch.txt`]);
+  });
+});
 
 describe("extractFileAndScriptArgs", () => {
   it("returns undefined when no positionals", () => {

@@ -1,6 +1,8 @@
 import mockFs from "mock-fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { FolderAttachment } from "../schemas/folder-attachment";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
@@ -74,5 +76,51 @@ describe("WriteFile - toModelOutput", () => {
           "value": "Successfully overwrote existing file ./index.ts",
         }
       `);
+  });
+});
+
+describe("WriteFile - path policy", () => {
+  afterEach(() => {
+    mockFs.restore();
+  });
+
+  it("writes /task/... virtual paths to the real task location", async () => {
+    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+
+    const result = await runTool(
+      WriteFile,
+      makeExecuteArgs({
+        content: "report",
+        explanation: "test",
+        filePath: "/task/output/report.md",
+      }),
+    );
+    expect(result._unsafeUnwrap().filePath).toBe("./output/report.md");
+  });
+
+  it("rejects writes into a read-only attached mount", async () => {
+    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+
+    const result = await runTool(WriteFile, {
+      ...makeExecuteArgs({
+        content: "nope",
+        explanation: "test",
+        filePath: "/mnt/Docs/report.md",
+      }),
+      taskState: {
+        attachedFolders: {
+          docs: {
+            createdAt: 0,
+            id: FolderAttachment.IdSchema.parse("docs-id"),
+            name: "Docs",
+            path: AbsolutePathSchema.parse("/ext/Docs"),
+            source: "user",
+          },
+        },
+      },
+    });
+    const error = result._unsafeUnwrapErr();
+    expect(error.message).toContain("read-only");
+    expect(error.message).toContain("copy");
   });
 });

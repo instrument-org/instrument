@@ -5,34 +5,25 @@ import { z } from "zod";
 import { globSortedByMtime, resolveGlobPattern } from "../lib/glob";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import {
+  buildWorkspaceFsLayout,
+  resolveVirtualPath,
+} from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
 const GLOB_LIMIT = 100;
 
 export const Glob = setupTool({
-  inputSchema: (agentName) => {
-    const baseSchema = BaseInputSchema.extend({
-      pattern: z
-        .string()
-        .meta({ description: "Glob pattern to match files against" }),
-    });
-
-    if (agentName === "retrieval") {
-      return baseSchema.extend({
-        path: z.string().meta({
-          description: "Absolute path to an attached folder to search within.",
-        }),
-      });
-    }
-
-    return baseSchema.extend({
-      path: z.string().optional().meta({
-        description:
-          "Relative path to a folder to search within. Defaults to the task root if not specified.",
-      }),
-    });
-  },
+  inputSchema: BaseInputSchema.extend({
+    path: z.string().optional().meta({
+      description:
+        "Relative path to a folder to search within, or a read-only attached-folder mount path (/mnt/<name>). Defaults to the task root if not specified.",
+    }),
+    pattern: z
+      .string()
+      .meta({ description: "Glob pattern to match files against" }),
+  }),
   name: "glob",
   outputSchema: z.object({
     error: z.string().optional(),
@@ -41,19 +32,17 @@ export const Glob = setupTool({
     truncated: z.boolean(),
   }),
 }).create({
-  description: ({ agentName }) => {
-    if (agentName === "retrieval") {
-      return "Find files matching a glob pattern within attached folders. You must specify an absolute path to an attached folder to search within.";
-    }
-    return "Find files matching a glob pattern in the codebase. Specify a path to search within a specific folder, or omit to search from the task root.";
-  },
-  execute: async ({ agentName, input, signal, taskId, taskState }) => {
-    const pathResult = resolveAgentPath({
-      agentName,
+  description:
+    "Find files matching a glob pattern in the codebase. Specify a path to search within a specific folder (including a read-only attached folder at /mnt/<name>), or omit to search from the task root.",
+  execute: async ({ input, signal, taskId, taskState }) => {
+    const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
-      dir: taskDir(taskId),
+      taskHostRoot: taskDir(taskId),
+    });
+    const pathResult = resolveAgentPath({
       inputPath: input.path,
-      isRequired: agentName === "retrieval",
+      isRequired: false,
+      layout,
     });
 
     if (pathResult.isErr()) {
@@ -65,21 +54,27 @@ export const Glob = setupTool({
       });
     }
 
-    const { absolutePath: searchRoot } = pathResult.value;
+    const { absolutePath: searchRoot, attachedMount } = pathResult.value;
 
-    const isRetrieval = agentName === "retrieval";
-
+    // Inside an attached mount, glob the real folder and map host paths back
+    // to their /mnt/... mount path so the results are usable with the other
+    // tools. Mirrors grep; without this the agent gets paths relative to the
+    // host folder that read_file would resolve in the wrong place.
     const sorted = await globSortedByMtime({
-      absolute: isRetrieval,
+      absolute: attachedMount !== null,
       cwd: searchRoot,
       pattern: resolveGlobPattern({ cwd: searchRoot, pattern: input.pattern }),
       signal,
     });
 
-    const truncated = sorted.length > GLOB_LIMIT;
-    const files = truncated ? sorted.slice(0, GLOB_LIMIT) : sorted;
+    const files = attachedMount
+      ? sorted.map((p) => resolveVirtualPath(layout, p) ?? p)
+      : sorted;
 
-    return ok({ files, totalFiles: sorted.length, truncated });
+    const truncated = files.length > GLOB_LIMIT;
+    const visible = truncated ? files.slice(0, GLOB_LIMIT) : files;
+
+    return ok({ files: visible, totalFiles: files.length, truncated });
   },
   readOnly: true,
   timeoutMs: ms("15 seconds"),

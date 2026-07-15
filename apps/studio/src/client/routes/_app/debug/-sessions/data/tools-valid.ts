@@ -63,22 +63,6 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
-            agent_type: "retrieval",
-            explanation: "Launch retrieval agent to search external folder",
-            prompt:
-              "Search the attached folder for any existing TypeScript config files and report what you find.",
-          },
-          output: {
-            result:
-              "Found tsconfig.json and tsconfig.build.json in the root of the attached folder. The base config targets ES2022 with strict mode enabled.",
-            sessionId: StoreId.newSessionId(),
-            status: "done",
-            summary: "read 2 files, 1 search",
-          },
-          type: "tool-agent",
-        }),
-        builder.toolPart(assistantMessageId, "output-available", {
-          input: {
             explanation: "Find all TypeScript files in the src directory",
             pattern: "src/**/*.ts",
           },
@@ -461,26 +445,6 @@ describe("slugify", () => {
           ];
           return part;
         })(),
-        builder.toolPart(assistantMessageId, "output-available", {
-          input: {
-            explanation: "Copy TypeScript config from attached folder",
-            path: "/Users/user/external-project",
-            pattern: "tsconfig*.json",
-          },
-          output: {
-            errors: [],
-            files: [
-              {
-                destinationPath: "./.instrument-retrieved/tsconfig.json",
-                size: 512,
-                sourcePath: "/Users/user/external-project/tsconfig.json",
-              },
-            ],
-            truncatedCount: 0,
-            truncationReason: null,
-          },
-          type: "tool-copy_to_task",
-        }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {},
           output: {},

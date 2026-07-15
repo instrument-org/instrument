@@ -15,9 +15,14 @@ import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
-import { resolveToolPath } from "../lib/resolve-agent-path";
+import { pathExists } from "../lib/path-exists";
+import {
+  resolveExistingFilePath,
+  resolveWritableToolPath,
+} from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
+import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
@@ -45,6 +50,14 @@ const GeneratedImageFileSchema = z.object({
 // interval. The final frame is always written regardless.
 const PARTIAL_THROTTLE_MS = 400;
 
+const SourceImageFileSchema = z.object({
+  // Task-relative, or a read-only mount path (/mnt/<name>/...); mount paths
+  // cannot be served by the task asset server, so the UI falls back to a
+  // name-only chip for them.
+  filePath: z.string(),
+  modifiedAt: z.number(),
+});
+
 export const GenerateImage = setupTool({
   inputSchema: BaseInputSchema.extend({
     [INPUT_PARAMS.allowOverwrite]: z
@@ -68,7 +81,7 @@ export const GenerateImage = setupTool({
     }),
     [INPUT_PARAMS.sourceImages]: z.array(z.string()).optional().meta({
       description:
-        "Relative file paths to images used for image-to-image (img2img) conditioning. Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.",
+        "Paths to images used for image-to-image (img2img) conditioning: task-relative, or an attached folder's read-only mount path (/mnt/<name>/...). Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.",
     }),
   }),
   name: "generate_image",
@@ -89,7 +102,7 @@ export const GenerateImage = setupTool({
       provider: ProviderOutputSchema,
       // The requested path was taken, so the image was saved under a new name.
       renamedToAvoidOverwrite: z.boolean(),
-      sourceImages: z.array(GeneratedImageFileSchema),
+      sourceImages: z.array(SourceImageFileSchema),
       state: z.literal("success"),
       usage: UsageOutputSchema,
     }),
@@ -134,8 +147,15 @@ export const GenerateImage = setupTool({
       configs: getWorkspaceConfig().getAIProviderConfigs(),
     })}
   `,
-  async *execute({ input, model, signal, taskId }) {
-    const filePathResult = resolveToolPath(taskDir(taskId), input.filePath);
+  async *execute({ input, model, signal, taskId, taskState }) {
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders: taskState.attachedFolders,
+      taskHostRoot: taskDir(taskId),
+    });
+    const filePathResult = resolveWritableToolPath({
+      inputPath: input.filePath,
+      layout,
+    });
     if (filePathResult.isErr()) {
       yield err(filePathResult.error);
       return;
@@ -166,19 +186,27 @@ export const GenerateImage = setupTool({
     }
 
     let sourceImageBuffers: Buffer[] | undefined;
-    const sourceImages: z.output<typeof GeneratedImageFileSchema>[] = [];
+    const sourceImages: z.output<typeof SourceImageFileSchema>[] = [];
     if (input.sourceImages && input.sourceImages.length > 0) {
       const resolvedSourcePaths = [];
-      for (const relativePath of input.sourceImages) {
-        const pathResult = resolveToolPath(taskDir(taskId), relativePath);
+      for (const inputPath of input.sourceImages) {
+        // Sources are reads in our own process (not a native subprocess), so
+        // they resolve like read_file: task paths or read-only mounts, with
+        // the same symlink containment.
+        const pathResult = resolveExistingFilePath({ inputPath, layout });
         if (pathResult.isErr()) {
           yield err(pathResult.error);
           return;
         }
-        resolvedSourcePaths.push(pathResult.value.absolutePath);
-        const stats = await fs.stat(pathResult.value.absolutePath);
+        const { absolutePath, displayPath } = pathResult.value;
+        if (!(await pathExists(absolutePath))) {
+          yield executeError(`Source image not found: ${displayPath}`);
+          return;
+        }
+        resolvedSourcePaths.push(absolutePath);
+        const stats = await fs.stat(absolutePath);
         sourceImages.push({
-          filePath: RelativePathSchema.parse(pathResult.value.displayPath),
+          filePath: displayPath,
           modifiedAt: stats.mtimeMs,
         });
       }

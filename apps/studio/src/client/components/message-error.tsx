@@ -89,10 +89,15 @@ export function MessageError({
 
   if (showActions && platformError && requiresAutoModelRecovery(message)) {
     const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
+    // The message names the model, because the recorded model carries a display
+    // name and the platform error only knows the id it was asked for.
+    const modelName = message.metadata.aiGatewayModel?.name.trim();
 
     return (
       <Alert>
-        <AlertTitle>Model unavailable</AlertTitle>
+        <AlertTitle>
+          {modelName ? `${modelName} is unavailable` : "Model unavailable"}
+        </AlertTitle>
         <AlertDescription className="flex flex-col gap-3">
           <span>{platformError.message || error.message}</span>
           {autoModel && (

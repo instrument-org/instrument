@@ -7,8 +7,8 @@ interface GroupedModels {
   "May not support tools": AIGatewayModel.Type[];
   New: AIGatewayModel.Type[];
   Other: AIGatewayModel.Type[];
-  Premium: AIGatewayModel.Type[];
   Recommended: AIGatewayModel.Type[];
+  "Requires a paid plan": AIGatewayModel.Type[];
 }
 
 type GroupedModelsEntry = {
@@ -22,31 +22,25 @@ export function getGroupedModelsEntries(
 }
 
 export function groupAndFilterModels({
-  hasPremium,
   models,
 }: {
-  hasPremium: boolean;
   models: AIGatewayModel.Type[];
 }): GroupedModels {
-  const shouldSeparatePremium = !hasPremium;
-
   const [recommended, notRecommended] = fork(
     models,
     (model) =>
       model.tags.includes("recommended") && model.tags.includes("coding"),
   );
 
-  const [ourPremium, otherPremium] = shouldSeparatePremium
-    ? fork(
-        recommended,
-        (model) =>
-          model.params.provider === OUR_MODELS.providerType &&
-          model.tags.includes("premium"),
-      )
-    : [[], recommended];
+  // Models the gateway says this user cannot run are still worth listing, since
+  // seeing what a plan unlocks is the point of showing them, but they do not
+  // belong among the ones the user can actually pick.
+  const [restricted, availableRecommended] = fork(recommended, (model) =>
+    Boolean(model.restricted),
+  );
 
   const [defaultRecommended, nonDefaultRecommended] = fork(
-    otherPremium,
+    availableRecommended,
     (model) => model.tags.includes("default"),
   );
 
@@ -68,7 +62,7 @@ export function groupAndFilterModels({
       ...defaultRecommended,
       ...nonDefaultRecommended,
     ]),
-    Premium: prioritizeOurModels(ourPremium),
+    "Requires a paid plan": prioritizeOurModels(restricted),
     New: prioritizeOurModels(newModels),
     Other: prioritizeOurModels(notLegacy),
     Legacy: prioritizeOurModels(legacy),

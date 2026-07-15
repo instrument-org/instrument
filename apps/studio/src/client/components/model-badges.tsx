@@ -2,7 +2,6 @@ import type { ComponentType } from "react";
 
 import { BrandIconGlyph } from "@/client/components/brand-icon";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
-import { APP_NAME } from "@instrument-org/shared";
 import {
   CrosshairIcon,
   HourglassIcon,
@@ -121,25 +120,19 @@ const BADGE_CONFIGS: BadgeConfig[] = [
   },
 ];
 
-export function ModelBadges({
-  hasPremium,
-  model,
-}: {
-  hasPremium: boolean;
-  model: AIGatewayModel.Type;
-}) {
-  const showPremiumBadge = model.tags.includes("premium") && !hasPremium;
+export function ModelBadges({ model }: { model: AIGatewayModel.Type }) {
+  const restricted = model.restricted;
 
   return (
     <div className="flex items-center gap-1">
-      {showPremiumBadge && (
+      {restricted && (
         <Badge
           config={{
             color: "brand",
             icon: BrandIconGlyph,
-            key: "premium",
+            key: "restricted",
             shouldShow: () => true,
-            tooltip: `This model requires a paid ${APP_NAME} plan`,
+            tooltip: restricted.message,
           }}
         />
       )}

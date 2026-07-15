@@ -1,10 +1,9 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useOpenTaskFile } from "@/client/hooks/use-open-task-file";
-import { useTaskFileOpenTarget } from "@/client/hooks/use-task-file-open-target";
+import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { ArrowLineDownIcon } from "@phosphor-icons/react";
 
 import { FileIcon } from "./file-icon";
-import { OpenTargetIcon } from "./open-target-icon";
+import { OpenTaskFileButton } from "./open-task-file-button";
 import { Button } from "./ui/button";
 
 export function FilePreviewFallback({
@@ -18,11 +17,10 @@ export function FilePreviewFallback({
   filename: string;
   onDownload?: () => void;
 }) {
-  const openTaskFile = useOpenTaskFile();
-  const { appName, openLabel } = useTaskFileOpenTarget(file);
+  const openControl = useTaskFileOpenControl(file);
   // Without a resolved app association, opening could dead-end in an OS
   // error, so only promote open over download when an app is known.
-  const canOpen = file != null && appName != null;
+  const canOpen = openControl.showOpen;
 
   return (
     <div className="flex w-full max-w-md flex-col items-center justify-center gap-4 p-8 text-center text-foreground">
@@ -34,25 +32,18 @@ export function FilePreviewFallback({
         />
       </div>
       <div>
-        <p className="text-sm font-medium">Preview not available</p>
+        <p className="max-w-72 break-all text-sm font-medium">{filename}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {canOpen
-            ? `Open this file in ${appName} to view it`
-            : onDownload
-              ? "Download this file to view it"
-              : "This file cannot be previewed"}
+          Preview unavailable in Instrument
         </p>
       </div>
       {canOpen ? (
-        <Button
-          onClick={() => {
-            openTaskFile(file);
-          }}
+        <OpenTaskFileButton
+          control={openControl}
+          file={file}
+          iconClassName="size-4"
           size="sm"
-        >
-          <OpenTargetIcon className="size-4" file={file} />
-          {openLabel}
-        </Button>
+        />
       ) : (
         onDownload && (
           <Button onClick={onDownload} size="sm">

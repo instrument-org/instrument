@@ -6,6 +6,7 @@ import {
   useTaskFileReferenceStatus,
 } from "@/client/components/task/current-task-files";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
+import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -18,18 +19,14 @@ import {
 } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
-import { useOpenTaskFile } from "../hooks/use-open-task-file";
-import {
-  usePrefetchTaskFileOpenTarget,
-  useTaskFileOpenTarget,
-} from "../hooks/use-task-file-open-target";
+import { usePrefetchTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { ImageWithFallback } from "./image-with-fallback";
 import { MediaCardShell } from "./media-card-shell";
 import { MediaOverlayButton } from "./media-overlay-button";
-import { OpenTargetIcon } from "./open-target-icon";
+import { OpenTaskFileButton } from "./open-task-file-button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -247,7 +244,9 @@ function ImagePreviewCard({
   const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
-  const actions = useFileActions(file, { resolveOpenTarget });
+  const openControl = useTaskFileOpenControl(
+    resolveOpenTarget ? file : undefined,
+  );
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
 
   const handleCopy = async () => {
@@ -265,7 +264,7 @@ function ImagePreviewCard({
 
   const hasActions =
     !hideActionsMenu &&
-    (fileActions.showCopy || fileActions.showDownload || actions.showOpen);
+    (fileActions.showCopy || fileActions.showDownload || openControl.showOpen);
 
   return (
     <MediaCardShell
@@ -302,22 +301,23 @@ function ImagePreviewCard({
                 label="Download"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void actions.download();
+                  void downloadFile(file);
                 }}
               />
             )}
-            {actions.showOpen && (
-              <MediaOverlayButton
-                icon={
-                  <OpenTargetIcon className="size-3.5 shrink-0" file={file} />
-                }
-                label="Open"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  actions.open();
-                }}
-              />
-            )}
+            <OpenTaskFileButton
+              className="max-w-44"
+              control={openControl}
+              dropdownClassName="px-1.5"
+              dropdownSize="xs"
+              file={file}
+              iconClassName="size-3.5 shrink-0"
+              labelClassName="truncate"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              size="xs"
+            />
           </>
         ) : undefined
       }
@@ -378,26 +378,6 @@ function MissingMediaCard({
   );
 }
 
-function useFileActions(
-  file: TaskFileViewerFile,
-  { resolveOpenTarget }: { resolveOpenTarget: boolean },
-) {
-  const openTaskFile = useOpenTaskFile();
-  const { showOpen } = useTaskFileOpenTarget(
-    resolveOpenTarget ? file : undefined,
-  );
-
-  return {
-    download: async () => {
-      await downloadFile(file);
-    },
-    open: () => {
-      openTaskFile(file);
-    },
-    showOpen,
-  };
-}
-
 function VideoPreviewCard({
   file,
   handleMouseEnter,
@@ -430,10 +410,12 @@ function VideoPreviewCard({
   const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
-  const actions = useFileActions(file, { resolveOpenTarget });
+  const openControl = useTaskFileOpenControl(
+    resolveOpenTarget ? file : undefined,
+  );
 
   const hasActions =
-    !hideActionsMenu && (fileActions.showDownload || actions.showOpen);
+    !hideActionsMenu && (fileActions.showDownload || openControl.showOpen);
 
   const displayTime =
     isPlaying && timeRemaining !== null ? timeRemaining : videoDuration;
@@ -474,22 +456,23 @@ function VideoPreviewCard({
                 label="Download"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void actions.download();
+                  void downloadFile(file);
                 }}
               />
             )}
-            {actions.showOpen && (
-              <MediaOverlayButton
-                icon={
-                  <OpenTargetIcon className="size-3.5 shrink-0" file={file} />
-                }
-                label="Open"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  actions.open();
-                }}
-              />
-            )}
+            <OpenTaskFileButton
+              className="max-w-44"
+              control={openControl}
+              dropdownClassName="px-1.5"
+              dropdownSize="xs"
+              file={file}
+              iconClassName="size-3.5 shrink-0"
+              labelClassName="truncate"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              size="xs"
+            />
           </>
         ) : undefined
       }

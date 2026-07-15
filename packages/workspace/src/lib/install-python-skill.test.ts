@@ -31,13 +31,14 @@ describe("installPythonSkill", () => {
     expect(runUvCommand).toHaveBeenNthCalledWith(1, {
       args: ["venv", "--python", "3.12", taskVenvDir(taskId)],
       cwd: "/tmp/workspace/tasks/python-skill/work",
-      signal,
+      signal: undefined,
       taskId,
     });
     expect(runUvCommand).toHaveBeenNthCalledWith(2, {
       args: [
         "export",
         "--locked",
+        "--no-dev",
         "--no-emit-project",
         "--no-hashes",
         "--project",

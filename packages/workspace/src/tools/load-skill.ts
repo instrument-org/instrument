@@ -22,7 +22,6 @@ import {
 } from "../lib/skills";
 import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { type AbsolutePath } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 const TAGS = {
@@ -48,39 +47,64 @@ const SkillInstallResultSchema = z.discriminatedUnion("state", [
   }),
 ]);
 
-function hasNodeDependencies(skillDir: string) {
-  try {
-    const packageJson: unknown = JSON.parse(
-      fsSync.readFileSync(path.join(skillDir, "package.json"), "utf8"),
-    );
-    if (!isRecord(packageJson)) {
-      return false;
+type SkillRuntime =
+  | { error: string; node: false; python: false }
+  | { node: boolean; python: boolean };
+
+function getSkillRuntime(skillDir: string, skillName: string): SkillRuntime {
+  const packageJsonPath = path.join(skillDir, "package.json");
+  let node = false;
+
+  if (fsSync.existsSync(packageJsonPath)) {
+    let packageJson: unknown;
+    try {
+      packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, "utf8"));
+    } catch {
+      return {
+        error: `Skill "${skillName}" has an invalid package.json.`,
+        node: false,
+        python: false,
+      };
     }
 
-    return ["dependencies", "optionalDependencies"].some((field) => {
+    if (!isRecord(packageJson)) {
+      return {
+        error: `Skill "${skillName}" has an invalid package.json.`,
+        node: false,
+        python: false,
+      };
+    }
+
+    for (const field of ["dependencies", "optionalDependencies"]) {
       const dependencies = packageJson[field];
-      return isRecord(dependencies) && Object.keys(dependencies).length > 0;
-    });
-  } catch {
-    return false;
+      if (dependencies === undefined) {
+        continue;
+      }
+      if (!isRecord(dependencies)) {
+        return {
+          error: `Skill "${skillName}" has an invalid ${field} field in package.json.`,
+          node: false,
+          python: false,
+        };
+      }
+      node ||= Object.keys(dependencies).length > 0;
+    }
   }
+
+  const python = fsSync.existsSync(path.join(skillDir, "pyproject.toml"));
+  if (python && !fsSync.existsSync(path.join(skillDir, "uv.lock"))) {
+    return {
+      error: `Skill "${skillName}" is missing uv.lock for its Python dependencies.`,
+      node: false,
+      python: false,
+    };
+  }
+
+  return { node, python };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function skillNeedsDependencyInstall(registryDir: AbsolutePath, name: string) {
-  const skillsDir = getSkillSources(registryDir)[0];
-  try {
-    return (
-      skillsDir !== undefined &&
-      (hasNodeDependencies(path.join(skillsDir, name)) ||
-        fsSync.existsSync(path.join(skillsDir, name, "pyproject.toml")))
-    );
-  } catch {
-    return false;
-  }
 }
 
 export const LoadSkill = setupTool({
@@ -165,6 +189,11 @@ export const LoadSkill = setupTool({
       });
     }
 
+    const runtime = getSkillRuntime(skill.skillDir, skill.name);
+    if ("error" in runtime) {
+      return executeError(runtime.error);
+    }
+
     const copyResult = await copySkill({
       dir: taskDir(taskId),
       signal,
@@ -189,7 +218,7 @@ export const LoadSkill = setupTool({
 
     const installResults: z.output<typeof SkillInstallResultSchema>[] = [];
 
-    if (hasNodeDependencies(destDir)) {
+    if (runtime.node) {
       const { combined, exitCode } = await runPnpmCommand({
         args: ["install"],
         cwd: getTaskWorkDir(taskDir(taskId)),
@@ -203,7 +232,7 @@ export const LoadSkill = setupTool({
       );
     }
 
-    if (fsSync.existsSync(path.join(destDir, "pyproject.toml"))) {
+    if (runtime.python) {
       const installResult = await installPythonSkill({
         signal,
         skillDir: destDir,
@@ -226,12 +255,14 @@ export const LoadSkill = setupTool({
   readOnly: false,
   timeoutMs: ({ input }) => {
     const base = ms("10 seconds");
-    const extra = skillNeedsDependencyInstall(
-      getWorkspaceConfig().registryDir,
-      input.name,
-    )
-      ? ms("2 minutes")
-      : 0;
+    const skillsDir = getSkillSources(getWorkspaceConfig().registryDir)[0];
+    const runtime =
+      skillsDir === undefined
+        ? { node: false, python: false }
+        : getSkillRuntime(path.join(skillsDir, input.name), input.name);
+    const extra =
+      (runtime.node ? ms("2 minutes") : 0) +
+      (runtime.python ? ms("5 minutes") : 0);
     return base + extra;
   },
   toModelOutput: ({ output }) => {
@@ -289,7 +320,7 @@ export const LoadSkill = setupTool({
         return installResult.runtime === "node"
           ? [
               `\`${PNPM_COMMAND.name} install\` was run in \`${TASK_FOLDER_NAMES.work}/\`.`,
-              `This is a monorepo -- skill dependencies are scoped to this skill's folder and are ready to use.`,
+              `The skill's Node.js dependencies are ready to use.`,
               `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
             ].join(" ")
           : [

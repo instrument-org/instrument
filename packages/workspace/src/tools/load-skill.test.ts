@@ -145,6 +145,40 @@ describe("LoadSkill", () => {
     expect(script).toMatchInlineSnapshot(`"console.log('hello')"`);
   });
 
+  it("omits development artifacts when copying a skill", async () => {
+    await createSkill({
+      extraFiles: {
+        ".pytest_cache/v/cache": "cached",
+        ".venv/bin/python": "python",
+        "node_modules/example/index.js": "module.exports = {}",
+        "scripts/run.py": "print('hello')",
+      },
+      name: "my-skill",
+    });
+
+    await runTool(LoadSkill, {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "my-skill" },
+    });
+
+    const destBase = path.join(
+      dir,
+      TASK_FOLDER_NAMES.work,
+      TASK_FOLDER_NAMES.skills,
+      "my-skill",
+    );
+    await expect(fs.access(path.join(destBase, ".venv"))).rejects.toThrow();
+    await expect(
+      fs.access(path.join(destBase, ".pytest_cache")),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(destBase, "node_modules")),
+    ).rejects.toThrow();
+    await expect(
+      fs.readFile(path.join(destBase, "scripts", "run.py"), "utf8"),
+    ).resolves.toBe("print('hello')");
+  });
+
   it("includes relative file paths in files array", async () => {
     await createSkill({
       extraFiles: {
@@ -275,6 +309,52 @@ describe("LoadSkill", () => {
     });
   });
 
+  it("rejects a Python skill without a lockfile before copying it", async () => {
+    await createSkill({
+      extraFiles: {
+        "pyproject.toml": "[project]\nname = 'unlocked-skill'\n",
+      },
+      name: "unlocked-skill",
+    });
+
+    const result = await runTool(LoadSkill, {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "unlocked-skill" },
+    });
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().message).toBe(
+      'Skill "unlocked-skill" is missing uv.lock for its Python dependencies.',
+    );
+    await expect(
+      fs.access(
+        path.join(
+          dir,
+          TASK_FOLDER_NAMES.work,
+          TASK_FOLDER_NAMES.skills,
+          "unlocked-skill",
+        ),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("rejects an invalid Node package manifest before copying it", async () => {
+    await createSkill({
+      extraFiles: { "package.json": "{" },
+      name: "invalid-node-skill",
+    });
+
+    const result = await runTool(LoadSkill, {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "invalid-node-skill" },
+    });
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().message).toBe(
+      'Skill "invalid-node-skill" has an invalid package.json.',
+    );
+  });
+
   it("does not install Node dependencies for a development-only manifest", async () => {
     const { runPnpmCommand } = await import("../lib/run-pnpm");
     await createSkill({
@@ -328,6 +408,31 @@ describe("LoadSkill", () => {
       ],
       state: "success",
     });
+  });
+
+  it("allows setup time for every runtime a skill uses", async () => {
+    await createSkill({
+      extraFiles: {
+        "package.json": JSON.stringify({
+          dependencies: { example: "1.0.0" },
+        }),
+        "pyproject.toml": "[project]\nname = 'mixed-skill'\n",
+        "uv.lock": "version = 1\n",
+      },
+      name: "mixed-skill",
+    });
+    const timeout = LoadSkill.timeoutMs;
+    if (typeof timeout !== "function") {
+      throw new TypeError("expected LoadSkill timeout to be dynamic");
+    }
+
+    const args = baseExecuteArgs();
+    expect(
+      timeout({
+        input: { explanation: "loading", name: "mixed-skill" },
+        taskId: args.taskId,
+      }),
+    ).toBe(7 * 60 * 1000 + 10 * 1000);
   });
 });
 /* eslint-enable unicorn/no-await-expression-member */

@@ -2,6 +2,8 @@
 
 `instrument` is an Electron desktop app where users chat with an AI agent that operates inside a per-task folder. The agent is **not** in a VM, container, or OS sandbox. It runs as ordinary code in the Studio main process on the user's machine. "Sandboxing" here means a layered set of _userland_ constraints, picked so the user never has to approve individual tool calls.
 
+For why this userland approach was chosen over OS-level isolation, see the [decision record](../decisions/2026-07-15-userland-agent-sandbox.md).
+
 ## Tools and where they live
 
 The main agent (`packages/workspace/src/agents/main.ts`) gets a fixed set of tools from `packages/workspace/src/tools/`: `EditFile`, `ReadFile`, `WriteFile`, `Glob`, `Grep`, `BashTool`, `WebSearch`, `GenerateImage`, `LoadSkill`, `Task`. Each tool's `execute` runs as host Node.js code; sandboxing is implemented _inside_ each tool, not by the runtime.

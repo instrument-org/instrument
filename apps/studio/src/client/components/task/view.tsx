@@ -254,9 +254,11 @@ function MissingArtifactPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border bg-background">
-      <div className="flex h-10 shrink-0 items-center justify-between gap-3 border-b px-3">
-        <div className="min-w-0 truncate text-sm font-medium">{filePath}</div>
+    <div className="flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm">
+      <div className="flex min-w-0 shrink-0 items-center gap-2 px-4 py-3">
+        <div className="min-w-0 flex-1 truncate text-xs font-medium">
+          {filePath}
+        </div>
         <Button onClick={onClose} size="icon-sm" variant="ghost">
           <XIcon className="size-4" />
         </Button>

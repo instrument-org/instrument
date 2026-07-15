@@ -28,7 +28,6 @@ function sortFilesForTesting(files: string[]) {
   return [...files].sort((a, b) => a.localeCompare(b));
 }
 
-
 describe("Glob", () => {
   it("should find files matching a specific pattern", async () => {
     const result = await runTool(TOOLS.Glob, {
@@ -137,5 +136,4 @@ describe("Glob", () => {
     expect(output.totalFiles).toBe(0);
     expect(output.truncated).toBe(false);
   });
-
 });

@@ -30,7 +30,9 @@ export async function runUvCommand({
 
   return {
     combined: filterShellOutput(
-      result.all || result.shortMessage || "uv failed without diagnostic output.",
+      result.all ||
+        result.shortMessage ||
+        "uv failed without diagnostic output.",
       taskDir(taskId),
     ),
     exitCode: result.exitCode ?? 1,

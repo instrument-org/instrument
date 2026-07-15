@@ -13,9 +13,7 @@ describe("ensureTaskVenvForTask", () => {
   it("recreates a venv when its interpreter lacks venv metadata", async () => {
     const { existsSync } = await import("node:fs");
     const { runUvCommand } = await import("./run-uv");
-    vi.mocked(existsSync)
-      .mockReturnValueOnce(true)
-      .mockReturnValueOnce(false);
+    vi.mocked(existsSync).mockReturnValueOnce(true).mockReturnValueOnce(false);
     vi.mocked(runUvCommand).mockResolvedValueOnce({
       combined: "",
       exitCode: 0,

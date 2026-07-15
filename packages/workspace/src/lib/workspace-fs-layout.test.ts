@@ -69,9 +69,9 @@ describe("buildBashFs", () => {
     // just-bash raises redirect-target failures as thrown errors rather than
     // exit codes; the bash tool converts them to a failed-command result (see
     // tools/bash.ts). Either way the write must not land.
-    await expect(
-      bash.exec("echo nope > '/mnt/Docs/new.txt'"),
-    ).rejects.toThrow(/EROFS/);
+    await expect(bash.exec("echo nope > '/mnt/Docs/new.txt'")).rejects.toThrow(
+      /EROFS/,
+    );
     await expect(
       fs.access(path.join(tmpDir, "Docs", "new.txt")),
     ).rejects.toThrow();

@@ -18,7 +18,7 @@ native-binary path bridge.
 - Everything else — an empty **read-only** base filesystem
   (`read-only-base-fs.ts`). Writes outside the mounts (e.g. `/tmp/x`) fail
   with EROFS and guidance. Before this, the base was a writable per-call
-  in-memory FS, so such writes *succeeded and silently evaporated* when the
+  in-memory FS, so such writes _succeeded and silently evaporated_ when the
   bash call ended — a miserable failure mode to debug.
 
 Mount names are unique per task: every `attachedFolders` writer routes new
@@ -37,7 +37,7 @@ redirects, ...), and tools like `generate_image` that read files themselves.
 `curl`) do their own syscalls against the real kernel filesystem. We can only
 rewrite their **argv**: `resolveNativeHostPath` bridges `/task/...` arguments
 to the real task dir and quarantines every other virtual path to a nonexistent
-path *inside* the task dir, so the binary fails with not-found instead of
+path _inside_ the task dir, so the binary fails with not-found instead of
 touching the host. This is deliberate — a read-only mount's real host path must
 never reach a process that could write through it. Do not "fix" the bridge by
 resolving against the full layout.
@@ -45,7 +45,7 @@ resolving against the full layout.
 Consequences to remember:
 
 - **Paths inside script source are not translated.** `python work/script.py`
-  works because the script path is argv; `open("/task/work/x")` *inside* the
+  works because the script path is argv; `open("/task/work/x")` _inside_ the
   script fails because python resolves it against the real root. The
   subprocess cwd is the real task dir, so task-relative paths in script code
   work. The bash tool description teaches this.
@@ -85,7 +85,7 @@ pinned SHA. Known quirks we currently compensate for downstream:
 
 ## Symlink policy differs by layer (intentionally)
 
-- **just-bash mounts** refuse to traverse *any* symlink, inside or out.
+- **just-bash mounts** refuse to traverse _any_ symlink, inside or out.
 - **The file tools** go through real `node:fs`, so they enforce containment
   with a realpath check (`escapesMountRoot`): symlinks that stay inside the
   mount work, escapes are rejected. This is check-then-read; a race between

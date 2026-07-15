@@ -91,7 +91,9 @@ export async function runUv({
   return {
     exitCode: result.exitCode ?? 1,
     stdout: filterShellOutput(
-      result.all || result.shortMessage || "uv failed without diagnostic output.",
+      result.all ||
+        result.shortMessage ||
+        "uv failed without diagnostic output.",
       taskDir(taskId),
     ),
   };

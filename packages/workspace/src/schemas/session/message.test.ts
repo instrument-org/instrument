@@ -154,7 +154,11 @@ describe("SessionMessage.toModelMessages", () => {
         parts: [
           {
             callProviderMetadata: undefined,
-            input: { command: "sleep 5", explanation: "Test command", timeoutMs: 5000 },
+            input: {
+              command: "sleep 5",
+              explanation: "Test command",
+              timeoutMs: 5000,
+            },
             metadata: {
               createdAt: mockDate,
               endedAt: new Date("2024-01-01T10:01:00Z"),

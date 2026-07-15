@@ -1,9 +1,15 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import { absolutePathJoin } from "../../../lib/absolute-path-join";
 import { taskDir } from "../../../lib/task-dir-utils";
-import { APPS_SERVER_API_PATH } from "../constants";
+import { getTaskState } from "../../../lib/task-state-store";
+import {
+  buildWorkspaceFsLayout,
+  hostPathEscapesMount,
+  resolveHostPath,
+  TASK_MOUNT_POINT,
+} from "../../../lib/workspace-fs-layout";
+import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../../schemas/paths";
 import { serveStaticFile } from "../serve-static";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
@@ -11,39 +17,81 @@ import { uriDetailsForHost } from "../uri-details-for-host";
 // Blocks `.`/`..` segments, consecutive slashes, and backslashes (hono/node-server's traversal check).
 const UNSAFE_PATH_SEGMENT_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
 
-const app = new Hono<WorkspaceServerEnv>().basePath(APPS_SERVER_API_PATH);
+const app = new Hono<WorkspaceServerEnv>();
 
-app.use("/assets/*", cors());
+app.use("/*", async (c, next) => {
+  const uriDetails = uriDetailsForHost(c.req.header("host") || "");
+  if (uriDetails.isErr() || uriDetails.value.origin !== "assets") {
+    await next();
+    return;
+  }
+  return cors()(c, next);
+});
 
-app.get("/assets/*", async (c) => {
+app.all("/*", async (c, next) => {
   const uriDetails = uriDetailsForHost(c.req.header("host") || "");
 
-  if (uriDetails.isErr()) {
+  if (uriDetails.isErr() || uriDetails.value.origin !== "assets") {
+    await next();
+    return;
+  }
+
+  if (c.req.method !== "GET" && c.req.method !== "HEAD") {
     return c.notFound();
   }
 
   const { id } = uriDetails.value;
-  const taskId = id;
+  const assetPath = c.req.path;
 
-  const assetPath = c.req.path.replace(`${APPS_SERVER_API_PATH}/assets/`, "");
-
-  if (!assetPath || UNSAFE_PATH_SEGMENT_REGEX.test(assetPath)) {
+  if (UNSAFE_PATH_SEGMENT_REGEX.test(assetPath)) {
     return c.notFound();
   }
 
-  const fullPath = absolutePathJoin(taskDir(taskId), assetPath);
+  // The task mount root also holds private per-task metadata under
+  // `.instrument/` (task.db, state.json); never serve it over the asset origin.
+  // Matched case-insensitively: the app runs on case-insensitive filesystems
+  // (macOS, Windows) where `/.INSTRUMENT/...` resolves to the same private file.
+  const lowerAssetPath = assetPath.toLowerCase();
+  if (
+    lowerAssetPath === "/.instrument" ||
+    lowerAssetPath.startsWith("/.instrument/")
+  ) {
+    return c.notFound();
+  }
 
-  // A `version` query is the file's mtime, and clients resolve it to the live
-  // value, so a versioned URL is a content fingerprint: a change yields a new
-  // URL. Cache those immutably; serve unversioned URLs fresh since they carry no
-  // fingerprint to invalidate on.
-  c.header(
-    "Cache-Control",
-    c.req.query("version") ? "public, max-age=31536000, immutable" : "no-store",
-  );
+  const taskHostRoot = taskDir(id);
+  const taskState = await getTaskState(taskHostRoot);
+  const layout = buildWorkspaceFsLayout({
+    attachedFolders: taskState.attachedFolders,
+    taskHostRoot,
+  });
+  const virtualPath =
+    assetPath === ATTACHED_FOLDERS_MOUNT_ROOT ||
+    assetPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
+      ? assetPath
+      : `${TASK_MOUNT_POINT}${assetPath}`;
+  const resolved = resolveHostPath(layout, virtualPath);
+
+  if (resolved === null) {
+    return c.notFound();
+  }
+
+  const isMountedFile = resolved.mount !== layout.task;
 
   const result = await serveStaticFile(c, {
-    filePath: fullPath,
+    filePath: resolved.hostPath,
+    isPathAllowed: (filePath) =>
+      !hostPathEscapesMount(filePath, resolved.mount.hostRoot),
+    onFound: ({ stats }) => {
+      const versionMatches =
+        c.req.query("version") === String(stats.mtimeMs);
+      c.header(
+        "Cache-Control",
+        !isMountedFile && versionMatches
+          ? "public, max-age=31536000, immutable"
+          : "no-store",
+      );
+    },
   });
 
   if (!result) {

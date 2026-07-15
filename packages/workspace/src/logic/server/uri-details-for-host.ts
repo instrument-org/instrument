@@ -8,7 +8,7 @@ import { getWorkspaceServerPort } from "./url";
 export function uriDetailsForHost(
   host: string,
 ): Result<
-  { domain: string; id: TaskId },
+  { domain: string; id: TaskId; origin: "app" | "assets" },
   "invalid-domain" | "invalid-subdomain" | "missing-subdomain"
 > {
   const port = getWorkspaceServerPort();
@@ -34,7 +34,12 @@ export function uriDetailsForHost(
         }
 
         const subdomainParts = parts.slice(0, -expectedDomainPartsCount);
-        const subdomainString = subdomainParts.join(".");
+        const isAssetOrigin =
+          subdomainParts.length > 1 && subdomainParts[0] === "assets";
+        const idParts = isAssetOrigin
+          ? subdomainParts.slice(1)
+          : subdomainParts;
+        const subdomainString = idParts.join(".");
 
         if (!subdomainString) {
           return err("missing-subdomain");
@@ -45,7 +50,11 @@ export function uriDetailsForHost(
           return err("invalid-subdomain");
         }
 
-        return ok({ domain, id: result.data });
+        return ok({
+          domain,
+          id: result.data,
+          origin: isAssetOrigin ? "assets" : "app",
+        });
       }
     }
   }

@@ -9,7 +9,10 @@ export function getAssetUrl({
   filePath: string;
   version?: number;
 }): string {
-  const url = `${assetBase}/${normalizeTaskFilePath(filePath)}`;
+  const normalizedPath = normalizeTaskFilePath(filePath);
+  const url = normalizedPath.startsWith("/")
+    ? `${assetBase}${normalizedPath}`
+    : `${assetBase}/${normalizedPath}`;
 
   if (version === undefined) {
     return url;

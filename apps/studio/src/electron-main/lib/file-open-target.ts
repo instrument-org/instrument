@@ -148,16 +148,15 @@ function run(argv) {
 export async function getFileOpenCandidates(
   fullPath: string,
 ): Promise<FileOpenCandidate[]> {
-  const key = path.extname(fullPath).toLowerCase() || fullPath;
-  const existing = candidatesCache.get(key);
+  const existing = candidatesCache.get(fullPath);
   if (existing) {
     return existing;
   }
   const pending = resolveCandidates(fullPath);
-  candidatesCache.set(key, pending);
+  candidatesCache.set(fullPath, pending);
   void pending.catch(() => {
-    if (candidatesCache.get(key) === pending) {
-      candidatesCache.delete(key);
+    if (candidatesCache.get(fullPath) === pending) {
+      candidatesCache.delete(fullPath);
     }
   });
   return pending;
@@ -218,10 +217,6 @@ async function getFileTypeIconDataUrl(fullPath: string) {
   } catch {
     return null;
   }
-}
-
-function isLookupTimeout(error: unknown) {
-  return error instanceof Error && "killed" in error && error.killed === true;
 }
 
 async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
@@ -337,31 +332,24 @@ async function resolveCandidates(
     // Only macOS has a portable enumeration of every app that can open a file.
     return [];
   }
-  try {
-    const { stdout } = await execFileAsync(
-      "osascript",
-      [
-        "-l",
-        "JavaScript",
-        "-e",
-        DARWIN_CANDIDATES_SCRIPT,
-        fullPath,
-        String(MAX_CANDIDATES),
-      ],
-      { maxBuffer: 64 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
-    );
-    const parsed = DarwinCandidatesSchema.parse(JSON.parse(stdout));
-    return parsed.apps.map((candidate) => ({
-      appName: candidate.appName,
-      appPath: candidate.appPath,
-      iconDataUrl: pngBase64ToDataUrl(candidate.iconBase64),
-    }));
-  } catch (error) {
-    if (isLookupTimeout(error)) {
-      throw error;
-    }
-    return [];
-  }
+  const { stdout } = await execFileAsync(
+    "osascript",
+    [
+      "-l",
+      "JavaScript",
+      "-e",
+      DARWIN_CANDIDATES_SCRIPT,
+      fullPath,
+      String(MAX_CANDIDATES),
+    ],
+    { maxBuffer: 64 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
+  );
+  const parsed = DarwinCandidatesSchema.parse(JSON.parse(stdout));
+  return parsed.apps.map((candidate) => ({
+    appName: candidate.appName,
+    appPath: candidate.appPath,
+    iconDataUrl: pngBase64ToDataUrl(candidate.iconBase64),
+  }));
 }
 
 async function resolveDarwin(fullPath: string) {
@@ -409,14 +397,7 @@ async function resolveLinux(fullPath: string) {
 }
 
 async function resolveTarget(fullPath: string): Promise<FileOpenTarget> {
-  const resolved = await resolveAssociatedApp(fullPath).catch(
-    (error: unknown) => {
-      if (isLookupTimeout(error)) {
-        throw error;
-      }
-      return null;
-    },
-  );
+  const resolved = await resolveAssociatedApp(fullPath);
   const iconDataUrl =
     resolved?.iconDataUrl ?? (await getFileTypeIconDataUrl(fullPath));
   return { appName: resolved?.appName ?? null, iconDataUrl };

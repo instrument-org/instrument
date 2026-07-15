@@ -419,6 +419,7 @@ export function FileViewer({
         <div className="flex shrink-0 items-center gap-1">
           {showOpen && (
             <Button
+              aria-label={openLabel}
               className={fileViewerHeaderActionClassName}
               onClick={() => {
                 openTaskFile(file);

@@ -50,7 +50,7 @@ export function useTaskFileOpenTarget(file: FileRef | undefined) {
   const { data, isPending } = useQuery(openTargetQueryOptions(file));
 
   const appName = data?.appName ?? null;
-  const showOpen = file != null && (isPending || appName != null);
+  const showOpen = file != null;
 
   return {
     appName,

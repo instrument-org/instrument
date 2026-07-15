@@ -17,7 +17,7 @@ function main() {
 
     execSync("git add registry", { stdio: "inherit" });
 
-    const commitMessage = "feat(registry): update to latest";
+    const commitMessage = "registry: update to latest";
     execSync(`git commit -m "${commitMessage}" -- registry`, {
       stdio: "inherit",
     });

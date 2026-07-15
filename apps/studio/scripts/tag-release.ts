@@ -141,7 +141,7 @@ async function main() {
     execSync("git add package.json", { stdio: "inherit" });
 
     const tagName = `v${newVersion}`;
-    const commitMessage = `release(studio): ${tagName}`;
+    const commitMessage = `release: ${tagName}`;
     execSync(`git commit -m "${commitMessage}"`, { stdio: "inherit" });
 
     execSync(`git tag -m "" "${tagName}"`, { stdio: "inherit" });

@@ -14,10 +14,7 @@ export function getAssetUrl({
     ? `${assetBase}${normalizedPath}`
     : `${assetBase}/${normalizedPath}`;
 
-  // Attached folders are mutable but not watched by the task file index, so a
-  // stored tool-output mtime can go stale. Keep mount URLs unversioned so the
-  // asset server serves them with no-store semantics.
-  if (version === undefined || normalizedPath.startsWith("/mnt/")) {
+  if (version === undefined) {
     return url;
   }
 

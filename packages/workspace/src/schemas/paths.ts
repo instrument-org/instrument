@@ -31,9 +31,18 @@ export const RelativeTaskPathSchema = RelativePathSchema.refine(
   "Path must not contain '..' segments",
 );
 
+/**
+ * Root of the read-only attached-folder mounts in the workspace virtual FS
+ * (e.g. `/mnt/Photos`). Attached folders live on the user's real disk and are
+ * surfaced read-only under this prefix. Single source of truth for the mount
+ * root: this schema, the attached-folder mount points, and the asset server
+ * all derive from it.
+ */
+export const ATTACHED_FOLDERS_MOUNT_ROOT = "/mnt";
+
 const MountedWorkspacePathSchema = z
   .string()
-  .startsWith("/mnt/")
+  .startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
   .refine(
     (val) =>
       !val.includes("\\") &&

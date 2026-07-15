@@ -26,13 +26,15 @@ describe("getAssetUrl", () => {
     ).toBe("http://assets.task.localhost/output/cat.png?version=123");
   });
 
-  it("keeps mutable mounted files unversioned", () => {
+  // The client appends the version for any path; the asset server decides cache
+  // policy (mounts are always served no-store, so a mount version is inert).
+  it("appends the version to a mount path too", () => {
     expect(
       getAssetUrl({
         assetBase: "http://assets.task.localhost",
         filePath: "/mnt/Photos/cat.png",
         version: 123,
       }),
-    ).toBe("http://assets.task.localhost/mnt/Photos/cat.png");
+    ).toBe("http://assets.task.localhost/mnt/Photos/cat.png?version=123");
   });
 });

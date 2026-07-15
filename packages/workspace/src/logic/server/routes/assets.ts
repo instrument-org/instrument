@@ -9,6 +9,7 @@ import {
   resolveHostPath,
   TASK_MOUNT_POINT,
 } from "../../../lib/workspace-fs-layout";
+import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../../schemas/paths";
 import { serveStaticFile } from "../serve-static";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
@@ -53,7 +54,8 @@ app.all("/*", async (c, next) => {
     taskHostRoot,
   });
   const virtualPath =
-    assetPath === "/mnt" || assetPath.startsWith("/mnt/")
+    assetPath === ATTACHED_FOLDERS_MOUNT_ROOT ||
+    assetPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
       ? assetPath
       : `${TASK_MOUNT_POINT}${assetPath}`;
   const resolved = resolveHostPath(layout, virtualPath);

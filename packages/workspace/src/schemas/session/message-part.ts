@@ -23,30 +23,6 @@ interface BaseMetadata extends Record<string, unknown> {
 }
 
 export namespace SessionMessagePart {
-  export type AgentBrowserCommandContextItem =
-    | AgentBrowserCommandContextItemComplete
-    | AgentBrowserCommandContextItemPending;
-
-  export interface AgentBrowserCommandContextItemComplete extends AgentBrowserCommandContextItemBase {
-    endedAt: Date;
-    // Captured after the command finishes. Optional only because a CDP
-    // capture can fail mid-flight (e.g. the debugger detached because the
-    // target closed). When absent, `error` should explain why.
-    endScreenshot?: AgentBrowserScreenshot;
-    error?: string;
-    status: "complete";
-  }
-
-  export interface AgentBrowserCommandContextItemPending extends AgentBrowserCommandContextItemBase {
-    status: "pending";
-  }
-
-  export interface AgentBrowserScreenshot {
-    path: string;
-    title?: string;
-    url: string;
-  }
-
   export type DataPart = DataUIPart<SessionMessageDataPart.DataParts> & {
     metadata: BaseMetadata;
   };
@@ -91,33 +67,13 @@ export namespace SessionMessagePart {
     | ToolPartOutputAvailable
     | ToolPartOutputError;
 
-  export interface ToolPartBaseMetadata extends BaseMetadata {
-    contextItems?: ToolPartContextItem[];
-  }
-
-  // Polymorphic context items appended to tool parts as a side channel by the
-  // tool's environment. Not validated by Zod, since they're written by us, not
-  // by the agent. Array order (driven by ULID `id` insertion order via
-  // `upsertToolPartContextItem`) is authoritative for playback ordering.
-  export type ToolPartContextItem = AgentBrowserCommandContextItem;
-
-  // Common envelope shared by every context-item kind. Per-kind variants
-  // extend this and add their own discriminated `kind` literal plus any
-  // lifecycle fields (e.g. `status`, `endedAt`) - lifecycle isn't lifted to
-  // the base because not every future kind needs the same shape.
-  export interface ToolPartContextItemBase {
-    createdAt: Date;
-    id: StoreId.PartContextItem;
-    kind: string;
-  }
-
   export type ToolPartInputAvailable = ToolUIPart<AISDKTools> & {
-    metadata: ToolPartBaseMetadata;
+    metadata: BaseMetadata;
     state: "input-available";
   };
 
   export type ToolPartInputStreaming = ToolUIPart<AISDKTools> & {
-    metadata: ToolPartBaseMetadata;
+    metadata: BaseMetadata;
     state: "input-streaming";
   };
 
@@ -126,7 +82,7 @@ export namespace SessionMessagePart {
     state: "output-available";
   };
 
-  export interface ToolPartOutputAvailableMetadata extends ToolPartBaseMetadata {
+  export interface ToolPartOutputAvailableMetadata extends BaseMetadata {
     endedAt: Date;
   }
 
@@ -135,7 +91,7 @@ export namespace SessionMessagePart {
     state: "output-error";
   };
 
-  export interface ToolPartOutputErrorMetadata extends ToolPartBaseMetadata {
+  export interface ToolPartOutputErrorMetadata extends BaseMetadata {
     endedAt: Date;
   }
 
@@ -149,18 +105,6 @@ export namespace SessionMessagePart {
     | StepStartPart
     | TextPart
     | ToolPart;
-
-  interface AgentBrowserCommandContextItemBase extends ToolPartContextItemBase {
-    kind: "agent-browser-command";
-    // Captured before the command runs so the agent and the user can see
-    // the page state the command was acting on. Optional because the page
-    // may be blank (e.g. about:blank) before the command navigates to a URL.
-    startScreenshot?: AgentBrowserScreenshot;
-    // The agent-browser sub-invocation as the agent typed it (e.g.
-    // "navigate https://example.com" or "click #submit"), without the
-    // `agent-browser` prefix - the kind already discriminates that.
-    subcommand: string;
-  }
 
   interface ReasoningPartMetadata extends BaseMetadata {
     endedAt?: Date;

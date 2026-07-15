@@ -105,7 +105,7 @@ function ToolCallBody({
 
   switch (part.type) {
     case "tool-bash": {
-      return <ToolBash assetBaseUrl={assetBaseUrl} part={part} />;
+      return <ToolBash part={part} />;
     }
     case "tool-choose": {
       return <ToolChoose part={part} />;

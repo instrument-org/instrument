@@ -196,10 +196,7 @@ function buildReplayMessages(
         (sourcePart.state === "output-available" ||
           sourcePart.state === "output-error")
       ) {
-        // Build metadata from scratch: all BaseMetadata fields are fresh and
-        // ToolPartBaseMetadata only adds contextItems, which must be empty so
-        // re-execution starts clean (otherwise copied + new items accumulate).
-        //
+        // Build metadata from scratch so all BaseMetadata fields are fresh.
         // The streaming part shares the same ID so the execute loop can find
         // it by ID in allParts; the input-available part is stored alongside.
         const inputStreamingPart = {

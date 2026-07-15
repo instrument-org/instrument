@@ -141,7 +141,6 @@ export function createMockTaskConfigForDir(
 
 export function createStubBrowserConfig(): BrowserConfig {
   return {
-    captureScreenshot: () => Promise.resolve(undefined),
     closeTarget: () => Promise.resolve(),
     createTarget: (id, sessionId) =>
       Promise.resolve({

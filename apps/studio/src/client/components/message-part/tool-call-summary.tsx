@@ -210,21 +210,18 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
     return null;
   }
 
-  const contextItems = part.metadata.contextItems ?? [];
-  if (contextItems.length === 0) {
+  const command = part.input?.command ?? "";
+  if (!command.includes("agent-browser")) {
     return null;
   }
 
   const domainCounts = new Map<string, number>();
-  for (const item of contextItems) {
-    const urlToken = item.subcommand
-      .split(/\s+/)
-      .find((t) => t.startsWith("http"));
-    if (!urlToken) {
+  for (const token of command.split(/\s+/)) {
+    if (!token.startsWith("http")) {
       continue;
     }
     try {
-      const hostname = new URL(urlToken).hostname.replace(/^www\./, "");
+      const hostname = new URL(token).hostname.replace(/^www\./, "");
       domainCounts.set(hostname, (domainCounts.get(hostname) ?? 0) + 1);
     } catch {
       // not a valid URL

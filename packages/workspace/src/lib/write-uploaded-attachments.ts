@@ -17,6 +17,7 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { absolutePathJoin } from "./absolute-path-join";
+import { assignFolderNames } from "./assign-folder-names";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
@@ -25,7 +26,6 @@ import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getTaskAttachmentsDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-state-store";
-import { uniqueFolderName } from "./unique-folder-name";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
@@ -113,31 +113,32 @@ export async function writeUploadedAttachments({
 
     if (folders && folders.length > 0) {
       const taskState = await getTaskState(dir);
-      const existingFolders = taskState.attachedFolders ?? {};
+      const existingFolders = Object.values(taskState.attachedFolders ?? {});
 
-      const newFolders: Record<string, FolderAttachment.Type> = {};
+      const newFolders: FolderAttachment.Type[] = folders.map((folder) => ({
+        createdAt: getCurrentDate().getTime(),
+        id: FolderAttachment.IdSchema.parse(ulid()),
+        name: "",
+        path: AbsolutePathSchema.parse(folder.path),
+        source: folder.source ?? "user",
+      }));
 
-      for (const folder of folders) {
-        const uniqueName = uniqueFolderName(folder.path, {
-          ...existingFolders,
-          ...newFolders,
-        });
+      const allFolders = [...existingFolders, ...newFolders].sort(
+        (a, b) => a.createdAt - b.createdAt,
+      );
+      const names = assignFolderNames(allFolders);
 
-        const folderAttachment: FolderAttachment.Type = {
-          createdAt: getCurrentDate().getTime(),
-          id: FolderAttachment.IdSchema.parse(ulid()),
-          name: uniqueName,
-          path: AbsolutePathSchema.parse(folder.path),
-          source: folder.source ?? "user",
-        };
-
-        newFolders[uniqueName] = folderAttachment;
-        folderAttachments.push(folderAttachment);
+      const nextFolders: Record<string, FolderAttachment.Type> = {};
+      for (const folder of allFolders) {
+        const name = names.get(folder.id) ?? folder.name;
+        nextFolders[name] = { ...folder, name };
       }
+      await setTaskState(dir, { attachedFolders: nextFolders });
 
-      await setTaskState(dir, {
-        attachedFolders: { ...existingFolders, ...newFolders },
-      });
+      for (const folder of newFolders) {
+        const name = names.get(folder.id) ?? folder.name;
+        folderAttachments.push({ ...folder, name });
+      }
     }
 
     const fileMetadata: SessionMessageDataPart.FileAttachmentDataPart[] =

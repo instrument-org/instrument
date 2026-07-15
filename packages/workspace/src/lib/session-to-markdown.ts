@@ -334,22 +334,39 @@ function renderProjectContext(
   }
 
   // Fold project-folder names from the creation snapshot with later
-  // `data-projectChanges` additions/removals so the list matches what the agent
-  // currently sees, keyed by path so removals drop the right entry.
+  // `data-projectChanges` additions/removals and `data-attachedFolderChanges`
+  // renames so the list matches what the agent currently sees, keyed by path
+  // so removals/renames touch the right entry.
   const folderNamesByPath = new Map<string, string>();
   for (const part of allParts) {
-    if (part.type === "data-attachments") {
-      for (const folder of part.data.folders ?? []) {
-        if (folder.source === "project") {
+    switch (part.type) {
+      case "data-attachedFolderChanges": {
+        for (const folder of part.data.renamed) {
+          if (folderNamesByPath.has(folder.path)) {
+            folderNamesByPath.set(folder.path, folder.newName);
+          }
+        }
+        break;
+      }
+      case "data-attachments": {
+        for (const folder of part.data.folders ?? []) {
+          if (folder.source === "project") {
+            folderNamesByPath.set(folder.path, folder.name);
+          }
+        }
+        break;
+      }
+      case "data-projectChanges": {
+        for (const folder of part.data.foldersRemoved) {
+          folderNamesByPath.delete(folder.path);
+        }
+        for (const folder of part.data.foldersAdded) {
           folderNamesByPath.set(folder.path, folder.name);
         }
+        break;
       }
-    } else if (part.type === "data-projectChanges") {
-      for (const folder of part.data.foldersRemoved) {
-        folderNamesByPath.delete(folder.path);
-      }
-      for (const folder of part.data.foldersAdded) {
-        folderNamesByPath.set(folder.path, folder.name);
+      default: {
+        break;
       }
     }
   }

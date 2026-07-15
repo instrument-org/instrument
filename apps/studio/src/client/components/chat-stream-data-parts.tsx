@@ -1,5 +1,5 @@
 import {
-  attachedFolderRemovalsModelNote,
+  attachedFolderChangesModelNote,
   browserStatusModelNote,
   externalFileChangesModelNote,
   maxStepsModelNote,
@@ -58,7 +58,7 @@ export function renderDataPart({
 
   switch (part.type) {
     case "data-attachedFolderChanges": {
-      const note = attachedFolderRemovalsModelNote(part.data);
+      const note = attachedFolderChangesModelNote(part.data);
       return note ? (
         <ModelContextDebugCard
           className="mt-2"

@@ -13,14 +13,14 @@ const ATTACHED_FOLDERS_MOUNT_ROOT = "/mnt";
 /**
  * Mount points for every attached folder, in iteration order.
  *
- * Folder names are unique per task -- every attachedFolders writer routes new
- * names through uniqueFolderName (see unique-folder-name.ts) and the record is
- * keyed by name -- so mount points normally never collide and
- * {@link attachedFolderMountPoint} is safe to derive from a name anywhere. The
- * "(n)" suffix here is a backstop for state that violated the invariant (e.g.
- * a hand-edited state.json): the bash sandbox (last mount wins) and the file
- * tools (longest match wins) would otherwise disagree about a duplicated
- * mount point, leaving one folder unreachable.
+ * Folder names are unique per task -- every attachedFolders writer routes the
+ * whole set through assignFolderNames (see assign-folder-names.ts) on each
+ * attach, and the record is keyed by name -- so mount points normally never
+ * collide and {@link attachedFolderMountPoint} is safe to derive from a name
+ * anywhere. The "(n)" suffix here is a backstop for state that violated the
+ * invariant (e.g. a hand-edited state.json): the bash sandbox (last mount
+ * wins) and the file tools (longest match wins) would otherwise disagree
+ * about a duplicated mount point, leaving one folder unreachable.
  */
 export function assignAttachedMounts(
   attachedFolders: Record<string, FolderAttachment.Type>,
@@ -46,7 +46,7 @@ export function assignAttachedMounts(
  * "/mnt/Family Photos".
  *
  * Names are derived from the folder's path and unique per task (see
- * uniqueFolderName, assignAttachedMounts), so this is a stable one-to-one
+ * assignFolderNames, assignAttachedMounts), so this is a stable one-to-one
  * mapping; path separators are flattened and degenerate names fall back to a
  * placeholder purely defensively.
  */

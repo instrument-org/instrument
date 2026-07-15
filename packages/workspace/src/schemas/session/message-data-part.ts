@@ -49,10 +49,14 @@ export namespace SessionMessageDataPart {
     typeof ExternalFileChangesDataPartSchema
   >;
 
-  // Attached folders the user removed between turns, attached to the user
-  // message that triggers the next turn so the model stops relying on them.
+  // Attached folders removed or renamed since the model last saw them --
+  // attached to the user message that triggers the next turn so the model
+  // stops relying on stale names/removed folders.
   const AttachedFolderChangesDataPartSchema = z.object({
     removed: z.array(z.object({ name: z.string(), path: z.string() })),
+    renamed: z.array(
+      z.object({ newName: z.string(), oldName: z.string(), path: z.string() }),
+    ),
   });
 
   export type AttachedFolderChangesDataPart = z.output<

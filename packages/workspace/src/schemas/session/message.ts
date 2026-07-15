@@ -10,7 +10,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
-import { attachedFolderRemovalsModelNote } from "../../lib/attached-folder-changes-model-text";
+import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
@@ -335,7 +335,7 @@ export namespace SessionMessage {
           } => part.type === "data-attachedFolderChanges",
         );
         if (folderChangesPart) {
-          const note = attachedFolderRemovalsModelNote(folderChangesPart.data);
+          const note = attachedFolderChangesModelNote(folderChangesPart.data);
           if (note) {
             injectedParts.push({ text: note, type: "text" });
           }

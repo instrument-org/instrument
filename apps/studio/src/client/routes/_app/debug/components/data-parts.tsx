@@ -184,7 +184,16 @@ const messages: SessionMessage.WithParts[] = [
         type: "data-externalFileChanges",
       },
       {
-        data: { removed: [{ name: "designs", path: "/Users/me/designs" }] },
+        data: {
+          removed: [{ name: "designs", path: "/Users/me/designs" }],
+          renamed: [
+            {
+              newName: "CloudDocs-Downloads",
+              oldName: "Downloads",
+              path: "/Users/me/Library/Mobile Documents/com~apple~CloudDocs/Downloads",
+            },
+          ],
+        },
         type: "data-attachedFolderChanges",
       },
     ],

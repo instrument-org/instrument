@@ -26,8 +26,8 @@ import path from "node:path";
 import readline from "node:readline";
 import { ulid } from "ulid";
 
+import { assignFolderNames } from "../src/lib/assign-folder-names";
 import { createBashEnv } from "../src/lib/create-bash-env";
-import { uniqueFolderName } from "../src/lib/unique-folder-name";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { FolderAttachment } from "../src/schemas/folder-attachment";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
@@ -131,19 +131,16 @@ await fs.mkdir(taskDir, { recursive: true });
 
 const sessionId = StoreId.newSessionId();
 
+const draftFolders = args.attach.map((folderPath) => ({
+  createdAt: Date.now(),
+  id: FolderAttachment.IdSchema.parse(ulid()),
+  path: AbsolutePathSchema.parse(folderPath),
+}));
+const folderNames = assignFolderNames(draftFolders);
 const attachedFolders: Record<string, FolderAttachment.Type> = {};
-for (const folderPath of args.attach) {
-  const name = uniqueFolderName(
-    path.basename(folderPath) || folderPath,
-    attachedFolders,
-  );
-  attachedFolders[name] = {
-    createdAt: Date.now(),
-    id: FolderAttachment.IdSchema.parse(ulid()),
-    name,
-    path: AbsolutePathSchema.parse(folderPath),
-    source: "user",
-  };
+for (const folder of draftFolders) {
+  const name = folderNames.get(folder.id) ?? folder.path;
+  attachedFolders[name] = { ...folder, name, source: "user" };
 }
 
 const bash = await createBashEnv({

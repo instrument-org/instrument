@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 
 import { routeTree } from "../routeTree.gen";
+import { shouldRestoreScroll } from "./scroll-restoration";
 import { routerEntries } from "./tab-router-history";
 import { captureException } from "./telemetry";
 
@@ -55,7 +56,7 @@ export function createTabRouter({
         : undefined,
     }),
     routeTree,
-    scrollRestoration: true,
+    scrollRestoration: shouldRestoreScroll,
   });
   routerEntries.set(router, entries);
   return router;

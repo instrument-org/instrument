@@ -17,7 +17,8 @@ import {
 import { safe } from "@orpc/client";
 import {
   CancelledError,
-  keepPreviousData,
+  type QueryClient,
+  type QueryKey,
   skipToken,
   useQuery,
 } from "@tanstack/react-query";
@@ -36,6 +37,39 @@ const taskSearchSchema = z.object({
   sidebar: TaskSidebarModeSchema.optional(),
 });
 
+function hasActiveObservers(queryClient: QueryClient, queryKey: QueryKey) {
+  const query = queryClient.getQueryCache().find({ queryKey });
+  return (query?.getObserversCount() ?? 0) > 0;
+}
+
+// Live queries subscribe on mount and only receive their first snapshot after
+// the subscription starts, so a freshly-navigated task view would otherwise
+// mount against an empty or stale cache. Seeding the live key from a plain
+// read gives the mount a current snapshot (the same pattern beforeLoad uses
+// for session.list). The seed must overwrite existing unmounted entries: when
+// a live query unmounts, TanStack cancels its fetch with `revert: true`,
+// rolling the cached data back to the snapshot from when the subscription
+// began — often far staler than what was last on screen. Mounted queries
+// (active observers) are skipped instead: they keep themselves fresh, and a
+// seed would race their live chunks.
+async function seedLiveQuery<T>({
+  queryClient,
+  queryKey,
+  read,
+}: {
+  queryClient: QueryClient;
+  queryKey: QueryKey;
+  read: () => Promise<T>;
+}) {
+  if (hasActiveObservers(queryClient, queryKey)) {
+    return;
+  }
+  const [error, data] = await safe(read());
+  if (!error && !hasActiveObservers(queryClient, queryKey)) {
+    queryClient.setQueryData(queryKey, data);
+  }
+}
+
 function title(task?: Task) {
   return task?.title ?? "Not Found";
 }
@@ -52,6 +86,9 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
   },
   context: () => ({
     disableHotkeyReload: true,
+  }),
+  loaderDeps: ({ search }) => ({
+    selectedSessionId: search.selectedSessionId,
   }),
   onLeave: ({ params }) => {
     // Garbage collect task atoms
@@ -117,6 +154,52 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
       });
     }
   },
+  // Warms everything the task view mounts with — including the transcript —
+  // before the navigation commits, so hover preload makes task switches
+  // instant and non-hover paths (command menu, back/forward) never mount
+  // against an empty cache. Errors are swallowed here; the route component's
+  // own queries surface them.
+  loader: async ({ context: { queryClient }, deps, params }) => {
+    const { id } = params;
+    const { selectedSessionId } = deps;
+    await Promise.all([
+      seedLiveQuery({
+        queryClient,
+        queryKey: rpcClient.workspace.task.live.byId.experimental_liveKey({
+          input: { id },
+        }),
+        read: () => rpcClient.workspace.task.byId.call({ id }),
+      }),
+      seedLiveQuery({
+        queryClient,
+        queryKey: rpcClient.workspace.task.state.live.get.experimental_liveKey({
+          input: { id },
+        }),
+        read: () => rpcClient.workspace.task.state.get.call({ id }),
+      }),
+      seedLiveQuery({
+        queryClient,
+        queryKey: rpcClient.workspace.task.files.live.list.experimental_liveKey(
+          { input: { taskId: id } },
+        ),
+        read: () => rpcClient.workspace.task.files.list.call({ taskId: id }),
+      }),
+      selectedSessionId
+        ? seedLiveQuery({
+            queryClient,
+            queryKey:
+              rpcClient.workspace.message.live.listWithParts.experimental_liveKey(
+                { input: { id, sessionId: selectedSessionId } },
+              ),
+            read: () =>
+              rpcClient.workspace.message.list.call({
+                id,
+                sessionId: selectedSessionId,
+              }),
+          })
+        : undefined,
+    ]);
+  },
   component: RouteComponent,
   staticData: { tabTaskIdParam: "id" },
   head: async ({ params }) => {
@@ -158,7 +241,6 @@ function RouteComponent() {
   } = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: { id },
-      placeholderData: keepPreviousData,
     }),
   );
 
@@ -171,14 +253,12 @@ function RouteComponent() {
   } = useQuery(
     rpcClient.workspace.task.state.live.get.experimental_liveOptions({
       input: { id },
-      placeholderData: keepPreviousData,
     }),
   );
 
   const { data: files } = useQuery(
     rpcClient.workspace.task.files.live.list.experimental_liveOptions({
       input: { taskId: id },
-      placeholderData: keepPreviousData,
     }),
   );
 

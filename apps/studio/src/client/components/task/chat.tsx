@@ -8,7 +8,6 @@ import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { useTaskRouteId } from "@/client/hooks/use-task-route-id";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -34,7 +33,6 @@ import {
   MessageScrollerContent,
   MessageScrollerProvider,
   MessageScrollerViewport,
-  useMessageScroller,
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -59,12 +57,7 @@ export function TaskChat({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Use the route id for chat data; task may be placeholder data
-  // from the previous task while keepPreviousData is active.
-  const id = useTaskRouteId();
-  // TODO: Stop passing the entire task object down and rely just on the
-  // id as much as possible to keep this from being an issue.
-  const isTaskRouteSettled = task.id === id;
+  const id = task.id;
 
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
@@ -108,13 +101,12 @@ export function TaskChat({
 
   const messagesQuery = useQuery(
     rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
-      input:
-        selectedSessionId && isTaskRouteSettled
-          ? {
-              id,
-              sessionId: selectedSessionId,
-            }
-          : skipToken,
+      input: selectedSessionId
+        ? {
+            id,
+            sessionId: selectedSessionId,
+          }
+        : skipToken,
       retry: 1,
     }),
   );
@@ -179,8 +171,7 @@ export function TaskChat({
   }, [isActiveTab, focusSignal, selectedSessionId, promptTextarea]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
-  const isTutorialVisible =
-    isTaskRouteSettled && showTutorial === true && !isTutorialDismissed;
+  const isTutorialVisible = showTutorial === true && !isTutorialDismissed;
 
   const handleDismissTutorial = () => {
     setIsTutorialDismissed(true);
@@ -262,73 +253,66 @@ export function TaskChat({
       defaultScrollPosition="end"
       key={selectedSessionId}
     >
-      <PinToBottomWhileOpening />
       <div className="relative flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport className="flex flex-col">
             <MessageScrollerContent className="group/assistant-message-footer mx-auto w-full max-w-2xl gap-2 p-4 pb-16">
               {selectedSessionId ? (
-                isTaskRouteSettled ? (
-                  isLoadingMessages ? (
-                    <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
-                      <Spinner className="size-4 text-muted-foreground" />
-                    </div>
-                  ) : messageError ? (
-                    <Alert className="mt-4" variant="warning">
-                      <AlertDescription className="flex flex-col gap-4">
-                        <div className="font-semibold">
-                          Failed to load messages
-                        </div>
-                        <div className="text-sm">
-                          {messageError.message || "Unknown error occurred"}
-                        </div>
-                        <div className="flex gap-2">
-                          <Tooltip delayDuration={0}>
-                            <TooltipTrigger asChild>
-                              <Button
-                                onClick={handleStartNewTask}
-                                variant="secondary"
-                              >
-                                Start new task
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Starts a new task</p>
-                            </TooltipContent>
-                          </Tooltip>
-                          <Tooltip delayDuration={0}>
-                            <TooltipTrigger asChild>
-                              <Button onClick={() => refetch()}>Retry</Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Retry loading messages</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-                  ) : !isAgentRunning && messages.length === 0 ? (
-                    <ChatZeroState
-                      id={id}
-                      selectedSessionId={selectedSessionId}
-                    />
-                  ) : (
-                    <ChatStream
-                      isAgentRunning={isAgentRunning}
-                      isDeveloperMode={isDeveloperMode}
-                      messages={messages}
-                      onContinue={handleContinue}
-                      onModelChange={setSelectedModelURI}
-                      onRetry={handleRetry}
-                      onStartNewTask={handleStartNewTask}
-                      renderAsItems
-                      task={task}
-                    />
-                  )
-                ) : (
+                isLoadingMessages ? (
                   <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
                     <Spinner className="size-4 text-muted-foreground" />
                   </div>
+                ) : messageError ? (
+                  <Alert className="mt-4" variant="warning">
+                    <AlertDescription className="flex flex-col gap-4">
+                      <div className="font-semibold">
+                        Failed to load messages
+                      </div>
+                      <div className="text-sm">
+                        {messageError.message || "Unknown error occurred"}
+                      </div>
+                      <div className="flex gap-2">
+                        <Tooltip delayDuration={0}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              onClick={handleStartNewTask}
+                              variant="secondary"
+                            >
+                              Start new task
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Starts a new task</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip delayDuration={0}>
+                          <TooltipTrigger asChild>
+                            <Button onClick={() => refetch()}>Retry</Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Retry loading messages</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : !isAgentRunning && messages.length === 0 ? (
+                  <ChatZeroState
+                    id={id}
+                    selectedSessionId={selectedSessionId}
+                  />
+                ) : (
+                  <ChatStream
+                    isAgentRunning={isAgentRunning}
+                    isDeveloperMode={isDeveloperMode}
+                    messages={messages}
+                    onContinue={handleContinue}
+                    onModelChange={setSelectedModelURI}
+                    onRetry={handleRetry}
+                    onStartNewTask={handleStartNewTask}
+                    renderAsItems
+                    task={task}
+                  />
                 )
               ) : (
                 <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
@@ -363,49 +347,4 @@ export function TaskChat({
       </div>
     </MessageScrollerProvider>
   );
-}
-
-// The scroller applies "start at the end" once, but on task open the live
-// messages query briefly serves the previous task's (shorter) messages, so it
-// can pin to that stale height and never re-pin once the real, taller messages
-// swap in (leaving a long chat parked mid-scroll). Hold the view at the bottom
-// across the opening settle window; any manual scroll cancels it so we never
-// fight the user. Runs once per session (the provider is keyed by session id).
-function PinToBottomWhileOpening() {
-  const { scrollToEnd } = useMessageScroller();
-  useLayoutEffect(() => {
-    let raf = 0;
-    let frames = 0;
-    let active = true;
-    const stop = () => {
-      active = false;
-    };
-    // Any manual scroll intent cancels the opening pin so we never fight the
-    // user: wheel/touch, keyboard (Page/Arrow/Space/Home/End), and a
-    // scrollbar/pointer drag.
-    window.addEventListener("wheel", stop, { passive: true });
-    window.addEventListener("touchmove", stop, { passive: true });
-    window.addEventListener("keydown", stop);
-    window.addEventListener("pointerdown", stop, { passive: true });
-    const step = () => {
-      if (!active) {
-        return;
-      }
-      scrollToEnd({ behavior: "auto" });
-      frames += 1;
-      if (frames < 40) {
-        raf = requestAnimationFrame(step);
-      }
-    };
-    raf = requestAnimationFrame(step);
-    return () => {
-      active = false;
-      cancelAnimationFrame(raf);
-      window.removeEventListener("wheel", stop);
-      window.removeEventListener("touchmove", stop);
-      window.removeEventListener("keydown", stop);
-      window.removeEventListener("pointerdown", stop);
-    };
-  }, [scrollToEnd]);
-  return null;
 }

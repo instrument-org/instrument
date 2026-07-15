@@ -38,6 +38,7 @@ export function ChatZeroState({ id, selectedSessionId }: ChatZeroStateProps) {
                   className="block text-xs underline hover:text-foreground"
                   key={session.id}
                   params={{ id }}
+                  preload="intent"
                   replace
                   search={(prev) => ({
                     ...prev,

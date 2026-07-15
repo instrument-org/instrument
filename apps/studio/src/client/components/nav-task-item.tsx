@@ -163,6 +163,7 @@ export const NavTaskItem = memo(function NavTaskItem({
                   }}
                   openInCurrentTab
                   params={{ id: task.id }}
+                  preload="intent"
                   to="/tasks/$id"
                 >
                   {isPinned && (

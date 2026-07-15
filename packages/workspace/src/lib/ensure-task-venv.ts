@@ -30,13 +30,12 @@ export async function ensureTaskVenvForTask({
 
   const existing = inFlightVenvCreation.get(taskId);
   if (existing) {
-    return existing;
+    return awaitVenvCreation({ creation: existing, signal });
   }
 
   const creation = runUvCommand({
     args: ["venv", "--python", MANAGED_PYTHON_VERSION, taskVenvDir(taskId)],
     cwd: getTaskWorkDir(taskDir(taskId)),
-    signal,
     taskId,
   })
     .then((result) =>
@@ -44,8 +43,51 @@ export async function ensureTaskVenvForTask({
         ? undefined
         : { exitCode: result.exitCode, output: result.combined },
     )
+    .catch((error: unknown) => ({
+      exitCode: 1,
+      output: error instanceof Error ? error.message : String(error),
+    }))
     .finally(() => inFlightVenvCreation.delete(taskId));
 
   inFlightVenvCreation.set(taskId, creation);
-  return creation;
+  return awaitVenvCreation({ creation, signal });
+}
+
+function awaitVenvCreation({
+  creation,
+  signal,
+}: {
+  creation: Promise<TaskVenvError | undefined>;
+  signal?: AbortSignal;
+}) {
+  if (signal === undefined) {
+    return creation;
+  }
+
+  if (signal.aborted) {
+    return Promise.resolve(cancelledVenvCreation());
+  }
+
+  const abortSignal = signal;
+  return new Promise<TaskVenvError | undefined>((resolve) => {
+    function onAbort() {
+      abortSignal.removeEventListener("abort", onAbort);
+      resolve(cancelledVenvCreation());
+    }
+
+    const finish = (result: TaskVenvError | undefined) => {
+      abortSignal.removeEventListener("abort", onAbort);
+      resolve(result);
+    };
+
+    abortSignal.addEventListener("abort", onAbort, { once: true });
+    void creation.then(finish);
+  });
+}
+
+function cancelledVenvCreation(): TaskVenvError {
+  return {
+    exitCode: 1,
+    output: "Python environment setup was cancelled.",
+  };
 }

@@ -10,6 +10,17 @@ import { getIgnore } from "./get-ignore";
 import { normalizedPathJoin, normalizePath } from "./normalize-path";
 import { getTaskWorkDir } from "./task-dir-utils";
 
+const SKILL_DEVELOPMENT_ARTIFACTS = [
+  ".coverage",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".turbo",
+  ".venv",
+  "__pycache__",
+  "node_modules",
+];
+
 export async function copySkill({
   dir,
   signal,
@@ -45,6 +56,7 @@ export async function copySkill({
   // the skill is committed to the registry and made available to the agent.
   const ignore = baseIgnore.add([
     "SKILL.template.md",
+    ...SKILL_DEVELOPMENT_ARTIFACTS,
     "tests",
     "vitest.config.ts",
   ]);

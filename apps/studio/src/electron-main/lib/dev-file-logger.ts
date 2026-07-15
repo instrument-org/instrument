@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -22,7 +23,7 @@ export function getDevLogFilePath() {
   return logFilePath;
 }
 
-/** Opens the log file and updates the current.log symlink. Call once at boot. */
+/** Opens the log file and updates the current.jsonl symlink. Call once at boot. */
 export function openDevLog() {
   if (logStream) {
     return;
@@ -35,12 +36,9 @@ export function openDevLog() {
 
   // Symlinks are unreliable on Windows without Developer Mode or admin rights.
   if (process.platform !== "win32") {
-    try {
-      fs.unlinkSync(CURRENT_SYMLINK);
-    } catch {
-      // Ignore — didn't exist yet
-    }
-    fs.symlinkSync(logFilePath, CURRENT_SYMLINK);
+    const temporarySymlink = path.join(LOG_DIR, `.${randomUUID()}.jsonl`);
+    fs.symlinkSync(logFilePath, temporarySymlink);
+    fs.renameSync(temporarySymlink, CURRENT_SYMLINK);
   }
 }
 

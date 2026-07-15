@@ -431,7 +431,7 @@ function VideoPreviewCard({
       aspectRatio="video"
       bottomBar={
         displayTime === null ? undefined : (
-          <div className="absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
             <span className="self-end text-xs font-medium text-white tabular-nums drop-shadow-sm">
               {formatTime(displayTime)}
             </span>
@@ -493,7 +493,7 @@ function VideoPreviewCard({
         ref={videoRef}
         src={url}
       />
-      <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0">
+      <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-200 group-hover/media:opacity-0">
         {!isPlaying && (
           <div className="rounded-full bg-background/90 p-2 shadow-lg">
             <PlayIcon

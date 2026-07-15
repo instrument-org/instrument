@@ -28,16 +28,14 @@ import {
   IMAGE_PANZOOM_VIEWPORT_CLASS,
   useImagePanzoom,
 } from "../hooks/use-image-panzoom";
-import { useOpenTaskFile } from "../hooks/use-open-task-file";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
-import { useTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
+import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
-import { OpenTargetIcon } from "./open-target-icon";
-import { OpenWithMenu } from "./open-with-menu";
+import { OpenTaskFileButton } from "./open-task-file-button";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -59,10 +57,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import {
-  contextMenuComponents,
-  dropdownMenuComponents,
-} from "./ui/menu-components";
+import { contextMenuComponents } from "./ui/menu-components";
 import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -299,6 +294,12 @@ const fileViewerHeaderMenuTriggerClassName = toolbarClassName({
   pressed: false,
 });
 
+const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
+  className:
+    "h-7 w-5 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+  pressed: false,
+});
+
 export function FileViewer({
   file,
   fullSize = false,
@@ -318,8 +319,7 @@ export function FileViewer({
   const imageLoadError = imageErrorUrl === url;
   const contentRef = useRef<HTMLDivElement>(null);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
-  const openTaskFile = useOpenTaskFile();
-  const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
+  const openControl = useTaskFileOpenControl(file);
   const revealFileMutation = useMutation(
     rpcClient.utils.showTaskFileInFolder.mutationOptions({
       onError: (error) => {
@@ -340,12 +340,8 @@ export function FileViewer({
   const hasPreview = fileType === "markdown" || fileType === "html";
   const fileActions = useFileActionVisibility(file);
   const hasHeaderMenuActions =
-    onExpand != null ||
-    showOpenWith ||
-    fileActions.showDownload ||
-    fileActions.showReveal;
+    onExpand != null || fileActions.showDownload || fileActions.showReveal;
   const showOverflowMenu =
-    showOpenWith ||
     fileActions.showDownload ||
     fileActions.showReveal ||
     hasPreview ||
@@ -417,22 +413,16 @@ export function FileViewer({
           </TooltipContent>
         </Tooltip>
         <div className="flex shrink-0 items-center gap-1">
-          {showOpen && (
-            <Button
-              aria-label={openLabel}
-              className={fileViewerHeaderActionClassName}
-              onClick={() => {
-                openTaskFile(file);
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              <OpenTargetIcon className="size-4" file={file} />
-              <span className="hidden max-w-40 min-w-0 truncate @min-[380px]:inline">
-                {openLabel}
-              </span>
-            </Button>
-          )}
+          <OpenTaskFileButton
+            className={fileViewerHeaderActionClassName}
+            control={openControl}
+            dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
+            file={file}
+            iconClassName="size-4"
+            labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
+            size="sm"
+            variant="ghost"
+          />
           {fileActions.showCopy && (
             <Button
               className={fileViewerHeaderActionClassName}
@@ -470,12 +460,6 @@ export function FileViewer({
                     <ArrowsOutSimpleIcon className="size-4" />
                     <span>Expand</span>
                   </DropdownMenuItem>
-                )}
-                {showOpenWith && (
-                  <OpenWithMenu
-                    file={file}
-                    menuComponents={dropdownMenuComponents}
-                  />
                 )}
                 {fileActions.showDownload && (
                   <DropdownMenuItem onClick={() => void handleDownload()}>

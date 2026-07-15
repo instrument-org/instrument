@@ -30,6 +30,7 @@ import {
 
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
+import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import { watchThemePreferenceAndApply } from "./lib/theme-utils";
@@ -175,6 +176,11 @@ void app.whenReady().then(async () => {
   } else {
     await createMainWindow();
   }
+
+  // Let the initial window render before running the best-effort cache warmup.
+  setTimeout(() => {
+    void warmCommonFileOpenTargets();
+  }, 1500);
 
   void startAuthCallbackServer();
 

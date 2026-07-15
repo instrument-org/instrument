@@ -26,6 +26,24 @@ interface PersistedEntry extends FileOpenTarget {
 const ICON_SIZE = 64;
 const MAX_CANDIDATES = 12;
 const LOOKUP_TIMEOUT_MS = 10_000;
+const COMMON_FILE_EXTENSIONS = [
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".txt",
+  ".md",
+  ".csv",
+  ".json",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+];
 
 // Resolution spawns helper processes and only depends on the file type, so the
 // default target is cached per extension and persisted so the first open of a
@@ -152,7 +170,7 @@ export async function getFileOpenCandidates(
   const key = path.extname(fullPath).toLowerCase() || fullPath;
   const existing = candidatesCache.get(key);
   if (existing) {
-    return existing;
+    return existing.catch(() => []);
   }
   const pending = resolveCandidates(fullPath);
   candidatesCache.set(key, pending);
@@ -161,7 +179,10 @@ export async function getFileOpenCandidates(
       candidatesCache.delete(key);
     }
   });
-  return pending;
+  // Launch Services occasionally rejects a file even when its default app is
+  // resolvable. Alternate apps are optional, so keep the primary action usable
+  // and let the cache eviction above allow a later request to retry.
+  return pending.catch(() => []);
 }
 
 export async function getFileOpenTarget(
@@ -174,7 +195,7 @@ export async function getFileOpenTarget(
   if (!ext) {
     const existing = sessionTargets.get(fullPath);
     if (existing) {
-      return existing;
+      return existing.catch(() => fallbackTarget(fullPath));
     }
     const pending = resolveTarget(fullPath);
     sessionTargets.set(fullPath, pending);
@@ -183,7 +204,7 @@ export async function getFileOpenTarget(
         sessionTargets.delete(fullPath);
       }
     });
-    return pending;
+    return pending.catch(() => fallbackTarget(fullPath));
   }
 
   const cache = await loadDiskCache();
@@ -199,15 +220,54 @@ export async function getFileOpenTarget(
 
   const inFlight = inFlightTargets.get(ext);
   if (inFlight) {
-    return inFlight;
+    return inFlight.catch(() => fallbackTarget(fullPath));
   }
   const pending = resolveAndStore(ext, fullPath);
   inFlightTargets.set(ext, pending);
-  return pending;
+  return pending.catch(() => fallbackTarget(fullPath));
+}
+
+// Seeds the persisted default-target cache for the file types most commonly
+// produced or viewed in Studio. Candidate lists stay on-demand because they
+// require resolving and transferring icons for many apps per file type.
+export async function warmCommonFileOpenTargets() {
+  if (process.platform !== "darwin") {
+    return;
+  }
+
+  const cache = await loadDiskCache();
+  const missingExtensions = COMMON_FILE_EXTENSIONS.filter(
+    (extension) => !cache.has(extension),
+  );
+  if (missingExtensions.length === 0) {
+    return;
+  }
+
+  let tempDir: null | string = null;
+  try {
+    tempDir = await fs.mkdtemp(
+      path.join(app.getPath("temp"), "instrument-file-open-targets-"),
+    );
+    for (const extension of missingExtensions) {
+      const samplePath = path.join(tempDir, `sample${extension}`);
+      await fs.writeFile(samplePath, "");
+      await getFileOpenTarget(samplePath);
+    }
+  } catch {
+    // A missed prewarm is harmless: the first real file resolves on demand.
+  } finally {
+    if (tempDir) {
+      await fs.rm(tempDir, { force: true, recursive: true }).catch(() => null);
+    }
+  }
 }
 
 function cacheFilePath() {
   return path.join(app.getPath("userData"), "file-open-targets.json");
+}
+
+async function fallbackTarget(fullPath: string): Promise<FileOpenTarget> {
+  return { appName: null, iconDataUrl: await getFileTypeIconDataUrl(fullPath) };
 }
 
 // `app.getFileIcon` only yields the file-type icon (a generic icon for .app

@@ -67,7 +67,7 @@ export function MediaCardShell({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group relative w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
+            "group/media relative w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
             aspectRatio === "square" ? "aspect-square" : "aspect-video",
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
@@ -77,7 +77,7 @@ export function MediaCardShell({
         >
           {children}
 
-          <div className="opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="opacity-0 transition-opacity duration-200 group-hover/media:opacity-100 group-has-[button[data-state=open]]/media:opacity-100">
             {scrim}
           </div>
 
@@ -91,7 +91,7 @@ export function MediaCardShell({
             <button
               className={cn(
                 "absolute top-3 right-3 z-10 flex size-7 items-center justify-center",
-                "text-white opacity-0 drop-shadow-sm transition-opacity duration-200 group-hover:opacity-100",
+                "text-white opacity-0 drop-shadow-sm transition-opacity duration-200 group-hover/media:opacity-100 group-has-[button[data-state=open]]/media:opacity-100",
               )}
               onClick={onClick}
               type="button"
@@ -104,7 +104,7 @@ export function MediaCardShell({
             <div
               className={cn(
                 "absolute top-3 left-3 z-10 flex flex-col items-start gap-1",
-                "opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-hover:delay-400",
+                "opacity-0 transition-opacity duration-200 group-hover/media:opacity-100 group-hover/media:delay-400 group-has-[button[data-state=open]]/media:pointer-events-auto group-has-[button[data-state=open]]/media:opacity-100 group-has-[button[data-state=open]]/media:delay-0",
                 !interactive && "pointer-events-none",
               )}
               onClickCapture={(e) => {

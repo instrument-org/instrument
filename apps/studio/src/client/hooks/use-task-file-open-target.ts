@@ -24,15 +24,18 @@ export function usePrefetchTaskFileOpenTarget() {
   };
 }
 
-// Every app that can open the file (default first). Lazily fetched, since it is
-// only needed when an "Open with" menu is opened.
+// Every app that can open the file (default first). File viewers start this
+// lookup immediately; contextual menus wait until opened.
 export function useTaskFileOpenCandidates(
-  file: FileRef,
+  file: FileRef | undefined,
   { enabled }: { enabled: boolean },
 ) {
   const { data, isPending } = useQuery(
     rpcClient.utils.getTaskFileOpenCandidates.queryOptions({
-      input: enabled ? { filePath: file.filePath, id: file.taskId } : skipToken,
+      input:
+        enabled && file
+          ? { filePath: file.filePath, id: file.taskId }
+          : skipToken,
       refetchOnMount: false,
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
@@ -40,7 +43,10 @@ export function useTaskFileOpenCandidates(
     }),
   );
 
-  return { apps: data?.apps ?? [], isPending: enabled && isPending };
+  return {
+    apps: data?.apps ?? [],
+    isPending: enabled && file != null && isPending,
+  };
 }
 
 // Default-app name and icon for a task file, for "Open in {app}" affordances.
@@ -50,7 +56,7 @@ export function useTaskFileOpenTarget(file: FileRef | undefined) {
   const { data, isPending } = useQuery(openTargetQueryOptions(file));
 
   const appName = data?.appName ?? null;
-  const showOpen = file != null;
+  const showOpen = file != null && !isPending && appName != null;
 
   return {
     appName,
@@ -58,6 +64,6 @@ export function useTaskFileOpenTarget(file: FileRef | undefined) {
     isPending,
     openLabel: appName ? `Open in ${appName}` : "Open",
     showOpen,
-    showOpenWith: showOpen && appName != null && isMacOS(),
+    showOpenWith: showOpen && isMacOS(),
   };
 }

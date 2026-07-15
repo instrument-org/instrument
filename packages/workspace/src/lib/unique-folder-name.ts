@@ -15,7 +15,7 @@ export function uniqueFolderName(
 ): string {
   let candidate = baseName;
   let counter = 1;
-  while (candidate in folders) {
+  while (Object.hasOwn(folders, candidate)) {
     candidate = `${baseName}-${counter}`;
     counter++;
   }

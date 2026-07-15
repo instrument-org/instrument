@@ -28,6 +28,7 @@ import { ProjectContextNote } from "./project-context-note";
 import { ReasoningMessage } from "./reasoning-message";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
+import { MessageScrollerItem } from "./ui/message-scroller";
 import { Wordmark } from "./wordmark";
 
 interface ChatStreamProps {
@@ -38,6 +39,10 @@ interface ChatStreamProps {
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
   onStartNewTask: () => void;
+  // Wrap each turn in a MessageScrollerItem so the transcript scroller can
+  // anchor turns. Only the top-level transcript sets this; nested tool-agent
+  // streams render flat.
+  renderAsItems?: boolean;
   task: Task;
 }
 
@@ -49,6 +54,7 @@ export function ChatStream({
   onModelChange,
   onRetry,
   onStartNewTask,
+  renderAsItems = false,
   task,
 }: ChatStreamProps) {
   const assetBaseUrl = getAssetBaseUrl(task.id);
@@ -360,13 +366,32 @@ export function ChatStream({
         visibleAssistantContentCount = 0;
       }
 
-      elements.push(...messageElements);
+      if (renderAsItems) {
+        if (messageElements.length > 0) {
+          // No scrollAnchor: opting into the primitive's per-turn
+          // anchor-to-top inflates a spacer and jumps the view up mid-stream
+          // as tool-call DOM churns in. We only want follow-bottom +
+          // release-on-scroll-up, so nothing is marked as an anchor.
+          elements.push(
+            <MessageScrollerItem
+              className="flex flex-col gap-2"
+              key={message.id}
+              messageId={message.id}
+            >
+              {messageElements}
+            </MessageScrollerItem>,
+          );
+        }
+      } else {
+        elements.push(...messageElements);
+      }
     }
 
     return elements;
   }, [
     regularMessages,
     renderCtx,
+    renderAsItems,
     toolBoundaryMap,
     assetBaseUrl,
     task.id,
@@ -391,6 +416,61 @@ export function ChatStream({
     );
   }, [messages, isAgentRunning]);
 
+  const contextNode =
+    contextMessages.length > 0 && isDeveloperMode ? (
+      <ContextMessages messages={contextMessages} />
+    ) : null;
+
+  const planningNode = isPlanningVisible ? (
+    <div className={cn(lastAssistantMessageHasVisibleParts && "mt-1")}>
+      <ReasoningMessage
+        isLoading
+        noDelay={!lastAssistantMessageHasVisibleParts}
+        text=""
+      />
+    </div>
+  ) : null;
+
+  const continueNode = shouldShowContinueButton ? (
+    <Alert className="mt-4" variant="warning">
+      <WarningIcon />
+      <AlertDescription className="flex flex-col gap-3">
+        <div className="text-xs">
+          Agent was stopped due to reaching maximum unattended steps.
+        </div>
+        <Button onClick={onContinue} size="sm" variant="secondary">
+          Resume the agent
+        </Button>
+      </AlertDescription>
+    </Alert>
+  ) : null;
+
+  // Scroller mode emits direct children of MessageScrollerContent: each turn is
+  // an anchorable item, and the surrounding chrome is wrapped so the scroller
+  // still measures clean top-level rows.
+  if (renderAsItems) {
+    return (
+      <>
+        {contextNode && (
+          <MessageScrollerItem key="context-messages">
+            {contextNode}
+          </MessageScrollerItem>
+        )}
+        {chatElements}
+        {planningNode && (
+          <MessageScrollerItem key="planning">
+            {planningNode}
+          </MessageScrollerItem>
+        )}
+        {continueNode && (
+          <MessageScrollerItem key="continue">
+            {continueNode}
+          </MessageScrollerItem>
+        )}
+      </>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -398,34 +478,10 @@ export function ChatStream({
         "flex w-full flex-col gap-2",
       )}
     >
-      {contextMessages.length > 0 && isDeveloperMode && (
-        <ContextMessages messages={contextMessages} />
-      )}
+      {contextNode}
       <div className="flex flex-col gap-2">{chatElements}</div>
-
-      {isPlanningVisible && (
-        <div className={cn(lastAssistantMessageHasVisibleParts && "mt-1")}>
-          <ReasoningMessage
-            isLoading
-            noDelay={!lastAssistantMessageHasVisibleParts}
-            text=""
-          />
-        </div>
-      )}
-
-      {shouldShowContinueButton && (
-        <Alert className="mt-4" variant="warning">
-          <WarningIcon />
-          <AlertDescription className="flex flex-col gap-3">
-            <div className="text-xs">
-              Agent was stopped due to reaching maximum unattended steps.
-            </div>
-            <Button onClick={onContinue} size="sm" variant="secondary">
-              Resume the agent
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+      {planningNode}
+      {continueNode}
     </div>
   );
 }

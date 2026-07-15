@@ -2,7 +2,6 @@ import type { Context, Env } from "hono";
 import type { ReadStream, Stats } from "node:fs";
 
 import { createReadStream, statSync } from "node:fs";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
@@ -17,6 +16,10 @@ interface ServeStaticFileOptions {
    * Index file name for directory requests (default: 'index.html')
    */
   index?: string;
+  /** Called with the final file path after index and compression resolution. */
+  isPathAllowed?: (filePath: string) => boolean;
+  /** Called with the final file metadata before response streaming begins. */
+  onFound?: (file: { filePath: string; stats: Stats }) => Promise<void> | void;
   /**
    * Whether to support precompressed files
    */
@@ -49,17 +52,6 @@ const getStats = (filePath: string): Stats | undefined => {
   return stats;
 };
 
-const getFileBuffer = async (
-  filePath: string,
-  signal?: AbortSignal,
-): Promise<Buffer | null> => {
-  try {
-    return await fs.readFile(filePath, { signal });
-  } catch {
-    return null;
-  }
-};
-
 const parseRange = (
   rangeHeader: string,
   size: number,
@@ -85,10 +77,8 @@ export async function serveStaticFile<E extends Env = Env>(
   c: Context<E>,
   options: ServeStaticFileOptions,
 ) {
-  const signal = c.req.raw.signal;
   let filePath = options.filePath;
   let stats: Stats | undefined;
-  let fileBuffer: Buffer | null = null;
 
   stats = getStats(filePath);
 
@@ -102,48 +92,47 @@ export async function serveStaticFile<E extends Env = Env>(
     return null;
   }
 
-  // Check for precompressed files
-  if (options.precompressed) {
-    const mimeType = getMimeType(filePath);
-    if (!mimeType || COMPRESSIBLE_CONTENT_TYPE_REGEX.test(mimeType)) {
-      const acceptEncodingSet = new Set(
-        c.req
-          .header("Accept-Encoding")
-          ?.split(",")
-          .map((encoding) => encoding.trim()),
-      );
+  const mimeType = getMimeType(filePath);
 
-      for (const encoding of ENCODINGS_ORDERED_KEYS) {
-        if (!acceptEncodingSet.has(encoding)) {
-          continue;
-        }
-        const precompressedPath = filePath + ENCODINGS[encoding];
-        const precompressedStats = getStats(precompressedPath);
-        if (precompressedStats) {
-          c.header("Content-Encoding", encoding);
-          c.header("Vary", "Accept-Encoding", { append: true });
-          stats = precompressedStats;
-          filePath = precompressedPath;
-          break;
-        }
+  // Check for precompressed files
+  if (
+    options.precompressed &&
+    (!mimeType || COMPRESSIBLE_CONTENT_TYPE_REGEX.test(mimeType))
+  ) {
+    const acceptEncodingSet = new Set(
+      c.req
+        .header("Accept-Encoding")
+        ?.split(",")
+        .map((encoding) => encoding.trim()),
+    );
+
+    for (const encoding of ENCODINGS_ORDERED_KEYS) {
+      if (!acceptEncodingSet.has(encoding)) {
+        continue;
+      }
+      const precompressedPath = filePath + ENCODINGS[encoding];
+      const precompressedStats = getStats(precompressedPath);
+      if (precompressedStats) {
+        c.header("Content-Encoding", encoding);
+        c.header("Vary", "Accept-Encoding", { append: true });
+        stats = precompressedStats;
+        filePath = precompressedPath;
+        break;
       }
     }
   }
 
-  // Get file buffer if we need it for range requests
-  const rangeHeader = c.req.header("range");
-
-  if (rangeHeader) {
-    fileBuffer = await getFileBuffer(filePath, signal);
-    if (!fileBuffer) {
-      return null;
-    }
+  if (options.isPathAllowed && !options.isPathAllowed(filePath)) {
+    return null;
   }
 
-  const size = fileBuffer ? fileBuffer.length : stats.size;
-  const mimeType = getMimeType(filePath);
+  await options.onFound?.({ filePath, stats });
+
+  const rangeHeader = c.req.header("range");
+  const size = stats.size;
   c.header("Content-Type", mimeType);
   c.header("Accept-Ranges", "bytes");
+  c.header("Last-Modified", stats.mtime.toUTCString());
 
   if (c.req.method === "HEAD" || c.req.method === "OPTIONS") {
     c.header("Content-Length", size.toString());
@@ -161,12 +150,12 @@ export async function serveStaticFile<E extends Env = Env>(
     const { end, start } = range;
     const chunkSize = end - start + 1;
 
-    if (fileBuffer) {
-      const chunk = fileBuffer.subarray(start, end + 1);
-      c.header("Content-Length", chunkSize.toString());
-      c.header("Content-Range", `bytes ${start}-${end}/${size}`);
-      return c.body(chunk, 206);
-    }
+    c.header("Content-Length", chunkSize.toString());
+    c.header("Content-Range", `bytes ${start}-${end}/${size}`);
+    return c.body(
+      createStreamBody(createReadStream(filePath, { end, start })),
+      206,
+    );
   }
 
   // Full file response

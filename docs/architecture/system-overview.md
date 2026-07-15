@@ -70,9 +70,11 @@ server-side machinery runs in main; the renderer is UI only.
   registry/task-template directories.
 - **Workspace server** is a Hono app served in-process via `@hono/node-server`
   ([`server/index.ts`](../../packages/workspace/src/logic/server/index.ts)). It
-  serves the shim, assets, a heartbeat, a CDP bridge, and proxies the running
-  user app; the ai-gateway app is mounted onto it at `AI_GATEWAY_API_PATH`. The
-  port falls back to a free one, so multiple dev instances can coexist.
+  serves task files from a dedicated `assets.<task>.<host>` origin, plus the
+  shim, heartbeat, CDP bridge, and ai-gateway app. The bare task origin retains
+  the app-runtime proxy, runtime machine, and spawn path for future full-stack
+  app viewing, but no current Studio UI navigates to it. The port falls back to
+  a free one, so multiple dev instances can coexist.
 - **Per-task runtimes** are XState actors the workspace machine supervises
   (`runtimeRefs`, keyed by `TaskId`); session/agent machines
   (`packages/workspace/src/machines/`) drive an agent turn within a task.

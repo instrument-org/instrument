@@ -1,14 +1,5 @@
 import { type FolderAttachment } from "../schemas/folder-attachment";
-
-/**
- * Where user-attached external folders are mounted inside the bash sandbox.
- *
- * Attached folders live on the user's real disk; we surface them read-only
- * inside the just-bash virtual filesystem (see create-bash-env.ts) so the agent
- * can browse, read, search, and copy from them with ordinary shell commands.
- * They are mounted under this root, one directory per folder.
- */
-const ATTACHED_FOLDERS_MOUNT_ROOT = "/mnt";
+import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../schemas/paths";
 
 /**
  * Mount points for every attached folder, in iteration order.

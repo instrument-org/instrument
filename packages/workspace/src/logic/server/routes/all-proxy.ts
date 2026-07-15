@@ -44,6 +44,10 @@ app.all("/*", async (c, next) => {
     }
   }
 
+  if (uriDetails.value.origin !== "app") {
+    return c.notFound();
+  }
+
   const { id } = uriDetails.value;
   const runtimeRef = c.var.getRuntimeRef(id);
   if (!runtimeRef) {

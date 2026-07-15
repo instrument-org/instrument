@@ -1,5 +1,5 @@
 import { ok } from "neverthrow";
-import { accessSync, constants, realpathSync } from "node:fs";
+import { accessSync, constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -15,6 +15,7 @@ import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
+  hostPathEscapesMount,
   resolveHostPath,
   TASK_MOUNT_POINT,
   type WorkspaceFsLayout,
@@ -231,34 +232,6 @@ export function resolveWritableToolPath(options: {
   return ok({ absolutePath, displayPath });
 }
 
-/**
- * True when `hostPath`, after resolving symlinks, lands outside `hostRoot`.
- * Mirrors the bash sandbox's refusal to follow symlinks out of a mount. A path
- * that does not yet exist (or a missing root) is not an escape -- there is
- * nothing to read, so normal not-found handling applies.
- */
-function escapesMountRoot(
-  hostPath: AbsolutePath,
-  hostRoot: AbsolutePath,
-): boolean {
-  let canonicalRoot: string;
-  try {
-    canonicalRoot = realpathSync(hostRoot);
-  } catch {
-    return false;
-  }
-  let canonical: string;
-  try {
-    canonical = realpathSync(hostPath);
-  } catch {
-    return false;
-  }
-  return (
-    canonical !== canonicalRoot &&
-    !canonical.startsWith(canonicalRoot + path.sep)
-  );
-}
-
 function fileExistsSync(filePath: string): boolean {
   try {
     accessSync(filePath, constants.F_OK);
@@ -324,7 +297,7 @@ function resolveVirtualAbsolutePath(
   // The bash sandbox refuses to traverse symlinks out of a mount; the file
   // tools go through node fs directly, so enforce the same containment here or
   // a symlink inside the folder could read host files.
-  if (escapesMountRoot(hostPath, mount.hostRoot)) {
+  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
     return executeError(
       `The path "${virtualPath}" resolves outside the read-only attached folder (via a symlink) and cannot be accessed.`,
     );

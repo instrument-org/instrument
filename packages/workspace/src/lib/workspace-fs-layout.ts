@@ -4,6 +4,7 @@ import {
   OverlayFs,
   ReadWriteFs,
 } from "just-bash";
+import { realpathSync } from "node:fs";
 
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
@@ -11,6 +12,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { assignAttachedMounts } from "./attached-folder-mounts";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
+import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 
 /**
@@ -117,6 +119,33 @@ export function buildWorkspaceFsLayout({
       readOnly: false,
     },
   };
+}
+
+/**
+ * True when an existing host path escapes its owning mount through a symlink.
+ * A missing path or root is not an escape (nothing to read; normal not-found
+ * handling applies). Any other resolution failure (permission error, symlink
+ * loop, ...) means containment cannot be verified, so it fails closed.
+ */
+export function hostPathEscapesMount(
+  hostPath: string,
+  hostRoot: string,
+): boolean {
+  let canonicalRoot: string;
+  try {
+    canonicalRoot = realpathSync(hostRoot);
+  } catch (error) {
+    return !isEnoent(error);
+  }
+
+  let canonicalPath: string;
+  try {
+    canonicalPath = realpathSync(hostPath);
+  } catch (error) {
+    return !isEnoent(error);
+  }
+
+  return !pathIsWithin(canonicalPath, canonicalRoot);
 }
 
 /**
@@ -227,6 +256,10 @@ export function resolveVirtualPath(
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [layout.task, ...layout.attached];
+}
+
+function isEnoent(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 /**

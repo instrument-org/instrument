@@ -29,10 +29,11 @@ Features/Bug Fixes.
 
 ## Filtering
 
-Commits are scope-prefixed. Most are `scope: description`, but some use the
-conventional form `feat(scope):` / `fix(scope):` / `revert(scope):` and a few
-are bare `Revert "..."`. Parse by the inner scope; the `feat`/`fix`/`revert`
-wrapper does not change what to keep or drop. Multi-scope prefixes like
+Commits are scope-prefixed. Current commits use `scope: description`; older
+commits may use the conventional form `feat(scope):` / `fix(scope):` /
+`revert(scope):`, and a few are bare `Revert "..."`. Parse legacy commits by
+their inner scope; the `feat`/`fix`/`revert` wrapper does not change what to
+keep or drop. Multi-scope prefixes like
 `studio,workspace:` are common.
 
 Drop anything a user never sees:

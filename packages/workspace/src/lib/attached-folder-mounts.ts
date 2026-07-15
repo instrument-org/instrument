@@ -45,9 +45,10 @@ export function assignAttachedMounts(
  * Virtual mount path for an attached folder, e.g. "Family Photos" ->
  * "/mnt/Family Photos".
  *
- * Names are basename-derived and unique per task (see assignAttachedMounts),
- * so this is a stable one-to-one mapping; path separators are flattened and
- * degenerate names fall back to a placeholder purely defensively.
+ * Names are derived from the folder's path and unique per task (see
+ * uniqueFolderName, assignAttachedMounts), so this is a stable one-to-one
+ * mapping; path separators are flattened and degenerate names fall back to a
+ * placeholder purely defensively.
  */
 export function attachedFolderMountPoint(name: string) {
   const segment = name.replaceAll("/", "-").trim();

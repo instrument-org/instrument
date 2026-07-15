@@ -1,5 +1,4 @@
 import { ok, safeTry } from "neverthrow";
-import nodePath from "node:path";
 import { ulid } from "ulid";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
@@ -96,8 +95,7 @@ export function detectProjectChanges({
         if (!parsedPath.success) {
           continue;
         }
-        const baseName = nodePath.basename(folderPath) || folderPath;
-        const name = uniqueFolderName(baseName, nextFolders);
+        const name = uniqueFolderName(folderPath, nextFolders);
         nextFolders[name] = {
           createdAt: getCurrentDate().getTime(),
           id: FolderAttachment.IdSchema.parse(ulid()),

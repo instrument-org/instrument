@@ -72,11 +72,12 @@ if (platform.isLinux) {
   // https://www.electronjs.org/docs/latest/breaking-changes#planned-breaking-api-changes-380
   app.commandLine.appendSwitch("ozone-platform", "x11");
 
-  // Allow CDP Input.dispatchMouseEvent on WebContentsViews that are occluded
-  // (sunk behind the shield at z=0). Without this, Chromium's
-  // WidgetInputHandlerManager suppresses input on views that have not yet
-  // produced a compositor frame in the visible window, causing click commands
-  // to time out on Linux where occlusion tracking is stricter than macOS.
+  // Allow CDP Input.dispatchMouseEvent on occluded web contents (e.g.
+  // agent-browser webview guests parked offscreen in the paint host).
+  // Without this, Chromium's WidgetInputHandlerManager suppresses input on
+  // views that have not yet produced a compositor frame in the visible
+  // window, causing click commands to time out on Linux where occlusion
+  // tracking is stricter than macOS.
   // https://github.com/electron/electron/issues/35155
   app.commandLine.appendSwitch("allow-pre-commit-input");
 

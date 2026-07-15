@@ -1,4 +1,4 @@
-import { type BrowserWindow, type WebContentsView } from "electron";
+import { type BrowserWindow } from "electron";
 import contextMenu from "electron-context-menu";
 
 import { isDeveloperMode } from "../stores/preferences";
@@ -13,11 +13,11 @@ import { isDeveloperMode } from "../stores/preferences";
 type InspectMode = "bottom" | "default" | "detach";
 
 export function createContextMenu({
+  browserWindow,
   inspectMode = "default",
-  windowOrWebContentsView,
 }: {
+  browserWindow: BrowserWindow;
   inspectMode?: InspectMode;
-  windowOrWebContentsView: BrowserWindow | WebContentsView;
 }) {
   // Keep the library's native default template (spellcheck suggestions, Learn
   // Spelling, Look Up, cut/copy/paste, image/link/video actions) and shape it
@@ -36,10 +36,10 @@ export function createContextMenu({
       return [
         {
           click: () => {
-            windowOrWebContentsView.webContents?.openDevTools({
+            browserWindow.webContents.openDevTools({
               mode: inspectMode,
             });
-            windowOrWebContentsView.webContents?.inspectElement(
+            browserWindow.webContents.inspectElement(
               parameters.x,
               parameters.y,
             );
@@ -67,6 +67,6 @@ export function createContextMenu({
     showSearchWithGoogle: false,
     // Off by default on macOS; kept so editable/selection menus still offer it.
     showSelectAll: true,
-    window: windowOrWebContentsView,
+    window: browserWindow,
   });
 }

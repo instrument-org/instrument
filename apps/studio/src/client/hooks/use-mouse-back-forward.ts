@@ -3,11 +3,11 @@ import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { useStore } from "jotai";
 import { useEffect } from "react";
 
-// Mouse thumb-button (back/forward) navigation. On main each tab was its own
-// WebContentsView, so Chromium navigated that tab's history natively. The
-// unified app is one web contents with per-tab memory-history routers, so we
-// capture buttons 3/4 ourselves and drive the active tab's router. Capture phase
-// + preventDefault/stopPropagation so the buttons can't also register as clicks.
+// Mouse thumb-button (back/forward) navigation. The app is one web contents
+// with per-tab memory-history routers, so Chromium has no per-tab history to
+// navigate natively; capture buttons 3/4 and drive the active tab's router.
+// Capture phase + preventDefault/stopPropagation so the buttons can't also
+// register as clicks.
 export function useMouseBackForward() {
   const store = useStore();
 

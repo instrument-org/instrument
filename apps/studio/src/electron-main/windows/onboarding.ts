@@ -85,7 +85,7 @@ export function openOnboardingWindow(): BrowserWindow {
 
   void onboardingWindow.loadURL(studioURL("/onboarding"));
 
-  createContextMenu({ windowOrWebContentsView: onboardingWindow });
+  createContextMenu({ browserWindow: onboardingWindow });
 
   return onboardingWindow;
 }

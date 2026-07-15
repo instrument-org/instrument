@@ -124,8 +124,8 @@ export async function createMainWindow({
   });
   mainWindow.on("focus", () => {
     publisher.publish("window.focus-changed", null);
-    // Only focus current tab if the user was away from the app entirely,
-    // not when switching between web contents views within the app
+    // Only focus the current tab when the user returns to the app from
+    // elsewhere, not on focus churn within the window.
     if (wasWindowBlurred) {
       focusMainContents();
       wasWindowBlurred = false;
@@ -173,7 +173,7 @@ export async function createMainWindow({
     },
   });
 
-  createContextMenu({ windowOrWebContentsView: mainWindow });
+  createContextMenu({ browserWindow: mainWindow });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     void openExternal(details.url);

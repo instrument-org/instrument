@@ -30,6 +30,7 @@ export async function installPythonSkill({
     args: [
       "export",
       "--locked",
+      "--no-dev",
       "--no-emit-project",
       "--no-hashes",
       "--project",

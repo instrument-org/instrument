@@ -148,15 +148,16 @@ function run(argv) {
 export async function getFileOpenCandidates(
   fullPath: string,
 ): Promise<FileOpenCandidate[]> {
-  const existing = candidatesCache.get(fullPath);
+  const key = path.extname(fullPath).toLowerCase() || fullPath;
+  const existing = candidatesCache.get(key);
   if (existing) {
     return existing;
   }
   const pending = resolveCandidates(fullPath);
-  candidatesCache.set(fullPath, pending);
+  candidatesCache.set(key, pending);
   void pending.catch(() => {
-    if (candidatesCache.get(fullPath) === pending) {
-      candidatesCache.delete(fullPath);
+    if (candidatesCache.get(key) === pending) {
+      candidatesCache.delete(key);
     }
   });
   return pending;

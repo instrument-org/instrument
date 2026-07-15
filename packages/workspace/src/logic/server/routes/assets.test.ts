@@ -33,6 +33,13 @@ describe("assetsRoute", () => {
     await fs.writeFile(path.join(taskRoot, "style.css"), "task styles");
     await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
     await fs.writeFile(path.join(taskRoot, ".instrument", "task.db"), "private");
+    // A sibling that merely shares the `.instrument` prefix is a normal task
+    // file and must still be served (the deny rule is the exact dir, not a glob).
+    await fs.mkdir(path.join(taskRoot, ".instrument-notes"));
+    await fs.writeFile(
+      path.join(taskRoot, ".instrument-notes", "readme.txt"),
+      "public sibling",
+    );
     const styleStats = await fs.stat(path.join(taskRoot, "style.css"));
     styleModifiedAt = styleStats.mtimeMs;
     await fs.writeFile(path.join(photosRoot, "cat.png"), "mounted image");
@@ -116,13 +123,22 @@ describe("assetsRoute", () => {
     expect(response.status).toBe(404);
   });
 
-  it.each(["/.instrument", "/.instrument/task.db"])(
-    "never serves private task metadata at %s",
-    async (pathname) => {
-      const response = await requestAsset(pathname);
-      expect(response.status).toBe(404);
-    },
-  );
+  it.each([
+    "/.instrument",
+    "/.instrument/task.db",
+    // Case-insensitive filesystems (macOS, Windows) resolve this to the same
+    // private file, so the deny rule must be case-insensitive too.
+    "/.INSTRUMENT/task.db",
+  ])("never serves private task metadata at %s", async (pathname) => {
+    const response = await requestAsset(pathname);
+    expect(response.status).toBe(404);
+  });
+
+  it("still serves a task file that only shares the .instrument prefix", async () => {
+    const response = await requestAsset("/.instrument-notes/readme.txt");
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("public sibling");
+  });
 
   it("leaves the bare task origin to the app routes", async () => {
     const host = `${taskId}.localhost:${getWorkspaceServerPort()}`;

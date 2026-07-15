@@ -49,7 +49,13 @@ app.all("/*", async (c, next) => {
 
   // The task mount root also holds private per-task metadata under
   // `.instrument/` (task.db, state.json); never serve it over the asset origin.
-  if (assetPath === "/.instrument" || assetPath.startsWith("/.instrument/")) {
+  // Matched case-insensitively: the app runs on case-insensitive filesystems
+  // (macOS, Windows) where `/.INSTRUMENT/...` resolves to the same private file.
+  const lowerAssetPath = assetPath.toLowerCase();
+  if (
+    lowerAssetPath === "/.instrument" ||
+    lowerAssetPath.startsWith("/.instrument/")
+  ) {
     return c.notFound();
   }
 

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import path from "node:path";
 
 import { type TaskId } from "../schemas/task-id";
 import { runUvCommand } from "./run-uv";
@@ -24,7 +25,7 @@ export async function ensureTaskVenvForTask({
   signal?: AbortSignal;
   taskId: TaskId;
 }): Promise<TaskVenvError | undefined> {
-  if (existsSync(taskVenvPython(taskId))) {
+  if (hasUsableVenv(taskId)) {
     return undefined;
   }
 
@@ -90,4 +91,11 @@ function cancelledVenvCreation(): TaskVenvError {
     exitCode: 1,
     output: "Python environment setup was cancelled.",
   };
+}
+
+function hasUsableVenv(taskId: TaskId) {
+  return (
+    existsSync(taskVenvPython(taskId)) &&
+    existsSync(path.join(taskVenvDir(taskId), "pyvenv.cfg"))
+  );
 }

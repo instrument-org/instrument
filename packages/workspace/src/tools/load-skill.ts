@@ -80,7 +80,13 @@ function getSkillRuntime(skillDir: string, skillName: string): SkillRuntime {
       if (dependencies === undefined) {
         continue;
       }
-      if (!isRecord(dependencies)) {
+      if (
+        !isRecord(dependencies) ||
+        Array.isArray(dependencies) ||
+        Object.values(dependencies).some(
+          (version) => typeof version !== "string",
+        )
+      ) {
         return {
           error: `Skill "${skillName}" has an invalid ${field} field in package.json.`,
           node: false,

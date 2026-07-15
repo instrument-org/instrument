@@ -4,9 +4,30 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { ensureTaskVenvForTask } from "./ensure-task-venv";
 
+vi.mock(import("node:fs"), () => ({
+  existsSync: vi.fn(() => false),
+}));
 vi.mock(import("./run-uv"));
 
 describe("ensureTaskVenvForTask", () => {
+  it("recreates a venv when its interpreter lacks venv metadata", async () => {
+    const { existsSync } = await import("node:fs");
+    const { runUvCommand } = await import("./run-uv");
+    vi.mocked(existsSync)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    vi.mocked(runUvCommand).mockResolvedValueOnce({
+      combined: "",
+      exitCode: 0,
+      stdout: "",
+    });
+
+    const taskId = createMockTaskConfig(TaskIdSchema.parse("incomplete-venv"));
+
+    await expect(ensureTaskVenvForTask({ taskId })).resolves.toBeUndefined();
+    expect(runUvCommand).toHaveBeenCalledTimes(1);
+  });
+
   it("lets one caller cancel without cancelling shared venv creation", async () => {
     const { runUvCommand } = await import("./run-uv");
     let complete: (() => void) | undefined;

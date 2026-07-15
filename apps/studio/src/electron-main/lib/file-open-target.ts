@@ -104,6 +104,7 @@ function run(argv) {
 }
 `;
 
+// cspell:ignore NSURL
 // Enumerates every app that can open the file (default first), deduped by name
 // and capped, with each survivor's icon rendered to PNG.
 const DARWIN_CANDIDATES_SCRIPT = `
@@ -410,6 +411,7 @@ async function resolveWin32(fullPath: string) {
   if (!/^\.[a-z0-9]+$/.test(ext)) {
     return null;
   }
+  // cspell:ignore HKCR HKCU
   // UserChoice is how Windows 10+ records the user's "always open with" pick;
   // the HKCR default is the pre-UserChoice fallback.
   const script = `

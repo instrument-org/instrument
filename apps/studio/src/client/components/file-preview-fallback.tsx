@@ -50,7 +50,7 @@ export function FilePreviewFallback({
         <OpenTaskFileButton
           control={openControl}
           file={file}
-          iconClassName="size-4"
+          iconClassName="size-5"
           size="sm"
         />
       ) : (

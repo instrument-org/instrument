@@ -26,6 +26,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { ulid } from "ulid";
 
+import { TASK_FOLDER_NAMES } from "../src/constants";
 import { assignFolderNames } from "../src/lib/assign-folder-names";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
@@ -128,6 +129,15 @@ const taskId = TaskIdSchema.parse(args.taskId ?? ulid().toLowerCase());
 
 const taskDir = path.join(tasksDir, taskId);
 await fs.mkdir(taskDir, { recursive: true });
+// Match initializeTask's guarantee: the agent-visible triad always exists
+// (the repl skips the template copy that normally scaffolds `work/`).
+for (const dirName of [
+  TASK_FOLDER_NAMES.attachments,
+  TASK_FOLDER_NAMES.output,
+  TASK_FOLDER_NAMES.work,
+]) {
+  await fs.mkdir(path.join(taskDir, dirName), { recursive: true });
+}
 
 const sessionId = StoreId.newSessionId();
 

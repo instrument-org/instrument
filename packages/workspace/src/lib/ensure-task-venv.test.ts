@@ -6,6 +6,7 @@ import { ensureTaskVenvForTask } from "./ensure-task-venv";
 
 vi.mock(import("node:fs"), () => ({
   existsSync: vi.fn(() => false),
+  mkdirSync: vi.fn(),
 }));
 vi.mock(import("./run-uv"));
 

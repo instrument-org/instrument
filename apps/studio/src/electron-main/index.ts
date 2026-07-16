@@ -28,6 +28,7 @@ import {
   session,
 } from "electron";
 
+import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
@@ -157,6 +158,8 @@ void app.whenReady().then(async () => {
   } = createWorkspaceActor({
     isQuitAlreadyConfirmed: () => appUpdater?.status?.type === "installing",
   });
+
+  startAgentCompletionNotifications({ workspaceConfig, workspaceRef });
 
   appUpdater = new StudioAppUpdater({
     confirmQuit: confirmQuitWithRunningAgents,

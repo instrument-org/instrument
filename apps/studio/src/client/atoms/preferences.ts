@@ -7,6 +7,7 @@ type Preferences = RPCOutput["preferences"]["get"];
 
 const defaultPreferences: Preferences = {
   developerMode: false,
+  enableAgentCompletionNotifications: true,
   enableUsageMetrics: false,
   lastUpdateCheck: undefined,
   preferApiKeyOverAccount: false,

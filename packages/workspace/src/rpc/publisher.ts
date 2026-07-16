@@ -35,6 +35,7 @@ export const publisher = new EventPublisher<{
   };
   "session.done": {
     id: TaskId;
+    parentSessionId: StoreId.Session | undefined;
     sessionId: StoreId.Session;
   };
   "session.removed": {

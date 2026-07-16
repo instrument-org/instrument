@@ -475,6 +475,7 @@ export const sessionMachine = setup({
 
         publisher.publish("session.done", {
           id: context.taskId,
+          parentSessionId: context.parentSessionId,
           sessionId: context.sessionId,
         });
 

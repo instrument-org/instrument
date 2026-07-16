@@ -44,6 +44,7 @@ export function GeneralSection() {
     <div className="space-y-4">
       <AccountInfo />
       <InterfaceAndTheme />
+      <Notifications />
       <About />
       <SettingsSection title="Advanced">
         <UsageMetrics />
@@ -328,6 +329,40 @@ function InterfaceAndTheme() {
             </div>
             <ZoomStepper />
           </div>
+        </div>
+      </Card>
+    </SettingsSection>
+  );
+}
+
+function Notifications() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setAgentCompletionNotificationsMutation = useMutation(
+    rpcClient.preferences.setEnableAgentCompletionNotifications.mutationOptions(),
+  );
+
+  return (
+    <SettingsSection title="Notifications">
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="agent-completion-notifications">
+              Notify when agents finish
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Only when Instrument is not focused.
+            </p>
+          </div>
+          <Switch
+            checked={preferences?.enableAgentCompletionNotifications ?? true}
+            disabled={setAgentCompletionNotificationsMutation.isPending}
+            id="agent-completion-notifications"
+            onCheckedChange={(enabled) => {
+              setAgentCompletionNotificationsMutation.mutate({ enabled });
+            }}
+          />
         </div>
       </Card>
     </SettingsSection>

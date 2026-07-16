@@ -327,6 +327,7 @@ describe("sessionMachine", () => {
                   );
                   publisher.publish("session.done", {
                     id: testTaskConfig,
+                    parentSessionId: undefined,
                     sessionId: event.value.sessionId,
                   });
                 })();

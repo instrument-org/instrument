@@ -318,8 +318,10 @@ export function createBashDescription() {
     -- a short script can usually do the job, and a missing command does not
     mean the task is impossible. Inside script code run by these commands, use
     task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are
-    translated for them, but virtual paths like \`${TASK_MOUNT_POINT}/...\` or
-    \`/mnt/...\` embedded in source code are not.
+    translated, and quoted \`${TASK_MOUNT_POINT}/...\` strings in inline code
+    (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy
+    attached files into the task first) and paths inside script FILES on disk
+    are never translated.
 
     IMPORTANT: \`npm\` is NOT available. Use \`${PNPM_COMMAND.name}\` for all
     package management.

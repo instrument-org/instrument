@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { type CommandContext, defineCommand, latin1FromBytes } from "just-bash";
+import { type CommandContext, defineCommand } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
@@ -7,7 +7,11 @@ import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getUvBinPath } from "../uv";
-import { resolveCommandContext, resolvePathArgs } from "./utils";
+import {
+  resolveCommandContext,
+  resolvePathArgs,
+  subprocessStdin,
+} from "./utils";
 
 export const UV_COMMAND = {
   description:
@@ -78,15 +82,14 @@ export async function runUv({
   taskCwd: AbsolutePath;
   taskId: TaskId;
 }) {
+  const stdin = subprocessStdin(ctx.stdin);
   const result = await execa(getUvBinPath(), args, {
     all: true,
     cancelSignal: ctx.signal,
     cwd: taskCwd,
     env,
     reject: false,
-    ...(latin1FromBytes(ctx.stdin)
-      ? { input: latin1FromBytes(ctx.stdin) }
-      : { stdin: "ignore" }),
+    ...(stdin ? { input: stdin } : { stdin: "ignore" }),
   });
   return {
     exitCode: result.exitCode ?? 1,

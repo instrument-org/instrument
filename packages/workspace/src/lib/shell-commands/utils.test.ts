@@ -6,6 +6,7 @@ import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
+  bridgeInlineCodePaths,
   extractFileAndScriptArgs,
   parseScriptRunnerArgs,
   resolvePathArgs,
@@ -46,6 +47,85 @@ describe("resolvePathArgs native-binary bridge", () => {
       fs,
     });
     expect(resolved).toEqual([`${dir}/tmp/scratch.txt`]);
+  });
+});
+
+describe("bridgeInlineCodePaths", () => {
+  it.each([
+    {
+      code: 'fs.readFileSync("/task/attachments/chart.svg")',
+      expected: 'fs.readFileSync("./attachments/chart.svg")',
+      label: "double-quoted /task path from the task root",
+      taskCwd: dir,
+    },
+    {
+      code: "sharp('/task/work/in.png')",
+      expected: "sharp('./work/in.png')",
+      label: "single-quoted /task path from the task root",
+      taskCwd: dir,
+    },
+    {
+      code: "const root = `/task/${name}`;",
+      expected: "const root = `./${name}`;",
+      label: "backtick-quoted /task path from the task root",
+      taskCwd: dir,
+    },
+    {
+      code: 'open("/task/attachments/chart.svg")',
+      expected: 'open("../../../attachments/chart.svg")',
+      label: "quoted /task path from a nested cwd",
+      taskCwd: `${dir}/work/skills/sharp-images`,
+    },
+    {
+      code: 'const root = "/task"; use(root + "/output/x.png");',
+      expected: 'const root = "."; use(root + "/output/x.png");',
+      label: "bare /task string closed by its quote",
+      taskCwd: dir,
+    },
+    {
+      code: "parts.split(/task/).map(run)",
+      expected: "parts.split(/task/).map(run)",
+      label: "JS regex literal is not a string and stays untouched",
+      taskCwd: dir,
+    },
+    {
+      code: 'load("/taskmaster/config.json")',
+      expected: 'load("/taskmaster/config.json")',
+      label: "paths merely starting with /task text stay untouched",
+      taskCwd: dir,
+    },
+    {
+      code: "text.replace(/mnt/g, 'x')",
+      expected: "text.replace(/mnt/g, 'x')",
+      label: "JS regex literal /mnt/ does not trigger the mount error",
+      taskCwd: dir,
+    },
+  ])("$label", ({ code, expected, taskCwd }) => {
+    const result = bridgeInlineCodePaths(code, taskId, taskCwd);
+    expect(result).toEqual({ code: expected });
+    if ("code" in result) {
+      expect(result.code).not.toContain(dir);
+    }
+  });
+
+  it("strips a bare quoted /task from the task root without leaving an empty path", () => {
+    // "." not "" so string concatenation like root + "/x" stays a valid
+    // relative path.
+    const result = bridgeInlineCodePaths('cd("/task")', taskId, dir);
+    expect(result).toEqual({ code: 'cd(".")' });
+  });
+
+  it("fails fast on quoted /mnt paths with copy-first guidance", () => {
+    const result = bridgeInlineCodePaths(
+      'ffprobe("/mnt/Photos/clip.mov")',
+      taskId,
+      dir,
+    );
+    expect(result).toHaveProperty("error");
+    if ("error" in result) {
+      expect(result.error).toContain("Copy the file into the task first");
+      expect(result.error).not.toContain(dir);
+    }
   });
 });
 

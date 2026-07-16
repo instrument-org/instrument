@@ -5,7 +5,11 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { taskVenvPython } from "../uv";
-import { resolveCommandContext, resolvePathArgs } from "./utils";
+import {
+  bridgeInlineCodePaths,
+  resolveCommandContext,
+  resolvePathArgs,
+} from "./utils";
 import { ensureTaskVenv } from "./uv";
 
 // Both `python` and `python3` resolve to the per-task venv interpreter so they
@@ -50,17 +54,47 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
       return { exitCode: 1, stderr: "", stdout: venvError };
     }
 
-    const stdin = latin1FromBytes(ctx.stdin);
+    // Inline program text (`-c` code, or a heredoc program when python reads
+    // the script from stdin) resolves paths against the host filesystem, so
+    // bridge sandbox-virtual paths the same way argv paths are bridged.
+    const bridgedArgs = [...args];
+    let stdin = latin1FromBytes(ctx.stdin);
+    const codeIndex = bridgedArgs.indexOf("-c") + 1;
+    const readsProgramFromStdin =
+      bridgedArgs.length === 0 ||
+      (bridgedArgs.length === 1 && bridgedArgs[0] === "-");
+    if (codeIndex > 0 && codeIndex < bridgedArgs.length) {
+      const bridged = bridgeInlineCodePaths(
+        bridgedArgs[codeIndex] ?? "",
+        taskId,
+        taskCwd,
+      );
+      if ("error" in bridged) {
+        return { exitCode: 1, stderr: bridged.error, stdout: "" };
+      }
+      bridgedArgs[codeIndex] = bridged.code;
+    } else if (stdin && readsProgramFromStdin) {
+      const bridged = bridgeInlineCodePaths(stdin, taskId, taskCwd);
+      if ("error" in bridged) {
+        return { exitCode: 1, stderr: bridged.error, stdout: "" };
+      }
+      stdin = bridged.code;
+    }
+
     const result = await execa(
       taskVenvPython(taskId),
-      resolvePathArgs(args, taskId, ctx),
+      resolvePathArgs(bridgedArgs, taskId, ctx),
       {
         all: true,
         cancelSignal: ctx.signal,
         cwd: taskCwd,
         env,
         reject: false,
-        ...(stdin ? { input: stdin } : { stdin: "ignore" }),
+        // Buffer, not the latin1-packed string: execa UTF-8 encodes string
+        // input, which would double-encode every non-ASCII byte.
+        ...(stdin
+          ? { input: Buffer.from(stdin, "latin1") }
+          : { stdin: "ignore" }),
       },
     );
 

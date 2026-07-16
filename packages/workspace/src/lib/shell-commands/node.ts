@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { defineCommand, latin1FromBytes } from "just-bash";
+import { defineCommand } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
@@ -9,11 +9,13 @@ import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { TS_COMMAND } from "./ts";
 import {
+  bridgeInlineCodePaths,
   extractFileAndScriptArgs,
   firstString,
   parseScriptRunnerArgs,
   resolveCommandContext,
   stringArray,
+  subprocessStdin,
 } from "./utils";
 
 function execNode(
@@ -22,7 +24,7 @@ function execNode(
   signal?: AbortSignal,
   cwd?: AbsolutePath,
   env?: Record<string, string>,
-  stdin?: string,
+  stdin?: Buffer,
 ) {
   return execa(process.execPath, args, {
     all: true,
@@ -52,7 +54,7 @@ const KNOWN_OPTIONS = {
 
 export const NODE_COMMAND = {
   description:
-    "Run a JavaScript file with Node.js. In -e: relative paths resolve from cwd; avoid absolute paths and use task-root-relative paths.",
+    'Run a JavaScript file with Node.js. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.',
   name: "node",
 } as const;
 
@@ -113,13 +115,17 @@ export function createNodeCommand(taskId: TaskId) {
     }
 
     if (evalCode !== undefined) {
+      const bridged = bridgeInlineCodePaths(evalCode, taskId, taskCwd);
+      if ("error" in bridged) {
+        return { exitCode: 1, stderr: bridged.error, stdout: "" };
+      }
       const execResult = await execNode(
         taskId,
-        [...nodeFlags, "-e", evalCode],
+        [...nodeFlags, "-e", bridged.code],
         ctx.signal,
         taskCwd,
         env,
-        latin1FromBytes(ctx.stdin) || undefined,
+        subprocessStdin(ctx.stdin),
       );
       const combined = filterShellOutput(execResult.all, taskDir(taskId));
       return {
@@ -160,7 +166,7 @@ export function createNodeCommand(taskId: TaskId) {
       ctx.signal,
       taskCwd,
       env,
-      latin1FromBytes(ctx.stdin) || undefined,
+      subprocessStdin(ctx.stdin),
     );
     const combined = filterShellOutput(execResult.all, taskDir(taskId));
 

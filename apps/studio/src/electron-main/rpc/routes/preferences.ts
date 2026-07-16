@@ -20,6 +20,9 @@ function getPreferencesData() {
   const preferencesStore = getPreferencesStore();
   return {
     developerMode: preferencesStore.get("developerMode"),
+    enableAgentCompletionNotifications: preferencesStore.get(
+      "enableAgentCompletionNotifications",
+    ),
     enableUsageMetrics: preferencesStore.get("enableUsageMetrics"),
     lastUpdateCheck: preferencesStore.get("lastUpdateCheck"),
     preferApiKeyOverAccount: preferencesStore.get("preferApiKeyOverAccount"),
@@ -47,6 +50,13 @@ const setEnableUsageMetrics = base
   .handler(({ input }) => {
     const preferencesStore = getPreferencesStore();
     preferencesStore.set("enableUsageMetrics", input.enabled);
+  });
+
+const setEnableAgentCompletionNotifications = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    const preferencesStore = getPreferencesStore();
+    preferencesStore.set("enableAgentCompletionNotifications", input.enabled);
   });
 
 const setDeveloperMode = base
@@ -161,6 +171,7 @@ export const preferences = {
   quitAndInstall,
   setDefaultModelURI,
   setDeveloperMode,
+  setEnableAgentCompletionNotifications,
   setEnableUsageMetrics,
   setPreferApiKeyOverAccount,
   setReleaseChannel,

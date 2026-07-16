@@ -38,7 +38,8 @@ export const PreferencesStoreSchema = z.object({
   // reminder measures real elapsed time across relaunches.
   updateReady: z
     .object({ firstSeenAt: z.number(), version: z.string() })
-    .optional(),
+    .optional()
+    .catch(undefined),
 });
 /* eslint-enable unicorn/prefer-top-level-await */
 
@@ -101,6 +102,9 @@ export function setLastUpdateCheck(): void {
   store.set("lastUpdateCheck", Date.now());
 }
 
-export function setUpdateReady(value: { firstSeenAt: number; version: string }): void {
+export function setUpdateReady(value: {
+  firstSeenAt: number;
+  version: string;
+}): void {
   getPreferencesStore().set("updateReady", value);
 }

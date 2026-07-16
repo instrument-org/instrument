@@ -14,6 +14,7 @@ import {
   getUpdateReady,
   setUpdateReady,
 } from "../stores/preferences";
+import { deriveUpdateReminder } from "./app-update-reminder";
 import { logger } from "./electron-logger";
 import { type AppUpdaterStatus } from "./update";
 
@@ -59,6 +60,7 @@ export class AppUpdatesService {
   }
 
   #config: AppUpdatesConfig | null = null;
+  #latestStatus: AppUpdaterStatus | null = null;
   #reminder: AppUpdateReminder = { show: false };
   #requirement: AppUpdateRequirement = {
     downloadUrl: MANUAL_DOWNLOAD_URL,
@@ -67,7 +69,9 @@ export class AppUpdatesService {
 
   public start() {
     this.#reconcileStaleReady();
-    void this.#watchStatus();
+    this.#watchStatus().catch((error: unknown) => {
+      scopedLogger.error("updates.status subscription ended:", error);
+    });
     void this.#refresh();
     setInterval(() => {
       void this.#refresh();
@@ -75,14 +79,14 @@ export class AppUpdatesService {
   }
 
   #applyReminder() {
-    const ready = getUpdateReady();
-    const thresholdHours =
-      this.#config?.reminderAfterHours ?? DEFAULT_REMINDER_HOURS;
-    const elapsed = ready ? Date.now() - ready.firstSeenAt : 0;
-    const next: AppUpdateReminder =
-      ready && elapsed >= thresholdHours * 60 * 60 * 1000
-        ? { show: true, version: ready.version }
-        : { show: false };
+    const next = deriveUpdateReminder({
+      hasStagedUpdate: this.#latestStatus?.type === "downloaded",
+      isPackaged: app.isPackaged,
+      now: Date.now(),
+      ready: getUpdateReady(),
+      reminderAfterHours:
+        this.#config?.reminderAfterHours ?? DEFAULT_REMINDER_HOURS,
+    });
 
     if (isEqual(next, this.#reminder)) {
       return;
@@ -178,6 +182,7 @@ export class AppUpdatesService {
 
   async #watchStatus() {
     for await (const { status } of publisher.subscribe("updates.status")) {
+      this.#latestStatus = status;
       this.#trackReadyStatus(status);
       this.#recompute();
     }

@@ -12,6 +12,7 @@ function getDefaultEnableUsageMetrics() {
 export const PreferencesStoreSchema = z.object({
   defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
   developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
+  enableAgentCompletionNotifications: z.boolean().catch(true),
   enableUsageMetrics: z.boolean().catch(getDefaultEnableUsageMetrics()),
   lastUpdateCheck: z.number().optional(),
   preferApiKeyOverAccount: z.boolean().catch(false),

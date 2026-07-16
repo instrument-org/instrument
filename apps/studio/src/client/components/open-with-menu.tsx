@@ -107,12 +107,12 @@ function OpenWithCandidates({
           {candidate.iconDataUrl ? (
             <img
               alt=""
-              className="size-4"
+              className="size-5"
               draggable={false}
               src={candidate.iconDataUrl}
             />
           ) : (
-            <AppWindowIcon className="size-4" />
+            <AppWindowIcon className="size-5" />
           )}
           <span className="truncate">{candidate.appName}</span>
         </Item>

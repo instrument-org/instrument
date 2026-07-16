@@ -207,8 +207,9 @@ export const mainAgent = setupAgent({
     Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`,
     everything else in \`${F.work}/\`. Your working directory is the task root
     (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`).
-    The only absolute paths you use are the \`/mnt/...\` mount paths for attached
-    folders below; never use host paths like \`/Users/...\`.
+    The only absolute paths you use are virtual mount paths: \`/mnt/...\` for
+    attached folders and \`/connectors/...\` for connectors. Never use host paths
+    like \`/Users/...\`.
     - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory
       per folder; the attached-folders context lists the exact paths). Browse, read,
       and search them by their \`/mnt/...\` path with your normal file tools

@@ -14,6 +14,9 @@ interface PublisherEvents {
   "auth.login-success": {
     success: true;
   };
+  // Agent-driven browser input can move Chromium keyboard focus into a guest.
+  // The renderer owns the exact Studio element that must be restored.
+  "browser.restore-host-focus": null;
   // Fired whenever the set of browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "browser.targets-changed": null;

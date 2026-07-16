@@ -14,6 +14,13 @@ function currentTargets(): BrowserGuestTarget[] {
 }
 
 const live = {
+  restoreHostFocus: base.handler(async function* ({ signal }) {
+    for await (const _ of publisher.subscribe("browser.restore-host-focus", {
+      signal,
+    })) {
+      yield null;
+    }
+  }),
   // Stream the browser targets. The renderer pool reconciles its guests to this
   // set (mount on add, dispose on remove) and the UI reads `attached`.
   // Re-subscribing always yields the current set, so nothing is stranded by a
@@ -39,6 +46,10 @@ const syncFocus = base
     getBrowserViewManager()?.setGuestFocus(input.targetId, input.focused);
   });
 
+const syncHostFocus = base.handler(() => {
+  getBrowserViewManager()?.setHostFocus();
+});
+
 // The browser panel's device-preview menu calls this on every show and on
 // every device change; `device: null` clears emulation (also the no-op-safe
 // default that self-heals a guest left emulated by a stale session).
@@ -63,4 +74,5 @@ export const browser = {
   live,
   setEmulatedDevice,
   syncFocus,
+  syncHostFocus,
 };

@@ -88,6 +88,24 @@ const VISIBLE_BOTTOM_RADIUS = "0.6875rem";
 
 const pool = new Map<BrowserTargetId, PooledWebview>();
 
+// The last focused Studio element, retained when agent CDP input crosses into
+// a guest so focus can return to the exact host element it displaced.
+let lastHostFocusedElement: HTMLElement | null = null;
+
+function recordHostFocus(event: FocusEvent) {
+  const target = event.target;
+  if (target instanceof HTMLElement && target.tagName !== "WEBVIEW") {
+    lastHostFocusedElement = target;
+    void rpcClient.browser.syncHostFocus.call();
+  }
+}
+
+function restoreHostFocus() {
+  if (lastHostFocusedElement?.isConnected) {
+    lastHostFocusedElement.focus({ preventScroll: true });
+  }
+}
+
 // The slot currently showing each guest. Two panels can be mounted for the same
 // target (e.g. the task open in two tabs), and both drive show/park as tabs
 // switch; only the slot that showed a guest may park it, so a backgrounded panel
@@ -123,6 +141,7 @@ export function getWebviewElement(
 export function initBrowserPool(): () => void {
   const controller = new AbortController();
   const { signal } = controller;
+  document.addEventListener("focusin", recordHostFocus);
 
   async function run() {
     while (true) {
@@ -150,10 +169,35 @@ export function initBrowserPool(): () => void {
     }
   }
 
+  async function runFocusRestores() {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
+      try {
+        const subscription = await rpcClient.browser.live.restoreHostFocus.call(
+          undefined,
+          { signal },
+        );
+        for await (const _ of subscription) {
+          restoreHostFocus();
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        captureException(error);
+      }
+      await sleep(RECONNECT_DELAY_MS);
+    }
+  }
+
   void run();
+  void runFocusRestores();
 
   return () => {
     controller.abort();
+    document.removeEventListener("focusin", recordHostFocus);
   };
 }
 
@@ -327,9 +371,9 @@ function ensureWebview(
   webview.style.border = "0";
 
   // Report real DOM focus/blur so the main process can target keyboard
-  // commands (zoom, back/forward) at this guest -- WebContents#isFocused()
-  // in main is unreliable for `<webview>` guests, but focus/blur on the
-  // element itself tracks the host document's activeElement correctly.
+  // commands (zoom, back/forward) at this guest. WebContents#isFocused() is
+  // unreliable for `<webview>` guests, but focus/blur on the element itself
+  // tracks the host document's activeElement correctly.
   webview.addEventListener("focus", () => {
     void rpcClient.browser.syncFocus.call({ focused: true, targetId });
   });

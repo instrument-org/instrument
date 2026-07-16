@@ -159,6 +159,22 @@ describe("changedMessageBatches", () => {
     await batches.return();
   });
 
+  it("watches every session in the task when no sessionId is given", async () => {
+    const controller = new AbortController();
+    // Omitting sessionId scopes to the whole task (e.g. a usage rollup).
+    const batches = changedMessageBatches({ id: taskId }, controller.signal);
+
+    const here = StoreId.newMessageId();
+    const elsewhere = StoreId.newMessageId();
+    partUpdated(here);
+    partUpdated(elsewhere, otherSessionId);
+
+    const batch = await awaitBatch(batches.next());
+    expect(ids(batch.updated)).toEqual([here, elsewhere].sort());
+
+    await batches.return();
+  });
+
   it("ends the loop when the signal aborts", async () => {
     const controller = new AbortController();
     const { first } = start(controller.signal);

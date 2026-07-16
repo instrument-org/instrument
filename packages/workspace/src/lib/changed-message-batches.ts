@@ -16,13 +16,14 @@ export interface ChangedMessageBatch {
 // consumer only pulls the next batch after it finishes the current one.
 // Subscriptions register when this function is called (not on the first
 // pull), so a caller can subscribe before taking an initial snapshot and no
-// event lands unobserved in between. Scoped to this session so a token
-// streaming elsewhere doesn't wake this subscription: message.updated/
-// .removed carry messageId/sessionId directly; part.updated carries both on
-// the part. Tears down on signal abort or on iterator return/throw; either
-// path unsubscribes and settles a pending pull with done.
+// event lands unobserved in between. Scoped to `input.sessionId` when given so
+// a token streaming elsewhere doesn't wake this subscription; omit it to watch
+// the whole task (e.g. a task-wide usage rollup). message.updated/.removed
+// carry messageId/sessionId directly; part.updated carries both on the part.
+// Tears down on signal abort or on iterator return/throw; either path
+// unsubscribes and settles a pending pull with done.
 export function changedMessageBatches(
-  input: { id: TaskId; sessionId: StoreId.Session },
+  input: { id: TaskId; sessionId?: StoreId.Session },
   signal: AbortSignal | undefined,
 ) {
   const changes = new Map<StoreId.Message, "removed" | "updated">();
@@ -39,20 +40,23 @@ export function changedMessageBatches(
     notify();
   };
 
+  const matchesSession = (sessionId: StoreId.Session) =>
+    input.sessionId === undefined || sessionId === input.sessionId;
+
   const unsubscribes = [
     publisher.subscribe("message.updated", (payload) => {
-      if (payload.id === input.id && payload.sessionId === input.sessionId) {
+      if (payload.id === input.id && matchesSession(payload.sessionId)) {
         mark(payload.messageId, "updated");
       }
     }),
     publisher.subscribe("message.removed", (payload) => {
-      if (payload.id === input.id && payload.sessionId === input.sessionId) {
+      if (payload.id === input.id && matchesSession(payload.sessionId)) {
         mark(payload.messageId, "removed");
       }
     }),
     publisher.subscribe("part.updated", (payload) => {
       const { messageId, sessionId } = payload.part.metadata;
-      if (payload.id === input.id && sessionId === input.sessionId) {
+      if (payload.id === input.id && matchesSession(sessionId)) {
         mark(messageId, "updated");
       }
     }),

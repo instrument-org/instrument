@@ -1,7 +1,7 @@
 import os from "node:os";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { TaskDirSchema } from "../schemas/paths";
+import { type TaskDir, TaskDirSchema } from "../schemas/paths";
 import {
   filterShellOutput,
   shouldFilterDebuggerMessage,
@@ -70,6 +70,27 @@ ${dir}\output\rainbow.pdf`;
     const result = filterShellOutput(output, dir);
 
     expect(result).toMatchInlineSnapshot(`"./output/file.png"`);
+  });
+
+  it("redacts string-escaped Windows task dir paths from printed error objects", () => {
+    // Cast: TaskDirSchema rejects win32 absolute paths when the test runs on
+    // a posix host, but production Windows builds produce exactly this shape.
+    const windowsDir =
+      String.raw`C:\Users\user\AppData\Roaming\Instrument\workspace\tasks\my-task` as TaskDir;
+    // Node prints error objects with escaped backslashes, e.g.
+    // `path: 'C:\\Users\\...'`; that spelling must not leak the host dir.
+    const output = String.raw`Error: ENOENT: no such file or directory {
+  path: 'C:\\Users\\user\\AppData\\Roaming\\Instrument\\workspace\\tasks\\my-task\\attachments\\chart.svg'
+}`;
+
+    const result = filterShellOutput(output, windowsDir);
+
+    expect(result).not.toContain(String.raw`C://Users`);
+    expect(result).toMatchInlineSnapshot(`
+      "Error: ENOENT: no such file or directory {
+        path: './/attachments//chart.svg'
+      }"
+    `);
   });
 
   it("redacts the host home dir from runner/cache paths", () => {

@@ -4,15 +4,8 @@ import { type TaskDir } from "../schemas/paths";
 import { normalizePath } from "./normalize-path";
 
 export function filterShellOutput(output: string, dir: TaskDir): string {
-  const normalizedTaskDir = normalizePath(dir);
-  const taskDirVariants = new Set([
-    dir,
-    normalizedTaskDir,
-    normalizedTaskDir.replaceAll("/", "\\"),
-  ]);
-
   let filtered = output;
-  for (const variant of taskDirVariants) {
+  for (const variant of pathVariants(dir)) {
     filtered = filtered.replaceAll(
       new RegExp(escapeRegExp(variant), "gi"),
       ".",
@@ -25,12 +18,7 @@ export function filterShellOutput(output: string, dir: TaskDir): string {
   // collapse to ".".
   const home = os.homedir();
   if (home) {
-    const normalizedHome = normalizePath(home);
-    for (const variant of new Set([
-      home,
-      normalizedHome,
-      normalizedHome.replaceAll("/", "\\"),
-    ])) {
+    for (const variant of pathVariants(home)) {
       filtered = filtered.replaceAll(
         new RegExp(escapeRegExp(variant), "gi"),
         "~",
@@ -64,6 +52,21 @@ export function shouldFilterDebuggerMessage(message: string): boolean {
 
 function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Every spelling of a path that can appear in subprocess output: as given,
+ * slash-normalized, backslash-separated, and the string-escaped form of each
+ * -- printed error objects render Windows paths with doubled backslashes
+ * (`path: 'C:\\Users\\...'`), which the plain variants never match.
+ */
+function pathVariants(value: string): Set<string> {
+  const normalized = normalizePath(value);
+  const base = [value, normalized, normalized.replaceAll("/", "\\")];
+  const escaped = base
+    .filter((variant) => variant.includes("\\"))
+    .map((variant) => variant.replaceAll("\\", "\\\\"));
+  return new Set([...base, ...escaped]);
 }
 
 function shouldFilter() {

@@ -69,6 +69,20 @@ export function ToolConnectorOAuthPrompt({
     }),
   );
 
+  const cancelOAuthMutation = useMutation(
+    rpcClient.connectors.cancelOAuth.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't cancel sign-in", {
+          description: error.message,
+          position: "bottom-center",
+        });
+      },
+      onSuccess: () => {
+        resolve("dismissed");
+      },
+    }),
+  );
+
   // While waiting for the browser sign-in and the call is still open, poll the
   // connector list; when this connector flips to enabled, the callback
   // finished -- resolve the tool call (guarded to fire once).
@@ -122,8 +136,13 @@ export function ToolConnectorOAuthPrompt({
             {/* Always dismissable -- if the user declines in the browser or
                 closes it, this is the only way out of the waiting state. */}
             <Button
+              disabled={cancelOAuthMutation.isPending}
               onClick={() => {
-                resolve("dismissed");
+                if (waiting) {
+                  cancelOAuthMutation.mutate({ slug });
+                } else {
+                  resolve("dismissed");
+                }
               }}
               size="sm"
               variant="outline"

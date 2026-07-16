@@ -1,6 +1,7 @@
 import { base } from "@/electron-main/rpc/base";
 import {
   beginMcpOAuth,
+  cancelMcpOAuth,
   ConnectorSlugSchema,
   getConnectorCatalog,
   listConnectors,
@@ -15,7 +16,10 @@ import {
   getConnectorCredential,
   getConnectorCredentialsStore,
 } from "../../stores/connector-credentials";
-import { clearConnectorOAuth } from "../../stores/connector-oauth";
+import {
+  clearConnectorOAuth,
+  connectorOAuthStore,
+} from "../../stores/connector-oauth";
 import { publisher } from "../publisher";
 
 const ConnectorListItemSchema = z.object({
@@ -136,6 +140,16 @@ const disconnectOAuth = base
     publisher.publish("connectors.updated", null);
   });
 
+const cancelOAuth = base
+  .input(z.object({ slug: ConnectorSlugSchema }))
+  .handler(async ({ input }) => {
+    const state = await connectorOAuthStore.getState(input.slug);
+    if (state !== undefined) {
+      await cancelMcpOAuth(state);
+    }
+    await connectorOAuthStore.clearTransient(input.slug);
+  });
+
 const live = {
   list: base
     .output(eventIterator(ConnectorListSchema))
@@ -155,6 +169,7 @@ const live = {
 const catalog = base.handler(() => getConnectorCatalog());
 
 export const connectors = {
+  cancelOAuth,
   catalog,
   disconnectOAuth,
   list,

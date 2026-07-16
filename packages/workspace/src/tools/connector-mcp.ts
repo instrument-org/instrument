@@ -22,7 +22,7 @@ import {
   readConnectorGuide,
 } from "../lib/connectors/store";
 import { taskDir } from "../lib/task-dir-utils";
-import { getTaskState, setTaskState } from "../lib/task-state-store";
+import { getTaskState, updateTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { CONNECTORS_MOUNT_POINT } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
@@ -155,11 +155,14 @@ export const ConnectorMcp = setupTool({
           state: "failure" as const,
         });
       }
-      await setTaskState(taskDir(taskId), {
-        connectorGuidesRead: [
-          ...(taskState.connectorGuidesRead ?? []),
-          connector.slug,
-        ],
+      await updateTaskState(taskDir(taskId), (currentState) => {
+        const guidesRead = currentState.connectorGuidesRead ?? [];
+        return {
+          ...currentState,
+          connectorGuidesRead: guidesRead.includes(connector.slug)
+            ? guidesRead
+            : [...guidesRead, connector.slug],
+        };
       });
       return ok({ guide, slug: connector.slug, state: "guide" as const });
     }
@@ -209,6 +212,23 @@ export const ConnectorMcp = setupTool({
       out = redactCredential(out, oauthTokens?.refresh_token ?? null);
       return out;
     };
+    const redactValue = (value: unknown): unknown => {
+      if (typeof value === "string") {
+        return redact(value);
+      }
+      if (Array.isArray(value)) {
+        return value.map(redactValue);
+      }
+      if (value !== null && typeof value === "object") {
+        return Object.fromEntries(
+          Object.entries(value).map(([key, child]) => [
+            redact(key),
+            redactValue(child),
+          ]),
+        );
+      }
+      return value;
+    };
 
     const mcpResult = await withMcpClient({
       authProvider,
@@ -238,7 +258,11 @@ export const ConnectorMcp = setupTool({
       return ok({
         slug: connector.slug,
         state: "tools" as const,
-        tools: mcpResult.value.tools,
+        tools: mcpResult.value.tools.map((tool) => ({
+          ...tool,
+          description: redact(tool.description),
+          inputSchema: redactValue(tool.inputSchema),
+        })),
       });
     }
 

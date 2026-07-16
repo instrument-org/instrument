@@ -3,6 +3,7 @@ import { err, ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { executeError } from "../lib/execute-error";
 import { redactTaskDir } from "../lib/filter-shell-output";
 import { grep } from "../lib/grep";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
@@ -87,17 +88,24 @@ export const Grep = setupTool({
     // Collapse a task-dir path a matched line carries (a script may have
     // written a resolved absolute path into a file), and map ripgrep's
     // attached-mount host paths back to their virtual /mnt path so no host path
-    // leaks and a follow-up read_file resolves to the same place.
-    return ok({
-      ...result,
-      matches: result.matches.map((match) => ({
-        ...match,
-        lineText: redactTaskDir(match.lineText, taskDir(taskId)),
-        path: mount
-          ? (resolveVirtualPath(layout, match.path) ?? match.path)
-          : match.path,
-      })),
-    });
+    // leaks and a follow-up read_file resolves to the same place. A mount path
+    // that resolves outside the workspace fails closed rather than leaking.
+    const matches = [];
+    for (const match of result.matches) {
+      const lineText = redactTaskDir(match.lineText, taskDir(taskId));
+      if (!mount) {
+        matches.push({ ...match, lineText });
+        continue;
+      }
+      const virtualPath = resolveVirtualPath(layout, match.path);
+      if (virtualPath === null) {
+        return executeError(
+          "A search result resolved outside the workspace mounts.",
+        );
+      }
+      matches.push({ ...match, lineText, path: virtualPath });
+    }
+    return ok({ ...result, matches });
   },
   readOnly: true,
   timeoutMs: ms("30 seconds"),

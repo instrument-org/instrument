@@ -21,7 +21,7 @@ import {
   readConnectorGuide,
 } from "../lib/connectors/store";
 import { taskDir } from "../lib/task-dir-utils";
-import { getTaskState, setTaskState } from "../lib/task-state-store";
+import { getTaskState, updateTaskState } from "../lib/task-state-store";
 import { TRUNCATE_HEAD_BYTES, truncateMiddle } from "../lib/truncate-buffer";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { CONNECTORS_MOUNT_POINT } from "../lib/workspace-fs-layout";
@@ -168,11 +168,14 @@ export const ConnectorRequest = setupTool({
           state: "failure" as const,
         });
       }
-      await setTaskState(taskDir(taskId), {
-        connectorGuidesRead: [
-          ...(taskState.connectorGuidesRead ?? []),
-          connector.slug,
-        ],
+      await updateTaskState(taskDir(taskId), (currentState) => {
+        const guidesRead = currentState.connectorGuidesRead ?? [];
+        return {
+          ...currentState,
+          connectorGuidesRead: guidesRead.includes(connector.slug)
+            ? guidesRead
+            : [...guidesRead, connector.slug],
+        };
       });
       return ok({
         guide,

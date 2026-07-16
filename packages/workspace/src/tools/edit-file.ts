@@ -14,6 +14,7 @@ import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
+import { guardConnectorManifestOverwrite } from "../lib/connectors/guard-write";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import {
@@ -754,6 +755,13 @@ export const EditFile = setupTool({
       input.oldString === ""
         ? resolvedPath
         : applyUnicodeFallbacks(resolvedPath);
+    if (input.oldString === "") {
+      const connectorGuard =
+        await guardConnectorManifestOverwrite(absolutePath);
+      if (connectorGuard !== null) {
+        return executeError(connectorGuard);
+      }
+    }
     const exists = await pathExists(absolutePath);
 
     let contentOld = "";

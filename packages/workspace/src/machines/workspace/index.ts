@@ -444,8 +444,9 @@ export const workspaceMachine = setup({
     // exist; create it up front so a fresh workspace starts connector-ready.
     try {
       mkdirSync(workspaceConfig.connectorsDir, { recursive: true });
-    } catch {
+    } catch (error) {
       // Non-fatal: connector features degrade gracefully when missing.
+      workspaceConfig.captureException(error);
     }
     return {
       config: workspaceConfig,

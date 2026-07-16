@@ -61,9 +61,23 @@ export const Glob = setupTool({
       signal,
     });
 
-    const files = mount
-      ? sorted.map((p) => resolveVirtualPath(layout, p) ?? p)
-      : sorted;
+    const files: string[] = [];
+    for (const filePath of sorted) {
+      if (!mount) {
+        files.push(filePath);
+        continue;
+      }
+      const virtualPath = resolveVirtualPath(layout, filePath);
+      if (virtualPath === null) {
+        return ok({
+          error: "A glob result resolved outside the workspace mounts.",
+          files: [],
+          totalFiles: 0,
+          truncated: false,
+        });
+      }
+      files.push(virtualPath);
+    }
 
     const truncated = files.length > GLOB_LIMIT;
     const visible = truncated ? files.slice(0, GLOB_LIMIT) : files;

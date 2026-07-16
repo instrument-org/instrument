@@ -19,8 +19,8 @@ export namespace StorageKey {
     return ["browser-state", sessionId].join(SEPARATOR);
   }
 
-  // Per-session baseline of the workspace's connectors (slug + enabled +
-  // whether a credential is stored), diffed when composing a user message so
+  // Per-session baseline of the workspace's connectors (slug + enabled),
+  // diffed when composing a user message so
   // the agent learns about connectors added/enabled/removed between turns.
   export function connectorsBaseline(sessionId: StoreId.Session) {
     return ["connectors-baseline", sessionId].join(SEPARATOR);

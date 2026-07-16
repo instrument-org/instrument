@@ -60,7 +60,7 @@ function makeExecuteArgs(
   };
 }
 
-describe("GenerateImage source images", () => {
+describe("GenerateImage paths", () => {
   afterEach(() => {
     mockFs.restore();
   });
@@ -87,6 +87,28 @@ describe("GenerateImage source images", () => {
       expect(output.sourceImages).toEqual([
         { filePath: "/mnt/Photos/cat.png", modifiedAt: expect.any(Number) },
       ]);
+      expect(output.images[0]?.filePath).toBe("output/remix.png");
+    }
+  });
+
+  it("writes an absolute /task output to its resolved task path", async () => {
+    mockFs({
+      "/ext/Photos": {},
+      [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} },
+    });
+
+    const result = await runTool(
+      GenerateImage,
+      makeExecuteArgs({
+        explanation: "absolute task path",
+        filePath: "/task/output/remix",
+        prompt: "A geometric pattern",
+      }),
+    );
+
+    const output = result._unsafeUnwrap();
+    expect(output.state).toBe("success");
+    if (output.state === "success") {
       expect(output.images[0]?.filePath).toBe("output/remix.png");
     }
   });

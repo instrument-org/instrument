@@ -201,6 +201,11 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
   if (!absolutePath) {
     return executeError(`Path escapes the task directory: ${inputPath}`);
   }
+  if (hostPathEscapesMount(absolutePath, layout.task.hostRoot)) {
+    return executeError(
+      `The path "${inputPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
+    );
+  }
 
   if (isTaskPrivatePath(layout.task.hostRoot, absolutePath)) {
     return privateDirError(displayPath);
@@ -307,6 +312,14 @@ function resolveVirtualAbsolutePath(
 
   const { hostPath, mount } = resolved;
 
+  // Dedicated file tools use node fs directly, so enforce the same symlink
+  // boundary as the bash sandbox for every mount, including writable ones.
+  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+    return executeError(
+      `The path "${virtualPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
+    );
+  }
+
   if (mount === layout.task) {
     if (isTaskPrivatePath(layout.task.hostRoot, hostPath)) {
       return privateDirError(normalizePath(virtualPath));
@@ -323,15 +336,6 @@ function resolveVirtualAbsolutePath(
       displayPath: RelativePathSchema.parse(relative),
       mount: null,
     });
-  }
-
-  // The bash sandbox refuses to traverse symlinks out of a mount; the file
-  // tools go through node fs directly, so enforce the same containment here or
-  // a symlink inside the folder could read host files.
-  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
-    return executeError(
-      `The path "${virtualPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
-    );
   }
 
   return ok({

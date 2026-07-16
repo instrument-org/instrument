@@ -9,23 +9,20 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
 import { executeError } from "../lib/execute-error";
 import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
-import { pathExists } from "../lib/path-exists";
 import {
   resolveExistingFilePath,
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
 import { buildTaskFsLayout } from "../lib/task-fs-layout";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
-import { RelativePathSchema } from "../schemas/paths";
+import { AbsolutePathSchema, RelativePathSchema } from "../schemas/paths";
 import {
   BaseInputSchema,
   ProviderOutputSchema,
@@ -148,10 +145,20 @@ export const GenerateImage = setupTool({
       yield err(filePathResult.error);
       return;
     }
-    const { displayPath: fixedPath } = filePathResult.value;
+    const {
+      absolutePath: fixedAbsolutePath,
+      displayPath: fixedPath,
+    } = filePathResult.value;
+    if (path.isAbsolute(fixedPath)) {
+      yield executeError(
+        "Generated images must be saved in the task so Studio can display them.",
+      );
+      return;
+    }
 
     // Strip extension if mistakenly provided
     const parsedPath = path.parse(fixedPath);
+    const parsedAbsolutePath = path.parse(fixedAbsolutePath);
 
     // Auto-version the path unless allowOverwrite is set, so iterating on the
     // same filePath doesn't clobber an earlier image. Resolved once before
@@ -159,18 +166,24 @@ export const GenerateImage = setupTool({
     let pathWithoutExt = normalizePath(
       path.join(parsedPath.dir, parsedPath.name),
     );
+    let absolutePathWithoutExt = path.join(
+      parsedAbsolutePath.dir,
+      parsedAbsolutePath.name,
+    );
     let renamedToAvoidOverwrite = false;
     if (!input.allowOverwrite) {
-      const dirAbsolute = absolutePathJoin(taskDir(taskId), parsedPath.dir);
       // Match on name without extension: the output extension is model-derived,
       // so a prior foo.jpg must block a new foo.png.
-      const existingNames = await readExistingBaseNames(dirAbsolute);
+      const existingNames = await readExistingBaseNames(
+        AbsolutePathSchema.parse(parsedAbsolutePath.dir),
+      );
       const { name, renamed } = await findAvailableName({
         isTaken: (candidate) => existingNames.has(candidate),
         name: parsedPath.name,
       });
       renamedToAvoidOverwrite = renamed;
       pathWithoutExt = normalizePath(path.join(parsedPath.dir, name));
+      absolutePathWithoutExt = path.join(parsedAbsolutePath.dir, name);
     }
 
     let sourceImageBuffers: Buffer[] | undefined;
@@ -187,12 +200,14 @@ export const GenerateImage = setupTool({
           return;
         }
         const { absolutePath, displayPath } = pathResult.value;
-        if (!(await pathExists(absolutePath))) {
+        let stats;
+        try {
+          stats = await fs.stat(absolutePath);
+        } catch {
           yield executeError(`Source image not found: ${displayPath}`);
           return;
         }
         resolvedSourcePaths.push(absolutePath);
-        const stats = await fs.stat(absolutePath);
         sourceImages.push({
           filePath: displayPath,
           modifiedAt: stats.mtimeMs,
@@ -217,7 +232,11 @@ export const GenerateImage = setupTool({
               ? `${pathWithoutExt}-${index + 1}.${ext}`
               : `${pathWithoutExt}.${ext}`;
 
-          const absolutePath = absolutePathJoin(taskDir(taskId), filename);
+          const absolutePath = AbsolutePathSchema.parse(
+            frameImages.length > 1
+              ? `${absolutePathWithoutExt}-${index + 1}.${ext}`
+              : `${absolutePathWithoutExt}.${ext}`,
+          );
           const imageBuffer = Buffer.from(image.base64, "base64");
 
           await writeFileWithDir(absolutePath, imageBuffer, { signal });

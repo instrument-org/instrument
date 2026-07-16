@@ -213,7 +213,16 @@ function ConnectorRow({ connector }: { connector: Connector }) {
 
   const removeCredentialMutation = useMutation(
     rpcClient.connectors.removeCredential.mutationOptions({
-      onSuccess: invalidateList,
+      onError: (error) => {
+        toast.error(
+          `Couldn't remove the credential for ${connector.displayName}`,
+          {
+            description: error.message,
+            position: "bottom-center",
+          },
+        );
+      },
+      onSettled: invalidateList,
     }),
   );
 
@@ -274,7 +283,13 @@ function ConnectorRow({ connector }: { connector: Connector }) {
 
   const disconnectMutation = useMutation(
     rpcClient.connectors.disconnectOAuth.mutationOptions({
-      onSuccess: invalidateList,
+      onError: (error) => {
+        toast.error(`Couldn't disconnect ${connector.displayName}`, {
+          description: error.message,
+          position: "bottom-center",
+        });
+      },
+      onSettled: invalidateList,
     }),
   );
 

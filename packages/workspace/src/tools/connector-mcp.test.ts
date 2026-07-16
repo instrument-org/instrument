@@ -46,8 +46,13 @@ beforeEach(async () => {
       mcp.registerTool(
         "list_issues",
         {
-          description: "List issues",
-          inputSchema: { assignee: z.string().optional() },
+          description: "List issues with good-token",
+          inputSchema: {
+            assignee: z
+              .string()
+              .describe("Assignee visible to good-token")
+              .optional(),
+          },
         },
         ({ assignee }) => ({
           content: [
@@ -165,6 +170,8 @@ describe("connector_mcp", () => {
       throw new Error("expected tools");
     }
     expect(output.tools.map((t) => t.name)).toContain("list_issues");
+    expect(JSON.stringify(output.tools)).not.toContain("good-token");
+    expect(JSON.stringify(output.tools)).toContain("[REDACTED]");
   });
 
   it("calls a tool and returns its (untrusted-wrapped) result", async () => {

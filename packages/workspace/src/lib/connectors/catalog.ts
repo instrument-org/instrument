@@ -13,7 +13,7 @@ const ConnectorCatalogEntrySchema = z.object({
     z.object({
       label: z.string(),
       note: z.string().optional(),
-      type: z.string(),
+      type: z.enum(["api_key", "oauth2", "pat", "token"]),
     }),
   ),
   categories: z.array(z.string()),

@@ -7,6 +7,7 @@ import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { getBrowserDomains } from "../../lib/get-browser-domains";
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import {
   getToolLabelForPart,
@@ -220,26 +221,10 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
     return null;
   }
 
-  const domainCounts = new Map<string, number>();
-  for (const token of command.split(/\s+/)) {
-    if (!token.startsWith("http")) {
-      continue;
-    }
-    try {
-      const hostname = new URL(token).hostname.replace(/^www\./, "");
-      domainCounts.set(hostname, (domainCounts.get(hostname) ?? 0) + 1);
-    } catch {
-      // not a valid URL
-    }
-  }
-
-  if (domainCounts.size === 0) {
+  const domains = getBrowserDomains(command);
+  if (domains.length === 0) {
     return null;
   }
-
-  const domains = [...domainCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([domain]) => domain);
 
   return { domains };
 }

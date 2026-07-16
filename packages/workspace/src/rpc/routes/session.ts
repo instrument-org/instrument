@@ -2,6 +2,7 @@ import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call } from "@orpc/server";
 import { z } from "zod";
 
+import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
@@ -163,7 +164,7 @@ const contextTokens = base
     const { id, sessionId } = input;
     const taskId = id;
 
-    const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+    const messages = await Store.getMessages({ sessionId, taskId });
     if (messages.isErr()) {
       throw toORPCError(messages.error, errors);
     }
@@ -192,31 +193,17 @@ const live = {
       }),
     )
     .handler(async function* ({ context, input, signal }) {
-      yield call(contextTokens, input, { context, signal });
-
-      const messageUpdates = publisher.subscribe("message.updated", { signal });
-      const messageRemoved = publisher.subscribe("message.removed", { signal });
-      const partUpdates = publisher.subscribe("part.updated", { signal });
-
-      async function* filterByTaskId(
-        generator:
-          | typeof messageRemoved
-          | typeof messageUpdates
-          | typeof partUpdates,
-      ) {
-        for await (const payload of generator) {
-          if (payload.id === input.id) {
-            yield null;
-          }
-        }
-      }
-
-      for await (const _ of mergeGenerators([
-        filterByTaskId(messageUpdates),
-        filterByTaskId(messageRemoved),
-        filterByTaskId(partUpdates),
-      ])) {
+      // Coalesce this session's message/part events into batches: the token
+      // count depends only on this session, and a streaming turn's event storm
+      // collapses into one recompute per batch instead of one per event.
+      const batches = changedMessageBatches(input, signal);
+      try {
         yield call(contextTokens, input, { context, signal });
+        for await (const _batch of batches) {
+          yield call(contextTokens, input, { context, signal });
+        }
+      } finally {
+        await batches.return();
       }
     }),
   list: base

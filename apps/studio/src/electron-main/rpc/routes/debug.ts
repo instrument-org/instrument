@@ -3,7 +3,7 @@ import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
-import { APP_NAME, PORTS } from "@instrument-org/shared";
+import { APP_NAME, MANUAL_DOWNLOAD_URL, PORTS } from "@instrument-org/shared";
 import {
   getTaskSettings,
   StoreId,
@@ -116,6 +116,10 @@ const live = {
   }),
 };
 
+// Each reminder trigger fakes a new version so the banner re-shows even after
+// its per-version dismiss.
+let testReminderVersionCounter = 0;
+
 const trigger = {
   testDownloadNotification: devOnly.handler(() => {
     publisher.publish("updates.status", {
@@ -199,6 +203,28 @@ const trigger = {
         type: "not-available",
       },
     });
+  }),
+  testUpdateReminder: devOnly.handler(() => {
+    testReminderVersionCounter += 1;
+    publisher.publish("updates.reminder", {
+      reminder: { show: true, version: `9.9.${testReminderVersionCounter}` },
+    });
+  }),
+  testUpdateRequired: devOnly.handler(({ context }) => {
+    publisher.publish("updates.requirement", {
+      requirement: {
+        downloadUrl: MANUAL_DOWNLOAD_URL,
+        required: true,
+      },
+    });
+
+    // The block screen replaces all chrome including the dev panel, so the
+    // preview restores the service's real requirement on its own.
+    setTimeout(() => {
+      publisher.publish("updates.requirement", {
+        requirement: context.appUpdates.requirement,
+      });
+    }, 10_000);
   }),
 };
 

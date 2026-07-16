@@ -14,9 +14,11 @@ export function UpdateReminder() {
   const { data: reminder } = useQuery(
     rpcClient.updates.live.reminder.experimental_liveOptions({}),
   );
-  const [dismissed, setDismissed] = useState(false);
+  // Dismissal is session-only and keyed by version, so a newer staged update
+  // still surfaces its own reminder after an earlier one was dismissed.
+  const [dismissedVersion, setDismissedVersion] = useState<null | string>(null);
 
-  if (!reminder?.show || dismissed) {
+  if (!reminder?.show || dismissedVersion === (reminder.version ?? "")) {
     return null;
   }
 
@@ -32,20 +34,39 @@ export function UpdateReminder() {
   };
 
   return (
+    <UpdateReminderBanner
+      onDismiss={() => {
+        setDismissedVersion(reminder.version ?? "");
+      }}
+      onRestart={handleRestart}
+      version={reminder.version}
+    />
+  );
+}
+
+// Presentational banner, also rendered by the debug components page.
+export function UpdateReminderBanner({
+  onDismiss,
+  onRestart,
+  version,
+}: {
+  onDismiss: () => void;
+  onRestart: () => void;
+  version?: string;
+}) {
+  return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-muted/40 px-4 py-2 [-webkit-app-region:no-drag]">
       <span className="text-sm text-muted-foreground">
-        An update{reminder.version ? ` to ${reminder.version}` : ""} is ready.
-        Restart {APP_NAME} to finish updating.
+        An update{version ? ` to ${version}` : ""} is ready. Restart {APP_NAME}{" "}
+        to finish updating.
       </span>
       <div className="flex items-center gap-1">
-        <Button onClick={handleRestart} size="sm">
+        <Button onClick={onRestart} size="sm">
           Restart to update
         </Button>
         <Button
           aria-label="Dismiss update reminder"
-          onClick={() => {
-            setDismissed(true);
-          }}
+          onClick={onDismiss}
           size="icon"
           variant="ghost"
         >

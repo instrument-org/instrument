@@ -44,8 +44,10 @@ import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
 import { steppedZoom } from "@/shared/zoom";
 import {
+  ArrowCircleUpIcon,
   ArrowLineDownIcon,
   ArrowsClockwiseIcon,
+  BellRingingIcon,
   ChartBarIcon,
   DatabaseIcon,
   type Icon,
@@ -129,6 +131,14 @@ export function DevPanel() {
 
   const { mutate: clearUpdateBadge } = useMutation(
     rpcClient.debug.trigger.testSilentNoUpdate.mutationOptions(),
+  );
+
+  const { mutate: simulateUpdateReminder } = useMutation(
+    rpcClient.debug.trigger.testUpdateReminder.mutationOptions(),
+  );
+
+  const { mutate: simulateUpdateRequired } = useMutation(
+    rpcClient.debug.trigger.testUpdateRequired.mutationOptions(),
   );
 
   const { data: appEnvironment } = useQuery(
@@ -355,6 +365,24 @@ export function DevPanel() {
                   >
                     <ArrowsClockwiseIcon className="size-3" />
                     Clear update badge
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      simulateUpdateReminder(undefined);
+                    }}
+                  >
+                    <BellRingingIcon className="size-3" />
+                    Show reminder banner
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      simulateUpdateRequired(undefined);
+                    }}
+                  >
+                    <ArrowCircleUpIcon className="size-3" />
+                    Preview required screen (10s)
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

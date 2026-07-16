@@ -11,7 +11,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { createTsCommand, TS_COMMAND } from "./ts";
-import { resolveCommandContext } from "./utils";
+import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const PNPM_COMMAND = {
   description:
@@ -200,7 +200,7 @@ export function createPnpmCommand(taskId: TaskId) {
       cwd,
       env,
       signal: ctx.signal,
-      stdin: latin1FromBytes(ctx.stdin) || undefined,
+      stdin: subprocessStdin(ctx.stdin),
       taskId,
     });
 
@@ -248,7 +248,7 @@ function createDlxAliasCommand(
       env,
       pnpmLogLevel: "error",
       signal: ctx.signal,
-      stdin: latin1FromBytes(ctx.stdin) || undefined,
+      stdin: subprocessStdin(ctx.stdin),
       taskId,
     });
 

@@ -1,12 +1,55 @@
+import { type ByteString, latin1FromBytes } from "just-bash";
 import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
+import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { normalizePath } from "../normalize-path";
 import { taskDir } from "../task-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
-import { resolveNativeHostPath } from "../workspace-fs-layout";
+import {
+  resolveNativeHostPath,
+  TASK_MOUNT_POINT,
+} from "../workspace-fs-layout";
+
+/**
+ * Bridge sandbox-virtual paths inside inline script source (`-e`/`-c` code,
+ * heredoc programs), which real interpreters otherwise resolve against the
+ * host filesystem where `/task` and `/mnt` do not exist. Quoted `/task/...`
+ * string literals become paths relative to taskCwd (the subprocess cwd) --
+ * relative so the host dir never appears in the code and so Windows
+ * backslashes never corrupt string escapes. The quote prefix is what
+ * distinguishes a string literal from lookalikes such as JS regex literals
+ * (`split(/task/)`), which must not be rewritten. Quoted `/mnt/...` literals
+ * have no host path a subprocess may receive (read-only mounts), so they fail
+ * fast with the copy-first guidance instead of dereferencing the host root.
+ */
+export function bridgeInlineCodePaths(
+  code: string,
+  taskId: TaskId,
+  taskCwd: string,
+): { code: string } | { error: string } {
+  if (quotedMountPattern(ATTACHED_FOLDERS_MOUNT_ROOT).test(code)) {
+    return {
+      error:
+        `Inline script code references a ${ATTACHED_FOLDERS_MOUNT_ROOT}/... path. ` +
+        `Attached-folder mounts are only visible to the sandbox shell and file tools, ` +
+        `never to real interpreter processes. Copy the file into the task first ` +
+        `(cp '${ATTACHED_FOLDERS_MOUNT_ROOT}/<folder>/<file>' attachments/) and ` +
+        `reference the copy with a task-relative path (attachments/<file>).`,
+    };
+  }
+
+  const relativeTaskRoot =
+    path.relative(taskCwd, taskDir(taskId)).replaceAll("\\", "/") || ".";
+  return {
+    code: code.replaceAll(
+      quotedMountPattern(TASK_MOUNT_POINT),
+      (_match, quote: string) => `${quote}${relativeTaskRoot}`,
+    ),
+  };
+}
 
 /**
  * Extract the resolved file path and trailing script args from positionals + original args.
@@ -138,6 +181,17 @@ export function stringArray(
 }
 
 /**
+ * just-bash stdin bytes as a Buffer for a real subprocess, or undefined when
+ * empty. execa UTF-8 encodes a string `input`, which would re-encode the
+ * latin1-packed byte string and mojibake every non-ASCII byte (heredoc text,
+ * piped binary data); a Buffer forwards the original bytes unchanged.
+ */
+export function subprocessStdin(stdin: ByteString): Buffer | undefined {
+  const packed = latin1FromBytes(stdin);
+  return packed ? Buffer.from(packed, "latin1") : undefined;
+}
+
+/**
  * Returns true for args that look like a file path and need sandbox resolution:
  * starts with `/` (virtual absolute) or starts with `.` or contains `/` (relative traversal).
  */
@@ -150,6 +204,15 @@ function looksLikePath(arg: string): boolean {
     arg.includes("/") ||
     arg.includes("\\")
   );
+}
+
+/**
+ * Matches a mount point immediately after an opening quote, continuing into a
+ * subpath or closed by the same quote: `"/task/x"`, `'/task'`, `` `/mnt/Docs/a` ``.
+ * Mount points contain no regex metacharacters beyond `/`.
+ */
+function quotedMountPattern(mountPoint: string): RegExp {
+  return new RegExp(`(['"\`])${mountPoint}(?=/|\\1)`, "g");
 }
 
 /**

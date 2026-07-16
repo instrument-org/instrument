@@ -165,6 +165,38 @@ describe("nodeCommand", () => {
     expect(flagIndex).toBeLessThan(fileIndex);
   });
 
+  it("bridges quoted /task paths inside -e code", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(
+      ["-e", 'fs.readFileSync("/task/attachments/chart.svg")'],
+      { ...mockCtx, cwd: "/task" },
+    );
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      ["-e", 'fs.readFileSync("./attachments/chart.svg")'],
+      expect.any(Object),
+    );
+  });
+
+  it("rejects -e code referencing /mnt paths without spawning", async () => {
+    const { execa } = await import("execa");
+
+    const result = await command.execute(
+      ["-e", 'fs.readFileSync("/mnt/Photos/clip.mov")'],
+      mockCtx,
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Copy the file into the task first");
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+
   it("resolves the script file path without exposing the host dir", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({

@@ -22,7 +22,8 @@ export async function runPnpmCommand({
   /** Forwarded to pnpm as `npm_config_loglevel`. Only `"error"` is supported (suppresses info noise; not `silent`). */
   pnpmLogLevel?: "error";
   signal?: AbortSignal;
-  stdin?: string;
+  /** Raw bytes; a string would be UTF-8 re-encoded by execa (see subprocessStdin). */
+  stdin?: Buffer;
   taskId: TaskId;
 }) {
   const execResult = await execaNodeForTask(

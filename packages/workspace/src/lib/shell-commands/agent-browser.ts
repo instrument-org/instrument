@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { defineCommand, latin1FromBytes } from "just-bash";
+import { defineCommand } from "just-bash";
 import { spawn } from "node:child_process";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
@@ -25,7 +25,11 @@ import {
   taskDir,
 } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
-import { resolveCommandContext, resolvePathArgs } from "./utils";
+import {
+  resolveCommandContext,
+  resolvePathArgs,
+  subprocessStdin,
+} from "./utils";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
 
@@ -290,7 +294,7 @@ export function createAgentBrowserCommand({
           AGENT_BROWSER_STATE: undefined,
           HOME: homeDir,
         },
-        input: latin1FromBytes(ctx.stdin) || undefined,
+        input: subprocessStdin(ctx.stdin),
         managedConfigPath: isInfoOnly ? undefined : configPath,
         stateDir: agentBrowserStateDir,
       });
@@ -378,7 +382,7 @@ async function runAgentBrowser({
   cancelSignal: AbortSignal | undefined;
   cwd: string;
   env: Record<string, string | undefined>;
-  input: string | undefined;
+  input: Buffer | undefined;
   managedConfigPath: string | undefined;
   stateDir: string;
 }) {

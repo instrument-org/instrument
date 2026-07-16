@@ -1,8 +1,8 @@
-import { defineCommand, latin1FromBytes } from "just-bash";
+import { defineCommand } from "just-bash";
 
 import { type TaskId } from "../../schemas/task-id";
 import { runPnpmCommand } from "../run-pnpm";
-import { resolveCommandContext } from "./utils";
+import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const TSC_COMMAND = {
   description:
@@ -20,7 +20,7 @@ export function createTscCommand(taskId: TaskId) {
       env,
       pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
       signal: ctx.signal,
-      stdin: latin1FromBytes(ctx.stdin) || undefined,
+      stdin: subprocessStdin(ctx.stdin),
       taskId,
     });
 

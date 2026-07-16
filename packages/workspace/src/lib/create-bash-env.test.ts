@@ -26,8 +26,10 @@ describe("createBashDescription", () => {
       -- a short script can usually do the job, and a missing command does not
       mean the task is impossible. Inside script code run by these commands, use
       task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are
-      translated for them, but virtual paths like \`/task/...\` or
-      \`/mnt/...\` embedded in source code are not.
+      translated, and quoted \`/task/...\` strings in inline code
+      (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy
+      attached files into the task first) and paths inside script FILES on disk
+      are never translated.
 
       IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all
       package management.
@@ -81,7 +83,7 @@ describe("createBashDescription", () => {
         ffprobe - Probe and inspect audio and video files using FFprobe.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
-        tsx - Execute a TypeScript or JavaScript file. In -e: relative paths resolve from cwd; avoid absolute paths and use task-root-relative paths.
+        tsx - Execute a TypeScript or JavaScript file. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.
         tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the local config.
         uv - Python package and environment manager. Also provides \`python\`, \`python3\`, and \`pip\`, backed by a per-task virtualenv in work/.venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
         python - Run Python via the per-task virtualenv (work/.venv). Shares packages installed with \`pip\`. Use the \`pip\` command to install packages: \`python -m pip\` is not available.

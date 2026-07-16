@@ -1,19 +1,21 @@
-import { defineCommand, latin1FromBytes } from "just-bash";
+import { defineCommand } from "just-bash";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 
 import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { runPnpmCommand } from "../run-pnpm";
 import {
+  bridgeInlineCodePaths,
   extractFileAndScriptArgs,
   firstString,
   parseScriptRunnerArgs,
   resolveCommandContext,
+  subprocessStdin,
 } from "./utils";
 
 export const TS_COMMAND = {
   description:
-    "Execute a TypeScript or JavaScript file. In -e: relative paths resolve from cwd; avoid absolute paths and use task-root-relative paths.",
+    'Execute a TypeScript or JavaScript file. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.',
   name: "tsx",
 } as const;
 
@@ -75,6 +77,10 @@ export function createTsCommand(taskId: TaskId) {
 
       ({ filePath, scriptArgs } = fileAndArgs);
     } else {
+      const bridged = bridgeInlineCodePaths(evalCode, taskId, taskCwd);
+      if ("error" in bridged) {
+        return { exitCode: 1, stderr: bridged.error, stdout: "" };
+      }
       // Write the eval file into the current working directory (not a fixed
       // app-root tmp dir) so jiti resolves modules and relative paths from
       // where the agent is. Matches real `tsx -e` and `tsx <file>`: after
@@ -82,7 +88,11 @@ export function createTsCommand(taskId: TaskId) {
       // node_modules. A root tmp dir broke this regardless of cwd.
       const fileName = `.ts-eval-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ts`;
       await mkdir(taskCwd, { recursive: true });
-      await writeFile(absolutePathJoin(taskCwd, fileName), evalCode, "utf8");
+      await writeFile(
+        absolutePathJoin(taskCwd, fileName),
+        bridged.code,
+        "utf8",
+      );
       // Pass relative to taskCwd (the jiti cwd) so the host dir is not
       // exposed in jiti stack traces.
       filePath = fileName;
@@ -99,7 +109,7 @@ export function createTsCommand(taskId: TaskId) {
         env,
         pnpmLogLevel: "error", // Suppress Progress-style noise for dlx
         signal: ctx.signal,
-        stdin: latin1FromBytes(ctx.stdin) || undefined,
+        stdin: subprocessStdin(ctx.stdin),
         taskId,
       });
 

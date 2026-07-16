@@ -1,8 +1,9 @@
 # Bash sandbox: the mount layout and the native-binary boundary
 
 **Status:** current as of the attached-folder mounts work (PR #37; the
-connectors branch adds a writable `/connectors` mount under the same rules).
-Last updated 2026-07-08.
+connectors branch adds a writable `/connectors` mount under the same rules)
+plus the inline-code path bridge and byte-clean subprocess stdin.
+Last updated 2026-07-16.
 
 ## The layout
 
@@ -44,14 +45,25 @@ resolving against the full layout.
 
 Consequences to remember:
 
-- **Paths inside script source are not translated.** `python work/script.py`
-  works because the script path is argv; `open("/task/work/x")` _inside_ the
-  script fails because python resolves it against the real root. The
-  subprocess cwd is the real task dir, so task-relative paths in script code
-  work. The bash tool description teaches this.
+- **Inline code is bridged; script files are not.** Quoted `/task/...` string
+  literals in inline program text (`node -e`, `tsx -e`, `python -c`, and
+  heredoc programs piped to python) are rewritten to cwd-relative paths by
+  `bridgeInlineCodePaths` (`shell-commands/utils.ts`) — relative, not
+  absolute, so the host dir never appears in the code and Windows backslashes
+  never corrupt string escapes; the quote prefix keeps JS regex literals like
+  `split(/task/)` untouched. Quoted `/mnt/...` literals fail fast with
+  copy-first guidance. Paths inside script FILES on disk are never
+  translated: `python work/script.py` works because the script path is argv,
+  but `open("/task/work/x")` inside that file resolves against the real root
+  and fails. The subprocess cwd is the real task dir, so task-relative paths
+  in script code always work. The bash tool description teaches this.
 - **Processing an attached file requires copying it into the task first.**
   `ffprobe /mnt/Photos/clip.mov` fails with not-found (quarantined); the agent
   prompt teaches `cp '/mnt/<folder>/file' attachments/` first.
+- **Stdin crosses as bytes, not a string.** just-bash packs stream data one
+  byte per char (latin1); `subprocessStdin` converts that to a `Buffer` before
+  it reaches `execa`, whose string `input` would UTF-8 re-encode it and
+  mojibake every non-ASCII byte of a heredoc or piped binary.
 
 ## Why we didn't unify the two worlds
 

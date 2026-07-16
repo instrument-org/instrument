@@ -1,10 +1,12 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
-import { call, eventIterator } from "@orpc/server";
+import { eventIterator, type } from "@orpc/server";
+import { sleep } from "radashi";
 import { z } from "zod";
 
+import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
+import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
 import { Store } from "../../lib/store";
 import { updateSessionTitle } from "../../lib/update-session-title";
@@ -182,43 +184,89 @@ const live = {
         sessionId: StoreId.SessionSchema,
       }),
     )
-    .output(eventIterator(SessionMessage.WithPartsSchema.array()))
-    .handler(async function* ({ context, input, signal }) {
-      yield call(listWithParts, input, { context, signal });
+    // Messages are Zod-validated when read from the store; re-validating the
+    // whole array on every yield would make each update O(session) again.
+    .output(eventIterator(type<SessionMessage.WithParts[]>()))
+    .handler(async function* ({ errors, input, signal }) {
+      // Subscribing before the initial read means no event can land
+      // unobserved between the two; an event for a message the read already
+      // covered only costs a redundant re-read of that message.
+      const batches = changedMessageBatches(input, signal);
 
-      const messageUpdates = publisher.subscribe("message.updated", { signal });
-      const messageRemoved = publisher.subscribe("message.removed", { signal });
-      const partUpdates = publisher.subscribe("part.updated", { signal });
-
-      // Scope to this session so a token streaming in one session doesn't
-      // reload every other live subscription in the same app. message.updated/
-      // .removed carry sessionId directly; part.updated carries it on the part.
-      async function* filterBySession(
-        generator:
-          | typeof messageRemoved
-          | typeof messageUpdates
-          | typeof partUpdates,
-      ) {
-        for await (const payload of generator) {
-          if (payload.id !== input.id) {
-            continue;
-          }
-          const sessionId =
-            "part" in payload
-              ? payload.part.metadata.sessionId
-              : payload.sessionId;
-          if (sessionId === input.sessionId) {
-            yield null;
-          }
+      try {
+        const initial = await Store.getMessagesWithParts(
+          { sessionId: input.sessionId, taskId: input.id },
+          { signal },
+        );
+        if (initial.isErr()) {
+          throw toORPCError(initial.error, errors);
         }
-      }
+        const snapshot = new LiveMessagesSnapshot(initial.value);
+        yield snapshot.toArray();
 
-      for await (const _ of mergeGenerators([
-        filterBySession(messageUpdates),
-        filterBySession(messageRemoved),
-        filterBySession(partUpdates),
-      ])) {
-        yield call(listWithParts, input, { context, signal });
+        // Each batch re-reads only the changed messages and splices them into
+        // the snapshot, so store work per update is proportional to the
+        // change, not the session. Bursts coalesce: a turn's token storm
+        // targets one message, so its part.updated events collapse into a
+        // single re-read + yield. Every yield is the complete sorted array.
+        for await (const batch of batches) {
+          for (const messageId of batch.removed) {
+            snapshot.remove(messageId);
+          }
+
+          if (batch.updated.size > 0) {
+            const messageIds = [...batch.updated];
+            const readUpdated = () =>
+              Store.getMessagesWithParts(
+                { messageIds, sessionId: input.sessionId, taskId: input.id },
+                { signal },
+              );
+
+            // A message can be unreadable mid-write (writes aren't atomic),
+            // so give the write a moment to settle before falling back to a
+            // full reload, which surfaces a persistent error the same way
+            // the initial read does.
+            let messages = await readUpdated();
+            for (
+              let retry = 0;
+              messages.isErr() && retry < 2 && !signal?.aborted;
+              retry++
+            ) {
+              await sleep(50);
+              messages = await readUpdated();
+            }
+
+            if (messages.isOk()) {
+              for (const message of messages.value) {
+                snapshot.upsert(message);
+              }
+              // The read omits ids the index named but the fetch couldn't
+              // find (mid-write or just removed). Drop them; a later event
+              // re-adds a message that reappears.
+              const found = new Set(messages.value.map(({ id }) => id));
+              for (const messageId of messageIds) {
+                if (!found.has(messageId)) {
+                  snapshot.remove(messageId);
+                }
+              }
+            } else {
+              const reload = await Store.getMessagesWithParts(
+                { sessionId: input.sessionId, taskId: input.id },
+                { signal },
+              );
+              if (reload.isErr()) {
+                throw toORPCError(reload.error, errors);
+              }
+              snapshot.reset(reload.value);
+            }
+          }
+
+          yield snapshot.toArray();
+        }
+      } finally {
+        // for await only closes the iterator once the loop has been entered;
+        // this also unsubscribes when the initial read throws.
+        await batches.return();
       }
     }),
 };

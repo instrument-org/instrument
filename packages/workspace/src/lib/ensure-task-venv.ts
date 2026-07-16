@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
 import { type TaskId } from "../schemas/task-id";
@@ -34,9 +34,14 @@ export async function ensureTaskVenvForTask({
     return awaitVenvCreation({ creation: existing, signal });
   }
 
+  // The work dir may not exist yet (nothing else creates it when python is
+  // the task's first command); a missing cwd fails execa before uv even runs.
+  const workDir = getTaskWorkDir(taskDir(taskId));
+  mkdirSync(workDir, { recursive: true });
+
   const creation = runUvCommand({
     args: ["venv", "--python", MANAGED_PYTHON_VERSION, taskVenvDir(taskId)],
-    cwd: getTaskWorkDir(taskDir(taskId)),
+    cwd: workDir,
     taskId,
   })
     .then((result) =>

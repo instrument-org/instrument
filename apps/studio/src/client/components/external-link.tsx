@@ -46,14 +46,18 @@ export function ExternalLink(
   );
 
   const handleClick = useCallback(
-    async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    (event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
       if (href) {
         const finalUrl = addReferral ? addRef(href) : href;
         captureClientEvent("external_link.clicked", {
           external_url: finalUrl,
         });
-        await openExternalLinkMutation.mutateAsync({ url: finalUrl });
+        // Fire-and-forget: mutateAsync rejects on failure, and because this
+        // handler is never awaited that rejection surfaces as an unhandled
+        // rejection (captured by PostHog). mutate() routes failures through
+        // onError (toast + clipboard copy) without leaking.
+        openExternalLinkMutation.mutate({ url: finalUrl });
       }
       onClick?.(event);
     },

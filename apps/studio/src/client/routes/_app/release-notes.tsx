@@ -57,8 +57,8 @@ function RouteComponent() {
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
 
-  const handleCheckForUpdates = async () => {
-    await checkForUpdatesMutation.mutateAsync({});
+  const handleCheckForUpdates = () => {
+    checkForUpdatesMutation.mutate({});
   };
 
   const releases = releasesQuery.data?.releases ?? [];

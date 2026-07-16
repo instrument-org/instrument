@@ -227,7 +227,12 @@ const openExternalLink = base
     },
   })
   .output(z.undefined())
-  .input(z.object({ url: z.url() }))
+  // Accept any non-empty string and let openExternal be the single validation
+  // authority: it parses the URL and enforces the protocol allowlist, throwing
+  // the defined INVALID_URL error. A stricter z.url() here would reject valid
+  // targets (e.g. bare-domain links from agent markdown) at the RPC boundary
+  // with a generic "Input validation failed" that bypasses INVALID_URL.
+  .input(z.object({ url: z.string().min(1) }))
   .handler(async ({ errors, input }) => {
     const success = await openExternal(input.url);
     if (!success) {

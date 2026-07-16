@@ -215,7 +215,11 @@ export function TaskBrowserPanel({
     }
     try {
       const url = getWebviewElement(targetId)?.getURL();
-      if (!url || url === "about:blank") {
+      const activeElement = document.activeElement;
+      const hostInputFocused = activeElement?.matches(
+        "input, textarea, select, [contenteditable='true']",
+      );
+      if ((!url || url === "about:blank") && !hostInputFocused) {
         inputRef.current?.focus();
       }
     } catch {

@@ -5,6 +5,7 @@ import { parallel } from "radashi";
 import { z } from "zod";
 
 import { branchTask } from "../../../lib/branch-task";
+import { changedMessageBatches } from "../../../lib/changed-message-batches";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
 import { exportTaskZip } from "../../../lib/export-task-zip";
@@ -710,31 +711,16 @@ const liveUsageSummary = base
   .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(UsageSummarySchema))
   .handler(async function* ({ context, input, signal }) {
-    yield call(usageSummary, input, { context, signal });
-
-    const messageUpdates = publisher.subscribe("message.updated", { signal });
-    const messageRemoved = publisher.subscribe("message.removed", { signal });
-    const partUpdates = publisher.subscribe("part.updated", { signal });
-
-    async function* filterByTaskId(
-      generator:
-        | typeof messageRemoved
-        | typeof messageUpdates
-        | typeof partUpdates,
-    ) {
-      for await (const payload of generator) {
-        if (payload.id === input.id) {
-          yield null;
-        }
-      }
-    }
-
-    for await (const _ of mergeGenerators([
-      filterByTaskId(messageUpdates),
-      filterByTaskId(messageRemoved),
-      filterByTaskId(partUpdates),
-    ])) {
+    // Coalesce this task's message/part events so a streaming turn recomputes
+    // the (whole-task) summary once per batch instead of once per event.
+    const batches = changedMessageBatches({ id: input.id }, signal);
+    try {
       yield call(usageSummary, input, { context, signal });
+      for await (const _batch of batches) {
+        yield call(usageSummary, input, { context, signal });
+      }
+    } finally {
+      await batches.return();
     }
   });
 

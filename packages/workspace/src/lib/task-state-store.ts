@@ -1,5 +1,6 @@
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import fs from "node:fs/promises";
+import { noop } from "radashi";
 import { z } from "zod";
 
 import { TASK_STATE_FILE_NAME } from "../constants";
@@ -31,6 +32,8 @@ export const TaskStateSchema = z.object({
 
 export type TaskState = z.output<typeof StoredTaskStateSchema>;
 
+const pendingUpdates = new Map<AbsolutePath, Promise<void>>();
+
 export async function getTaskState(dir: TaskDir): Promise<TaskState> {
   const stateFilePath = getTaskStateFilePath(dir);
 
@@ -50,19 +53,36 @@ export async function setTaskState(
   dir: TaskDir,
   state: Partial<TaskState>,
 ): Promise<void> {
-  const stateFilePath = getTaskStateFilePath(dir);
-  const privateDir = getTaskPrivateDir(dir);
-
-  await fs.mkdir(privateDir, { recursive: true });
-
-  const currentState = await getTaskState(dir);
-
-  const newState = StoredTaskStateSchema.parse({
+  await updateTaskState(dir, (currentState) => ({
     ...currentState,
     ...state,
-  });
+  }));
+}
 
-  await fs.writeFile(stateFilePath, JSON.stringify(newState, null, 2), "utf8");
+export async function updateTaskState(
+  dir: TaskDir,
+  update: (currentState: TaskState) => TaskState,
+): Promise<void> {
+  const stateFilePath = getTaskStateFilePath(dir);
+  const previous = pendingUpdates.get(stateFilePath) ?? Promise.resolve();
+  const pending = previous.catch(noop).then(async () => {
+    await fs.mkdir(getTaskPrivateDir(dir), { recursive: true });
+    const currentState = await getTaskState(dir);
+    const newState = StoredTaskStateSchema.parse(update(currentState));
+    await fs.writeFile(
+      stateFilePath,
+      JSON.stringify(newState, null, 2),
+      "utf8",
+    );
+  });
+  pendingUpdates.set(stateFilePath, pending);
+  try {
+    await pending;
+  } finally {
+    if (pendingUpdates.get(stateFilePath) === pending) {
+      pendingUpdates.delete(stateFilePath);
+    }
+  }
 }
 
 function getTaskStateFilePath(dir: TaskDir): AbsolutePath {

@@ -72,7 +72,11 @@ export function ToolConnectorCredentialPrompt({
     // The secret goes straight to the encrypted store over RPC; the agent is
     // only told "granted". Clear the field before resolving so the value
     // lives in renderer memory as briefly as possible.
-    await setCredentialMutation.mutateAsync({ slug, value: secret });
+    try {
+      await setCredentialMutation.mutateAsync({ slug, value: secret });
+    } catch {
+      return;
+    }
     setValue("");
     resolve("granted");
   };

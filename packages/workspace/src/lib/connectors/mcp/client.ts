@@ -1,5 +1,8 @@
 import { APP_NAME } from "@instrument-org/shared";
-import { type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
+import {
+  type OAuthClientProvider,
+  UnauthorizedError,
+} from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { type ContentBlock } from "@modelcontextprotocol/sdk/types.js";
@@ -118,7 +121,8 @@ export async function withMcpClient<T>({
     await transport.close().catch(noop);
     const message = error instanceof Error ? error.message : String(error);
     // cspell:ignore unauthor
-    const unauthorized = /401|unauthor/i.test(message);
+    const unauthorized =
+      error instanceof UnauthorizedError || /401|unauthor/i.test(message);
     return err({
       message: unauthorized
         ? `The MCP server rejected the credential (unauthorized): ${message}`

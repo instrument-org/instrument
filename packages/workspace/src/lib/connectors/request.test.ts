@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ConnectorManifestSchema } from "./manifest";
-import { buildConnectorUrl, redactCredential } from "./request";
+import {
+  type ApiConnectorManifest,
+  ConnectorManifestSchema,
+} from "./manifest";
+import {
+  buildConnectorUrl,
+  performConnectorRequest,
+  redactCredential,
+} from "./request";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("buildConnectorUrl", () => {
   const urlCases: {
@@ -179,5 +190,47 @@ describe("redactCredential", () => {
     const redacted = redactCredential(text, token);
     expect(redacted).not.toContain(encoded);
     expect(redacted).toContain("[REDACTED]");
+  });
+});
+
+describe("performConnectorRequest", () => {
+  it("returns a network error when the response stream fails", async () => {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.error(new Error("connection reset"));
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(body, {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        }),
+      ),
+    );
+    const manifest: ApiConnectorManifest = {
+      auth: { kind: "none" },
+      baseUrl: "https://api.example.com",
+      displayName: "Test",
+      enabled: true,
+      test: { path: "/ok" },
+      type: "api",
+    };
+
+    const result = await performConnectorRequest({
+      body: undefined,
+      credential: null,
+      manifest,
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
+
+    expect(result._unsafeUnwrapErr()).toEqual({
+      message: "Reading the response body failed: connection reset",
+      reason: "network",
+    });
   });
 });

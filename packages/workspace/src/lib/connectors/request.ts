@@ -202,17 +202,24 @@ export async function performConnectorRequest({
       continue;
     }
 
-    const { bodyText, truncated } = await readBodyCapped(response);
-    return ok({
-      bodyText,
-      contentType: response.headers.get("content-type") ?? "",
-      status: response.status,
-      truncated,
-      // Strip the query-auth credential from the display URL at the source;
-      // url.toString() percent-encodes it, which plain string redaction on the
-      // raw credential would miss.
-      url: displayUrl(url, manifest.auth),
-    });
+    try {
+      const { bodyText, truncated } = await readBodyCapped(response);
+      return ok({
+        bodyText,
+        contentType: response.headers.get("content-type") ?? "",
+        status: response.status,
+        truncated,
+        // Strip the query-auth credential from the display URL at the source;
+        // url.toString() percent-encodes it, which plain string redaction on the
+        // raw credential would miss.
+        url: displayUrl(url, manifest.auth),
+      });
+    } catch (error) {
+      return err({
+        message: `Reading the response body failed: ${error instanceof Error ? error.message : String(error)}`,
+        reason: "network",
+      });
+    }
   }
 
   return err({

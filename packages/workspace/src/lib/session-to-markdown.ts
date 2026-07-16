@@ -42,7 +42,10 @@ export async function getSessionMarkdown({
 }): Promise<string> {
   const result = await Store.getSessionWithMessagesAndParts(sessionId, taskId);
   if (result.isErr()) {
-    throw new Error(`Session ${sessionId} not found`);
+    throw new Error(
+      `Failed to load session ${sessionId}: ${result.error.message}`,
+      { cause: result.error },
+    );
   }
 
   return sessionToMarkdown(result.value, {

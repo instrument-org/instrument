@@ -3,6 +3,7 @@ import { err, ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { executeError } from "../lib/execute-error";
 import { grep } from "../lib/grep";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
@@ -89,13 +90,17 @@ export const Grep = setupTool({
 
     // Map ripgrep's host paths back to their virtual mount path so no host
     // path leaks and a follow-up read_file resolves to the same place.
-    return ok({
-      ...result,
-      matches: result.matches.map((match) => ({
-        ...match,
-        path: resolveVirtualPath(layout, match.path) ?? match.path,
-      })),
-    });
+    const matches = [];
+    for (const match of result.matches) {
+      const virtualPath = resolveVirtualPath(layout, match.path);
+      if (virtualPath === null) {
+        return executeError(
+          "A search result resolved outside the workspace mounts.",
+        );
+      }
+      matches.push({ ...match, path: virtualPath });
+    }
+    return ok({ ...result, matches });
   },
   readOnly: true,
   timeoutMs: ms("30 seconds"),

@@ -5,6 +5,7 @@ import {
   ReadWriteFs,
 } from "just-bash";
 import { realpathSync } from "node:fs";
+import path from "node:path";
 
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
@@ -150,10 +151,10 @@ export function buildWorkspaceFsLayout({
 }
 
 /**
- * True when an existing host path escapes its owning mount through a symlink.
- * A missing path or root is not an escape (nothing to read; normal not-found
- * handling applies). Any other resolution failure (permission error, symlink
- * loop, ...) means containment cannot be verified, so it fails closed.
+ * True when a host path escapes its owning mount through a symlink. For a path
+ * that does not exist yet, resolves the nearest existing ancestor so writes
+ * through symlinked directories are still contained. A missing root is not an
+ * escape; any other resolution failure fails closed.
  */
 export function hostPathEscapesMount(
   hostPath: string,
@@ -166,14 +167,21 @@ export function hostPathEscapesMount(
     return !isEnoent(error);
   }
 
-  let canonicalPath: string;
-  try {
-    canonicalPath = realpathSync(hostPath);
-  } catch (error) {
-    return !isEnoent(error);
+  let existingPath = hostPath;
+  while (true) {
+    try {
+      return !pathIsWithin(realpathSync(existingPath), canonicalRoot);
+    } catch (error) {
+      if (!isEnoent(error)) {
+        return true;
+      }
+      const parent = path.dirname(existingPath);
+      if (parent === existingPath) {
+        return true;
+      }
+      existingPath = parent;
+    }
   }
-
-  return !pathIsWithin(canonicalPath, canonicalRoot);
 }
 
 /**

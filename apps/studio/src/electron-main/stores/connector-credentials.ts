@@ -71,7 +71,7 @@ export const getConnectorCredentialsStore =
 
           if (!safeStorage.isEncryptionAvailable()) {
             logger.error("Encryption is not available");
-            return "";
+            throw new Error("Encryption is not available");
           }
 
           const json = JSON.stringify(value);

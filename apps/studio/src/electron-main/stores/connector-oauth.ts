@@ -61,7 +61,7 @@ function getStore(): Store<ConnectorOAuthStoreShape> {
         }
         if (!safeStorage.isEncryptionAvailable()) {
           logger.error("Encryption is not available");
-          return "";
+          throw new Error("Encryption is not available");
         }
         return safeStorage
           .encryptString(JSON.stringify(value))

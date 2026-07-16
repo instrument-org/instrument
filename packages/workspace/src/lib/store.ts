@@ -72,6 +72,48 @@ export namespace Store {
     });
   }
 
+  // Message records only, without their parts. Callers that just need message
+  // metadata (usage, roles, timing) avoid reading and parsing every part, which
+  // dominates a full session read.
+  export function getMessages(
+    {
+      messageIds,
+      sessionId,
+      taskId,
+    }: {
+      messageIds?: StoreId.Message[];
+      sessionId: StoreId.Session;
+      taskId: TaskId;
+    },
+    { signal }: { signal?: AbortSignal } = {},
+  ) {
+    return safeTry(async function* () {
+      const storage = yield* getSessionsStoreStorage(taskId);
+      const messageIdsResult =
+        messageIds ?? (yield* getMessageIds(sessionId, taskId, { signal }));
+
+      const messageResults = await parallel(
+        { limit: 10, signal },
+        alphabetical(messageIdsResult, (id) => id),
+        async (messageId) => {
+          return getParsedStorageItem(
+            StorageKey.message(sessionId, messageId),
+            SessionMessage.Schema,
+            storage,
+            { signal },
+          );
+        },
+      );
+
+      // Skip transiently missing messages, matching getMessagesWithParts: the
+      // index scan and individual fetches are not atomic.
+      const found = messageResults.filter(
+        (r) => !(r.isErr() && r.error.type === "workspace-not-found-error"),
+      );
+      return Result.combine(found);
+    });
+  }
+
   export function getMessagesWithParts(
     {
       messageIds,

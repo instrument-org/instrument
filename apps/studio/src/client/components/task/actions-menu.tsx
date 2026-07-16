@@ -172,7 +172,7 @@ export function TaskActionsMenuItems({
           <Item
             className="text-dev-700 dark:text-dev-300"
             onSelect={() => {
-              void copyFolderPathMutation.mutateAsync({ id });
+              copyFolderPathMutation.mutate({ id });
             }}
           >
             <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />

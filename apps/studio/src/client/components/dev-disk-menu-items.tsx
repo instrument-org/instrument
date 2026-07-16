@@ -54,7 +54,7 @@ export function ProjectDevDiskMenuItems({
       <Item
         className={devItemClass}
         onSelect={() => {
-          void revealMutation.mutateAsync({ id: projectId });
+          revealMutation.mutate({ id: projectId });
         }}
       >
         <RevealInFolderIcon className={devIconClass} />
@@ -63,7 +63,7 @@ export function ProjectDevDiskMenuItems({
       <Item
         className={devItemClass}
         onSelect={() => {
-          void copyPathMutation.mutateAsync({ id: projectId });
+          copyPathMutation.mutate({ id: projectId });
         }}
       >
         <CopyIcon className={devIconClass} />
@@ -116,7 +116,7 @@ export function TaskDevDiskMenuItems({
       <Item
         className={devItemClass}
         onSelect={() => {
-          void revealMutation.mutateAsync({
+          revealMutation.mutate({
             id: taskId,
             type: "show-in-folder",
           });
@@ -128,7 +128,7 @@ export function TaskDevDiskMenuItems({
       <Item
         className={devItemClass}
         onSelect={() => {
-          void copyPathMutation.mutateAsync({ id: taskId });
+          copyPathMutation.mutate({ id: taskId });
         }}
       >
         <CopyIcon className={devIconClass} />

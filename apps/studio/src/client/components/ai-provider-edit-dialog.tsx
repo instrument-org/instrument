@@ -60,8 +60,8 @@ export function AIProviderEditDialog({
     setErrorMessage(null);
   };
 
-  const handleRemove = async () => {
-    await removeMutation.mutateAsync(
+  const handleRemove = () => {
+    removeMutation.mutate(
       { id: config.id },
       {
         onError: () => {
@@ -74,8 +74,8 @@ export function AIProviderEditDialog({
     );
   };
 
-  const handleSave = async () => {
-    await updateMutation.mutateAsync(
+  const handleSave = () => {
+    updateMutation.mutate(
       {
         displayName: displayName.trim() || undefined,
         id: config.id,

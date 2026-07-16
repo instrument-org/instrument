@@ -84,7 +84,7 @@ export function TaskOpenInSubmenu({
         <Item
           className={devSubItemClass}
           onClick={() => {
-            void openTaskInMutation.mutateAsync({
+            openTaskInMutation.mutate({
               id,
               type: "show-in-folder",
             });
@@ -105,7 +105,7 @@ export function TaskOpenInSubmenu({
                   className={devSubItemClass}
                   key={editor.id}
                   onClick={() => {
-                    void openTaskInMutation.mutateAsync({
+                    openTaskInMutation.mutate({
                       id,
                       type: OpenTaskInTypeSchema.parse(editor.id),
                     });
@@ -130,7 +130,7 @@ export function TaskOpenInSubmenu({
                   className={devSubItemClass}
                   key={editor.id}
                   onClick={() => {
-                    void openTaskInMutation.mutateAsync({
+                    openTaskInMutation.mutate({
                       id,
                       type: OpenTaskInTypeSchema.parse(editor.id),
                     });

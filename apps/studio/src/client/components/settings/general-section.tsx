@@ -83,8 +83,8 @@ function About() {
     rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
   );
 
-  const handleCheckForUpdates = async () => {
-    await checkForUpdatesMutation.mutateAsync({
+  const handleCheckForUpdates = () => {
+    checkForUpdatesMutation.mutate({
       notify: true,
     });
   };

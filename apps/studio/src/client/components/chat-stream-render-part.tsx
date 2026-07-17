@@ -55,6 +55,7 @@ export function renderChatPart({
             assetBaseUrl={ctx.assetBaseUrl}
             key={part.metadata.id}
             part={part}
+            taskId={ctx.task.id}
           />
         );
       }

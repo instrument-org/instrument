@@ -1,4 +1,5 @@
 import { cn } from "@/client/lib/utils";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { type Ref } from "react";
 
 import { Markdown } from "./markdown";
@@ -8,11 +9,13 @@ export const SessionMarkdown = ({
   className,
   markdown,
   ref,
+  taskId,
 }: {
   assetBaseUrl?: string;
   className?: string;
   markdown: string;
   ref?: Ref<HTMLDivElement>;
+  taskId?: TaskId;
 }) => {
   return (
     <div
@@ -22,7 +25,11 @@ export const SessionMarkdown = ({
       )}
       ref={ref}
     >
-      <Markdown assetBaseUrl={assetBaseUrl} markdown={markdown} />
+      <Markdown
+        assetBaseUrl={assetBaseUrl}
+        markdown={markdown}
+        taskId={taskId}
+      />
     </div>
   );
 };

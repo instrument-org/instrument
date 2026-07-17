@@ -1,12 +1,19 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
-import { normalizeTaskFilePath } from "@instrument-org/workspace/client";
+import { appendToPromptAtom } from "@/client/atoms/prompt-value";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import {
+  normalizeTaskFilePath,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { ImageIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import {
+  createContext,
   memo,
   type ReactNode,
   useCallback,
+  useContext,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -23,14 +30,32 @@ import { getAssetUrl } from "../lib/get-asset-url";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
+import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
 import { useCurrentTaskFile } from "./task/current-task-files";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "./ui/context-menu";
+import { contextMenuComponents } from "./ui/menu-components";
 
 interface MarkdownProps {
   allowRawHtml?: boolean;
   assetBaseUrl?: string;
   markdown: string;
+  // Present only when rendered inside a task chat. Enables the task-file
+  // right-click menu (Open in {App} / Download / Reveal / …); left-click
+  // open-in-panel works without it.
+  taskId?: TaskId;
 }
+
+// Carries the ambient task context down to the module-scope link renderer so a
+// task-file reference can build its asset URL and file-action menu.
+const MarkdownTaskContext = createContext<{
+  assetBaseUrl?: string;
+  taskId?: TaskId;
+}>({});
 
 type PluginList = NonNullable<Options["rehypePlugins"]>;
 type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
@@ -151,8 +176,10 @@ const TaskFileLink = ({
   className?: string;
   href: string;
 }) => {
+  const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
   const file = useCurrentTaskFile(taskFilePathFromHref(href));
   const navigate = useNavigate({ from: "/tasks/$id/" });
+  const appendToPrompt = useSetAtom(appendToPromptAtom);
 
   if (!file) {
     return <span className={className}>{children}</span>;
@@ -172,7 +199,7 @@ const TaskFileLink = ({
     });
   };
 
-  return (
+  const chip = (
     <button
       className={cn(
         "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline transition-colors hover:bg-muted",
@@ -188,6 +215,44 @@ const TaskFileLink = ({
       />
       <span className="truncate">{children}</span>
     </button>
+  );
+
+  // The file-action menu needs a task id and asset origin; without the ambient
+  // task context (e.g. reasoning or a previewed markdown file) the chip still
+  // left-click opens the panel, just without a right-click menu.
+  if (!taskId || !assetBaseUrl) {
+    return chip;
+  }
+
+  const viewerFile: TaskFileViewerFile = {
+    filename: file.filename,
+    filePath: file.filePath,
+    mimeType: file.mimeType,
+    modifiedAt: file.modifiedAt,
+    taskId,
+    url: getAssetUrl({
+      assetBase: assetBaseUrl,
+      filePath: file.filePath,
+      version: file.modifiedAt,
+    }),
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{chip}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <FileActionsMenuItems
+          file={viewerFile}
+          menuComponents={contextMenuComponents}
+          onAddToChat={() => {
+            appendToPrompt({
+              key: { scope: "task", taskId },
+              update: file.filePath,
+            });
+          }}
+        />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 };
 
@@ -278,7 +343,7 @@ const resolveImageSrc = (
 };
 
 export const Markdown = memo(
-  ({ allowRawHtml, assetBaseUrl, markdown }: MarkdownProps) => {
+  ({ allowRawHtml, assetBaseUrl, markdown, taskId }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
     const [rehypePlugins, setRehypePlugins] =
       useState<PluginList>(emptyPluginList);
@@ -338,35 +403,44 @@ export const Markdown = memo(
     }, [allowRawHtml, needsMath]);
 
     return (
-      <ReactMarkdown
-        components={{
-          a: MarkdownLink,
-          code: markdownCode,
-          img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
-            const resolvedSrc = resolveImageSrc(src, assetBaseUrl);
-            if (!isImageAllowed(resolvedSrc)) {
-              return <ImagePlaceholder alt={alt} src={resolvedSrc} />;
-            }
-            return (
-              <img
-                {...props}
-                alt={alt}
-                className={cn(
-                  "max-w-full cursor-pointer! rounded-md",
-                  className,
-                )}
-                onClick={handleImageClick}
-                src={resolvedSrc}
-              />
-            );
-          },
-          pre: markdownPre,
-        }}
-        rehypePlugins={rehypePlugins}
-        remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
-      >
-        {remend(markdown)}
-      </ReactMarkdown>
+      <MarkdownTaskContext value={{ assetBaseUrl, taskId }}>
+        <ReactMarkdown
+          components={{
+            a: MarkdownLink,
+            code: markdownCode,
+            img: ({
+              alt,
+              className,
+              node: _node,
+              ref: _ref,
+              src,
+              ...props
+            }) => {
+              const resolvedSrc = resolveImageSrc(src, assetBaseUrl);
+              if (!isImageAllowed(resolvedSrc)) {
+                return <ImagePlaceholder alt={alt} src={resolvedSrc} />;
+              }
+              return (
+                <img
+                  {...props}
+                  alt={alt}
+                  className={cn(
+                    "max-w-full cursor-pointer! rounded-md",
+                    className,
+                  )}
+                  onClick={handleImageClick}
+                  src={resolvedSrc}
+                />
+              );
+            },
+            pre: markdownPre,
+          }}
+          rehypePlugins={rehypePlugins}
+          remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
+        >
+          {remend(markdown)}
+        </ReactMarkdown>
+      </MarkdownTaskContext>
     );
   },
 );

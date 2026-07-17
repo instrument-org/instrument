@@ -1,8 +1,11 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
+import { normalizeTaskFilePath } from "@instrument-org/workspace/client";
 import { ImageIcon } from "@phosphor-icons/react";
+import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import {
   memo,
+  type ReactNode,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -16,9 +19,12 @@ import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
+import { getAssetUrl } from "../lib/get-asset-url";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
+import { FileIcon } from "./file-icon";
+import { useCurrentTaskFile } from "./task/current-task-files";
 
 interface MarkdownProps {
   allowRawHtml?: boolean;
@@ -113,6 +119,78 @@ const markdownCode: Components["code"] = ({
   );
 };
 
+// A schemeless, non-anchor href is a candidate task-file reference (e.g. the
+// agent's `[Download](output/report.xml)`). Real URLs carry a scheme
+// (`https:`, `mailto:`, `data:`) or are protocol-relative (`//host`); those go
+// to ExternalLink instead.
+const isTaskFileHref = (href: string): boolean =>
+  !href.startsWith("#") &&
+  !href.startsWith("//") &&
+  !/^[a-z][a-z0-9+.-]*:/i.test(href);
+
+const taskFilePathFromHref = (href: string): string => {
+  let path = href;
+  try {
+    path = decodeURIComponent(href);
+  } catch {
+    // Keep the raw href when it isn't valid percent-encoding.
+  }
+  return normalizeTaskFilePath(path);
+};
+
+// Renders a link to a file the agent produced as an interactive chip that opens
+// the file in the artifact panel. Existence is gated by the live task-file
+// index (`useCurrentTaskFile`): a path that isn't a real task file renders as
+// plain text rather than a broken action, so hallucinated paths degrade safely.
+const TaskFileLink = ({
+  children,
+  className,
+  href,
+}: {
+  children: ReactNode;
+  className?: string;
+  href: string;
+}) => {
+  const file = useCurrentTaskFile(taskFilePathFromHref(href));
+  const navigate = useNavigate({ from: "/tasks/$id/" });
+
+  if (!file) {
+    return <span className={className}>{children}</span>;
+  }
+
+  const openInPanel = () => {
+    void navigate({
+      replace: true,
+      search: (prev) => ({
+        ...prev,
+        artifactPanel: {
+          filePath: file.filePath,
+          modifiedAt: file.modifiedAt,
+          type: "file" as const,
+        },
+      }),
+    });
+  };
+
+  return (
+    <button
+      className={cn(
+        "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline transition-colors hover:bg-muted",
+        className,
+      )}
+      onClick={openInPanel}
+      title={file.filePath}
+      type="button"
+    >
+      <FileIcon
+        className="size-3.5 shrink-0 text-muted-foreground"
+        filename={file.filename}
+      />
+      <span className="truncate">{children}</span>
+    </button>
+  );
+};
+
 const MarkdownLink: Components["a"] = ({
   children,
   className,
@@ -133,6 +211,14 @@ const MarkdownLink: Components["a"] = ({
       >
         {children}
       </a>
+    );
+  }
+
+  if (href && isTaskFileHref(href)) {
+    return (
+      <TaskFileLink className={className} href={href}>
+        {children}
+      </TaskFileLink>
     );
   }
 
@@ -176,13 +262,19 @@ const resolveImageSrc = (
   src: string | undefined,
   assetBaseUrl: string | undefined,
 ): string | undefined => {
-  if (!src || !assetBaseUrl) {
+  if (!src) {
     return src;
   }
-  if (src.startsWith("./") || src.startsWith("../")) {
-    return `${assetBaseUrl}/${src.replace(/^\.\//, "")}`;
+  // Leave real URLs (http/https/data/blob) and protocol-relative srcs for the
+  // allow-list to judge; only resolve task-relative paths against the asset
+  // origin. This covers bare `output/x.png` in addition to `./`/`../`.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//")) {
+    return src;
   }
-  return src;
+  if (!assetBaseUrl) {
+    return src;
+  }
+  return getAssetUrl({ assetBase: assetBaseUrl, filePath: src });
 };
 
 export const Markdown = memo(

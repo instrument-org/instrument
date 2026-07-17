@@ -29,6 +29,7 @@ import {
 } from "electron";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
+import { registerAppProtocol } from "./lib/app-protocol";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
@@ -79,6 +80,8 @@ void app.whenReady().then(async () => {
     app.quit();
     return;
   }
+
+  registerAppProtocol();
 
   if (
     process.platform === "darwin" &&

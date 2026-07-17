@@ -60,7 +60,7 @@ export function useTaskFileOpenTarget(file: FileRef | undefined) {
 
   return {
     appName,
-    iconDataUrl: data?.iconDataUrl ?? null,
+    iconUrl: data?.iconUrl ?? null,
     isPending,
     openLabel: appName ? `Open in ${appName}` : "Open",
     showOpen,

@@ -390,7 +390,7 @@ const getTaskFileOpenTarget = base
   .output(
     z.object({
       appName: z.string().nullable(),
-      iconDataUrl: z.string().nullable(),
+      iconUrl: z.string().nullable(),
     }),
   )
   .handler(async ({ input }) => {
@@ -399,7 +399,7 @@ const getTaskFileOpenTarget = base
       filePath: input.filePath,
     });
     if (!fullPath) {
-      return { appName: null, iconDataUrl: null };
+      return { appName: null, iconUrl: null };
     }
     return await getFileOpenTarget(fullPath);
   });
@@ -419,7 +419,7 @@ const getTaskFileOpenCandidates = base
         z.object({
           appName: z.string(),
           appPath: z.string(),
-          iconDataUrl: z.string().nullable(),
+          iconUrl: z.string().nullable(),
         }),
       ),
     }),

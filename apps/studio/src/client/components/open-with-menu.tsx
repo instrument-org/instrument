@@ -4,6 +4,7 @@ import { useTaskFileOpenCandidates } from "@/client/hooks/use-task-file-open-tar
 import { AppWindowIcon } from "@phosphor-icons/react";
 import { type ReactElement } from "react";
 
+import { IconWithFallback } from "./icon-with-fallback";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -104,16 +105,11 @@ function OpenWithCandidates({
             openWith(file, candidate.appPath);
           }}
         >
-          {candidate.iconDataUrl ? (
-            <img
-              alt=""
-              className="size-5"
-              draggable={false}
-              src={candidate.iconDataUrl}
-            />
-          ) : (
-            <AppWindowIcon className="size-5" />
-          )}
+          <IconWithFallback
+            className="size-5"
+            fallback={<AppWindowIcon className="size-5" />}
+            src={candidate.iconUrl}
+          />
           <span className="truncate">{candidate.appName}</span>
         </Item>
       ))}

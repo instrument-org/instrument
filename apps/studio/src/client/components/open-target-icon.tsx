@@ -2,9 +2,10 @@ import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useTaskFileOpenTarget } from "@/client/hooks/use-task-file-open-target";
 
 import { FileIcon } from "./file-icon";
+import { IconWithFallback } from "./icon-with-fallback";
 
 // Icon of the default app for the file, with a file-type fallback when the
-// platform can't resolve an app icon.
+// platform can't resolve an app icon or the cached icon fails to load.
 export function OpenTargetIcon({
   className,
   file,
@@ -12,14 +13,14 @@ export function OpenTargetIcon({
   className?: string;
   file: Pick<TaskFileViewerFile, "filePath" | "taskId">;
 }) {
-  const { iconDataUrl } = useTaskFileOpenTarget(file);
-
-  if (iconDataUrl) {
-    return (
-      <img alt="" className={className} draggable={false} src={iconDataUrl} />
-    );
-  }
-
+  const { iconUrl } = useTaskFileOpenTarget(file);
   const filename = file.filePath.split("/").pop() ?? file.filePath;
-  return <FileIcon className={className} filename={filename} />;
+
+  return (
+    <IconWithFallback
+      className={className}
+      fallback={<FileIcon className={className} filename={filename} />}
+      src={iconUrl}
+    />
+  );
 }

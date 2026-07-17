@@ -7,6 +7,7 @@ import { StudioToolbar } from "@/client/components/studio-toolbar";
 import { Toaster } from "@/client/components/ui/sonner";
 import { UpdateReminder } from "@/client/components/update-reminder";
 import { UpdateRequiredScreen } from "@/client/components/update-required-screen";
+import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
 import { rpcClient } from "@/client/rpc/client";
@@ -63,57 +64,68 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const { data: updateRequirement } = useQuery(
     rpcClient.updates.live.requirement.experimental_liveOptions({}),
   );
+  const isUpdateRequired = updateRequirement?.required === true;
+
+  // The overlay below only intercepts pointer input, so while the block is up
+  // the retained chrome also goes inert (unfocusable, unreachable by keyboard)
+  // and tab shortcuts like Cmd+T / Cmd+W are suppressed as with any blocking
+  // modal.
+  useBlockTabNavigation(isUpdateRequired);
 
   return (
-    <div
-      className="flex h-full w-full flex-col overflow-hidden"
-      data-testid="app-page"
-    >
-      <StudioToolbar />
-      <UpdateReminder />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <StudioSidebarRail
-          isOpen={isSidebarOpen}
-          onCollapse={() => {
-            setSidebarOpen(false);
-          }}
-        />
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {children}
+    <>
+      <div
+        className="flex h-full w-full flex-col overflow-hidden"
+        data-testid="app-page"
+        inert={isUpdateRequired}
+      >
+        <StudioToolbar />
+        <UpdateReminder />
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <StudioSidebarRail
+            isOpen={isSidebarOpen}
+            onCollapse={() => {
+              setSidebarOpen(false);
+            }}
+          />
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {children}
+          </div>
         </div>
+
+        {isDeveloperMode && (
+          <Suspense fallback={null}>
+            <DevTools />
+          </Suspense>
+        )}
+
+        {Agentation && isDeveloperMode && activePanel === "agentation" && (
+          <Suspense fallback={null}>
+            <Agentation />
+          </Suspense>
+        )}
+
+        <Suspense fallback={null}>
+          <StudioCommandMenu />
+        </Suspense>
+        <StudioModals />
+        {isTaskFileViewerOpen && (
+          <Suspense fallback={null}>
+            <LazyTaskFileViewerModal />
+          </Suspense>
+        )}
+        {isFilePreviewOpen && (
+          <Suspense fallback={null}>
+            <LazyFilePreviewModal />
+          </Suspense>
+        )}
+        <Toaster position="top-center" />
       </div>
-
-      {isDeveloperMode && (
-        <Suspense fallback={null}>
-          <DevTools />
-        </Suspense>
-      )}
-
-      {Agentation && isDeveloperMode && activePanel === "agentation" && (
-        <Suspense fallback={null}>
-          <Agentation />
-        </Suspense>
-      )}
-
-      <Suspense fallback={null}>
-        <StudioCommandMenu />
-      </Suspense>
-      <StudioModals />
-      {isTaskFileViewerOpen && (
-        <Suspense fallback={null}>
-          <LazyTaskFileViewerModal />
-        </Suspense>
-      )}
-      {isFilePreviewOpen && (
-        <Suspense fallback={null}>
-          <LazyFilePreviewModal />
-        </Suspense>
-      )}
-      <Toaster position="top-center" />
       {/* A build below the server-enforced minimum version is blocked: the
           required screen covers the chrome and every tab. An overlay (not an
-          early return) so the kept-mounted tab stack survives a requirement
-          flip without losing state; z-100 clears the z-50 dialog layer. */}
+          early return) keeps the tab stack mounted so a requirement flip loses
+          no state, and it lives outside the inert chrome subtree; z-100 clears
+          the z-50 dialog layer. */}
       {updateRequirement?.required && (
         <div className="fixed inset-0 z-100">
           <UpdateRequiredScreen
@@ -122,6 +134,6 @@ export function AppChrome({ children }: { children: ReactNode }) {
           />
         </div>
       )}
-    </div>
+    </>
   );
 }

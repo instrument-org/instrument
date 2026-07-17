@@ -297,20 +297,24 @@ const create = base
           workspaceConfig: context.workspaceConfig,
         }).then(async (title) => {
           if (title.isOk()) {
-            // Must come before updateTaskSettings so updateSessionTitle can
-            // detect if the title is auto replaceable
-            await updateSessionTitle({
+            // Skip both writes if the user renamed the task while generation was
+            // in flight: replace only the placeholder we set at creation, and
+            // push the generated name into settings only when that succeeded.
+            const replaced = await updateSessionTitle({
+              expectedCurrentTitle: initialTaskName,
               sessionId: message.metadata.sessionId,
               taskId,
               title: title.value,
             });
-            const secondSettingsResult = await updateTaskSettings(taskId, {
-              name: title.value,
-            });
-            if (secondSettingsResult.isErr()) {
-              context.workspaceConfig.captureException(
-                secondSettingsResult.error,
-              );
+            if (replaced) {
+              const secondSettingsResult = await updateTaskSettings(taskId, {
+                name: title.value,
+              });
+              if (secondSettingsResult.isErr()) {
+                context.workspaceConfig.captureException(
+                  secondSettingsResult.error,
+                );
+              }
             }
           }
         });

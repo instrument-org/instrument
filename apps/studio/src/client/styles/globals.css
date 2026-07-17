@@ -371,6 +371,16 @@ body {
   --tw-prose-invert-th-borders: var(--border);
   --tw-prose-invert-td-borders: var(--border);
 
+  /* Widen the list gutter so multi-digit ordered markers stay inside the
+     message column. Outside markers grow leftward into this padding, and the
+     plugin's default 1.625em is too narrow: `10.` clips the edge and `100.`
+     paints ~10px past it. 2.4em holds up to three digits; ul matches so
+     bullet and number lists align. */
+  ol,
+  ul {
+    padding-inline-start: 2.4em;
+  }
+
   h1,
   h2,
   h3,

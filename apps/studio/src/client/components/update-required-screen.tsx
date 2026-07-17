@@ -9,18 +9,24 @@ import { ArrowCircleUpIcon } from "@phosphor-icons/react";
 export function UpdateRequiredScreen({
   downloadUrl,
   message,
+  showWindowChrome = true,
 }: {
   downloadUrl: string;
   message?: string;
+  // The debug components page embeds this screen as a preview, where real
+  // window controls would minimize or close the host window.
+  showWindowChrome?: boolean;
 }) {
   // The frameless window's drag region and custom window controls normally live
   // in the toolbar this screen replaces, so it supplies its own: a draggable
   // strip up top and, on Windows/Linux, the minimize/maximize/close buttons.
   return (
     <div className="flex h-full w-full flex-col bg-background">
-      <div className="flex h-10 shrink-0 items-stretch justify-end [-webkit-app-region:drag]">
-        <WindowControls />
-      </div>
+      {showWindowChrome && (
+        <div className="flex h-10 shrink-0 items-stretch justify-end [-webkit-app-region:drag]">
+          <WindowControls />
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 items-center justify-center p-8">
         <div className="flex max-w-md flex-col items-center gap-6 text-center">
           <ArrowCircleUpIcon

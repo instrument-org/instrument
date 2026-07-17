@@ -2,11 +2,15 @@ import { ExternalLink } from "@/client/components/external-link";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { MANUAL_DOWNLOAD_URL } from "@instrument-org/shared";
+import { safe } from "@orpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
 const handleInstallUpdate = () => {
-  void rpcClient.preferences.quitAndInstall.call();
+  // Install failures surface through the updates.status channel, which both
+  // callers render; safe() keeps a transport-level rejection from becoming an
+  // unhandled rejection.
+  void safe(rpcClient.preferences.quitAndInstall.call());
 };
 
 // Update lifecycle actions (check / install / retry + manual download) shared by
@@ -36,8 +40,10 @@ export function UpdateRecoveryActions({
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
 
-  const handleCheckForUpdates = async () => {
-    await checkForUpdatesMutation.mutateAsync({ notify: true });
+  // mutate() over mutateAsync: a failed check surfaces as an `error` updater
+  // status, so the rejection has nowhere better to go than mutation state.
+  const handleCheckForUpdates = () => {
+    checkForUpdatesMutation.mutate({ notify: true });
   };
 
   const checkForUpdatesButton = (

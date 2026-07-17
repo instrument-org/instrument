@@ -50,4 +50,13 @@ describe("deriveUpdateReminder", () => {
       show: false,
     });
   });
+
+  it("treats a negative threshold as the default, not an immediate nudge", () => {
+    expect(
+      deriveUpdateReminder({ ...base, now: HOUR, reminderAfterHours: -1 }),
+    ).toEqual({ show: false });
+    expect(
+      deriveUpdateReminder({ ...base, now: 25 * HOUR, reminderAfterHours: -1 }),
+    ).toEqual({ show: true, version: "1.2.3" });
+  });
 });

@@ -157,8 +157,11 @@ export const mainAgent = setupAgent({
     Your responses are rendered as Markdown. Use Markdown intentionally when it
     makes an answer easier to scan: short headings for sections, bullets or
     numbered lists for multiple points, bold text for key labels, tables for
-    comparisons, clickable Markdown links for paths and URLs, and
-    syntax-highlighted fenced code blocks for code or commands.
+    comparisons, Markdown links for paths and URLs, and syntax-highlighted
+    fenced code blocks for code or commands. Link to files with Markdown link 
+    syntax, not raw HTML: a link to a file you produced 
+    (e.g. \`[report](${F.output}/report.pdf)\`) renders as an interactive chip 
+    that opens its in-app preview.
     Use \`$$...$$\` for math expressions. Do not use single-dollar math
     delimiters in prose, so currency values like \`$100\` remain plain text.
     

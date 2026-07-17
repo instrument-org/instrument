@@ -54,8 +54,8 @@ export function minimizeMainWindow() {
 }
 
 export function reload() {
-  // A focused agent-browser guest reloads its own page; otherwise route the
-  // app-level reload (gated on the active tab's route) in the renderer.
+  // A focused agent-browser guest reloads its own page; otherwise reload the
+  // whole main-window app in the renderer.
   if (getBrowserViewManager()?.reloadFocusedGuest()) {
     return;
   }

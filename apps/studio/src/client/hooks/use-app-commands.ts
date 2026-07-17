@@ -117,15 +117,7 @@ export function useAppCommands() {
                 break;
               }
               case "reload": {
-                // Gated on the *active* tab's route so a backgrounded task
-                // can't suppress reload and a foregrounded one can.
-                const router = getTabRouter(store.get(tabsAtom).selectedId);
-                const disableHotkeyReload = router?.state.matches.some(
-                  (match) => match.context.disableHotkeyReload,
-                );
-                if (!disableHotkeyReload) {
-                  window.location.reload();
-                }
+                window.location.reload();
                 break;
               }
               case "reopen": {

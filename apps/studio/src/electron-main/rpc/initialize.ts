@@ -21,6 +21,16 @@ import { router } from "./routes";
 // Increased from the default of 10.
 EventEmitter.defaultMaxListeners = 100;
 
+// Clicking a link with a malformed or non-allowlisted-protocol URL (often
+// agent-generated markdown) makes openExternalLink throw INVALID_URL. The client
+// handles it as control flow (toasts and copies the URL to the clipboard), and
+// openExternal already captures a descriptive exception carrying the offending
+// URL. Capturing the generic typed error here too is redundant, non-actionable
+// noise, so we rethrow but skip the capture.
+function isHandledInvalidUrl(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === "INVALID_URL";
+}
+
 // NOT_FOUND is a defined error code that every consumer is expected to handle as
 // control flow (e.g. a task whose project was deleted on disk keeps querying
 // `project.byId`). Capturing it floods telemetry with non-actionable noise, so
@@ -44,6 +54,7 @@ function shouldSkipCapture(error: unknown): boolean {
   return (
     isHandledNotFound(error) ||
     isHandledOpenError(error) ||
+    isHandledInvalidUrl(error) ||
     isExpectedNetworkError(error)
   );
 }

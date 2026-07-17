@@ -112,6 +112,38 @@ const CodeBlock = ({ code, language }: { code: string; language: string }) => {
 
 const markdownPre: Components["pre"] = ({ children }) => <>{children}</>;
 
+// Native ordered-list markers sit outside the padding and grow leftward as the
+// number's digit count rises, so past one digit they escape the message column.
+// CSS can't size the gutter for this: it can't read the rendered number, and a
+// manual `start` makes item count the wrong proxy (the largest number is
+// `start + count - 1`). So compute the widest marker here and widen the gutter
+// to fit, leaving native rendering (numbering, right-alignment, hanging indent)
+// untouched.
+const markdownOrderedList: Components["ol"] = ({
+  children,
+  node,
+  ref: _ref,
+  style,
+  ...props
+}) => {
+  const itemCount =
+    node?.children.filter(
+      (child) => child.type === "element" && child.tagName === "li",
+    ).length ?? 0;
+  const firstNumber = typeof props.start === "number" ? props.start : 1;
+  const digits = String(firstNumber + Math.max(0, itemCount - 1)).length;
+  const paddingInlineStart = digits > 1 ? `${1 + digits * 0.5}em` : undefined;
+
+  return (
+    <ol
+      {...props}
+      style={paddingInlineStart ? { ...style, paddingInlineStart } : style}
+    >
+      {children}
+    </ol>
+  );
+};
+
 const markdownCode: Components["code"] = ({
   children,
   className,
@@ -433,6 +465,7 @@ export const Markdown = memo(
                 />
               );
             },
+            ol: markdownOrderedList,
             pre: markdownPre,
           }}
           rehypePlugins={rehypePlugins}

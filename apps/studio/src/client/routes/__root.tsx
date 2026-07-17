@@ -3,6 +3,7 @@ import type { ErrorComponentProps } from "@tanstack/react-router";
 import { DefaultErrorComponent } from "@/client/components/default-error-component";
 import { NotFoundRouteComponent } from "@/client/components/not-found";
 import { ThemeProvider } from "@/client/components/theme-provider";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { type QueryClient } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
@@ -52,9 +53,16 @@ function Root({ children }: Readonly<{ children: React.ReactNode }>) {
 }
 
 function RootComponent() {
+  // Only the foreground tab writes the shared document head. Every open tab
+  // stays mounted, so without this gate each would push its own <title>, and
+  // `document.title` (the OS window title / accessible window name) would follow
+  // whichever tab resolved last rather than the visible one. `useIsActiveTab`
+  // defaults to true outside the tab host, so the onboarding window still
+  // renders its head.
+  const isActiveTab = useIsActiveTab();
   return (
     <Root>
-      <HeadContent />
+      {isActiveTab ? <HeadContent /> : null}
       <Outlet />
     </Root>
   );

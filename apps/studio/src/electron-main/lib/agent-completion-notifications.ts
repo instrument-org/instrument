@@ -1,5 +1,6 @@
 import { sendAppCommand } from "@/electron-main/app-command";
 import { logger } from "@/electron-main/lib/electron-logger";
+import { stripMarkdown } from "@/electron-main/lib/strip-markdown";
 import {
   type AgentCompletionNotificationMode,
   getPreferencesStore,
@@ -189,11 +190,12 @@ function latestAssistantText(
     return undefined;
   }
 
-  const text = latest.parts
+  const raw = latest.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("")
-    .replaceAll(/\s+/g, " ")
-    .trim();
+    .join("");
+  // Notifications render no formatting, so strip Markdown before collapsing
+  // whitespace to avoid showing literal syntax like ** or [text](url).
+  const text = stripMarkdown(raw).replaceAll(/\s+/g, " ").trim();
 
   if (text.length === 0) {
     return undefined;

@@ -51,6 +51,70 @@ export async function getSessionMarkdown({
   });
 }
 
+export function renderToolOutput(output: ToolResultPart["output"]): string[] {
+  const lines: string[] = [];
+
+  switch (output.type) {
+    case "content": {
+      const text = output.value.flatMap((part) =>
+        part.type === "text" ? [part.text] : [],
+      );
+      if (text.length > 0) {
+        lines.push(fenceText(text.join("\n")));
+      }
+
+      const mediaTypes = output.value.flatMap((part) =>
+        part.type === "media" ? [part.mediaType] : [],
+      );
+      if (mediaTypes.length > 0) {
+        lines.push(
+          `*[${mediaTypes.length} media attachment${mediaTypes.length === 1 ? "" : "s"} omitted from transcript: ${[...new Set(mediaTypes)].join(", ")}]*`,
+        );
+      }
+      break;
+    }
+    case "error-json": {
+      lines.push(
+        "**Error (JSON):**",
+        "```json",
+        JSON.stringify(output.value, null, 2),
+        "```",
+      );
+      break;
+    }
+    case "error-text": {
+      const indented = output.value
+        .split("\n")
+        .map((l) => `> ${l}`)
+        .join("\n");
+      lines.push(`> **Error:**`, indented);
+      break;
+    }
+    case "execution-denied": {
+      if (output.reason) {
+        const indented = output.reason
+          .split("\n")
+          .map((l) => `> ${l}`)
+          .join("\n");
+        lines.push(`*Execution denied:*`, indented);
+      } else {
+        lines.push(`*Execution denied*`);
+      }
+      break;
+    }
+    case "json": {
+      lines.push("```json", JSON.stringify(output.value, null, 2), "```");
+      break;
+    }
+    case "text": {
+      lines.push(fenceText(output.value));
+      break;
+    }
+  }
+
+  return lines;
+}
+
 function buildMessageTimestampQueues(
   messages: SessionMessage.WithParts[],
 ): Map<ModelMessage["role"], TimestampRange[]> {
@@ -426,45 +490,7 @@ function renderToolResult(
     "",
   ];
 
-  switch (output.type) {
-    case "error-json": {
-      lines.push(
-        "**Error (JSON):**",
-        "```json",
-        JSON.stringify(output.value, null, 2),
-        "```",
-      );
-      break;
-    }
-    case "error-text": {
-      const indented = output.value
-        .split("\n")
-        .map((l) => `> ${l}`)
-        .join("\n");
-      lines.push(`> **Error:**`, indented);
-      break;
-    }
-    case "execution-denied": {
-      if (output.reason) {
-        const indented = output.reason
-          .split("\n")
-          .map((l) => `> ${l}`)
-          .join("\n");
-        lines.push(`*Execution denied:*`, indented);
-      } else {
-        lines.push(`*Execution denied*`);
-      }
-      break;
-    }
-    case "json": {
-      lines.push("```json", JSON.stringify(output.value, null, 2), "```");
-      break;
-    }
-    case "text": {
-      lines.push(fenceText(output.value));
-      break;
-    }
-  }
+  lines.push(...renderToolOutput(output));
 
   return lines;
 }

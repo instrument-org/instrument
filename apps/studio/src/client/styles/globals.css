@@ -409,6 +409,64 @@ body {
   }
 }
 
+/* Scroll-driven edge fade for a vertical scroll area. The mask's top/bottom
+   stops are registered as animatable lengths and driven by the element's own
+   scroll timeline, so the top fade appears only once scrolled down and the
+   bottom fade clears at the end. When the area isn't scrollable the timeline is
+   inactive and both stops fall back to their 0 initial value, leaving no fade.
+   No JS. Registering the stops via @property is what makes them interpolate. */
+@property --scroll-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade-reveal-top {
+  from {
+    --scroll-fade-top: 0px;
+  }
+  to {
+    --scroll-fade-top: var(--scroll-fade-size);
+  }
+}
+
+@keyframes scroll-fade-reveal-bottom {
+  from {
+    --scroll-fade-bottom: var(--scroll-fade-size);
+  }
+  to {
+    --scroll-fade-bottom: 0px;
+  }
+}
+
+@utility scroll-fade-y {
+  --scroll-fade-size: 1.5rem;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--scroll-fade-top),
+    black calc(100% - var(--scroll-fade-bottom)),
+    transparent
+  );
+  /* Not using the `animation` shorthand: the shorthand resets
+     animation-duration to 0s, which stops a scroll-timeline animation from
+     tracking scroll. `auto` lets the timeline drive progress. */
+  animation-name: scroll-fade-reveal-top, scroll-fade-reveal-bottom;
+  animation-duration: auto;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-timeline: scroll(self);
+  animation-range:
+    0 var(--scroll-fade-size),
+    calc(100% - var(--scroll-fade-size)) 100%;
+}
+
 @utility checkerboard {
   --checkerboard-bg: #f5f5f5;
   --checkerboard-tile: #d0d0d0;

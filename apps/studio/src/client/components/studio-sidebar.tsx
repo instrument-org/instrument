@@ -40,7 +40,7 @@ export function StudioSidebar({
   return (
     <Sidebar collapsible="none" side="left" {...props}>
       <ServerExceptionsAlert />
-      <div className="px-3 pt-3 pb-1">
+      <div className="px-3 pt-3">
         <Button
           asChild
           className="w-full justify-center gap-2 font-medium"
@@ -52,7 +52,7 @@ export function StudioSidebar({
           </InternalLink>
         </Button>
       </div>
-      <SidebarContent className="gap-0">
+      <SidebarContent className="scroll-fade-y gap-0">
         <NavProjects matches={matches} />
         {tasksData?.tasks && tasksData.tasks.length > 0 && (
           <NavTasks

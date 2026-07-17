@@ -1,4 +1,4 @@
-import { app, nativeImage } from "electron";
+import { app } from "electron";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -6,17 +6,19 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
+import { storeFileOpenIcon, storeFileOpenNativeImage } from "./app-protocol";
+
 const execFileAsync = promisify(execFile);
 
 interface FileOpenCandidate {
   appName: string;
   appPath: string;
-  iconDataUrl: null | string;
+  iconUrl: null | string;
 }
 
 interface FileOpenTarget {
   appName: null | string;
-  iconDataUrl: null | string;
+  iconUrl: null | string;
 }
 
 interface PersistedCandidateEntry {
@@ -28,7 +30,6 @@ interface PersistedEntry extends FileOpenTarget {
   resolvedAt: number;
 }
 
-const ICON_SIZE = 64;
 const MAX_CANDIDATES = 12;
 const LOOKUP_TIMEOUT_MS = 10_000;
 const COMMON_FILE_EXTENSIONS = [
@@ -52,8 +53,9 @@ const COMMON_FILE_EXTENSIONS = [
 
 // Resolution spawns helper processes and only depends on the file type, so
 // both target and candidate results are application-wide extension caches.
-// Candidate icons make those entries larger, so they refresh more frequently.
-const CACHE_VERSION = 3;
+// Refreshes also re-read icons, producing new content-addressed URLs if their
+// bytes changed. Candidate lists change more often, so they refresh sooner.
+const CACHE_VERSION = 4;
 const TARGET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CANDIDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_PERSISTED_CANDIDATES = 128;
@@ -72,14 +74,14 @@ const candidatesCache = new Map<string, Promise<FileOpenCandidate[]>>();
 
 const PersistedEntrySchema = z.object({
   appName: z.string().nullable(),
-  iconDataUrl: z.string().nullable(),
+  iconUrl: z.string().nullable(),
   resolvedAt: z.number(),
 });
 
 const FileOpenCandidateSchema = z.object({
   appName: z.string(),
   appPath: z.string(),
-  iconDataUrl: z.string().nullable(),
+  iconUrl: z.string().nullable(),
 });
 
 const PersistedCandidateEntrySchema = z.object({
@@ -241,7 +243,7 @@ export async function getFileOpenTarget(
       // changed default app is picked up without ever blocking the caller.
       refreshTargetInBackground(ext, fullPath);
     }
-    return { appName: entry.appName, iconDataUrl: entry.iconDataUrl };
+    return { appName: entry.appName, iconUrl: entry.iconUrl };
   }
 
   const inFlight = inFlightTargets.get(ext);
@@ -255,7 +257,7 @@ export async function getFileOpenTarget(
 
 // Seeds the persisted default-target cache for the file types most commonly
 // produced or viewed in Studio. Candidate lists stay on-demand because they
-// require resolving and transferring icons for many apps per file type.
+// require resolving icons for many apps per file type.
 export async function warmCommonFileOpenTargets() {
   if (process.platform !== "darwin") {
     return;
@@ -293,15 +295,15 @@ function cacheFilePath() {
 }
 
 async function fallbackTarget(fullPath: string): Promise<FileOpenTarget> {
-  return { appName: null, iconDataUrl: await getFileTypeIconDataUrl(fullPath) };
+  return { appName: null, iconUrl: await getFileTypeIconUrl(fullPath) };
 }
 
 // `app.getFileIcon` only yields the file-type icon (a generic icon for .app
 // bundles), so app icons come from the per-platform resolvers instead.
-async function getFileTypeIconDataUrl(fullPath: string) {
+async function getFileTypeIconUrl(fullPath: string) {
   try {
     const icon = await app.getFileIcon(fullPath, { size: "normal" });
-    return icon.isEmpty() ? null : icon.toDataURL();
+    return await storeFileOpenNativeImage(icon);
   } catch {
     return null;
   }
@@ -331,7 +333,7 @@ async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
     try {
       const raw = await fs.readFile(cacheFilePath(), "utf8");
       const parsed = PersistedCacheSchema.parse(JSON.parse(raw));
-      if (parsed.version === 2 || parsed.version === CACHE_VERSION) {
+      if (parsed.version === CACHE_VERSION) {
         for (const [ext, entry] of Object.entries(parsed.entries)) {
           loaded.set(ext, entry);
         }
@@ -350,17 +352,6 @@ async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
     diskCacheLoad = null;
   });
   return diskCacheLoad;
-}
-
-function pngBase64ToDataUrl(base64: string) {
-  if (!base64) {
-    return null;
-  }
-  const image = nativeImage.createFromBuffer(Buffer.from(base64, "base64"));
-  if (image.isEmpty()) {
-    return null;
-  }
-  return image.resize({ height: ICON_SIZE, width: ICON_SIZE }).toDataURL();
 }
 
 async function readDesktopEntryName(desktopId: string) {
@@ -440,7 +431,7 @@ async function resolveAndStoreCandidates(
 
 async function resolveAssociatedApp(
   fullPath: string,
-): Promise<null | { appName: string; iconDataUrl: null | string }> {
+): Promise<null | { appName: string; iconUrl: null | string }> {
   switch (process.platform) {
     case "darwin": {
       return resolveDarwin(fullPath);
@@ -477,11 +468,13 @@ async function resolveCandidates(
     { maxBuffer: 64 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
   );
   const parsed = DarwinCandidatesSchema.parse(JSON.parse(stdout));
-  return parsed.apps.map((candidate) => ({
-    appName: candidate.appName,
-    appPath: candidate.appPath,
-    iconDataUrl: pngBase64ToDataUrl(candidate.iconBase64),
-  }));
+  return await Promise.all(
+    parsed.apps.map(async (candidate) => ({
+      appName: candidate.appName,
+      appPath: candidate.appPath,
+      iconUrl: await storeFileOpenIcon(candidate.iconBase64),
+    })),
+  );
 }
 
 async function resolveDarwin(fullPath: string) {
@@ -497,7 +490,7 @@ async function resolveDarwin(fullPath: string) {
   }
   return {
     appName: result.appName.replace(/\.app$/, ""),
-    iconDataUrl: pngBase64ToDataUrl(result.iconBase64),
+    iconUrl: await storeFileOpenIcon(result.iconBase64),
   };
 }
 
@@ -525,14 +518,13 @@ async function resolveLinux(fullPath: string) {
     return null;
   }
   // No portable icon-theme lookup; callers get the file-type icon instead.
-  return { appName, iconDataUrl: null };
+  return { appName, iconUrl: null };
 }
 
 async function resolveTarget(fullPath: string): Promise<FileOpenTarget> {
   const resolved = await resolveAssociatedApp(fullPath);
-  const iconDataUrl =
-    resolved?.iconDataUrl ?? (await getFileTypeIconDataUrl(fullPath));
-  return { appName: resolved?.appName ?? null, iconDataUrl };
+  const iconUrl = resolved?.iconUrl ?? (await getFileTypeIconUrl(fullPath));
+  return { appName: resolved?.appName ?? null, iconUrl };
 }
 
 async function resolveWin32(fullPath: string) {
@@ -575,7 +567,7 @@ if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
     .catch(() => null);
   return {
     appName: result.appName,
-    iconDataUrl: icon && !icon.isEmpty() ? icon.toDataURL() : null,
+    iconUrl: icon ? await storeFileOpenNativeImage(icon) : null,
   };
 }
 

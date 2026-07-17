@@ -1,7 +1,7 @@
 import { formatDurationFromDates } from "@/client/lib/format-time";
 import { cn } from "@/client/lib/utils";
 import { CaretUpIcon } from "@phosphor-icons/react";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
 import { PlanningDotIcon } from "./icons/planning-dot";
@@ -29,11 +29,6 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   text,
 }: ReasoningMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [scrollState, setScrollState] = useState({
-    canScrollDown: false,
-    canScrollUp: false,
-  });
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const duration = formatDurationFromDates(createdAt, endedAt);
 
@@ -42,38 +37,6 @@ export const ReasoningMessage = memo(function ReasoningMessage({
     mass: 2.5,
     stiffness: 0.01,
   });
-
-  const updateScrollState = () => {
-    const container = scrollContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const { clientHeight, scrollHeight, scrollTop } = container;
-    setScrollState({
-      canScrollDown: scrollTop < scrollHeight - clientHeight - 1, // -1 for rounding
-      canScrollUp: scrollTop > 0,
-    });
-  };
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    updateScrollState();
-    container.addEventListener("scroll", updateScrollState, { passive: true });
-
-    // Also check on content changes
-    const resizeObserver = new ResizeObserver(updateScrollState);
-    resizeObserver.observe(container);
-
-    return () => {
-      container.removeEventListener("scroll", updateScrollState);
-      resizeObserver.disconnect();
-    };
-  }, [isExpanded, isLoading, text]);
 
   const displayText = reasoningDisplayText(text);
 
@@ -109,11 +72,10 @@ export const ReasoningMessage = memo(function ReasoningMessage({
 
       {!(isLoading && !displayText.trim()) && (
         <CollapsibleContent>
-          <div className="relative mt-2">
+          <div className="mt-2">
             <div
-              className="max-h-44 overflow-y-auto"
+              className="scroll-fade-y max-h-44 overflow-y-auto"
               ref={(el) => {
-                scrollContainerRef.current = el;
                 if (isLoading) {
                   scrollRef.current = el;
                 }
@@ -131,14 +93,6 @@ export const ReasoningMessage = memo(function ReasoningMessage({
                 ref={contentRef}
               />
             </div>
-
-            {scrollState.canScrollUp && (
-              <div className="pointer-events-none absolute top-0 right-0 left-0 z-10 h-4 bg-linear-to-b from-background to-transparent" />
-            )}
-
-            {scrollState.canScrollDown && (
-              <div className="pointer-events-none absolute right-0 bottom-0 left-0 z-10 h-4 bg-linear-to-t from-background to-transparent" />
-            )}
           </div>
         </CollapsibleContent>
       )}

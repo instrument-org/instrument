@@ -12,7 +12,6 @@ import { useState } from "react";
 import { FilePreviewCard } from "./file-preview-card";
 import { FilePreviewListItem } from "./file-preview-list-item";
 import { FolderPreviewListItem } from "./folder-preview-list-item";
-import { Button } from "./ui/button";
 
 interface FilesGridProps {
   alignEnd?: boolean;
@@ -24,6 +23,13 @@ interface FilesGridProps {
 }
 
 const DEFAULT_INITIAL_VISIBLE_COUNT = 6;
+// Square media previews are much taller than a list row, so they collapse to
+// their own ~2-row cap (up to three across at the widest) instead of sharing the
+// list budget, which otherwise showed too many rows of images.
+const MEDIA_COLLAPSED_COUNT = 6;
+// Extra list files rendered past the visible count when collapsed; their bottoms
+// dissolve under the fade mask to hint at more without a hard cutoff.
+const PEEK_COUNT = 2;
 const EMPTY_FOLDERS: SessionMessageDataPart.FolderAttachmentDataPart[] = [];
 
 export function FilesGrid({
@@ -94,25 +100,47 @@ export function FilesGrid({
         ...sortedDownloadFiles,
       ];
 
-  const visibleMainFiles = mainFiles.slice(0, initialVisibleCount);
-  const hasMoreFiles = mainFiles.length > initialVisibleCount;
-  const hiddenFileCount = mainFiles.length - initialVisibleCount;
-  const mainFilesToShow = isExpanded ? mainFiles : visibleMainFiles;
+  const listCollapsedCount = initialVisibleCount + PEEK_COUNT;
 
-  const mediaPreviewFiles = compact
-    ? []
-    : mainFilesToShow.filter(hasMediaPreview);
-  const rowCardFiles = compact ? [] : mainFilesToShow.filter(hasRowCardPreview);
+  // Media collapses on its own budget (square previews are tall); list content
+  // keeps the base budget plus a peek row. Splitting them keeps a big set of
+  // images down to ~2 rows instead of pushing the whole grid past three.
+  const allMedia = compact ? [] : mainFiles.filter(hasMediaPreview);
+  const listFiles = compact
+    ? mainFiles
+    : mainFiles.filter((file) => !hasMediaPreview(file));
+
+  const shownMedia = isExpanded
+    ? allMedia
+    : allMedia.slice(0, MEDIA_COLLAPSED_COUNT);
+  const shownListFiles = isExpanded
+    ? listFiles
+    : listFiles.slice(0, listCollapsedCount);
+
+  const hiddenFileCount =
+    allMedia.length -
+    shownMedia.length +
+    (listFiles.length - shownListFiles.length);
+  const hasMoreFiles = hiddenFileCount > 0;
+
+  const mediaPreviewFiles = shownMedia;
+  const rowCardFiles = compact ? [] : shownListFiles.filter(hasRowCardPreview);
   const otherFiles = compact
-    ? mainFilesToShow
-    : mainFilesToShow.filter(
-        (file) => !hasMediaPreview(file) && !hasRowCardPreview(file),
-      );
+    ? shownListFiles
+    : shownListFiles.filter((file) => !hasRowCardPreview(file));
 
   const isSingleMediaFile = mediaPreviewFiles.length === 1;
 
-  return (
-    <div className="flex flex-col gap-2">
+  // The fade sits at the very bottom of the grid; when that bottom row is tall
+  // square media (no shorter list rows below it), fade higher into the row.
+  const bottomSectionIsMedia =
+    mediaPreviewFiles.length > 0 &&
+    rowCardFiles.length === 0 &&
+    otherFiles.length === 0 &&
+    folders.length === 0;
+
+  const gridSections = (
+    <>
       {mediaPreviewFiles.length > 0 && (
         <div className="@container">
           <div
@@ -125,7 +153,9 @@ export function FilesGrid({
                   isSingleMediaFile
                     ? "w-full @md:w-[calc((100%/3*2)-(0.5rem/3))]"
                     : "w-[calc((100%/2)-(0.5rem/2))]",
-                  "@2xl:w-[calc((100%/3)-(0.5rem*2/3))]",
+                  // 3-up once the column is wide; the message column tops out
+                  // near 40rem, so @2xl (42rem) could never trigger.
+                  "@xl:w-[calc((100%/3)-(0.5rem*2/3))]",
                 )}
                 key={file.filePath}
               >
@@ -198,37 +228,50 @@ export function FilesGrid({
           ))}
         </div>
       )}
+    </>
+  );
 
-      {!isExpanded && hasMoreFiles && (
-        <div className={cn("flex", alignEnd ? "justify-end" : "justify-start")}>
-          <Button
-            onClick={() => {
-              setIsExpanded(true);
-            }}
-            size="sm"
-            type="button"
-            variant="outline-muted"
-          >
-            <span className="text-xs">+{hiddenFileCount} more</span>
-            <CaretDownIcon className="size-3.5 text-muted-foreground" />
-          </Button>
+  return (
+    <div className="flex flex-col gap-2">
+      {hasMoreFiles && !isExpanded ? (
+        // Dissolve the trailing peek files into the surface so the collapse
+        // reads as "more below" rather than a hard cutoff. scroll-fade-y is
+        // scroll-timeline driven and doesn't apply to this static collapse, so
+        // the bottom mask is spelled out inline. p-2/-m-2 gives card shadows and
+        // outlines room inside the mask box (masks clip to the border-box)
+        // without shifting where the cards sit.
+        <div
+          className={cn(
+            "-m-2 flex flex-col gap-2 p-2",
+            bottomSectionIsMedia
+              ? "[mask-image:linear-gradient(to_bottom,black_calc(100%_-_5.5rem),transparent)]"
+              : "[mask-image:linear-gradient(to_bottom,black_calc(100%_-_3rem),transparent)]",
+          )}
+        >
+          {gridSections}
         </div>
+      ) : (
+        gridSections
       )}
 
-      {isExpanded && hasMoreFiles && (
-        <div className={cn("flex", alignEnd ? "justify-end" : "justify-start")}>
-          <Button
-            onClick={() => {
-              setIsExpanded(false);
-            }}
-            size="sm"
-            type="button"
-            variant="outline-muted"
-          >
-            <span className="text-xs">Show less</span>
-            <CaretUpIcon className="size-3.5 text-muted-foreground" />
-          </Button>
-        </div>
+      {hasMoreFiles && (
+        <button
+          className={cn(
+            "flex h-7 w-full items-center justify-center gap-1 rounded-lg text-xs text-muted-foreground transition-colors",
+            "hover:bg-muted hover:text-foreground",
+          )}
+          onClick={() => {
+            setIsExpanded((expanded) => !expanded);
+          }}
+          type="button"
+        >
+          {isExpanded ? "Show less" : `Show ${hiddenFileCount} more`}
+          {isExpanded ? (
+            <CaretUpIcon className="size-3.5" />
+          ) : (
+            <CaretDownIcon className="size-3.5" />
+          )}
+        </button>
       )}
     </div>
   );

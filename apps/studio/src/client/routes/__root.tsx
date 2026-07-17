@@ -15,7 +15,6 @@ import { Spinner } from "../components/ui/spinner";
 import { TooltipProvider } from "../components/ui/tooltip";
 
 export const Route = createRootRouteWithContext<{
-  disableHotkeyReload?: boolean;
   queryClient: QueryClient;
 }>()({
   component: RootComponent,

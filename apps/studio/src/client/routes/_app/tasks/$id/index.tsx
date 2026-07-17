@@ -84,9 +84,6 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
       };
     },
   },
-  context: () => ({
-    disableHotkeyReload: true,
-  }),
   loaderDeps: ({ search }) => ({
     selectedSessionId: search.selectedSessionId,
   }),

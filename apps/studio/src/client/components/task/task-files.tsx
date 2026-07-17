@@ -3,7 +3,7 @@ import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
-import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
+import { getFileKindLabel } from "@/client/lib/get-file-type";
 import {
   hasVisibleTaskFiles,
   shouldFilterTaskFile,
@@ -325,8 +325,7 @@ function FileRow({
                     : "text-muted-foreground",
                 )}
               >
-                {fileKindLabel(getFileType(file))} ·{" "}
-                {explorerStubRelativeDate()}
+                {getFileKindLabel(file)} · {explorerStubRelativeDate()}
               </span>
             </div>
           </SidebarMenuButton>

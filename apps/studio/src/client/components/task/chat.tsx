@@ -241,22 +241,21 @@ export function TaskChat({
     />
   );
 
-  // The composer is a sticky footer inside the scroll viewport: the transcript
-  // scrolls behind its rounded top corners (the peek), and because a sticky
-  // element reserves its height in normal flow, content can't get trapped
-  // behind it. A flex-1 spacer holds it to the bottom when the transcript is
-  // short. The rounded backdrop is skipped when the tutorial card (its own
-  // background) shows, and showTutorial === undefined skips the tutorial motion.
+  // The composer is a plain flex sibling below the scroller: normal flow
+  // reserves its height (no measuring), and the scroll viewport holds only the
+  // transcript, so the scroller's "at the bottom" math stays exact. A soft
+  // gradient overlay at the scroll frame's bottom edge eases the transcript into
+  // the composer; pb-8 keeps the last turn's text clear of the fade band.
   return (
     <MessageScrollerProvider
       autoScroll
       defaultScrollPosition="end"
       key={selectedSessionId}
     >
-      <div className="relative flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
-          <MessageScrollerViewport className="flex flex-col">
-            <MessageScrollerContent className="group/assistant-message-footer mx-auto w-full max-w-2xl gap-2 p-4 pb-16">
+          <MessageScrollerViewport>
+            <MessageScrollerContent className="group/assistant-message-footer mx-auto w-full max-w-2xl gap-2 p-4 pb-8">
               {selectedSessionId ? (
                 isLoadingMessages ? (
                   <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
@@ -318,32 +317,34 @@ export function TaskChat({
                 <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
               )}
             </MessageScrollerContent>
-
-            <div className="flex-1" />
-
-            <div className="sticky bottom-0 flex w-full">
-              <div className="pointer-events-none absolute inset-x-0 bottom-full flex justify-center pb-4">
-                <MessageScrollerButton className="pointer-events-auto" />
-              </div>
-              <div className="relative mx-auto w-full max-w-2xl px-3 pb-3">
-                {!isTutorialVisible && (
-                  <div className="pointer-events-none absolute inset-x-3 top-0 bottom-0 rounded-t-[20px] bg-background" />
-                )}
-                {showTutorial === undefined ? (
-                  promptInput
-                ) : (
-                  <TutorialPromptCard
-                    isDismissPending={dismissTutorial.isPending}
-                    isVisible={isTutorialVisible}
-                    onDismiss={handleDismissTutorial}
-                  >
-                    {promptInput}
-                  </TutorialPromptCard>
-                )}
-              </div>
-            </div>
           </MessageScrollerViewport>
+
+          {/* Fade the transcript into the composer with a background gradient
+              rather than a viewport mask, so the scrollbar stays crisp. The
+              right inset clears the scrollbar; the content column is centered
+              and padded, so its text stays fully within the fade. */}
+          <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
+            <MessageScrollerButton className="pointer-events-auto" />
+          </div>
         </MessageScroller>
+
+        {/* isolate: keep the tutorial card's -z-10 background and the prompt
+            input's z-10 contained to the composer. */}
+        <div className="isolate mx-auto w-full max-w-2xl px-3 pb-3">
+          {showTutorial === undefined ? (
+            promptInput
+          ) : (
+            <TutorialPromptCard
+              isDismissPending={dismissTutorial.isPending}
+              isVisible={isTutorialVisible}
+              onDismiss={handleDismissTutorial}
+            >
+              {promptInput}
+            </TutorialPromptCard>
+          )}
+        </div>
       </div>
     </MessageScrollerProvider>
   );

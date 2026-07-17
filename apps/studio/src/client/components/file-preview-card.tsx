@@ -8,7 +8,7 @@ import {
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
-import { fileKindLabel, getFileType } from "@/client/lib/get-file-type";
+import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import {
   ArrowLineDownIcon,
@@ -190,7 +190,7 @@ function FileRowCard({
           </TooltipContent>
         </Tooltip>
         <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-          {isMissing ? "File not found" : fileKindLabel(getFileType(file))}
+          {isMissing ? "File not found" : getFileKindLabel(file)}
         </span>
       </div>
       {!hideActionsMenu && hasFileActions && (

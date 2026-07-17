@@ -4,6 +4,7 @@ export const FeatureNameSchema = z.enum([
   "bash_summary_chip",
   "context_ring",
   "prompt_browser_toggle",
+  "prompt_queue",
 ]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
@@ -28,5 +29,10 @@ export const FEATURE_METADATA: Record<
     description:
       "Show a browser button in the prompt input to open an in-app browser you can drive yourself or hand to the agent.",
     title: "Prompt Browser Toggle",
+  },
+  prompt_queue: {
+    description:
+      "Queue follow-up prompts while the agent is running; each is sent automatically when the current turn finishes.",
+    title: "Prompt Queue",
   },
 };

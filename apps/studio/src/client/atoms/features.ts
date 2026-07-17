@@ -9,6 +9,7 @@ const defaultFeatures: Features = {
   bash_summary_chip: false,
   context_ring: false,
   prompt_browser_toggle: false,
+  prompt_queue: false,
 };
 
 async function listen(setAtom: () => void) {

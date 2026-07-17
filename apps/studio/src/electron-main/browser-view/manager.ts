@@ -34,6 +34,7 @@ import {
   handleDetach,
   subscribeEvents,
 } from "./entry";
+import { canStealFocus, createFocusGuard } from "./focus-guard";
 import { attachGuestInteractions } from "./guest-interactions";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
@@ -95,17 +96,9 @@ export function createBrowserViewManager(): BrowserViewManager {
   const pendingAttachQueue: BrowserTargetId[] = [];
   // The guest the renderer last reported real DOM focus on (see setGuestFocus).
   let focusedTargetId: BrowserTargetId | null = null;
-  // The last renderer context to explicitly claim focus. Unlike guest
-  // WebContents focus, this remains reliable when CDP input crosses processes.
-  let hostFocusClaimed = false;
-  // Generation per target while an agent CDP command is active. A short tail
-  // covers focus changes delivered just after the command acknowledgement.
-  const agentFocusGuards = new Map<BrowserTargetId, number>();
-  // A load started by guarded automation can transfer guest focus after the
-  // initiating CDP command has acknowledged, so retain host ownership until
-  // that load settles.
-  const agentNavigationGuards = new Set<BrowserTargetId>();
   let hostWebContents: null | WebContents = null;
+  // Bounces focus stolen by agent CDP activity back to the host renderer.
+  const focusGuard = createFocusGuard({ restoreHostFocus });
 
   function restoreHostFocus(targetId: BrowserTargetId) {
     const host = hostWebContents;
@@ -180,32 +173,21 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
 
     guest.on("did-start-navigation", (details) => {
-      if (
-        details.isMainFrame &&
-        !details.isSameDocument &&
-        agentFocusGuards.has(targetId)
-      ) {
-        agentNavigationGuards.add(targetId);
+      if (details.isMainFrame && !details.isSameDocument) {
+        focusGuard.onNavigationStart(targetId);
       }
     });
-    const restoreAgentNavigationFocus = () => {
-      if (hostFocusClaimed && agentNavigationGuards.has(targetId)) {
-        restoreHostFocus(targetId);
-      }
-    };
-    guest.on("dom-ready", restoreAgentNavigationFocus);
-    guest.on("did-finish-load", restoreAgentNavigationFocus);
+    guest.on("dom-ready", () => {
+      focusGuard.onLoadProgress(targetId);
+    });
+    guest.on("did-finish-load", () => {
+      focusGuard.onLoadProgress(targetId);
+    });
     guest.on("did-stop-loading", () => {
-      restoreAgentNavigationFocus();
-      agentNavigationGuards.delete(targetId);
+      focusGuard.onLoadSettled(targetId);
     });
     guest.on("focus", () => {
-      if (
-        hostFocusClaimed &&
-        (agentFocusGuards.has(targetId) || agentNavigationGuards.has(targetId))
-      ) {
-        restoreHostFocus(targetId);
-      }
+      focusGuard.onGuestFocus(targetId);
     });
 
     guest.on(
@@ -227,14 +209,12 @@ export function createBrowserViewManager(): BrowserViewManager {
     );
 
     guest.on("destroyed", () => {
-      agentFocusGuards.delete(targetId);
-      agentNavigationGuards.delete(targetId);
+      focusGuard.forgetTarget(targetId);
       handleDetach(entries, targetId);
       notifyEntriesChanged();
     });
     guest.on("render-process-gone", () => {
-      agentFocusGuards.delete(targetId);
-      agentNavigationGuards.delete(targetId);
+      focusGuard.forgetTarget(targetId);
       destroyEntry(entries, targetId);
       notifyEntriesChanged();
     });
@@ -456,31 +436,25 @@ export function createBrowserViewManager(): BrowserViewManager {
       method: string,
       params?: Record<string, unknown>,
     ) => {
-      // Seed ownership synchronously when possible. The renderer's focusin RPC
-      // also updates it if the user moves into Studio after this command starts.
-      if (hostWebContents?.isFocused()) {
-        hostFocusClaimed = true;
-      }
-
-      const generation = (agentFocusGuards.get(targetId) ?? 0) + 1;
-      agentFocusGuards.set(targetId, generation);
-      try {
-        return await sendCommand({
+      const dispatch = () =>
+        sendCommand({
           ensureDebuggerAttached,
           entries,
           method,
           params,
           targetId,
         });
+      if (!canStealFocus(method)) {
+        return dispatch();
+      }
+      const settle = focusGuard.armCommand(
+        targetId,
+        hostWebContents?.isFocused() ?? false,
+      );
+      try {
+        return await dispatch();
       } finally {
-        if (hostFocusClaimed) {
-          restoreHostFocus(targetId);
-        }
-        setTimeout(() => {
-          if (agentFocusGuards.get(targetId) === generation) {
-            agentFocusGuards.delete(targetId);
-          }
-        }, 500);
+        settle();
       }
     }) satisfies BrowserConfig["sendCommand"],
     stopScreencast: (targetId) => {
@@ -540,17 +514,12 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   function setGuestFocus(targetId: BrowserTargetId, focused: boolean) {
-    if (
-      focused &&
-      hostFocusClaimed &&
-      (agentFocusGuards.has(targetId) || agentNavigationGuards.has(targetId))
-    ) {
-      restoreHostFocus(targetId);
+    if (focused && focusGuard.bounceGuestFocus(targetId)) {
       return;
     }
     if (focused) {
       focusedTargetId = targetId;
-      hostFocusClaimed = false;
+      focusGuard.releaseHost();
     } else if (focusedTargetId === targetId) {
       focusedTargetId = null;
     }
@@ -558,7 +527,7 @@ export function createBrowserViewManager(): BrowserViewManager {
 
   function setHostFocus() {
     focusedTargetId = null;
-    hostFocusClaimed = true;
+    focusGuard.claimHost();
   }
 
   function zoomFocusedGuest(direction: "in" | "out" | "reset"): boolean {

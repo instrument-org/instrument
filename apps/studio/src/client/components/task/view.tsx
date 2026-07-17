@@ -23,6 +23,7 @@ import { XIcon } from "@phosphor-icons/react";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
+import { useState } from "react";
 
 import { Button } from "../ui/button";
 import { TaskBrowserPanel } from "./browser-panel";
@@ -63,6 +64,11 @@ export function TaskView({
   const navigate = useNavigate();
   const openFileViewer = useSetAtom(openFileViewerAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
+
+  // Bumped to force the file viewer to remount when the user re-opens the
+  // already-active artifact, snapping an HTML preview back to its entry page
+  // after an in-iframe link navigated it away.
+  const [artifactReloadNonce, setArtifactReloadNonce] = useState(0);
 
   const filePanel = artifactPanel?.type === "file" ? artifactPanel : undefined;
   const browserPanel = artifactPanel?.type === "browser";
@@ -137,6 +143,9 @@ export function TaskView({
   };
 
   const handleFileSelect = (file: TaskFileViewerFile) => {
+    if (filePanel?.filePath === file.filePath) {
+      setArtifactReloadNonce((nonce) => nonce + 1);
+    }
     void navigate({
       from: "/tasks/$id/",
       params: { id: task.id },
@@ -220,7 +229,7 @@ export function TaskView({
                     <FileViewer
                       file={currentFile}
                       fullSize
-                      key={currentFile.url}
+                      key={`${currentFile.url}#${artifactReloadNonce}`}
                       onClose={handleArtifactPanelClose}
                       onExpand={() => {
                         openFileViewer({ files: [currentFile] });

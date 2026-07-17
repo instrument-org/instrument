@@ -5,6 +5,7 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  ArrowClockwiseIcon,
   ArrowLineDownIcon,
   ArrowsInIcon,
   ArrowsOutSimpleIcon,
@@ -313,6 +314,10 @@ export function FileViewer({
 }) {
   const { filename, filePath, mimeType, taskId, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
+  // Remounts the sandboxed HTML iframe back to its entry page. The iframe is a
+  // cross-origin, opaque-origin sandbox, so we can't read or drive its history;
+  // reloading `src` is the only way to escape an in-page link navigation.
+  const [htmlReloadNonce, setHtmlReloadNonce] = useState(0);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
@@ -423,6 +428,23 @@ export function FileViewer({
             size="sm"
             variant="ghost"
           />
+          {fileType === "html" && viewMode === "preview" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  className={fileViewerHeaderIconActionClassName}
+                  onClick={() => {
+                    setHtmlReloadNonce((nonce) => nonce + 1);
+                  }}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <ArrowClockwiseIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Reload</TooltipContent>
+            </Tooltip>
+          )}
           {fileActions.showCopy && !imageLoadError && (
             <Button
               className={fileViewerHeaderActionClassName}
@@ -532,6 +554,7 @@ export function FileViewer({
         ) : fileType === "html" && viewMode === "preview" ? (
           <SandboxedHtmlIframe
             className="absolute inset-0 size-full border-0"
+            key={htmlReloadNonce}
             src={url}
             title={filename}
           />

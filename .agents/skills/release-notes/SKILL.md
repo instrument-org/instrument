@@ -24,7 +24,8 @@ Features/Bug Fixes.
 3. Keep only user-facing changes (see filtering below). Inspect larger or
    ambiguous commits before deciding what they mean to a user.
 4. Group the survivors by product area, not by commit type.
-5. Write a one-line summary of the release, then the grouped bullets.
+5. Write a one-line summary of the release, then the grouped bullets. Omit the
+   app name and version: GitHub provides that context around the release body.
 6. Return the result in a markdown code block.
 
 ## Filtering
@@ -65,14 +66,13 @@ Drop anything a user never sees:
   internals).
 - Do not quote commit messages verbatim.
 - No em dashes.
+- Do not add a release title or repeat the app name or version number.
 - Prefer product-area headings (Browser, Tasks, Image generation, etc.) with a
   final "Fixes and polish" catch-all.
 
 ## Example output
 
 ```markdown
-# Instrument 1.3.1
-
 A maintenance and refinement release focused on the built-in browser, task
 handling, and image generation.
 

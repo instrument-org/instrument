@@ -76,7 +76,10 @@ function RouteComponent() {
                 default message
               </p>
               <div className="h-100 overflow-hidden rounded-lg border border-border">
-                <UpdateRequiredScreen downloadUrl={MANUAL_DOWNLOAD_URL} />
+                <UpdateRequiredScreen
+                  downloadUrl={MANUAL_DOWNLOAD_URL}
+                  showWindowChrome={false}
+                />
               </div>
             </div>
             <div className="flex flex-col gap-2">
@@ -87,6 +90,7 @@ function RouteComponent() {
                 <UpdateRequiredScreen
                   downloadUrl={MANUAL_DOWNLOAD_URL}
                   message="This build has a known issue with task sync. Please update to keep your tasks safe."
+                  showWindowChrome={false}
                 />
               </div>
             </div>

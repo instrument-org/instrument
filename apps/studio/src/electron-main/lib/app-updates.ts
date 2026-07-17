@@ -14,12 +14,14 @@ import {
   getUpdateReady,
   setUpdateReady,
 } from "../stores/preferences";
-import { deriveUpdateReminder } from "./app-update-reminder";
+import {
+  DEFAULT_REMINDER_HOURS,
+  deriveUpdateReminder,
+} from "./app-update-reminder";
 import { logger } from "./electron-logger";
 import { type AppUpdaterStatus } from "./update";
 
 const scopedLogger = logger.scope("appUpdates");
-const DEFAULT_REMINDER_HOURS = 24;
 
 // The escalated "you've ignored a ready update too long" nudge. It never
 // restarts on its own; the renderer surfaces a user-initiated restart CTA.
@@ -170,7 +172,13 @@ export class AppUpdatesService {
   // became ready and drop it once the app quits to install it.
   #trackReadyStatus(status: AppUpdaterStatus) {
     if (status.type === "downloaded") {
-      const version = status.updateInfo?.version ?? "";
+      const version = status.updateInfo?.version;
+      // A marker without a valid semver version could never be reconciled
+      // after the update applies, so a version-less download is not tracked.
+      if (!version || !semver.valid(version)) {
+        clearUpdateReady();
+        return;
+      }
       const existing = getUpdateReady();
       if (!existing || existing.version !== version) {
         setUpdateReady({ firstSeenAt: Date.now(), version });

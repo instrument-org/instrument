@@ -64,17 +64,6 @@ export function AppChrome({ children }: { children: ReactNode }) {
     rpcClient.updates.live.requirement.experimental_liveOptions({}),
   );
 
-  // A build below the server-enforced minimum version is blocked entirely: the
-  // required screen replaces the normal chrome and every tab.
-  if (updateRequirement?.required) {
-    return (
-      <UpdateRequiredScreen
-        downloadUrl={updateRequirement.downloadUrl}
-        message={updateRequirement.message}
-      />
-    );
-  }
-
   return (
     <div
       className="flex h-full w-full flex-col overflow-hidden"
@@ -121,6 +110,18 @@ export function AppChrome({ children }: { children: ReactNode }) {
         </Suspense>
       )}
       <Toaster position="top-center" />
+      {/* A build below the server-enforced minimum version is blocked: the
+          required screen covers the chrome and every tab. An overlay (not an
+          early return) so the kept-mounted tab stack survives a requirement
+          flip without losing state; z-100 clears the z-50 dialog layer. */}
+      {updateRequirement?.required && (
+        <div className="fixed inset-0 z-100">
+          <UpdateRequiredScreen
+            downloadUrl={updateRequirement.downloadUrl}
+            message={updateRequirement.message}
+          />
+        </div>
+      )}
     </div>
   );
 }

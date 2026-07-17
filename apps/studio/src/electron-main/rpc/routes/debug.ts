@@ -204,26 +204,24 @@ const trigger = {
       },
     });
   }),
-  testUpdateReminder: devOnly.handler(() => {
+  testUpdateReminder: devOnly.handler(({ context }) => {
     testReminderVersionCounter += 1;
-    publisher.publish("updates.reminder", {
-      reminder: { show: true, version: `9.9.${testReminderVersionCounter}` },
+    context.appUpdates.debugSetReminder({
+      show: true,
+      version: `9.9.${testReminderVersionCounter}`,
     });
   }),
   testUpdateRequired: devOnly.handler(({ context }) => {
-    publisher.publish("updates.requirement", {
-      requirement: {
-        downloadUrl: MANUAL_DOWNLOAD_URL,
-        required: true,
-      },
+    const previous = context.appUpdates.requirement;
+    context.appUpdates.debugSetRequirement({
+      downloadUrl: MANUAL_DOWNLOAD_URL,
+      required: true,
     });
 
-    // The block screen replaces all chrome including the dev panel, so the
-    // preview restores the service's real requirement on its own.
+    // The block screen covers all chrome including the dev panel, so the
+    // preview restores the prior requirement on its own.
     setTimeout(() => {
-      publisher.publish("updates.requirement", {
-        requirement: context.appUpdates.requirement,
-      });
+      context.appUpdates.debugSetRequirement(previous);
     }, 10_000);
   }),
 };

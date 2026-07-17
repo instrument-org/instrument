@@ -21,7 +21,7 @@ export function UpdateRequiredScreen({
   // in the toolbar this screen replaces, so it supplies its own: a draggable
   // strip up top and, on Windows/Linux, the minimize/maximize/close buttons.
   return (
-    <div className="flex h-full w-full flex-col bg-background">
+    <div className="flex size-full flex-col bg-background">
       {showWindowChrome && (
         <div className="flex h-10 shrink-0 items-stretch justify-end [-webkit-app-region:drag]">
           <WindowControls />

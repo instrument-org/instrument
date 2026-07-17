@@ -69,6 +69,19 @@ export class AppUpdatesService {
     required: false,
   };
 
+  // Debug-only overrides that keep the synchronous snapshot and the broadcast
+  // event in lockstep, so subscribers that connect later see the same state as
+  // ones already listening. A later real recompute publishes over them.
+  public debugSetReminder(reminder: AppUpdateReminder) {
+    this.#reminder = reminder;
+    publisher.publish("updates.reminder", { reminder });
+  }
+
+  public debugSetRequirement(requirement: AppUpdateRequirement) {
+    this.#requirement = requirement;
+    publisher.publish("updates.requirement", { requirement });
+  }
+
   public start() {
     this.#reconcileStaleReady();
     this.#watchStatus().catch((error: unknown) => {
@@ -81,11 +94,14 @@ export class AppUpdatesService {
   }
 
   #applyReminder() {
+    const hasStagedUpdate = this.#latestStatus?.type === "downloaded";
     const next = deriveUpdateReminder({
-      hasStagedUpdate: this.#latestStatus?.type === "downloaded",
+      hasStagedUpdate,
       isPackaged: app.isPackaged,
       now: Date.now(),
-      ready: getUpdateReady(),
+      // electron-store re-reads the file on every get and this runs on each
+      // download-progress tick, so skip the read while nothing is staged.
+      ready: hasStagedUpdate ? getUpdateReady() : undefined,
       reminderAfterHours:
         this.#config?.reminderAfterHours ?? DEFAULT_REMINDER_HOURS,
     });
@@ -118,7 +134,7 @@ export class AppUpdatesService {
     publisher.publish("updates.requirement", { requirement: next });
   }
 
-  #isBelowMinimum(minimumSupportedVersion: string): boolean {
+  #isBelowMinimum(minimumSupportedVersion: string) {
     // Never lock out dev/unpacked builds; app.getVersion() there is not a
     // shipped release and the updater is inactive.
     if (!app.isPackaged) {
@@ -131,11 +147,6 @@ export class AppUpdatesService {
     }
 
     return semver.lt(current, minimumSupportedVersion);
-  }
-
-  #recompute() {
-    this.#applyRequirement();
-    this.#applyReminder();
   }
 
   // On launch, a persisted ready marker for a version we're already running
@@ -165,26 +176,31 @@ export class AppUpdatesService {
       // A failed fetch must not block the app; keep the last-known config.
       scopedLogger.warn("Failed to fetch app update config:", error);
     }
-    this.#recompute();
+    this.#applyRequirement();
+    this.#applyReminder();
   }
 
-  // A staged download survives background polls, so record when a version first
-  // became ready and drop it once the app quits to install it.
+  // A staged download survives background polls, so record when a version
+  // first became ready. The marker deliberately outlives an install attempt: a
+  // failed quitAndInstall re-stages the same version and must keep the
+  // original firstSeenAt, and launch-time reconciliation clears it once the
+  // running version covers it.
   #trackReadyStatus(status: AppUpdaterStatus) {
-    if (status.type === "downloaded") {
-      const version = status.updateInfo?.version;
-      // A marker without a valid semver version could never be reconciled
-      // after the update applies, so a version-less download is not tracked.
-      if (!version || !semver.valid(version)) {
-        clearUpdateReady();
-        return;
-      }
-      const existing = getUpdateReady();
-      if (!existing || existing.version !== version) {
-        setUpdateReady({ firstSeenAt: Date.now(), version });
-      }
-    } else if (status.type === "installing") {
+    if (status.type !== "downloaded") {
+      return;
+    }
+
+    const version = status.updateInfo?.version;
+    // A marker without a valid semver version could never be reconciled
+    // after the update applies, so a version-less download is not tracked.
+    if (!version || !semver.valid(version)) {
       clearUpdateReady();
+      return;
+    }
+
+    const existing = getUpdateReady();
+    if (!existing || existing.version !== version) {
+      setUpdateReady({ firstSeenAt: Date.now(), version });
     }
   }
 
@@ -192,7 +208,9 @@ export class AppUpdatesService {
     for await (const { status } of publisher.subscribe("updates.status")) {
       this.#latestStatus = status;
       this.#trackReadyStatus(status);
-      this.#recompute();
+      // The requirement depends only on server config and the app version, so
+      // status events recompute just the reminder.
+      this.#applyReminder();
     }
   }
 }

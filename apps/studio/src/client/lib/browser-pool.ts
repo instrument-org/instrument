@@ -94,8 +94,14 @@ let lastHostFocusedElement: HTMLElement | null = null;
 
 function recordHostFocus(event: FocusEvent) {
   const target = event.target;
-  if (target instanceof HTMLElement && target.tagName !== "WEBVIEW") {
-    lastHostFocusedElement = target;
+  if (!(target instanceof HTMLElement) || target.tagName === "WEBVIEW") {
+    return;
+  }
+  lastHostFocusedElement = target;
+  // With no guests mounted nothing can steal focus, so skip the per-focusin
+  // RPC. The main process re-seeds its claim from window focus whenever a
+  // guarded command starts (see the manager's sendCommand).
+  if (pool.size > 0) {
     void rpcClient.browser.syncHostFocus.call();
   }
 }

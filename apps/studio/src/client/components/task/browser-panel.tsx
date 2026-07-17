@@ -216,9 +216,12 @@ export function TaskBrowserPanel({
     try {
       const url = getWebviewElement(targetId)?.getURL();
       const activeElement = document.activeElement;
-      const hostInputFocused = activeElement?.matches(
-        "input, textarea, select, [contenteditable='true']",
-      );
+      // isContentEditable also covers contenteditable="" / "plaintext-only",
+      // which an attribute selector would miss.
+      const hostInputFocused =
+        activeElement instanceof HTMLElement &&
+        (activeElement.isContentEditable ||
+          activeElement.matches("input, textarea, select"));
       if ((!url || url === "about:blank") && !hostInputFocused) {
         inputRef.current?.focus();
       }

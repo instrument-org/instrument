@@ -8,6 +8,7 @@ import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { usePromptQueue } from "@/client/hooks/use-prompt-queue";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -38,6 +39,7 @@ import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
 import { PromptBrowserToggle } from "./prompt-browser-toggle";
+import { QueuedPrompts } from "./queued-prompts";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
 
 export function TaskChat({
@@ -159,6 +161,24 @@ export function TaskChat({
   };
 
   const features = useAtomValue(featuresAtom);
+  const isQueueEnabled = features.prompt_queue;
+  const { clear, enqueue, queue, remove } = usePromptQueue({
+    isAgentAlive,
+    onDispatch: (queued) => {
+      if (!selectedSessionId) {
+        return;
+      }
+      createMessage.mutate({
+        files: queued.files,
+        folders: queued.folders,
+        id,
+        modelURI: queued.modelURI,
+        prompt: queued.prompt,
+        sessionId: selectedSessionId,
+      });
+    },
+  });
+
   const isActiveTab = useIsActiveTab();
   const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
   const draftKey = { scope: "task", taskId: id } as const;
@@ -196,13 +216,16 @@ export function TaskChat({
       id={id}
       isLoading={createMessage.isPending}
       isStoppable={isAgentAlive}
-      isSubmittable={!isAgentAlive}
+      isSubmittable={isQueueEnabled ? true : !isAgentAlive}
       modelURI={selectedModelURI}
       onModelChange={setSelectedModelURI}
       onStop={() => {
         if (isReplayActive && onCancelReplay) {
           onCancelReplay();
         } else {
+          // Stop is a hard halt: drop pending follow-ups so the queue does not
+          // auto-advance the moment the interrupted turn ends.
+          clear();
           stopSessions.mutate({ id });
         }
       }}
@@ -210,6 +233,13 @@ export function TaskChat({
         promptInputRef.current?.clear();
         if (isTutorialVisible) {
           handleDismissTutorial();
+        }
+        // While a turn is running, buffer the prompt; the queue delivers it
+        // when the agent goes idle. A brand-new session (no id yet) always
+        // starts immediately.
+        if (isQueueEnabled && isAgentAlive && selectedSessionId) {
+          enqueue({ files, folders, modelURI, prompt });
+          return;
         }
         createMessage.mutate(
           {
@@ -235,7 +265,11 @@ export function TaskChat({
           },
         );
       }}
-      placeholder={`Talk to ${APP_NAME}`}
+      placeholder={
+        isQueueEnabled && isAgentAlive
+          ? "Queue a follow-up…"
+          : `Talk to ${APP_NAME}`
+      }
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
     />
@@ -333,6 +367,7 @@ export function TaskChat({
         {/* isolate: keep the tutorial card's -z-10 background and the prompt
             input's z-10 contained to the composer. */}
         <div className="isolate mx-auto w-full max-w-2xl px-3 pb-3">
+          <QueuedPrompts onRemove={remove} prompts={queue} />
           {showTutorial === undefined ? (
             promptInput
           ) : (

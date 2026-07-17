@@ -1,4 +1,5 @@
 import {
+  APP_BUNDLE_ID,
   APP_DOMAIN,
   APP_EXECUTABLE,
   APP_NAME,
@@ -33,7 +34,7 @@ const publishConfig: PlatformSpecificBuildOptions["publish"] = {
  */
 const config: Configuration = {
   afterPack: runAfterPack,
-  appId: "com.finalpoint.instrument",
+  appId: APP_BUNDLE_ID,
   appImage: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
   },

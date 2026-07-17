@@ -8,11 +8,23 @@ function getDefaultEnableUsageMetrics() {
   return process.env.ELECTRON_USE_NEW_USER_FOLDER !== "true";
 }
 
+// "unfocused" notifies only when Instrument is not the active window.
+export const AgentCompletionNotificationModeSchema = z.enum([
+  "always",
+  "unfocused",
+  "never",
+]);
+
+export type AgentCompletionNotificationMode = z.output<
+  typeof AgentCompletionNotificationModeSchema
+>;
+
 /* eslint-disable unicorn/prefer-top-level-await */
 export const PreferencesStoreSchema = z.object({
+  agentCompletionNotifications:
+    AgentCompletionNotificationModeSchema.catch("unfocused"),
   defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
   developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
-  enableAgentCompletionNotifications: z.boolean().catch(true),
   enableUsageMetrics: z.boolean().catch(getDefaultEnableUsageMetrics()),
   lastUpdateCheck: z.number().optional(),
   preferApiKeyOverAccount: z.boolean().catch(false),

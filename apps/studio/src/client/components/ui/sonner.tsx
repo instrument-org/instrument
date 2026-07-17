@@ -31,6 +31,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
         } as React.CSSProperties
       }
       theme={theme}
+      // A modal dialog sets `body { pointer-events: none }`; without this a toast
+      // shown over one isn't clickable and the click falls through to the
+      // overlay, dismissing the dialog. Keep toasts interactive.
+      toastOptions={{ style: { pointerEvents: "auto" } }}
       {...props}
     />
   );

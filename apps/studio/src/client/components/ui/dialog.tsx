@@ -27,6 +27,7 @@ function DialogContent({
   className,
   onAnimationEnd,
   onExitComplete,
+  onInteractOutside,
   overlayClassName,
   showCloseButton = true,
   style,
@@ -55,6 +56,20 @@ function DialogContent({
           onAnimationEnd,
           onExitComplete,
         )}
+        onInteractOutside={(event) => {
+          // Toasts render outside the dialog DOM, so Radix treats a click on a
+          // toast as an outside interaction and dismisses the dialog. Keep the
+          // dialog open when the interaction starts inside the toaster (e.g. a
+          // toast action button shown while settings is open).
+          const target = event.detail.originalEvent.target;
+          if (
+            target instanceof Element &&
+            target.closest("[data-sonner-toaster]")
+          ) {
+            event.preventDefault();
+          }
+          onInteractOutside?.(event);
+        }}
         style={useAppZoomStyle(style)}
         {...props}
       >

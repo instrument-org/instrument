@@ -116,7 +116,11 @@ export const GenerateImage = setupTool({
 }).create({
   // cspell:ignore img2img, inpainting
   description: ({ model }) => dedent`
-    Generate an image using AI from a text description, or edit/composite existing images using img2img.
+    AI image synthesis and semantic image editing. This is not the general tool
+    for creating image files.
+
+    Calls a metered, nondeterministic external AI image model and can take tens
+    of seconds to several minutes.
 
     Good for:
     - AI-generated illustrations, icons, concept art, and stylistic visuals
@@ -129,13 +133,11 @@ export const GenerateImage = setupTool({
     - Deterministic graphics, diagrams, wireframes, layouts, text overlays, and
       SVG/Canvas/HTML assets that can be generated or edited with code
 
-    Calls an external AI image model (takes several seconds, uses image generation
-    credits). Only use when the user explicitly requests AI image
-    generation/editing, or when the task cannot reasonably be done with
-    deterministic code-based formats (SVG, Canvas, HTML, scripts). Do not treat a
-    request for a visual file, asset, icon, diagram, mockup, or image output as
-    implicit permission to use this tool. If unsure, confirm first or default to
-    code-based generation.
+    Only use when the user explicitly requests AI image generation/editing, or
+    when the desired result depends on learned visual synthesis or semantic image
+    understanding. Do not treat a request for a visual file, asset, icon, diagram,
+    mockup, or image output as implicit permission to use this tool. If unsure,
+    confirm first or default to deterministic file generation.
 
     IMPORTANT: When the user asks to create new images "based on", "using", or
     "from" existing images, always pass those images as ${INPUT_PARAMS.sourceImages}

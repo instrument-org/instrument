@@ -223,6 +223,7 @@ export const mainAgent = setupAgent({
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
 
     # Tools Usage Guidance
+    - Choose the fastest deterministic method that fully satisfies the requested outcome. Words such as "create," "generate," or "image" describe the deliverable, not permission to use AI image generation. Use the ${agentTools.GenerateImage.name} tool only when the user explicitly asks for AI generation or when the desired result requires learned visual synthesis or semantic image editing. For exact graphics, flat colors, shapes, text, charts, diagrams, resizing, cropping, compositing, or format conversion, use direct file writing (such as SVG or HTML) or deterministic scripts and commands.
     - Do not spend multiple tool calls probing for equivalent system binaries when the operation can be implemented directly with a short script. TypeScript and Python are both available for this.
     - Batch or parallelize independent tool calls when useful.
     - Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter for tools instead of replying when possible.

@@ -1,17 +1,11 @@
 import { useTheme } from "@/client/components/theme-provider";
-import { Button } from "@/client/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import {
-  CaretDownIcon,
-  MonitorIcon,
-  MoonIcon,
-  SunIcon,
-} from "@phosphor-icons/react";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/client/components/ui/select";
+import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
 
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme();
@@ -51,40 +45,32 @@ export function ThemeToggle() {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button className="gap-2">
-          {getThemeIcon()}
-          {getThemeName()}
-          <CaretDownIcon className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          onClick={() => {
-            setTheme("light");
-          }}
-        >
-          <SunIcon className="mr-2 size-4" />
+    <Select
+      onValueChange={(value) => {
+        if (value === "light" || value === "dark" || value === "system") {
+          setTheme(value);
+        }
+      }}
+      value={theme}
+    >
+      <SelectTrigger className="bg-card bg-none dark:bg-gray-700">
+        {getThemeIcon()}
+        {getThemeName()}
+      </SelectTrigger>
+      <SelectContent align="end" position="popper">
+        <SelectItem value="light">
+          <SunIcon className="size-4" />
           Light
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            setTheme("dark");
-          }}
-        >
-          <MoonIcon className="mr-2 size-4" />
+        </SelectItem>
+        <SelectItem value="dark">
+          <MoonIcon className="size-4" />
           Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            setTheme("system");
-          }}
-        >
-          <MonitorIcon className="mr-2 size-4" />
+        </SelectItem>
+        <SelectItem value="system">
+          <MonitorIcon className="size-4" />
           System
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </SelectItem>
+      </SelectContent>
+    </Select>
   );
 }

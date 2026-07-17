@@ -5,6 +5,12 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/client/components/ui/select";
 import { Switch } from "@/client/components/ui/switch";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -335,13 +341,56 @@ function InterfaceAndTheme() {
   );
 }
 
+const NOTIFICATION_MODES = [
+  { menuLabel: "Always", triggerLabel: "Always", value: "always" },
+  {
+    menuLabel: "Only when not focused",
+    triggerLabel: "Not focused",
+    value: "unfocused",
+  },
+  { menuLabel: "Never", triggerLabel: "Never", value: "never" },
+] as const;
+
 function Notifications() {
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
   const setAgentCompletionNotificationsMutation = useMutation(
-    rpcClient.preferences.setEnableAgentCompletionNotifications.mutationOptions(),
+    rpcClient.preferences.setAgentCompletionNotifications.mutationOptions(),
   );
+  const sendTestNotificationMutation = useMutation(
+    rpcClient.preferences.sendTestNotification.mutationOptions(),
+  );
+  const openNotificationSettingsMutation = useMutation(
+    rpcClient.preferences.openNotificationSettings.mutationOptions(),
+  );
+
+  const mode = preferences?.agentCompletionNotifications ?? "unfocused";
+  const triggerLabel =
+    NOTIFICATION_MODES.find((option) => option.value === mode)?.triggerLabel ??
+    "Not focused";
+
+  const handleSendTest = async () => {
+    try {
+      const { supported } =
+        await sendTestNotificationMutation.mutateAsync(undefined);
+      if (!supported) {
+        toast.error("Notifications aren't supported on this device.");
+        return;
+      }
+      toast.success("Test notification sent", {
+        action: {
+          label: "Open settings",
+          onClick: () => {
+            openNotificationSettingsMutation.mutate(undefined);
+          },
+        },
+        description: `Not seeing it? Turn on notifications for ${APP_NAME}.`,
+      });
+    } catch {
+      toast.error("Couldn't send a test notification.");
+    }
+  };
 
   return (
     <SettingsSection title="Notifications">
@@ -349,20 +398,48 @@ function Notifications() {
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
             <Label htmlFor="agent-completion-notifications">
-              Notify when agents finish
+              Notify when tasks finish
             </Label>
             <p className="text-xs text-muted-foreground">
-              Only when Instrument is not focused.
+              Show a desktop notification when a task finishes.
             </p>
           </div>
-          <Switch
-            checked={preferences?.enableAgentCompletionNotifications ?? true}
+          <Select
             disabled={setAgentCompletionNotificationsMutation.isPending}
-            id="agent-completion-notifications"
-            onCheckedChange={(enabled) => {
-              setAgentCompletionNotificationsMutation.mutate({ enabled });
+            onValueChange={(value) => {
+              const option = NOTIFICATION_MODES.find((o) => o.value === value);
+              if (option) {
+                setAgentCompletionNotificationsMutation.mutate({
+                  mode: option.value,
+                });
+              }
             }}
-          />
+            value={mode}
+          >
+            <SelectTrigger
+              className="bg-card bg-none dark:bg-gray-700"
+              id="agent-completion-notifications"
+            >
+              {triggerLabel}
+            </SelectTrigger>
+            <SelectContent align="end" position="popper">
+              {NOTIFICATION_MODES.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.menuLabel}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="mt-3 flex items-center border-t pt-3">
+          <Button
+            className="h-auto p-0 text-xs font-normal text-muted-foreground"
+            disabled={sendTestNotificationMutation.isPending}
+            onClick={handleSendTest}
+            variant="link"
+          >
+            Send a test notification
+          </Button>
         </div>
       </Card>
     </SettingsSection>

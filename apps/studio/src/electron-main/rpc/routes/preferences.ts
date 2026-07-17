@@ -1,28 +1,31 @@
+import { showAgentCompletionTestNotification } from "@/electron-main/lib/agent-completion-notifications";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  AgentCompletionNotificationModeSchema,
   getDefaultModelURI,
   getPreferencesStore,
   PreferencesStoreSchema,
   setLastUpdateCheck,
 } from "@/electron-main/stores/preferences";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import {
   TaskIdSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
-import { app } from "electron";
+import { app, shell } from "electron";
 import { z } from "zod";
 
 function getPreferencesData() {
   const preferencesStore = getPreferencesStore();
   return {
-    developerMode: preferencesStore.get("developerMode"),
-    enableAgentCompletionNotifications: preferencesStore.get(
-      "enableAgentCompletionNotifications",
+    agentCompletionNotifications: preferencesStore.get(
+      "agentCompletionNotifications",
     ),
+    developerMode: preferencesStore.get("developerMode"),
     enableUsageMetrics: preferencesStore.get("enableUsageMetrics"),
     lastUpdateCheck: preferencesStore.get("lastUpdateCheck"),
     preferApiKeyOverAccount: preferencesStore.get("preferApiKeyOverAccount"),
@@ -52,11 +55,47 @@ const setEnableUsageMetrics = base
     preferencesStore.set("enableUsageMetrics", input.enabled);
   });
 
-const setEnableAgentCompletionNotifications = base
-  .input(z.object({ enabled: z.boolean() }))
+const setAgentCompletionNotifications = base
+  .input(z.object({ mode: AgentCompletionNotificationModeSchema }))
   .handler(({ input }) => {
     const preferencesStore = getPreferencesStore();
-    preferencesStore.set("enableAgentCompletionNotifications", input.enabled);
+    preferencesStore.set("agentCompletionNotifications", input.mode);
+  });
+
+const sendTestNotification = base
+  .output(z.object({ supported: z.boolean() }))
+  .handler(() => {
+    return showAgentCompletionTestNotification();
+  });
+
+// The OS notification settings deep link. macOS won't let apps prompt for
+// notification permission, so surfacing the settings pane is the best we can
+// offer when a user isn't seeing notifications. The macOS `?id=` bundle hint
+// selects this app's row (honored on Ventura+, otherwise it lands on the
+// Notifications list).
+function notificationSettingsUrl(): string | undefined {
+  switch (process.platform) {
+    case "darwin": {
+      // cspell:ignore systempreferences
+      return `x-apple.systempreferences:com.apple.preference.notifications?id=${APP_BUNDLE_ID}`;
+    }
+    case "win32": {
+      return "ms-settings:notifications";
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+const openNotificationSettings = base
+  .output(z.object({ opened: z.boolean() }))
+  .handler(async () => {
+    const url = notificationSettingsUrl();
+    if (url) {
+      await shell.openExternal(url);
+    }
+    return { opened: url !== undefined };
   });
 
 const setDeveloperMode = base
@@ -168,10 +207,12 @@ export const preferences = {
   get,
   getAppVersion,
   live,
+  openNotificationSettings,
   quitAndInstall,
+  sendTestNotification,
+  setAgentCompletionNotifications,
   setDefaultModelURI,
   setDeveloperMode,
-  setEnableAgentCompletionNotifications,
   setEnableUsageMetrics,
   setPreferApiKeyOverAccount,
   setReleaseChannel,

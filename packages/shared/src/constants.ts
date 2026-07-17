@@ -8,6 +8,9 @@ export const APP_PROTOCOL =
     : APP_NAME_SLUG;
 export const APP_EXECUTABLE = "instrument";
 export const APP_CLIENT_NAME_STUDIO = `${APP_NAME_SLUG}-studio`;
+// macOS/Windows application bundle identifier; the source of truth for
+// electron-builder `appId` and any OS deep links that target the app.
+export const APP_BUNDLE_ID = "com.finalpoint.instrument";
 
 export const APP_REPO_NAME = "instrument";
 export const GITHUB_ORG = "instrument-org";

@@ -6,8 +6,8 @@ import { atomWithRefresh } from "jotai/utils";
 type Preferences = RPCOutput["preferences"]["get"];
 
 const defaultPreferences: Preferences = {
+  agentCompletionNotifications: "unfocused",
   developerMode: false,
-  enableAgentCompletionNotifications: true,
   enableUsageMetrics: false,
   lastUpdateCheck: undefined,
   preferApiKeyOverAccount: false,

@@ -8,6 +8,17 @@
 @import "@fontsource-variable/jetbrains-mono/wght.css";
 @import "tailwindcss";
 @import "tw-animate-css";
+
+.prompt-editor p {
+  min-height: 1.5rem;
+  margin: 0;
+}
+
+.prompt-editor:has(p:only-child:empty)::before {
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));

@@ -10,10 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import {
-  TextareaContainer,
-  TextareaInner,
-} from "@/client/components/ui/textarea-container";
+import { TextareaContainer } from "@/client/components/ui/textarea-container";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
@@ -42,7 +39,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
-  useCallback,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -54,7 +50,6 @@ import { ulid } from "ulid";
 
 import { featuresAtom } from "../atoms/features";
 import {
-  focusPromptDraft,
   promptDraftAtom,
   type PromptDraftKey,
   promptDraftRefAtom,
@@ -62,6 +57,7 @@ import {
 } from "../atoms/prompt-value";
 import { rpcClient } from "../rpc/client";
 import { PromptProjectSelector } from "./project/prompt-project-selector";
+import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
 
@@ -104,6 +100,7 @@ interface PromptInputProps {
   disabled?: boolean;
   draftKey: PromptDraftKey;
   id?: TaskId;
+  initialSkillName?: string;
   isLoading: boolean;
   isStoppable?: boolean;
   isSubmittable?: boolean;
@@ -138,6 +135,7 @@ export const PromptInput = ({
   disabled = false,
   draftKey,
   id,
+  initialSkillName,
   isLoading,
   isStoppable = false,
   isSubmittable = true,
@@ -159,7 +157,7 @@ export const PromptInput = ({
   );
   const openFilePreview = useSetAtom(openFilePreviewAtom);
   const textareaRef = useRef<HTMLDivElement>(null);
-  const textareaInnerRef = useRef<HTMLTextAreaElement>(null);
+  const promptEditorRef = useRef<PromptEditorRef>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useAtom(promptDraftAtom(draftKey));
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
@@ -174,6 +172,9 @@ export const PromptInput = ({
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
+  const { data: skills = [] } = useQuery(
+    rpcClient.workspace.skill.list.queryOptions(),
+  );
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
@@ -184,46 +185,37 @@ export const PromptInput = ({
   const restrictedModel = selectedModel?.restricted;
   const isInvalidSelectedModel = isUnavailableModel || !!restrictedModel;
 
-  const resetTextareaHeight = useCallback(() => {
-    if (textareaInnerRef.current) {
-      textareaInnerRef.current.style.height = "auto";
-    }
-  }, []);
-
   useImperativeHandle(ref, () => ({
     clear: () => {
       setValue("");
       setAttachedItems([]);
       setSelectedProjectId(null);
-      resetTextareaHeight();
     },
     focus: () => {
-      focusPromptDraft(textareaInnerRef.current);
+      promptEditorRef.current?.focus();
     },
   }));
 
-  const adjustHeight = useCallback(() => {
-    if (textareaInnerRef.current) {
-      resetTextareaHeight();
-      const newHeight = Math.min(
-        textareaInnerRef.current.scrollHeight,
-        autoResizeMaxHeight,
-      );
-      textareaInnerRef.current.style.height = `${newHeight}px`;
-    }
-  }, [autoResizeMaxHeight, resetTextareaHeight]);
+  useEffect(() => {
+    setInputRef(promptEditorRef.current?.element ?? null);
+    return () => {
+      setInputRef(null);
+    };
+  }, [setInputRef]);
 
   useEffect(() => {
-    adjustHeight();
-  }, [value, adjustHeight]);
+    if (initialSkillName && !value.trim()) {
+      setValue(`[$${initialSkillName}](skill:${initialSkillName}) `);
+    }
+  }, [initialSkillName, setValue, value]);
 
   useLayoutEffect(() => {
     if (!autoFocus || !isActiveTab) {
       return;
     }
-    focusPromptDraft(textareaInnerRef.current);
-    adjustHeight();
-  }, [autoFocus, isActiveTab, focusSignal, adjustHeight]);
+    promptEditorRef.current?.focus();
+    promptEditorRef.current?.moveCaretToEnd();
+  }, [autoFocus, isActiveTab, focusSignal]);
 
   const processFiles = (files: File[] | FileList) => {
     for (const file of files) {
@@ -453,25 +445,15 @@ export const PromptInput = ({
     onStop?.();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      const openInNewTab =
-        allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
-      handleSubmit(openInNewTab);
+  const handlePaste = (e: ClipboardEvent) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) {
+      return false;
     }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(e.target.value);
-    adjustHeight();
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const text = e.clipboardData.getData("text/plain");
+    const text = clipboardData.getData("text/plain");
     const hasText = text.trim().length > 0;
 
-    const items = e.clipboardData.items;
+    const items = clipboardData.items;
     const files: File[] = [];
 
     for (const item of items) {
@@ -487,7 +469,7 @@ export const PromptInput = ({
     if (files.length > 0) {
       e.preventDefault();
       processFiles(files);
-      return;
+      return true;
     }
 
     if (text && text.length > MAX_PASTE_TEXT_LENGTH) {
@@ -518,14 +500,16 @@ export const PromptInput = ({
       toast.info(
         `Large text (${text.length.toLocaleString()} characters) converted to file attachment`,
       );
+      return true;
     }
+    return false;
   };
 
   return (
     <>
       <TextareaContainer
         className={cn(
-          "relative overflow-hidden rounded-[20px] p-4",
+          "relative overflow-visible rounded-[20px] p-4",
           "bg-white shadow-xs dark:bg-gray-800",
           className,
         )}
@@ -578,20 +562,20 @@ export const PromptInput = ({
           </div>
         )}
 
-        <TextareaInner
-          aria-busy={isLoading || undefined}
+        <PromptEditor
           autoFocus={autoFocus}
-          className="min-h-12 overflow-y-auto"
+          className="min-h-12"
           disabled={disabled}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
+          maxHeight={Math.max(autoResizeMaxHeight - 72, 48)}
+          onChange={setValue}
           onPaste={handlePaste}
+          onSubmit={(modifierPressed) => {
+            handleSubmit(allowOpenInNewTab && modifierPressed);
+          }}
           placeholder={placeholder}
           readOnly={isLoading}
-          ref={(el) => {
-            textareaInnerRef.current = el;
-            setInputRef(el);
-          }}
+          ref={promptEditorRef}
+          skills={skills}
           value={value}
         />
 
@@ -620,7 +604,7 @@ export const PromptInput = ({
                 }}
                 onClose={() => {
                   if (modelURI) {
-                    textareaInnerRef.current?.focus();
+                    promptEditorRef.current?.focus();
                   }
                 }}
                 onOpenChange={(open) => {

@@ -41,7 +41,7 @@ export function FilePreviewFallback({
         />
       </div>
       <div>
-        <p className="max-w-72 break-all text-sm font-medium">{filename}</p>
+        <p className="max-w-72 text-sm font-medium break-all">{filename}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           Preview unavailable in Instrument
         </p>

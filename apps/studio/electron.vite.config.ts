@@ -44,23 +44,33 @@ const resolve = {
   },
 };
 
-// `buildStart` fires on every watch rebuild and the plugin is installed on more
-// than one build, so re-copying ~11MB of WASM each time is skipped when the
-// destination already holds the current bytes.
+// `buildStart` fires on every watch rebuild, so re-copying ~11MB of WASM each
+// time is skipped when the destination already holds the current bytes. The
+// mtime has to match exactly rather than merely be newer: pnpm hard links from
+// its store, which carries the store's timestamps, so a reinstall can drop in a
+// same-size asset that is older than what was copied before.
 async function copyVendorAsset({ from, to }: { from: string; to: string }) {
   const source = await fs.stat(from);
   try {
     const target = await fs.stat(to);
-    if (target.size === source.size && target.mtimeMs >= source.mtimeMs) {
+    if (target.size === source.size && target.mtimeMs === source.mtimeMs) {
       return;
     }
   } catch {
     // No destination yet.
   }
   await fs.mkdir(path.dirname(to), { recursive: true });
-  await fs.copyFile(from, to);
+  // Stage then rename so an interrupted or concurrent build cannot leave a torn
+  // binary in place, and stamp the source mtime so the skip check above holds.
+  const staging = `${to}.tmp`;
+  await fs.copyFile(from, staging);
+  await fs.utimes(staging, source.atime, source.mtime);
+  await fs.rename(staging, to);
 }
 
+// Registered on the main build alone. Every `electron-vite dev` and `build`
+// invocation builds main, and the destinations are read by the main process, so
+// a second registration would only add copies racing each other.
 function copyVendorAssets(): Plugin {
   const require = createRequire(import.meta.url);
   const resourcesDir = path.join(
@@ -269,7 +279,6 @@ export default defineConfig(({ command }) => {
         ],
       },
       plugins: [
-        copyVendorAssets(),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("renderer"),
         tanstackRouter({

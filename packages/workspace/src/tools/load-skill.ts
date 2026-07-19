@@ -261,7 +261,9 @@ export const LoadSkill = setupTool({
   readOnly: false,
   timeoutMs: ({ input }) => {
     const base = ms("10 seconds");
-    const skillsDir = getSkillSources(getWorkspaceConfig())[0]?.dir;
+    const skillsDir = getSkillSources(getWorkspaceConfig()).findLast(
+      ({ dir }) => fsSync.existsSync(path.join(dir, input.name, "SKILL.md")),
+    )?.dir;
     const runtime =
       skillsDir === undefined
         ? { node: false, python: false }

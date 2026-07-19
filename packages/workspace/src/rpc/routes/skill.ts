@@ -16,6 +16,7 @@ const SkillSourceSchema = z.enum([
   "gemini",
   "opencode",
   "registry",
+  "system",
   "workspace",
 ]);
 

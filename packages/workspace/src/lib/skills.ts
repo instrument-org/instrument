@@ -24,7 +24,7 @@ export interface SkillSource {
   source: SkillSourceKind;
 }
 
-export type SkillSourceKind =
+type SkillSourceKind =
   | "agents"
   | "claude"
   | "codex"
@@ -32,10 +32,14 @@ export type SkillSourceKind =
   | "gemini"
   | "opencode"
   | "registry"
+  | "system"
   | "workspace";
 
 export async function findSkill(
-  workspaceConfig: Pick<WorkspaceConfig, "registryDir" | "rootDir">,
+  workspaceConfig: Pick<
+    WorkspaceConfig,
+    "registryDir" | "rootDir" | "systemSkillsDir"
+  >,
   name: string,
 ): Promise<{ all: SkillInfo[]; skill: SkillInfo | undefined }> {
   const sources = getSkillSources(workspaceConfig);
@@ -60,7 +64,11 @@ export function getSkillSources(
   {
     registryDir,
     rootDir,
-  }: Pick<WorkspaceConfig, "registryDir" | "rootDir">,
+    systemSkillsDir,
+  }: Pick<
+    WorkspaceConfig,
+    "registryDir" | "rootDir" | "systemSkillsDir"
+  >,
   userHomeDir = AbsolutePathSchema.parse(os.homedir()),
 ): SkillSource[] {
   const fromHome = (source: SkillSourceKind, ...parts: string[]) => ({
@@ -69,6 +77,10 @@ export function getSkillSources(
   });
 
   return [
+    {
+      dir: systemSkillsDir,
+      source: "system",
+    },
     {
       dir: absolutePathJoin(registryDir, REGISTRY_FOLDER_NAMES.skills),
       source: "registry",

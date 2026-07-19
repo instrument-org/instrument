@@ -67,8 +67,10 @@ describe("skill discovery", () => {
     const home = path.join(root, "home");
     const workspace = path.join(root, "workspace");
     const registry = path.join(root, "registry");
+    const systemSkills = path.join(root, "system-skills");
     const sharedSkill = path.join(root, "shared", "review");
 
+    await writeSkill(path.join(systemSkills, "creator"), "System");
     await writeSkill(path.join(registry, "skills", "bundled"), "Bundled");
     await writeSkill(sharedSkill, "Shared");
     await fs.mkdir(path.join(home, ".codex", "skills"), { recursive: true });
@@ -79,6 +81,7 @@ describe("skill discovery", () => {
       {
         registryDir: AbsolutePathSchema.parse(registry),
         rootDir: WorkspaceDirSchema.parse(workspace),
+        systemSkillsDir: AbsolutePathSchema.parse(systemSkills),
       },
       AbsolutePathSchema.parse(home),
     );
@@ -89,6 +92,7 @@ describe("skill discovery", () => {
       name,
       source,
     }))).toEqual([
+      { description: "System", name: "creator", source: "system" },
       { description: "Bundled", name: "bundled", source: "registry" },
       { description: "Workspace", name: "review", source: "workspace" },
     ]);

@@ -34,11 +34,14 @@ let request;
 try {
   request = JSON.parse(Buffer.concat(chunks).toString("utf8"));
 } catch {
-  respond({ error: "invalid JSON request", success: false });
-  process.exit(0);
+  request = undefined;
 }
 
-if (request.protocol !== PROTOCOL) {
+// No process.exit: exiting before stdout's pipe flushes can truncate the
+// response, so every branch falls through to a natural exit.
+if (typeof request !== "object" || request === null) {
+  respond({ error: "invalid JSON request", success: false });
+} else if (request.protocol !== PROTOCOL) {
   respond({ error: "unsupported protocol", success: false });
 } else if (request.type === "plugin.manifest") {
   respond({

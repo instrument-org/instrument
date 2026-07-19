@@ -49,7 +49,7 @@ export const AGENT_BROWSER_COMMAND = {
     Control a browser to navigate the web, interact with pages, and extract content.
     IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
     IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.
-    Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --auto-connect (the user's running Chrome), --cdp (an explicit CDP endpoint), --profile (a local Chrome profile), --provider (cloud/iOS). The skill covers when each is appropriate.
+    Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). The skill covers when each is appropriate.
     Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,
@@ -207,9 +207,11 @@ const WORKSPACE_HELP = dedent`
 
   External browsers (flags apply per invocation; a bare command targets the
   managed task browser again):
-    --auto-connect              Connect to the user's running Chrome
+    profiles                    List the user's Chrome profiles
+    --profile <name|dir>        Launch Chrome with an existing profile (logins)
+    --auto-connect              Connect to a Chromium already running with
+                                remote debugging enabled
     --cdp <port|ws-url>         Connect to an explicit CDP endpoint
-    --profile <name|dir>        Launch a local Chrome with an existing profile
     --provider <name>           Cloud or iOS browser provider
     --state | --restore <key>   Load or persist storage state
 
@@ -330,8 +332,13 @@ export function createAgentBrowserCommand({
     const commandArgs: string[] = isInfoOnly ? [...resolvedArgs] : [];
     let targetId: BrowserTargetId | undefined;
     let pluginRegistry: string | undefined;
+    // `profiles` inspects the host's Chrome install (real HOME, no browser
+    // needed), so it always routes external even without a targeting flag.
+    const isExternal =
+      !isInfoOnly &&
+      (isExternalBrowserInvocation(resolvedArgs) || subcommand === "profiles");
 
-    if (!isInfoOnly && isExternalBrowserInvocation(resolvedArgs)) {
+    if (isExternal) {
       // External targets run under a sibling daemon session so switching
       // between the task browser and an external browser never tears down the
       // other's connection. External intent is per-invocation: a bare
@@ -416,7 +423,12 @@ export function createAgentBrowserCommand({
           // only for task-browser invocations so an external
           // --executable-path launch of an Electron-based app is unaffected.
           ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
-          HOME: homeDir,
+          // External invocations get the real host HOME: --auto-connect
+          // discovers running Chromes via DevToolsActivePort under the real
+          // user-data dirs, and --profile resolves named profiles there.
+          // Task-browser invocations keep the per-task sink so agent-browser
+          // never writes to the host home.
+          HOME: isExternal ? (process.env.HOME ?? homeDir) : homeDir,
         },
         input: subprocessStdin(ctx.stdin),
         managedConfigPath: isInfoOnly ? undefined : configPath,

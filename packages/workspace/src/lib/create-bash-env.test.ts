@@ -40,7 +40,7 @@ describe("createBashDescription", () => {
         agent-browser - Control a browser to navigate the web, interact with pages, and extract content.
       IMPORTANT: You MUST load the \`agent-browser\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
       IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`web_search\` first to discover the correct URL before opening the browser.
-      Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --auto-connect (the user's running Chrome), --cdp (an explicit CDP endpoint), --profile (a local Chrome profile), --provider (cloud/iOS). The skill covers when each is appropriate.
+      Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). The skill covers when each is appropriate.
       Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.

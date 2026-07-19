@@ -426,24 +426,6 @@ export function createAgentBrowserCommand({
 }
 
 /**
- * Strip host-absolute paths from CLI output before it reaches the model: the
- * real home dir (leaked by e.g. `profiles`, which prints Chrome user-data
- * locations with the username) becomes `~`, and task-dir paths become
- * task-relative. The agent never needs these absolute forms -- profile names
- * feed --profile, and task outputs are addressed relative to the cwd.
- */
-export function scrubHostPaths(
-  output: string,
-  { homeDir, taskDirPath }: { homeDir: string; taskDirPath: string },
-): string {
-  return output
-    .replaceAll(`${taskDirPath}${path.sep}`, "")
-    .replaceAll(taskDirPath, ".")
-    .replaceAll(`${homeDir}${path.sep}`, `~${path.sep}`)
-    .replaceAll(homeDir, "~");
-}
-
-/**
  * First positional token, skipping flag values: value flags consume the next
  * token, boolean flags consume only a literal `true`/`false` (upstream's
  * optional boolean value form).
@@ -539,6 +521,24 @@ export function isExternalBrowserInvocation(args: string[]): boolean {
     return providerName.toLowerCase() !== INSTRUMENT_PROVIDER_NAME;
   }
   return hasStateFlag;
+}
+
+/**
+ * Strip host-absolute paths from CLI output before it reaches the model: the
+ * real home dir (leaked by e.g. `profiles`, which prints Chrome user-data
+ * locations with the username) becomes `~`, and task-dir paths become
+ * task-relative. The agent never needs these absolute forms -- profile names
+ * feed --profile, and task outputs are addressed relative to the cwd.
+ */
+export function scrubHostPaths(
+  output: string,
+  { homeDir, taskDirPath }: { homeDir: string; taskDirPath: string },
+): string {
+  return output
+    .replaceAll(`${taskDirPath}${path.sep}`, "")
+    .replaceAll(taskDirPath, ".")
+    .replaceAll(`${homeDir}${path.sep}`, `~${path.sep}`)
+    .replaceAll(homeDir, "~");
 }
 
 async function enrichBrowserState({

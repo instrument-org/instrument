@@ -143,7 +143,7 @@ describe("BashTool", () => {
           durationMs: 30,
           output: longOutput,
           spillFilePath: RelativePathSchema.parse(
-            ".instrument/tool-output/part-123.log",
+            "work/.tool-output/part-123.log",
           ),
         },
         toolCallId: "1",

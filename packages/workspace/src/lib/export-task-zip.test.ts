@@ -60,12 +60,14 @@ describe("exportTaskZip", () => {
     const workDir = path.join(taskDirPath, TASK_FOLDER_NAMES.work);
 
     // Included: settings, screenshots, tool-output, work source, root downloads.
+    // Screenshots and tool-output now live under work/ (agent-readable), not the
+    // private dir, which is off-limits to the agent.
     await fs.writeFile(
       path.join(privateDir, "settings.json"),
       `{"name":"Test"}`,
     );
-    await writeUnder(privateDir, TASK_FOLDER_NAMES.screenshots, "shot.png");
-    await writeUnder(privateDir, TASK_FOLDER_NAMES.toolOutput, "part-1.log");
+    await writeUnder(workDir, TASK_FOLDER_NAMES.screenshots, "shot.png");
+    await writeUnder(workDir, TASK_FOLDER_NAMES.toolOutput, "part-1.log");
     await writeUnder(workDir, "src", "index.ts");
     await writeUnder(taskDirPath, TASK_FOLDER_NAMES.downloads, "report.pdf");
 
@@ -90,10 +92,10 @@ describe("exportTaskZip", () => {
     expect(entries.map((entry) => entry.filename).sort())
       .toMatchInlineSnapshot(`
         [
-          ".instrument/screenshots/shot.png",
           ".instrument/settings.json",
-          ".instrument/tool-output/part-1.log",
           "downloads/report.pdf",
+          "work/.tool-output/part-1.log",
+          "work/screenshots/shot.png",
           "work/src/index.ts",
         ]
       `);

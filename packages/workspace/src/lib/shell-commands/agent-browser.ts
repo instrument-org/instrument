@@ -336,7 +336,7 @@ export function createAgentBrowserCommand({
     const downloadPath = getDownloadsDir(taskDir(taskId));
     const agentBrowserStateDir = screenshotDir;
     // Relative so agent-browser outputs screenshot paths the agent sees as
-    // relative to its cwd (e.g. ".instrument/screenshots/shot.png"), not host
+    // relative to its cwd (e.g. "work/screenshots/shot.png"), not host
     // absolute.
     const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
 

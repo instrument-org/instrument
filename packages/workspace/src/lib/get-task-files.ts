@@ -18,10 +18,15 @@ export const INTERNAL_IGNORE_PATTERNS = [
   ".git/**",
   "node_modules",
   "node_modules/**",
-  // The private dir holds the db, settings, screenshots, tool-output, and the
-  // browser session/home -- all hidden from the agent file index.
+  // The private dir holds the db, settings, and the browser session/home -- all
+  // hidden from the agent file index (and off-limits to agent reads entirely).
   TASK_FOLDER_NAMES.private,
   `${TASK_FOLDER_NAMES.private}/**`,
+  // Tool-output spill logs live under work/ so the agent can read the paths it
+  // is handed, but they are noise for the user, so keep them out of the index.
+  // Bare name matches at any depth (work/.tool-output).
+  TASK_FOLDER_NAMES.toolOutput,
+  `${TASK_FOLDER_NAMES.toolOutput}/**`,
   // Legacy `.state` runtime dir (screenshots/bash-output). Not migrated -- the
   // db references its paths -- so keep it hidden from the index for old tasks.
   ".state",

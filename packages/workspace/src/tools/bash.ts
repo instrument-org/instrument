@@ -97,7 +97,7 @@ export const BashTool = setupTool({
     if (truncated) {
       spillFilePath = RelativePathSchema.parse(
         path.posix.join(
-          TASK_FOLDER_NAMES.private,
+          TASK_FOLDER_NAMES.work,
           TASK_FOLDER_NAMES.toolOutput,
           `${partId}.log`,
         ),

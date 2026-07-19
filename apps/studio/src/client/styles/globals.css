@@ -62,6 +62,9 @@ body {
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
 
   --color-white: #ffffff;
   --color-black: #000000;
@@ -84,6 +87,9 @@ body {
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -115,6 +121,15 @@ body {
   --color-success-500: var(--success-500);
   --color-success-700: var(--success-700);
   --color-success-900: var(--success-900);
+
+  /* Scalar status tokens: the ramp stop each status resolves to, plus the
+   * readable text color to pair with a tint of it. */
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
 
   /* Accents — 6 stops per Figma. */
   --color-yellow-50: var(--yellow-50);
@@ -211,6 +226,19 @@ body {
   --accent: var(--gray-200);
   --accent-foreground: var(--gray-800);
   --destructive: var(--error-500);
+  --destructive-foreground: var(--error-700);
+  /* A recessed panel one step off the page background (toolbars, gutters,
+   * viewer chrome). */
+  --surface: var(--gray-100);
+  --surface-foreground: var(--foreground);
+  /* Informational status has no dedicated ramp; it borrows the brand teal.
+   * The dev blue is reserved for developer-only UI. */
+  --info: var(--brand-500);
+  --info-foreground: var(--brand-700);
+  --success: var(--success-500);
+  --success-foreground: var(--success-700);
+  --warning: var(--warning-500);
+  --warning-foreground: var(--warning-700);
   --border: var(--gray-200);
   --input: var(--gray-200);
   --ring: var(--gray-400);
@@ -349,6 +377,15 @@ body {
   --accent: rgb(255 255 255 / 5%);
   --accent-foreground: #ffffff;
   --destructive: var(--error-500);
+  --destructive-foreground: var(--error-300);
+  --surface: var(--gray-800);
+  --surface-foreground: var(--foreground);
+  --info: var(--brand-500);
+  --info-foreground: var(--brand-300);
+  --success: var(--success-500);
+  --success-foreground: var(--success-300);
+  --warning: var(--warning-500);
+  --warning-foreground: var(--warning-300);
   --border: rgb(255 255 255 / 10%);
   --input: rgb(255 255 255 / 10%);
   --ring: rgb(255 255 255 / 30%);
@@ -455,6 +492,21 @@ body {
 
 @utility scrollbar-thin {
   scrollbar-width: thin;
+}
+
+/* Backs the `scrollbarOverflowOnly` prop on the vendored ScrollArea in
+ * `components/ui/extend`: hides a scrollbar track unless the viewport actually
+ * overflows along that axis. */
+@utility scrollbar-overflow-only {
+  &:not(:has([data-slot="scroll-area-viewport"][data-has-overflow-x]))
+    [data-slot="scroll-area-scrollbar"][data-orientation="horizontal"] {
+    display: none;
+  }
+
+  &:not(:has([data-slot="scroll-area-viewport"][data-has-overflow-y]))
+    [data-slot="scroll-area-scrollbar"][data-orientation="vertical"] {
+    display: none;
+  }
 }
 
 @utility scrollbar-color {

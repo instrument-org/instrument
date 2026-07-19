@@ -1,7 +1,6 @@
 // Vendored from Extend UI (https://ui.extend.ai), MIT licensed.
-// Local changes: load pdfium from the app protocol instead of a CDN, run the
-// engine on the main thread, and bound the thumbnail cache so object URLs are
-// revoked.
+// Local changes: load pdfium from the app protocol instead of a CDN, and bound
+// the thumbnail cache so object URLs are revoked.
 
 import type { PdfDocumentObject, PdfEngine } from "@embedpdf/models";
 
@@ -41,9 +40,7 @@ export async function loadPdfDocument(url: string) {
 }
 
 export function loadSharedPdfEngine() {
-  // The direct engine keeps pdfium on the main thread. The worker engine
-  // constructs a module worker, which the renderer's `file://` origin blocks.
-  sharedEnginePromise ??= import("@embedpdf/engines/pdfium-direct-engine").then(
+  sharedEnginePromise ??= import("@embedpdf/engines/pdfium-worker-engine").then(
     ({ createPdfiumEngine }) => createPdfiumEngine(PDFIUM_WASM_URL, {}),
   );
 

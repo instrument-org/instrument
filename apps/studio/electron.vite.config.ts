@@ -247,6 +247,27 @@ export default defineConfig(({ command }) => {
         sourcemap: isProduction,
         watch: {}, // Enable hot reloading
       },
+      // Each document viewer spawns its parser worker with `new Worker(new
+      // URL("./x.js", import.meta.url), { type: "module" })`. Pre-bundling
+      // rewrites `import.meta.url` to the dependency cache, where the sibling
+      // worker file does not exist, so the dev server answers with the SPA
+      // fallback HTML and the worker dies on load. Serving these unbundled
+      // lets Vite's worker transform resolve the real entry.
+      optimizeDeps: {
+        exclude: [
+          "@extend-ai/react-docx",
+          "@extend-ai/react-pptx",
+          "@extend-ai/react-xlsx",
+        ],
+        // Excluding a package stops its CommonJS-only imports from being
+        // converted to ESM, so those are pre-bundled on their own.
+        include: [
+          "@extend-ai/react-docx > utif",
+          "@extend-ai/react-pptx > regl",
+          "@extend-ai/react-xlsx > regl",
+          "react-dom/server",
+        ],
+      },
       plugins: [
         copyVendorAssets(),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
@@ -267,10 +288,9 @@ export default defineConfig(({ command }) => {
       ],
       resolve,
       root: path.resolve("src"),
-      // The vendored spreadsheet viewer ships a `new Worker(url, { type:
-      // "module" })` entry that Vite bundles even though Studio always parses
-      // main-thread. That entry code-splits, which the default IIFE worker
-      // format cannot express, so the build fails without this.
+      // The document viewers' parser workers are module workers whose entries
+      // code-split, which the default IIFE worker format cannot express, so the
+      // build fails without this.
       worker: { format: "es" },
     },
   };

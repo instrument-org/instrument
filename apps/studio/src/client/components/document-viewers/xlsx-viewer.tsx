@@ -1,6 +1,5 @@
 // Vendored from Extend UI (https://ui.extend.ai), MIT licensed.
-// Local changes: import paths, and the workbook parses on the main
-// thread (`useWorker: false`) because module workers are unavailable.
+// Local changes: import paths only.
 
 import { Button } from "@/client/components/ui/extend/button";
 import {
@@ -1734,9 +1733,6 @@ function XlsxWorkbookLoadedViewer({
         fileName,
         maxFileSizeBytes: XLSX_MAX_FILE_SIZE_BYTES,
         readOnly: true,
-        // The renderer's `file://` origin cannot construct module workers, so
-        // the workbook is parsed on the main thread.
-        useWorker: false,
       }),
       [fileName, workbookBuffer],
     ),

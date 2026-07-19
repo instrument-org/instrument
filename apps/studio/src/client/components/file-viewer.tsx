@@ -1,4 +1,9 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import {
+  configureDocxWasmSource,
+  configurePptxWasmSource,
+  configureXlsxWasmSource,
+} from "@/client/lib/document-wasm";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { getFileType } from "@/client/lib/get-file-type";
@@ -20,7 +25,14 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 
@@ -39,6 +51,7 @@ import { ImageWithFallback } from "./image-with-fallback";
 import { OpenTaskFileButton } from "./open-task-file-button";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
+import { useTheme } from "./theme-provider";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
 import {
@@ -62,6 +75,71 @@ import { contextMenuComponents } from "./ui/menu-components";
 import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
+// The document viewers pull in their own WebAssembly runtimes and are by far
+// the heaviest components in the renderer, so they stay out of the entry chunk.
+const PDFViewer = lazy(() =>
+  import("./document-viewers/pdf-viewer").then((module) => ({
+    default: module.PDFViewer,
+  })),
+);
+const DocxViewerPreview = lazy(async () => {
+  const [, module] = await Promise.all([
+    configureDocxWasmSource(),
+    import("./document-viewers/docx-viewer"),
+  ]);
+  return { default: module.DocxViewerPreview };
+});
+const PptxViewerPreview = lazy(async () => {
+  const [, module] = await Promise.all([
+    configurePptxWasmSource(),
+    import("./document-viewers/pptx-viewer"),
+  ]);
+  return { default: module.PptxViewerPreview };
+});
+const XlsxViewerPreview = lazy(async () => {
+  const [, module] = await Promise.all([
+    configureXlsxWasmSource(),
+    import("./document-viewers/xlsx-viewer"),
+  ]);
+  return { default: module.XlsxViewerPreview };
+});
+
+// The viewers fill their host and scroll internally, so they are pinned to the
+// content area rather than laid out inside its scroll container.
+function DocumentViewerSurface({ children }: { children: ReactNode }) {
+  return (
+    <div className="absolute inset-0">
+      <Suspense
+        fallback={
+          <div className="flex size-full items-center justify-center">
+            <Spinner className="size-8 text-muted-foreground" />
+          </div>
+        }
+      >
+        {children}
+      </Suspense>
+    </div>
+  );
+}
+
+function DocxPreview({ filename, url }: { filename: string; url: string }) {
+  const [isDark, setIsDark] = useViewerIsDark();
+
+  return (
+    <DocumentViewerSurface>
+      <DocxViewerPreview
+        className="h-full"
+        fileName={filename}
+        isDark={isDark}
+        onIsDarkChange={setIsDark}
+        showDownload={false}
+        showUpload={false}
+        src={url}
+      />
+    </DocumentViewerSurface>
+  );
+}
 
 function ImagePanzoomViewer({
   filename,
@@ -256,6 +334,44 @@ function TextView({
   return <>{children(data ?? "")}</>;
 }
 
+/**
+ * The docx and xlsx viewers own a night-render toggle in their toolbar, so
+ * their dark state has to be controlled. It is seeded from the app theme and
+ * re-seeded whenever the app theme changes; between those, the viewer's own
+ * toggle wins so the control is not inert.
+ */
+function useViewerIsDark() {
+  const { resolvedTheme } = useTheme();
+  const appIsDark = resolvedTheme === "dark";
+  const [isDark, setIsDark] = useState(appIsDark);
+  const [lastAppIsDark, setLastAppIsDark] = useState(appIsDark);
+
+  if (appIsDark !== lastAppIsDark) {
+    setLastAppIsDark(appIsDark);
+    setIsDark(appIsDark);
+  }
+
+  return [isDark, setIsDark] as const;
+}
+
+function XlsxPreview({ filename, url }: { filename: string; url: string }) {
+  const [isDark, setIsDark] = useViewerIsDark();
+
+  return (
+    <DocumentViewerSurface>
+      <XlsxViewerPreview
+        className="h-full"
+        fileName={filename}
+        isDark={isDark}
+        onIsDarkChange={setIsDark}
+        showDownload={false}
+        showUpload={false}
+        src={url}
+      />
+    </DocumentViewerSurface>
+  );
+}
+
 const fileViewerVariants = tv({
   base: "flex w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm",
   defaultVariants: {
@@ -270,7 +386,11 @@ const fileViewerVariants = tv({
     fileType: {
       audio: "h-auto max-w-2xl",
       default: "h-[80vh] max-w-4xl",
+      // Pages want height; slides and sheets want width.
+      document: "h-[85vh] max-w-5xl",
       html: "h-[80vh] max-w-6xl",
+      presentation: "h-[85vh] max-w-6xl",
+      spreadsheet: "h-[85vh] max-w-[100rem]",
       text: "h-[70vh] max-w-4xl",
     },
     fullSize: {
@@ -391,6 +511,15 @@ export function FileViewer({
     }
     if (fileType === "html" && !mediaLoadError) {
       return "html";
+    }
+    if (fileType === "docx" || fileType === "pdf") {
+      return "document";
+    }
+    if (fileType === "pptx") {
+      return "presentation";
+    }
+    if (fileType === "xlsx") {
+      return "spreadsheet";
     }
     return "default";
   };
@@ -600,16 +729,31 @@ export function FileViewer({
             )}
           </TextView>
         ) : fileType === "pdf" ? (
-          <iframe
-            className="absolute inset-0 size-full border-0"
-            key={url}
-            onError={() => {
-              setMediaLoadError(true);
-              setMediaErrorType("pdf");
-            }}
-            src={`${url}#navpanes=0`}
-            title={filename}
-          />
+          <DocumentViewerSurface>
+            <PDFViewer
+              className="h-full"
+              fileName={filename}
+              key={url}
+              showDownload={false}
+              showUpload={false}
+              src={url}
+            />
+          </DocumentViewerSurface>
+        ) : fileType === "docx" ? (
+          <DocxPreview filename={filename} key={url} url={url} />
+        ) : fileType === "pptx" ? (
+          <DocumentViewerSurface>
+            <PptxViewerPreview
+              className="h-full"
+              fileName={filename}
+              key={url}
+              showDownload={false}
+              showUpload={false}
+              src={url}
+            />
+          </DocumentViewerSurface>
+        ) : fileType === "xlsx" ? (
+          <XlsxPreview filename={filename} key={url} url={url} />
         ) : fileType === "video" ? (
           <video
             className="size-full object-contain"

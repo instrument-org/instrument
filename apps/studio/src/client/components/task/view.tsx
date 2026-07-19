@@ -195,7 +195,6 @@ export function TaskView({
           minSize={PANEL_SIZES.sidebarMin}
         >
           <TaskSidebar
-            activeFilePath={filePanel?.filePath ?? null}
             attachedFolders={attachedFolders}
             chatProps={chatProps}
             files={files}

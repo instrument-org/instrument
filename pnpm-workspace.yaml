@@ -71,6 +71,7 @@ overrides:
   jiti: 2.7.0
 
 patchedDependencies:
+  "@extend-ai/react-docx@0.8.1": patches/@extend-ai__react-docx@0.8.1.patch
   "@parcel/watcher@2.5.1": patches/@parcel__watcher@2.5.1.patch
   conf@14.0.0: patches/conf@14.0.0.patch
 

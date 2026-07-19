@@ -1,6 +1,8 @@
 // Vendored from Extend UI (https://ui.extend.ai), MIT licensed.
 // Local changes: load pdfium from the app protocol instead of a CDN, and bound
-// the thumbnail cache so object URLs are revoked.
+// `renderPdfThumbnailUrl`'s cache so evicted object URLs are revoked.
+// `loadSharedPdfEngine` is the only entry point Studio calls; the thumbnail and
+// document helpers are kept so re-syncing with upstream stays a straight copy.
 
 import type { PdfDocumentObject, PdfEngine } from "@embedpdf/models";
 
@@ -12,6 +14,8 @@ import { PDFIUM_WASM_URL } from "@/client/lib/document-wasm";
 const THUMBNAIL_URL_CACHE_LIMIT = 256;
 
 let sharedEnginePromise: null | Promise<PdfEngine> = null;
+// Upstream never evicts opened documents, so a caller that walks many PDFs
+// grows this without bound for the life of the renderer.
 const pdfDocumentCache = new Map<string, Promise<PdfDocumentObject>>();
 const thumbnailUrlCache = new Map<string, Promise<null | string>>();
 

@@ -23,11 +23,6 @@ const config: KnipConfig = {
         "scripts/*.{ts,tsx,js}",
         "electron-builder/win-cloud-hsm-sign.js",
         "src/client/components/ui/*.tsx",
-        // Vendored component libraries. Their full export surface is kept so
-        // re-syncing with upstream stays a straight copy, which means parts of
-        // it are legitimately unreferenced here.
-        "src/client/components/ui/extend/*.tsx",
-        "src/client/components/document-viewers/*.{ts,tsx}",
         "src/client/router.tsx",
         "src/client/main.tsx",
         "src/electron-main/index.ts",
@@ -55,6 +50,18 @@ const config: KnipConfig = {
         "@parcel/watcher", // Needed for electron.vite.config.ts to build
         "@embedpdf/pdfium", // Transitive dep of @embedpdf/engines; its WASM path is resolved in the Vite build
       ],
+      // Vendored component libraries. Their full export surface is kept so
+      // re-syncing with upstream stays a straight copy, which means parts of it
+      // are legitimately unreferenced. Only the export checks are waived: these
+      // stay ordinary project files so a vendored module that nothing imports at
+      // all is still reported.
+      ignoreIssues: {
+        "src/client/components/document-viewers/*.{ts,tsx}": [
+          "exports",
+          "types",
+        ],
+        "src/client/components/ui/extend/*.tsx": ["exports", "types"],
+      },
       paths: {
         "@/*": ["src/*"],
       },

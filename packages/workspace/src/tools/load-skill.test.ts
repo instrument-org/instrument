@@ -27,6 +27,7 @@ let skillsDir: string;
 beforeEach(async () => {
   vi.clearAllMocks();
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "load-skill-test-"));
+  vi.spyOn(os, "homedir").mockReturnValue(path.join(tmpDir, "home"));
   dir = path.join(tmpDir, "app");
   registryDir = path.join(tmpDir, "registry");
   skillsDir = path.join(registryDir, REGISTRY_FOLDER_NAMES.skills);
@@ -35,6 +36,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 

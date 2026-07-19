@@ -1,9 +1,23 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { parseFrontmatter } from "./skills";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
+import { findSkills, getSkillSources, parseFrontmatter } from "./skills";
 
 const make = (frontmatter: string, body = "Body content") =>
   `---\n${frontmatter}\n---\n${body}`;
+
+const temporaryDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirs.splice(0).map((dir) =>
+      fs.rm(dir, { force: true, recursive: true }),
+    ),
+  );
+});
 
 describe("parseFrontmatter", () => {
   it("parses typical skill file", () => {
@@ -45,3 +59,46 @@ describe("parseFrontmatter", () => {
     expect(result?.body).toBe("Body");
   });
 });
+
+describe("skill discovery", () => {
+  it("discovers symlinks and lets workspace skills override user skills", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-test-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+    const workspace = path.join(root, "workspace");
+    const registry = path.join(root, "registry");
+    const sharedSkill = path.join(root, "shared", "review");
+
+    await writeSkill(path.join(registry, "skills", "bundled"), "Bundled");
+    await writeSkill(sharedSkill, "Shared");
+    await fs.mkdir(path.join(home, ".codex", "skills"), { recursive: true });
+    await fs.symlink(sharedSkill, path.join(home, ".codex", "skills", "review"));
+    await writeSkill(path.join(workspace, "skills", "review"), "Workspace");
+
+    const sources = getSkillSources(
+      {
+        registryDir: AbsolutePathSchema.parse(registry),
+        rootDir: WorkspaceDirSchema.parse(workspace),
+      },
+      AbsolutePathSchema.parse(home),
+    );
+    const skills = await findSkills(sources);
+
+    expect(skills.map(({ description, name, source }) => ({
+      description,
+      name,
+      source,
+    }))).toEqual([
+      { description: "Bundled", name: "bundled", source: "registry" },
+      { description: "Workspace", name: "review", source: "workspace" },
+    ]);
+  });
+});
+
+async function writeSkill(dir: string, description: string) {
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(
+    path.join(dir, "SKILL.md"),
+    make(`description: ${description}`),
+  );
+}

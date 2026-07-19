@@ -13,6 +13,29 @@
     "**/coverage"
   ],
   "jsPlugins": ["oxlint-tailwindcss"],
+  "overrides": [
+    {
+      "files": [
+        "src/client/components/document-viewers/**",
+        "src/client/components/ui/extend/**"
+      ],
+      "rules": {
+        "no-empty-function": "off",
+        "no-use-before-define": "off",
+        "typescript/array-type": "off",
+        "typescript/consistent-type-definitions": "off",
+        "typescript/no-base-to-string": "off",
+        "typescript/no-confusing-void-expression": "off",
+        "typescript/no-unnecessary-boolean-literal-compare": "off",
+        "typescript/no-unnecessary-condition": "off",
+        "typescript/no-unnecessary-type-assertion": "off",
+        "typescript/no-unnecessary-type-conversion": "off",
+        "typescript/non-nullable-type-assertion-style": "off",
+        "typescript/require-await": "off",
+        "typescript/use-unknown-in-catch-callback-variable": "off"
+      }
+    }
+  ],
   "settings": {
     "tailwindcss": {
       "entryPoint": "src/client/styles/globals.css"
@@ -27,7 +50,7 @@
     "tailwindcss/no-unknown-classes": [
       "error",
       {
-        "allowlist": ["toaster"]
+        "allowlist": ["docx-night-reader-shell", "toaster"]
       }
     ]
   }

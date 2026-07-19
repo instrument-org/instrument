@@ -1,3 +1,5 @@
+import "../scripts/lib/define-globals-apply";
+
 import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";

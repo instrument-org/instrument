@@ -149,7 +149,7 @@ describe("BashTool", () => {
         toolCallId: "1",
       });
       const value = (result as { value: string }).value;
-      expect(value).toContain(".instrument/tool-output/part-123.log");
+      expect(value).toContain("work/.tool-output/part-123.log");
     });
 
     it("does not truncate output that fits within limits", () => {

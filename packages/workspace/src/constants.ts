@@ -13,7 +13,10 @@ export const TASK_FOLDER_NAMES = {
   private: TASK_PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",
-  toolOutput: "tool-output",
+  // Dot-prefixed and written under work/ (see bash.ts): the agent is handed
+  // spill-file paths and must read them, but the logs are noise for the user so
+  // they stay out of the browsable file index.
+  toolOutput: ".tool-output",
   work: "work",
 } as const;
 export const TASKS_DIR_NAME = "tasks";

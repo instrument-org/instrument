@@ -70,17 +70,13 @@ const BLOCKED_FLAGS = new Set([
   "--session-name", // Legacy restore/session key alias.
 ]);
 
-// Flags that retarget an invocation at a browser other than the Instrument
-// task browser. Connection-identity flags mirror upstream precedence (cdp >
-// auto-connect > provider > local launch); profile/state/restore/executable
-// flags imply an external local Chrome launch, since the task browser is a
-// provider connection that ignores local launch options.
-const EXTERNAL_INTENT_FLAGS = new Set([
-  "--auto-connect",
-  "--cdp",
+// Launch-state flags that imply an external local Chrome launch when no
+// connection-identity flag (--cdp, --auto-connect, --provider) is present:
+// the task browser is a provider connection that ignores local launch
+// options, so these only mean something against an external browser.
+const EXTERNAL_STATE_FLAGS = new Set([
   "--executable-path",
   "--profile",
-  "--provider",
   "--restore",
   "--restore-check-fn",
   "--restore-check-text",
@@ -94,6 +90,7 @@ const EXTERNAL_INTENT_FLAGS = new Set([
 // gates in-session actions, not these meta-commands.
 const BLOCKED_SUBCOMMANDS = new Set([
   "auth", // Credential vault; we don't expose it.
+  "batch", // Each line is parsed as a full command (quoted args or --json stdin), which would bypass this argv-level policy.
   "chat", // Built-in AI REPL; the agent is the AI.
   "close", // Lifecycle managed by the workspace.
   "connect", // Sticky daemon connection state; per-invocation --cdp expresses the same thing without hidden routing state.
@@ -527,34 +524,69 @@ export function createAgentBrowserCommand({
 
 /**
  * True when the invocation targets a browser other than the Instrument task
- * browser. `--provider instrument` explicitly names the task browser, and a
- * literal `--auto-connect false` opt-out is honored; any other
- * external-intent flag routes the invocation to the external daemon session.
+ * browser. Mirrors upstream connection-identity precedence (cdp >
+ * auto-connect > provider > local launch): an explicit `--provider
+ * instrument` keeps a mixed invocation like `--profile x --provider
+ * instrument` on the task browser, exactly as the CLI itself would resolve
+ * it, and a literal `--auto-connect false` opt-out is honored.
  */
 export function isExternalBrowserInvocation(args: string[]): boolean {
+  let providerName: string | undefined;
+  let hasCdp = false;
+  let hasAutoConnect = false;
+  let hasStateFlag = false;
+
+  for (const { name, value } of targetingFlags(args)) {
+    switch (name) {
+      case "--auto-connect": {
+        if (value !== "false") {
+          hasAutoConnect = true;
+        }
+        break;
+      }
+      case "--cdp": {
+        hasCdp = true;
+        break;
+      }
+      case "--provider": {
+        providerName = value;
+        break;
+      }
+      default: {
+        if (EXTERNAL_STATE_FLAGS.has(name)) {
+          hasStateFlag = true;
+        }
+      }
+    }
+  }
+
+  if (hasCdp || hasAutoConnect) {
+    return true;
+  }
+  if (providerName !== undefined) {
+    return providerName.toLowerCase() !== INSTRUMENT_PROVIDER_NAME;
+  }
+  return hasStateFlag;
+}
+
+/**
+ * The flags an invocation carries, as the CLI itself reads them: aliases
+ * resolved, and a value flag's value never read back as a flag of its own.
+ *
+ * Inline `--flag=value` forms are folded in on top. The CLI honours
+ * `--cdp <value>` but not `--cdp=<value>`, so the inline form never reaches
+ * its global-flag parser -- but routing on it anyway beats letting a form
+ * technicality decide which daemon session an invocation lands in.
+ */
+function targetingFlags(args: string[]) {
   const { globalFlags, subArgs } = parseAgentBrowserArgs(args);
-  // The CLI reads `--cdp <value>` but not `--cdp=<value>`, so an inline form
-  // never reaches globalFlags. Route on it anyway: intent is unambiguous, and
-  // resolving it here beats letting a form technicality decide which daemon
-  // session an invocation lands in.
   const inlineFlags = subArgs
     .filter(({ value }) => value.startsWith("-") && value.includes("="))
     .map(({ value }) => ({
       name: agentBrowserFlagName(value),
       value: value.slice(value.indexOf("=") + 1),
     }));
-  return [...globalFlags, ...inlineFlags].some(({ name, value }) => {
-    if (!EXTERNAL_INTENT_FLAGS.has(name)) {
-      return false;
-    }
-    if (name === "--provider") {
-      return value?.toLowerCase() !== INSTRUMENT_PROVIDER_NAME;
-    }
-    if (name === "--auto-connect") {
-      return value !== "false";
-    }
-    return true;
-  });
+  return [...globalFlags, ...inlineFlags];
 }
 
 async function enrichBrowserState({

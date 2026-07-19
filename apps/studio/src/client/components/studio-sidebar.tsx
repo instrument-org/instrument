@@ -1,5 +1,6 @@
 import { InternalLink } from "@/client/components/internal-link";
 import { NavProjects } from "@/client/components/nav-projects";
+import { NavSkills } from "@/client/components/nav-skills";
 import { NavSupport } from "@/client/components/nav-support";
 import { NavTasks } from "@/client/components/nav-tasks";
 import { NavUser } from "@/client/components/nav-user";
@@ -66,6 +67,7 @@ export function StudioSidebar({
         {!isPending && (
           <>
             <NavProjects matches={matches} projects={projects} />
+            <NavSkills matches={matches} />
             {tasksData?.tasks && tasksData.tasks.length > 0 && (
               <NavTasks
                 matches={matches}

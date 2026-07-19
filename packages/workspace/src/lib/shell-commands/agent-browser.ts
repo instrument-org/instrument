@@ -50,6 +50,7 @@ export const AGENT_BROWSER_COMMAND = {
     IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
     IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.
     Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). The skill covers when each is appropriate.
+    The host's browser installs and Chrome profiles are NOT visible in the filesystem; inspect them only via \`agent-browser profiles\`.
     Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,

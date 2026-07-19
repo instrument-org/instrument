@@ -24,6 +24,13 @@ lines onto Radix is not viable. Instead the Base UI primitives are vendored into
 their own namespace at `src/client/components/ui/extend/`. Studio's own Radix
 primitives are untouched, and re-syncing with upstream Extend UI stays a copy.
 
+Both vendored directories are held as close to upstream as the fixes allow, and
+every file carries a provenance header listing its local changes. House lint
+rules are relaxed over them, and knip waives `exports`/`types` there so the
+unused-export noise of a full upstream API surface does not force edits to code
+that is meant to stay copyable. They stay ordinary project files, so a vendored
+module nothing imports is still reported.
+
 ### Renderer origin is `file://` in production
 
 `studioURL()` loads the renderer from `file://` in packaged builds, so
@@ -34,12 +41,17 @@ at build time and served from the already-privileged `instrument:` protocol
 The renderer's own origin is never that scheme, so every WASM fetch is
 cross-origin; Chromium rejects those for custom schemes unless the scheme
 itself opts in, independent of the response's CORS headers. Every library
-exposes `setWasmSource()`, so no bundler aliasing is needed.
+exposes `setWasmSource()`, so no bundler aliasing is needed. `APP_PROTOCOL` is
+`instrument-local` in development and `instrument` in packaged builds, so both
+schemes have to be allowed wherever the binaries are reached.
 
 Module workers do still work from `file://`: the
 `grantFileProtocolExtraPrivileges` fuse is on by default and this app never
-flips it, so `allow-file-access-from-files` stays enabled. All four viewers run
-their parsers off the main thread, verified in a packaged build.
+flips it, so `allow-file-access-from-files` stays enabled and a worker script
+loaded from a sibling `file://` path is same-origin. All four viewers therefore
+run their parsers off the main thread, verified against a packaged build
+(renderer at `file://.../app.asar/out/renderer/index.html`) for all four
+formats.
 
 ### Parser workers and the dev dependency optimizer
 
@@ -72,10 +84,12 @@ replaced.
 ### CSP
 
 `src/index.html` needs `'wasm-unsafe-eval'` in `script-src` (WebAssembly
-compilation), `instrument:` in `connect-src` (fetching the binaries), `blob:` in
-`img-src` (the viewers rasterize pages to a canvas and hand the resulting object
-URL to an `<img>`), and `worker-src 'self' blob:` (the PDF engine's worker is a
-blob URL, and `worker-src` otherwise falls back to `script-src`).
+compilation), `instrument:` and `instrument-local:` in `connect-src` (fetching
+the binaries in packaged and dev builds respectively), `blob:` in `img-src` (the
+viewers rasterize pages to a canvas and hand the resulting object URL to an
+`<img>`), and `worker-src 'self' blob:` (the PDF engine's worker is a blob URL,
+and `worker-src` otherwise falls back to `script-src`, which does not allow
+`blob:`).
 
 ### Theme
 
@@ -85,8 +99,13 @@ vendored primitives also expect tokens Studio lacks (`--color-surface`,
 `--color-info`, scalar `--color-success`/`--color-warning`,
 `--color-destructive-foreground`, `--radius-2xl`+); those are added.
 
-`DocxViewerPreview` and `XlsxViewerPreview` take `isDark` as a required
-controlled prop, wired to Studio's `ThemeProvider`.
+`DocxViewerPreview` and `XlsxViewerPreview` take `isDark` as a controlled prop,
+so every host that mounts one has to supply it or the document renders a white
+page inside a dark shell. `file-viewer.tsx` seeds it from Studio's
+`ThemeProvider`; `FileSystem` takes it as an optional prop and otherwise falls
+back to `useRootIsDark()`, which observes the `dark` class on
+`document.documentElement`. Both seed a local state so the viewer's own theme
+toggle wins until the host theme changes again.
 
 ### App zoom
 
@@ -118,8 +137,22 @@ Nothing loaded during renderer startup may statically import a viewer library.
 Each ships as a single side-effectful entry point, so importing one symbol
 pulls the whole package in: configuring all three WASM sources from `main.tsx`
 put 5.6MB of library source into the entry chunk. `document-wasm.ts` therefore
-reaches each library through a dynamic import, awaited alongside the viewer's
-own `lazy()` import in `file-viewer.tsx`.
+reaches each library through a dynamic import, and it owns the `lazy()` handles
+(`LazyDocxViewerPreview`, `LazyPDFViewer`, `LazyPptxViewerPreview`,
+`LazyXlsxViewerPreview`) that pair the wasm configuration with the viewer's own
+import. Every host goes through those handles, so no host can mount a viewer
+that would fall back to the library's default wasm source. The entry chunk
+stays at ~5.6MB with the four viewers in chunks of their own.
+
+### `@embedpdf`'s preact peer
+
+`@embedpdf/*` declares a `preact: ^10.26.4` peer alongside its React, Svelte and
+Vue ones. Without a preact in the tree pnpm auto-installs one, and it picks up
+`@pierre/trees`' v11 prerelease, which does not satisfy the `^10` peer range.
+Scoped `overrides` do not help: those rewrite declared specifiers, not
+auto-installed peers. `apps/studio` therefore carries `preact` as a
+devDependency so the peer resolves to v10 from the app's own subtree, leaving
+`@pierre/trees` on its v11. Nothing imports preact at runtime.
 
 ## Data model
 
@@ -138,9 +171,18 @@ Range requests and CORS.
   owns the unsupported-file fallback: `FileSystem` only reaches
   `onUnsupportedFileOpen` when no `onFileOpen` is supplied, and Studio previews
   more formats (markdown, code, audio, video) than the browser's own viewers,
-  so the routing decision has to be made in one place.
+  so the routing decision has to be made in one place. `canPreviewFile()`
+  answers it, and anything it rejects is handed to the OS-associated
+  application through `utils.openTaskFile`.
 - `file-viewer.tsx` gains `pdf` / `docx` / `xlsx` / `pptx` branches, all lazy.
-- `get-file-type.ts` gains `docx` / `xlsx` / `pptx` types.
+  Each renders inside a `CatchBoundary` keyed on the file URL, so a parser that
+  throws degrades to the "preview unavailable" card and retries when the user
+  picks another file, instead of taking down the panel.
+- `get-file-type.ts` gains `docx` / `xlsx` / `pptx` types, and
+  `canPreviewFile()` is backed by a `satisfies Record<FileType, boolean>` table
+  so adding a `FileType` forces a routing decision.
+- The browser renders no document itself, so `TaskFileBrowser` supplies
+  `previewImageUrl` for images; other formats fall back to a file-type icon.
 
 ## Removed
 

@@ -21,7 +21,9 @@ import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
+import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
+import { Route as AppSkillsNameRouteImport } from './routes/_app/skills/$name'
 import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/notifications'
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
 import { Route as AppDebugComponentsRouteImport } from './routes/_app/debug/components'
@@ -104,10 +106,20 @@ const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
   path: '/tasks/',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
+  id: '/skills/',
+  path: '/skills/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppDebugRouteRoute,
+} as any)
+const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
+  id: '/skills/$name',
+  path: '/skills/$name',
+  getParentRoute: () => AppRouteRoute,
 } as any)
 const AppDebugNotificationsRoute = AppDebugNotificationsRouteImport.update({
   id: '/notifications',
@@ -256,7 +268,9 @@ export interface FileRoutesByFullPath {
   '/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
+  '/skills/$name': typeof AppSkillsNameRoute
   '/debug/': typeof AppDebugIndexRoute
+  '/skills/': typeof AppSkillsIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
@@ -289,7 +303,9 @@ export interface FileRoutesByTo {
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
+  '/skills/$name': typeof AppSkillsNameRoute
   '/debug': typeof AppDebugIndexRoute
+  '/skills': typeof AppSkillsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
@@ -327,7 +343,9 @@ export interface FileRoutesById {
   '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
   '/_app/debug/errors': typeof AppDebugErrorsRoute
   '/_app/debug/notifications': typeof AppDebugNotificationsRoute
+  '/_app/skills/$name': typeof AppSkillsNameRoute
   '/_app/debug/': typeof AppDebugIndexRoute
+  '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/_app/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
@@ -365,7 +383,9 @@ export interface FileRouteTypes {
     | '/debug/components'
     | '/debug/errors'
     | '/debug/notifications'
+    | '/skills/$name'
     | '/debug/'
+    | '/skills/'
     | '/tasks/'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
@@ -398,7 +418,9 @@ export interface FileRouteTypes {
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
+    | '/skills/$name'
     | '/debug'
+    | '/skills'
     | '/tasks'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
@@ -435,7 +457,9 @@ export interface FileRouteTypes {
     | '/_app/debug/components'
     | '/_app/debug/errors'
     | '/_app/debug/notifications'
+    | '/_app/skills/$name'
     | '/_app/debug/'
+    | '/_app/skills/'
     | '/_app/tasks/'
     | '/_app/debug/browser-view/$targetId'
     | '/_app/debug/components/alerts'
@@ -549,12 +573,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/skills/': {
+      id: '/_app/skills/'
+      path: '/skills'
+      fullPath: '/skills/'
+      preLoaderRoute: typeof AppSkillsIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/debug/': {
       id: '/_app/debug/'
       path: '/'
       fullPath: '/debug/'
       preLoaderRoute: typeof AppDebugIndexRouteImport
       parentRoute: typeof AppDebugRouteRoute
+    }
+    '/_app/skills/$name': {
+      id: '/_app/skills/$name'
+      path: '/skills/$name'
+      fullPath: '/skills/$name'
+      preLoaderRoute: typeof AppSkillsNameRouteImport
+      parentRoute: typeof AppRouteRoute
     }
     '/_app/debug/notifications': {
       id: '/_app/debug/notifications'
@@ -818,6 +856,8 @@ interface AppRouteRouteChildren {
   AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppTutorialTaskRoute: typeof AppTutorialTaskRoute
+  AppSkillsNameRoute: typeof AppSkillsNameRoute
+  AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
   AppProjectsIdIndexRoute: typeof AppProjectsIdIndexRoute
   AppTasksIdIndexRoute: typeof AppTasksIdIndexRoute
@@ -829,6 +869,8 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTutorialTaskRoute: AppTutorialTaskRoute,
+  AppSkillsNameRoute: AppSkillsNameRoute,
+  AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
   AppProjectsIdIndexRoute: AppProjectsIdIndexRoute,
   AppTasksIdIndexRoute: AppTasksIdIndexRoute,

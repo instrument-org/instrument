@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { captureServerException } from "./capture-server-exception";
+import { getAppUnpackedPath, getResourcePath } from "./resource-path";
 
 const BIN_DIR_NAME = "bin";
 
@@ -16,20 +17,11 @@ export function getPNPMBinPath(): string {
   return getNodeModulePath("pnpm", "bin", "pnpm.cjs");
 }
 
-// The uv binary is vendored into `resources/uv/` (see scripts/download-uv.ts),
-// which electron-builder bundles and unpacks via `asarUnpack: ["resources/**"]`,
-// so it is deep-signed alongside the app. Resolve it from the unpacked tree in
-// prod and from the repo `resources/` dir in dev. Mirrors getNodeModulePath.
+// The uv binary is vendored into `resources/uv/` (see scripts/download-uv.ts)
+// so it is deep-signed alongside the app.
 export function getUvBinPath(): string {
   const binaryName = process.platform === "win32" ? "uv.exe" : "uv";
-  const appPath = app.getAppPath();
-  const uvPath = path.join(appPath, "resources", "uv", binaryName);
-
-  if (app.isPackaged && appPath.endsWith(".asar")) {
-    return uvPath.replace(/app\.asar([/\\])/, "app.asar.unpacked$1");
-  }
-
-  return uvPath;
+  return getResourcePath("uv", binaryName);
 }
 
 // Added to PATH so that child processes (the users's apps) can access the binaries
@@ -143,18 +135,7 @@ function getBinDirectoryPath(): string {
 }
 
 function getNodeModulePath(...parts: string[]): string {
-  const appPath = app.getAppPath();
-  const modulePath = path.join(appPath, "node_modules", ...parts);
-
-  if (app.isPackaged && appPath.endsWith(".asar")) {
-    const unpackedPath = modulePath.replace(
-      /app\.asar([/\\])/,
-      "app.asar.unpacked$1",
-    );
-    return unpackedPath;
-  }
-
-  return modulePath;
+  return getAppUnpackedPath("node_modules", ...parts);
 }
 
 // Since @vscode/ripgrep 1.18.0 the binary ships in a per-platform package

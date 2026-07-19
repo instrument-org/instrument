@@ -100,17 +100,26 @@ export function promptDraftAtom(key: PromptDraftKey) {
 // The live textarea for a draft, so imperative focus targets the right input
 // even with several prompt surfaces mounted across tabs.
 const promptDraftRefFamily = atomFamily((_key: string) =>
-  atom<HTMLTextAreaElement | null>(null),
+  atom<HTMLElement | null>(null),
 );
 
 /** Focus a prompt textarea and drop the caret at the end of its text. */
-export function focusPromptDraft(el: HTMLTextAreaElement | null) {
+export function focusPromptDraft(el: HTMLElement | null) {
   if (!el) {
     return;
   }
   el.focus();
-  const end = el.value.length;
-  el.setSelectionRange(end, end);
+  if (el instanceof HTMLTextAreaElement) {
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+    return;
+  }
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
 }
 
 export function promptDraftRefAtom(key: PromptDraftKey) {

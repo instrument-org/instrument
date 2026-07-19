@@ -66,24 +66,19 @@ const BLOCKED_FLAGS = new Set([
   "--session-name", // Legacy restore/session key alias.
 ]);
 
-// Flags that retarget an invocation at a browser other than the Instrument
-// task browser. Connection-identity flags mirror upstream precedence (cdp >
-// auto-connect > provider > local launch); profile/state/restore/executable
-// flags imply an external local Chrome launch, since the task browser is a
-// provider connection that ignores local launch options.
-const EXTERNAL_INTENT_FLAGS = new Set([
-  "--auto-connect",
-  "--cdp",
+// Launch-state flags that imply an external local Chrome launch when no
+// connection-identity flag (--cdp, --auto-connect, --provider) is present:
+// the task browser is a provider connection that ignores local launch
+// options, so these only mean something against an external browser.
+const EXTERNAL_STATE_FLAGS = new Set([
   "--executable-path",
   "--profile",
-  "--provider",
   "--restore",
   "--restore-check-fn",
   "--restore-check-text",
   "--restore-check-url",
   "--restore-save",
   "--state",
-  "-p", // Short alias for --provider.
 ]);
 
 // Subcommands rejected because they don't apply to our proxied target or
@@ -91,6 +86,7 @@ const EXTERNAL_INTENT_FLAGS = new Set([
 // gates in-session actions, not these meta-commands.
 const BLOCKED_SUBCOMMANDS = new Set([
   "auth", // Credential vault; we don't expose it.
+  "batch", // Each line is parsed as a full command (quoted args or --json stdin), which would bypass this argv-level policy.
   "chat", // Built-in AI REPL; the agent is the AI.
   "close", // Lifecycle managed by the workspace.
   "connect", // Sticky daemon connection state; per-invocation --cdp expresses the same thing without hidden routing state.
@@ -477,11 +473,17 @@ export function findSubcommand(args: string[]): string | undefined {
 
 /**
  * True when the invocation targets a browser other than the Instrument task
- * browser. `--provider instrument` explicitly names the task browser, and a
- * literal `--auto-connect false` opt-out is honored; any other
- * external-intent flag routes the invocation to the external daemon session.
+ * browser. Mirrors upstream connection-identity precedence (cdp >
+ * auto-connect > provider > local launch): an explicit `--provider
+ * instrument` keeps a mixed invocation like `--profile x --provider
+ * instrument` on the task browser, exactly as the CLI itself would resolve
+ * it, and a literal `--auto-connect false` opt-out is honored.
  */
 export function isExternalBrowserInvocation(args: string[]): boolean {
+  let providerName: string | undefined;
+  let hasCdp = false;
+  let hasAutoConnect = false;
+  let hasStateFlag = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === undefined || !arg.startsWith("-")) {
@@ -489,30 +491,55 @@ export function isExternalBrowserInvocation(args: string[]): boolean {
     }
     const eqIdx = arg.indexOf("=");
     const name = eqIdx > 0 ? arg.slice(0, eqIdx) : arg;
-    if (!EXTERNAL_INTENT_FLAGS.has(name)) {
-      continue;
-    }
-    const next = args[i + 1];
-    const value =
-      eqIdx > 0
-        ? arg.slice(eqIdx + 1)
-        : name === "--auto-connect"
-          ? next !== undefined && BOOLEAN_VALUE_TOKENS.has(next)
+    const inlineValue = eqIdx > 0 ? arg.slice(eqIdx + 1) : undefined;
+    switch (name) {
+      case "--auto-connect": {
+        const next = args[i + 1];
+        const value =
+          inlineValue ??
+          (next !== undefined && BOOLEAN_VALUE_TOKENS.has(next)
             ? next
-            : undefined
-          : next;
-    if (
-      (name === "--provider" || name === "-p") &&
-      value?.toLowerCase() === INSTRUMENT_PROVIDER_NAME
-    ) {
-      continue;
+            : undefined);
+        if (value !== "false") {
+          hasAutoConnect = true;
+        }
+        if (inlineValue === undefined && value !== undefined) {
+          i++;
+        }
+        break;
+      }
+      case "--cdp": {
+        hasCdp = true;
+        if (inlineValue === undefined) {
+          i++;
+        }
+        break;
+      }
+      case "--provider":
+      case "-p": {
+        providerName = inlineValue ?? args[i + 1];
+        if (inlineValue === undefined) {
+          i++;
+        }
+        break;
+      }
+      default: {
+        if (EXTERNAL_STATE_FLAGS.has(name)) {
+          hasStateFlag = true;
+        }
+        if (eqIdx < 0 && VALUE_FLAGS.has(name)) {
+          i++; // Skip this flag's value so it is never read as a flag itself.
+        }
+      }
     }
-    if (name === "--auto-connect" && value === "false") {
-      continue;
-    }
+  }
+  if (hasCdp || hasAutoConnect) {
     return true;
   }
-  return false;
+  if (providerName !== undefined) {
+    return providerName.toLowerCase() !== INSTRUMENT_PROVIDER_NAME;
+  }
+  return hasStateFlag;
 }
 
 async function enrichBrowserState({

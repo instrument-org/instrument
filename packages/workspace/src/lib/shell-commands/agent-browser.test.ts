@@ -50,6 +50,7 @@ describe("createAgentBrowserCommand", () => {
 
   it.each([
     { subcommand: "auth" },
+    { subcommand: "batch" },
     { subcommand: "connect" },
     { subcommand: "install" },
     { subcommand: "mcp" },
@@ -128,6 +129,19 @@ describe("isExternalBrowserInvocation", () => {
     { args: ["--state", "state.json", "open", "x"], external: true },
     { args: ["--restore", "shop", "open", "x"], external: true },
     { args: ["--executable-path", "/opt/chrome", "open", "x"], external: true },
+    // A non-targeting value flag's value is never read as a flag itself.
+    { args: ["--args", "--cdp", "open", "x"], external: false },
+    { args: ["--user-agent", "--auto-connect", "open", "x"], external: false },
+    // Upstream identity precedence: provider beats launch-state flags, cdp
+    // beats provider.
+    {
+      args: ["--profile", "Default", "--provider", "instrument", "open"],
+      external: false,
+    },
+    {
+      args: ["--provider", "instrument", "--cdp", "9222", "get", "url"],
+      external: true,
+    },
   ])("$args -> external: $external", ({ args, external }) => {
     expect(isExternalBrowserInvocation(args)).toBe(external);
   });

@@ -72,6 +72,9 @@ overrides:
   jiti: 2.7.0
 
 patchedDependencies:
+  '@extend-ai/react-docx@0.8.1':
+    hash: c4a48a1b9d61f2defb9a6fef0f1aeb9fa8361d94d71b3313937ad883ea2e3eee
+    path: patches/@extend-ai__react-docx@0.8.1.patch
   '@parcel/watcher@2.5.1':
     hash: 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
     path: patches/@parcel__watcher@2.5.1.patch
@@ -350,7 +353,7 @@ importers:
         version: 2.14.4(e32b207a1ad037a8e321e1cac275c2a7)
       '@extend-ai/react-docx':
         specifier: 0.8.1
-        version: 0.8.1(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        version: 0.8.1(patch_hash=c4a48a1b9d61f2defb9a6fef0f1aeb9fa8361d94d71b3313937ad883ea2e3eee)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       '@extend-ai/react-pptx':
         specifier: 0.1.2
         version: 0.1.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -11197,7 +11200,7 @@ snapshots:
       '@eslint/core': 0.15.2
       levn: 0.4.1
 
-  '@extend-ai/react-docx@0.8.1(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
+  '@extend-ai/react-docx@0.8.1(patch_hash=c4a48a1b9d61f2defb9a6fef0f1aeb9fa8361d94d71b3313937ad883ea2e3eee)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
     dependencies:
       '@chenglou/pretext': 0.0.8
       '@tanstack/react-virtual': 3.13.18(react-dom@19.2.1(react@19.2.1))(react@19.2.1)

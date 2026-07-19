@@ -1,12 +1,14 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import {
-  configureDocxWasmSource,
-  configurePptxWasmSource,
-  configureXlsxWasmSource,
+  LazyDocxViewerPreview,
+  LazyPDFViewer,
+  LazyPptxViewerPreview,
+  LazyXlsxViewerPreview,
 } from "@/client/lib/document-wasm";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { getFileType } from "@/client/lib/get-file-type";
+import { captureComponentError } from "@/client/lib/telemetry";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -24,11 +26,13 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { CatchBoundary } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import {
-  lazy,
+  createContext,
   type ReactNode,
   Suspense,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -76,59 +80,62 @@ import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-// The document viewers pull in their own WebAssembly runtimes and are by far
-// the heaviest components in the renderer, so they stay out of the entry chunk.
-const PDFViewer = lazy(() =>
-  import("./document-viewers/pdf-viewer").then((module) => ({
-    default: module.PDFViewer,
-  })),
-);
-const DocxViewerPreview = lazy(async () => {
-  const [, module] = await Promise.all([
-    configureDocxWasmSource(),
-    import("./document-viewers/docx-viewer"),
-  ]);
-  return { default: module.DocxViewerPreview };
-});
-const PptxViewerPreview = lazy(async () => {
-  const [, module] = await Promise.all([
-    configurePptxWasmSource(),
-    import("./document-viewers/pptx-viewer"),
-  ]);
-  return { default: module.PptxViewerPreview };
-});
-const XlsxViewerPreview = lazy(async () => {
-  const [, module] = await Promise.all([
-    configureXlsxWasmSource(),
-    import("./document-viewers/xlsx-viewer"),
-  ]);
-  return { default: module.XlsxViewerPreview };
-});
+// `CatchBoundary` instantiates `errorComponent` as a component type, so it has
+// to be stable; passing the fallback through context keeps it from remounting
+// on every render of the surface.
+const ViewerFallbackContext = createContext<ReactNode>(null);
 
 // The viewers fill their host and scroll internally, so they are pinned to the
-// content area rather than laid out inside its scroll container.
-function DocumentViewerSurface({ children }: { children: ReactNode }) {
+// content area rather than laid out inside its scroll container. A viewer that
+// throws, or whose chunk fails to load, must not reach the top-level shell
+// boundary and take the whole window down with it, so the surface degrades to
+// the same fallback an unsupported file gets.
+function DocumentViewerSurface({
+  children,
+  fallback,
+  resetKey,
+}: {
+  children: ReactNode;
+  fallback: ReactNode;
+  resetKey: string;
+}) {
   return (
     <div className="absolute inset-0">
-      <Suspense
-        fallback={
-          <div className="flex size-full items-center justify-center">
-            <Spinner className="size-8 text-muted-foreground" />
-          </div>
-        }
-      >
-        {children}
-      </Suspense>
+      <ViewerFallbackContext value={fallback}>
+        <CatchBoundary
+          errorComponent={ViewerFallback}
+          getResetKey={() => resetKey}
+          onCatch={captureComponentError}
+        >
+          <Suspense
+            fallback={
+              <div className="flex size-full items-center justify-center">
+                <Spinner className="size-8 text-muted-foreground" />
+              </div>
+            }
+          >
+            {children}
+          </Suspense>
+        </CatchBoundary>
+      </ViewerFallbackContext>
     </div>
   );
 }
 
-function DocxPreview({ filename, url }: { filename: string; url: string }) {
+function DocxPreview({
+  fallback,
+  filename,
+  url,
+}: {
+  fallback: ReactNode;
+  filename: string;
+  url: string;
+}) {
   const [isDark, setIsDark] = useViewerIsDark();
 
   return (
-    <DocumentViewerSurface>
-      <DocxViewerPreview
+    <DocumentViewerSurface fallback={fallback} resetKey={url}>
+      <LazyDocxViewerPreview
         className="h-full"
         fileName={filename}
         isDark={isDark}
@@ -354,12 +361,24 @@ function useViewerIsDark() {
   return [isDark, setIsDark] as const;
 }
 
-function XlsxPreview({ filename, url }: { filename: string; url: string }) {
+function ViewerFallback() {
+  return useContext(ViewerFallbackContext);
+}
+
+function XlsxPreview({
+  fallback,
+  filename,
+  url,
+}: {
+  fallback: ReactNode;
+  filename: string;
+  url: string;
+}) {
   const [isDark, setIsDark] = useViewerIsDark();
 
   return (
-    <DocumentViewerSurface>
-      <XlsxViewerPreview
+    <DocumentViewerSurface fallback={fallback} resetKey={url}>
+      <LazyXlsxViewerPreview
         className="h-full"
         fileName={filename}
         isDark={isDark}
@@ -501,6 +520,17 @@ export function FileViewer({
       id: taskId,
     });
   };
+
+  const renderPreviewFallback = (fallbackExtension?: string) => (
+    <div className="flex size-full items-center justify-center">
+      <FilePreviewFallback
+        fallbackExtension={fallbackExtension}
+        file={file}
+        filename={filename}
+        onDownload={fileActions.showDownload ? handleDownload : undefined}
+      />
+    </div>
+  );
 
   const getViewerLayoutType = () => {
     if (fileType === "audio") {
@@ -670,14 +700,7 @@ export function FileViewer({
 
       <div className="relative min-h-0 flex-1 overflow-auto" ref={contentRef}>
         {mediaLoadError ? (
-          <div className="flex size-full items-center justify-center">
-            <FilePreviewFallback
-              fallbackExtension={mediaErrorType}
-              file={file}
-              filename={filename}
-              onDownload={fileActions.showDownload ? handleDownload : undefined}
-            />
-          </div>
+          renderPreviewFallback(mediaErrorType)
         ) : fileType === "markdown" && viewMode === "preview" ? (
           <MarkdownPreview url={url} />
         ) : fileType === "html" && viewMode === "preview" ? (
@@ -689,16 +712,7 @@ export function FileViewer({
           />
         ) : fileType === "image" ? (
           imageLoadError ? (
-            <div className="flex size-full items-center justify-center">
-              <FilePreviewFallback
-                fallbackExtension="jpg"
-                file={file}
-                filename={filename}
-                onDownload={
-                  fileActions.showDownload ? handleDownload : undefined
-                }
-              />
-            </div>
+            renderPreviewFallback("jpg")
           ) : (
             <ContextMenu>
               <ContextMenuTrigger className="size-full">
@@ -729,8 +743,11 @@ export function FileViewer({
             )}
           </TextView>
         ) : fileType === "pdf" ? (
-          <DocumentViewerSurface>
-            <PDFViewer
+          <DocumentViewerSurface
+            fallback={renderPreviewFallback("pdf")}
+            resetKey={url}
+          >
+            <LazyPDFViewer
               className="h-full"
               fileName={filename}
               key={url}
@@ -740,10 +757,18 @@ export function FileViewer({
             />
           </DocumentViewerSurface>
         ) : fileType === "docx" ? (
-          <DocxPreview filename={filename} key={url} url={url} />
+          <DocxPreview
+            fallback={renderPreviewFallback("docx")}
+            filename={filename}
+            key={url}
+            url={url}
+          />
         ) : fileType === "pptx" ? (
-          <DocumentViewerSurface>
-            <PptxViewerPreview
+          <DocumentViewerSurface
+            fallback={renderPreviewFallback("pptx")}
+            resetKey={url}
+          >
+            <LazyPptxViewerPreview
               className="h-full"
               fileName={filename}
               key={url}
@@ -753,7 +778,12 @@ export function FileViewer({
             />
           </DocumentViewerSurface>
         ) : fileType === "xlsx" ? (
-          <XlsxPreview filename={filename} key={url} url={url} />
+          <XlsxPreview
+            fallback={renderPreviewFallback("xlsx")}
+            filename={filename}
+            key={url}
+            url={url}
+          />
         ) : fileType === "video" ? (
           <video
             className="size-full object-contain"
@@ -779,14 +809,7 @@ export function FileViewer({
             />
           </div>
         ) : (
-          <div className="flex size-full items-center justify-center">
-            <FilePreviewFallback
-              fallbackExtension="bin"
-              file={file}
-              filename={filename}
-              onDownload={fileActions.showDownload ? handleDownload : undefined}
-            />
-          </div>
+          renderPreviewFallback("bin")
         )}
       </div>
     </div>

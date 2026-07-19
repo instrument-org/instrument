@@ -1,7 +1,10 @@
 // Vendored from Extend UI (https://ui.extend.ai), MIT licensed.
 // Local changes: import paths, semantic color tokens in place of the
-// default Tailwind palette, and an `onUnsupportedFileOpen` prop so a host can
-// intercept files with no built-in viewer instead of calling `window.open`.
+// default Tailwind palette, an `onUnsupportedFileOpen` prop so a host can
+// intercept files with no built-in viewer instead of calling `window.open`,
+// the lazy viewer handles sourced from `document-wasm` so every viewer is
+// loaded with its wasm source configured, and an `isDark` prop that seeds the
+// document viewers' night-render toggle.
 
 import { FileThumbnail } from "@/client/components/document-viewers/file-thumbnail";
 import { Button } from "@/client/components/ui/extend/button";
@@ -54,6 +57,12 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/client/components/ui/extend/tabs";
+import {
+  LazyDocxViewerPreview,
+  LazyPDFViewer,
+  LazyPptxViewerPreview,
+  LazyXlsxViewerPreview,
+} from "@/client/lib/document-wasm";
 import { cn } from "@/client/lib/utils";
 import {
   ArrowDown01Icon,
@@ -83,27 +92,6 @@ import {
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import * as React from "react";
 import { createPortal } from "react-dom";
-
-const LazyPDFViewer = React.lazy(() =>
-  import("@/client/components/document-viewers/pdf-viewer").then((mod) => ({
-    default: mod.PDFViewer,
-  })),
-);
-const LazyDocxViewerPreview = React.lazy(() =>
-  import("@/client/components/document-viewers/docx-viewer").then((mod) => ({
-    default: mod.DocxViewerPreview,
-  })),
-);
-const LazyPptxViewerPreview = React.lazy(() =>
-  import("@/client/components/document-viewers/pptx-viewer").then((mod) => ({
-    default: mod.PptxViewerPreview,
-  })),
-);
-const LazyXlsxViewerPreview = React.lazy(() =>
-  import("@/client/components/document-viewers/xlsx-viewer").then((mod) => ({
-    default: mod.XlsxViewerPreview,
-  })),
-);
 
 export type FileSystemFileItem = {
   contentType?: string;
@@ -168,6 +156,12 @@ export type FileSystemProps = {
   defaultView?: FileSystemView;
   /** Resolve a URL (e.g. presigned) for a file without one. */
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
+  /**
+   * Seeds the night-render toggle the document previews own. Defaults to the
+   * `dark` class on the document element, so a host following the Tailwind
+   * dark-mode convention needs no wiring.
+   */
+  isDark?: boolean;
   /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
   items: FileSystemItem[];
   /** Lazily fetch children for folders with `hasChildren` and no loaded entries. */
@@ -1380,6 +1374,7 @@ export function FileSystem({
   defaultPath = "",
   defaultView = "icons",
   getFileUrl,
+  isDark,
   items,
   loadChildren,
   loadPreviewImageUrl,
@@ -1391,6 +1386,8 @@ export function FileSystem({
   title = "Files",
   view: viewProp,
 }: FileSystemProps) {
+  const rootIsDark = useRootIsDark();
+  const previewIsDark = isDark ?? rootIsDark;
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
   const setView = React.useCallback(
@@ -2373,6 +2370,7 @@ export function FileSystem({
             <FileSystemGalleryStage
               file={file}
               getFileUrl={getFileUrl}
+              isDark={previewIsDark}
               loadPreviewImageUrl={loadPreviewImageUrl}
               pageUrlCache={pageUrlCache}
               renderFilePreview={renderFilePreview}
@@ -3269,6 +3267,18 @@ function FileSystemRangeCalendar({
   );
 }
 
+function getRootIsDark() {
+  return document.documentElement.classList.contains("dark");
+}
+
+function subscribeToRootThemeClass(onStoreChange: () => void) {
+  const observer = new MutationObserver(onStoreChange);
+
+  observer.observe(document.documentElement, { attributeFilter: ["class"] });
+
+  return () => observer.disconnect();
+}
+
 // Resolves a display URL for a file: its own `url`, else via `getFileUrl`.
 // Keyed by path/url (not object identity) so manifest churn — e.g. thumbnails
 // streaming in — doesn't re-trigger presign calls for the same file. An
@@ -3324,6 +3334,30 @@ function useResolvedFileUrl(
   }, [cache, filePath, fileUrl, getFileUrl]);
 
   return state;
+}
+
+// Tracks the Tailwind dark-mode convention (a `dark` class on the document
+// element), which is what the previews fall back to when the host does not
+// control `isDark` -- otherwise a document renders a white page inside a dark
+// app.
+function useRootIsDark() {
+  return React.useSyncExternalStore(subscribeToRootThemeClass, getRootIsDark);
+}
+
+// The docx and xlsx viewers own a night-render toggle in their toolbar, so
+// their dark state has to be controlled. It is seeded from `seed` and re-seeded
+// whenever that changes; between those the viewer's own toggle wins so the
+// control is not inert.
+function useSeededIsDark(seed: boolean) {
+  const [isDark, setIsDark] = React.useState(seed);
+  const [lastSeed, setLastSeed] = React.useState(seed);
+
+  if (seed !== lastSeed) {
+    setLastSeed(seed);
+    setIsDark(seed);
+  }
+
+  return [isDark, setIsDark] as const;
 }
 
 // Returns `value` once it has stopped changing for `delay` ms. Gallery
@@ -4857,6 +4891,7 @@ const GALLERY_STAGE_ATTACHED_COUNT = 3;
 function FileSystemGalleryStage({
   file,
   getFileUrl,
+  isDark: hostIsDark,
   loadPreviewImageUrl,
   pageUrlCache,
   renderFilePreview,
@@ -4866,6 +4901,8 @@ function FileSystemGalleryStage({
 }: {
   file: FileEntry;
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
+  /** Seeds the docx/xlsx night-render toggle. */
+  isDark: boolean;
   loadPreviewImageUrl?: (
     file: FileSystemFileItem,
     pageIndex: number,
@@ -4887,7 +4924,7 @@ function FileSystemGalleryStage({
     urlCache,
   );
   const isDialog = variant === "dialog";
-  const [isDark, setIsDark] = React.useState(false);
+  const [isDark, setIsDark] = useSeededIsDark(hostIsDark);
   const viewerFrameClassName = cn(
     "size-full",
     !isDialog && "overflow-hidden rounded-lg border",

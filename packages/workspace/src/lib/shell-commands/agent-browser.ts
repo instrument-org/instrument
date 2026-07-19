@@ -3,6 +3,7 @@ import { defineCommand } from "just-bash";
 import { spawn } from "node:child_process";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { dedent, sleep } from "radashi";
 
@@ -523,7 +524,10 @@ export function createAgentBrowserCommand({
       }
     }
 
-    const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
+    const combined = scrubHostPaths(
+      [result.stdout, result.stderr].filter(Boolean).join("\n"),
+      { homeDir: os.homedir(), taskDirPath: taskDir(taskId) },
+    );
 
     const exitCode = result.exitCode ?? 1;
     return {
@@ -532,6 +536,24 @@ export function createAgentBrowserCommand({
       stdout: combined,
     };
   });
+}
+
+/**
+ * Strip host-absolute paths from CLI output before it reaches the model: the
+ * real home dir (leaked by e.g. `profiles`, which prints Chrome user-data
+ * locations with the username) becomes `~`, and task-dir paths become
+ * task-relative. The agent never needs these absolute forms -- profile names
+ * feed --profile, and task outputs are addressed relative to the cwd.
+ */
+export function scrubHostPaths(
+  output: string,
+  { homeDir, taskDirPath }: { homeDir: string; taskDirPath: string },
+): string {
+  return output
+    .replaceAll(`${taskDirPath}${path.sep}`, "")
+    .replaceAll(taskDirPath, ".")
+    .replaceAll(`${homeDir}${path.sep}`, `~${path.sep}`)
+    .replaceAll(homeDir, "~");
 }
 
 /**

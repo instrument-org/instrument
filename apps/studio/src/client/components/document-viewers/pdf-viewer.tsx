@@ -1,6 +1,7 @@
 // Vendored from Extend UI (https://ui.extend.ai), MIT licensed.
-// Local changes: import paths only. The pdfium engine comes from
-// `pdf-thumbnail-utils`, which pins the main-thread build.
+// Local changes: import paths, and the document-level copy shortcut is scoped
+// to the viewer's own subtree so it cannot answer for a selection elsewhere in
+// the host app. The pdfium engine comes from `pdf-thumbnail-utils`.
 
 import type {
   PdfDocumentObject,
@@ -588,6 +589,23 @@ function getVisibleThumbnailItems({
     Math.max(0, start - buffer),
     Math.min(items.length, end + buffer),
   );
+}
+
+// The copy shortcut listens on the document because a mouse selection leaves
+// focus on `body`, but the viewer is only one panel of a larger app and several
+// viewers stay mounted at once. A live DOM selection anywhere outside this
+// viewer's own subtree belongs to whatever the user actually highlighted, so
+// the PDF's selection must not answer for it.
+function hasDomSelectionOutside(shell: HTMLElement | null) {
+  const domSelection = window.getSelection();
+
+  if (!domSelection || domSelection.isCollapsed || !domSelection.rangeCount) {
+    return false;
+  }
+
+  const range = domSelection.getRangeAt(0);
+
+  return !shell?.contains(range.commonAncestorContainer);
 }
 
 function isEditableCopyTarget(target: EventTarget | null) {
@@ -1472,7 +1490,10 @@ function PDFViewerInner({
             documentId={documentId}
           >
             <PDFViewerViewportBridge viewportElementRef={viewportElementRef} />
-            <PDFViewerSelectionCopyShortcut documentId={documentId} />
+            <PDFViewerSelectionCopyShortcut
+              documentId={documentId}
+              viewerShellRef={viewerShellRef}
+            />
             <PDFViewerSelectionReleaseGuard documentId={documentId} />
             <GlobalPointerProvider documentId={documentId}>
               <PDFViewerScroller
@@ -2029,8 +2050,10 @@ function PDFViewerSearchControl({
 
 function PDFViewerSelectionCopyShortcut({
   documentId,
+  viewerShellRef,
 }: {
   documentId: string;
+  viewerShellRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const { provides: selection } = useSelectionCapability();
 
@@ -2039,6 +2062,7 @@ function PDFViewerSelectionCopyShortcut({
 
     const copySelectedPdfText = (event: Event) => {
       if (isEditableCopyTarget(event.target)) return;
+      if (hasDomSelectionOutside(viewerShellRef.current)) return;
       if (!selection.getState(documentId).selection) return;
 
       event.preventDefault();
@@ -2059,7 +2083,7 @@ function PDFViewerSelectionCopyShortcut({
       document.removeEventListener("copy", copySelectedPdfText);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [documentId, selection]);
+  }, [documentId, selection, viewerShellRef]);
 
   return null;
 }

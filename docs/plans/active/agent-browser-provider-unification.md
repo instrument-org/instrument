@@ -61,11 +61,12 @@ Small cross-platform script implementing three request types:
 - `plugin.manifest`: `{ name: "instrument", capabilities: ["browser.provider"] }`
 - `browser.launch`: return
   `{ cdpUrl: ws://127.0.0.1:<serverPort><CDP_PAGE_PATH_PREFIX><targetId>, directPage: false }`.
-  The URL comes from env injected by the wrapper (e.g.
-  `INSTRUMENT_BROWSER_CDP_URL`), same value the wrapper passes as `--cdp`
-  today. `directPage: false` keeps the existing cdp-bridge behavior: the
-  bridge already synthesizes single-target `Target.*` discovery, so no
-  bridge changes.
+  The URL travels in the plugin registry's `args` (`[pluginPath, cdpUrl]`),
+  not env: the registry is re-read from the client env on every invocation
+  and forwarded in the command envelope, so a bridge URL change never leaves
+  a stale value in a long-lived daemon's environment. `directPage: false`
+  keeps the existing cdp-bridge behavior: the bridge already synthesizes
+  single-target `Target.*` discovery, so no bridge changes.
 - `browser.close`: success no-op. Studio owns view lifecycle; the reaper
   (`agent-browser-cleanup.ts`) is unchanged.
 

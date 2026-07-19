@@ -1,18 +1,27 @@
 import { execa } from "execa";
 
 import { type StoreId } from "../schemas/store-id";
-import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "./agent-browser";
+import {
+  AGENT_BROWSER_PATH,
+  AGENT_BROWSER_SOCKET_DIR,
+  externalBrowserSessionName,
+} from "./agent-browser";
 
 export async function closeAgentBrowserSessionsForSessions(
   sessionIds: StoreId.Session[],
 ) {
   await Promise.all(
-    sessionIds.map((sessionId) =>
-      execa(AGENT_BROWSER_PATH, ["close", "--session", sessionId], {
-        env: { AGENT_BROWSER_SOCKET_DIR },
-        reject: false,
-      }),
-    ),
+    sessionIds
+      .flatMap((sessionId) => [
+        sessionId,
+        externalBrowserSessionName(sessionId),
+      ])
+      .map((sessionName) =>
+        execa(AGENT_BROWSER_PATH, ["close", "--session", sessionName], {
+          env: { AGENT_BROWSER_SOCKET_DIR },
+          reject: false,
+        }),
+      ),
   );
 }
 

@@ -75,10 +75,11 @@ describe("createBashDescription", () => {
         jq - Parse and manipulate JSON
         xan - Fast CSV processing, filtering, aggregation, and visualization
         yq - Parse and manipulate YAML (like jq but for YAML; e.g. \`yq '.key' file.yaml\`)
-        agent-browser - Control a built-in Chromium browser to navigate the web, interact with pages, and extract content.
+        agent-browser - Control a browser to navigate the web, interact with pages, and extract content.
       IMPORTANT: You MUST load the \`agent-browser\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
       IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`web_search\` first to discover the correct URL before opening the browser.
-      Do NOT pass connection, provider, profile, session, restore, or state flags; the browser session is managed automatically.
+      Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --auto-connect (the user's running Chrome), --cdp (an explicit CDP endpoint), --profile (a local Chrome profile), --provider (cloud/iOS). The skill covers when each is appropriate.
+      Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.

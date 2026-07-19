@@ -92,3 +92,11 @@ export const AGENT_BROWSER_SOCKET_DIR =
   platform() === "win32"
     ? undefined
     : path.join("/tmp", `.${APP_NAME_SLUG}-browser`);
+
+// External-browser invocations run under a sibling daemon session so the task
+// browser connection isn't torn down each time the agent switches between the
+// Instrument provider and an external target (connection-identity changes
+// within one agent-browser session force a relaunch).
+export function externalBrowserSessionName(sessionId: string) {
+  return `${sessionId}-ext`;
+}

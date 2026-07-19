@@ -1,6 +1,6 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { TaskChat } from "@/client/components/task/chat";
-import { TaskFiles } from "@/client/components/task/task-files";
+import { TaskFileBrowser } from "@/client/components/task/task-file-browser";
 import { type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { Activity, type ComponentProps } from "react";
@@ -13,7 +13,6 @@ export const TaskSidebarModeSchema = z.enum(["chat", "files"]);
 export type TaskSidebarMode = z.output<typeof TaskSidebarModeSchema>;
 
 export function TaskSidebar({
-  activeFilePath,
   attachedFolders,
   chatProps,
   files,
@@ -23,7 +22,6 @@ export function TaskSidebar({
   sidebar,
   task,
 }: {
-  activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
   chatProps: ComponentProps<typeof TaskChat>;
   files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
@@ -46,8 +44,7 @@ export function TaskSidebar({
         <div className="min-h-0 flex-1 overflow-hidden">
           <Activity mode={sidebar === "files" ? "visible" : "hidden"}>
             <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
-              <TaskFiles
-                activeFilePath={activeFilePath}
+              <TaskFileBrowser
                 attachedFolders={attachedFolders}
                 files={files}
                 onFileSelect={onFileSelect}

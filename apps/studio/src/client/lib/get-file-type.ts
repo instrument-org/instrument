@@ -3,13 +3,16 @@ import { isTextMimeType } from "./is-text-mime-type";
 type FileType =
   | "audio"
   | "code"
+  | "docx"
   | "html"
   | "image"
   | "markdown"
   | "pdf"
+  | "pptx"
   | "text"
   | "unknown"
-  | "video";
+  | "video"
+  | "xlsx";
 
 function fileKindLabel(fileType: FileType): string {
   switch (fileType) {
@@ -18,6 +21,9 @@ function fileKindLabel(fileType: FileType): string {
     }
     case "code": {
       return "Code";
+    }
+    case "docx": {
+      return "Word document";
     }
     case "html": {
       return "HTML";
@@ -31,11 +37,17 @@ function fileKindLabel(fileType: FileType): string {
     case "pdf": {
       return "PDF";
     }
+    case "pptx": {
+      return "PowerPoint presentation";
+    }
     case "text": {
       return "Text file";
     }
     case "video": {
       return "Video";
+    }
+    case "xlsx": {
+      return "Excel spreadsheet";
     }
     default: {
       return "File";
@@ -146,6 +158,23 @@ const MIME_KIND_LABELS: Record<string, string> = {
   "text/x-vcard": "Contact file",
 };
 
+// The three OOXML formats Studio renders with a dedicated viewer. Legacy
+// binary Office formats (.doc/.xls/.ppt) are deliberately absent: the viewers
+// only parse OOXML.
+const OOXML_EXTENSION_FILE_TYPES: Record<string, FileType> = {
+  docx: "docx",
+  pptx: "pptx",
+  xlsx: "xlsx",
+};
+
+const OOXML_MIME_FILE_TYPES: Record<string, FileType> = {
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    "pptx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "docx",
+};
+
 const CONFIG_EXTENSIONS = new Set([
   "env",
   "ini",
@@ -218,6 +247,11 @@ export function getFileType({
     if (mimeType === "text/html") {
       return "html";
     }
+
+    const ooxmlMimeType = OOXML_MIME_FILE_TYPES[mimeType];
+    if (ooxmlMimeType) {
+      return ooxmlMimeType;
+    }
   }
 
   if (isMarkdown({ filename, mimeType })) {
@@ -226,6 +260,15 @@ export function getFileType({
 
   if (/\.html?$/i.test(lowerFilename)) {
     return "html";
+  }
+
+  const extensionStart = lowerFilename.lastIndexOf(".");
+  const ooxmlExtension =
+    extensionStart === -1
+      ? undefined
+      : OOXML_EXTENSION_FILE_TYPES[lowerFilename.slice(extensionStart + 1)];
+  if (ooxmlExtension) {
+    return ooxmlExtension;
   }
 
   if (isTextMimeType(mimeType)) {

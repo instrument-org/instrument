@@ -9,6 +9,7 @@ import {
   findSubcommand,
   isDaemonConfigRace,
   isExternalBrowserInvocation,
+  scrubHostPaths,
 } from "./agent-browser";
 
 const mockCtx: CommandContext = {
@@ -87,6 +88,40 @@ describe("isDaemonConfigRace", () => {
     [""],
   ])("does not match unrelated failure %j", (output) => {
     expect(isDaemonConfigRace(output)).toBe(false);
+  });
+});
+
+describe("scrubHostPaths", () => {
+  const opts = {
+    homeDir: "/Users/jane",
+    taskDirPath: "/Users/jane/tasks/t1",
+  };
+
+  it.each([
+    {
+      expected:
+        "Chrome profiles (~/Library/Application Support/Google/Chrome):",
+      name: "home-dir paths become ~",
+      output:
+        "Chrome profiles (/Users/jane/Library/Application Support/Google/Chrome):",
+    },
+    {
+      expected: "Saved to work/screenshots/shot.png",
+      name: "task-dir paths become task-relative",
+      output: "Saved to /Users/jane/tasks/t1/work/screenshots/shot.png",
+    },
+    {
+      expected: "in .",
+      name: "a bare task-dir path becomes .",
+      output: "in /Users/jane/tasks/t1",
+    },
+    {
+      expected: "no paths here",
+      name: "unrelated output is untouched",
+      output: "no paths here",
+    },
+  ])("$name", ({ expected, output }) => {
+    expect(scrubHostPaths(output, opts)).toBe(expected);
   });
 });
 

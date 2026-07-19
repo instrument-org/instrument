@@ -33,6 +33,7 @@ export const MOCK_WORKSPACE_DIRS = {
   defaultTaskTemplate: `${MOCK_WORKSPACE_DIR}/default-task-template`,
   projects: `${MOCK_WORKSPACE_DIR}/${PROJECTS_DIR_NAME}`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
+  systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
   tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
 } as const;
 
@@ -108,6 +109,7 @@ export function createMockTaskConfig(
     projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
+    systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),
     tasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.tasks),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),

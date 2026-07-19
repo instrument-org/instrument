@@ -87,6 +87,11 @@ const config: Configuration = {
       to: "registry/skills",
     },
     {
+      filter: ["**/*"],
+      from: "../../packages/workspace/system-skills",
+      to: "system-skills",
+    },
+    {
       from: "../../packages/shim-client/dist",
       to: "shim-client",
     },

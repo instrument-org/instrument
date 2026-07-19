@@ -135,6 +135,9 @@ function ToolCallBody({
     case "tool-read_file": {
       return <ToolReadFile id={task.id} part={part} />;
     }
+    case "tool-save_skill": {
+      return null;
+    }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;
     }

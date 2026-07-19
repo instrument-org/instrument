@@ -117,6 +117,7 @@ export interface WorkspaceConfig {
   projectsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
+  systemSkillsDir: AbsolutePath;
   tasksDir: AbsolutePath;
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).

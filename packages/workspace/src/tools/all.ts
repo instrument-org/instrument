@@ -11,6 +11,7 @@ import { Glob } from "./glob";
 import { Grep } from "./grep";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
+import { SaveSkill } from "./save-skill";
 import { Unavailable } from "./unavailable";
 import { WebSearch } from "./web-search";
 import { WriteFile } from "./write-file";
@@ -24,6 +25,7 @@ export const TOOLS = {
   Grep,
   LoadSkill,
   ReadFile,
+  SaveSkill,
   Unavailable,
   WebSearch,
   WriteFile,
@@ -40,6 +42,7 @@ export const TOOLS_BY_NAME = {
   [TOOLS.Grep.name]: TOOLS.Grep,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
+  [TOOLS.SaveSkill.name]: TOOLS.SaveSkill,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
   [TOOLS.WebSearch.name]: TOOLS.WebSearch,
   [TOOLS.WriteFile.name]: TOOLS.WriteFile,

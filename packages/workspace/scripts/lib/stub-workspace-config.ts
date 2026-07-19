@@ -41,6 +41,9 @@ export function createStubWorkspaceConfig({
       path.join(absoluteRootDir, "registry"),
     ),
     rootDir: WorkspaceDirSchema.parse(absoluteRootDir),
+    systemSkillsDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "system-skills"),
+    ),
     tasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),

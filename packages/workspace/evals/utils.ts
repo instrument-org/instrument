@@ -48,6 +48,9 @@ export function buildReportWorkspaceConfig(
     ),
     registryDir: WorkspaceDirSchema.parse(resolveRegistryDir()),
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
+    systemSkillsDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "system-skills"),
+    ),
     tasksDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
     ),

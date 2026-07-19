@@ -3,11 +3,12 @@ import {
   type LanguageModelV3Prompt,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
+import { type AISDKWebToolsResult } from "@instrument-org/ai-gateway";
 import {
   type AIProviderType,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
-import { simulateReadableStream } from "ai";
+import { simulateReadableStream, tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -17,6 +18,7 @@ import {
   setup,
   waitFor,
 } from "xstate";
+import { z } from "zod";
 
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { Store } from "../lib/store";
@@ -68,6 +70,12 @@ describe("llmRequestLogic", () => {
   let prompts: LanguageModelV3Prompt[] = [];
   const mockDate = new Date("2013-08-31T12:00:00.000Z");
   const mockMessageId = StoreId.newMessageId();
+  const providerWebSearchTool = tool({
+    args: {},
+    id: "test.web_search",
+    inputSchema: z.object({ query: z.string() }),
+    type: "provider",
+  });
   const mockMessages: SessionMessage.ContextWithParts[] = [
     {
       id: mockMessageId,
@@ -102,11 +110,13 @@ describe("llmRequestLogic", () => {
     chunks,
     getMessages = () => Promise.resolve(mockMessages),
     provider = OUR_PROVIDER_CONFIG.type,
+    webTools,
   }: {
     beforeStream?: () => Promise<void>;
     chunks: LanguageModelV3StreamPart[];
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
     provider?: AIProviderType;
+    webTools?: AISDKWebToolsResult;
   }) {
     const mockLanguageModel = new MockLanguageModelV3({
       doStream: async ({ prompt }) => {
@@ -151,6 +161,7 @@ describe("llmRequestLogic", () => {
     const taskConfig = createMockTaskConfig(TaskIdSchema.parse(`mock`), {
       aiSDKModel: mockLanguageModel,
       model,
+      webTools,
     });
     await Store.saveSession(
       {
@@ -1525,9 +1536,10 @@ describe("llmRequestLogic", () => {
       type: "tool-read_file",
     };
 
-    async function setupPromptMessagesTest() {
+    async function setupPromptMessagesTest(webTools?: AISDKWebToolsResult) {
       const testMachine = await createTestMachine({
         chunks: [],
+        webTools,
       });
 
       await Store.saveMessage(
@@ -2329,6 +2341,67 @@ describe("llmRequestLogic", () => {
         ]
       `);
     });
+
+    it("replays provider-executed tool results in assistant context", async () => {
+      const testMachine = await setupPromptMessagesTest({
+        tools: { web_search: providerWebSearchTool },
+      });
+      await Store.savePart(
+        SessionMessagePart.coerce({
+          input: { query: "latest AI news" },
+          metadata: {
+            createdAt: mockDate,
+            endedAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId: assistantMessageId,
+            sessionId,
+          },
+          output: [
+            {
+              title: "AI news",
+              url: "https://example.com/ai-news",
+            },
+          ],
+          providerExecuted: true,
+          state: "output-available",
+          toolCallId: StoreId.ToolCallSchema.parse("provider-call-1"),
+          type: "tool-web_search",
+        }),
+        testMachine.taskId,
+      );
+
+      await runTestMachine({
+        machine: testMachine.machine,
+        taskId: testMachine.taskId,
+      });
+
+      expect(prompts[0]).toContainEqual({
+        content: [
+          expect.objectContaining({
+            input: { query: "latest AI news" },
+            providerExecuted: true,
+            toolCallId: "provider-call-1",
+            toolName: "web_search",
+            type: "tool-call",
+          }),
+          expect.objectContaining({
+            output: {
+              type: "json",
+              value: [
+                {
+                  title: "AI news",
+                  url: "https://example.com/ai-news",
+                },
+              ],
+            },
+            toolCallId: "provider-call-1",
+            toolName: "web_search",
+            type: "tool-result",
+          }),
+        ],
+        role: "assistant",
+      });
+    });
   });
 
   it("should cap max output tokens for normal LLM requests", async () => {
@@ -2346,5 +2419,59 @@ describe("llmRequestLogic", () => {
     expect(
       testMachine.mockLanguageModel.doStreamCalls[0]?.maxOutputTokens,
     ).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+  });
+
+  it("persists provider-executed tool results", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        {
+          input: JSON.stringify({ query: "latest AI news" }),
+          providerExecuted: true,
+          toolCallId: "provider-call-1",
+          toolName: "web_search",
+          type: "tool-call",
+        },
+        {
+          providerMetadata: {
+            anthropic: { serverToolUse: { webSearchRequests: 1 } },
+          },
+          result: [
+            {
+              title: "AI news",
+              url: "https://example.com/ai-news",
+            },
+          ],
+          toolCallId: "provider-call-1",
+          toolName: "web_search",
+          type: "tool-result",
+        },
+      ],
+      provider: "anthropic",
+      webTools: { tools: { web_search: providerWebSearchTool } },
+    });
+
+    const providerToolPart = messages
+      .flatMap((message) => message.parts)
+      .find(
+        (part) =>
+          part.type === "tool-web_search" &&
+          part.toolCallId === "provider-call-1",
+      );
+
+    expect(providerToolPart).toMatchObject({
+      input: { query: "latest AI news" },
+      output: [
+        {
+          title: "AI news",
+          url: "https://example.com/ai-news",
+        },
+      ],
+      providerExecuted: true,
+      resultProviderMetadata: {
+        anthropic: { serverToolUse: { webSearchRequests: 1 } },
+      },
+      state: "output-available",
+      type: "tool-web_search",
+    });
   });
 });

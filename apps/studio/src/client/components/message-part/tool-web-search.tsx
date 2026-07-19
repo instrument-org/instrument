@@ -27,7 +27,7 @@ export function ToolWebSearch({
   part: WebSearchPart;
 }) {
   const { isStreaming } = useToolCallSession();
-  if (!part.input) {
+  if (part.providerExecuted || !part.input) {
     return null;
   }
 
@@ -103,6 +103,7 @@ export function WebSearchChip({
 }) {
   if (
     part.type !== "tool-web_search" ||
+    part.providerExecuted ||
     part.state !== "output-available" ||
     part.output.state !== "success" ||
     part.output.sources.length === 0

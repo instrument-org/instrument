@@ -4,6 +4,7 @@ import type { ActorRef, AnyMachineSnapshot } from "xstate";
 import {
   type AIGatewayModel,
   fetchAISDKModel,
+  getAISDKWebTools,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
 import {
@@ -25,7 +26,7 @@ import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
-import { type SessionMessagePart } from "../schemas/session/message-part";
+import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { ToolNameSchema } from "../tools/name";
@@ -122,12 +123,27 @@ export const llmRequestLogic = fromPromise<
     });
   }
 
+  const workspaceConfig = getWorkspaceConfig();
+  const providerConfig = workspaceConfig
+    .getAIProviderConfigs()
+    .find((config) => config.id === input.model.params.providerConfigId);
+  const webToolsResult =
+    tools.web_search && providerConfig
+      ? await getAISDKWebTools({
+          config: providerConfig,
+          model: input.model,
+          workspaceServerURL: getWorkspaceServerURL(),
+        })
+      : undefined;
+  Object.assign(tools, webToolsResult?.tools);
+
   const messagesResult = await prepareModelMessages({
     agent: input.agent,
     model: input.model,
     sessionId: input.sessionId,
     signal,
     taskId: input.taskId,
+    toolsForModelOutput: tools,
   });
 
   if (messagesResult.isErr()) {
@@ -162,9 +178,38 @@ export const llmRequestLogic = fromPromise<
 
   const toolCalls: Record<string, SessionMessagePart.ToolPart> = {};
   const toolCallInputText: Record<string, string> = {};
+
+  async function getToolCall(toolCallId: string) {
+    const currentToolCall = toolCalls[toolCallId];
+    if (currentToolCall) {
+      return currentToolCall;
+    }
+
+    const storedMessagesResult = await Store.getMessagesWithParts(
+      { sessionId: input.sessionId, taskId: input.taskId },
+      { signal },
+    );
+    if (storedMessagesResult.isErr()) {
+      getWorkspaceConfig().captureException(storedMessagesResult.error, {
+        scopes: ["workspace", "llm-request"],
+      });
+      return;
+    }
+
+    for (const message of storedMessagesResult.value.toReversed()) {
+      const storedToolCall = message.parts.find(
+        (part) => isToolPart(part) && part.toolCallId === toolCallId,
+      );
+      if (storedToolCall && isToolPart(storedToolCall)) {
+        return storedToolCall;
+      }
+    }
+
+    return;
+  }
+
   try {
     // Fetch AI SDK model at the last moment before making the LLM request
-    const workspaceConfig = getWorkspaceConfig();
     const aiSDKModelResult = await fetchAISDKModel({
       captureException: workspaceConfig.captureException,
       configs: workspaceConfig.getAIProviderConfigs(),
@@ -179,7 +224,7 @@ export const llmRequestLogic = fromPromise<
       );
     }
 
-    const aiSDKModel = aiSDKModelResult.value;
+    const aiSDKModel = webToolsResult?.model ?? aiSDKModelResult.value;
 
     const startTimestampMs = getCurrentDate().getTime();
     const result = streamText({
@@ -408,6 +453,14 @@ export const llmRequestLogic = fromPromise<
           };
           break;
         }
+        case "tool-approval-request": {
+          getWorkspaceConfig().captureException(
+            new Error(
+              `Unexpected tool approval request: ${JSON.stringify(part)}`,
+            ),
+          );
+          break;
+        }
         case "tool-call": {
           const existingPart = toolCalls[part.toolCallId];
           if (existingPart?.state === "input-streaming") {
@@ -421,6 +474,9 @@ export const llmRequestLogic = fromPromise<
               providerExecuted: part.providerExecuted,
               state: "input-available",
             };
+            if (part.providerExecuted) {
+              toolCalls[part.toolCallId] = updatedPart;
+            }
             await scopedStore.savePart(updatedPart);
           } else if (existingPart) {
             // Unexpected state, but don't throw - just log
@@ -467,7 +523,9 @@ export const llmRequestLogic = fromPromise<
         }
         case "tool-error": {
           // Still happens even without execute if parameters are invalid
-          const toolCall = toolCalls[part.toolCallId];
+          const toolCall = part.providerExecuted
+            ? await getToolCall(part.toolCallId)
+            : toolCalls[part.toolCallId];
           const errorText =
             typeof part.error === "string"
               ? part.error
@@ -499,6 +557,7 @@ export const llmRequestLogic = fromPromise<
                 rawInput: part.input as never,
                 state: "output-error",
               };
+              toolCalls[part.toolCallId] = updatedPart;
               await scopedStore.savePart(updatedPart);
               continue;
             } else {
@@ -590,14 +649,70 @@ export const llmRequestLogic = fromPromise<
           break;
         }
         case "tool-result": {
-          throw new Error(`Unexpected tool result: ${JSON.stringify(part)}`);
-        }
-        case "tool-approval-request": {
-          getWorkspaceConfig().captureException(
-            new Error(
-              `Unexpected tool approval request: ${JSON.stringify(part)}`,
-            ),
-          );
+          const toolCall = await getToolCall(part.toolCallId);
+          const toolNameResult = ToolNameSchema.safeParse(part.toolName);
+          const providerMetadataProps =
+            part.providerMetadata === undefined
+              ? {}
+              : { resultProviderMetadata: part.providerMetadata };
+
+          if (
+            toolCall?.state === "input-available" ||
+            toolCall?.state === "input-streaming"
+          ) {
+            const updatedPart = SessionMessagePart.coerce({
+              ...toolCall,
+              input:
+                toolCall.state === "input-available"
+                  ? toolCall.input
+                  : part.input,
+              metadata: {
+                ...toolCall.metadata,
+                endedAt: getCurrentDate(),
+              },
+              output: part.output,
+              ...providerMetadataProps,
+              providerExecuted: part.providerExecuted,
+              state: "output-available",
+            });
+            if (!isToolPart(updatedPart)) {
+              throw new TypeError("Expected a tool result part");
+            }
+            toolCalls[part.toolCallId] = updatedPart;
+            await scopedStore.savePart(updatedPart);
+          } else if (toolCall) {
+            getWorkspaceConfig().captureException(
+              new Error("Unexpected tool result state"),
+              {
+                scopes: ["workspace", "llm-request"],
+                tool_name: part.toolName,
+              },
+            );
+          } else {
+            const newPart = SessionMessagePart.coerce({
+              input: part.input,
+              metadata: {
+                createdAt: getCurrentDate(),
+                endedAt: getCurrentDate(),
+                id: StoreId.newPartId(),
+                messageId: assistantMessage.id,
+                sessionId: input.sessionId,
+              },
+              output: part.output,
+              ...providerMetadataProps,
+              providerExecuted: part.providerExecuted,
+              state: "output-available",
+              toolCallId: StoreId.ToolCallSchema.parse(part.toolCallId),
+              type: toolNameResult.success
+                ? `tool-${toolNameResult.data}`
+                : "tool-unavailable",
+            });
+            if (!isToolPart(newPart)) {
+              throw new TypeError("Expected a tool result part");
+            }
+            toolCalls[part.toolCallId] = newPart;
+            await scopedStore.savePart(newPart);
+          }
           break;
         }
         default: {

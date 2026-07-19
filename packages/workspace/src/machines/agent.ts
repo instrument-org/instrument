@@ -446,6 +446,10 @@ export const agentMachine = setup({
                   continue;
                 }
 
+                if (part.providerExecuted) {
+                  continue;
+                }
+
                 const tool = getToolByType(part.type);
 
                 if (isInteractiveTool(tool.name)) {

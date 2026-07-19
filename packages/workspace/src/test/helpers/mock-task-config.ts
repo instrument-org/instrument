@@ -4,10 +4,12 @@ import {
   AIGatewayProviderConfig,
   type AISDKImageModelResult,
   type AISDKWebSearchModelResult,
+  type AISDKWebToolsResult,
   noopModelCache,
   TEST_IMAGE_MODEL_OVERRIDE_KEY,
   TEST_MODEL_OVERRIDE_KEY,
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
+  TEST_WEB_TOOLS_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway";
 import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import path from "node:path";
@@ -52,6 +54,7 @@ export function createMockTaskConfig(
     imageModel?: ImageModelV3;
     model?: AIGatewayModel.Type;
     webSearchModel?: AISDKWebSearchModelResult;
+    webTools?: AISDKWebToolsResult;
   } = {},
 ) {
   const model = options.model ?? createMockAIGatewayModel();
@@ -86,6 +89,14 @@ export function createMockTaskConfig(
         [TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY]?: AISDKWebSearchModelResult;
       }
     )[TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY] = options.webSearchModel;
+  }
+
+  if (options.webTools) {
+    (
+      config as {
+        [TEST_WEB_TOOLS_OVERRIDE_KEY]?: AISDKWebToolsResult;
+      }
+    )[TEST_WEB_TOOLS_OVERRIDE_KEY] = options.webTools;
   }
 
   const workspaceConfig: WorkspaceConfig = {

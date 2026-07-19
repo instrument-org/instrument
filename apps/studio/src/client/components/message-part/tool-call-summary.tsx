@@ -94,9 +94,11 @@ export function ToolCallSummary({
   const isError = part.state === "output-error" || isFileNotFound;
   const hasCapabilityFailure =
     (part.state === "output-available" &&
-      (part.type === "tool-web_search" ||
-        part.type === "tool-generate_image") &&
-      part.output.state === "failure") ||
+      ((part.type === "tool-web_search" &&
+        !part.providerExecuted &&
+        part.output.state === "failure") ||
+        (part.type === "tool-generate_image" &&
+          part.output.state === "failure"))) ||
     isSkillNotFound;
   const isFailed = isError || hasCapabilityFailure;
 

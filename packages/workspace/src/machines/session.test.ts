@@ -492,6 +492,30 @@ describe("sessionMachine", () => {
     );
   });
 
+  it("does not execute provider-hosted tool calls locally", async () => {
+    const session = await createAndRunTestMachine({
+      chunkSets: [
+        [
+          {
+            input: JSON.stringify({ query: "latest AI news" }),
+            providerExecuted: true,
+            toolCallId: "provider-call-1",
+            toolName: "web_search",
+            type: "tool-call",
+          },
+        ],
+        finishChunks,
+      ],
+    });
+
+    expect(sessionToShorthand(session)).toContain(
+      '<tool tool="web_search" state="input-available" callId="provider-call-1">',
+    );
+    expect(sessionToShorthand(session)).not.toContain(
+      "No AI provider with web search capability is available.",
+    );
+  });
+
   it("should read an image file", async () => {
     const session = await createAndRunTestMachine({
       chunkSets: [

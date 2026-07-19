@@ -1,4 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { type ToolSet } from "ai";
 import { differenceInMinutes } from "date-fns";
 import { ok, Result } from "neverthrow";
 import { alphabetical } from "radashi";
@@ -24,12 +25,14 @@ export async function prepareModelMessages({
   sessionId,
   signal,
   taskId,
+  toolsForModelOutput = TOOLS_FOR_MODEL_OUTPUT,
 }: {
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   sessionId: StoreId.Session;
   signal: AbortSignal;
   taskId: TaskId;
+  toolsForModelOutput?: ToolSet;
 }) {
   const messageResults = await Store.getMessagesWithParts(
     { sessionId, taskId },
@@ -142,7 +145,7 @@ export async function prepareModelMessages({
   // not used in this session
   const modelMessages = await SessionMessage.toModelMessages(
     portableMessagesResult.messages,
-    TOOLS_FOR_MODEL_OUTPUT,
+    toolsForModelOutput,
   );
 
   const nonEmptyModelMessages = modelMessages.filter(

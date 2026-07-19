@@ -12,6 +12,7 @@ import { Grep } from "./grep";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
 import { Unavailable } from "./unavailable";
+import { WebFetch } from "./web-fetch";
 import { WebSearch } from "./web-search";
 import { WriteFile } from "./write-file";
 
@@ -43,6 +44,7 @@ export const TOOLS_BY_NAME = {
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
   [TOOLS.WebSearch.name]: TOOLS.WebSearch,
   [TOOLS.WriteFile.name]: TOOLS.WriteFile,
+  [WebFetch.name]: WebFetch,
   // `satisfies` ensures all tool names are present
 } as const satisfies Record<ToolName, AnyAgentTool>;
 

@@ -138,6 +138,9 @@ function ToolCallBody({
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;
     }
+    case "tool-web_fetch": {
+      return null;
+    }
     case "tool-web_search": {
       return <ToolWebSearch onRetry={onRetry} part={part} />;
     }

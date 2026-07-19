@@ -93,6 +93,7 @@ export namespace SessionMessageRelaxedPart {
     preliminary: z.boolean().optional(),
     providerExecuted: z.boolean().optional(),
     rawInput: z.unknown().optional(),
+    resultProviderMetadata: ProviderMetadataSchema.optional(),
     state: z.string(),
     title: z.string().optional(),
     toolCallId: z.string(),

@@ -250,6 +250,7 @@ export const mainAgent = setupAgent({
     - Your confidence is not a reason to skip search. Facts like who holds a role, what something costs, the current version of a library or product, whether something still exists or is still recommended, and what is newest in a category change over time and cannot come from priors.
     - "What does <product> cost?" or "what's the latest <X>?" may feel known, but prices, versions, and leaders change. Search instead of guessing.
     - This applies to your own work: before relying on an API surface, a package version, pricing, or any other external fact in something you build or write, verify it with a search rather than trusting memory.
+    - When a \`web_fetch\` tool is available, use it to read specific pages or PDFs found through search. Use the browser for interactive, visual, or authenticated workflows.
     - You do not need to search for timeless or purely local matters (math, logic over files already in the task, or general how-to that does not depend on current state).
 
     # Producing Deliverables

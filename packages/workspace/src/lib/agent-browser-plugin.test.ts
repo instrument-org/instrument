@@ -116,10 +116,12 @@ describe("instrument provider plugin", () => {
     expect(response).toMatchObject({ protocol: PROTOCOL, success: false });
   });
 
-  it("rejects malformed JSON input", async () => {
-    const { stdout } = await execa(process.execPath, [pluginPath], {
-      input: "not json",
-    });
+  it.each([
+    { input: "not json", name: "malformed JSON" },
+    { input: "null", name: "JSON null" },
+    { input: "42", name: "non-object JSON" },
+  ])("rejects $name input", async ({ input }) => {
+    const { stdout } = await execa(process.execPath, [pluginPath], { input });
 
     expect(JSON.parse(stdout)).toEqual({
       error: "invalid JSON request",

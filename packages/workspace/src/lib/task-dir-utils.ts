@@ -26,13 +26,12 @@ export function getDownloadsDir(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(dir, TASK_FOLDER_NAMES.downloads);
 }
 
-// Browser screenshots: app-managed byproducts surfaced to the user, kept in the
-// private dir and included in task exports.
+// Browser screenshots the agent captures. Under work/ so the agent can read
+// them back (it is handed their paths) and the user can browse them; the
+// private dir is now off-limits to the agent, so agent-facing outputs cannot
+// live there.
 export function getScreenshotsDir(dir: TaskDir): AbsolutePath {
-  return absolutePathJoin(
-    getTaskPrivateDir(dir),
-    TASK_FOLDER_NAMES.screenshots,
-  );
+  return absolutePathJoin(getTaskWorkDir(dir), TASK_FOLDER_NAMES.screenshots);
 }
 
 // The user's inputs (uploads + copies from attached folders). A user-visible top-level dir.

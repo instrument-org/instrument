@@ -4,9 +4,20 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { getResourcePath } from "./resource-path";
+
 const FILE_OPEN_ICON_HOST = "file-open-icon";
+const WASM_HOST = "wasm";
 const ICON_SIZE = 64;
 const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.png$/;
+// The renderer runs from `file://` in production, where bundled assets cannot
+// be fetched, so the document viewers load their WASM from here instead.
+const WASM_FILENAMES = new Set([
+  "docx.wasm",
+  "pdfium.wasm",
+  "pptx.wasm",
+  "xlsx.wasm",
+]);
 const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
 export function registerAppProtocol() {
@@ -15,6 +26,9 @@ export function registerAppProtocol() {
     switch (url.hostname) {
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
+      }
+      case WASM_HOST: {
+        return handleWasmRequest({ request, url });
       }
       default: {
         return new Response(null, { status: 404 });
@@ -65,6 +79,38 @@ async function handleFileOpenIconRequest({
         // This finite lifetime only bounds retention of unchanged content.
         "Cache-Control": `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`,
         "Content-Type": "image/png",
+      },
+    });
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+}
+
+async function handleWasmRequest({
+  request,
+  url,
+}: {
+  request: Request;
+  url: URL;
+}) {
+  const filename = url.pathname.slice(1);
+  if (request.method !== "GET" || !WASM_FILENAMES.has(filename)) {
+    return new Response(null, { status: 404 });
+  }
+
+  try {
+    const wasm = await fs.readFile(getResourcePath(WASM_HOST, filename));
+    return new Response(wasm, {
+      headers: {
+        // The renderer's own origin is `file://` (or the dev server) and never
+        // this scheme, so every request here is cross-origin and `fetch()`
+        // would fail CORS without this. The bytes ship with the app and the
+        // scheme is only reachable from the app's own web contents.
+        "Access-Control-Allow-Origin": "*",
+        // The binaries ship with the app build, so they only change when the
+        // app itself is replaced and the renderer is reloaded from scratch.
+        "Cache-Control": `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`,
+        "Content-Type": "application/wasm",
       },
     });
   } catch {

@@ -103,6 +103,7 @@ export const mainAgent = setupAgent({
     "Grep",
     "LoadSkill",
     "ReadFile",
+    "SaveSkill",
     "BashTool",
     "WebSearch",
     "WriteFile",

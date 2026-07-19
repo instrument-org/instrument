@@ -397,6 +397,7 @@ export const workspaceMachine = setup({
       registryDir: string;
       rootDir: string;
       shimClientDir: string;
+      systemSkillsDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
       uvBinPath: string;
       uvDataDir: string;
@@ -421,6 +422,7 @@ export const workspaceMachine = setup({
       projectsDir: absolutePathJoin(rootDir, PROJECTS_DIR_NAME),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
+      systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
       tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),

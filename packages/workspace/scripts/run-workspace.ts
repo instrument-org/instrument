@@ -131,6 +131,7 @@ const actor = createActor(workspaceMachine, {
     // Uncomment to test built shim
     // shimClientDir: path.resolve("../shim-client/dist"),
     shimClientDir: "dev-server",
+    systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),
     uvBinPath: await execa({ reject: false })`which uv`.then(
       (result) => result.stdout.trim() || "uv",

@@ -51,6 +51,7 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       registryDir: MOCK_WORKSPACE_DIRS.registry,
       rootDir,
       shimClientDir: "dev-server",
+      systemSkillsDir: MOCK_WORKSPACE_DIRS.systemSkills,
       trashItem: () => Promise.resolve(),
       uvBinPath: "/tmp/uv",
       uvDataDir: "/tmp/workspace/uv-data",

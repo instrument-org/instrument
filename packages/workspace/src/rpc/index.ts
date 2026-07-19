@@ -7,6 +7,7 @@ import { replay } from "./routes/replay";
 import { runtime } from "./routes/runtime";
 import { server } from "./routes/server";
 import { session } from "./routes/session";
+import { skill } from "./routes/skill";
 import { storage } from "./routes/storage";
 import { task } from "./routes/task";
 
@@ -20,6 +21,7 @@ export const router = {
   runtime,
   server,
   session,
+  skill,
   storage,
   task,
 };

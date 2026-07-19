@@ -1,35 +1,53 @@
 import matter from "@11ty/gray-matter";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { REGISTRY_FOLDER_NAMES } from "../constants";
-import { type AbsolutePath } from "../schemas/paths";
+import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
+import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { pathExists } from "./path-exists";
 
 export const FILE_LIST_LIMIT = 50;
 
-interface SkillInfo {
+export interface SkillInfo {
   content: string;
   description: string;
   name: string;
   skillDir: AbsolutePath;
+  source: SkillSourceKind;
 }
 
+export interface SkillSource {
+  dir: AbsolutePath;
+  source: SkillSourceKind;
+}
+
+export type SkillSourceKind =
+  | "agents"
+  | "claude"
+  | "codex"
+  | "cursor"
+  | "gemini"
+  | "opencode"
+  | "registry"
+  | "workspace";
+
 export async function findSkill(
-  registryDir: AbsolutePath,
+  workspaceConfig: Pick<WorkspaceConfig, "registryDir" | "rootDir">,
   name: string,
 ): Promise<{ all: SkillInfo[]; skill: SkillInfo | undefined }> {
-  const sources = getSkillSources(registryDir);
+  const sources = getSkillSources(workspaceConfig);
   const all = await findSkills(sources);
   return { all, skill: all.find((s) => s.name === name) };
 }
 
-export async function findSkills(dirs: AbsolutePath[]): Promise<SkillInfo[]> {
+export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
   const skillMap = new Map<string, SkillInfo>();
 
-  for (const dir of dirs) {
-    const skills = await findSkillsInDir(dir);
+  for (const { dir, source } of sources) {
+    const skills = await findSkillsInDir(dir, source);
     for (const skill of skills) {
       skillMap.set(skill.name, skill);
     }
@@ -38,8 +56,38 @@ export async function findSkills(dirs: AbsolutePath[]): Promise<SkillInfo[]> {
   return [...skillMap.values()];
 }
 
-export function getSkillSources(registryDir: AbsolutePath): AbsolutePath[] {
-  return [absolutePathJoin(registryDir, REGISTRY_FOLDER_NAMES.skills)];
+export function getSkillSources(
+  {
+    registryDir,
+    rootDir,
+  }: Pick<WorkspaceConfig, "registryDir" | "rootDir">,
+  userHomeDir = AbsolutePathSchema.parse(os.homedir()),
+): SkillSource[] {
+  const fromHome = (source: SkillSourceKind, ...parts: string[]) => ({
+    dir: AbsolutePathSchema.parse(path.join(userHomeDir, ...parts)),
+    source,
+  });
+
+  return [
+    {
+      dir: absolutePathJoin(registryDir, REGISTRY_FOLDER_NAMES.skills),
+      source: "registry",
+    },
+    fromHome("agents", ".agents", "skills"),
+    fromHome("claude", ".claude", "skills"),
+    fromHome("codex", ".codex", "skills"),
+    fromHome("cursor", ".cursor", "skills"),
+    fromHome("gemini", ".gemini", "skills"),
+    fromHome("opencode", ".config", "opencode", "skills"),
+    {
+      dir: absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills),
+      source: "workspace",
+    },
+    {
+      dir: absolutePathJoin(rootDir, ".agents", REGISTRY_FOLDER_NAMES.skills),
+      source: "workspace",
+    },
+  ];
 }
 
 export async function listSkillFiles(
@@ -103,7 +151,10 @@ export function parseFrontmatter(
   return { body: parsed.content.trim(), description };
 }
 
-async function findSkillsInDir(dir: AbsolutePath): Promise<SkillInfo[]> {
+async function findSkillsInDir(
+  dir: AbsolutePath,
+  source: SkillSourceKind,
+): Promise<SkillInfo[]> {
   const exists = await pathExists(dir);
   if (!exists) {
     return [];
@@ -113,11 +164,13 @@ async function findSkillsInDir(dir: AbsolutePath): Promise<SkillInfo[]> {
   const skills: SkillInfo[] = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) {
+    const skillDir = absolutePathJoin(dir, entry.name);
+    const isDirectory =
+      entry.isDirectory() || (await isDirectorySymlink(skillDir));
+    if (!isDirectory) {
       continue;
     }
 
-    const skillDir = absolutePathJoin(dir, entry.name);
     const skillFile = path.join(skillDir, "SKILL.md");
 
     let raw: string;
@@ -135,13 +188,23 @@ async function findSkillsInDir(dir: AbsolutePath): Promise<SkillInfo[]> {
     skills.push({
       content: parsed.body,
       description: parsed.description,
-      // Folder name is used as the skill identifier because it's guaranteed unique within the registry.
+      // Agent Skills are addressed by their containing directory name.
       name: entry.name,
       skillDir,
+      source,
     });
   }
 
   return skills;
+}
+
+async function isDirectorySymlink(candidate: AbsolutePath) {
+  try {
+    const stats = await fs.stat(candidate);
+    return stats.isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 // Adapted from https://github.com/sst/opencode/blob/main/packages/opencode/src/config/markdown.ts

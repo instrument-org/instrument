@@ -139,7 +139,7 @@ export const LoadSkill = setupTool({
   ]),
 }).create({
   description: async () => {
-    const sources = getSkillSources(getWorkspaceConfig().registryDir);
+    const sources = getSkillSources(getWorkspaceConfig());
     const skills = await findSkills(sources);
 
     const skillsBlock =
@@ -181,8 +181,8 @@ export const LoadSkill = setupTool({
     `.trim();
   },
   execute: async ({ input, signal, taskId }) => {
-    const { registryDir } = getWorkspaceConfig();
-    const { all, skill } = await findSkill(registryDir, input.name);
+    const workspaceConfig = getWorkspaceConfig();
+    const { all, skill } = await findSkill(workspaceConfig, input.name);
 
     if (!skill) {
       return ok({
@@ -261,7 +261,7 @@ export const LoadSkill = setupTool({
   readOnly: false,
   timeoutMs: ({ input }) => {
     const base = ms("10 seconds");
-    const skillsDir = getSkillSources(getWorkspaceConfig().registryDir)[0];
+    const skillsDir = getSkillSources(getWorkspaceConfig())[0]?.dir;
     const runtime =
       skillsDir === undefined
         ? { node: false, python: false }

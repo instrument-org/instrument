@@ -44,21 +44,64 @@ const resolve = {
   },
 };
 
+// `buildStart` fires on every watch rebuild and the plugin is installed on more
+// than one build, so re-copying ~11MB of WASM each time is skipped when the
+// destination already holds the current bytes.
+async function copyVendorAsset({ from, to }: { from: string; to: string }) {
+  const source = await fs.stat(from);
+  try {
+    const target = await fs.stat(to);
+    if (target.size === source.size && target.mtimeMs >= source.mtimeMs) {
+      return;
+    }
+  } catch {
+    // No destination yet.
+  }
+  await fs.mkdir(path.dirname(to), { recursive: true });
+  await fs.copyFile(from, to);
+}
+
 function copyVendorAssets(): Plugin {
   const require = createRequire(import.meta.url);
+  const resourcesDir = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "resources",
+  );
+  const wasmDir = path.join(resourcesDir, "wasm");
+  // @embedpdf/pdfium is a transitive dependency of @embedpdf/engines, so under
+  // pnpm's isolated layout it is only resolvable from the engines package.
+  const embedPdfEnginesDir = path.dirname(require.resolve("@embedpdf/engines"));
   const assets = [
     {
       from: require.resolve("@tailwindcss/browser"),
-      to: path.join(
-        path.dirname(fileURLToPath(import.meta.url)),
-        "resources/tailwind-browser.js",
-      ),
+      to: path.join(resourcesDir, "tailwind-browser.js"),
+    },
+    // The renderer runs from `file://` in production, where `fetch()` of
+    // bundled assets is blocked, so these are served over the app protocol
+    // from `resources/` instead of being emitted into the renderer bundle.
+    {
+      from: require.resolve("@embedpdf/pdfium/pdfium.wasm", {
+        paths: [embedPdfEnginesDir],
+      }),
+      to: path.join(wasmDir, "pdfium.wasm"),
+    },
+    {
+      from: require.resolve("@extend-ai/react-docx/docx_wasm_bg.wasm"),
+      to: path.join(wasmDir, "docx.wasm"),
+    },
+    {
+      from: require.resolve("@extend-ai/react-pptx/pptx_wasm_bg.wasm"),
+      to: path.join(wasmDir, "pptx.wasm"),
+    },
+    {
+      from: require.resolve("@extend-ai/react-xlsx/duke_sheets_wasm_bg.wasm"),
+      to: path.join(wasmDir, "xlsx.wasm"),
     },
   ];
   return {
     async buildStart() {
       for (const { from, to } of assets) {
-        await fs.copyFile(from, to);
+        await copyVendorAsset({ from, to });
       }
     },
     name: "copy-vendor-assets",
@@ -205,6 +248,7 @@ export default defineConfig(({ command }) => {
         watch: {}, // Enable hot reloading
       },
       plugins: [
+        copyVendorAssets(),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("renderer"),
         tanstackRouter({
@@ -223,6 +267,11 @@ export default defineConfig(({ command }) => {
       ],
       resolve,
       root: path.resolve("src"),
+      // The vendored spreadsheet viewer ships a `new Worker(url, { type:
+      // "module" })` entry that Vite bundles even though Studio always parses
+      // main-thread. That entry code-splits, which the default IIFE worker
+      // format cannot express, so the build fails without this.
+      worker: { format: "es" },
     },
   };
 });

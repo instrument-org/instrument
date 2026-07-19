@@ -15,6 +15,9 @@ dist/
 # Vendored uv binary (downloaded by scripts/download-uv.ts)
 resources/uv/
 
+# Vendored WASM binaries (copied from node_modules by electron.vite.config.ts)
+resources/wasm/
+
 # Turbo
 .turbo
 

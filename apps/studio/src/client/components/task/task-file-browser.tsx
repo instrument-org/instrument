@@ -9,7 +9,7 @@ import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
 import { useOpenTaskFile } from "@/client/hooks/use-open-task-file";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
-import { getFileType } from "@/client/lib/get-file-type";
+import { canPreviewFile, getFileType } from "@/client/lib/get-file-type";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import { ChatTextIcon } from "@phosphor-icons/react";
@@ -62,6 +62,11 @@ export function TaskFileBrowser({
       kind: "file",
       name: file.filename,
       path: file.filePath,
+      // The browser never renders a document itself, so a thumbnail has to be
+      // supplied. Images are their own thumbnail; other formats fall back to a
+      // file-type icon.
+      previewImageUrl:
+        getFileType(file) === "image" ? viewerFile.url : undefined,
       size: file.size,
       updatedAt: new Date(file.modifiedAt).toISOString(),
       url: viewerFile.url,
@@ -76,15 +81,15 @@ export function TaskFileBrowser({
       return;
     }
 
-    // Studio's artifact panel previews more formats than the browser's own
-    // viewers do (markdown, code, audio, video); anything it cannot render
-    // hands off to the OS-associated application.
-    if (getFileType(file) === "unknown") {
-      openTaskFile(file);
+    // The artifact panel previews more formats than the browser's own viewers
+    // do (markdown, code, audio, video); anything it cannot render hands off to
+    // the OS-associated application.
+    if (canPreviewFile(file)) {
+      onFileSelect(file);
       return;
     }
 
-    onFileSelect(file);
+    openTaskFile(file);
   };
 
   return (

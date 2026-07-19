@@ -55,125 +55,155 @@ function fileKindLabel(fileType: FileType): string {
   }
 }
 
+// Lookup tables are `Map`s, not object literals: their keys come from
+// filenames and MIME types Studio does not control, and a bare object would
+// resolve `constructor`, `__proto__` and friends to prototype members.
 // cspell:ignore dotm ipynb mhtml mobi xlsb zstandard
-const EXTENSION_KIND_LABELS: Record<string, string> = {
-  "7z": "7Z archive",
-  ass: "Subtitle file",
-  avro: "Avro data",
-  bib: "Bibliography",
-  bz2: "Bzip2 archive",
-  csv: "CSV data",
-  db: "Database",
-  doc: "Word document",
-  docm: "Word document",
-  docx: "Word document",
-  dot: "Word template",
-  dotm: "Word template",
-  dotx: "Word template",
-  eml: "Email message",
-  epub: "E-book",
-  geojson: "GeoJSON data",
-  gml: "XML data",
-  gz: "Gzip archive",
-  ics: "Calendar file",
-  ipynb: "Jupyter notebook",
-  json: "JSON data",
-  jsonc: "JSON data",
-  jsonl: "JSON data",
-  key: "Keynote presentation",
-  kml: "XML data",
-  latex: "LaTeX document",
-  log: "Log file",
-  mhtml: "Web archive",
-  mobi: "E-book",
-  msg: "Outlook message",
-  ndjson: "JSON data",
-  numbers: "Numbers spreadsheet",
-  odf: "OpenDocument formula",
-  odp: "OpenDocument presentation",
-  ods: "OpenDocument spreadsheet",
-  odt: "OpenDocument text",
-  odw: "OpenDocument text",
-  pages: "Pages document",
-  parquet: "Parquet data",
-  pot: "PowerPoint template",
-  potm: "PowerPoint template",
-  potx: "PowerPoint template",
-  pps: "PowerPoint slideshow",
-  ppsm: "PowerPoint slideshow",
-  ppsx: "PowerPoint slideshow",
-  ppt: "PowerPoint presentation",
-  pptm: "PowerPoint presentation",
-  pptx: "PowerPoint presentation",
-  rar: "RAR archive",
-  ris: "Citation data",
-  rss: "XML data",
-  rtf: "Rich text document",
-  sql: "SQL file",
-  sqlite: "Database",
-  sqlite3: "Database",
-  srt: "Subtitle file",
-  ssa: "Subtitle file",
-  tar: "Tar archive",
-  tex: "LaTeX document",
-  tgz: "Tar archive",
-  tsv: "TSV data",
-  vcf: "Contact file",
-  vtt: "Subtitle file",
-  xhtml: "HTML",
-  xls: "Excel spreadsheet",
-  xlsb: "Excel spreadsheet",
-  xlsm: "Excel spreadsheet",
-  xlsx: "Excel spreadsheet",
-  xlt: "Excel template",
-  xltm: "Excel template",
-  xltx: "Excel template",
-  xml: "XML data",
-  xz: "XZ archive",
-  zip: "ZIP archive",
-  zst: "Zstandard archive",
-};
+const EXTENSION_KIND_LABELS = new Map<string, string>(
+  Object.entries({
+    "7z": "7Z archive",
+    ass: "Subtitle file",
+    avro: "Avro data",
+    bib: "Bibliography",
+    bz2: "Bzip2 archive",
+    csv: "CSV data",
+    db: "Database",
+    doc: "Word document",
+    docm: "Word document",
+    docx: "Word document",
+    dot: "Word template",
+    dotm: "Word template",
+    dotx: "Word template",
+    eml: "Email message",
+    epub: "E-book",
+    geojson: "GeoJSON data",
+    gml: "XML data",
+    gz: "Gzip archive",
+    ics: "Calendar file",
+    ipynb: "Jupyter notebook",
+    json: "JSON data",
+    jsonc: "JSON data",
+    jsonl: "JSON data",
+    key: "Keynote presentation",
+    kml: "XML data",
+    latex: "LaTeX document",
+    log: "Log file",
+    mhtml: "Web archive",
+    mobi: "E-book",
+    msg: "Outlook message",
+    ndjson: "JSON data",
+    numbers: "Numbers spreadsheet",
+    odf: "OpenDocument formula",
+    odp: "OpenDocument presentation",
+    ods: "OpenDocument spreadsheet",
+    odt: "OpenDocument text",
+    odw: "OpenDocument text",
+    pages: "Pages document",
+    parquet: "Parquet data",
+    pot: "PowerPoint template",
+    potm: "PowerPoint template",
+    potx: "PowerPoint template",
+    pps: "PowerPoint slideshow",
+    ppsm: "PowerPoint slideshow",
+    ppsx: "PowerPoint slideshow",
+    ppt: "PowerPoint presentation",
+    pptm: "PowerPoint presentation",
+    pptx: "PowerPoint presentation",
+    rar: "RAR archive",
+    ris: "Citation data",
+    rss: "XML data",
+    rtf: "Rich text document",
+    sql: "SQL file",
+    sqlite: "Database",
+    sqlite3: "Database",
+    srt: "Subtitle file",
+    ssa: "Subtitle file",
+    tar: "Tar archive",
+    tex: "LaTeX document",
+    tgz: "Tar archive",
+    tsv: "TSV data",
+    vcf: "Contact file",
+    vtt: "Subtitle file",
+    xhtml: "HTML",
+    xls: "Excel spreadsheet",
+    xlsb: "Excel spreadsheet",
+    xlsm: "Excel spreadsheet",
+    xlsx: "Excel spreadsheet",
+    xlt: "Excel template",
+    xltm: "Excel template",
+    xltx: "Excel template",
+    xml: "XML data",
+    xz: "XZ archive",
+    zip: "ZIP archive",
+    zst: "Zstandard archive",
+  }),
+);
 
 // cspell:ignore subrip vcard
-const MIME_KIND_LABELS: Record<string, string> = {
-  "application/epub+zip": "E-book",
-  "application/geo+json": "GeoJSON data",
-  "application/gml+xml": "XML data",
-  "application/json": "JSON data",
-  "application/ld+json": "JSON data",
-  "application/rss+xml": "XML data",
-  "application/vnd.apache.parquet": "Parquet data",
-  "application/vnd.google-earth.kml+xml": "XML data",
-  "application/vnd.ms-outlook": "Outlook message",
-  "application/vnd.sqlite3": "Database",
-  "application/x-ipynb+json": "Jupyter notebook",
-  "application/x-sqlite3": "Database",
-  "application/x-subrip": "Subtitle file",
-  "application/xml": "XML data",
-  "message/rfc822": "Email message",
-  "text/calendar": "Calendar file",
-  "text/csv": "CSV data",
-  "text/tab-separated-values": "TSV data",
-  "text/vcard": "Contact file",
-  "text/x-vcard": "Contact file",
-};
+const MIME_KIND_LABELS = new Map<string, string>(
+  Object.entries({
+    "application/epub+zip": "E-book",
+    "application/geo+json": "GeoJSON data",
+    "application/gml+xml": "XML data",
+    "application/json": "JSON data",
+    "application/ld+json": "JSON data",
+    "application/rss+xml": "XML data",
+    "application/vnd.apache.parquet": "Parquet data",
+    "application/vnd.google-earth.kml+xml": "XML data",
+    "application/vnd.ms-outlook": "Outlook message",
+    "application/vnd.sqlite3": "Database",
+    "application/x-ipynb+json": "Jupyter notebook",
+    "application/x-sqlite3": "Database",
+    "application/x-subrip": "Subtitle file",
+    "application/xml": "XML data",
+    "message/rfc822": "Email message",
+    "text/calendar": "Calendar file",
+    "text/csv": "CSV data",
+    "text/tab-separated-values": "TSV data",
+    "text/vcard": "Contact file",
+    "text/x-vcard": "Contact file",
+  }),
+);
 
 // The three OOXML formats Studio renders with a dedicated viewer. Legacy
 // binary Office formats (.doc/.xls/.ppt) are deliberately absent: the viewers
 // only parse OOXML.
-const OOXML_EXTENSION_FILE_TYPES: Record<string, FileType> = {
-  docx: "docx",
-  pptx: "pptx",
-  xlsx: "xlsx",
-};
+const OOXML_EXTENSION_FILE_TYPES = new Map<string, FileType>([
+  ["docx", "docx"],
+  ["pptx", "pptx"],
+  ["xlsx", "xlsx"],
+]);
 
-const OOXML_MIME_FILE_TYPES: Record<string, FileType> = {
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+const OOXML_MIME_FILE_TYPES = new Map<string, FileType>([
+  [
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "pptx",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+  ],
+  ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"],
+  [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "docx",
-};
+  ],
+]);
+
+/**
+ * Types the artifact panel has a renderer for, exhaustive over `FileType` so
+ * that adding a type forces a decision about whether Studio can show it.
+ */
+const FILE_TYPE_HAS_PREVIEW = {
+  audio: true,
+  code: true,
+  docx: true,
+  html: true,
+  image: true,
+  markdown: true,
+  pdf: true,
+  pptx: true,
+  text: true,
+  unknown: false,
+  video: true,
+  xlsx: true,
+} satisfies Record<FileType, boolean>;
 
 const CONFIG_EXTENSIONS = new Set([
   "env",
@@ -183,6 +213,20 @@ const CONFIG_EXTENSIONS = new Set([
   "yaml",
   "yml",
 ]);
+
+/**
+ * Whether Studio can render the file itself. Callers route such files to the
+ * artifact panel and hand everything else to the OS-associated application.
+ */
+export function canPreviewFile({
+  filename,
+  mimeType,
+}: {
+  filename: string;
+  mimeType?: string;
+}): boolean {
+  return FILE_TYPE_HAS_PREVIEW[getFileType({ filename, mimeType })];
+}
 
 export function getFileKindLabel({
   filename,
@@ -198,7 +242,7 @@ export function getFileKindLabel({
       : filename.slice(extensionStart + 1).toLowerCase();
 
   if (extension) {
-    const extensionLabel = EXTENSION_KIND_LABELS[extension];
+    const extensionLabel = EXTENSION_KIND_LABELS.get(extension);
     if (extensionLabel) {
       return extensionLabel;
     }
@@ -209,7 +253,7 @@ export function getFileKindLabel({
   }
 
   if (mimeType) {
-    const mimeLabel = MIME_KIND_LABELS[mimeType];
+    const mimeLabel = MIME_KIND_LABELS.get(mimeType);
     if (mimeLabel) {
       return mimeLabel;
     }
@@ -248,7 +292,7 @@ export function getFileType({
       return "html";
     }
 
-    const ooxmlMimeType = OOXML_MIME_FILE_TYPES[mimeType];
+    const ooxmlMimeType = OOXML_MIME_FILE_TYPES.get(mimeType);
     if (ooxmlMimeType) {
       return ooxmlMimeType;
     }
@@ -266,7 +310,7 @@ export function getFileType({
   const ooxmlExtension =
     extensionStart === -1
       ? undefined
-      : OOXML_EXTENSION_FILE_TYPES[lowerFilename.slice(extensionStart + 1)];
+      : OOXML_EXTENSION_FILE_TYPES.get(lowerFilename.slice(extensionStart + 1));
   if (ooxmlExtension) {
     return ooxmlExtension;
   }

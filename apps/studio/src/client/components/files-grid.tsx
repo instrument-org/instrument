@@ -291,6 +291,9 @@ function hasRowCardPreview(file: TaskFileViewerFile) {
     fileType === "text" ||
     fileType === "code" ||
     fileType === "audio" ||
+    fileType === "docx" ||
+    fileType === "pptx" ||
+    fileType === "xlsx" ||
     fileType === "unknown"
   );
 }

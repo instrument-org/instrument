@@ -1,8 +1,9 @@
 import { InternalLink } from "@/client/components/internal-link";
+import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
-import { StackIcon } from "@phosphor-icons/react";
+import { PlusIcon, StackIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/skills/")({
   component: SkillsPage,
@@ -17,16 +18,24 @@ function SkillsPage() {
   return (
     <main className="scroll-fade-y h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-5xl px-8 py-12">
-        <div className="mb-10 flex items-center gap-4">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-brown-100 text-brown-700 dark:bg-brown-900/60 dark:text-brown-200">
-            <StackIcon className="size-6" weight="duotone" />
+        <div className="mb-10 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="flex size-11 items-center justify-center rounded-xl bg-brown-100 text-brown-700 dark:bg-brown-900/60 dark:text-brown-200">
+              <StackIcon className="size-6" weight="duotone" />
+            </div>
+            <div>
+              <h1 className="font-serif text-3xl tracking-tight">Skills</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Specialized instructions available to your agents.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-serif text-3xl tracking-tight">Skills</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Specialized instructions available to your agents.
-            </p>
-          </div>
+          <Button asChild>
+            <Link to="/skills/new">
+              <PlusIcon className="size-4" />
+              New skill
+            </Link>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -35,7 +44,7 @@ function SkillsPage() {
           <div className="rounded-2xl border border-dashed p-10 text-center">
             <p className="font-medium">No skills found</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Add a skill to your workspace skills folder or an agent skills directory.
+              Create a skill or add one to an installed agent skills directory.
             </p>
           </div>
         ) : (

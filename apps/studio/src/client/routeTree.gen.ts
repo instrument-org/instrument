@@ -23,6 +23,7 @@ import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authen
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
+import { Route as AppSkillsNewRouteImport } from './routes/_app/skills/new'
 import { Route as AppSkillsNameRouteImport } from './routes/_app/skills/$name'
 import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/notifications'
 import { Route as AppDebugErrorsRouteImport } from './routes/_app/debug/errors'
@@ -115,6 +116,11 @@ const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppDebugRouteRoute,
+} as any)
+const AppSkillsNewRoute = AppSkillsNewRouteImport.update({
+  id: '/skills/new',
+  path: '/skills/new',
+  getParentRoute: () => AppRouteRoute,
 } as any)
 const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
   id: '/skills/$name',
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
   '/skills/$name': typeof AppSkillsNameRoute
+  '/skills/new': typeof AppSkillsNewRoute
   '/debug/': typeof AppDebugIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
@@ -304,6 +311,7 @@ export interface FileRoutesByTo {
   '/debug/errors': typeof AppDebugErrorsRoute
   '/debug/notifications': typeof AppDebugNotificationsRoute
   '/skills/$name': typeof AppSkillsNameRoute
+  '/skills/new': typeof AppSkillsNewRoute
   '/debug': typeof AppDebugIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
@@ -344,6 +352,7 @@ export interface FileRoutesById {
   '/_app/debug/errors': typeof AppDebugErrorsRoute
   '/_app/debug/notifications': typeof AppDebugNotificationsRoute
   '/_app/skills/$name': typeof AppSkillsNameRoute
+  '/_app/skills/new': typeof AppSkillsNewRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
@@ -384,6 +393,7 @@ export interface FileRouteTypes {
     | '/debug/errors'
     | '/debug/notifications'
     | '/skills/$name'
+    | '/skills/new'
     | '/debug/'
     | '/skills/'
     | '/tasks/'
@@ -419,6 +429,7 @@ export interface FileRouteTypes {
     | '/debug/errors'
     | '/debug/notifications'
     | '/skills/$name'
+    | '/skills/new'
     | '/debug'
     | '/skills'
     | '/tasks'
@@ -458,6 +469,7 @@ export interface FileRouteTypes {
     | '/_app/debug/errors'
     | '/_app/debug/notifications'
     | '/_app/skills/$name'
+    | '/_app/skills/new'
     | '/_app/debug/'
     | '/_app/skills/'
     | '/_app/tasks/'
@@ -586,6 +598,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/debug/'
       preLoaderRoute: typeof AppDebugIndexRouteImport
       parentRoute: typeof AppDebugRouteRoute
+    }
+    '/_app/skills/new': {
+      id: '/_app/skills/new'
+      path: '/skills/new'
+      fullPath: '/skills/new'
+      preLoaderRoute: typeof AppSkillsNewRouteImport
+      parentRoute: typeof AppRouteRoute
     }
     '/_app/skills/$name': {
       id: '/_app/skills/$name'
@@ -857,6 +876,7 @@ interface AppRouteRouteChildren {
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppTutorialTaskRoute: typeof AppTutorialTaskRoute
   AppSkillsNameRoute: typeof AppSkillsNameRoute
+  AppSkillsNewRoute: typeof AppSkillsNewRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
   AppProjectsIdIndexRoute: typeof AppProjectsIdIndexRoute
@@ -870,6 +890,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTutorialTaskRoute: AppTutorialTaskRoute,
   AppSkillsNameRoute: AppSkillsNameRoute,
+  AppSkillsNewRoute: AppSkillsNewRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
   AppProjectsIdIndexRoute: AppProjectsIdIndexRoute,

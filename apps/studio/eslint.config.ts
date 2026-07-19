@@ -55,6 +55,30 @@ export default [
     },
   },
   {
+    // Vendored third-party UI. These files are kept as a near-verbatim copy so
+    // they can be re-synced with upstream, so house style is not enforced on
+    // them. Anything Studio-specific is called out in each file's header.
+    files: [
+      "src/client/components/document-viewers/**/*.{ts,tsx}",
+      "src/client/components/ui/extend/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "no-console": "off",
+      "no-restricted-properties": "off",
+      "no-restricted-syntax": "off",
+      "react-hooks/incompatible-library": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/use-memo": "off",
+      "react-refresh/only-export-components": "off",
+      "regexp/no-unused-capturing-group": "off",
+      "unicorn/consistent-function-scoping": "off",
+      "unicorn/no-await-expression-member": "off",
+      "unicorn/prefer-code-point": "off",
+      "unicorn/prefer-logical-operator-over-ternary": "off",
+    },
+  },
+  {
     files: ["src/{client,shared}/**/*.{js,jsx,ts,tsx}"],
     rules: {
       "no-restricted-imports": [

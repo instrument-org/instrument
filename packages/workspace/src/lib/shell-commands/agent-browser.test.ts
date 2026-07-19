@@ -9,6 +9,7 @@ import {
   createAgentBrowserCommand,
   isBrowserFreeRead,
   isDaemonConfigRace,
+  isExternalBrowserInvocation,
 } from "./agent-browser";
 
 const mockCtx: CommandContext = {
@@ -33,33 +34,23 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stdout).toContain(
       "Read the active page as agent-friendly text",
     );
-    expect(result.stdout).toContain("restore");
+    expect(result.stdout).toContain("--auto-connect");
   });
 
   it.each([
     { flag: "--config" },
     { flag: "--namespace" },
-    { flag: "--restore" },
-    { flag: "--restore-save" },
+    { flag: "--session" },
     { flag: "--session-name" },
-  ])("blocks workspace-managed flag $flag", async ({ flag }) => {
+  ])("blocks harness-owned flag $flag", async ({ flag }) => {
     const result = await command.execute([flag, "value", "open"], mockCtx);
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(`flag ${flag} is not allowed`);
   });
 
-  it("blocks the short alias of a managed flag", async () => {
-    const result = await command.execute(
-      ["-p", "browserbase", "open", "https://example.com"],
-      mockCtx,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("flag -p is not allowed");
-  });
-
   it.each([
+    { subcommand: "auth" },
     { subcommand: "connect" },
     { subcommand: "install" },
     { subcommand: "mcp" },
@@ -140,6 +131,31 @@ describe("browserFreeReadEnv", () => {
         "PATH": "/usr/bin",
       }
     `);
+  });
+});
+
+describe("isExternalBrowserInvocation", () => {
+  it.each([
+    { args: ["open", "https://example.com"], external: false },
+    { args: ["snapshot", "-i"], external: false },
+    { args: ["--user-agent", "bot/1.0", "open", "x"], external: false },
+    { args: ["--auto-connect", "open", "x"], external: true },
+    { args: ["--auto-connect=false", "open", "x"], external: false },
+    { args: ["--auto-connect", "false", "open", "x"], external: false },
+    { args: ["--cdp", "9222", "snapshot"], external: true },
+    { args: ["--cdp=ws://127.0.0.1:9222/x", "snapshot"], external: true },
+    { args: ["--provider", "browserbase", "open", "x"], external: true },
+    { args: ["--provider=ios", "open", "x"], external: true },
+    { args: ["-p", "ios", "open", "x"], external: true },
+    // Explicitly naming the instrument provider is the task browser.
+    { args: ["--provider", "instrument", "open", "x"], external: false },
+    { args: ["--provider=instrument", "open", "x"], external: false },
+    { args: ["--profile", "Default", "open", "x"], external: true },
+    { args: ["--state", "state.json", "open", "x"], external: true },
+    { args: ["--restore", "shop", "open", "x"], external: true },
+    { args: ["--executable-path", "/opt/chrome", "open", "x"], external: true },
+  ])("$args -> external: $external", ({ args, external }) => {
+    expect(isExternalBrowserInvocation(args)).toBe(external);
   });
 });
 

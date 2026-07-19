@@ -18,7 +18,13 @@ import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
   AGENT_BROWSER_PATH,
   AGENT_BROWSER_SOCKET_DIR,
+  externalBrowserSessionName,
 } from "../agent-browser";
+import {
+  INSTRUMENT_PROVIDER_NAME,
+  instrumentPluginRegistry,
+  writeInstrumentProviderPlugin,
+} from "../agent-browser-plugin";
 import { recordBrowserUse } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
@@ -40,31 +46,44 @@ const AGENT_BROWSER_SKILL_NAME = "agent-browser";
 
 export const AGENT_BROWSER_COMMAND = {
   description: dedent`
-    Control a built-in Chromium browser to navigate the web, interact with pages, and extract content.
+    Control a browser to navigate the web, interact with pages, and extract content.
     IMPORTANT: You MUST load the \`${AGENT_BROWSER_SKILL_NAME}\` skill before using this command. Do not run any agent-browser commands until the skill is loaded.
     IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.
-    Do NOT pass connection, provider, profile, session, restore, or state flags; the browser session is managed automatically.
+    Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --auto-connect (the user's running Chrome), --cdp (an explicit CDP endpoint), --profile (a local Chrome profile), --provider (cloud/iOS). The skill covers when each is appropriate.
+    Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.
   `.trim(),
   name: AGENT_BROWSER_SKILL_NAME,
 } as const;
 
-// Flags rejected because they would bypass our Electron CDP bridge or load
-// data into the wrong browser context.
+// Flags rejected because the harness owns them: daemon session identity and
+// config/plugin-registry discovery. Connection targeting (--cdp,
+// --auto-connect, --provider, --profile, --state, --restore*) passes through
+// and routes the invocation to an external browser session instead.
 const BLOCKED_FLAGS = new Set([
-  "--auto-connect", // Would discover a real Chrome instance instead of our bridge.
-  "--cdp", // Harness injects this; agent override would point at the wrong target.
-  "--config", // Would let task-local config override managed connection/profile policy.
+  "--config", // A managed empty config is injected so task-local agent-browser.json (agent-writable, can register plugins) is never discovered.
   "--namespace", // Would move daemon/restore state outside the workspace-owned namespace.
-  "--profile", // Copies a real Chrome profile; meaningless for our proxied target.
-  "--provider", // Would launch a cloud browser
-  "--restore", // Upstream persistence duplicates our workspace-owned profile/state.
+  "--session", // Harness injects this; derived from our session id.
+  "--session-name", // Legacy restore/session key alias.
+]);
+
+// Flags that retarget an invocation at a browser other than the Instrument
+// task browser. Connection-identity flags mirror upstream precedence (cdp >
+// auto-connect > provider > local launch); profile/state/restore/executable
+// flags imply an external local Chrome launch, since the task browser is a
+// provider connection that ignores local launch options.
+const EXTERNAL_INTENT_FLAGS = new Set([
+  "--auto-connect",
+  "--cdp",
+  "--executable-path",
+  "--profile",
+  "--provider",
+  "--restore",
   "--restore-check-fn",
   "--restore-check-text",
   "--restore-check-url",
   "--restore-save",
-  "--session", // Harness injects this; tied to our session id.
-  "--session-name", // Legacy restore/session key alias.
-  "--state", // Loads cookies/localStorage into a context our bridge doesn't own.
+  "--state",
+  "-p", // Short alias for --provider.
 ]);
 
 // Subcommands rejected because they don't apply to our proxied target or
@@ -74,21 +93,62 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "auth", // Credential vault; we don't expose it.
   "chat", // Built-in AI REPL; the agent is the AI.
   "close", // Lifecycle managed by the workspace.
-  "connect", // Harness injects the only allowed CDP endpoint.
+  "connect", // Sticky daemon connection state; per-invocation --cdp expresses the same thing without hidden routing state.
   "dashboard", // We have our own UI.
   "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
   "inspect", // Opens Chrome DevTools, which doesn't work against our WebContentsView CDP bridge.
   "install", // Browser binary is bundled with the app.
-  "launch", // We don't launch; we proxy an existing target.
+  "launch", // Daemon pre-launch; open/read already launch on demand.
   "mcp", // MCP tool hosting is managed outside the in-app browser wrapper.
   "plugin", // Plugin capabilities would bypass workspace policy.
-  "profiles", // Lists real Chrome profiles; N/A.
   "session", // Session metadata is owned by the workspace.
   "skills", // Workspace manages skill loading.
   "state", // Persistence managed by the workspace.
   "stream", // Streaming managed by the workspace.
   "upgrade", // Binary is bundled; agent shouldn't self-update.
 ]);
+
+// Global flags that consume the following token as a value. Used when locating
+// the subcommand so a flag value (e.g. `--profile session`) is never mistaken
+// for one. Boolean flags are handled separately: they only consume a following
+// literal `true`/`false`.
+const VALUE_FLAGS = new Set([
+  "--action-policy",
+  "--allowed-domains",
+  "--args",
+  "--cdp",
+  "--color-scheme",
+  "--confirm-actions",
+  "--device",
+  "--download-path",
+  "--enable",
+  "--engine",
+  "--executable-path",
+  "--extension",
+  "--headers",
+  "--idle-timeout",
+  "--init-script",
+  "--max-output",
+  "--model",
+  "--profile",
+  "--provider",
+  "--proxy",
+  "--proxy-bypass",
+  "--restore",
+  "--restore-check-fn",
+  "--restore-check-text",
+  "--restore-check-url",
+  "--restore-save",
+  "--screenshot-dir",
+  "--screenshot-format",
+  "--screenshot-quality",
+  "--state",
+  "--user-agent",
+  "-p",
+]);
+
+// Optional explicit values for upstream boolean flags (`--headed false`).
+const BOOLEAN_VALUE_TOKENS = new Set(["false", "true"]);
 
 // Flags silently stripped (with their value arg, including --flag=value form)
 // because the harness controls them via env vars and must always win.
@@ -98,15 +158,18 @@ const STRIPPED_VALUE_FLAGS = new Set([
 ]);
 
 // Flags that short-circuit the CLI to print info and exit without needing a
-// browser target. Skip target creation / --cdp / --session injection so the
-// agent doesn't accidentally spawn a browser view just by running --help.
+// browser target. Skip target creation and provider/--session injection so
+// the agent doesn't accidentally spawn a browser view just by running --help.
 const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
 
 // cspell:ignore networkidle scrollintoview
 const WORKSPACE_HELP = dedent`
-  agent-browser - Control the task's managed in-app browser.
+  agent-browser - Control the task's managed browser, or an external one.
 
-  IMPORTANT: Load the \`agent-browser\` skill before using this command. It is the source of truth for workflow details and command examples. The workspace manages the browser session, CDP connection, profile, state, screenshots, downloads, and lifecycle.
+  IMPORTANT: Load the \`agent-browser\` skill before using this command. It is
+  the source of truth for workflow details and command examples.
+  By default the workspace manages the browser session, CDP connection,
+  profile, state, screenshots, downloads, and lifecycle.
 
   Core workflow:
     1. agent-browser open <url>
@@ -146,7 +209,17 @@ const WORKSPACE_HELP = dedent`
     is visible|enabled|checked  Check element state
     find role|text|label ...    Use semantic locators as an alternative to refs
 
-  Do not pass connection, provider, profile, session, restore, or state flags. These are blocked because the workspace owns the in-app browser context.
+  External browsers (flags apply per invocation; a bare command targets the
+  managed task browser again):
+    --auto-connect              Connect to the user's running Chrome
+    --cdp <port|ws-url>         Connect to an explicit CDP endpoint
+    --profile <name|dir>        Launch a local Chrome with an existing profile
+    --provider <name>           Cloud or iOS browser provider
+    --state | --restore <key>   Load or persist storage state
+
+  Load the skill for guidance on when an external browser is appropriate.
+  Do not pass session, config, namespace, or plugin flags; the workspace
+  manages daemon sessions and the plugin registry.
 `.trim();
 
 /**
@@ -219,7 +292,7 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const subcommand = args.find((a) => !a.startsWith("-"));
+    const subcommand = findSubcommand(args);
     if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
       return {
         exitCode: 1,
@@ -244,13 +317,35 @@ export function createAgentBrowserCommand({
     );
     const resolvedArgs = resolvePathArgs(navigationArgs, taskId, ctx);
 
+    // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
+    // already redirected via dedicated env vars (socket dir, screenshot dir,
+    // download path); this is a per-task sink for anything that falls back
+    // to $HOME, and holds the managed config and provider plugin script.
+    const homeDir = absolutePathJoin(
+      taskDir(taskId),
+      TASK_FOLDER_NAMES.private,
+      "agent-browser-home",
+    );
+    const configPath = path.join(homeDir, "config.json");
+
     // Info-only invocations (--help, --version) print and exit without ever
     // touching a browser target, so don't spin up a WebContentsView or attach
     // to the CDP bridge.
     const commandArgs: string[] = isInfoOnly ? [...resolvedArgs] : [];
     let targetId: BrowserTargetId | undefined;
+    let pluginRegistry: string | undefined;
 
-    if (!isInfoOnly) {
+    if (!isInfoOnly && isExternalBrowserInvocation(resolvedArgs)) {
+      // External targets run under a sibling daemon session so switching
+      // between the task browser and an external browser never tears down the
+      // other's connection. External intent is per-invocation: a bare
+      // follow-up command routes back to the task browser.
+      commandArgs.push(
+        "--session",
+        externalBrowserSessionName(sessionId),
+        ...resolvedArgs,
+      );
+    } else if (!isInfoOnly) {
       // Idempotent: createTarget returns the existing view for this
       // (id, sessionId) pair if one is already live, so sub-agents and
       // repeat invocations within the same session reuse the same browsing
@@ -265,13 +360,9 @@ export function createAgentBrowserCommand({
       await recordBrowserUseBestEffort({ sessionId, taskId });
 
       const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
-      commandArgs.push(
-        "--cdp",
-        cdpUrl,
-        "--session",
-        sessionId,
-        ...resolvedArgs,
-      );
+      const pluginPath = await writeInstrumentProviderPlugin(homeDir);
+      pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
+      commandArgs.push("--session", sessionId, ...resolvedArgs);
     }
 
     const screenshotDir = getScreenshotsDir(taskDir(taskId));
@@ -281,16 +372,6 @@ export function createAgentBrowserCommand({
     // relative to its cwd (e.g. "work/screenshots/shot.png"), not host
     // absolute.
     const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
-    // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
-    // already redirected via dedicated env vars (socket dir, screenshot dir,
-    // download path); this is a per-task sink for anything that falls back
-    // to $HOME.
-    const homeDir = absolutePathJoin(
-      taskDir(taskId),
-      TASK_FOLDER_NAMES.private,
-      "agent-browser-home",
-    );
-    const configPath = path.join(homeDir, "config.json");
 
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
     try {
@@ -305,8 +386,10 @@ export function createAgentBrowserCommand({
           // sandbox PATH, so prepend its dir (the in-bash `ffmpeg` command is a
           // just-bash intercept that a separate subprocess can't see).
           ...ffmpegSubprocessEnv(env.PATH),
-          // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
-          // can't bypass the rejection above.
+          // Null out env-var equivalents of harness-owned and connection
+          // flags so the user shell can't bypass flag policy. Connection
+          // targeting must arrive as CLI flags: session routing (task vs
+          // external daemon session) is derived from argv.
           AGENT_BROWSER_AUTO_CONNECT: undefined,
           AGENT_BROWSER_CDP: undefined,
           AGENT_BROWSER_CONFIG: undefined,
@@ -316,17 +399,27 @@ export function createAgentBrowserCommand({
           AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
           AGENT_BROWSER_IDLE_TIMEOUT_MS,
           AGENT_BROWSER_NAMESPACE: undefined,
+          AGENT_BROWSER_PLUGINS: pluginRegistry,
           AGENT_BROWSER_PROFILE: undefined,
-          AGENT_BROWSER_PROVIDER: undefined,
+          AGENT_BROWSER_PROVIDER: pluginRegistry
+            ? INSTRUMENT_PROVIDER_NAME
+            : undefined,
           AGENT_BROWSER_RESTORE: undefined,
           AGENT_BROWSER_RESTORE_CHECK_FN: undefined,
           AGENT_BROWSER_RESTORE_CHECK_TEXT: undefined,
           AGENT_BROWSER_RESTORE_CHECK_URL: undefined,
           AGENT_BROWSER_RESTORE_SAVE: undefined,
           AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
+          AGENT_BROWSER_SESSION: undefined,
           AGENT_BROWSER_SESSION_NAME: undefined,
           AGENT_BROWSER_SOCKET_DIR,
           AGENT_BROWSER_STATE: undefined,
+          // The daemon spawns the provider plugin via process.execPath. In
+          // packaged builds that is the Electron binary, which this var makes
+          // behave as plain node. Inert for the Rust CLI and for Chrome; set
+          // only for task-browser invocations so an external
+          // --executable-path launch of an Electron-based app is unaffected.
+          ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
           HOME: homeDir,
         },
         input: subprocessStdin(ctx.stdin),
@@ -353,6 +446,73 @@ export function createAgentBrowserCommand({
       stdout: combined,
     };
   });
+}
+
+/**
+ * First positional token, skipping flag values: value flags consume the next
+ * token, boolean flags consume only a literal `true`/`false` (upstream's
+ * optional boolean value form).
+ */
+export function findSubcommand(args: string[]): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined) {
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      if (!arg.includes("=")) {
+        const next = args[i + 1];
+        if (VALUE_FLAGS.has(arg)) {
+          i++;
+        } else if (next !== undefined && BOOLEAN_VALUE_TOKENS.has(next)) {
+          i++;
+        }
+      }
+      continue;
+    }
+    return arg;
+  }
+  return undefined;
+}
+
+/**
+ * True when the invocation targets a browser other than the Instrument task
+ * browser. `--provider instrument` explicitly names the task browser, and a
+ * literal `--auto-connect false` opt-out is honored; any other
+ * external-intent flag routes the invocation to the external daemon session.
+ */
+export function isExternalBrowserInvocation(args: string[]): boolean {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined || !arg.startsWith("-")) {
+      continue;
+    }
+    const eqIdx = arg.indexOf("=");
+    const name = eqIdx > 0 ? arg.slice(0, eqIdx) : arg;
+    if (!EXTERNAL_INTENT_FLAGS.has(name)) {
+      continue;
+    }
+    const next = args[i + 1];
+    const value =
+      eqIdx > 0
+        ? arg.slice(eqIdx + 1)
+        : name === "--auto-connect"
+          ? next !== undefined && BOOLEAN_VALUE_TOKENS.has(next)
+            ? next
+            : undefined
+          : next;
+    if (
+      (name === "--provider" || name === "-p") &&
+      value?.toLowerCase() === INSTRUMENT_PROVIDER_NAME
+    ) {
+      continue;
+    }
+    if (name === "--auto-connect" && value === "false") {
+      continue;
+    }
+    return true;
+  }
+  return false;
 }
 
 async function enrichBrowserState({

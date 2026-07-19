@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { createAgentBrowserCommand, isDaemonConfigRace } from "./agent-browser";
+import {
+  createAgentBrowserCommand,
+  findSubcommand,
+  isDaemonConfigRace,
+  isExternalBrowserInvocation,
+} from "./agent-browser";
 
 const mockCtx: CommandContext = {
   cwd: "/",
@@ -28,16 +33,15 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stdout).toContain(
       "Read the active page as agent-friendly text",
     );
-    expect(result.stdout).toContain("restore");
+    expect(result.stdout).toContain("--auto-connect");
   });
 
   it.each([
     { flag: "--config" },
     { flag: "--namespace" },
-    { flag: "--restore" },
-    { flag: "--restore-save" },
+    { flag: "--session" },
     { flag: "--session-name" },
-  ])("blocks workspace-managed flag $flag", async ({ flag }) => {
+  ])("blocks harness-owned flag $flag", async ({ flag }) => {
     const result = await command.execute([flag, "value", "open"], mockCtx);
 
     expect(result.exitCode).toBe(1);
@@ -45,6 +49,7 @@ describe("createAgentBrowserCommand", () => {
   });
 
   it.each([
+    { subcommand: "auth" },
     { subcommand: "connect" },
     { subcommand: "install" },
     { subcommand: "mcp" },
@@ -81,5 +86,49 @@ describe("isDaemonConfigRace", () => {
     [""],
   ])("does not match unrelated failure %j", (output) => {
     expect(isDaemonConfigRace(output)).toBe(false);
+  });
+});
+
+describe("findSubcommand", () => {
+  it.each([
+    { args: ["open", "https://example.com"], expected: "open" },
+    { args: ["--json", "snapshot", "-i"], expected: "snapshot" },
+    // A value flag's value is never mistaken for the subcommand, even when it
+    // collides with a blocked subcommand name.
+    { args: ["--profile", "session", "open"], expected: "open" },
+    { args: ["--cdp", "9222", "connect"], expected: "connect" },
+    { args: ["--cdp=9222", "snapshot"], expected: "snapshot" },
+    // Boolean flags consume only a literal true/false.
+    { args: ["--auto-connect", "false", "snapshot"], expected: "snapshot" },
+    { args: ["--auto-connect", "open", "x"], expected: "open" },
+    { args: ["--headed", "true", "open"], expected: "open" },
+    { args: ["--json"], expected: undefined },
+  ])("finds $expected in $args", ({ args, expected }) => {
+    expect(findSubcommand(args)).toBe(expected);
+  });
+});
+
+describe("isExternalBrowserInvocation", () => {
+  it.each([
+    { args: ["open", "https://example.com"], external: false },
+    { args: ["snapshot", "-i"], external: false },
+    { args: ["--user-agent", "bot/1.0", "open", "x"], external: false },
+    { args: ["--auto-connect", "open", "x"], external: true },
+    { args: ["--auto-connect=false", "open", "x"], external: false },
+    { args: ["--auto-connect", "false", "open", "x"], external: false },
+    { args: ["--cdp", "9222", "snapshot"], external: true },
+    { args: ["--cdp=ws://127.0.0.1:9222/x", "snapshot"], external: true },
+    { args: ["--provider", "browserbase", "open", "x"], external: true },
+    { args: ["--provider=ios", "open", "x"], external: true },
+    { args: ["-p", "ios", "open", "x"], external: true },
+    // Explicitly naming the instrument provider is the task browser.
+    { args: ["--provider", "instrument", "open", "x"], external: false },
+    { args: ["--provider=instrument", "open", "x"], external: false },
+    { args: ["--profile", "Default", "open", "x"], external: true },
+    { args: ["--state", "state.json", "open", "x"], external: true },
+    { args: ["--restore", "shop", "open", "x"], external: true },
+    { args: ["--executable-path", "/opt/chrome", "open", "x"], external: true },
+  ])("$args -> external: $external", ({ args, external }) => {
+    expect(isExternalBrowserInvocation(args)).toBe(external);
   });
 });

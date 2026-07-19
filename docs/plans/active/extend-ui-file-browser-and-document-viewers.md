@@ -26,35 +26,36 @@ primitives are untouched, and re-syncing with upstream Extend UI stays a copy.
 
 ### Renderer origin is `file://` in production
 
-`studioURL()` loads the renderer from `file://` in packaged builds. That has two
-consequences:
+`studioURL()` loads the renderer from `file://` in packaged builds, so
+`fetch()` of a bundled asset is blocked and the four WASM binaries cannot be
+loaded from the Vite output directory. They are copied into `resources/wasm/`
+at build time and served from the already-privileged `instrument:` protocol
+(`corsEnabled: true, standard: true, secure: true, supportFetchAPI: true`).
+The renderer's own origin is never that scheme, so every WASM fetch is
+cross-origin; Chromium rejects those for custom schemes unless the scheme
+itself opts in, independent of the response's CORS headers. Every library
+exposes `setWasmSource()`, so no bundler aliasing is needed.
 
-- **`fetch()` of bundled assets is blocked.** The four WASM binaries cannot be
-  loaded from the Vite output directory. They are copied into `resources/wasm/`
-  at build time and served from the already-privileged `instrument:` protocol
-  (`corsEnabled: true, standard: true, secure: true, supportFetchAPI: true`).
-  The renderer's own origin is never that scheme, so every WASM fetch is
-  cross-origin; Chromium rejects those for custom schemes unless the scheme
-  itself opts in, independent of the response's CORS headers. Every library
-  exposes `setWasmSource()`, so no bundler aliasing is needed.
-- **Module workers are blocked.** `@extend-ai/react-{docx,pptx,xlsx}` and
-  `@embedpdf/engines` all construct workers via
-  `new Worker(new URL("./x.js", import.meta.url), { type: "module" })`, which
-  resolves to `file://` and fails. `@embedpdf/engines` and `@extend-ai/react-xlsx`
-  have supported opt-outs (`@embedpdf/engines/pdfium-direct-engine`,
-  `useWorker: false` on `useXlsxViewerController`) and run main-thread.
+Module workers do still work from `file://`: the
+`grantFileProtocolExtraPrivileges` fuse is on by default and this app never
+flips it, so `allow-file-access-from-files` stays enabled. All four viewers run
+their parsers off the main thread, verified in a packaged build.
 
-  `@extend-ai/react-docx@0.8.1` and `@extend-ai/react-pptx@0.1.2` do **not**:
-  neither `useDocxEditor` nor `usePptxViewer` threads a `useWorker` option down
-  to the import call, so both always take the worker path and fail to load a
-  document. Both gate the worker on whether the configured WASM source is
-  transferable to a worker, so passing a `Response` (a valid `WasmSource`, but
-  not something `sourceToWorkerSource` can serialize) forces the main-thread
-  path. That trades laziness for an eager fetch at startup; a pnpm patch adding
-  `useWorker: false` to the import call is the alternative.
+### Parser workers and the dev dependency optimizer
 
-  Follow-up: serving the renderer itself from a custom standard scheme would let
-  workers come back.
+`@extend-ai/react-{docx,pptx,xlsx}` each spawn their parser with
+`new Worker(new URL("./x.js", import.meta.url), { type: "module" })`. Vite's dev
+pre-bundler rewrites `import.meta.url` to the dependency cache
+(`node_modules/.vite/deps/`), where the sibling worker file does not exist, so
+the dev server answers with the SPA fallback HTML and the worker dies on load
+with an empty `error` event. The renderer therefore lists all three in
+`optimizeDeps.exclude`, plus their CommonJS-only imports (`utif`, `regl`,
+`react-dom/server`) in `optimizeDeps.include` so those still get ESM interop.
+Production builds are unaffected: Rollup emits a real worker chunk per entry.
+
+`@embedpdf/engines/pdfium-worker-engine` builds its worker from a
+`URL.createObjectURL(new Blob([...]))` instead, which needs `blob:` in
+`worker-src`.
 
 ### WASM binaries to vendor
 
@@ -71,9 +72,10 @@ replaced.
 ### CSP
 
 `src/index.html` needs `'wasm-unsafe-eval'` in `script-src` (WebAssembly
-compilation), `instrument:` in `connect-src` (fetching the binaries), and
-`blob:` in `img-src` (the viewers rasterize pages to a canvas and hand the
-resulting object URL to an `<img>`).
+compilation), `instrument:` in `connect-src` (fetching the binaries), `blob:` in
+`img-src` (the viewers rasterize pages to a canvas and hand the resulting object
+URL to an `<img>`), and `worker-src 'self' blob:` (the PDF engine's worker is a
+blob URL, and `worker-src` otherwise falls back to `script-src`).
 
 ### Theme
 
@@ -94,19 +96,19 @@ popover, dropdown, select and tooltip need the same treatment.
 
 ### Upstream patch
 
-`@extend-ai/react-docx@0.8.1` unmounts a React root synchronously during render
-when tearing down detached thumbnail surfaces, which throws under React 19. The
-upstream repo carries a patch deferring the unmount to a macrotask; it is
-mirrored in `patches/`.
+`@extend-ai/react-docx@0.8.1` unmounts a React root synchronously from an effect
+when tearing down detached thumbnail surfaces. Switching documents with the
+thumbnail sidebar open reproduces React 19's "Attempted to synchronously unmount
+a root while React was already rendering" error. The upstream repo carries a
+patch deferring the unmount to a macrotask; it is mirrored in `patches/`.
 
 ### Renderer build
 
 Making the viewers reachable takes the renderer from ~5.3k to ~13k modules,
 which breaks the production build in two ways:
 
-- Vite bundles the spreadsheet viewer's module-worker entry even though it is
-  never constructed, and that entry code-splits, which the default `iife`
-  worker format cannot express. The renderer config sets `worker.format: "es"`.
+- The parser worker entries code-split, which the default `iife` worker format
+  cannot express. The renderer config sets `worker.format: "es"`.
 - Rendering the chunks with sourcemaps exceeds Node's default ~4GB heap (it
   fails at 5GB and passes at 6.5GB). `apps/studio`'s three `electron-vite build`
   scripts invoke the bin through `node --max-old-space-size=8192` rather than a

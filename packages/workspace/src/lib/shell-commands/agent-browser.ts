@@ -225,12 +225,11 @@ const WORKSPACE_HELP = dedent`
 
 /**
  * The CLI refuses a command when a daemon is already running for the session
- * under a different configuration than the invocation asks for: our `--cdp`
- * URL carries the browser target id, which changes whenever the view is
- * recreated, while the daemon outlives a command by its idle timeout. The
- * refusal happens before the command runs, so a retry cannot repeat a page
- * action; it just lets agent-browser restart the daemon on the requested
- * configuration, which is what the CLI's own message asks for.
+ * under a different configuration than the invocation asks for, which two
+ * commands racing to start that session's daemon can trigger. The refusal
+ * happens before the command runs, so a retry cannot repeat a page action; it
+ * just lets agent-browser restart the daemon on the requested configuration,
+ * which is what the CLI's own message asks for.
  */
 export function isDaemonConfigRace(output: string): boolean {
   return output.includes(

@@ -17,12 +17,18 @@ export function useTaskFileOpenControl(
 ) {
   const openTaskFile = useOpenTaskFile();
   const target = useTaskFileOpenTarget(file);
-  const { apps, isPending: areCandidatesPending } = useTaskFileOpenCandidates(
-    file,
-    { enabled: file != null && loadCandidates && isMacOS() },
-  );
+  const {
+    apps,
+    isError: didCandidatesFail,
+    isPending: areCandidatesPending,
+  } = useTaskFileOpenCandidates(file, {
+    enabled: file != null && loadCandidates && isMacOS(),
+  });
+  // Keep the trigger on a failed lookup: hiding it is indistinguishable from
+  // "this file type has one app", and leaves no way to retry.
   const showOpenWithDropdown =
-    target.showOpen && (areCandidatesPending || apps.length > 1);
+    target.showOpen &&
+    (areCandidatesPending || didCandidatesFail || apps.length > 1);
 
   return {
     ...target,

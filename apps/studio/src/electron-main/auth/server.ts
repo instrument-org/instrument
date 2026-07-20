@@ -206,7 +206,10 @@ export async function startAuthCallbackServer() {
   );
   app.get("/test/success", (c) => c.html(renderAuthPage({})));
   app.get("/test/error", (c) => c.html(renderAuthPage({ isError: true })));
-  const server = serve({ fetch: app.fetch, port });
+  // Bind IPv4 loopback only so the OAuth callback and the auth preview pages
+  // aren't exposed to the local network; the system browser reaches the
+  // callback via localhost/127.0.0.1.
+  const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port });
   setAuthServer(server);
 
   return {

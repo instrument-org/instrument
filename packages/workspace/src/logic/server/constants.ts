@@ -9,6 +9,12 @@ export const SHIM_SCRIPT_PATH = `${SHIM_IFRAME_BASE_PATH}/src/client/index.js`;
 export const SHIM_DEV_HOST = `http://localhost:${PORTS.shimClient}`;
 export const LOCAL_LOOPBACK_APPS_SERVER_DOMAIN = "lvh.me"; // Due to some browsers not supporting localhost ids
 export const LOCALHOST_APPS_SERVER_DOMAIN = "localhost";
+// Bind the workspace server to IPv4 loopback only. It fronts the
+// unauthenticated app proxy, the asset origin, and the CDP bridge, none of
+// which should be reachable from the local network. Every app URL
+// (`*.localhost`, `*.lvh.me`) resolves to 127.0.0.1, so loopback binding
+// serves all real traffic while dropping the all-interfaces exposure.
+export const LOOPBACK_HOST = "127.0.0.1";
 export const APPS_SERVER_DOMAINS = [
   LOCAL_LOOPBACK_APPS_SERVER_DOMAIN,
   LOCALHOST_APPS_SERVER_DOMAIN,

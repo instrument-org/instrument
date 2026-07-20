@@ -5,7 +5,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { dedent } from "radashi";
+import { dedent, sleep } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
@@ -35,6 +35,7 @@ import {
   taskDir,
 } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
+import { rewriteNavigationArgToAssetUrl } from "./agent-browser-asset-url";
 import {
   resolveCommandContext,
   resolvePathArgs,
@@ -173,6 +174,13 @@ const WORKSPACE_HELP = dedent`
     3. Act on @refs from the snapshot
     4. Re-run snapshot -i after navigation or DOM changes
 
+  Inspecting a file you created:
+    agent-browser open output/report.html   Task files load in the browser
+    agent-browser open /task/output/x.html  Task-relative, /task/..., /mnt/...,
+                                            and file:///task/... all work
+  Use this to check an HTML deliverable end to end -- rendered layout,
+  interactivity, and console errors -- not just its source.
+
   Reading page content:
     agent-browser read                 Read the active page as agent-friendly text
     agent-browser read <url>           Fetch a URL as Markdown or readable text
@@ -214,6 +222,33 @@ const WORKSPACE_HELP = dedent`
   Do not pass session, config, namespace, or plugin flags; the workspace
   manages daemon sessions and the plugin registry.
 `.trim();
+
+/**
+ * The CLI refuses a command when a daemon is already running for the session
+ * under a different configuration than the invocation asks for: our `--cdp`
+ * URL carries the browser target id, which changes whenever the view is
+ * recreated, while the daemon outlives a command by its idle timeout. The
+ * refusal happens before the command runs, so a retry cannot repeat a page
+ * action; it just lets agent-browser restart the daemon on the requested
+ * configuration, which is what the CLI's own message asks for.
+ */
+export function isDaemonConfigRace(output: string): boolean {
+  return output.includes(
+    "started concurrently with different daemon configuration",
+  );
+}
+
+const DAEMON_RACE_RETRY_DELAY_MS = 250;
+
+interface SpawnAgentBrowserOptions {
+  args: string[];
+  cancelSignal: AbortSignal | undefined;
+  cwd: string;
+  env: Record<string, string | undefined>;
+  input: Buffer | undefined;
+  managedConfigPath: string | undefined;
+  stateDir: string;
+}
 
 // Idle ms after which the agent-browser daemon self-terminates. Tuned to
 // outlast a single agent-loop tool-call gap (a few seconds) but reap soon
@@ -279,7 +314,14 @@ export function createAgentBrowserCommand({
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
-    const resolvedArgs = resolvePathArgs(strippedArgs, taskId, ctx);
+    // Before resolvePathArgs, which would otherwise turn a `/task/...`
+    // navigation target into a host path the browser cannot load.
+    const navigationArgs = await rewriteNavigationArgToAssetUrl(
+      strippedArgs,
+      taskId,
+      ctx,
+    );
+    const resolvedArgs = resolvePathArgs(navigationArgs, taskId, ctx);
 
     // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
@@ -590,7 +632,22 @@ async function recordBrowserUseBestEffort({
   }
 }
 
-async function runAgentBrowser({
+async function runAgentBrowser(options: SpawnAgentBrowserOptions) {
+  const first = await spawnAgentBrowser(options);
+  if (
+    first.exitCode === 0 ||
+    !isDaemonConfigRace([first.stdout, first.stderr].join("\n"))
+  ) {
+    return first;
+  }
+
+  // Let the daemon that won the race finish starting; retrying into its
+  // startup window would be refused for the same reason.
+  await sleep(DAEMON_RACE_RETRY_DELAY_MS);
+  return await spawnAgentBrowser(options);
+}
+
+async function spawnAgentBrowser({
   args,
   cancelSignal,
   cwd,
@@ -598,15 +655,7 @@ async function runAgentBrowser({
   input,
   managedConfigPath,
   stateDir,
-}: {
-  args: string[];
-  cancelSignal: AbortSignal | undefined;
-  cwd: string;
-  env: Record<string, string | undefined>;
-  input: Buffer | undefined;
-  managedConfigPath: string | undefined;
-  stateDir: string;
-}) {
+}: SpawnAgentBrowserOptions) {
   const managedArgs = managedConfigPath
     ? ["--config", managedConfigPath, ...args]
     : args;

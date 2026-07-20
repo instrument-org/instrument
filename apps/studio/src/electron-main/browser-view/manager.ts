@@ -290,6 +290,12 @@ export function createBrowserViewManager(): BrowserViewManager {
       webPreferences.allowRunningInsecureContent = false;
       webPreferences.experimentalFeatures = false;
       webPreferences.webSecurity = true;
+      // Electron defaults guest pages to a transparent backdrop, so a page that
+      // sets no background of its own composites over the app chrome instead of
+      // the white a browser would show. Opt out to match ordinary browser
+      // behavior, which also covers the gap before a page paints its own
+      // background (runtime-compiled CSS, slow loads, about:blank).
+      webPreferences.transparent = false;
 
       pendingAttachQueue.push(entry.targetId);
     });

@@ -73,7 +73,7 @@ function OpenWithCandidates({
   omitDefault?: boolean;
 }) {
   const { Item } = menuComponents;
-  const { apps, isPending } = useTaskFileOpenCandidates(file, {
+  const { apps, isError, isPending } = useTaskFileOpenCandidates(file, {
     enabled: true,
   });
   const openWith = useOpenTaskFileWith();
@@ -84,6 +84,15 @@ function OpenWithCandidates({
       <Item disabled>
         <Spinner className="size-4" />
         <span>Loading apps…</span>
+      </Item>
+    );
+  }
+
+  if (isError) {
+    return (
+      // cspell:ignore Couldn
+      <Item disabled>
+        <span>Couldn&apos;t load apps</span>
       </Item>
     );
   }

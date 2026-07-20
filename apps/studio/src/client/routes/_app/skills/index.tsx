@@ -39,7 +39,9 @@ function SkillsPage() {
         </div>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Finding installed skills…</p>
+          <p className="text-sm text-muted-foreground">
+            Finding installed skills…
+          </p>
         ) : skills.length === 0 ? (
           <div className="rounded-2xl border border-dashed p-10 text-center">
             <p className="font-medium">No skills found</p>
@@ -57,7 +59,9 @@ function SkillsPage() {
                 to="/skills/$name"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <h2 className="font-mono text-sm font-semibold">/{skill.name}</h2>
+                  <h2 className="font-mono text-sm font-semibold">
+                    /{skill.name}
+                  </h2>
                   <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground capitalize">
                     {skill.source}
                   </span>

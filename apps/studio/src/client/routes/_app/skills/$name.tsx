@@ -51,7 +51,9 @@ function SkillPage() {
           </Link>
           <div className="flex items-start justify-between gap-6">
             <div>
-              <h1 className="font-mono text-2xl font-semibold">/{skill.name}</h1>
+              <h1 className="font-mono text-2xl font-semibold">
+                /{skill.name}
+              </h1>
               <p className="mt-3 max-w-2xl text-base/relaxed text-muted-foreground">
                 {skill.description}
               </p>
@@ -105,7 +107,9 @@ function SkillPage() {
                 { files, folders, modelURI, projectId, prompt },
                 {
                   onError: (error) => {
-                    toast.error(`There was an error starting your task: ${error.message}`);
+                    toast.error(
+                      `There was an error starting your task: ${error.message}`,
+                    );
                   },
                   onSuccess: ({ id, sessionId }) => {
                     promptInputRef.current?.clear();

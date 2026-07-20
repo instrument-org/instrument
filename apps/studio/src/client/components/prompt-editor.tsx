@@ -4,7 +4,13 @@ import { history } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { EditorState, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   promptDocFromText,
@@ -53,11 +59,17 @@ export function PromptEditor({
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView>(null);
   const skillsRef = useRef(skills);
-  const menuRef = useRef<null | { from: number; query: string; to: number }>(null);
+  const menuRef = useRef<null | { from: number; query: string; to: number }>(
+    null,
+  );
   const onChangeRef = useRef(onChange);
   const onPasteRef = useRef(onPaste);
   const onSubmitRef = useRef(onSubmit);
-  const [menu, setMenu] = useState<null | { from: number; query: string; to: number }>(null);
+  const [menu, setMenu] = useState<null | {
+    from: number;
+    query: string;
+    to: number;
+  }>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedIndexRef = useRef(0);
   const initialPropsRef = useRef({ autoFocus, placeholder, value });
@@ -89,7 +101,11 @@ export function PromptEditor({
     const before = view.state.doc.textBetween(0, from, "\n", "\uFFFC");
     const match = /(?:^|\s)\/([\w-]*)$/.exec(before);
     const next = match
-      ? { from: from - (match[1]?.length ?? 0) - 1, query: match[1] ?? "", to: from }
+      ? {
+          from: from - (match[1]?.length ?? 0) - 1,
+          query: match[1] ?? "",
+          to: from,
+        }
       : null;
     menuRef.current = next;
     setMenu(next);
@@ -127,9 +143,8 @@ export function PromptEditor({
           "prompt-editor max-h-full min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-sm outline-none",
         "data-placeholder": initialProps.placeholder ?? "",
       },
-      clipboardTextSerializer: (slice) => promptTextFromDoc(
-        promptSchema.nodes.doc.create(null, slice.content),
-      ),
+      clipboardTextSerializer: (slice) =>
+        promptTextFromDoc(promptSchema.nodes.doc.create(null, slice.content)),
       dispatchTransaction: (transaction) => {
         const nextState = view.state.apply(transaction);
         view.updateState(nextState);
@@ -156,7 +171,10 @@ export function PromptEditor({
             event.preventDefault();
             setSelectedIndex((current) => {
               const direction = event.key === "ArrowDown" ? 1 : -1;
-              return (current + direction + currentMatches.length) % currentMatches.length;
+              return (
+                (current + direction + currentMatches.length) %
+                currentMatches.length
+              );
             });
             return true;
           }
@@ -205,12 +223,14 @@ export function PromptEditor({
     }
     const doc = promptDocFromText(value);
     const selection = TextSelection.atEnd(doc);
-    view.updateState(EditorState.create({
-      doc,
-      plugins: [history(), keymap(baseKeymap)],
-      schema: promptSchema,
-      selection,
-    }));
+    view.updateState(
+      EditorState.create({
+        doc,
+        plugins: [history(), keymap(baseKeymap)],
+        schema: promptSchema,
+        selection,
+      }),
+    );
   }, [value]);
 
   useEffect(() => {
@@ -225,7 +245,9 @@ export function PromptEditor({
       if (!view) {
         return;
       }
-      view.dispatch(view.state.tr.setSelection(TextSelection.atEnd(view.state.doc)));
+      view.dispatch(
+        view.state.tr.setSelection(TextSelection.atEnd(view.state.doc)),
+      );
     },
   }));
 
@@ -247,8 +269,12 @@ export function PromptEditor({
               }}
               type="button"
             >
-              <span className="shrink-0 font-mono text-sm font-medium">/{skill.name}</span>
-              <span className="line-clamp-1 text-sm text-muted-foreground">{skill.description}</span>
+              <span className="shrink-0 font-mono text-sm font-medium">
+                /{skill.name}
+              </span>
+              <span className="line-clamp-1 text-sm text-muted-foreground">
+                {skill.description}
+              </span>
             </button>
           ))}
         </div>

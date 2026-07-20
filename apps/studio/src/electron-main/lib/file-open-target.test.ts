@@ -65,17 +65,26 @@ function candidatesFor(filePath: string) {
         appName: `Editor ${ext}`,
         appPath: `/Applications/Editor-${ext}.app`,
         bundleId: `com.example.editor.${ext}`,
+        isDefault: true,
       },
       {
         appName: "Shared Viewer",
         appPath: "/Applications/Shared.app",
         bundleId: "com.example.shared",
+        isDefault: false,
       },
       {
         appName: "Instruments",
         appPath:
           "/Applications/Xcode.app/Contents/Applications/Instruments.app",
         bundleId: "com.apple.dt.Instruments",
+        isDefault: false,
+      },
+      {
+        appName: "Numbers",
+        appPath: "/Applications/Numbers.app",
+        bundleId: "com.apple.iWork.Numbers",
+        isDefault: false,
       },
     ],
   });
@@ -154,6 +163,56 @@ describe("getFileOpenCandidates", () => {
       `);
   });
 
+  it("keeps a restricted app for the types it does open", async () => {
+    const { getFileOpenCandidates } = await importModule();
+
+    const candidates = await getFileOpenCandidates("/tasks/a/rows.csv");
+
+    expect(candidates.map(({ appName }) => appName)).toMatchInlineSnapshot(`
+      [
+        "Editor csv",
+        "Shared Viewer",
+        "Numbers",
+      ]
+    `);
+  });
+
+  it("never filters out the app the system opens the file with", async () => {
+    const { getFileOpenCandidates } = await importModule();
+    execImpl = (call) =>
+      Promise.resolve(
+        classify(call) === "icons"
+          ? iconsFor(call)
+          : JSON.stringify({
+              apps: [
+                {
+                  appName: "Numbers",
+                  appPath: "/Applications/Numbers.app",
+                  bundleId: "com.apple.iWork.Numbers",
+                  isDefault: true,
+                },
+                {
+                  appName: "Shared Viewer",
+                  appPath: "/Applications/Shared.app",
+                  bundleId: "com.example.shared",
+                  isDefault: false,
+                },
+              ],
+            }),
+      );
+
+    // Numbers is restricted away from .md, but it is this file's default, so
+    // dropping it would leave the menu disagreeing with the button beside it.
+    const candidates = await getFileOpenCandidates("/tasks/a/notes.md");
+
+    expect(candidates.map(({ appName }) => appName)).toMatchInlineSnapshot(`
+      [
+        "Numbers",
+        "Shared Viewer",
+      ]
+    `);
+  });
+
   it("caps the list so one promiscuous file type can't fill the menu", async () => {
     const { getFileOpenCandidates } = await importModule();
     execImpl = (call) =>
@@ -165,6 +224,7 @@ describe("getFileOpenCandidates", () => {
                 appName: `App ${index}`,
                 appPath: `/Applications/App-${index}.app`,
                 bundleId: `com.example.app${index}`,
+                isDefault: index === 0,
               })),
             }),
       );

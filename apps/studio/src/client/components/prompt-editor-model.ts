@@ -1,4 +1,8 @@
-import { Fragment, type Node as ProseMirrorNode, Schema } from "prosemirror-model";
+import {
+  Fragment,
+  type Node as ProseMirrorNode,
+  Schema,
+} from "prosemirror-model";
 
 const skillTokenPattern = /\[\$([^\]]+)\]\(skill:([^)]+)\)/g;
 
@@ -70,7 +74,7 @@ export function promptTextFromDoc(doc: ProseMirrorNode) {
       value +=
         node.type === promptSchema.nodes.skill
           ? `[$${String(node.attrs.name)}](skill:${String(node.attrs.name)})`
-          : node.text ?? "";
+          : (node.text ?? "");
     }
     paragraphs.push(value);
   }

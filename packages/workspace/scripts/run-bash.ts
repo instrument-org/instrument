@@ -119,7 +119,9 @@ setWorkspaceConfig({
   projectsDir: AbsolutePathSchema.parse(path.join(rootDir, "projects")),
   registryDir: WorkspaceDirSchema.parse(path.join(rootDir, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),
-  systemSkillsDir: AbsolutePathSchema.parse(path.join(rootDir, "system-skills")),
+  systemSkillsDir: AbsolutePathSchema.parse(
+    path.join(rootDir, "system-skills"),
+  ),
   tasksDir: AbsolutePathSchema.parse(tasksDir),
   trashItem: () => Promise.resolve(),
   uvBinPath,

@@ -1,4 +1,9 @@
-import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import {
+  type CommandContext,
+  EMPTY_BYTES,
+  InMemoryFs,
+  unsafeBytesFromLatin1,
+} from "just-bash";
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -120,6 +125,81 @@ describe("nodeCommand", () => {
       process.execPath,
       ["-e", "console.log('hello')"],
       expect.any(Object),
+    );
+  });
+
+  it("forwards --check to node", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["--check", "./work/check.js"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      ["--check", "work/check.js"],
+      expect.any(Object),
+    );
+  });
+
+  it("forwards -c as an alias for --check", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "./work/check.js"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      ["--check", "work/check.js"],
+      expect.any(Object),
+    );
+  });
+
+  it("runs the program from stdin when no file is given", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["--input-type=module", "--check"], {
+      ...mockCtx,
+      stdin: unsafeBytesFromLatin1("export const x = 1\n"),
+    });
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      ["--check", "--input-type", "module"],
+      expect.objectContaining({
+        input: Buffer.from("export const x = 1\n", "latin1"),
+      }),
+    );
+  });
+
+  it("bridges quoted /task paths in a stdin program", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute([], {
+      ...mockCtx,
+      cwd: "/task",
+      stdin: unsafeBytesFromLatin1('fs.readFileSync("/task/work/a.txt")'),
+    });
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      [],
+      expect.objectContaining({
+        input: Buffer.from('fs.readFileSync("./work/a.txt")', "latin1"),
+      }),
     );
   });
 

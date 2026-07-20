@@ -14,7 +14,12 @@
   margin: 0;
 }
 
-.prompt-editor:has(p:only-child:empty)::before {
+/* An empty ProseMirror paragraph is not `:empty`: the view appends a trailing
+   `<br>` hack so the block stays focusable, so match that shape too. */
+.prompt-editor:has(p:only-child:empty)::before,
+.prompt-editor:has(
+  p:only-child > br.ProseMirror-trailingBreak:only-child
+)::before {
   color: var(--muted-foreground);
   content: attr(data-placeholder);
   pointer-events: none;

@@ -128,6 +128,38 @@ describe("nodeCommand", () => {
     );
   });
 
+  it("evaluates and prints code via -p", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "2",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-p", "1+1"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      ["-p", "1+1"],
+      expect.any(Object),
+    );
+  });
+
+  it("prints -e code when a bare -p flag follows it", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "2",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-e", "1+1", "-p"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      ["-p", "1+1"],
+      expect.any(Object),
+    );
+  });
+
   it("forwards --check to node", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({

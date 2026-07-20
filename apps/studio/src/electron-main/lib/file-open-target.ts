@@ -17,6 +17,7 @@ interface CandidateApp {
   appName: string;
   appPath: string;
   bundleId: string;
+  isDefault: boolean;
 }
 
 interface FileOpenCandidate {
@@ -77,11 +78,15 @@ const COMMON_FILE_EXTENSIONS = [
   ".pptx",
 ];
 
-// Apps that claim broad document types but are never a sensible answer to
-// "open this document with", and that no structural rule in
-// DARWIN_CANDIDATES_SCRIPT rules out. Filtered results are what gets persisted,
-// so editing this list requires bumping CACHE_VERSION.
+// Apps that claim broad document types but never usefully open them, and that
+// no structural rule in DARWIN_CANDIDATES_SCRIPT rules out. Only Apple's own
+// bundled apps are listed: a third-party app is on the machine because someone
+// installed it, and second-guessing that ages badly. Filtered results are what
+// gets persisted, so editing this list requires bumping CACHE_VERSION.
 const EXCLUDED_BUNDLE_IDS = new Set([
+  // Claims the common image types to inspect and assign color profiles, which
+  // is not what "open this image" means.
+  "com.apple.ColorSyncUtility",
   // Claims public.plain-text, so it shows up for Markdown and source files, but
   // opening one only offers to import it as a trace. Its name also collides
   // with ours in the menu.
@@ -90,11 +95,69 @@ const EXCLUDED_BUNDLE_IDS = new Set([
   "com.apple.ScriptEditor2",
 ]);
 
+// Apps that genuinely open part of what they claim. Each maps to the extensions
+// it stays listed for and is hidden everywhere else, which is finer-grained
+// than dropping them outright would allow. Also persisted, so the same
+// CACHE_VERSION caveat applies.
+const RESTRICTED_BUNDLE_IDS = new Map([
+  // Claims public.data as a viewer, so it offers itself for every document a
+  // task produces despite being a slow launch that helps only with code.
+  [
+    "com.apple.dt.Xcode",
+    new Set([
+      ".c",
+      ".cc",
+      ".cpp",
+      ".entitlements",
+      ".h",
+      ".hpp",
+      ".m",
+      ".metal",
+      ".mm",
+      ".playground",
+      ".plist",
+      ".storyboard",
+      ".strings",
+      ".swift",
+      ".xib",
+    ]),
+  ],
+  // cspell:ignore ibooks
+  ["com.apple.iBooksX", new Set([".epub", ".ibooks", ".pdf"])],
+  // Both iWork apps claim public.plain-text, putting them in front of Markdown,
+  // logs and source files they would import as prose or a table.
+  [
+    "com.apple.iWork.Numbers",
+    new Set([".csv", ".numbers", ".tsv", ".xls", ".xlsx"]),
+  ],
+  [
+    "com.apple.iWork.Pages",
+    new Set([".doc", ".docx", ".pages", ".rtf", ".txt"]),
+  ],
+  // Claims public.folder, which surfaces it for still images it would only
+  // import as an image sequence.
+  [
+    "com.apple.QuickTimePlayerX",
+    new Set([
+      ".aac",
+      ".aif",
+      ".aiff",
+      ".avi",
+      ".m4a",
+      ".m4v",
+      ".mov",
+      ".mp3",
+      ".mp4",
+      ".wav",
+    ]),
+  ],
+]);
+
 // Resolution spawns helper processes and only depends on the file type, so
 // both target and candidate results are application-wide extension caches.
 // Refreshes also re-read icons, producing new content-addressed URLs if their
 // bytes changed. Candidate lists change more often, so they refresh sooner.
-const CACHE_VERSION = 6;
+const CACHE_VERSION = 7;
 const TARGET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CANDIDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ICON_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -128,6 +191,7 @@ const CandidateAppSchema = z.object({
   appName: z.string(),
   appPath: z.string(),
   bundleId: z.string(),
+  isDefault: z.boolean(),
 });
 
 const PersistedCandidateEntrySchema = z.object({
@@ -251,10 +315,19 @@ function isBackgroundAgent(bundle) {
   const value = String(uiElement.js);
   return value === "1" || value === "true";
 }
+function defaultAppPath(ws, filePath) {
+  try {
+    const url = ws.URLForApplicationToOpenURL($.NSURL.fileURLWithPath(filePath));
+    return url.isNil() ? "" : (url.path.js ?? "");
+  } catch {
+    return "";
+  }
+}
 function run(argv) {
   const ws = $.NSWorkspace.sharedWorkspace;
   const fm = $.NSFileManager.defaultManager;
   const cap = parseInt(argv[1], 10) || 64;
+  const defaultPath = defaultAppPath(ws, argv[0]);
   const out = { apps: [] };
   try {
     const urls = ws.URLsForApplicationsToOpenURL($.NSURL.fileURLWithPath(argv[0]));
@@ -263,15 +336,24 @@ function run(argv) {
     for (let i = 0; i < count && out.apps.length < cap; i++) {
       const appPath = urls.objectAtIndex(i).path.js;
       if (!appPath) continue;
-      if (isNested(appPath) || isUnusableLocation(appPath)) continue;
+      // Whatever the system already opens this file with stays listed, so no
+      // rule here can disagree with the "Open in {app}" button beside the menu.
+      const isDefault = appPath === defaultPath;
+      if (!isDefault && (isNested(appPath) || isUnusableLocation(appPath))) continue;
       const bundle = $.NSBundle.bundleWithPath(appPath);
-      if (bundle.isNil() || isBackgroundAgent(bundle)) continue;
+      if (bundle.isNil()) continue;
+      if (!isDefault && isBackgroundAgent(bundle)) continue;
       const bundleId = bundle.bundleIdentifier.js ?? "";
       const name = (fm.displayNameAtPath(appPath).js ?? "").replace(/\\.app$/, "");
       const key = bundleId || name;
       if (!name || seen[key]) continue;
       seen[key] = true;
-      out.apps.push({ appName: name, appPath: appPath, bundleId: bundleId });
+      out.apps.push({
+        appName: name,
+        appPath: appPath,
+        bundleId: bundleId,
+        isDefault: isDefault,
+      });
     }
   } catch {
     // no apps available for this type
@@ -461,6 +543,19 @@ async function getOrResolveCandidates(
     return entry.apps;
   }
   return resolveAndStoreCandidates(key, fullPath);
+}
+
+function isUsefulCandidate(candidate: CandidateApp, ext: string) {
+  // The system's own choice is never second-guessed; it is what the primary
+  // "Open in {app}" button already launches.
+  if (candidate.isDefault) {
+    return true;
+  }
+  if (EXCLUDED_BUNDLE_IDS.has(candidate.bundleId)) {
+    return false;
+  }
+  const allowedExtensions = RESTRICTED_BUNDLE_IDS.get(candidate.bundleId);
+  return allowedExtensions ? allowedExtensions.has(ext) : true;
 }
 
 async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
@@ -655,8 +750,9 @@ async function resolveCandidates(fullPath: string): Promise<CandidateApp[]> {
     ),
   );
   const parsed = DarwinCandidatesSchema.parse(JSON.parse(stdout));
+  const ext = path.extname(fullPath).toLowerCase();
   return parsed.apps
-    .filter((candidate) => !EXCLUDED_BUNDLE_IDS.has(candidate.bundleId))
+    .filter((candidate) => isUsefulCandidate(candidate, ext))
     .slice(0, MAX_CANDIDATES);
 }
 

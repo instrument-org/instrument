@@ -3,11 +3,13 @@ import { accessSync, constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { TASK_FOLDER_NAMES } from "../constants";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
   RelativePathSchema,
 } from "../schemas/paths";
+import { absolutePathJoin } from "./absolute-path-join";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { normalizePath } from "./normalize-path";
@@ -197,6 +199,10 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
     return executeError(`Path escapes the task directory: ${inputPath}`);
   }
 
+  if (isTaskPrivatePath(layout.task.hostRoot, absolutePath)) {
+    return privateDirError(displayPath);
+  }
+
   return ok({ absolutePath, displayPath });
 }
 
@@ -241,6 +247,25 @@ function fileExistsSync(filePath: string): boolean {
   }
 }
 
+// The private dir (.instrument) holds task internals -- the task db, state.json
+// (attached-folder host paths), and settings -- that the agent must never read
+// through the file tools. Agent-facing byproducts live under work/ instead.
+function isTaskPrivatePath(
+  taskHostRoot: AbsolutePath,
+  hostPath: string,
+): boolean {
+  const privateDir = absolutePathJoin(taskHostRoot, TASK_FOLDER_NAMES.private);
+  return hostPath === privateDir || pathIsWithin(hostPath, privateDir);
+}
+
+function privateDirError(displayPath: string) {
+  return executeError(
+    `"${displayPath}" is inside the private ${TASK_FOLDER_NAMES.private} ` +
+      `directory, which holds task internals and is not accessible. Agent ` +
+      `outputs like screenshots and tool-output logs live under work/.`,
+  );
+}
+
 /**
  * Resolve an absolute virtual path (/task/... or /mnt/<name>/...) through the
  * layout. Absolute paths outside every mount error with steering: real host
@@ -280,6 +305,9 @@ function resolveVirtualAbsolutePath(
   const { hostPath, mount } = resolved;
 
   if (mount === layout.task) {
+    if (isTaskPrivatePath(layout.task.hostRoot, hostPath)) {
+      return privateDirError(normalizePath(virtualPath));
+    }
     // Normalize /task/... input into the same task-relative form as relative
     // input so display paths stay consistent across tools.
     const normalized = normalizePath(virtualPath);

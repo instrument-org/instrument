@@ -165,6 +165,45 @@ describe("resolveToolPath", () => {
   });
 });
 
+describe("private-dir (.instrument) restriction", () => {
+  const dir = TaskDirSchema.parse(path.join("/tmp", "task"));
+  const layout = buildWorkspaceFsLayout({ taskHostRoot: dir });
+
+  it.each([
+    { input: ".instrument", label: "the private dir itself" },
+    { input: ".instrument/state.json", label: "a relative private file" },
+    { input: "./.instrument/task.db", label: "a dot-relative private file" },
+  ])("rejects $label via resolveToolPath", ({ input }) => {
+    const result = resolveToolPath(layout, input);
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.type).toBe("execute-error");
+      expect(result.error.message).toMatch(/private .* directory/);
+    }
+  });
+
+  it.each([
+    { input: "/task/.instrument", label: "the virtual private dir" },
+    { input: "/task/.instrument/state.json", label: "a virtual private file" },
+  ])("rejects $label via resolveAgentPath", ({ input }) => {
+    const result = resolveAgentPath({ inputPath: input, layout });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.type).toBe("execute-error");
+      expect(result.error.message).toMatch(/private .* directory/);
+    }
+  });
+
+  // The restriction is scoped to .instrument, not dot-dirs in general: the moved
+  // agent-facing outputs under work/ stay readable.
+  it.each(["work/screenshots/shot.png", "work/.tool-output/part-1.log"])(
+    "still allows agent-facing output path %s",
+    (input) => {
+      expect(resolveToolPath(layout, input).isOk()).toBe(true);
+    },
+  );
+});
+
 describe("resolveAgentPath (virtual layout paths)", () => {
   const dir = TaskDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({

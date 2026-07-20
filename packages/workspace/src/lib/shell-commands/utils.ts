@@ -2,6 +2,7 @@ import { type ByteString, latin1FromBytes } from "just-bash";
 import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
+import { TASK_FOLDER_NAMES } from "../../constants";
 import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { normalizePath } from "../normalize-path";
@@ -9,6 +10,7 @@ import { taskDir } from "../task-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
+  privateMountPoint,
   resolveNativeHostPath,
   TASK_MOUNT_POINT,
 } from "../workspace-fs-layout";
@@ -38,6 +40,19 @@ export function bridgeInlineCodePaths(
         `never to real interpreter processes. Copy the file into the task first ` +
         `(cp '${ATTACHED_FOLDERS_MOUNT_ROOT}/<folder>/<file>' attachments/) and ` +
         `reference the copy with a task-relative path (attachments/<file>).`,
+    };
+  }
+
+  // The private dir is masked from the shell and file tools; block inline-code
+  // literals too so a real interpreter can't be steered into task.db/state.json
+  // via a quoted `/task/.instrument/...` string. Best-effort, like the /mnt
+  // guard above.
+  if (quotedMountPattern(privateMountPoint(TASK_MOUNT_POINT)).test(code)) {
+    return {
+      error:
+        `Inline script code references the private ${TASK_FOLDER_NAMES.private} directory. ` +
+        `It holds task internals (task.db, state.json, settings) and is not readable ` +
+        `by real interpreter processes.`,
     };
   }
 
@@ -209,10 +224,12 @@ function looksLikePath(arg: string): boolean {
 /**
  * Matches a mount point immediately after an opening quote, continuing into a
  * subpath or closed by the same quote: `"/task/x"`, `'/task'`, `` `/mnt/Docs/a` ``.
- * Mount points contain no regex metacharacters beyond `/`.
+ * The mount point is regex-escaped so paths with metacharacters (e.g. the `.`
+ * in `/task/.instrument`) match literally.
  */
 function quotedMountPattern(mountPoint: string): RegExp {
-  return new RegExp(`(['"\`])${mountPoint}(?=/|\\1)`, "g");
+  const escaped = mountPoint.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(['"\`])${escaped}(?=/|\\1)`, "g");
 }
 
 /**

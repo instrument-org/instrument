@@ -16,7 +16,7 @@ describe("createBashDescription", () => {
 
       IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all package management.
 
-      IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\` and the \`/mnt\` mounts exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+      IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\`, the \`/mnt\` mounts, and \`/skills\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
       IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
 

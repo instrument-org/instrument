@@ -6,10 +6,18 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
+import {
+  AbsolutePathSchema,
+  TaskDirSchema,
+  WorkspaceDirSchema,
+} from "../schemas/paths";
+import { TaskIdSchema } from "../schemas/task-id";
+import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
+  SKILLS_MOUNT_POINT,
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
 
@@ -179,6 +187,64 @@ describe("buildBashFs", () => {
     await fs.rm(path.join(tmpDir, "Docs"), { force: true, recursive: true });
     const bash = await makeBash();
     const result = await bash.exec("ls '/mnt/Docs'");
+    expect(result.exitCode).not.toBe(0);
+  });
+});
+
+describe("buildBashFs skills mount", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `${APP_NAME_SLUG}-skills-fs-test-`),
+    );
+    await fs.mkdir(path.join(tmpDir, "task"));
+    await fs.mkdir(path.join(tmpDir, "skills", "existing"), {
+      recursive: true,
+    });
+    createMockTaskConfig(TaskIdSchema.parse("skills-mount-test"));
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(tmpDir),
+    });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  async function makeBash() {
+    const layout = buildWorkspaceFsLayout({
+      taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
+    });
+    const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
+    return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
+  }
+
+  it("mounts the workspace skills dir writable", async () => {
+    const bash = await makeBash();
+    const result = await bash.exec(
+      `mkdir -p ${SKILLS_MOUNT_POINT}/made-up && echo body > ${SKILLS_MOUNT_POINT}/made-up/SKILL.md`,
+    );
+    expect(result.exitCode).toBe(0);
+    await expect(
+      fs.readFile(path.join(tmpDir, "skills", "made-up", "SKILL.md"), "utf8"),
+    ).resolves.toBe("body\n");
+  });
+
+  it("lists the skills mount at the virtual root", async () => {
+    const bash = await makeBash();
+    const result = await bash.exec("ls /");
+    expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "skills",
+      "task",
+    ]);
+  });
+
+  it("skips the mount when the workspace has no skills dir yet", async () => {
+    await fs.rm(path.join(tmpDir, "skills"), { force: true, recursive: true });
+    const bash = await makeBash();
+    const result = await bash.exec(`ls ${SKILLS_MOUNT_POINT}`);
     expect(result.exitCode).not.toBe(0);
   });
 });

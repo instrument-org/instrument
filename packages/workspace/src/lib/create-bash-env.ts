@@ -56,6 +56,7 @@ import { taskDir } from "./task-dir-utils";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
+  SKILLS_MOUNT_POINT,
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
 
@@ -315,7 +316,7 @@ export function createBashDescription() {
 
     IMPORTANT: \`npm\` is NOT available. Use \`${PNPM_COMMAND.name}\` for all package management.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${TASK_MOUNT_POINT}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${TASK_MOUNT_POINT}\` and the \`/mnt\` mounts exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${TASK_MOUNT_POINT}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${TASK_MOUNT_POINT}\`, the \`/mnt\` mounts, and \`${SKILLS_MOUNT_POINT}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
 

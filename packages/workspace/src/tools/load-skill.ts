@@ -13,6 +13,7 @@ import { normalizedPathJoin } from "../lib/normalize-path";
 import { runPnpmCommand } from "../lib/run-pnpm";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
+import { renderSkillCatalog } from "../lib/skill-catalog";
 import {
   FILE_LIST_LIMIT,
   findSkill,
@@ -24,13 +25,10 @@ import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
+import { TOOL_NAMES } from "./name";
 const TAGS = {
-  availableSkills: "available_skills",
   content: "skill_content",
-  description: "description",
   file: "file",
-  name: "name",
-  skill: "skill",
   skillFiles: "skill_files",
 } as const;
 
@@ -141,30 +139,22 @@ export const LoadSkill = setupTool({
   description: async () => {
     const sources = getSkillSources(getWorkspaceConfig());
     const skills = await findSkills(sources);
+    const catalog = renderSkillCatalog(
+      skills.filter((skill) => skill.modelInvocable),
+    );
 
-    const skillsBlock =
-      skills.length === 0
-        ? `<${TAGS.availableSkills} />`
-        : dedent`
-            <${TAGS.availableSkills}>
-            ${skills
-              .map((s) =>
-                [
-                  `  <${TAGS.skill}>`,
-                  `    <${TAGS.name}>${s.name}</${TAGS.name}>`,
-                  `    <${TAGS.description}>${s.description}</${TAGS.description}>`,
-                  `  </${TAGS.skill}>`,
-                ].join("\n"),
-              )
-              .join("\n")}
-            </${TAGS.availableSkills}>
-          `;
-
-    const examples = skills
-      .map((s) => `'${s.name}'`)
+    const examples = catalog.entries
       .slice(0, 3)
+      .map((entry) => `'${entry.name}'`)
       .join(", ");
     const hint = examples.length > 0 ? ` (e.g., ${examples})` : "";
+
+    const budgetNotes = [
+      catalog.shortened > 0 &&
+        `Note: ${catalog.shortened} description(s) were shortened to fit the skills context budget. Load a skill to see its full instructions.`,
+      catalog.omitted > 0 &&
+        `Note: ${catalog.omitted} further skill(s) were left out of this list entirely. ${TOOL_NAMES.loadSkill} still accepts them by name.`,
+    ].filter((note) => typeof note === "string");
 
     return dedent`
       Load a specialized skill that provides domain-specific instructions, pre-built scripts, and dependencies for a specific task.
@@ -175,9 +165,10 @@ export const LoadSkill = setupTool({
 
       Available skills${hint}:
 
-      ${skillsBlock}
+      ${catalog.xml}
 
       Note: skills with declared Node.js or Python dependencies install them automatically after being copied into the task.
+      ${budgetNotes.join("\n")}
     `.trim();
   },
   execute: async ({ input, signal, taskId }) => {
@@ -186,10 +177,10 @@ export const LoadSkill = setupTool({
 
     if (!skill) {
       return ok({
-        available: all.map((s) => ({
-          description: s.description,
-          name: s.name,
-        })),
+        // Same budgeted catalog as the tool description: a mistyped name should
+        // not be the one path that dumps every installed skill into context.
+        available: renderSkillCatalog(all.filter((s) => s.modelInvocable))
+          .entries,
         name: input.name,
         state: "not-found" as const,
       });

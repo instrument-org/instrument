@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { dedent } from "radashi";
+import { dedent, sleep } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
@@ -150,6 +150,33 @@ const WORKSPACE_HELP = dedent`
   Do not pass connection, provider, profile, session, restore, or state flags.
   These are blocked because the workspace owns the in-app browser context.
 `.trim();
+
+/**
+ * The CLI refuses a command when a daemon is already running for the session
+ * under a different configuration than the invocation asks for: our `--cdp`
+ * URL carries the browser target id, which changes whenever the view is
+ * recreated, while the daemon outlives a command by its idle timeout. The
+ * refusal happens before the command runs, so a retry cannot repeat a page
+ * action; it just lets agent-browser restart the daemon on the requested
+ * configuration, which is what the CLI's own message asks for.
+ */
+export function isDaemonConfigRace(output: string): boolean {
+  return output.includes(
+    "started concurrently with different daemon configuration",
+  );
+}
+
+const DAEMON_RACE_RETRY_DELAY_MS = 250;
+
+interface SpawnAgentBrowserOptions {
+  args: string[];
+  cancelSignal: AbortSignal | undefined;
+  cwd: string;
+  env: Record<string, string | undefined>;
+  input: Buffer | undefined;
+  managedConfigPath: string | undefined;
+  stateDir: string;
+}
 
 // Idle ms after which the agent-browser daemon self-terminates. Tuned to
 // outlast a single agent-loop tool-call gap (a few seconds) but reap soon
@@ -384,7 +411,22 @@ async function recordBrowserUseBestEffort({
   }
 }
 
-async function runAgentBrowser({
+async function runAgentBrowser(options: SpawnAgentBrowserOptions) {
+  const first = await spawnAgentBrowser(options);
+  if (
+    first.exitCode === 0 ||
+    !isDaemonConfigRace([first.stdout, first.stderr].join("\n"))
+  ) {
+    return first;
+  }
+
+  // Let the daemon that won the race finish starting; retrying into its
+  // startup window would be refused for the same reason.
+  await sleep(DAEMON_RACE_RETRY_DELAY_MS);
+  return await spawnAgentBrowser(options);
+}
+
+async function spawnAgentBrowser({
   args,
   cancelSignal,
   cwd,
@@ -392,15 +434,7 @@ async function runAgentBrowser({
   input,
   managedConfigPath,
   stateDir,
-}: {
-  args: string[];
-  cancelSignal: AbortSignal | undefined;
-  cwd: string;
-  env: Record<string, string | undefined>;
-  input: Buffer | undefined;
-  managedConfigPath: string | undefined;
-  stateDir: string;
-}) {
+}: SpawnAgentBrowserOptions) {
   const managedArgs = managedConfigPath
     ? ["--config", managedConfigPath, ...args]
     : args;

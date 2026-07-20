@@ -203,11 +203,21 @@ export const PromptInput = ({
     };
   }, [setInputRef]);
 
+  // Seed the compose box once per skill. Keying off the current value instead
+  // would re-insert the token every time the box goes empty, so clearing it (or
+  // submitting, which clears) could never leave it empty on a skill page.
+  const prefilledSkillRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (initialSkillName && !value.trim()) {
-      setValue(`[$${initialSkillName}](skill:${initialSkillName}) `);
+    if (!initialSkillName || prefilledSkillRef.current === initialSkillName) {
+      return;
     }
-  }, [initialSkillName, setValue, value]);
+    prefilledSkillRef.current = initialSkillName;
+    setValue((current) =>
+      current.trim()
+        ? current
+        : `[$${initialSkillName}](skill:${initialSkillName}) `,
+    );
+  }, [initialSkillName, setValue]);
 
   useLayoutEffect(() => {
     if (!autoFocus || !isActiveTab) {

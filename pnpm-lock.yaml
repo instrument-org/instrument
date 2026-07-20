@@ -943,8 +943,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       just-bash:
-        specifier: github:mutewinter/just-bash#196e605&path:packages/just-bash
-        version: https://codeload.github.com/mutewinter/just-bash/tar.gz/196e605a87ae4b75b3bc82c8dd83b5b12f3ebd7e#path:packages/just-bash
+        specifier: ^3.1.0
+        version: 3.1.0
       mime-types:
         specifier: ^3.0.2
         version: 3.0.2
@@ -6935,9 +6935,8 @@ packages:
     resolution: {integrity: sha512-ZZow9HBI5O6EPgSJLUb8n2NKgmVWTwCvHGwFuJlMjvLFqlGG6pjirPhtdsseaLZjSibD8eegzmYpUZwoIlj2cQ==}
     engines: {node: '>=4.0'}
 
-  just-bash@https://codeload.github.com/mutewinter/just-bash/tar.gz/196e605a87ae4b75b3bc82c8dd83b5b12f3ebd7e#path:packages/just-bash:
-    resolution: {path: packages/just-bash, tarball: https://codeload.github.com/mutewinter/just-bash/tar.gz/196e605a87ae4b75b3bc82c8dd83b5b12f3ebd7e}
-    version: 3.0.2
+  just-bash@3.1.0:
+    resolution: {integrity: sha512-/t28X8EH3+j/zvELGkNhlFV2g6hc3oHBzy6zPBnNq2nqUN0DGS9PsD889JfQ7F6ll08gqFoutiS+VJHK30wZpg==}
     hasBin: true
 
   katex@0.16.27:
@@ -15745,7 +15744,7 @@ snapshots:
       object.assign: 4.1.7
       object.values: 1.2.1
 
-  just-bash@https://codeload.github.com/mutewinter/just-bash/tar.gz/196e605a87ae4b75b3bc82c8dd83b5b12f3ebd7e#path:packages/just-bash:
+  just-bash@3.1.0:
     dependencies:
       diff: 8.0.3
       fast-xml-parser: 5.8.0

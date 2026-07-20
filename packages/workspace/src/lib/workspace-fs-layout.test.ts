@@ -48,6 +48,18 @@ describe("buildBashFs", () => {
     return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
   }
 
+  // just-bash raises some filesystem refusals as thrown errors rather than exit
+  // codes, and which one a masked path takes depends on the command. Either way
+  // the private contents must not reach stdout, so both collapse to "".
+  async function stdoutOf(bash: Bash, command: string) {
+    try {
+      const result = await bash.exec(command);
+      return result.stdout;
+    } catch {
+      return "";
+    }
+  }
+
   it("writes relative paths into the real task dir", async () => {
     const bash = await makeBash();
     const result = await bash.exec("echo hi > notes.txt");
@@ -75,6 +87,76 @@ describe("buildBashFs", () => {
     await expect(
       fs.access(path.join(tmpDir, "Docs", "new.txt")),
     ).rejects.toThrow();
+  });
+
+  it("masks the private dir so the agent shell can't read task internals", async () => {
+    // A real private file, written the way the app does (direct fs, not the
+    // virtual FS).
+    await fs.mkdir(path.join(tmpDir, "task", ".instrument"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(tmpDir, "task", ".instrument", "state.json"),
+      `{"secret":"host-path"}`,
+    );
+    const bash = await makeBash();
+
+    const read = await bash.exec("cat .instrument/state.json");
+    expect(read.exitCode).not.toBe(0);
+    expect(read.stdout).not.toContain("secret");
+
+    const list = await bash.exec("ls .instrument");
+    expect(list.stdout).not.toContain("state.json");
+  });
+
+  it.each([
+    ["absolute", `cat ${TASK_MOUNT_POINT}/.instrument/state.json`],
+    ["traversal", "cat work/../.instrument/state.json"],
+    ["from a subdirectory", "cd work && cat ../.instrument/state.json"],
+    ["assembled at runtime", 'd=.instrument; f=state.json; cat "$d/$f"'],
+    ["glob", "cat .instrument/*.json"],
+    ["via find", "find . -name state.json -exec cat {} +"],
+  ])(
+    "masks the private dir against a %s reference",
+    async (_label, command) => {
+      await fs.mkdir(path.join(tmpDir, "task", ".instrument"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(tmpDir, "task", ".instrument", "state.json"),
+        `{"secret":"host-path"}`,
+      );
+      await fs.mkdir(path.join(tmpDir, "task", "work"), { recursive: true });
+      const bash = await makeBash();
+
+      expect(await stdoutOf(bash, command)).not.toContain("secret");
+    },
+  );
+
+  it("refuses a symlink that resolves into the private dir", async () => {
+    await fs.mkdir(path.join(tmpDir, "task", ".instrument"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(tmpDir, "task", ".instrument", "state.json"),
+      `{"secret":"host-path"}`,
+    );
+    const bash = await makeBash();
+
+    await stdoutOf(bash, "ln -s .instrument/state.json leak.json");
+    expect(await stdoutOf(bash, "cat leak.json")).not.toContain("secret");
+  });
+
+  it("keeps the private dir out of task-root listings", async () => {
+    await fs.mkdir(path.join(tmpDir, "task", ".instrument"), {
+      recursive: true,
+    });
+    await fs.writeFile(path.join(tmpDir, "task", "notes.txt"), "hi");
+    const bash = await makeBash();
+
+    const list = await bash.exec("ls -a");
+    expect(list.stdout).toContain("notes.txt");
+    expect(list.stdout).not.toContain(".instrument");
   });
 
   it("rejects writes outside every mount with EROFS instead of losing them", async () => {

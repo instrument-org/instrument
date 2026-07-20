@@ -31,6 +31,7 @@ import {
 } from "../lib/task-file-watcher";
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
+import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
 import { publisher } from "../rpc/publisher";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -103,7 +104,6 @@ export const mainAgent = setupAgent({
     "Grep",
     "LoadSkill",
     "ReadFile",
-    "SaveSkill",
     "BashTool",
     "WebSearch",
     "WriteFile",
@@ -183,10 +183,19 @@ export const mainAgent = setupAgent({
     - \`${F.output}/\` -- finished deliverables, shown to the user inline with previews. Write final results here.
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
-    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are the \`/mnt/...\` mount paths for attached folders below; never use host paths like \`/Users/...\`.
+    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders and \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills. Never use host paths like \`/Users/...\`.
     - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory per folder; the attached-folders context lists the exact paths). Browse, read, and search them by their \`/mnt/...\` path with your normal file tools (\`${agentTools.ReadFile.name}\`, \`${agentTools.Glob.name}\`, \`${agentTools.Grep.name}\`) or the \`${agentTools.BashTool.name}\` tool (\`ls\`, \`cat\`, \`grep\`/\`rg\`, \`find\`). They are NOT under the task root, so reach them by their \`/mnt/...\` path, not a relative one. When referencing an attached file from agent-authored HTML or CSS, use its absolute \`/mnt/...\` path so the static asset origin resolves it.
     - These mounts are read-only and reflect the user's real files: do not try to edit, write into, or build outputs inside \`/mnt/\` (it will fail). Native tools (ffmpeg, python, scripts) also cannot read from \`/mnt/\` directly. To edit, run, or process an attached file, copy it into the task first (e.g. \`cp '/mnt/<folder>/file' ${F.attachments}/\`) and operate on the copy.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
+    - \`${SKILLS_MOUNT_POINT}/\` is the workspace's own skills folder, mounted writable.
+      Each skill is a directory holding \`SKILL.md\` plus optional \`scripts/\`,
+      \`references/\`, and \`assets/\`. Create and edit skills here with your normal file
+      tools; a skill saved here is immediately available to \`${agentTools.LoadSkill.name}\`.
+      Skills that came from elsewhere on the machine are not under
+      \`${SKILLS_MOUNT_POINT}/\` and cannot be edited -- load them by name instead.
+      Like \`/mnt/\`, this is outside the task root, so native tools (python, ffmpeg,
+      scripts) cannot reach it; to run a skill's script, load the skill and run the
+      copy under \`${F.work}/${F.skills}/\`.
 
     # Tools Usage Guidance
     - Choose the fastest deterministic method that fully satisfies the requested outcome. Words such as "create," "generate," or "image" describe the deliverable, not permission to use AI image generation. Use the ${agentTools.GenerateImage.name} tool only when the user explicitly asks for AI generation or when the desired result requires learned visual synthesis or semantic image editing. For exact graphics, flat colors, shapes, text, charts, diagrams, resizing, cropping, compositing, or format conversion, use direct file writing (such as SVG or HTML) or deterministic scripts and commands.

@@ -221,8 +221,8 @@ describe("resolveAgentPath (virtual layout paths)", () => {
     });
     expect(result._unsafeUnwrap()).toEqual({
       absolutePath: "/tmp/task/work/notes.md",
-      attachedMount: null,
       displayPath: "./work/notes.md",
+      mount: null,
     });
   });
 
@@ -230,8 +230,8 @@ describe("resolveAgentPath (virtual layout paths)", () => {
     const result = resolveAgentPath({ inputPath: "/task", layout });
     expect(result._unsafeUnwrap()).toEqual({
       absolutePath: "/tmp/task",
-      attachedMount: null,
       displayPath: "./",
+      mount: null,
     });
   });
 
@@ -243,7 +243,7 @@ describe("resolveAgentPath (virtual layout paths)", () => {
     const value = result._unsafeUnwrap();
     expect(value.absolutePath).toBe("/ext/one/Docs/report.pdf");
     expect(value.displayPath).toBe("/mnt/Docs/report.pdf");
-    expect(value.attachedMount?.readOnly).toBe(true);
+    expect(value.mount?.readOnly).toBe(true);
   });
 
   it("resolves a deduplicated mount path to the second same-named folder", () => {

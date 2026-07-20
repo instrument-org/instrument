@@ -54,20 +54,20 @@ export const Glob = setupTool({
       });
     }
 
-    const { absolutePath: searchRoot, attachedMount } = pathResult.value;
+    const { absolutePath: searchRoot, mount } = pathResult.value;
 
     // Inside an attached mount, glob the real folder and map host paths back
     // to their /mnt/... mount path so the results are usable with the other
     // tools. Mirrors grep; without this the agent gets paths relative to the
     // host folder that read_file would resolve in the wrong place.
     const sorted = await globSortedByMtime({
-      absolute: attachedMount !== null,
+      absolute: mount !== null,
       cwd: searchRoot,
       pattern: resolveGlobPattern({ cwd: searchRoot, pattern: input.pattern }),
       signal,
     });
 
-    const files = attachedMount
+    const files = mount
       ? sorted.map((p) => resolveVirtualPath(layout, p) ?? p)
       : sorted;
 

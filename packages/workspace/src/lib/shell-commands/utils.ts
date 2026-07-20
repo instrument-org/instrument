@@ -16,6 +16,27 @@ import {
 } from "../workspace-fs-layout";
 
 /**
+ * Rewrite the value of a `--flag=<path>` token that points at a
+ * sandbox-virtual absolute path (`--env-file=/task/work/.env`) so the real
+ * subprocess resolves it, relative to taskCwd so the host dir stays hidden.
+ * Flags without an inline path value are returned unchanged.
+ */
+export function bridgeFlagValuePath(
+  flag: string,
+  taskId: TaskId,
+  taskCwd: string,
+  resolvePath: (p: string) => string,
+): string {
+  const eqIndex = flag.indexOf("=");
+  const value = eqIndex > 0 ? flag.slice(eqIndex + 1) : "";
+  if (!value.startsWith("/")) {
+    return flag;
+  }
+  const bridged = virtualToRealRelative(value, taskId, taskCwd, resolvePath);
+  return `${flag.slice(0, eqIndex)}=${bridged}`;
+}
+
+/**
  * Bridge sandbox-virtual paths inside inline script source (`-e`/`-c` code,
  * heredoc programs), which real interpreters otherwise resolve against the
  * host filesystem where `/task` and `/mnt` do not exist. Quoted `/task/...`
@@ -108,10 +129,20 @@ export function firstString(
   return values.find((v): v is string => typeof v === "string");
 }
 
-/** Parse args and warn about unrecognized options via captureException. */
+/**
+ * Parse args, separating the options the command interprets itself from the
+ * unrecognized ones (returned in their original `--flag`/`--flag=value` form,
+ * so a caller can forward them to the real binary). Unrecognized options are
+ * reported via captureException unless the caller forwards them.
+ */
 export function parseScriptRunnerArgs<
   T extends NonNullable<ParseArgsConfig["options"]>,
->(commandName: string, args: string[], options: T) {
+>(
+  commandName: string,
+  args: string[],
+  options: T,
+  { captureUnknown = true }: { captureUnknown?: boolean } = {},
+) {
   const result = parseArgs({
     allowPositionals: true,
     args,
@@ -122,22 +153,30 @@ export function parseScriptRunnerArgs<
 
   const foundIndex = result.tokens.findIndex((t) => t.kind === "positional");
   const firstPositionalIndex = foundIndex === -1 ? Infinity : foundIndex;
-  const unknownOptions = result.tokens
-    .filter(
-      (t, i) =>
-        i < firstPositionalIndex && t.kind === "option" && !(t.name in options),
-    )
-    .map((t) => `--${(t as { kind: "option"; name: string }).name}`);
+  const unknownTokens = result.tokens.filter(
+    (t, i) =>
+      i < firstPositionalIndex && isOptionToken(t) && !(t.name in options),
+  );
 
-  if (unknownOptions.length > 0) {
+  if (captureUnknown && unknownTokens.length > 0) {
     getWorkspaceConfig().captureException(
       new Error(
-        `[${commandName}] Unrecognized options ignored: ${unknownOptions.join(", ")}`,
+        `[${commandName}] Unrecognized options ignored: ${unknownTokens
+          .map((t) => (isOptionToken(t) ? t.rawName : ""))
+          .join(", ")}`,
       ),
     );
   }
 
-  return result;
+  // A value is only attached to an unrecognized option in its inline
+  // `--flag=value` form; the space-separated form parses as a positional.
+  const unknownFlags = unknownTokens.flatMap((t) =>
+    isOptionToken(t)
+      ? [t.value === undefined ? t.rawName : `${t.rawName}=${t.value}`]
+      : [],
+  );
+
+  return { ...result, unknownFlags };
 }
 
 /** Resolve the effective cwd and env for a shell command. */
@@ -204,6 +243,15 @@ export function stringArray(
 export function subprocessStdin(stdin: ByteString): Buffer | undefined {
   const packed = latin1FromBytes(stdin);
   return packed ? Buffer.from(packed, "latin1") : undefined;
+}
+
+function isOptionToken(token: { kind: string }): token is {
+  kind: "option";
+  name: string;
+  rawName: string;
+  value: string | undefined;
+} {
+  return token.kind === "option";
 }
 
 /**

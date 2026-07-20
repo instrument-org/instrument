@@ -10,6 +10,7 @@ const defaultFeatures: Features = {
   context_ring: false,
   prompt_browser_toggle: false,
   prompt_queue: false,
+  skills: false,
 };
 
 async function listen(setAtom: () => void) {

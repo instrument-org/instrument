@@ -126,6 +126,19 @@ describe("rewriteNavigationArgToAssetUrl", () => {
     expect(result[1]).toBe("--raw");
   });
 
+  it.each([
+    { args: ["--profile", "Default", "open", "output/report.html"] },
+    { args: ["--cdp", "9222", "open", "output/report.html"] },
+    { args: ["--auto-connect", "open", "output/report.html"] },
+  ])(
+    "reaches the subcommand past the connection flags in $args",
+    async ({ args }) => {
+      const result = await rewrite(args);
+
+      expect(result.at(-1)).toContain("http://assets.");
+    },
+  );
+
   it("preserves surrounding flags", async () => {
     const result = await rewrite([
       "open",

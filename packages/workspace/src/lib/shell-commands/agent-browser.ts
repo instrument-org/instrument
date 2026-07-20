@@ -37,6 +37,11 @@ import {
 import { getWorkspaceConfig } from "../workspace-config";
 import { rewriteNavigationArgToAssetUrl } from "./agent-browser-asset-url";
 import {
+  BOOLEAN_VALUE_TOKENS,
+  findSubcommand,
+  VALUE_FLAGS,
+} from "./agent-browser-flags";
+import {
   resolveCommandContext,
   resolvePathArgs,
   subprocessStdin,
@@ -104,48 +109,6 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "stream", // Streaming managed by the workspace.
   "upgrade", // Binary is bundled; agent shouldn't self-update.
 ]);
-
-// Global flags that consume the following token as a value. Used when locating
-// the subcommand so a flag value (e.g. `--profile session`) is never mistaken
-// for one. Boolean flags are handled separately: they only consume a following
-// literal `true`/`false`.
-const VALUE_FLAGS = new Set([
-  "--action-policy",
-  "--allowed-domains",
-  "--args",
-  "--cdp",
-  "--color-scheme",
-  "--confirm-actions",
-  "--device",
-  "--download-path",
-  "--enable",
-  "--engine",
-  "--executable-path",
-  "--extension",
-  "--headers",
-  "--idle-timeout",
-  "--init-script",
-  "--max-output",
-  "--model",
-  "--profile",
-  "--provider",
-  "--proxy",
-  "--proxy-bypass",
-  "--restore",
-  "--restore-check-fn",
-  "--restore-check-text",
-  "--restore-check-url",
-  "--restore-save",
-  "--screenshot-dir",
-  "--screenshot-format",
-  "--screenshot-quality",
-  "--state",
-  "--user-agent",
-  "-p",
-]);
-
-// Optional explicit values for upstream boolean flags (`--headed false`).
-const BOOLEAN_VALUE_TOKENS = new Set(["false", "true"]);
 
 // Flags silently stripped (with their value arg, including --flag=value form)
 // because the harness controls them via env vars and must always win.
@@ -464,33 +427,6 @@ export function createAgentBrowserCommand({
       stdout: combined,
     };
   });
-}
-
-/**
- * First positional token, skipping flag values: value flags consume the next
- * token, boolean flags consume only a literal `true`/`false` (upstream's
- * optional boolean value form).
- */
-export function findSubcommand(args: string[]): string | undefined {
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === undefined) {
-      continue;
-    }
-    if (arg.startsWith("-")) {
-      if (!arg.includes("=")) {
-        const next = args[i + 1];
-        if (VALUE_FLAGS.has(arg)) {
-          i++;
-        } else if (next !== undefined && BOOLEAN_VALUE_TOKENS.has(next)) {
-          i++;
-        }
-      }
-      continue;
-    }
-    return arg;
-  }
-  return undefined;
 }
 
 /**

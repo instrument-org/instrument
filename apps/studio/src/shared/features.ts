@@ -5,6 +5,7 @@ export const FeatureNameSchema = z.enum([
   "context_ring",
   "prompt_browser_toggle",
   "prompt_queue",
+  "skills",
 ]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
@@ -34,5 +35,10 @@ export const FEATURE_METADATA: Record<
     description:
       "Queue follow-up prompts while the agent is running; each is sent automatically when the current turn finishes.",
     title: "Prompt Queue",
+  },
+  skills: {
+    description:
+      "Browse installed agent skills from the sidebar and invoke one by typing / in the prompt.",
+    title: "Skills",
   },
 };

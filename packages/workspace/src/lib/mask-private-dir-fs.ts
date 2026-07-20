@@ -33,6 +33,12 @@ export function isPrivateRelative(relativeWithinTask: string): boolean {
  * Reads answer not-found and writes fail EROFS, matching how a path outside
  * every mount behaves. App code reaches these files through real `node:fs`, so
  * the mask is agent-only.
+ *
+ * This is friction, not a boundary: it covers what routes through the virtual
+ * filesystem, and a native interpreter runs as a real subprocess whose cwd is
+ * the real task dir, so a script opening `.instrument/state.json` at runtime
+ * still reads it. See
+ * docs/findings/private-dir-masking-is-not-a-boundary.md.
  */
 export function maskPrivateDirFs(delegate: IFileSystem): IFileSystem {
   const readFileBytes = delegate.readFileBytes?.bind(delegate);

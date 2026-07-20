@@ -22,6 +22,7 @@ const SkillSourceSchema = z.enum([
 
 const SkillSummarySchema = z.object({
   description: z.string(),
+  modelInvocable: z.boolean(),
   name: z.string(),
   path: z.string(),
   source: SkillSourceSchema,
@@ -39,6 +40,7 @@ const list = base
     const skills = await findSkills(getSkillSources(context.workspaceConfig));
     return skills.map((skill) => ({
       description: skill.description,
+      modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
       source: skill.source,
@@ -51,7 +53,9 @@ const byName = base
   .handler(async ({ context, errors, input }) => {
     const { skill } = await findSkill(context.workspaceConfig, input.name);
     if (!skill) {
-      throw errors.NOT_FOUND({ message: `Skill "${input.name}" was not found.` });
+      throw errors.NOT_FOUND({
+        message: `Skill "${input.name}" was not found.`,
+      });
     }
 
     const { files, truncated } = await listSkillFiles(
@@ -63,6 +67,7 @@ const byName = base
       description: skill.description,
       files,
       filesTruncated: truncated,
+      modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
       source: skill.source,

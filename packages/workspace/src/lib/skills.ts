@@ -14,6 +14,12 @@ export const FILE_LIST_LIMIT = 50;
 export interface SkillInfo {
   content: string;
   description: string;
+  /**
+   * False when the skill's frontmatter sets `disable-model-invocation: true`.
+   * Such a skill is kept out of the agent's catalog but stays listed in Studio
+   * and invocable by name, so the user can still run it deliberately.
+   */
+  modelInvocable: boolean;
   name: string;
   skillDir: AbsolutePath;
   source: SkillSourceKind;
@@ -24,7 +30,7 @@ export interface SkillSource {
   source: SkillSourceKind;
 }
 
-type SkillSourceKind =
+export type SkillSourceKind =
   | "agents"
   | "claude"
   | "codex"
@@ -65,10 +71,7 @@ export function getSkillSources(
     registryDir,
     rootDir,
     systemSkillsDir,
-  }: Pick<
-    WorkspaceConfig,
-    "registryDir" | "rootDir" | "systemSkillsDir"
-  >,
+  }: Pick<WorkspaceConfig, "registryDir" | "rootDir" | "systemSkillsDir">,
   userHomeDir = AbsolutePathSchema.parse(os.homedir()),
 ): SkillSource[] {
   const fromHome = (source: SkillSourceKind, ...parts: string[]) => ({
@@ -140,7 +143,7 @@ export async function listSkillFiles(
 
 export function parseFrontmatter(
   raw: string,
-): null | { body: string; description: string } {
+): null | { body: string; description: string; modelInvocable: boolean } {
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(raw);
@@ -160,7 +163,11 @@ export function parseFrontmatter(
     return null;
   }
 
-  return { body: parsed.content.trim(), description };
+  return {
+    body: parsed.content.trim(),
+    description,
+    modelInvocable: parsed.data["disable-model-invocation"] !== true,
+  };
 }
 
 async function findSkillsInDir(
@@ -200,6 +207,7 @@ async function findSkillsInDir(
     skills.push({
       content: parsed.body,
       description: parsed.description,
+      modelInvocable: parsed.modelInvocable,
       // Agent Skills are addressed by their containing directory name.
       name: entry.name,
       skillDir,

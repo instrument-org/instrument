@@ -6,10 +6,12 @@ import {
 } from "just-bash";
 import { realpathSync } from "node:fs";
 
+import { TASK_FOLDER_NAMES } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { assignAttachedMounts } from "./attached-folder-mounts";
+import { isPrivateRelative, maskPrivateDirFs } from "./mask-private-dir-fs";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
@@ -66,9 +68,17 @@ export async function buildBashFs(
 ): Promise<IFileSystem> {
   const fs = new MountableFs({ base: new ReadOnlyBaseFs() });
 
+  // The task mount is wrapped so the private dir is masked from the agent's
+  // shell. It holds task internals the agent must never read: the task db,
+  // state.json (attached-folder host paths), and settings. The app reads these
+  // through real fs, not this virtual FS, so the mask is agent-only. Agent-
+  // facing byproducts (screenshots, tool-output) deliberately live under work/,
+  // never here.
   fs.mount(
     layout.task.mountPoint,
-    new ReadWriteFs({ maxFileReadSize, root: layout.task.hostRoot }),
+    maskPrivateDirFs(
+      new ReadWriteFs({ maxFileReadSize, root: layout.task.hostRoot }),
+    ),
   );
 
   for (const mount of layout.attached) {
@@ -148,6 +158,11 @@ export function hostPathEscapesMount(
   return !pathIsWithin(canonicalPath, canonicalRoot);
 }
 
+/** Virtual mount point of the masked-off private dir under the task mount. */
+export function privateMountPoint(taskMountPoint: string): string {
+  return `${taskMountPoint}/${TASK_FOLDER_NAMES.private}`;
+}
+
 /**
  * Resolve a virtual absolute path to the real on-disk path that backs it, plus
  * the mount that owns it. Returns null if no mount owns the path. The longest
@@ -202,12 +217,16 @@ export function resolveNativeHostPath(
 ): AbsolutePath {
   const normalized = normalizePath(virtualAbsPath);
   const relative = relativeWithin(TASK_MOUNT_POINT, normalized);
-  if (relative !== null) {
+  if (relative !== null && !isPrivateRelative(relative)) {
     return absolutePathJoin(
       taskHostRoot,
       relative === "/" ? "." : `.${relative}`,
     );
   }
+  // Private-dir paths (and any non-/task virtual path) quarantine to a
+  // non-existent path inside the task dir -- same defense as the read-only /mnt
+  // mounts: a native binary must never receive a real path into task.db,
+  // state.json, or settings, so it fails not-found instead of reading them.
   return absolutePathJoin(taskHostRoot, normalized);
 }
 

@@ -48,6 +48,18 @@ describe("resolvePathArgs native-binary bridge", () => {
     });
     expect(resolved).toEqual([`${dir}/tmp/scratch.txt`]);
   });
+
+  it("quarantines a /task/.instrument path so native binaries can't read task internals", () => {
+    const resolved = resolvePathArgs(["/task/.instrument/state.json"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    // Must NOT resolve to the real private file (`${dir}/.instrument/...`); the
+    // private dir quarantines like /mnt, to a nonexistent nested path so the
+    // binary fails not-found instead of reading task.db/state.json/settings.
+    expect(resolved).toEqual([`${dir}/task/.instrument/state.json`]);
+    expect(resolved[0]).not.toBe(`${dir}/.instrument/state.json`);
+  });
 });
 
 describe("bridgeInlineCodePaths", () => {
@@ -124,6 +136,19 @@ describe("bridgeInlineCodePaths", () => {
     expect(result).toHaveProperty("error");
     if ("error" in result) {
       expect(result.error).toContain("Copy the file into the task first");
+      expect(result.error).not.toContain(dir);
+    }
+  });
+
+  it("fails fast on quoted /task/.instrument paths instead of rewriting them", () => {
+    const result = bridgeInlineCodePaths(
+      'fs.readFileSync("/task/.instrument/state.json")',
+      taskId,
+      dir,
+    );
+    expect(result).toHaveProperty("error");
+    if ("error" in result) {
+      expect(result.error).toContain(".instrument");
       expect(result.error).not.toContain(dir);
     }
   });

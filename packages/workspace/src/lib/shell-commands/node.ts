@@ -49,6 +49,8 @@ const KNOWN_OPTIONS = {
   import: { multiple: true, type: "string" },
   "input-type": { type: "string" },
   "max-old-space-size": { type: "string" },
+  p: { type: "string" },
+  print: { type: "string" },
   require: { multiple: true, type: "string" },
   v: { type: "boolean" },
   version: { type: "boolean" },
@@ -97,7 +99,11 @@ export function createNodeCommand(taskId: TaskId) {
       };
     }
 
-    const evalCode = firstString(values.e, values.eval);
+    // `-p`/`--print` is `-e` plus printing the result, and may also appear as a
+    // bare flag alongside `-e` (`node -e '1+1' -p`), where parseArgs yields
+    // `true` rather than the code.
+    const wantsPrint = values.p !== undefined || values.print !== undefined;
+    const evalCode = firstString(values.p, values.print, values.e, values.eval);
     const inputType = firstString(values["input-type"]);
     const maxOldSpaceSize = firstString(values["max-old-space-size"]);
     const requires = stringArray(values.require);
@@ -127,7 +133,7 @@ export function createNodeCommand(taskId: TaskId) {
       }
       const execResult = await execNode(
         taskId,
-        [...nodeFlags, "-e", bridged.code],
+        [...nodeFlags, wantsPrint ? "-p" : "-e", bridged.code],
         ctx.signal,
         taskCwd,
         env,

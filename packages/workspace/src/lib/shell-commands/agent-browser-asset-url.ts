@@ -5,6 +5,7 @@ import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { normalizePath } from "../normalize-path";
 import { TASK_MOUNT_POINT } from "../workspace-fs-layout";
+import { findSubcommandIndex } from "./agent-browser-flags";
 
 /**
  * Subcommands whose first positional is a URL to load. Deliberately narrow:
@@ -17,7 +18,9 @@ const NAVIGATION_SUBCOMMANDS = new Set(["goto", "navigate", "open", "read"]);
 const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
 
 /**
- * Point the managed browser at files the agent itself produced.
+ * Point the browser at files the agent itself produced. Applies to external
+ * targets too: the asset origin is a `*.localhost` name any local browser
+ * resolves, and the sandbox path would be just as meaningless to them.
  *
  * The browser's `file://` root is the host filesystem, where the sandbox's
  * `/task` does not exist, and the target runs with web security on and no file
@@ -39,7 +42,7 @@ export async function rewriteNavigationArgToAssetUrl(
     };
   },
 ): Promise<string[]> {
-  const subcommandIndex = args.findIndex((arg) => !arg.startsWith("-"));
+  const subcommandIndex = findSubcommandIndex(args);
   const subcommand = args[subcommandIndex];
   if (subcommand === undefined || !NAVIGATION_SUBCOMMANDS.has(subcommand)) {
     return args;

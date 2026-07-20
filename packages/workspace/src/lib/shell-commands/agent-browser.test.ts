@@ -6,11 +6,11 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import {
   createAgentBrowserCommand,
-  findSubcommand,
   isDaemonConfigRace,
   isExternalBrowserInvocation,
   scrubHostPaths,
 } from "./agent-browser";
+import { findSubcommand } from "./agent-browser-flags";
 
 const mockCtx: CommandContext = {
   cwd: "/",

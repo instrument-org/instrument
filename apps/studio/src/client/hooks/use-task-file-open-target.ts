@@ -30,21 +30,25 @@ export function useTaskFileOpenCandidates(
   file: FileRef | undefined,
   { enabled }: { enabled: boolean },
 ) {
-  const { data, isPending } = useQuery(
+  const { data, isError, isPending } = useQuery(
     rpcClient.utils.getTaskFileOpenCandidates.queryOptions({
       input:
         enabled && file
           ? { filePath: file.filePath, id: file.taskId }
           : skipToken,
-      refetchOnMount: false,
+      // A successful list is cached for the session, but a failed lookup is
+      // worth another attempt whenever a menu that needs it mounts.
+      refetchOnMount: (query) => query.state.status === "error",
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
+      retry: 1,
       staleTime: Number.POSITIVE_INFINITY,
     }),
   );
 
   return {
     apps: data?.apps ?? [],
+    isError,
     isPending: enabled && file != null && isPending,
   };
 }

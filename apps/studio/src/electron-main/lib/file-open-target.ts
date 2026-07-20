@@ -10,6 +10,15 @@ import { storeFileOpenIcon, storeFileOpenNativeImage } from "./app-protocol";
 
 const execFileAsync = promisify(execFile);
 
+// An app that can open a file, before its icon has been resolved. Icons are
+// keyed by app path rather than by file type, so they are cached and rendered
+// once per app instead of once per app per extension.
+interface CandidateApp {
+  appName: string;
+  appPath: string;
+  bundleId: string;
+}
+
 interface FileOpenCandidate {
   appName: string;
   appPath: string;
@@ -22,7 +31,7 @@ interface FileOpenTarget {
 }
 
 interface PersistedCandidateEntry {
-  candidates: FileOpenCandidate[];
+  apps: CandidateApp[];
   resolvedAt: number;
 }
 
@@ -30,8 +39,25 @@ interface PersistedEntry extends FileOpenTarget {
   resolvedAt: number;
 }
 
-const MAX_CANDIDATES = 12;
+interface PersistedIconEntry {
+  iconUrl: null | string;
+  resolvedAt: number;
+}
+
+const MAX_CANDIDATES = 16;
+// Enumeration is cheap, so scan well past the cap and let the exclusion filter
+// below run before truncating.
+const CANDIDATE_SCAN_LIMIT = 64;
 const LOOKUP_TIMEOUT_MS = 10_000;
+// cspell:ignore downsampled
+// Rendered at 2x by the compositor, then downsampled to the menu's 64px by
+// storeFileOpenIcon. Asking macOS for the icon's native size instead produces
+// ~1.6MB of base64 per app.
+const ICON_RENDER_SIZE = 128;
+// osascript lookups are CPU- and LaunchServices-bound. A file grid can mount
+// many open buttons at once, and letting every distinct extension spawn its own
+// interpreter pushes them all past LOOKUP_TIMEOUT_MS together.
+const MAX_CONCURRENT_LOOKUPS = 2;
 const COMMON_FILE_EXTENSIONS = [
   ".pdf",
   ".png",
@@ -51,26 +77,46 @@ const COMMON_FILE_EXTENSIONS = [
   ".pptx",
 ];
 
+// Apps that claim broad document types but are never a sensible answer to
+// "open this document with", and that no structural rule in
+// DARWIN_CANDIDATES_SCRIPT rules out. Filtered results are what gets persisted,
+// so editing this list requires bumping CACHE_VERSION.
+const EXCLUDED_BUNDLE_IDS = new Set([
+  // Claims public.plain-text, so it shows up for Markdown and source files, but
+  // opening one only offers to import it as a trace. Its name also collides
+  // with ours in the menu.
+  "com.apple.dt.Instruments",
+  // Claims .txt and opens it as an AppleScript source buffer rather than text.
+  "com.apple.ScriptEditor2",
+]);
+
 // Resolution spawns helper processes and only depends on the file type, so
 // both target and candidate results are application-wide extension caches.
 // Refreshes also re-read icons, producing new content-addressed URLs if their
 // bytes changed. Candidate lists change more often, so they refresh sooner.
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 6;
 const TARGET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CANDIDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const ICON_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_PERSISTED_CANDIDATES = 128;
+const MAX_PERSISTED_ICONS = 512;
 const MAX_PERSISTED_TARGETS = 256;
 const SAVE_DEBOUNCE_MS = 1000;
 
-// diskCache doubles as the "loaded" sentinel for both persisted maps: await
-// loadDiskCache() before touching diskCandidateCache.
+// diskCache doubles as the "loaded" sentinel for every persisted map: await
+// loadDiskCache() before touching diskCandidateCache or diskIconCache.
 let diskCache: Map<string, PersistedEntry> | null = null;
 let diskCandidateCache = new Map<string, PersistedCandidateEntry>();
+let diskIconCache = new Map<string, PersistedIconEntry>();
 let diskCacheLoad: null | Promise<Map<string, PersistedEntry>> = null;
 let saveTimer: null | ReturnType<typeof setTimeout> = null;
 const inFlightTargets = new Map<string, Promise<FileOpenTarget>>();
 const sessionTargets = new Map<string, Promise<FileOpenTarget>>();
-const candidatesCache = new Map<string, Promise<FileOpenCandidate[]>>();
+const candidatesCache = new Map<string, Promise<CandidateApp[]>>();
+const iconCache = new Map<string, Promise<null | string>>();
+
+let activeLookups = 0;
+const lookupQueue: (() => void)[] = [];
 
 const PersistedEntrySchema = z.object({
   appName: z.string().nullable(),
@@ -78,14 +124,19 @@ const PersistedEntrySchema = z.object({
   resolvedAt: z.number(),
 });
 
-const FileOpenCandidateSchema = z.object({
+const CandidateAppSchema = z.object({
   appName: z.string(),
   appPath: z.string(),
-  iconUrl: z.string().nullable(),
+  bundleId: z.string(),
 });
 
 const PersistedCandidateEntrySchema = z.object({
-  candidates: z.array(FileOpenCandidateSchema),
+  apps: z.array(CandidateAppSchema),
+  resolvedAt: z.number(),
+});
+
+const PersistedIconEntrySchema = z.object({
+  iconUrl: z.string().nullable(),
   resolvedAt: z.number(),
 });
 
@@ -94,6 +145,7 @@ const PersistedCacheSchema = z.object({
     .record(z.string(), PersistedCandidateEntrySchema)
     .optional(),
   entries: z.record(z.string(), PersistedEntrySchema),
+  iconEntries: z.record(z.string(), PersistedIconEntrySchema).optional(),
   version: z.number(),
 });
 
@@ -107,22 +159,43 @@ const Win32ResultSchema = z.object({
   exePath: z.string(),
 });
 
-const DarwinCandidatesSchema = z.object({
-  apps: z.array(
-    z.object({
-      appName: z.string(),
-      appPath: z.string(),
-      iconBase64: z.string(),
-    }),
-  ),
+const DarwinCandidatesSchema = z.object({ apps: z.array(CandidateAppSchema) });
+
+const DarwinIconsSchema = z.object({
+  icons: z.array(z.object({ appPath: z.string(), iconBase64: z.string() })),
 });
+
+// Composites the app icon into a fixed-size canvas. NSImage exposes an icon's
+// representations largest-first, so encoding one directly would ship a 1024px
+// PNG; drawing into a sized canvas is what bounds the cost.
+const DARWIN_RENDER_ICON_FN = `
+function renderIcon(image, size) {
+  const canvas = $.NSImage.alloc.initWithSize($.NSMakeSize(size, size));
+  canvas.lockFocus;
+  image.drawInRectFromRectOperationFraction(
+    $.NSMakeRect(0, 0, size, size),
+    $.NSMakeRect(0, 0, 0, 0),
+    $.NSCompositingOperationSourceOver,
+    1.0,
+  );
+  canvas.unlockFocus;
+  const rep = $.NSBitmapImageRep.imageRepWithData(canvas.TIFFRepresentation);
+  const png = rep.representationUsingTypeProperties(
+    $.NSBitmapImageFileTypePNG,
+    $.NSDictionary.dictionary,
+  );
+  return png.base64EncodedStringWithOptions(0).js ?? "";
+}
+`;
 
 // Resolves the default app via NSWorkspace and returns its real icon
 // (works for asset-catalog-only apps where reading the .icns would fail).
 const DARWIN_RESOLVE_SCRIPT = `
 ObjC.import("AppKit");
+${DARWIN_RENDER_ICON_FN}
 function run(argv) {
   const ws = $.NSWorkspace.sharedWorkspace;
+  const size = parseInt(argv[1], 10) || 128;
   const result = { appName: "", iconBase64: "" };
   try {
     const url = ws.URLForApplicationToOpenURL($.NSURL.fileURLWithPath(argv[0]));
@@ -132,14 +205,7 @@ function run(argv) {
     }
     result.appName =
       $.NSFileManager.defaultManager.displayNameAtPath(appPath).js ?? "";
-    const rep = $.NSBitmapImageRep.imageRepWithData(
-      ws.iconForFile(appPath).TIFFRepresentation,
-    );
-    const png = rep.representationUsingTypeProperties(
-      $.NSBitmapImageFileTypePNG,
-      $.NSDictionary.dictionary,
-    );
-    result.iconBase64 = png.base64EncodedStringWithOptions(0).js ?? "";
+    result.iconBase64 = renderIcon(ws.iconForFile(appPath), size);
   } catch {
     // fall through with whatever resolved so far
   }
@@ -147,15 +213,48 @@ function run(argv) {
 }
 `;
 
-// cspell:ignore NSURL
-// Enumerates every app that can open the file (default first), deduped by name
-// and capped, with each survivor's icon rendered to PNG.
+// cspell:ignore NSURL LSUI
+// Enumerates every app that can open the file (default first). Unusable
+// candidates are dropped before deduping, so an app that also has a copy in a
+// cache directory is still offered from its real location. Icons are resolved
+// separately, per app, by DARWIN_ICONS_SCRIPT.
 const DARWIN_CANDIDATES_SCRIPT = `
 ObjC.import("AppKit");
+// Apps bundled inside another app (Xcode's Instruments, Electron helpers) are
+// reachable through Launch Services but are not things a user opens documents
+// with.
+function isNested(appPath) {
+  return appPath.slice(0, appPath.lastIndexOf("/")).indexOf(".app/") !== -1;
+}
+// Copies unpacked by package managers and test harnesses claim file types just
+// like a real install, and a developer machine accumulates many of them.
+function isUnusableLocation(appPath) {
+  const lower = appPath.toLowerCase();
+  const fragments = [
+    "/caches/",
+    "/.cache/",
+    "/node_modules/",
+    "/.trash/",
+    "/private/var/folders/",
+  ];
+  for (let i = 0; i < fragments.length; i++) {
+    if (lower.indexOf(fragments[i]) !== -1) return true;
+  }
+  return false;
+}
+// Background agents declare document types but have no window to open into.
+function isBackgroundAgent(bundle) {
+  const info = bundle.infoDictionary;
+  if (info.isNil()) return false;
+  const uiElement = info.objectForKey("LSUIElement");
+  if (uiElement.isNil()) return false;
+  const value = String(uiElement.js);
+  return value === "1" || value === "true";
+}
 function run(argv) {
   const ws = $.NSWorkspace.sharedWorkspace;
   const fm = $.NSFileManager.defaultManager;
-  const cap = parseInt(argv[1], 10) || 12;
+  const cap = parseInt(argv[1], 10) || 64;
   const out = { apps: [] };
   try {
     const urls = ws.URLsForApplicationsToOpenURL($.NSURL.fileURLWithPath(argv[0]));
@@ -164,23 +263,15 @@ function run(argv) {
     for (let i = 0; i < count && out.apps.length < cap; i++) {
       const appPath = urls.objectAtIndex(i).path.js;
       if (!appPath) continue;
+      if (isNested(appPath) || isUnusableLocation(appPath)) continue;
+      const bundle = $.NSBundle.bundleWithPath(appPath);
+      if (bundle.isNil() || isBackgroundAgent(bundle)) continue;
+      const bundleId = bundle.bundleIdentifier.js ?? "";
       const name = (fm.displayNameAtPath(appPath).js ?? "").replace(/\\.app$/, "");
-      if (!name || seen[name]) continue;
-      seen[name] = true;
-      let iconBase64 = "";
-      try {
-        const rep = $.NSBitmapImageRep.imageRepWithData(
-          ws.iconForFile(appPath).TIFFRepresentation,
-        );
-        const png = rep.representationUsingTypeProperties(
-          $.NSBitmapImageFileTypePNG,
-          $.NSDictionary.dictionary,
-        );
-        iconBase64 = png.base64EncodedStringWithOptions(0).js ?? "";
-      } catch {
-        // an app without a resolvable icon still opens the file
-      }
-      out.apps.push({ appName: name, appPath: appPath, iconBase64: iconBase64 });
+      const key = bundleId || name;
+      if (!name || seen[key]) continue;
+      seen[key] = true;
+      out.apps.push({ appName: name, appPath: appPath, bundleId: bundleId });
     }
   } catch {
     // no apps available for this type
@@ -189,28 +280,45 @@ function run(argv) {
 }
 `;
 
+// Renders one icon per app path passed in argv, in a single interpreter.
+const DARWIN_ICONS_SCRIPT = `
+ObjC.import("AppKit");
+${DARWIN_RENDER_ICON_FN}
+function run(argv) {
+  const ws = $.NSWorkspace.sharedWorkspace;
+  const size = parseInt(argv[0], 10) || 128;
+  const out = { icons: [] };
+  for (let i = 1; i < argv.length; i++) {
+    let iconBase64 = "";
+    try {
+      iconBase64 = renderIcon(ws.iconForFile(argv[i]), size);
+    } catch {
+      // an app without a resolvable icon still opens the file
+    }
+    out.icons.push({ appPath: argv[i], iconBase64: iconBase64 });
+  }
+  return JSON.stringify(out);
+}
+`;
+
+// Rejects when the lookup itself failed, so callers can tell "this file type
+// has no alternate apps" apart from "we could not find out". Collapsing the two
+// silently hides the picker with no way for the user to retry.
 export async function getFileOpenCandidates(
   fullPath: string,
 ): Promise<FileOpenCandidate[]> {
-  const ext = path.extname(fullPath).toLowerCase();
-  const key = ext || fullPath;
-  const existing = candidatesCache.get(key);
-  if (existing) {
-    return existing.catch(() => []);
+  const apps = await getCandidateApps(fullPath);
+  if (apps.length === 0) {
+    return [];
   }
-  const pending = ext
-    ? getOrResolveCandidates(key, fullPath)
-    : resolveCandidates(fullPath);
-  candidatesCache.set(key, pending);
-  void pending.catch(() => {
-    if (candidatesCache.get(key) === pending) {
-      candidatesCache.delete(key);
-    }
-  });
-  // Launch Services occasionally rejects a file even when its default app is
-  // resolvable. Alternate apps are optional, so keep the primary action usable
-  // and let the cache eviction above allow a later request to retry.
-  return pending.catch(() => []);
+  // Icons are decorative: a failed render leaves a fallback glyph in the menu
+  // rather than costing the user the whole list.
+  const icons = await resolveIcons(apps.map((candidate) => candidate.appPath));
+  return apps.map((candidate) => ({
+    appName: candidate.appName,
+    appPath: candidate.appPath,
+    iconUrl: icons.get(candidate.appPath) ?? null,
+  }));
 }
 
 export async function getFileOpenTarget(
@@ -255,9 +363,11 @@ export async function getFileOpenTarget(
   return pending.catch(() => fallbackTarget(fullPath));
 }
 
-// Seeds the persisted default-target cache for the file types most commonly
-// produced or viewed in Studio. Candidate lists stay on-demand because they
-// require resolving icons for many apps per file type.
+// Seeds the persisted caches for the file types most commonly produced or
+// viewed in Studio, so the first file a user opens has its picker ready.
+// Enumerating apps costs about as much as resolving the single default app, and
+// icons are shared across every file type that offers the same app, so warming
+// candidates is bounded by the number of distinct apps on the machine.
 export async function warmCommonFileOpenTargets() {
   if (process.platform !== "darwin") {
     return;
@@ -265,7 +375,7 @@ export async function warmCommonFileOpenTargets() {
 
   const cache = await loadDiskCache();
   const missingExtensions = COMMON_FILE_EXTENSIONS.filter(
-    (extension) => !cache.has(extension),
+    (extension) => !cache.has(extension) || !diskCandidateCache.has(extension),
   );
   if (missingExtensions.length === 0) {
     return;
@@ -276,10 +386,13 @@ export async function warmCommonFileOpenTargets() {
     tempDir = await fs.mkdtemp(
       path.join(app.getPath("temp"), "instrument-file-open-targets-"),
     );
+    // Sequential so warming never occupies every lookup slot and stalls a file
+    // the user actually opened.
     for (const extension of missingExtensions) {
       const samplePath = path.join(tempDir, `sample${extension}`);
       await fs.writeFile(samplePath, "");
       await getFileOpenTarget(samplePath);
+      await getFileOpenCandidates(samplePath).catch(() => []);
     }
   } catch {
     // A missed prewarm is harmless: the first real file resolves on demand.
@@ -298,6 +411,32 @@ async function fallbackTarget(fullPath: string): Promise<FileOpenTarget> {
   return { appName: null, iconUrl: await getFileTypeIconUrl(fullPath) };
 }
 
+async function getCandidateApps(fullPath: string): Promise<CandidateApp[]> {
+  if (process.platform !== "darwin") {
+    // Only macOS has a portable enumeration of every app that can open a file.
+    return [];
+  }
+  const ext = path.extname(fullPath).toLowerCase();
+  const key = ext || fullPath;
+  const existing = candidatesCache.get(key);
+  if (existing) {
+    return existing;
+  }
+  const pending = ext
+    ? getOrResolveCandidates(key, fullPath)
+    : resolveCandidates(fullPath);
+  candidatesCache.set(key, pending);
+  // Launch Services occasionally rejects a file even when its default app is
+  // resolvable. Drop the failure so a later request retries rather than serving
+  // a rejected promise for the rest of the session.
+  void pending.catch(() => {
+    if (candidatesCache.get(key) === pending) {
+      candidatesCache.delete(key);
+    }
+  });
+  return pending;
+}
+
 // `app.getFileIcon` only yields the file-type icon (a generic icon for .app
 // bundles), so app icons come from the per-platform resolvers instead.
 async function getFileTypeIconUrl(fullPath: string) {
@@ -312,14 +451,14 @@ async function getFileTypeIconUrl(fullPath: string) {
 async function getOrResolveCandidates(
   key: string,
   fullPath: string,
-): Promise<FileOpenCandidate[]> {
+): Promise<CandidateApp[]> {
   await loadDiskCache();
   const entry = diskCandidateCache.get(key);
   if (entry) {
     if (Date.now() - entry.resolvedAt >= CANDIDATE_CACHE_TTL_MS) {
       refreshCandidatesInBackground(key, fullPath);
     }
-    return entry.candidates;
+    return entry.apps;
   }
   return resolveAndStoreCandidates(key, fullPath);
 }
@@ -341,6 +480,11 @@ async function loadDiskCache(): Promise<Map<string, PersistedEntry>> {
           parsed.candidateEntries ?? {},
         )) {
           diskCandidateCache.set(key, entry);
+        }
+        for (const [appPath, entry] of Object.entries(
+          parsed.iconEntries ?? {},
+        )) {
+          diskIconCache.set(appPath, entry);
         }
       }
     } catch {
@@ -383,12 +527,23 @@ async function readDesktopEntryName(desktopId: string) {
 function refreshCandidatesInBackground(key: string, fullPath: string) {
   const pending = resolveAndStoreCandidates(key, fullPath);
   void pending.then(
-    (candidates) => {
-      candidatesCache.set(key, Promise.resolve(candidates));
+    (apps) => {
+      candidatesCache.set(key, Promise.resolve(apps));
     },
     // A failed refresh changes nothing: the in-memory entry already resolved
     // with the stale list, and the persisted entry stays past its TTL so the
     // next session retries.
+    () => null,
+  );
+}
+
+function refreshIconsInBackground(appPaths: string[]) {
+  void resolveAndStoreIcons(appPaths).then(
+    (icons) => {
+      for (const [appPath, iconUrl] of icons) {
+        iconCache.set(appPath, Promise.resolve(iconUrl));
+      }
+    },
     () => null,
   );
 }
@@ -401,6 +556,25 @@ function refreshTargetInBackground(ext: string, fullPath: string) {
   inFlightTargets.set(ext, pending);
   // Background refresh failures are non-fatal; the stale value stays cached.
   void pending.catch(() => null);
+}
+
+async function renderIcons(appPaths: string[]) {
+  const { stdout } = await withLookupSlot(() =>
+    execFileAsync(
+      "osascript",
+      [
+        "-l",
+        "JavaScript",
+        "-e",
+        DARWIN_ICONS_SCRIPT,
+        String(ICON_RENDER_SIZE),
+        ...appPaths,
+      ],
+      { maxBuffer: 32 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
+    ),
+  );
+  const parsed = DarwinIconsSchema.parse(JSON.parse(stdout));
+  return new Map(parsed.icons.map((icon) => [icon.appPath, icon.iconBase64]));
 }
 
 async function resolveAndStore(
@@ -421,12 +595,29 @@ async function resolveAndStore(
 async function resolveAndStoreCandidates(
   key: string,
   fullPath: string,
-): Promise<FileOpenCandidate[]> {
-  const candidates = await resolveCandidates(fullPath);
+): Promise<CandidateApp[]> {
+  const apps = await resolveCandidates(fullPath);
   await loadDiskCache();
-  diskCandidateCache.set(key, { candidates, resolvedAt: Date.now() });
+  diskCandidateCache.set(key, { apps, resolvedAt: Date.now() });
   scheduleSave();
-  return candidates;
+  return apps;
+}
+
+async function resolveAndStoreIcons(appPaths: string[]) {
+  const rendered = await renderIcons(appPaths);
+  const stored = new Map<string, null | string>();
+  await Promise.all(
+    appPaths.map(async (appPath) => {
+      stored.set(appPath, await storeFileOpenIcon(rendered.get(appPath) ?? ""));
+    }),
+  );
+  await loadDiskCache();
+  const resolvedAt = Date.now();
+  for (const [appPath, iconUrl] of stored) {
+    diskIconCache.set(appPath, { iconUrl, resolvedAt });
+  }
+  scheduleSave();
+  return stored;
 }
 
 async function resolveAssociatedApp(
@@ -448,41 +639,41 @@ async function resolveAssociatedApp(
   }
 }
 
-async function resolveCandidates(
-  fullPath: string,
-): Promise<FileOpenCandidate[]> {
-  if (process.platform !== "darwin") {
-    // Only macOS has a portable enumeration of every app that can open a file.
-    return [];
-  }
-  const { stdout } = await execFileAsync(
-    "osascript",
-    [
-      "-l",
-      "JavaScript",
-      "-e",
-      DARWIN_CANDIDATES_SCRIPT,
-      fullPath,
-      String(MAX_CANDIDATES),
-    ],
-    { maxBuffer: 64 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
+async function resolveCandidates(fullPath: string): Promise<CandidateApp[]> {
+  const { stdout } = await withLookupSlot(() =>
+    execFileAsync(
+      "osascript",
+      [
+        "-l",
+        "JavaScript",
+        "-e",
+        DARWIN_CANDIDATES_SCRIPT,
+        fullPath,
+        String(CANDIDATE_SCAN_LIMIT),
+      ],
+      { maxBuffer: 4 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
+    ),
   );
   const parsed = DarwinCandidatesSchema.parse(JSON.parse(stdout));
-  return await Promise.all(
-    parsed.apps.map(async (candidate) => ({
-      appName: candidate.appName,
-      appPath: candidate.appPath,
-      iconUrl: await storeFileOpenIcon(candidate.iconBase64),
-    })),
-  );
+  return parsed.apps
+    .filter((candidate) => !EXCLUDED_BUNDLE_IDS.has(candidate.bundleId))
+    .slice(0, MAX_CANDIDATES);
 }
 
 async function resolveDarwin(fullPath: string) {
-  const { stdout } = await execFileAsync(
-    "osascript",
-    ["-l", "JavaScript", "-e", DARWIN_RESOLVE_SCRIPT, fullPath],
-    // The icon PNG can be ~1MB of base64 (icons ship at 1024px).
-    { maxBuffer: 16 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
+  const { stdout } = await withLookupSlot(() =>
+    execFileAsync(
+      "osascript",
+      [
+        "-l",
+        "JavaScript",
+        "-e",
+        DARWIN_RESOLVE_SCRIPT,
+        fullPath,
+        String(ICON_RENDER_SIZE),
+      ],
+      { maxBuffer: 4 * 1024 * 1024, timeout: LOOKUP_TIMEOUT_MS },
+    ),
   );
   const result = DarwinResultSchema.parse(JSON.parse(stdout));
   if (!result.appName) {
@@ -492,6 +683,58 @@ async function resolveDarwin(fullPath: string) {
     appName: result.appName.replace(/\.app$/, ""),
     iconUrl: await storeFileOpenIcon(result.iconBase64),
   };
+}
+
+// Resolves icons for the given app paths, reusing anything already rendered.
+// Never rejects: every unresolved path maps to null.
+async function resolveIcons(appPaths: string[]) {
+  await loadDiskCache();
+  const resolved = new Map<string, null | string>();
+  const pendingByPath = new Map<string, Promise<null | string>>();
+  const missing: string[] = [];
+  const stale: string[] = [];
+
+  for (const appPath of new Set(appPaths)) {
+    const inFlight = iconCache.get(appPath);
+    if (inFlight) {
+      pendingByPath.set(appPath, inFlight);
+      continue;
+    }
+    const entry = diskIconCache.get(appPath);
+    if (entry) {
+      resolved.set(appPath, entry.iconUrl);
+      if (Date.now() - entry.resolvedAt >= ICON_CACHE_TTL_MS) {
+        stale.push(appPath);
+      }
+      continue;
+    }
+    missing.push(appPath);
+  }
+
+  if (stale.length > 0) {
+    refreshIconsInBackground(stale);
+  }
+
+  if (missing.length > 0) {
+    const batch = resolveAndStoreIcons(missing);
+    for (const appPath of missing) {
+      const pending = batch.then((icons) => icons.get(appPath) ?? null);
+      iconCache.set(appPath, pending);
+      void pending.catch(() => {
+        if (iconCache.get(appPath) === pending) {
+          iconCache.delete(appPath);
+        }
+      });
+      pendingByPath.set(appPath, pending);
+    }
+  }
+
+  await Promise.all(
+    [...pendingByPath].map(async ([appPath, pending]) => {
+      resolved.set(appPath, await pending.catch(() => null));
+    }),
+  );
+  return resolved;
 }
 
 async function resolveLinux(fullPath: string) {
@@ -580,9 +823,11 @@ async function saveDiskCache() {
     diskCandidateCache,
     MAX_PERSISTED_CANDIDATES,
   );
+  diskIconCache = trimToNewest(diskIconCache, MAX_PERSISTED_ICONS);
   const payload = {
     candidateEntries: Object.fromEntries(diskCandidateCache),
     entries: Object.fromEntries(diskCache),
+    iconEntries: Object.fromEntries(diskIconCache),
     version: CACHE_VERSION,
   };
   try {
@@ -614,4 +859,24 @@ function trimToNewest<T extends { resolvedAt: number }>(
       .sort((a, b) => b[1].resolvedAt - a[1].resolvedAt)
       .slice(0, max),
   );
+}
+
+async function withLookupSlot<T>(run: () => Promise<T>): Promise<T> {
+  if (activeLookups >= MAX_CONCURRENT_LOOKUPS) {
+    await new Promise<void>((resolve) => lookupQueue.push(resolve));
+  } else {
+    activeLookups++;
+  }
+  try {
+    return await run();
+  } finally {
+    // Hand the slot straight to the next waiter instead of releasing it, so the
+    // counter never dips and admits an extra caller during the handoff.
+    const next = lookupQueue.shift();
+    if (next) {
+      next();
+    } else {
+      activeLookups--;
+    }
+  }
 }

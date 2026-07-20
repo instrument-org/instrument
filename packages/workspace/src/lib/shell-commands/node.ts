@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { defineCommand } from "just-bash";
+import { defineCommand, latin1FromBytes } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
@@ -42,6 +42,8 @@ function execNode(
 }
 
 const KNOWN_OPTIONS = {
+  c: { type: "boolean" },
+  check: { type: "boolean" },
   e: { type: "string" },
   eval: { type: "string" },
   import: { multiple: true, type: "string" },
@@ -61,8 +63,9 @@ export const NODE_COMMAND = {
 export function createNodeCommand(taskId: TaskId) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const stdinProgram = latin1FromBytes(ctx.stdin);
 
-    if (args.length === 0) {
+    if (args.length === 0 && !stdinProgram) {
       return {
         exitCode: 1,
         stderr: `${NODE_COMMAND.name} command requires a file argument or -e <code>. Prefer \`${TS_COMMAND.name}\` for TypeScript files.`,
@@ -101,6 +104,9 @@ export function createNodeCommand(taskId: TaskId) {
     const imports = stringArray(values.import);
 
     const nodeFlags: string[] = [];
+    if (values.check === true || values.c === true) {
+      nodeFlags.push("--check");
+    }
     if (inputType) {
       nodeFlags.push("--input-type", inputType);
     }
@@ -136,6 +142,29 @@ export function createNodeCommand(taskId: TaskId) {
     }
 
     if (positionals.length === 0) {
+      // With no file, node reads the program itself from stdin
+      // (`node --check < script.js`, heredocs), so bridge sandbox-virtual
+      // paths in it the same way `-e` code is bridged.
+      if (stdinProgram) {
+        const bridged = bridgeInlineCodePaths(stdinProgram, taskId, taskCwd);
+        if ("error" in bridged) {
+          return { exitCode: 1, stderr: bridged.error, stdout: "" };
+        }
+        const execResult = await execNode(
+          taskId,
+          nodeFlags,
+          ctx.signal,
+          taskCwd,
+          env,
+          Buffer.from(bridged.code, "latin1"),
+        );
+        return {
+          exitCode: execResult.exitCode ?? 1,
+          stderr: "",
+          stdout: filterShellOutput(execResult.all, taskDir(taskId)),
+        };
+      }
+
       return {
         exitCode: 1,
         stderr: `${NODE_COMMAND.name} requires a file path argument or -e <code>.`,

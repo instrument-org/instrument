@@ -13,9 +13,9 @@ const temporaryDirs: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirs.splice(0).map((dir) =>
-      fs.rm(dir, { force: true, recursive: true }),
-    ),
+    temporaryDirs
+      .splice(0)
+      .map((dir) => fs.rm(dir, { force: true, recursive: true })),
   );
 });
 
@@ -25,6 +25,7 @@ describe("parseFrontmatter", () => {
     expect(result).toEqual({
       body: "Body content",
       description: "Does a thing",
+      modelInvocable: true,
     });
   });
 
@@ -41,6 +42,7 @@ describe("parseFrontmatter", () => {
     expect(parseFrontmatter(raw)).toEqual({
       body: "Body",
       description: "Windows skill",
+      modelInvocable: true,
     });
   });
 
@@ -49,8 +51,23 @@ describe("parseFrontmatter", () => {
     expect(result).toEqual({
       body: "Body content",
       description: "Foo: bar baz",
+      modelInvocable: true,
     });
   });
+
+  it.each([
+    { expected: false, frontmatter: "disable-model-invocation: true" },
+    { expected: true, frontmatter: "disable-model-invocation: false" },
+    { expected: true, frontmatter: "" },
+  ])(
+    "reads modelInvocable=$expected from `$frontmatter`",
+    ({ expected, frontmatter }) => {
+      const raw = make(
+        ["description: Does a thing", frontmatter].filter(Boolean).join("\n"),
+      );
+      expect(parseFrontmatter(raw)?.modelInvocable).toBe(expected);
+    },
+  );
 
   it("trims leading/trailing whitespace from body", () => {
     const result = parseFrontmatter(
@@ -74,7 +91,10 @@ describe("skill discovery", () => {
     await writeSkill(path.join(registry, "skills", "bundled"), "Bundled");
     await writeSkill(sharedSkill, "Shared");
     await fs.mkdir(path.join(home, ".codex", "skills"), { recursive: true });
-    await fs.symlink(sharedSkill, path.join(home, ".codex", "skills", "review"));
+    await fs.symlink(
+      sharedSkill,
+      path.join(home, ".codex", "skills", "review"),
+    );
     await writeSkill(path.join(workspace, "skills", "review"), "Workspace");
 
     const sources = getSkillSources(
@@ -87,11 +107,13 @@ describe("skill discovery", () => {
     );
     const skills = await findSkills(sources);
 
-    expect(skills.map(({ description, name, source }) => ({
-      description,
-      name,
-      source,
-    }))).toEqual([
+    expect(
+      skills.map(({ description, name, source }) => ({
+        description,
+        name,
+        source,
+      })),
+    ).toEqual([
       { description: "System", name: "creator", source: "system" },
       { description: "Bundled", name: "bundled", source: "registry" },
       { description: "Workspace", name: "review", source: "workspace" },

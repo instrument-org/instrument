@@ -153,11 +153,13 @@ describe("getFileOpenCandidates", () => {
             "appName": "Editor md",
             "appPath": "/Applications/Editor-md.app",
             "iconUrl": "icon://png-for-Editor-md.app",
+            "isDefault": true,
           },
           {
             "appName": "Shared Viewer",
             "appPath": "/Applications/Shared.app",
             "iconUrl": "icon://png-for-Shared.app",
+            "isDefault": false,
           },
         ]
       `);

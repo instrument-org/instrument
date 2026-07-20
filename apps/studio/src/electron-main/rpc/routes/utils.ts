@@ -420,6 +420,7 @@ const getTaskFileOpenCandidates = base
           appName: z.string(),
           appPath: z.string(),
           iconUrl: z.string().nullable(),
+          isDefault: z.boolean(),
         }),
       ),
     }),

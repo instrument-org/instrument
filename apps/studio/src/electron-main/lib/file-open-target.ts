@@ -24,6 +24,7 @@ interface FileOpenCandidate {
   appName: string;
   appPath: string;
   iconUrl: null | string;
+  isDefault: boolean;
 }
 
 interface FileOpenTarget {
@@ -400,6 +401,7 @@ export async function getFileOpenCandidates(
     appName: candidate.appName,
     appPath: candidate.appPath,
     iconUrl: icons.get(candidate.appPath) ?? null,
+    isDefault: candidate.isDefault,
   }));
 }
 

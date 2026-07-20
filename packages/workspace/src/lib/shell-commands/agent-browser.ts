@@ -25,6 +25,7 @@ import {
   taskDir,
 } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
+import { rewriteNavigationArgToAssetUrl } from "./agent-browser-asset-url";
 import {
   resolveCommandContext,
   resolvePathArgs,
@@ -111,6 +112,13 @@ const WORKSPACE_HELP = dedent`
     2. agent-browser snapshot -i
     3. Act on @refs from the snapshot
     4. Re-run snapshot -i after navigation or DOM changes
+
+  Inspecting a file you created:
+    agent-browser open output/report.html   Task files load in the browser
+    agent-browser open /task/output/x.html  Task-relative, /task/..., /mnt/...,
+                                            and file:///task/... all work
+  Use this to check an HTML deliverable end to end -- rendered layout,
+  interactivity, and console errors -- not just its source.
 
   Reading page content:
     agent-browser read                 Read the active page as agent-friendly text
@@ -207,7 +215,14 @@ export function createAgentBrowserCommand({
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
-    const resolvedArgs = resolvePathArgs(strippedArgs, taskId, ctx);
+    // Before resolvePathArgs, which would otherwise turn a `/task/...`
+    // navigation target into a host path the browser cannot load.
+    const navigationArgs = await rewriteNavigationArgToAssetUrl(
+      strippedArgs,
+      taskId,
+      ctx,
+    );
+    const resolvedArgs = resolvePathArgs(navigationArgs, taskId, ctx);
 
     // Info-only invocations (--help, --version) print and exit without ever
     // touching a browser target, so don't spin up a WebContentsView or attach

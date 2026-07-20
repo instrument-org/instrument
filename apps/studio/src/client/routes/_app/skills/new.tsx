@@ -42,8 +42,8 @@ function NewSkillPage() {
           </div>
           <h1 className="font-serif text-3xl tracking-tight">Create a skill</h1>
           <p className="mx-auto mt-3 max-w-lg text-sm/relaxed text-muted-foreground">
-            Describe the capability or workflow you want to reuse. The agent will
-            help shape it and save the finished skill to this workspace.
+            Describe the capability or workflow you want to reuse. The agent
+            will help shape it and save the finished skill to this workspace.
           </p>
         </div>
 

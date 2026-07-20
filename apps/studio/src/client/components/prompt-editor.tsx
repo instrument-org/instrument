@@ -2,6 +2,7 @@ import { cn } from "@/client/lib/utils";
 import { baseKeymap } from "prosemirror-commands";
 import { history } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
+import { Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import {
@@ -143,6 +144,8 @@ export function PromptEditor({
           "prompt-editor max-h-full min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-sm outline-none",
         "data-placeholder": initialProps.placeholder ?? "",
       },
+      clipboardTextParser: (text) =>
+        Slice.maxOpen(promptDocFromText(text).content),
       clipboardTextSerializer: (slice) =>
         promptTextFromDoc(promptSchema.nodes.doc.create(null, slice.content)),
       dispatchTransaction: (transaction) => {

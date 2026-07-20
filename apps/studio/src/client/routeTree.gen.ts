@@ -18,6 +18,7 @@ import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/pro
 import { Route as AppTutorialTaskRouteImport } from './routes/_app/tutorial-task'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
+import { Route as AppSkillsRouteRouteImport } from './routes/_app/skills/route'
 import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
@@ -93,6 +94,11 @@ const AppNewTabRoute = AppNewTabRouteImport.update({
   path: '/new-tab',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppSkillsRouteRoute = AppSkillsRouteRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppDebugRouteRoute = AppDebugRouteRouteImport.update({
   id: '/debug',
   path: '/debug',
@@ -108,9 +114,9 @@ const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
-  id: '/skills/',
-  path: '/skills/',
-  getParentRoute: () => AppRouteRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSkillsRouteRoute,
 } as any)
 const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   id: '/',
@@ -118,14 +124,14 @@ const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
 const AppSkillsNewRoute = AppSkillsNewRouteImport.update({
-  id: '/skills/new',
-  path: '/skills/new',
-  getParentRoute: () => AppRouteRoute,
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppSkillsRouteRoute,
 } as any)
 const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
-  id: '/skills/$name',
-  path: '/skills/$name',
-  getParentRoute: () => AppRouteRoute,
+  id: '/$name',
+  path: '/$name',
+  getParentRoute: () => AppSkillsRouteRoute,
 } as any)
 const AppDebugNotificationsRoute = AppDebugNotificationsRouteImport.update({
   id: '/notifications',
@@ -263,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/debug': typeof AppDebugRouteRouteWithChildren
+  '/skills': typeof AppSkillsRouteRouteWithChildren
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/tutorial-task': typeof AppTutorialTaskRoute
@@ -340,6 +347,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
   '/_app/debug': typeof AppDebugRouteRouteWithChildren
+  '/_app/skills': typeof AppSkillsRouteRouteWithChildren
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/_app/tutorial-task': typeof AppTutorialTaskRoute
@@ -381,6 +389,7 @@ export interface FileRouteTypes {
     | '/'
     | '/onboarding'
     | '/debug'
+    | '/skills'
     | '/new-tab'
     | '/release-notes'
     | '/tutorial-task'
@@ -457,6 +466,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/_app/_authenticated'
     | '/_app/debug'
+    | '/_app/skills'
     | '/_app/new-tab'
     | '/_app/release-notes'
     | '/_app/tutorial-task'
@@ -564,6 +574,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNewTabRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/skills': {
+      id: '/_app/skills'
+      path: '/skills'
+      fullPath: '/skills'
+      preLoaderRoute: typeof AppSkillsRouteRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/debug': {
       id: '/_app/debug'
       path: '/debug'
@@ -587,10 +604,10 @@ declare module '@tanstack/react-router' {
     }
     '/_app/skills/': {
       id: '/_app/skills/'
-      path: '/skills'
+      path: '/'
       fullPath: '/skills/'
       preLoaderRoute: typeof AppSkillsIndexRouteImport
-      parentRoute: typeof AppRouteRoute
+      parentRoute: typeof AppSkillsRouteRoute
     }
     '/_app/debug/': {
       id: '/_app/debug/'
@@ -601,17 +618,17 @@ declare module '@tanstack/react-router' {
     }
     '/_app/skills/new': {
       id: '/_app/skills/new'
-      path: '/skills/new'
+      path: '/new'
       fullPath: '/skills/new'
       preLoaderRoute: typeof AppSkillsNewRouteImport
-      parentRoute: typeof AppRouteRoute
+      parentRoute: typeof AppSkillsRouteRoute
     }
     '/_app/skills/$name': {
       id: '/_app/skills/$name'
-      path: '/skills/$name'
+      path: '/$name'
       fullPath: '/skills/$name'
       preLoaderRoute: typeof AppSkillsNameRouteImport
-      parentRoute: typeof AppRouteRoute
+      parentRoute: typeof AppSkillsRouteRoute
     }
     '/_app/debug/notifications': {
       id: '/_app/debug/notifications'
@@ -869,15 +886,29 @@ const AppDebugRouteRouteWithChildren = AppDebugRouteRoute._addFileChildren(
   AppDebugRouteRouteChildren,
 )
 
-interface AppRouteRouteChildren {
-  AppAuthenticatedRouteRoute: typeof AppAuthenticatedRouteRouteWithChildren
-  AppDebugRouteRoute: typeof AppDebugRouteRouteWithChildren
-  AppNewTabRoute: typeof AppNewTabRoute
-  AppReleaseNotesRoute: typeof AppReleaseNotesRoute
-  AppTutorialTaskRoute: typeof AppTutorialTaskRoute
+interface AppSkillsRouteRouteChildren {
   AppSkillsNameRoute: typeof AppSkillsNameRoute
   AppSkillsNewRoute: typeof AppSkillsNewRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
+}
+
+const AppSkillsRouteRouteChildren: AppSkillsRouteRouteChildren = {
+  AppSkillsNameRoute: AppSkillsNameRoute,
+  AppSkillsNewRoute: AppSkillsNewRoute,
+  AppSkillsIndexRoute: AppSkillsIndexRoute,
+}
+
+const AppSkillsRouteRouteWithChildren = AppSkillsRouteRoute._addFileChildren(
+  AppSkillsRouteRouteChildren,
+)
+
+interface AppRouteRouteChildren {
+  AppAuthenticatedRouteRoute: typeof AppAuthenticatedRouteRouteWithChildren
+  AppDebugRouteRoute: typeof AppDebugRouteRouteWithChildren
+  AppSkillsRouteRoute: typeof AppSkillsRouteRouteWithChildren
+  AppNewTabRoute: typeof AppNewTabRoute
+  AppReleaseNotesRoute: typeof AppReleaseNotesRoute
+  AppTutorialTaskRoute: typeof AppTutorialTaskRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
   AppProjectsIdIndexRoute: typeof AppProjectsIdIndexRoute
   AppTasksIdIndexRoute: typeof AppTasksIdIndexRoute
@@ -886,12 +917,10 @@ interface AppRouteRouteChildren {
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppAuthenticatedRouteRoute: AppAuthenticatedRouteRouteWithChildren,
   AppDebugRouteRoute: AppDebugRouteRouteWithChildren,
+  AppSkillsRouteRoute: AppSkillsRouteRouteWithChildren,
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTutorialTaskRoute: AppTutorialTaskRoute,
-  AppSkillsNameRoute: AppSkillsNameRoute,
-  AppSkillsNewRoute: AppSkillsNewRoute,
-  AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
   AppProjectsIdIndexRoute: AppProjectsIdIndexRoute,
   AppTasksIdIndexRoute: AppTasksIdIndexRoute,

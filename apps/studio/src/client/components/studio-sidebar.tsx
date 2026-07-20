@@ -1,3 +1,4 @@
+import { featuresAtom } from "@/client/atoms/features";
 import { InternalLink } from "@/client/components/internal-link";
 import { NavProjects } from "@/client/components/nav-projects";
 import { NavSkills } from "@/client/components/nav-skills";
@@ -15,6 +16,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { NotePencilIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 
 export function StudioSidebar({
@@ -24,6 +26,8 @@ export function StudioSidebar({
   // rather than re-matching a pathname string, which can throw on a router that
   // was just created for a newly opened tab and hasn't run its first load yet.
   const matches = useRouterState({ select: (s) => s.matches });
+
+  const features = useAtomValue(featuresAtom);
 
   const { data: projects, isPending: isProjectsPending } = useQuery(
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
@@ -67,7 +71,7 @@ export function StudioSidebar({
         {!isPending && (
           <>
             <NavProjects matches={matches} projects={projects} />
-            <NavSkills matches={matches} />
+            {features.skills && <NavSkills matches={matches} />}
             {tasksData?.tasks && tasksData.tasks.length > 0 && (
               <NavTasks
                 matches={matches}

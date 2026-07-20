@@ -172,8 +172,10 @@ export const PromptInput = ({
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
+  // An empty list also closes off the editor's slash menu, so the flag gates
+  // both the lookup and the completion UI.
   const { data: skills = [] } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions(),
+    rpcClient.workspace.skill.list.queryOptions({ enabled: features.skills }),
   );
 
   const selectedModel = models?.find((model) => model.uri === modelURI);

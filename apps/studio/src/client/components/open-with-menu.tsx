@@ -77,7 +77,12 @@ function OpenWithCandidates({
     enabled: true,
   });
   const openWith = useOpenTaskFileWith();
-  const candidates = omitDefault ? apps.slice(1) : apps;
+  // The split button already launches the default app, so its menu lists only
+  // the alternatives. Match on the flag rather than on position: the resolver
+  // orders by Launch Services preference, which is not a guarantee.
+  const candidates = omitDefault
+    ? apps.filter((candidate) => !candidate.isDefault)
+    : apps;
 
   if (isPending) {
     return (

@@ -128,6 +128,60 @@ describe("nodeCommand", () => {
     );
   });
 
+  it.each([
+    ["--inspect"],
+    ["--inspect-brk=9229"],
+    ["--watch"],
+    ["--debug"],
+    ["-i"],
+  ])("refuses %s without spawning node", async (flag) => {
+    const { execa } = await import("execa");
+
+    const result = await command.execute([flag, "./work/a.js"], mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(`${flag} is not available`);
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+
+  it("forwards unrecognized node flags instead of dropping them", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(
+      ["--env-file=work/.env", "--no-warnings", "./work/a.js"],
+      mockCtx,
+    );
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      ["--env-file=work/.env", "--no-warnings", "work/a.js"],
+      expect.any(Object),
+    );
+  });
+
+  it("bridges a /task path in a forwarded flag value", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["--env-file=/task/work/.env", "./work/a.js"], {
+      ...mockCtx,
+      cwd: "/task",
+    });
+
+    expect(vi.mocked(execa)).toHaveBeenCalledWith(
+      process.execPath,
+      ["--env-file=work/.env", "work/a.js"],
+      expect.any(Object),
+    );
+  });
+
   it("evaluates and prints code via -p", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({

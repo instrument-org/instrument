@@ -9,6 +9,7 @@ import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { TS_COMMAND } from "./ts";
 import {
+  bridgeFlagValuePath,
   bridgeInlineCodePaths,
   extractFileAndScriptArgs,
   firstString,
@@ -17,6 +18,13 @@ import {
   stringArray,
   subprocessStdin,
 } from "./utils";
+
+// Unrecognized flags are forwarded to node as-is; these are refused instead,
+// because they park the process on a debugger or a file watcher that nothing
+// in the sandbox can reach, so the command only ends when the agent's timeout
+// kills it.
+const BLOCKED_FLAGS = new Set(["--interactive", "-i"]);
+const BLOCKED_FLAG_PREFIXES = ["--inspect", "--debug", "--watch"];
 
 function execNode(
   taskId: TaskId,
@@ -39,6 +47,14 @@ function execNode(
     reject: false,
     ...(stdin ? { input: stdin } : { stdin: "ignore" }),
   });
+}
+
+function isBlockedFlag(flag: string): boolean {
+  const name = flag.includes("=") ? flag.slice(0, flag.indexOf("=")) : flag;
+  return (
+    BLOCKED_FLAGS.has(name) ||
+    BLOCKED_FLAG_PREFIXES.some((prefix) => name.startsWith(prefix))
+  );
 }
 
 const KNOWN_OPTIONS = {
@@ -75,11 +91,21 @@ export function createNodeCommand(taskId: TaskId) {
       };
     }
 
-    const { positionals, values } = parseScriptRunnerArgs(
+    const { positionals, unknownFlags, values } = parseScriptRunnerArgs(
       NODE_COMMAND.name,
       args,
       KNOWN_OPTIONS,
+      { captureUnknown: false },
     );
+
+    const blockedFlag = unknownFlags.find(isBlockedFlag);
+    if (blockedFlag !== undefined) {
+      return {
+        exitCode: 1,
+        stderr: `${NODE_COMMAND.name}: ${blockedFlag} is not available in this environment. Interactive, debugger, and watch flags leave the command running with nothing able to attach to it.`,
+        stdout: "",
+      };
+    }
 
     const isVersion = values.v === true || values.version === true;
 
@@ -109,7 +135,15 @@ export function createNodeCommand(taskId: TaskId) {
     const requires = stringArray(values.require);
     const imports = stringArray(values.import);
 
-    const nodeFlags: string[] = [];
+    // Flags node understands but this shim does not interpret are forwarded
+    // verbatim, so an unlisted one degrades to node's own error rather than
+    // silently changing what the script does (a dropped `--env-file` left the
+    // script running against the wrong environment, exit code 0).
+    const nodeFlags = unknownFlags.map((flag) =>
+      bridgeFlagValuePath(flag, taskId, taskCwd, (p) =>
+        ctx.fs.resolvePath(ctx.cwd, p),
+      ),
+    );
     if (values.check === true || values.c === true) {
       nodeFlags.push("--check");
     }

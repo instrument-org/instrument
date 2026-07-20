@@ -75,7 +75,7 @@ export const Grep = setupTool({
     if (pathResult.isErr()) {
       return err(pathResult.error);
     }
-    const { absolutePath, attachedMount, displayPath } = pathResult.value;
+    const { absolutePath, displayPath, mount } = pathResult.value;
 
     // Inside an attached mount (/mnt/<name>/...), search the real folder on
     // disk; otherwise search the task-relative displayPath (the task root when
@@ -85,7 +85,7 @@ export const Grep = setupTool({
       include: input.include,
       limit: GREP_LIMIT,
       pattern: input.pattern,
-      searchPath: attachedMount ? absolutePath : displayPath,
+      searchPath: mount ? absolutePath : displayPath,
       signal,
     });
 
@@ -98,7 +98,7 @@ export const Grep = setupTool({
       matches: result.matches.map((match) => ({
         ...match,
         lineText: redactTaskDir(match.lineText, taskDir(taskId)),
-        path: attachedMount
+        path: mount
           ? (resolveVirtualPath(layout, match.path) ?? match.path)
           : match.path,
       })),

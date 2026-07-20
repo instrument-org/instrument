@@ -6,7 +6,7 @@ import {
 } from "just-bash";
 import { realpathSync } from "node:fs";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { REGISTRY_FOLDER_NAMES, TASK_FOLDER_NAMES } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -16,6 +16,7 @@ import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
+import { getWorkspaceConfigIfInitialized } from "./workspace-config";
 
 /**
  * Virtual mount point of the writable task directory.
@@ -29,19 +30,31 @@ import { ReadOnlyBaseFs } from "./read-only-base-fs";
 export const TASK_MOUNT_POINT = "/task";
 
 /**
- * The complete virtual filesystem layout for a task: the writable task mount
- * plus any read-only user-attached folders. This is the single source of truth
- * shared by the bash sandbox (just-bash filesystem), the native-binary path
- * bridge, and the dedicated file tools, so all three agree on what the agent
- * can see and where.
+ * Virtual mount point of the workspace's own `skills/` directory.
+ *
+ * Writable, unlike the read-only attached folders: authoring a skill is editing
+ * a plain package of files, so the agent does it with the ordinary file tools
+ * rather than a dedicated tool. Only the workspace's skills live here -- skills
+ * discovered in a co-installed agent's home directory stay readable through
+ * `load_skill` and are never exposed for writing.
+ */
+export const SKILLS_MOUNT_POINT = "/skills";
+
+/**
+ * The complete virtual filesystem layout for a task: the writable task mount,
+ * the writable workspace skills mount, and any read-only user-attached folders.
+ * This is the single source of truth shared by the bash sandbox (just-bash
+ * filesystem), the native-binary path bridge, and the dedicated file tools, so
+ * all three agree on what the agent can see and where.
  */
 export interface WorkspaceFsLayout {
   attached: WorkspaceFsMount[];
+  skills: null | WorkspaceFsMount;
   task: WorkspaceFsMount & { hostRoot: TaskDir; readOnly: false };
 }
 
 /** A single virtual->real mount in the workspace filesystem. */
-interface WorkspaceFsMount {
+export interface WorkspaceFsMount {
   /** Real on-disk directory backing this mount. */
   hostRoot: AbsolutePath;
   /** Absolute, normalized virtual path where the directory appears. */
@@ -98,6 +111,13 @@ export async function buildBashFs(
     );
   }
 
+  if (layout.skills && (await pathExists(layout.skills.hostRoot))) {
+    fs.mount(
+      layout.skills.mountPoint,
+      new ReadWriteFs({ maxFileReadSize, root: layout.skills.hostRoot }),
+    );
+  }
+
   return fs;
 }
 
@@ -121,8 +141,17 @@ export function buildWorkspaceFsLayout({
     readOnly: true,
   }));
 
+  const skillsHostRoot = getWorkspaceSkillsDir();
+
   return {
     attached,
+    skills: skillsHostRoot
+      ? {
+          hostRoot: skillsHostRoot,
+          mountPoint: SKILLS_MOUNT_POINT,
+          readOnly: false,
+        }
+      : null,
     task: {
       hostRoot: taskHostRoot,
       mountPoint: TASK_MOUNT_POINT,
@@ -156,6 +185,11 @@ export function hostPathEscapesMount(
   }
 
   return !pathIsWithin(canonicalPath, canonicalRoot);
+}
+
+/** Every mount other than the task, in the order they are advertised. */
+export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
+  return [...layout.attached, ...(layout.skills ? [layout.skills] : [])];
 }
 
 /** Virtual mount point of the masked-off private dir under the task mount. */
@@ -274,7 +308,18 @@ export function resolveVirtualPath(
 
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
-  return [layout.task, ...layout.attached];
+  return [layout.task, ...nonTaskMounts(layout)];
+}
+
+/**
+ * Workspace skills dir, or null outside a running workspace (unit tests and the
+ * standalone run-bash script), where there is nothing to mount.
+ */
+function getWorkspaceSkillsDir(): AbsolutePath | null {
+  const config = getWorkspaceConfigIfInitialized();
+  return config
+    ? absolutePathJoin(config.rootDir, REGISTRY_FOLDER_NAMES.skills)
+    : null;
 }
 
 function isEnoent(error: unknown): boolean {

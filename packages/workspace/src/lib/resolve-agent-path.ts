@@ -18,6 +18,7 @@ import { pathIsWithin } from "./path-is-within";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
   hostPathEscapesMount,
+  nonTaskMounts,
   resolveHostPath,
   TASK_MOUNT_POINT,
   type WorkspaceFsLayout,
@@ -113,17 +114,17 @@ export async function getSimilarPathSuggestions({
 
 /**
  * Resolve a read-path input against the workspace layout. Accepts task-relative
- * paths, the task's own virtual paths (/task/...), and attached-folder mount
- * paths (/mnt/<name>/...). Any other absolute path is an error that steers the
- * agent back into the layout.
+ * paths, the task's own virtual paths (/task/...), attached-folder mount paths
+ * (/mnt/<name>/...), and the workspace skills mount (/skills/...). Any other
+ * absolute path is an error that steers the agent back into the layout.
  *
- * Returns `{ absolutePath, displayPath, attachedMount }`:
+ * Returns `{ absolutePath, displayPath, mount }`:
  * - `absolutePath` — real host path; use for all file I/O.
  * - `displayPath` — what to echo back to the agent: task-relative for the task
- *   (./work/...), the virtual mount path for attached folders (/mnt/...).
- * - `attachedMount` — the attached mount that owns the path, or null when the
- *   path is in the task. Callers that emit host paths (glob/grep results) must
- *   map them back through resolveVirtualPath when this is set.
+ *   (./work/...), the virtual mount path everywhere else (/mnt/..., /skills/...).
+ * - `mount` — the non-task mount that owns the path, or null when the path is in
+ *   the task. Callers that emit host paths (glob/grep results) must map them
+ *   back through resolveVirtualPath when this is set.
  */
 export function resolveAgentPath(options: {
   inputPath?: string;
@@ -136,8 +137,8 @@ export function resolveAgentPath(options: {
     if (!isRequired) {
       return ok({
         absolutePath: layout.task.hostRoot,
-        attachedMount: null,
         displayPath: "./",
+        mount: null,
       });
     }
     return executeError("Path is required but was not provided");
@@ -152,7 +153,7 @@ export function resolveAgentPath(options: {
   if (result.isErr()) {
     return result;
   }
-  return ok({ ...result.value, attachedMount: null });
+  return ok({ ...result.value, mount: null });
 }
 
 /**
@@ -207,11 +208,12 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
 }
 
 /**
- * Resolve a write-path input against the workspace layout. Task-relative paths
- * and the task's own virtual paths (/task/...) resolve normally; read-only
- * mounts are rejected with copy-into-task guidance instead of silently landing
- * somewhere else. A writable non-task mount (none today) would be allowed by
- * its mount's readOnly flag, not by a special case here.
+ * Resolve a write-path input against the workspace layout. Task-relative paths,
+ * the task's own virtual paths (/task/...), and the writable skills mount
+ * (/skills/...) resolve normally; read-only mounts are rejected with
+ * copy-into-task guidance instead of silently landing somewhere else. Whether a
+ * non-task mount is writable is decided by its readOnly flag, never by a
+ * per-mount special case here.
  */
 export function resolveWritableToolPath(options: {
   inputPath: string;
@@ -228,8 +230,8 @@ export function resolveWritableToolPath(options: {
   if (result.isErr()) {
     return result;
   }
-  const { absolutePath, attachedMount, displayPath } = result.value;
-  if (attachedMount?.readOnly) {
+  const { absolutePath, displayPath, mount } = result.value;
+  if (mount?.readOnly) {
     return executeError(
       `"${displayPath}" is in a read-only attached folder and cannot be written. ` +
         `Copy the file into the task first (e.g. cp '${displayPath}' attachments/) and work on the copy.`,
@@ -267,10 +269,10 @@ function privateDirError(displayPath: string) {
 }
 
 /**
- * Resolve an absolute virtual path (/task/... or /mnt/<name>/...) through the
- * layout. Absolute paths outside every mount error with steering: real host
- * paths into an attached folder point at the folder's assigned mount path, and
- * anything else lists what the layout actually exposes.
+ * Resolve an absolute virtual path (/task/..., /mnt/<name>/..., /skills/...)
+ * through the layout. Absolute paths outside every mount error with steering:
+ * real host paths into a mounted directory point at that mount's virtual path,
+ * and anything else lists what the layout actually exposes.
  */
 function resolveVirtualAbsolutePath(
   layout: WorkspaceFsLayout,
@@ -279,22 +281,21 @@ function resolveVirtualAbsolutePath(
   const resolved = resolveHostPath(layout, virtualPath);
 
   if (resolved === null) {
-    // The agent passed a real host path that points into an attached folder.
+    const mounts = nonTaskMounts(layout);
+    // The agent passed a real host path that points into a mounted directory.
     // Steer it to the mount path instead of leaking host paths around.
-    const owner = layout.attached.find((mount) =>
+    const owner = mounts.find((mount) =>
       pathIsWithin(virtualPath, mount.hostRoot),
     );
     if (owner) {
       return executeError(
-        `The path "${virtualPath}" is an attached folder's real location on disk. ` +
+        `The path "${virtualPath}" is a mounted folder's real location on disk. ` +
           `Use its mount path "${owner.mountPoint}/..." instead.`,
       );
     }
     const mountHint =
-      layout.attached.length > 0
-        ? `, or an attached-folder mount path (${layout.attached
-            .map((mount) => mount.mountPoint)
-            .join(", ")})`
+      mounts.length > 0
+        ? `, or a mount path (${mounts.map((mount) => mount.mountPoint).join(", ")})`
         : "";
     return executeError(
       `The absolute path "${virtualPath}" is outside the task. ` +
@@ -317,8 +318,8 @@ function resolveVirtualAbsolutePath(
         : `./${normalized.slice(TASK_MOUNT_POINT.length + 1)}`;
     return ok({
       absolutePath: hostPath,
-      attachedMount: null,
       displayPath: RelativePathSchema.parse(relative),
+      mount: null,
     });
   }
 
@@ -327,13 +328,13 @@ function resolveVirtualAbsolutePath(
   // a symlink inside the folder could read host files.
   if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
     return executeError(
-      `The path "${virtualPath}" resolves outside the read-only attached folder (via a symlink) and cannot be accessed.`,
+      `The path "${virtualPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
     );
   }
 
   return ok({
     absolutePath: hostPath,
-    attachedMount: mount,
     displayPath: normalizePath(virtualPath),
+    mount,
   });
 }

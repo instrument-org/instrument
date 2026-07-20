@@ -1,11 +1,15 @@
 ---
 name: skill-creator
-description: Create a reusable agent skill from a user's workflow, domain knowledge, or tool instructions. Use whenever a user wants to create, capture, package, or turn something into a new skill.
+description: Create or revise a reusable agent skill from a user's workflow, domain knowledge, or tool instructions. Use whenever a user wants to create, capture, package, edit, or turn something into a skill.
 ---
 
 # Skill Creator
 
-Create a focused, reusable skill package in the Instrument workspace.
+Create and revise focused, reusable skill packages in the Instrument workspace.
+
+Skills live in `/skills/<name>/`, a writable mount outside the task root. Write
+and edit them with the ordinary file tools. A skill saved there is available to
+`load_skill` immediately.
 
 ## Workflow
 
@@ -19,14 +23,29 @@ Create a focused, reusable skill package in the Instrument workspace.
 4. Draft a concise `SKILL.md` body. Assume the agent already knows general
    concepts and include only domain-specific procedures, constraints, and
    decision guidance.
-5. Call `save_skill` once the package is ready. It creates `SKILL.md`
-   frontmatter and writes any bundled text resources atomically.
+5. Write the package to `/skills/<name>/`. Check whether that directory already
+   exists first: revising an existing skill is fine, silently replacing one the
+   user did not mean to touch is not.
 6. Tell the user the skill name and that it is available from Skills and the
    prompt slash menu.
 
 ## Package design
 
-Every skill requires `SKILL.md`. Optional resources use these directories:
+Every skill requires `SKILL.md`, whose frontmatter must set `name` and
+`description`:
+
+```markdown
+---
+name: <directory name>
+description: <what it does and when to use it>
+---
+```
+
+Add `disable-model-invocation: true` when the skill should only ever run because
+the user asked for it by name. It then stays listed in Skills and the slash menu
+but is kept out of the catalog agents choose from.
+
+Optional resources use these directories:
 
 - `scripts/` for deterministic or repeatedly rewritten operations
 - `references/` for details loaded only when needed
@@ -37,7 +56,8 @@ changelog, or quick reference.
 
 ## Naming and description
 
-- Use lowercase letters, digits, and hyphens only.
+- Use lowercase letters, digits, and hyphens only. The directory name is the
+  skill's identity, so it must match the `name` in frontmatter.
 - Keep the name under 64 characters and prefer a short action-oriented phrase.
 - Make the description explain both what the skill does and the situations that
   should trigger it. Trigger guidance belongs in the description, not the body.

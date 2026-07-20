@@ -16,6 +16,15 @@ export function getWorkspaceConfig(): WorkspaceConfig {
   return current;
 }
 
+/**
+ * The config if the workspace has booted, otherwise undefined. For callers that
+ * must also work outside a running workspace -- unit tests and the standalone
+ * `run-bash` script build a filesystem layout without one.
+ */
+export function getWorkspaceConfigIfInitialized(): undefined | WorkspaceConfig {
+  return current;
+}
+
 export function setWorkspaceConfig(config: WorkspaceConfig): void {
   current = config;
 }

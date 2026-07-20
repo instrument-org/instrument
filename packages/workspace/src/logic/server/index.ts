@@ -11,7 +11,7 @@ import { type ActorRefFrom, type AnyEventObject, fromCallback } from "xstate";
 import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
-import { DEFAULT_APPS_SERVER_PORT } from "./constants";
+import { DEFAULT_APPS_SERVER_PORT, LOOPBACK_HOST } from "./constants";
 import { allProxyRoute } from "./routes/all-proxy";
 import { assetsRoute } from "./routes/assets";
 import { cdpBridgeRoute, setupCdpWebSocketBridge } from "./routes/cdp-bridge";
@@ -84,7 +84,7 @@ export const workspaceServerLogic = fromCallback<
           apps_server_port: port,
         });
       }
-      server = serve({ fetch: app.fetch, port });
+      server = serve({ fetch: app.fetch, hostname: LOOPBACK_HOST, port });
 
       setupWebSocketProxy(server, input.parentRef);
       setupCdpWebSocketBridge(server, input.workspaceConfig, input.parentRef);

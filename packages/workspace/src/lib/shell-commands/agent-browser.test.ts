@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { createAgentBrowserCommand } from "./agent-browser";
+import { createAgentBrowserCommand, isDaemonConfigRace } from "./agent-browser";
 
 const mockCtx: CommandContext = {
   cwd: "/",
@@ -61,4 +61,24 @@ describe("createAgentBrowserCommand", () => {
       );
     },
   );
+});
+
+describe("isDaemonConfigRace", () => {
+  it("matches the CLI's daemon-configuration refusal", () => {
+    expect(
+      isDaemonConfigRace(
+        "✗ A daemon for session 'ses_01KXTDQBA6YKA952V0XGVK2HM4' started " +
+          "concurrently with different daemon configuration. Retry the command " +
+          "so agent-browser can restart it with the requested configuration.",
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["✗ Navigation failed: net::ERR_FILE_NOT_FOUND"],
+    ["✗ CDP error (Page.navigate): CDP command timed out: Page.navigate."],
+    [""],
+  ])("does not match unrelated failure %j", (output) => {
+    expect(isDaemonConfigRace(output)).toBe(false);
+  });
 });

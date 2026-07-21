@@ -1,3 +1,4 @@
+import { skillTokensToDisplayText } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { CaretUpIcon } from "@phosphor-icons/react";
@@ -6,6 +7,7 @@ import { memo, useEffect, useRef, useState } from "react";
 
 import { CopyButton } from "./copy-button";
 import { RelativeTime } from "./relative-time";
+import { SkillMentionText } from "./skill-mention-text";
 import {
   Collapsible,
   CollapsibleContent,
@@ -27,7 +29,9 @@ export const UserMessage = memo(function UserMessage({
   const messageText = part.text;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(messageText);
+    // Copy what is on screen. Neither form round trips back into the composer
+    // as a token, so the serialized one is only noise to whoever pastes it.
+    await navigator.clipboard.writeText(skillTokensToDisplayText(messageText));
   };
 
   useEffect(() => {
@@ -71,7 +75,7 @@ export const UserMessage = memo(function UserMessage({
             ref={contentRef}
           >
             <div className="text-sm break-words whitespace-pre-wrap">
-              {messageText}
+              <SkillMentionText text={messageText} />
             </div>
           </div>
 

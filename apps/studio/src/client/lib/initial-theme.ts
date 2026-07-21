@@ -1,20 +1,17 @@
 // Theme class is normally applied by ThemeProvider in an effect gated on an
 // async preferences query. That lands after first paint, so opaque light-mode
-// surfaces (e.g. the prompt input) flash white before flipping to dark. We
-// cache the last theme preference and apply the resolved class synchronously
-// before React mounts to avoid that flash.
-
-export const THEME_STORAGE_KEY = "studio-theme";
+// surfaces (e.g. the prompt input) flash white before flipping to dark.
+//
+// The main process pins `nativeTheme.themeSource` to the stored preference
+// before it creates any window, and Electron mirrors that onto the renderer's
+// `prefers-color-scheme`. So the resolved theme is readable here synchronously,
+// straight from the preference the app itself treats as authoritative, with no
+// renderer-side copy to fall out of sync with it.
 
 type Theme = "dark" | "light" | "system";
 
 export function applyInitialTheme() {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  const theme: Theme =
-    stored === "dark" || stored === "light" || stored === "system"
-      ? stored
-      : "system";
-  applyThemeClass(theme);
+  applyThemeClass("system");
 }
 
 export function applyThemeClass(theme: Theme) {

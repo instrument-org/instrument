@@ -17,6 +17,7 @@ import {
 } from "@/electron-main/lib/server-exceptions";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { setMainWindowZoom } from "@/electron-main/stores/window-state";
 import {
   closeMainWindow,
   isMainWindowMaximized,
@@ -543,11 +544,13 @@ const clearExceptions = base.input(z.void()).handler(() => {
 
 // The renderer owns the main-window zoom (CSS `zoom`); it reports the current level so
 // the main process can keep the macOS traffic lights centered in the toolbar,
-// whose visual height scales with that zoom.
+// whose visual height scales with that zoom. The level is stored so the next
+// window can be created with the buttons already in the right place.
 const syncZoom = base
   .input(z.object({ zoom: z.number() }))
   .handler(({ input }) => {
     setTrafficLightForZoom(input.zoom);
+    setMainWindowZoom(input.zoom);
   });
 
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).

@@ -11,6 +11,7 @@ export interface WindowBounds {
 interface StoredWindowState {
   bounds?: Partial<WindowBounds>;
   isMaximized?: boolean;
+  zoom?: number;
 }
 
 interface WindowState {
@@ -28,6 +29,19 @@ const MIN_VISIBLE_PX = 100;
 const store = new Store<StoredWindowState>({
   name: "window-state",
 });
+
+/**
+ * The main-window UI zoom the renderer last reported. The renderer owns the
+ * value (`zoomAtom`); the main process keeps a copy so a window can place its
+ * macOS traffic lights for the zoomed toolbar height at creation, rather than
+ * waiting for the renderer to mount and report the zoom back.
+ */
+export function getMainWindowZoom() {
+  const zoom = store.get("zoom");
+  return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0
+    ? zoom
+    : 1;
+}
 
 export function getWindowState() {
   const stored = store.store;
@@ -51,6 +65,10 @@ export function isWindowBoundsVisible(bounds: WindowBounds) {
   return screen.getAllDisplays().some((display) => {
     return isWindowWithinBounds(bounds, display.bounds);
   });
+}
+
+export function setMainWindowZoom(zoom: number) {
+  store.set("zoom", zoom);
 }
 
 export function setWindowState(value: WindowState) {

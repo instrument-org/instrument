@@ -56,7 +56,7 @@ export function StudioToolbar() {
                 setSidebarOpen(false);
               }}
               size="icon"
-              variant="ghost"
+              variant="ghost-toolbar"
             >
               <SidebarSimpleIcon />
             </Button>
@@ -68,7 +68,7 @@ export function StudioToolbar() {
               }}
               size="icon"
               title="Show sidebar"
-              variant="ghost"
+              variant="ghost-toolbar"
             >
               <SidebarSimpleIcon />
               {hasExceptions && (

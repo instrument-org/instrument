@@ -67,6 +67,7 @@ describe("isDaemonConfigRace", () => {
   it("matches the CLI's daemon-configuration refusal", () => {
     expect(
       isDaemonConfigRace(
+        // cspell:ignore KXTDQBA XGVK
         "✗ A daemon for session 'ses_01KXTDQBA6YKA952V0XGVK2HM4' started " +
           "concurrently with different daemon configuration. Retry the command " +
           "so agent-browser can restart it with the requested configuration.",

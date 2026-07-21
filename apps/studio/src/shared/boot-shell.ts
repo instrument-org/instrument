@@ -18,18 +18,23 @@ export const BOOT_SHELL_CLASS_NAMES = {
   tab: "boot-shell-tab",
 } as const;
 
-/** Mirrors globals.css: --background, --foreground, the toolbar's gray ramp, and --border. */
+/**
+ * Mirrors globals.css: --background, --foreground, --border, --muted (the tab's
+ * loading bar), and the toolbar's gray ramp.
+ */
 export const BOOT_SHELL_COLORS = {
   dark: {
     background: "#1c1917",
     border: "rgb(255 255 255 / 10%)",
     foreground: "#ffffff",
+    muted: "rgb(255 255 255 / 8%)",
     toolbar: "#292524",
   },
   light: {
     background: "#fafaf9",
     border: "#e7e5e4",
     foreground: "#171412",
+    muted: "#f5f5f4",
     toolbar: "#e7e5e4",
   },
 } as const;

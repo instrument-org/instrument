@@ -77,7 +77,12 @@ export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
         continue;
       }
       seenDirs.add(canonical);
-      skillMap.set(skill.name, skill);
+      // Report where the skill really lives, not the symlink we reached it
+      // through, so the UI can group and reveal it honestly.
+      skillMap.set(skill.name, {
+        ...skill,
+        skillDir: AbsolutePathSchema.parse(canonical),
+      });
     }
   }
 

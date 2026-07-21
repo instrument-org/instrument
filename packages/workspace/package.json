@@ -69,6 +69,7 @@
     "read-pkg": "^9.0.1",
     "superjson": "^2.2.2",
     "tiny-invariant": "^1.3.3",
+    "tokenx": "^1.3.0",
     "ulid": "^3.0.1",
     "unstorage": "^1.16.1",
     "ws": "^8.18.3",

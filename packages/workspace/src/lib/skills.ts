@@ -24,6 +24,20 @@ export const FILE_LIST_LIMIT = 50;
  */
 const SKILL_NOISE_PATTERNS = [".*", "__pycache__", "node_modules", "venv"];
 
+export type FrontmatterResult =
+  | {
+      body: string;
+      compatibility: string | undefined;
+      description: string;
+      /** Every key the frontmatter declared, so a caller can flag typos. */
+      keys: string[];
+      modelInvocable: boolean;
+      ok: true;
+      title: string | undefined;
+    }
+  | { keys: string[]; ok: false; reason: "no-description" }
+  | { ok: false; reason: "no-frontmatter" | "unparseable" };
+
 export interface SkillInfo {
   content: string;
   description: string;
@@ -188,38 +202,48 @@ export async function listSkillFiles(
   return { files: results, truncated };
 }
 
-export function parseFrontmatter(raw: string): null | {
-  body: string;
-  description: string;
-  modelInvocable: boolean;
-  title: string | undefined;
-} {
+/**
+ * Read a SKILL.md's frontmatter, saying why it was rejected when it was.
+ *
+ * Every rejection makes a skill invisible rather than broken -- it simply never
+ * appears in the catalog -- so the reason is the only way anyone finds out
+ * which one happened.
+ */
+export function parseFrontmatter(raw: string): FrontmatterResult {
+  if (!raw.trimStart().startsWith("---")) {
+    return { ok: false, reason: "no-frontmatter" };
+  }
+
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(raw);
   } catch {
+    clearMatterCache();
     try {
       parsed = matter(sanitizeFrontmatter(raw));
     } catch {
-      return null;
+      clearMatterCache();
+      return { ok: false, reason: "unparseable" };
     }
   }
 
+  const data: Record<string, unknown> = parsed.data;
   const description =
-    typeof parsed.data.description === "string"
-      ? parsed.data.description.trim()
-      : undefined;
+    typeof data.description === "string" ? data.description.trim() : undefined;
   if (!description) {
-    return null;
+    return { keys: Object.keys(data), ok: false, reason: "no-description" };
   }
 
-  const title =
-    typeof parsed.data.name === "string" ? parsed.data.name.trim() : undefined;
+  const title = typeof data.name === "string" ? data.name.trim() : undefined;
 
   return {
     body: parsed.content.trim(),
+    compatibility:
+      typeof data.compatibility === "string" ? data.compatibility : undefined,
     description,
-    modelInvocable: parsed.data["disable-model-invocation"] !== true,
+    keys: Object.keys(data),
+    modelInvocable: data["disable-model-invocation"] !== true,
+    ok: true,
     title: title || undefined,
   };
 }
@@ -231,6 +255,19 @@ async function canonicalDir(skillDir: AbsolutePath): Promise<string> {
   } catch {
     return skillDir;
   }
+}
+
+/**
+ * Drop gray-matter's memo of the string that just failed to parse.
+ *
+ * It caches by input, and a parse that throws still leaves an empty entry
+ * behind, so the next read of the same broken SKILL.md returns no data instead
+ * of throwing -- the file reads as "no description" the second time and
+ * "invalid YAML" the first. The cast is because `clearCache` is real but absent
+ * from the package's type declarations.
+ */
+function clearMatterCache() {
+  (matter as typeof matter & { clearCache: () => void }).clearCache();
 }
 
 async function findSkillsInDir(
@@ -263,7 +300,7 @@ async function findSkillsInDir(
     }
 
     const parsed = parseFrontmatter(raw);
-    if (!parsed) {
+    if (!parsed.ok) {
       continue;
     }
 

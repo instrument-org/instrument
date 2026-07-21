@@ -128,6 +128,39 @@ ${dir}\output\rainbow.pdf`;
     expect(result).toMatchInlineSnapshot(`""`);
   });
 
+  it.each([
+    {
+      expected: "https://***@github.com/o/r.git",
+      output: "https://ghp_secretToken@github.com/o/r.git",
+    },
+    {
+      expected: "https://***@github.com/o/r.git",
+      output: "https://user:ghp_secretToken@github.com/o/r.git",
+    },
+    {
+      expected: "origin\thttps://***@example.com/r (fetch)",
+      output: "origin\thttps://x-access-token:secret@example.com/r (fetch)",
+    },
+    {
+      // A token with no username, the usual spelling for a PAT in a remote.
+      expected: "https://***@github.com/o/r.git",
+      output: "https://:ghp_secretToken@github.com/o/r.git",
+    },
+    {
+      expected: "protocol=https\nusername=***\npassword=***",
+      output: "protocol=https\nusername=victim\npassword=ghp_secretToken",
+    },
+  ])("redacts credentials in $output", ({ expected, output }) => {
+    expect(filterShellOutput(output, dir)).toBe(expected);
+  });
+
+  it.each([
+    { output: "https://github.com/o/r.git" },
+    { output: "Cloning into 'r'... see https://example.com/help@2x.png" },
+  ])("leaves $output without userinfo untouched", ({ output }) => {
+    expect(filterShellOutput(output, dir)).toBe(output);
+  });
+
   it("filters debugger messages from output", () => {
     const output = `
     Error: Tool call execution failed for 'tool-bash': Command failed with exit code 1: pnpm dlx jiti scripts/test-06-dependencies.ts

@@ -3,6 +3,20 @@ import os from "node:os";
 import { type TaskDir } from "../schemas/paths";
 import { normalizePath } from "./normalize-path";
 
+/**
+ * Scheme plus the userinfo that precedes `@` in a URL authority. Neither the
+ * user nor the password segment may contain `/`, so a path segment ending in
+ * `@` (`https://host/a@b`) cannot match. The user segment may be empty:
+ * `https://:token@host` is the usual spelling for a token with no username.
+ */
+const URL_USERINFO_PATTERN = /([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi;
+
+/**
+ * git's credential protocol writes `password=<secret>` on its own line, which
+ * `git credential fill` prints to stdout.
+ */
+const CREDENTIAL_FIELD_PATTERN = /^(password|username)=.*$/gim;
+
 export function filterShellOutput(output: string, dir: TaskDir): string {
   let filtered = output;
   for (const variant of pathVariants(dir)) {
@@ -25,6 +39,13 @@ export function filterShellOutput(output: string, dir: TaskDir): string {
       );
     }
   }
+
+  // Redact credentials embedded in a URL's userinfo (`https://user:token@host`,
+  // `https://token@host`), the form a token reaches git, curl, and package
+  // managers in. Without this a token the agent put in a remote or a fetch URL
+  // echoes back through progress output, `git remote -v`, and auth errors.
+  filtered = filtered.replaceAll(URL_USERINFO_PATTERN, "$1***@");
+  filtered = filtered.replaceAll(CREDENTIAL_FIELD_PATTERN, "$1=***");
 
   // Keep agent-facing shell output consistent with tool path inputs.
   filtered = filtered.replaceAll("\\", "/");

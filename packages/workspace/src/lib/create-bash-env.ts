@@ -24,6 +24,7 @@ import {
   createFfprobeCommand,
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
+import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import {
   createPip3Command,
@@ -196,6 +197,12 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     factory: createFfprobeCommand,
     listInDescription: true,
     name: FFPROBE_COMMAND.name,
+  },
+  {
+    description: GIT_COMMAND.description,
+    factory: createGitCommand,
+    listInDescription: true,
+    name: GIT_COMMAND.name,
   },
   {
     description: NODE_COMMAND.description,

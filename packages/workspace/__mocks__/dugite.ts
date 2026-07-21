@@ -19,6 +19,16 @@ export const parseError = (): null | string => {
   return null;
 };
 
+export const resolveGitBinary = (): string => "/mock/git/bin/git";
+
+export const setupEnvironment = (
+  environmentVariables: Record<string, string | undefined>,
+  processEnv: NodeJS.ProcessEnv = {},
+) => ({
+  env: { ...processEnv, ...environmentVariables },
+  gitLocation: resolveGitBinary(),
+});
+
 export type {
   GitError,
   IGitBufferExecutionOptions,

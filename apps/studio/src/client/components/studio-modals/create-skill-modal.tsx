@@ -11,6 +11,7 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
@@ -58,8 +59,7 @@ export function CreateSkillModal() {
         <DialogHeader>
           <DialogTitle>Create a skill</DialogTitle>
           <DialogDescription>
-            Describe the capability or workflow you want to reuse. The agent
-            shapes it with you and saves it to this workspace.
+            {`Describe the know-how you want to reuse. ${APP_NAME} shapes it with you and saves it to this workspace.`}
           </DialogDescription>
         </DialogHeader>
         <PromptInput

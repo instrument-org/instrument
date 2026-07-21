@@ -99,7 +99,7 @@ function SkillsPage() {
           <div>
             <h1 className="font-serif text-3xl tracking-tight">Skills</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Specialized instructions available to your agents.
+              {`Extra know-how ${APP_NAME} can draw on for particular kinds of work.`}
             </p>
           </div>
           <Button onClick={openCreateSkill}>
@@ -114,9 +114,9 @@ function SkillsPage() {
           </p>
         ) : groups.length === 0 ? (
           <div className="rounded-2xl border border-dashed p-10 text-center">
-            <p className="font-medium">No skills found</p>
+            <p className="font-medium">No skills yet</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Create a skill or add one to an installed agent skills directory.
+              {`Create one, or add a skill folder to a directory ${APP_NAME} reads.`}
             </p>
           </div>
         ) : (
@@ -129,9 +129,7 @@ function SkillsPage() {
                       {group.label}
                     </h2>
                   ) : (
-                    group.dirs.map((dir) => (
-                      <RevealPath key={dir} path={dir} />
-                    ))
+                    group.dirs.map((dir) => <RevealPath key={dir} path={dir} />)
                   )}
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -142,9 +140,7 @@ function SkillsPage() {
                       params={{ name: skill.name }}
                       to="/skills/$name"
                     >
-                      <h3 className="text-sm font-semibold">
-                        {skill.title}
-                      </h3>
+                      <h3 className="text-sm font-semibold">{skill.title}</h3>
                       <p className="mt-2 line-clamp-3 text-sm/relaxed text-muted-foreground">
                         {skill.description}
                       </p>

@@ -26,38 +26,92 @@ afterEach(async () => {
 
 describe("parseFrontmatter", () => {
   it("parses typical skill file", () => {
-    const result = parseFrontmatter(make("description: Does a thing"));
-    expect(result).toEqual({
-      body: "Body content",
-      description: "Does a thing",
-      modelInvocable: true,
-    });
+    expect(parseFrontmatter(make("description: Does a thing")))
+      .toMatchInlineSnapshot(`
+        {
+          "body": "Body content",
+          "compatibility": undefined,
+          "description": "Does a thing",
+          "keys": [
+            "description",
+          ],
+          "modelInvocable": true,
+          "ok": true,
+          "title": undefined,
+        }
+      `);
   });
 
-  it("returns null when description is missing", () => {
-    expect(parseFrontmatter(make("name: foo"))).toBeNull();
+  it("says which rejection happened", () => {
+    expect({
+      noDescription: parseFrontmatter(make("name: foo")),
+      noFrontmatter: parseFrontmatter("Just plain content"),
+    }).toMatchInlineSnapshot(`
+      {
+        "noDescription": {
+          "keys": [
+            "name",
+          ],
+          "ok": false,
+          "reason": "no-description",
+        },
+        "noFrontmatter": {
+          "ok": false,
+          "reason": "no-frontmatter",
+        },
+      }
+    `);
   });
 
-  it("returns null when there is no frontmatter", () => {
-    expect(parseFrontmatter("Just plain content")).toBeNull();
+  it("gives the same reason every time it reads the same broken file", () => {
+    const raw = make("description: [");
+    expect([parseFrontmatter(raw), parseFrontmatter(raw)])
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "ok": false,
+          "reason": "unparseable",
+        },
+        {
+          "ok": false,
+          "reason": "unparseable",
+        },
+      ]
+    `);
   });
 
   it("handles Windows-style CRLF line endings", () => {
     const raw = "---\r\ndescription: Windows skill\r\n---\r\nBody";
-    expect(parseFrontmatter(raw)).toEqual({
-      body: "Body",
-      description: "Windows skill",
-      modelInvocable: true,
-    });
+    expect(parseFrontmatter(raw)).toMatchInlineSnapshot(`
+      {
+        "body": "Body",
+        "compatibility": undefined,
+        "description": "Windows skill",
+        "keys": [
+          "description",
+        ],
+        "modelInvocable": true,
+        "ok": true,
+        "title": undefined,
+      }
+    `);
   });
 
   it("falls back to sanitizer for description with colon (invalid YAML)", () => {
-    const result = parseFrontmatter(make("description: Foo: bar baz"));
-    expect(result).toEqual({
-      body: "Body content",
-      description: "Foo: bar baz",
-      modelInvocable: true,
-    });
+    expect(parseFrontmatter(make("description: Foo: bar baz")))
+      .toMatchInlineSnapshot(`
+        {
+          "body": "Body content",
+          "compatibility": undefined,
+          "description": "Foo: bar baz",
+          "keys": [
+            "description",
+          ],
+          "modelInvocable": true,
+          "ok": true,
+          "title": undefined,
+        }
+      `);
   });
 
   it.each([
@@ -70,7 +124,8 @@ describe("parseFrontmatter", () => {
       const raw = make(
         ["description: Does a thing", frontmatter].filter(Boolean).join("\n"),
       );
-      expect(parseFrontmatter(raw)?.modelInvocable).toBe(expected);
+      const result = parseFrontmatter(raw);
+      expect(result.ok && result.modelInvocable).toBe(expected);
     },
   );
 
@@ -78,7 +133,7 @@ describe("parseFrontmatter", () => {
     const result = parseFrontmatter(
       `---\ndescription: Trimmed\n---\n\n  Body\n`,
     );
-    expect(result?.body).toBe("Body");
+    expect(result.ok && result.body).toBe("Body");
   });
 });
 

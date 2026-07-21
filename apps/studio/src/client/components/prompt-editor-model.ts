@@ -1,11 +1,14 @@
 import {
+  SKILL_TOKEN_CLASS_NAME,
+  skillTokenLabel,
+  splitSkillTokens,
+} from "@/client/lib/skill-tokens";
+import {
   Fragment,
   type Node as ProseMirrorNode,
   Schema,
 } from "prosemirror-model";
 import { type Command, type TextSelection } from "prosemirror-state";
-
-const skillTokenPattern = /\[\$([^\]]+)\]\(skill:([^)]+)\)/g;
 
 export const promptSchema = new Schema({
   nodes: {
@@ -22,18 +25,16 @@ export const promptSchema = new Schema({
       group: "inline",
       inline: true,
       selectable: false,
-      // Plain inline text: color alone marks the token, and keeping it out of
-      // the text flow's way is what lets the caret sit beside it.
       toDOM: (node) => {
         const name = String(node.attrs.name);
         return [
           "span",
           {
-            class: "font-medium text-brown-700 dark:text-brown-500",
+            class: SKILL_TOKEN_CLASS_NAME,
             contenteditable: "false",
             "data-skill": name,
           },
-          `/${name}`,
+          skillTokenLabel(name),
         ];
       },
     },
@@ -63,24 +64,11 @@ export const deleteSkillBackward: Command = (state, dispatch) => {
 
 export function promptDocFromText(value: string) {
   const paragraphs = value.split("\n").map((line) => {
-    const nodes: ProseMirrorNode[] = [];
-    let cursor = 0;
-    for (const match of line.matchAll(skillTokenPattern)) {
-      const index = match.index;
-      const label = match[1];
-      const name = match[2];
-      if (!label || !name || label !== name) {
-        continue;
-      }
-      if (index > cursor) {
-        nodes.push(promptSchema.text(line.slice(cursor, index)));
-      }
-      nodes.push(promptSchema.nodes.skill.create({ name }));
-      cursor = index + match[0].length;
-    }
-    if (cursor < line.length) {
-      nodes.push(promptSchema.text(line.slice(cursor)));
-    }
+    const nodes: ProseMirrorNode[] = splitSkillTokens(line).map((segment) =>
+      segment.type === "skill"
+        ? promptSchema.nodes.skill.create({ name: segment.name })
+        : promptSchema.text(segment.text),
+    );
     return promptSchema.nodes.paragraph.create(null, Fragment.from(nodes));
   });
   return promptSchema.nodes.doc.create(null, paragraphs);

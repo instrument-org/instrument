@@ -25,16 +25,6 @@ export function focusMainContents() {
   getMainWindow()?.webContents.focus();
 }
 
-export function getTrafficLightPosition(zoom: number) {
-  return {
-    x: TRAFFIC_LIGHT_X,
-    y: Math.max(
-      0,
-      Math.round((TOOLBAR_HEIGHT * zoom - TRAFFIC_LIGHT_CLUSTER_HEIGHT) / 2),
-    ),
-  };
-}
-
 export function goBack() {
   // A focused agent-browser guest navigates its own history; otherwise route the
   // active tab's own history in the renderer.
@@ -84,7 +74,11 @@ export function setTrafficLightForZoom(zoom: number) {
   if (!window || process.platform !== "darwin") {
     return;
   }
-  window.setWindowButtonPosition(getTrafficLightPosition(zoom));
+  const y = Math.max(
+    0,
+    Math.round((TOOLBAR_HEIGHT * zoom - TRAFFIC_LIGHT_CLUSTER_HEIGHT) / 2),
+  );
+  window.setWindowButtonPosition({ x: TRAFFIC_LIGHT_X, y });
 }
 
 export function toggleMaximizeMainWindow() {

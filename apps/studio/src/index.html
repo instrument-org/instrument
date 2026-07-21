@@ -31,6 +31,7 @@
         --boot-background: #fafaf9;
         --boot-toolbar: #e7e5e4;
         --boot-border: #e7e5e4;
+        --boot-foreground: #171412;
       }
 
       /* The main process pins nativeTheme.themeSource to the stored theme
@@ -42,6 +43,7 @@
           --boot-background: #1c1917;
           --boot-toolbar: #292524;
           --boot-border: rgb(255 255 255 / 10%);
+          --boot-foreground: #ffffff;
         }
       }
 
@@ -56,8 +58,17 @@
         overflow: hidden;
         position: fixed;
         top: 0;
+        /* The zoom and the rest of the geometry arrive with syncBootShell, which
+           sets the window type on the root. Until then the shell would be drawn
+           at 1x and snap, so it waits: the window's background color is already
+           the right one, and holds the frame in the meantime. */
+        visibility: hidden;
         width: calc(100vw / var(--boot-zoom, 1));
         zoom: var(--boot-zoom, 1);
+      }
+
+      :root[data-window-type] #boot-shell {
+        visibility: visible;
       }
 
       /* React's first commit fills #root, retiring the shell in the same frame. */
@@ -65,11 +76,83 @@
         display: none;
       }
 
+      /* The dev panel brings the shell back over the running app (see
+         previewBootShell); this outranks the rule above on specificity alone,
+         and lifts the shell over the app's own fixed overlays. */
+      :root[data-boot-shell-preview] #root ~ #boot-shell {
+        display: flex;
+        z-index: 60;
+      }
+
+      /* Stretch, not center: the tab strip is sized by the toolbar's height the
+         way the real one is, and its slots stretch inside that. */
       #boot-shell-toolbar {
         -webkit-app-region: drag;
+        align-items: stretch;
         background: var(--boot-toolbar);
+        display: flex;
         flex: none;
         height: var(--boot-toolbar-height, 40px);
+      }
+
+      /* The toolbar's control cluster: the sidebar toggle, then back/forward.
+         The macOS traffic-light gutter is a fixed visual width, so --boot-gutter
+         divides by the shell's zoom the way the real toolbar does. */
+      #boot-shell-controls {
+        align-items: center;
+        display: flex;
+        flex: none;
+        gap: 1rem;
+        padding-left: var(--boot-gutter, 1rem);
+      }
+
+      #boot-shell-nav {
+        align-items: center;
+        display: flex;
+        gap: 0.25rem;
+        padding-right: 0.25rem;
+      }
+
+      .boot-shell-icon-slot {
+        align-items: center;
+        display: flex;
+        height: 1.5rem;
+        justify-content: center;
+        width: 1.5rem;
+      }
+
+      .boot-shell-icon {
+        color: var(--boot-foreground);
+        height: 1rem;
+        opacity: 0.8;
+        width: 1rem;
+      }
+
+      /* Back and forward start with no history to move through, so they carry
+         the disabled treatment the real buttons do. */
+      #boot-shell-nav .boot-shell-icon {
+        opacity: 0.4;
+      }
+
+      #boot-shell-tabs {
+        align-items: stretch;
+        display: flex;
+        flex: 1;
+        gap: 0.25rem;
+        min-width: 0;
+        padding: 0.25rem 0.75rem;
+      }
+
+      /* One slot per restored tab, sized the way the real strip divides itself. */
+      .boot-shell-tab {
+        flex: 1 1 0;
+        max-width: 15rem;
+        min-width: 0;
+      }
+
+      .boot-shell-tab[data-selected] {
+        background: var(--boot-background);
+        border-radius: 0.75rem;
       }
 
       #boot-shell-body {
@@ -94,14 +177,63 @@
       :root[data-window-type="onboarding"] #boot-shell-toolbar {
         background: transparent;
       }
+
+      :root[data-window-type="onboarding"] #boot-shell-controls,
+      :root[data-window-type="onboarding"] #boot-shell-tabs {
+        display: none;
+      }
     </style>
     <script type="module" src="/client/boot-shell.ts"></script>
   </head>
 
   <body>
     <div id="root"></div>
+    <!-- Icon paths are what @phosphor-icons/react renders for SidebarSimple,
+         ArrowLeft, and ArrowRight at the app's `bold` weight; the test compares
+         them against the components. -->
     <div aria-hidden="true" id="boot-shell">
-      <div id="boot-shell-toolbar"></div>
+      <div id="boot-shell-toolbar">
+        <div id="boot-shell-controls">
+          <span class="boot-shell-icon-slot">
+            <svg
+              class="boot-shell-icon"
+              fill="currentColor"
+              viewBox="0 0 256 256"
+            >
+              <path
+                d="M216,36H40A20,20,0,0,0,20,56V200a20,20,0,0,0,20,20H216a20,20,0,0,0,20-20V56A20,20,0,0,0,216,36ZM44,60H76V196H44ZM212,196H100V60H212Z"
+              />
+            </svg>
+          </span>
+          <span id="boot-shell-nav">
+            <span class="boot-shell-icon-slot">
+              <svg
+                class="boot-shell-icon"
+                fill="currentColor"
+                viewBox="0 0 256 256"
+              >
+                <path
+                  d="M228,128a12,12,0,0,1-12,12H69l51.52,51.51a12,12,0,0,1-17,17l-72-72a12,12,0,0,1,0-17l72-72a12,12,0,0,1,17,17L69,116H216A12,12,0,0,1,228,128Z"
+                />
+              </svg>
+            </span>
+            <span class="boot-shell-icon-slot">
+              <svg
+                class="boot-shell-icon"
+                fill="currentColor"
+                viewBox="0 0 256 256"
+              >
+                <path
+                  d="M224.49,136.49l-72,72a12,12,0,0,1-17-17L187,140H40a12,12,0,0,1,0-24H187L135.51,64.48a12,12,0,0,1,17-17l72,72A12,12,0,0,1,224.49,136.49Z"
+                />
+              </svg>
+            </span>
+          </span>
+        </div>
+        <div id="boot-shell-tabs">
+          <div class="boot-shell-tab" data-selected></div>
+        </div>
+      </div>
       <div id="boot-shell-body"><div id="boot-shell-sidebar"></div></div>
     </div>
     <script type="module" src="/client/main.tsx"></script>

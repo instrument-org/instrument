@@ -1,3 +1,4 @@
+import { TABS_STORAGE_KEY } from "@/client/lib/storage-keys";
 import { freshTabId, NEW_TAB_PATH } from "@/client/lib/tab-actions";
 import {
   addTab,
@@ -75,7 +76,7 @@ const tabsStorage: typeof json = {
 // atom would start from a throwaway new-tab and swap after mount, building and
 // discarding that tab's router.
 export const tabsAtom = atomWithStorage<TabsModel>(
-  "studio.tabs.v1",
+  TABS_STORAGE_KEY,
   freshTabsModel(),
   tabsStorage,
   { getOnInit: true },

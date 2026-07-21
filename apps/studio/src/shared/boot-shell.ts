@@ -7,25 +7,35 @@
  */
 
 export const BOOT_SHELL_ATTRIBUTES = {
+  /** Set by the dev panel to show the shell over the running app. */
+  preview: "data-boot-shell-preview",
+  selectedTab: "data-selected",
   sidebarOpen: "data-sidebar-open",
   windowType: "data-window-type",
 } as const;
 
-/** Mirrors globals.css: --background, the toolbar's gray ramp, and --border. */
+export const BOOT_SHELL_CLASS_NAMES = {
+  tab: "boot-shell-tab",
+} as const;
+
+/** Mirrors globals.css: --background, --foreground, the toolbar's gray ramp, and --border. */
 export const BOOT_SHELL_COLORS = {
   dark: {
     background: "#1c1917",
     border: "rgb(255 255 255 / 10%)",
+    foreground: "#ffffff",
     toolbar: "#292524",
   },
   light: {
     background: "#fafaf9",
     border: "#e7e5e4",
+    foreground: "#171412",
     toolbar: "#e7e5e4",
   },
 } as const;
 
 export const BOOT_SHELL_CSS_VARS = {
+  gutter: "--boot-gutter",
   sidebarWidth: "--boot-sidebar-width",
   toolbarHeight: "--boot-toolbar-height",
   zoom: "--boot-zoom",
@@ -33,7 +43,10 @@ export const BOOT_SHELL_CSS_VARS = {
 
 export const BOOT_SHELL_ELEMENT_IDS = {
   body: "boot-shell-body",
+  controls: "boot-shell-controls",
+  nav: "boot-shell-nav",
   root: "boot-shell",
   sidebar: "boot-shell-sidebar",
+  tabs: "boot-shell-tabs",
   toolbar: "boot-shell-toolbar",
 } as const;

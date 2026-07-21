@@ -238,7 +238,11 @@ export const LoadSkill = setupTool({
       installResults.push({ ...installResult, runtime: "python" });
     }
 
-    const files = copiedFiles.map((f) => `${relativeSkillRoot}/${f}`);
+    // SKILL.md is already inlined above as the skill's content, so listing it
+    // again would just spend context restating what the agent is reading.
+    const files = copiedFiles
+      .filter((f) => f !== "SKILL.md")
+      .map((f) => `${relativeSkillRoot}/${f}`);
 
     return ok({
       content: skill.content,

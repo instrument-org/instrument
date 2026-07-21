@@ -26,6 +26,7 @@ const SkillSummarySchema = z.object({
   name: z.string(),
   path: z.string(),
   source: SkillSourceSchema,
+  title: z.string(),
 });
 
 const SkillDetailSchema = SkillSummarySchema.extend({
@@ -44,6 +45,7 @@ const list = base
       name: skill.name,
       path: skill.skillDir,
       source: skill.source,
+      title: skill.title,
     }));
   });
 
@@ -71,6 +73,7 @@ const byName = base
       name: skill.name,
       path: skill.skillDir,
       source: skill.source,
+      title: skill.title,
     };
   });
 

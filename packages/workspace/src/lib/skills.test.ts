@@ -102,7 +102,11 @@ describe("listSkillFiles", () => {
       AbortSignal.timeout(5000),
     );
 
-    expect(files.sort()).toEqual(["package.json", "scripts/run.ts"]);
+    expect(files.sort()).toEqual([
+      "SKILL.md",
+      "package.json",
+      "scripts/run.ts",
+    ]);
   });
 });
 

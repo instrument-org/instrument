@@ -15,6 +15,7 @@ const skill = (
   name,
   skillDir: AbsolutePathSchema.parse(`/workspace/skills/${name}`),
   source,
+  title: name,
 });
 
 describe("renderSkillCatalog", () => {

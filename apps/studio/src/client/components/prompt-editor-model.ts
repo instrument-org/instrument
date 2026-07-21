@@ -22,18 +22,15 @@ export const promptSchema = new Schema({
       group: "inline",
       inline: true,
       selectable: false,
-      // Plain inline text, and deliberately NOT contenteditable="false":
-      // Chrome renders the caret on the following line when it sits directly
-      // after a non-editable inline element at the end of a block, which is
-      // what made the token impossible to type beside. The node is an atom, so
-      // ProseMirror still treats it as one unit and reverts any stray edit
-      // inside it; colour alone is enough to mark it.
+      // Plain inline text: colour alone marks the token, and keeping it out of
+      // the text flow's way is what lets the caret sit beside it.
       toDOM: (node) => {
         const name = String(node.attrs.name);
         return [
           "span",
           {
             class: "font-medium text-brown-700 dark:text-brown-300",
+            contenteditable: "false",
             "data-skill": name,
           },
           `/${name}`,

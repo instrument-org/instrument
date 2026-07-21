@@ -1,4 +1,3 @@
-import { ZOOM_STORAGE_KEY } from "@/client/lib/storage-keys";
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
 export const ZOOM_MAX = 2;
@@ -32,7 +31,7 @@ const zoomStorage: typeof json = {
  * plain view-state atom with no import-time side effects.
  */
 export const zoomAtom = atomWithStorage<number>(
-  ZOOM_STORAGE_KEY,
+  "studio.zoom.v1",
   1,
   zoomStorage,
   {

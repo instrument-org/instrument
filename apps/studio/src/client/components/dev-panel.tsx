@@ -33,7 +33,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { previewBootShell } from "@/client/lib/boot-shell";
 import { cn, isMacOS } from "@/client/lib/utils";
 import {
   componentPages,
@@ -379,15 +378,6 @@ export function DevPanel() {
                     }}
                   >
                     Auth test page
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      previewBootShell();
-                    }}
-                    title="Show the pre-mount boot shell over the app (Escape or click to dismiss)"
-                  >
-                    Boot shell
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

@@ -149,6 +149,20 @@ function build(
 }
 
 /**
+ * Neutralize markup in a discovered string before it is embedded in the
+ * catalog. A name or description comes from arbitrary SKILL.md frontmatter,
+ * including a co-installed agent's home directory that nothing here validated,
+ * so a `</description></skill>` in one would otherwise inject fabricated
+ * structure into the catalog the tool description puts in the system prompt.
+ */
+function escapeXml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+/**
  * Longest description every skill can be cut to without exceeding `budget`.
  *
  * Descriptions shorter than the cap only cost their own length, so their unused
@@ -171,8 +185,8 @@ function fairShareLength(lengths: number[], budget: number): number {
 function renderEntry(name: string, description: string) {
   return [
     `  <${CATALOG_TAGS.skill}>`,
-    `    <${CATALOG_TAGS.name}>${name}</${CATALOG_TAGS.name}>`,
-    `    <${CATALOG_TAGS.description}>${description}</${CATALOG_TAGS.description}>`,
+    `    <${CATALOG_TAGS.name}>${escapeXml(name)}</${CATALOG_TAGS.name}>`,
+    `    <${CATALOG_TAGS.description}>${escapeXml(description)}</${CATALOG_TAGS.description}>`,
     `  </${CATALOG_TAGS.skill}>`,
   ].join("\n");
 }

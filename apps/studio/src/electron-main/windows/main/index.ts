@@ -14,9 +14,9 @@ import {
 } from "@/electron-main/stores/window-state";
 import {
   focusMainContents,
-  getTrafficLightPosition,
   goBack,
   goForward,
+  setTrafficLightForZoom,
 } from "@/electron-main/windows/main/controls";
 import {
   getMainWindow,
@@ -50,10 +50,6 @@ export async function createMainWindow({
     minWidth: 720,
     show: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    // Centered in the toolbar at the zoom the renderer last reported, so the
-    // buttons are already in place while the boot shell is on screen instead of
-    // jumping once the renderer mounts and syncs its zoom.
-    trafficLightPosition: getTrafficLightPosition(getMainWindowZoom()),
     ...(process.platform === "linux" && icon ? { icon } : {}),
     backgroundColor: getMainWindowBackgroundColor(),
     // On macOS keep the native NSWindow frame (titleBarStyle hiddenInset already
@@ -73,6 +69,13 @@ export async function createMainWindow({
   });
 
   setMainWindow(mainWindow);
+
+  // Center the traffic lights for the zoom the renderer last reported, so they
+  // sit in the boot shell's toolbar correctly instead of jumping once the
+  // renderer mounts and syncs its zoom. This runs after creation rather than
+  // through the `trafficLightPosition` option, which only applies to frameless
+  // windows; on macOS this one keeps its frame (see `frame` above).
+  setTrafficLightForZoom(getMainWindowZoom());
 
   // Bind the agent-browser `<webview>` attach lifecycle to this window's
   // webContents so the main process can grab guest WebContents (for CDP) as

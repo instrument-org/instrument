@@ -4,7 +4,12 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
-import { findSkills, getSkillSources, parseFrontmatter } from "./skills";
+import {
+  findSkills,
+  getSkillSources,
+  listSkillFiles,
+  parseFrontmatter,
+} from "./skills";
 
 const make = (frontmatter: string, body = "Body content") =>
   `---\n${frontmatter}\n---\n${body}`;
@@ -74,6 +79,30 @@ describe("parseFrontmatter", () => {
       `---\ndescription: Trimmed\n---\n\n  Body\n`,
     );
     expect(result?.body).toBe("Body");
+  });
+});
+
+describe("listSkillFiles", () => {
+  it("skips dependency trees and tool caches", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skill-files-"));
+    temporaryDirs.push(root);
+    await fs.mkdir(path.join(root, "node_modules", "cac"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(root, ".turbo"), { recursive: true });
+    await fs.mkdir(path.join(root, "scripts"), { recursive: true });
+    await fs.writeFile(path.join(root, "node_modules", "cac", "index.js"), "");
+    await fs.writeFile(path.join(root, ".turbo", "turbo-test.log"), "");
+    await fs.writeFile(path.join(root, "scripts", "run.ts"), "");
+    await fs.writeFile(path.join(root, "package.json"), "{}");
+    await fs.writeFile(path.join(root, "SKILL.md"), make("description: X"));
+
+    const { files } = await listSkillFiles(
+      AbsolutePathSchema.parse(root),
+      AbortSignal.timeout(5000),
+    );
+
+    expect(files.sort()).toEqual(["package.json", "scripts/run.ts"]);
   });
 });
 

@@ -7,9 +7,22 @@ import { REGISTRY_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
+import { getIgnore } from "./get-ignore";
 import { pathExists } from "./path-exists";
 
 export const FILE_LIST_LIMIT = 50;
+
+/**
+ * Installed dependencies and tool caches, which are not part of what a skill
+ * teaches. An installed skill's node_modules runs to thousands of files, so
+ * left in they consume the whole listing budget before the skill's own scripts
+ * and references are reached -- in the agent's file list as much as the user's.
+ *
+ * Layered under the skill's own .gitignore rather than replacing it: a skill
+ * that has one already says what its build leaves behind, but most do not, so
+ * these have to hold on their own.
+ */
+const SKILL_NOISE_PATTERNS = [".*", "__pycache__", "node_modules", "venv"];
 
 export interface SkillInfo {
   content: string;
@@ -134,6 +147,8 @@ export async function listSkillFiles(
 ): Promise<{ files: string[]; truncated: boolean }> {
   const results: string[] = [];
   let truncated = false;
+  const baseIgnore = await getIgnore(destDir, { signal });
+  const ignore = baseIgnore.add(SKILL_NOISE_PATTERNS);
 
   async function walk(dir: string, relBase: string) {
     signal.throwIfAborted();
@@ -148,6 +163,9 @@ export async function listSkillFiles(
     }
     for (const entry of entries) {
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+      if (ignore.ignores(entry.isDirectory() ? `${relPath}/` : relPath)) {
+        continue;
+      }
       if (entry.isDirectory()) {
         await walk(path.join(dir, entry.name), relPath);
       } else if (entry.name !== "SKILL.md") {

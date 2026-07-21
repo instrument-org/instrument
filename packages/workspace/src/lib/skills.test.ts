@@ -46,6 +46,7 @@ describe("parseFrontmatter", () => {
     expect({
       noDescription: parseFrontmatter(make("name: foo")),
       noFrontmatter: parseFrontmatter("Just plain content"),
+      unterminated: parseFrontmatter("---\ndescription: Oops\nBody, no close"),
     }).toMatchInlineSnapshot(`
       {
         "noDescription": {
@@ -59,6 +60,10 @@ describe("parseFrontmatter", () => {
           "ok": false,
           "reason": "no-frontmatter",
         },
+        "unterminated": {
+          "ok": false,
+          "reason": "unterminated",
+        },
       }
     `);
   });
@@ -67,17 +72,19 @@ describe("parseFrontmatter", () => {
     const raw = make("description: [");
     expect([parseFrontmatter(raw), parseFrontmatter(raw)])
       .toMatchInlineSnapshot(`
-      [
-        {
-          "ok": false,
-          "reason": "unparseable",
-        },
-        {
-          "ok": false,
-          "reason": "unparseable",
-        },
-      ]
-    `);
+        [
+          {
+            "detail": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 15",
+            "ok": false,
+            "reason": "unparseable",
+          },
+          {
+            "detail": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 15",
+            "ok": false,
+            "reason": "unparseable",
+          },
+        ]
+      `);
   });
 
   it("handles Windows-style CRLF line endings", () => {

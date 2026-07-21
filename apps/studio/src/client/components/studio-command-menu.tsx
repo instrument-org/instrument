@@ -14,10 +14,15 @@ import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { debugPages } from "@/client/routes/_app/debug/-debug-routes";
 import { presetSessions } from "@/client/routes/_app/debug/-sessions";
 import { rpcClient } from "@/client/rpc/client";
-import { type Task, type TaskId } from "@instrument-org/workspace/client";
+import {
+  type Project,
+  type Task,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
 import {
   ArrowsClockwiseIcon,
+  BagIcon,
   BugIcon,
   ChatCircleIcon,
   PlusIcon,
@@ -45,6 +50,11 @@ interface MatchedDebugItem {
   labelRanges: null | number[];
 }
 
+interface MatchedProject {
+  nameRanges: null | number[];
+  project: Project;
+}
+
 interface MatchedTask {
   task: Task;
   titleRanges: null | number[];
@@ -55,6 +65,7 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
 type ResultRow =
   | { label: string; type: "header" }
   | { matched: MatchedDebugItem; type: "debug" }
+  | { matched: MatchedProject; type: "project" }
   | { matched: MatchedTask; type: "task" };
 
 export function StudioCommandMenu() {
@@ -95,6 +106,10 @@ export function StudioCommandMenu() {
     }),
   );
 
+  const { data: projects } = useQuery(
+    rpcClient.workspace.project.live.list.experimental_liveOptions(),
+  );
+
   const tasks = tasksData?.tasks ?? [];
 
   const currentTaskId = taskRouteMatch?.params.id;
@@ -122,6 +137,42 @@ export function StudioCommandMenu() {
       return task ? [{ task, titleRanges: info.ranges[orderIdx] ?? null }] : [];
     });
   }, [candidateTasks, search]);
+
+  // Projects are search-only: the empty state stays a list of recent tasks.
+  const matchedProjects = useMemo((): MatchedProject[] => {
+    const query = search.trim();
+    if (!query || !projects || projects.length === 0) {
+      return [];
+    }
+
+    // "project" rides along in the haystack so searching the word surfaces
+    // every project, but only past a few characters -- a one- or two-letter
+    // query would otherwise match the keyword and dump the whole list.
+    const joined = projects.map((project) =>
+      joinFuzzyFields(
+        query.length >= 3 ? [project.name, "project"] : [project.name],
+      ),
+    );
+    const haystack = joined.map((entry) => entry.haystack);
+    // eslint-disable-next-line unicorn/no-array-method-this-argument
+    const indexes = fuzzy.filter(haystack, query);
+    if (!indexes || indexes.length === 0) {
+      return [];
+    }
+
+    const info = fuzzy.info(indexes, haystack, query);
+    const order = fuzzy.sort(info, haystack, query);
+    return order.flatMap((orderIdx) => {
+      const projectIdx = info.idx[orderIdx] ?? -1;
+      const project = projects[projectIdx];
+      const fields = joined[projectIdx];
+      if (!project || !fields) {
+        return [];
+      }
+      const [nameRanges] = fields.splitRanges(info.ranges[orderIdx] ?? null);
+      return [{ nameRanges: nameRanges ?? null, project }];
+    });
+  }, [projects, search]);
 
   const isOnNewTabPage = !!newTabRouteMatch;
   const commandSearch = search.trim().toLowerCase();
@@ -209,6 +260,14 @@ export function StudioCommandMenu() {
     });
   };
 
+  const handleSelectProject = (project: Project) => {
+    handleClose();
+    void navigateTab({
+      params: { id: project.id },
+      to: "/projects/$id",
+    });
+  };
+
   const handleNewTask = () => {
     handleClose();
     void navigate({ to: "/new-tab" });
@@ -276,6 +335,7 @@ export function StudioCommandMenu() {
               search !== "!beta" &&
               !showCommands &&
               matchedDebugItems.length === 0 &&
+              matchedProjects.length === 0 &&
               matchedTasks.length === 0 && (
                 <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
                   No results found
@@ -349,11 +409,15 @@ export function StudioCommandMenu() {
                 </CommandItem>
               </CommandGroup>
             )}
-            {(matchedTasks.length > 0 || matchedDebugItems.length > 0) && (
+            {(matchedTasks.length > 0 ||
+              matchedProjects.length > 0 ||
+              matchedDebugItems.length > 0) && (
               <CommandResultsList
                 matchedDebugItems={matchedDebugItems}
+                matchedProjects={matchedProjects}
                 matchedTasks={matchedTasks}
                 onSelectDebugItem={handleSelectDebugItem}
+                onSelectProject={handleSelectProject}
                 onSelectTask={handleSelectTask}
               />
             )}
@@ -368,17 +432,21 @@ function commandMatches(label: string, search: string) {
   return search === "" || label.toLowerCase().includes(search);
 }
 
-// Tasks and debug pages share one virtualized, single-scroll region so the
-// dialog stays a normal height instead of stacking two scroll areas.
+// Tasks, projects, and debug pages share one virtualized, single-scroll region
+// so the dialog stays a normal height instead of stacking scroll areas.
 function CommandResultsList({
   matchedDebugItems,
+  matchedProjects,
   matchedTasks,
   onSelectDebugItem,
+  onSelectProject,
   onSelectTask,
 }: {
   matchedDebugItems: MatchedDebugItem[];
+  matchedProjects: MatchedProject[];
   matchedTasks: MatchedTask[];
   onSelectDebugItem: (item: DebugItem) => void;
+  onSelectProject: (project: Project) => void;
   onSelectTask: (id: TaskId) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -391,6 +459,12 @@ function CommandResultsList({
         flat.push({ matched, type: "task" });
       }
     }
+    if (matchedProjects.length > 0) {
+      flat.push({ label: "Projects", type: "header" });
+      for (const matched of matchedProjects) {
+        flat.push({ matched, type: "project" });
+      }
+    }
     if (matchedDebugItems.length > 0) {
       flat.push({ label: "Debug pages", type: "header" });
       for (const matched of matchedDebugItems) {
@@ -398,7 +472,7 @@ function CommandResultsList({
       }
     }
     return flat;
-  }, [matchedTasks, matchedDebugItems]);
+  }, [matchedTasks, matchedProjects, matchedDebugItems]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
@@ -460,6 +534,21 @@ function CommandResultsList({
                     {formatDistanceToNow(new Date(row.matched.task.updatedAt), {
                       addSuffix: true,
                     }).replace(/^about /, "")}
+                  </span>
+                </CommandItem>
+              ) : row.type === "project" ? (
+                <CommandItem
+                  onSelect={() => {
+                    onSelectProject(row.matched.project);
+                  }}
+                  value={`project:${row.matched.project.id}`}
+                >
+                  <BagIcon className="size-4 shrink-0 opacity-50" />
+                  <span className="flex-1 truncate text-sm">
+                    <FuzzyHighlight
+                      ranges={row.matched.nameRanges}
+                      text={row.matched.project.name}
+                    />
                   </span>
                 </CommandItem>
               ) : (

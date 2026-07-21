@@ -42,17 +42,18 @@ const KNOWN_FRONTMATTER_KEYS = new Set([
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** Every rejection ends the same way: the skill is skipped during discovery. */
+const SKIPPED =
+  "The skill is skipped during discovery, so it never appears anywhere.";
+
 /**
- * All three end the same way -- the skill is skipped during discovery and never
- * appears anywhere -- so the message has to name the cause to be worth reading.
+ * Named per cause, because the outcome alone (the skill is invisible) is the
+ * same for all of them and says nothing about how to fix it.
  */
 const REJECTION_MESSAGES = {
-  "no-description":
-    "The frontmatter has no `description`. The skill is skipped during discovery, so it never appears anywhere.",
-  "no-frontmatter":
-    "The file has no frontmatter block. It needs one opening with `---` on the first line. The skill is skipped during discovery, so it never appears anywhere.",
-  unparseable:
-    "The frontmatter is not valid YAML. The skill is skipped during discovery, so it never appears anywhere.",
+  "no-description": `The frontmatter has no \`description\`. ${SKIPPED}`,
+  "no-frontmatter": `The file has no frontmatter block. It needs one opening with \`---\` on the first line. ${SKIPPED}`,
+  unterminated: `The frontmatter has no closing \`---\`. ${SKIPPED}`,
 } as const;
 
 /** Markdown links and bare paths that point at something inside the skill. */
@@ -147,6 +148,15 @@ export async function validateSkill({
 
   const frontmatter = parseFrontmatter(raw);
   if (!frontmatter.ok) {
+    if (frontmatter.reason === "unparseable") {
+      add(
+        "error",
+        "unparseable",
+        `Invalid YAML: ${frontmatter.detail}. ${SKIPPED}`,
+        "SKILL.md",
+      );
+      return report();
+    }
     add(
       "error",
       frontmatter.reason,

@@ -17,8 +17,8 @@ afterEach(async () => {
   );
 });
 
-/** Write a skill package and check it, returning the rules that fired. */
-async function rulesFor(
+/** Write a skill package and check it. */
+async function reportFor(
   files: Record<string, string>,
   {
     installed = [],
@@ -36,12 +36,17 @@ async function rulesFor(
   }
   await fs.mkdir(skillDir, { recursive: true });
 
-  const report = await validateSkill({
+  return validateSkill({
     installed,
     signal: AbortSignal.timeout(5000),
     skillDir: AbsolutePathSchema.parse(skillDir),
     skillName: name,
   });
+}
+
+/** The rules that fired, as `level:rule`. */
+async function rulesFor(...args: Parameters<typeof reportFor>) {
+  const report = await reportFor(...args);
   return report.findings.map(({ level, rule }) => `${level}:${rule}`);
 }
 
@@ -73,9 +78,18 @@ describe("validateSkill", () => {
     { case: "unparseable", raw: "---\ndescription: [\n---\nBody" },
     { case: "no description", raw: "---\nname: test-skill\n---\nBody" },
     { case: "no frontmatter", raw: "Just a document" },
+    { case: "unterminated", raw: "---\ndescription: Oops\nBody, no close" },
   ])("reports frontmatter that hides the skill ($case)", async ({ raw }) => {
     const rules = await rulesFor({ "SKILL.md": raw });
     expect(rules[0]).toMatchSnapshot();
+  });
+
+  it("points at the line the YAML broke on", async () => {
+    const report = await reportFor({
+      "SKILL.md": "---\ndescription: [\n---\nBody",
+    });
+    const finding = report.findings.find((f) => f.rule === "unparseable");
+    expect(finding?.message).toContain("line 2, column 15");
   });
 
   it("reports what load_skill would refuse", async () => {

@@ -1,7 +1,7 @@
-import matter from "@11ty/gray-matter";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { parse as parseYaml, YAMLParseError } from "yaml";
 
 import { REGISTRY_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
@@ -35,8 +35,9 @@ export type FrontmatterResult =
       ok: true;
       title: string | undefined;
     }
+  | { detail: string; ok: false; reason: "unparseable" }
   | { keys: string[]; ok: false; reason: "no-description" }
-  | { ok: false; reason: "no-frontmatter" | "unparseable" };
+  | { ok: false; reason: "no-frontmatter" | "unterminated" };
 
 export interface SkillInfo {
   content: string;
@@ -73,6 +74,10 @@ export type SkillSourceKind =
   | "registry"
   | "system"
   | "workspace";
+
+type FrontmatterSplit =
+  | { block: string; body: string; ok: true }
+  | { ok: false; reason: "no-frontmatter" | "unterminated" };
 
 export async function findSkill(
   workspaceConfig: Pick<
@@ -210,39 +215,50 @@ export async function listSkillFiles(
  * which one happened.
  */
 export function parseFrontmatter(raw: string): FrontmatterResult {
-  if (!raw.trimStart().startsWith("---")) {
-    return { ok: false, reason: "no-frontmatter" };
+  const split = splitFrontmatter(raw);
+  if (!split.ok) {
+    return split;
   }
 
-  let parsed: matter.GrayMatterFile<string>;
+  let data: unknown;
   try {
-    parsed = matter(raw);
-  } catch {
-    clearMatterCache();
+    data = parseYaml(split.block) as unknown;
+  } catch (error) {
+    // Other agents accept unquoted colons in a value (`description: Do X: Y`).
+    // Retry those as YAML block scalars so a skill from one of their
+    // directories still parses; report the original error if that fails too.
     try {
-      parsed = matter(sanitizeFrontmatter(raw));
+      data = parseYaml(sanitizeFrontmatter(split.block)) as unknown;
     } catch {
-      clearMatterCache();
-      return { ok: false, reason: "unparseable" };
+      return {
+        detail: describeYamlError(error),
+        ok: false,
+        reason: "unparseable",
+      };
     }
   }
 
-  const data: Record<string, unknown> = parsed.data;
+  const record = isRecord(data) ? data : {};
   const description =
-    typeof data.description === "string" ? data.description.trim() : undefined;
+    typeof record.description === "string"
+      ? record.description.trim()
+      : undefined;
   if (!description) {
-    return { keys: Object.keys(data), ok: false, reason: "no-description" };
+    return { keys: Object.keys(record), ok: false, reason: "no-description" };
   }
 
-  const title = typeof data.name === "string" ? data.name.trim() : undefined;
+  const title =
+    typeof record.name === "string" ? record.name.trim() : undefined;
 
   return {
-    body: parsed.content.trim(),
+    body: split.body.trim(),
     compatibility:
-      typeof data.compatibility === "string" ? data.compatibility : undefined,
+      typeof record.compatibility === "string"
+        ? record.compatibility
+        : undefined,
     description,
-    keys: Object.keys(data),
-    modelInvocable: data["disable-model-invocation"] !== true,
+    keys: Object.keys(record),
+    modelInvocable: record["disable-model-invocation"] !== true,
     ok: true,
     title: title || undefined,
   };
@@ -257,17 +273,12 @@ async function canonicalDir(skillDir: AbsolutePath): Promise<string> {
   }
 }
 
-/**
- * Drop gray-matter's memo of the string that just failed to parse.
- *
- * It caches by input, and a parse that throws still leaves an empty entry
- * behind, so the next read of the same broken SKILL.md returns no data instead
- * of throwing -- the file reads as "no description" the second time and
- * "invalid YAML" the first. The cast is because `clearCache` is real but absent
- * from the package's type declarations.
- */
-function clearMatterCache() {
-  (matter as typeof matter & { clearCache: () => void }).clearCache();
+/** A YAML error's own message, which already carries its line and column. */
+function describeYamlError(error: unknown): string {
+  if (error instanceof YAMLParseError) {
+    return error.message.split("\n")[0]?.replace(/:$/, "") ?? "invalid YAML";
+  }
+  return error instanceof Error ? error.message : "invalid YAML";
 }
 
 async function findSkillsInDir(
@@ -328,18 +339,15 @@ async function isDirectorySymlink(candidate: AbsolutePath) {
   }
 }
 
-// Adapted from https://github.com/sst/opencode/blob/main/packages/opencode/src/config/markdown.ts
-function sanitizeFrontmatter(raw: string): string {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
-  if (!match?.[1]) {
-    return raw;
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
-  const frontmatter = match[1];
-  const lines = frontmatter.split(/\r?\n/);
+// Adapted from https://github.com/sst/opencode/blob/main/packages/opencode/src/config/markdown.ts
+function sanitizeFrontmatter(block: string): string {
   const result: string[] = [];
 
-  for (const line of lines) {
+  for (const line of block.split("\n")) {
     if (
       line.trim().startsWith("#") ||
       line.trim() === "" ||
@@ -377,5 +385,34 @@ function sanitizeFrontmatter(raw: string): string {
     result.push(line);
   }
 
-  return raw.replace(frontmatter, () => result.join("\n"));
+  return result.join("\n");
+}
+
+/**
+ * Separate the YAML block from the body without a library.
+ *
+ * The block keeps the newline that follows the opening `---`, so a YAML error's
+ * line number matches the line in the file. CRLF is normalized to LF for the
+ * parser; the body is returned verbatim for the caller to trim.
+ */
+function splitFrontmatter(raw: string): FrontmatterSplit {
+  // A leading byte-order mark would hide the opening fence.
+  const text = raw.startsWith("\uFEFF") ? raw.slice(1) : raw;
+
+  // The fence has to open the file, and `----` is a horizontal rule.
+  if (!text.startsWith("---") || text.charAt(3) === "-") {
+    return { ok: false, reason: "no-frontmatter" };
+  }
+
+  const rest = text.slice(3);
+  const end = rest.indexOf("\n---");
+  if (end === -1) {
+    return { ok: false, reason: "unterminated" };
+  }
+
+  return {
+    block: rest.slice(0, end).replaceAll("\r\n", "\n"),
+    body: rest.slice(end + "\n---".length),
+    ok: true,
+  };
 }

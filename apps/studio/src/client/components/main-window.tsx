@@ -176,11 +176,27 @@ function TabView({
       )}
     >
       <PortalContainerProvider>
-        <TabIdProvider id={tab.id}>
-          <ActiveTabProvider isActive={isActive}>
-            <RouterProvider router={router} />
-          </ActiveTabProvider>
-        </TabIdProvider>
+        {/*
+          The width a page actually gets, named so pages can lay themselves out
+          against it with `@container/app-content` variants: it shrinks when the
+          sidebar rail opens or is dragged, and it's inside the zoom root, both of
+          which viewport breakpoints are blind to.
+
+          It has to wrap the route content only, never an ancestor of the portal
+          target that `PortalContainerProvider` renders as our sibling below.
+          floating-ui treats any element with a `container-type` as a containing
+          block for fixed-position content and subtracts its rect from every
+          computed position, but Chrome doesn't actually make one -- so a
+          container above the portal target silently offsets every menu, popover
+          and tooltip by that container's position.
+        */}
+        <div className="@container/app-content absolute inset-0">
+          <TabIdProvider id={tab.id}>
+            <ActiveTabProvider isActive={isActive}>
+              <RouterProvider router={router} />
+            </ActiveTabProvider>
+          </TabIdProvider>
+        </div>
       </PortalContainerProvider>
     </div>
   );

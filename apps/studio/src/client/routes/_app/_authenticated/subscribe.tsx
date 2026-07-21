@@ -246,7 +246,7 @@ function SubscribePage() {
               </div>
             </div>
 
-            <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
+            <div className="mx-auto grid max-w-6xl gap-6 @3xl/app-content:grid-cols-3">
               {plans.map((plan) => {
                 const price =
                   billingCycle === "monthly"

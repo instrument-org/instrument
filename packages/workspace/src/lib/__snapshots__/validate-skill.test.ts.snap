@@ -1,0 +1,7 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`validateSkill > reports frontmatter that hides the skill ('no description') 1`] = `"error:no-description"`;
+
+exports[`validateSkill > reports frontmatter that hides the skill ('no frontmatter') 1`] = `"error:no-frontmatter"`;
+
+exports[`validateSkill > reports frontmatter that hides the skill ('unparseable') 1`] = `"error:unparseable"`;

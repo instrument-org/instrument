@@ -119,6 +119,41 @@ describe("skill discovery", () => {
       { description: "Workspace", name: "review", source: "workspace" },
     ]);
   });
+
+  it("collapses one real skill reached through several symlinked sources", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-dedupe-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+    const shared = path.join(root, "dotfiles", "skills");
+
+    await writeSkill(path.join(shared, "review"), "Shared");
+    // ~/.agents/skills is the symlink farm itself; the other vendors symlink
+    // the individual skill, which is how these directories look in practice.
+    await fs.mkdir(path.join(home, ".agents"), { recursive: true });
+    await fs.symlink(shared, path.join(home, ".agents", "skills"));
+    for (const vendor of [".claude", ".cursor", ".gemini"]) {
+      await fs.mkdir(path.join(home, vendor, "skills"), { recursive: true });
+      await fs.symlink(
+        path.join(shared, "review"),
+        path.join(home, vendor, "skills", "review"),
+      );
+    }
+
+    const skills = await findSkills(
+      getSkillSources(
+        {
+          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
+          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
+        },
+        AbsolutePathSchema.parse(home),
+      ),
+    );
+
+    expect(skills.map(({ name, source }) => ({ name, source }))).toEqual([
+      { name: "review", source: "agents" },
+    ]);
+  });
 });
 
 async function writeSkill(dir: string, description: string) {

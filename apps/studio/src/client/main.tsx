@@ -7,11 +7,14 @@ import { MainWindow } from "./components/main-window";
 import { initBrowserPool } from "./lib/browser-pool";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initRendererLogForwarding } from "./lib/forward-renderer-logs";
+import { applyInitialTheme } from "./lib/initial-theme";
 
 declare global {
   var __studioRoot: Root | undefined;
 }
 
+// Apply the theme class before React mounts to avoid a light-mode flash.
+applyInitialTheme();
 initDebugRpcBridge();
 initRendererLogForwarding();
 

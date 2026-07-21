@@ -1,7 +1,3 @@
-import {
-  SIDEBAR_OPEN_STORAGE_KEY,
-  SIDEBAR_WIDTH_STORAGE_KEY,
-} from "@/client/lib/storage-keys";
 import { SIDEBAR_WIDTH } from "@/shared/constants";
 import { atomWithStorage } from "jotai/utils";
 
@@ -19,7 +15,7 @@ export const SIDEBAR_COLLAPSE_THRESHOLD = 160;
  * a main-process signal rather than owning the state itself.
  */
 export const sidebarOpenAtom = atomWithStorage<boolean>(
-  SIDEBAR_OPEN_STORAGE_KEY,
+  "studio.sidebar-open.v1",
   true,
   undefined,
   { getOnInit: true },
@@ -31,7 +27,7 @@ export const sidebarOpenAtom = atomWithStorage<boolean>(
  * rail doesn't flash the default width.
  */
 export const sidebarWidthAtom = atomWithStorage<number>(
-  SIDEBAR_WIDTH_STORAGE_KEY,
+  "studio.sidebar-width.v1",
   SIDEBAR_WIDTH,
   undefined,
   { getOnInit: true },

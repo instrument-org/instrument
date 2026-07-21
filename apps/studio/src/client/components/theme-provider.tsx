@@ -1,4 +1,4 @@
-import { applyThemeClass } from "@/client/lib/initial-theme";
+import { applyThemeClass, THEME_STORAGE_KEY } from "@/client/lib/initial-theme";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -49,6 +49,8 @@ export function ThemeProvider({
     theme === "system" ? systemTheme : theme;
 
   useEffect(() => {
+    // Cache for the synchronous pre-paint bootstrap in initial-theme.ts.
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
     applyThemeClass(theme);
 
     if (theme === "system") {

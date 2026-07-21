@@ -5,6 +5,7 @@ import { parseArgs, type ParseArgsConfig } from "node:util";
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
+import { gitSubprocessEnv } from "../git";
 import { normalizePath } from "../normalize-path";
 import { taskDir } from "../task-dir-utils";
 import { uvSubprocessEnv } from "../uv";
@@ -188,13 +189,18 @@ export function resolveCommandContext(
     fs: { resolvePath(cwd: string, path: string): string };
   },
 ) {
+  const uvEnv = uvSubprocessEnv({ taskId });
+  const shellEnv = { ...Object.fromEntries(ctx.env), ...uvEnv };
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
     // ffmpeg, uv, python, pip) all resolve `uv`/`python` on PATH and share the
     // task venv. uvSubprocessEnv wins (PATH/VIRTUAL_ENV) over the bash env.
+    // gitSubprocessEnv comes last and is handed the env it has to correct, so
+    // it can drop every GIT_* the agent exported into the bash env rather than
+    // only overriding the ones it sets. It extends the PATH uv just built.
     env: {
-      ...Object.fromEntries(ctx.env),
-      ...uvSubprocessEnv({ taskId }),
+      ...shellEnv,
+      ...gitSubprocessEnv(shellEnv),
     },
     taskCwd: resolveNativeHostPath(
       taskDir(taskId),

@@ -38,7 +38,10 @@ const config: Configuration = {
   appImage: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
   },
-  asarUnpack: ["resources/**"],
+  // dugite's git distribution has to sit on the real filesystem to be
+  // executable; dugite resolves it by rewriting `app.asar` to
+  // `app.asar.unpacked` and gets ENOENT if it was never unpacked.
+  asarUnpack: ["resources/**", "**/node_modules/dugite/git/**"],
   directories: {
     buildResources: "build",
     output: process.env.ELECTRON_BUILDER_OUTPUT_DIR ?? "dist",

@@ -28,6 +28,10 @@ export const SUPPORT_URL = `https://${APP_DOMAIN}/support`;
 export const MANUAL_DOWNLOAD_URL = `${APP_URL}/download`;
 export const AI_GATEWAY_API_KEY_NOT_NEEDED = "NOT_NEEDED";
 export const CONTACT_EMAIL = `hello@${APP_DOMAIN}`;
+// Identity every commit the agent makes is authored and committed under, so a
+// repository's history never attributes agent work to the user.
+export const GIT_AGENT_EMAIL = `agent@${APP_DOMAIN}`;
+export const GIT_AGENT_NAME = `${APP_NAME} Agent`;
 export const TASK_SETTINGS_FILE_NAME = `settings.json`;
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
 export const TASK_PRIVATE_FOLDER_NAME = `.instrument`;

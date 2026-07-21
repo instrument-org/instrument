@@ -107,7 +107,7 @@ Same environment as the real agent:
 - **Network**: full internet access; private/loopback ranges blocked (SSRF guard)
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
 - **Custom shims**: `tsx`, `pnpm`, `pnx`, `npx`, `uv`, `python`/`python3`,
-  `pip`/`pip3`, `ffmpeg`, `ffprobe`, `node`
+  `pip`/`pip3`, `ffmpeg`, `ffprobe`, `node`, `git`
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this
   runner for command availability/help checks, not real browser-session testing

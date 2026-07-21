@@ -81,6 +81,7 @@ describe("createBashDescription", () => {
       Do NOT pass connection, provider, profile, session, restore, or state flags; the browser session is managed automatically.
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
+        git - Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. Pass commit messages with -m or -F; there is no editor. A large clone may need a raised timeoutMs, and leaves a partial directory to delete if it is cut short.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
         tsx - Execute a TypeScript or JavaScript file. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.

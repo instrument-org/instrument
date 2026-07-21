@@ -1,4 +1,5 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
+import { preferencesAtom } from "@/client/atoms/preferences";
 import {
   CommandDialog,
   CommandGroup,
@@ -26,7 +27,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatDistanceToNow } from "date-fns";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -62,9 +63,7 @@ export function StudioCommandMenu() {
   const navigate = useNavigate();
   const { navigateTab } = useTabActions();
 
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions({ enabled: open }),
-  );
+  const preferences = useAtomValue(preferencesAtom);
 
   const { mutate: setDeveloperMode } = useMutation(
     rpcClient.preferences.setDeveloperMode.mutationOptions(),
@@ -130,7 +129,7 @@ export function StudioCommandMenu() {
   // In developer mode every debug page is a flat, top-level entry (preset chat
   // sessions included, deep-linked via the session search param). Shown on open
   // and fuzzy-filtered by name as the user types.
-  const developerMode = preferences?.developerMode ?? false;
+  const developerMode = preferences.developerMode;
   const matchedDebugItems = useMemo((): MatchedDebugItem[] => {
     if (!developerMode) {
       return [];
@@ -316,7 +315,7 @@ export function StudioCommandMenu() {
                 <CommandItem
                   onSelect={() => {
                     handleClose();
-                    const next = !(preferences?.developerMode ?? false);
+                    const next = !preferences.developerMode;
                     setDeveloperMode({ enabled: next });
                     toast(
                       next
@@ -336,7 +335,7 @@ export function StudioCommandMenu() {
                 <CommandItem
                   onSelect={() => {
                     handleClose();
-                    const isBeta = preferences?.releaseChannel === "beta";
+                    const isBeta = preferences.releaseChannel === "beta";
                     setReleaseChannel({
                       channel: isBeta ? undefined : "beta",
                     });

@@ -21,11 +21,19 @@ import { useAtomValue } from "jotai";
  * Radix bumps to it, drop this hook and the per-content `zoom` and zoom only the
  * MainWindow root.
  *
- * Also exposes `--content-zoom`: since `zoom` rescales the box itself, a
- * viewport- or rem-based max size on the zoomed element grows by the same
- * factor. Consumers divide those sizes by `var(--content-zoom)` (e.g.
- * `max-h-[calc(85vh/var(--content-zoom))]`) to keep their rendered footprint
- * constant regardless of zoom level.
+ * Also exposes `--content-zoom` for sizing the zoomed element, which needs one
+ * distinction held firmly:
+ *
+ * - `vw`/`vh` are *not* rescaled by the element's own `zoom`, so a `100vh` box
+ *   renders `zoom x` the window height. Divide these by `var(--content-zoom)`;
+ *   they mean "a share of the real window" and must stay one.
+ * - Percentages *are* resolved in the zoomed element's own units already, so
+ *   `width: 100%` on a fixed element correctly spans the window at any zoom.
+ *   Dividing these shrinks the box below the share it asked for.
+ * - `rem`/`px` are intrinsic sizes: how much room the content needs, in the
+ *   same units the content is laid out in. Never divide these -- that pins the
+ *   element's rendered size while its text grows, which is the one outcome zoom
+ *   exists to prevent.
  */
 export function useAppZoomStyle(style?: CSSProperties): CSSProperties {
   const zoom = useAtomValue(zoomAtom);
@@ -37,12 +45,18 @@ export function useAppZoomStyle(style?: CSSProperties): CSSProperties {
 }
 
 /**
- * Max-size utilities that divide by `--content-zoom` so a portalled Radix
- * Content keeps a constant rendered footprint as `zoom` rescales its box.
- * Applied alongside {@link useAppZoomStyle}; shared by every centered dialog so
- * the compensation isn't hand-copied per primitive (and silently skipped, which
- * is how AlertDialog clipped off-screen at zoom > 1).
+ * Max-size utilities for a portalled Radix Content, applied alongside
+ * {@link useAppZoomStyle}. Shared by every centered dialog so the compensation
+ * isn't hand-copied per primitive (and silently skipped, which is how
+ * AlertDialog clipped off-screen at zoom > 1).
+ *
+ * The content keeps its intrinsic size in layout units at every zoom level, so
+ * it grows on screen with the text inside it, and only ever gives that up to
+ * stay within the window. A dialog wanting a different intrinsic size overrides
+ * these with the same `min(<intrinsic>, calc(<vw|vh>/var(--content-zoom)))`
+ * shape written out literally -- Tailwind only generates arbitrary values it can
+ * see in source, so this can't be built from parts at runtime.
  */
 export const ZOOM_CONTENT_MAX_HEIGHT = "max-h-[calc(85vh/var(--content-zoom))]";
 export const ZOOM_CONTENT_MAX_WIDTH =
-  "max-w-[calc((100%-2rem)/var(--content-zoom))] sm:max-w-[calc(32rem/var(--content-zoom))]";
+  "max-w-[min(32rem,calc((100vw-2rem)/var(--content-zoom)))]";

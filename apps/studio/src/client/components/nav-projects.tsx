@@ -42,7 +42,7 @@ import {
   PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { useState } from "react";
@@ -50,12 +50,14 @@ import { useState } from "react";
 import { InlineRenameInput } from "./inline-rename-input";
 import { InternalLink } from "./internal-link";
 
-export function NavProjects({ matches }: { matches: MakeRouteMatchUnion[] }) {
+export function NavProjects({
+  matches,
+  projects,
+}: {
+  matches: MakeRouteMatchUnion[];
+  projects: Project[] | undefined;
+}) {
   const [isOpen, setIsOpen] = useAtom(projectsSectionOpenAtom);
-
-  const { data: projects } = useQuery(
-    rpcClient.workspace.project.live.list.experimental_liveOptions(),
-  );
 
   const activeProjectId = matches.find(
     (match) => match.routeId === "/_app/projects/$id/",

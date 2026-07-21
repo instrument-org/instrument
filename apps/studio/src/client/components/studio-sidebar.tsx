@@ -24,13 +24,23 @@ export function StudioSidebar({
   // was just created for a newly opened tab and hasn't run its first load yet.
   const matches = useRouterState({ select: (s) => s.matches });
 
-  const { data: pinnedTaskIds } = useQuery(
+  const { data: projects, isPending: isProjectsPending } = useQuery(
+    rpcClient.workspace.project.live.list.experimental_liveOptions(),
+  );
+
+  const { data: pinnedTaskIds, isPending: isPinsPending } = useQuery(
     rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
   );
 
-  const { data: tasksData } = useQuery(
+  const { data: tasksData, isPending: isTasksPending } = useQuery(
     rpcClient.workspace.task.live.list.experimental_liveOptions(),
   );
+
+  // All three read local workspace state and land within a frame or two of each
+  // other. Revealing each as it arrives makes the sidebar pop in three times,
+  // the last of which reorders the task list once pins are known, so hold the
+  // content until every section can render in its final form.
+  const isPending = isProjectsPending || isPinsPending || isTasksPending;
 
   const pinnedTaskIdSet = useMemo(
     () => new Set(pinnedTaskIds ?? []),
@@ -53,14 +63,18 @@ export function StudioSidebar({
         </Button>
       </div>
       <SidebarContent className="scroll-fade-y gap-0">
-        <NavProjects matches={matches} />
-        {tasksData?.tasks && tasksData.tasks.length > 0 && (
-          <NavTasks
-            matches={matches}
-            pinnedTaskIds={pinnedTaskIdSet}
-            tasks={tasksData.tasks}
-            title="Tasks"
-          />
+        {!isPending && (
+          <>
+            <NavProjects matches={matches} projects={projects} />
+            {tasksData?.tasks && tasksData.tasks.length > 0 && (
+              <NavTasks
+                matches={matches}
+                pinnedTaskIds={pinnedTaskIdSet}
+                tasks={tasksData.tasks}
+                title="Tasks"
+              />
+            )}
+          </>
         )}
       </SidebarContent>
       <NavSupport />

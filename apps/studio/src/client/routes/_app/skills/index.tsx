@@ -42,6 +42,12 @@ const GROUP_LABELS: Partial<Record<Skill["source"], string>> = {
   workspace: "This workspace",
 };
 
+// Every skill has a SKILL.md, so a count of one says nothing; what is worth
+// knowing at a glance is that a skill brings scripts and references with it.
+function fileCountLabel({ fileCount, filesTruncated }: Skill) {
+  return `${fileCount}${filesTruncated ? "+" : ""} files`;
+}
+
 function groupSkills(skills: Skill[]) {
   const groups = new Map<
     string,
@@ -144,6 +150,11 @@ function SkillsPage() {
                       <p className="mt-2 line-clamp-3 text-sm/relaxed text-muted-foreground">
                         {skill.description}
                       </p>
+                      {skill.fileCount > 1 ? (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          {fileCountLabel(skill)}
+                        </p>
+                      ) : null}
                     </InternalLink>
                   ))}
                 </div>

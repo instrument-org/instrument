@@ -27,7 +27,7 @@ export function NavControls() {
         }}
         size="icon"
         title="Go back"
-        variant="ghost"
+        variant="ghost-toolbar"
       >
         <ArrowLeftIcon className="size-4" />
       </Button>
@@ -39,7 +39,7 @@ export function NavControls() {
         }}
         size="icon"
         title="Go forward"
-        variant="ghost"
+        variant="ghost-toolbar"
       >
         <ArrowRightIcon className="size-4" />
       </Button>

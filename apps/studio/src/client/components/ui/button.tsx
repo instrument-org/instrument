@@ -33,6 +33,10 @@ export const buttonVariants = tv({
         "text-destructive not-disabled:hover:bg-destructive/10 dark:not-disabled:hover:bg-destructive/20",
       "ghost-overlay":
         "text-white not-disabled:hover:bg-white/20 not-disabled:hover:text-white",
+      // For the toolbar surface, where `accent` is the same gray as the
+      // background and a plain ghost hover is invisible.
+      "ghost-toolbar":
+        "not-disabled:hover:bg-muted/60 not-disabled:hover:text-foreground",
       "input-select":
         "border-0 bg-linear-to-b from-white to-[#fafaf9] text-foreground shadow-sm not-disabled:hover:brightness-95 dark:border dark:border-input dark:bg-input/30 dark:bg-none dark:from-transparent dark:to-transparent dark:not-disabled:hover:bg-input/50",
       link: "text-primary underline-offset-4 not-disabled:hover:underline",

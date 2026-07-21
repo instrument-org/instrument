@@ -70,8 +70,8 @@ export function StudioSidebar({
       <SidebarContent className="gap-0 scroll-fade-y">
         {!isPending && (
           <>
-            <NavProjects matches={matches} projects={projects} />
             {features.skills && <NavSkills matches={matches} />}
+            <NavProjects matches={matches} projects={projects} />
             {tasksData?.tasks && tasksData.tasks.length > 0 && (
               <NavTasks
                 matches={matches}

@@ -132,6 +132,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-fileChanges>\n${indent(filesList)}\n</data-fileChanges>`;
     }
+    case "data-intent": {
+      return `<data-intent>${part.data.text}</data-intent>`;
+    }
     case "data-maxSteps": {
       return `<data-maxSteps maxStepCount="${part.data.maxStepCount}" />`;
     }

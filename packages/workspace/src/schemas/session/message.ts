@@ -336,6 +336,17 @@ export namespace SessionMessage {
           }
         }
 
+        const intentPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-intent";
+          } => part.type === "data-intent",
+        );
+        if (intentPart) {
+          injectedParts.push({ text: intentPart.data.text, type: "text" });
+        }
+
         if (pendingMaxStepsNote) {
           injectedParts.push({ text: pendingMaxStepsNote, type: "text" });
           pendingMaxStepsNote = undefined;

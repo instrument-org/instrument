@@ -22,6 +22,8 @@ const SkillSourceSchema = z.enum([
 
 const SkillSummarySchema = z.object({
   description: z.string(),
+  fileCount: z.number(),
+  filesTruncated: z.boolean(),
   modelInvocable: z.boolean(),
   name: z.string(),
   path: z.string(),
@@ -32,15 +34,24 @@ const SkillSummarySchema = z.object({
 const SkillDetailSchema = SkillSummarySchema.extend({
   content: z.string(),
   files: z.array(z.string()),
-  filesTruncated: z.boolean(),
 });
 
 const list = base
   .output(SkillSummarySchema.array())
   .handler(async ({ context }) => {
     const skills = await findSkills(getSkillSources(context.workspaceConfig));
-    return skills.map((skill) => ({
+    // Counting means walking every skill. Measured at a few milliseconds for a
+    // few dozen skills, because the walk skips dependency trees and stops at
+    // FILE_LIST_LIMIT, so it stays bounded however large a skill is.
+    const signal = AbortSignal.timeout(10_000);
+    const listings = await Promise.all(
+      skills.map((skill) => listSkillFiles(skill.skillDir, signal)),
+    );
+
+    return skills.map((skill, index) => ({
       description: skill.description,
+      fileCount: listings[index]?.files.length ?? 0,
+      filesTruncated: listings[index]?.truncated ?? false,
       modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
@@ -67,6 +78,7 @@ const byName = base
     return {
       content: skill.content,
       description: skill.description,
+      fileCount: files.length,
       files,
       filesTruncated: truncated,
       modelInvocable: skill.modelInvocable,

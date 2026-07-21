@@ -161,6 +161,17 @@ export function buildWorkspaceFsLayout({
 }
 
 /**
+ * Workspace skills dir, or null outside a running workspace (unit tests and the
+ * standalone run-bash script), where there is nothing to mount.
+ */
+export function getWorkspaceSkillsDir(): AbsolutePath | null {
+  const config = getWorkspaceConfigIfInitialized();
+  return config
+    ? absolutePathJoin(config.rootDir, REGISTRY_FOLDER_NAMES.skills)
+    : null;
+}
+
+/**
  * True when an existing host path escapes its owning mount through a symlink.
  * A missing path or root is not an escape (nothing to read; normal not-found
  * handling applies). Any other resolution failure (permission error, symlink
@@ -309,17 +320,6 @@ export function resolveVirtualPath(
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [layout.task, ...nonTaskMounts(layout)];
-}
-
-/**
- * Workspace skills dir, or null outside a running workspace (unit tests and the
- * standalone run-bash script), where there is nothing to mount.
- */
-function getWorkspaceSkillsDir(): AbsolutePath | null {
-  const config = getWorkspaceConfigIfInitialized();
-  return config
-    ? absolutePathJoin(config.rootDir, REGISTRY_FOLDER_NAMES.skills)
-    : null;
 }
 
 function isEnoent(error: unknown): boolean {

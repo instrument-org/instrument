@@ -51,6 +51,10 @@ import {
 import { createTsCommand, TS_COMMAND } from "./shell-commands/ts";
 import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
+import {
+  createValidateSkillCommand,
+  VALIDATE_SKILL_COMMAND,
+} from "./shell-commands/validate-skill";
 import { createWhichCommand } from "./shell-commands/which";
 import { taskDir } from "./task-dir-utils";
 import {
@@ -280,6 +284,12 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     // Alias of pip; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PIP3_COMMAND.name,
+  },
+  {
+    description: VALIDATE_SKILL_COMMAND.description,
+    factory: createValidateSkillCommand,
+    listInDescription: true,
+    name: VALIDATE_SKILL_COMMAND.name,
   },
 ];
 

@@ -51,6 +51,14 @@
         }
       }
 
+      /* The app's stylesheet does this globally, but it only arrives with the
+         app: without it the sidebar's border would sit outside its width, a
+         pixel right of where the real rail draws it. */
+      #boot-shell,
+      #boot-shell * {
+        box-sizing: border-box;
+      }
+
       #boot-shell {
         background: var(--boot-background);
         display: flex;

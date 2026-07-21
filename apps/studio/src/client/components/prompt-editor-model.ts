@@ -22,13 +22,16 @@ export const promptSchema = new Schema({
       group: "inline",
       inline: true,
       selectable: false,
+      // Plain inline text, deliberately: a padded inline-flex box is rigid and
+      // taller than the line, so in a `break-words` contenteditable the caret
+      // position right after it wraps onto the next line. Colour alone marks
+      // the token; it still behaves as one unit because the node is an atom.
       toDOM: (node) => {
         const name = String(node.attrs.name);
         return [
           "span",
           {
-            class:
-              "mx-0.5 inline-flex rounded-md bg-brown-100 px-1.5 py-0.5 align-baseline font-medium text-brown-700 dark:bg-brown-900/60 dark:text-brown-200",
+            class: "font-medium text-brown-700 dark:text-brown-300",
             contenteditable: "false",
             "data-skill": name,
           },

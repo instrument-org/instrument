@@ -1,6 +1,5 @@
 import { PromptInput } from "@/client/components/prompt-input";
 import { SessionMarkdown } from "@/client/components/session-markdown";
-import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
@@ -27,7 +26,6 @@ function SkillPage() {
   );
   const navigate = useNavigate();
   const { addTab } = useTabActions();
-  const tabId = useTabId();
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
   if (isLoading || !skill) {
@@ -39,9 +37,9 @@ function SkillPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <main className="scroll-fade-y min-h-0 flex-1 overflow-y-auto">
-        <article className="mx-auto w-full max-w-3xl px-8 pt-10 pb-12">
+    <div className="scroll-fade-y h-full overflow-y-auto">
+      <div className="mx-auto grid w-full max-w-6xl gap-10 px-8 pt-10 pb-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <article className="min-w-0">
           <Link
             className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
             to="/skills"
@@ -49,47 +47,19 @@ function SkillPage() {
             <ArrowLeftIcon className="size-4" />
             All skills
           </Link>
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <h1 className="font-mono text-2xl font-semibold">
-                /{skill.name}
-              </h1>
-              <p className="mt-3 max-w-2xl text-base/relaxed text-muted-foreground">
-                {skill.description}
-              </p>
-            </div>
-            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground capitalize">
-              {skill.source}
-            </span>
-          </div>
-
-          <div className="mt-8 grid gap-3 rounded-xl border bg-muted/20 p-4 text-xs text-muted-foreground">
-            <div className="flex min-w-0 items-center gap-2">
-              <FolderOpenIcon className="size-4 shrink-0" />
-              <span className="truncate font-mono">{skill.path}</span>
-            </div>
-            {skill.files.length > 0 ? (
-              <div className="flex items-start gap-2">
-                <FileIcon className="mt-0.5 size-4 shrink-0" />
-                <span>
-                  {skill.files.slice(0, 6).join(", ")}
-                  {skill.files.length > 6 || skill.filesTruncated ? "…" : ""}
-                </span>
-              </div>
-            ) : null}
-          </div>
-
+          <h1 className="font-mono text-2xl font-semibold">/{skill.name}</h1>
+          <p className="mt-3 text-base/relaxed text-muted-foreground">
+            {skill.description}
+          </p>
           <div className="my-10 h-px bg-border" />
           <SessionMarkdown className="text-[15px]" markdown={skill.content} />
         </article>
-      </main>
 
-      <div className="border-t bg-background/95 px-8 py-4 backdrop-blur">
-        <div className="mx-auto w-full max-w-3xl">
+        <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-10 lg:self-start">
           <PromptInput
             allowOpenInNewTab
             autoResizeMaxHeight={240}
-            draftKey={{ scope: "compose", tabId }}
+            draftKey={{ id: `skill:${skill.name}`, scope: "transient" }}
             initialSkillName={skill.name}
             isLoading={createTaskMutation.isPending}
             modelURI={selectedModelURI}
@@ -131,7 +101,38 @@ function SkillPage() {
             ref={promptInputRef}
             showProjectSelector
           />
-        </div>
+
+          <dl className="grid gap-4 rounded-xl border bg-muted/20 p-4 text-xs">
+            <div className="grid gap-1">
+              <dt className="font-medium text-muted-foreground">Source</dt>
+              <dd className="capitalize">{skill.source}</dd>
+            </div>
+            <div className="grid min-w-0 gap-1">
+              <dt className="font-medium text-muted-foreground">Location</dt>
+              <dd className="flex min-w-0 items-center gap-2">
+                <FolderOpenIcon className="size-4 shrink-0" />
+                <span className="truncate font-mono">{skill.path}</span>
+              </dd>
+            </div>
+            {skill.files.length > 0 ? (
+              <div className="grid min-w-0 gap-1">
+                <dt className="font-medium text-muted-foreground">Files</dt>
+                <dd className="grid gap-1">
+                  {skill.files.map((file) => (
+                    <span
+                      className="flex min-w-0 items-center gap-2"
+                      key={file}
+                    >
+                      <FileIcon className="size-4 shrink-0" />
+                      <span className="truncate font-mono">{file}</span>
+                    </span>
+                  ))}
+                  {skill.filesTruncated ? <span>…</span> : null}
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </aside>
       </div>
     </div>
   );

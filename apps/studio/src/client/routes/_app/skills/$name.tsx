@@ -55,9 +55,7 @@ function SkillPage() {
           <ArrowLeftIcon className="size-4" />
           All skills
         </Link>
-        <h1 className="font-serif text-3xl tracking-tight">
-          {skill.title}
-        </h1>
+        <h1 className="font-serif text-3xl tracking-tight">{skill.title}</h1>
         {isProvided(skill.source) ? (
           // Where our own skills sit on disk is an implementation detail to
           // everyone but us; the provenance is the part worth stating.

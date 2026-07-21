@@ -229,10 +229,12 @@ export const PromptInput = ({
       return;
     }
     prefilledSkillRef.current = initialSkillName;
+    // Seed a whole opening line, not a bare token: it shows what invoking a
+    // skill looks like and leaves the user somewhere sensible to keep typing.
     setValue((current) =>
       current.trim()
         ? current
-        : `[$${initialSkillName}](skill:${initialSkillName})`,
+        : `Use [$${initialSkillName}](skill:${initialSkillName}) to `,
     );
   }, [initialSkillName, setValue]);
 

@@ -1,9 +1,11 @@
 import { PromptInput } from "@/client/components/prompt-input";
+import { RevealPath } from "@/client/components/reveal-path";
 import { SessionMarkdown } from "@/client/components/session-markdown";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
+import { skillTitle } from "@/client/lib/skill-title";
 import { rpcClient } from "@/client/rpc/client";
-import { ArrowLeftIcon, FileIcon, FolderOpenIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, FileIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
@@ -11,7 +13,8 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/skills/$name")({
   component: SkillPage,
-  head: ({ params }) => ({ meta: [{ title: `/${params.name}` }] }),
+  head: ({ params }) => ({ meta: [{ title: skillTitle(params.name) }] }),
+  staticData: { tabIcon: "graduation-cap" },
 });
 
 function SkillPage() {
@@ -38,24 +41,23 @@ function SkillPage() {
 
   return (
     <div className="h-full overflow-y-auto scroll-fade-y">
-      <div className="mx-auto grid w-full max-w-6xl gap-10 px-8 pt-10 pb-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <article className="min-w-0">
-          <Link
-            className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            to="/skills"
-          >
-            <ArrowLeftIcon className="size-4" />
-            All skills
-          </Link>
-          <h1 className="font-mono text-2xl font-semibold">/{skill.name}</h1>
-          <p className="mt-3 text-base/relaxed text-muted-foreground">
-            {skill.description}
-          </p>
-          <div className="my-10 h-px bg-border" />
-          <SessionMarkdown className="text-[15px]" markdown={skill.content} />
-        </article>
+      <div className="mx-auto w-full max-w-4xl px-8 pt-10 pb-12">
+        <Link
+          className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          to="/skills"
+        >
+          <ArrowLeftIcon className="size-4" />
+          All skills
+        </Link>
+        <h1 className="font-serif text-3xl tracking-tight">
+          {skillTitle(skill.name)}
+        </h1>
+        <p className="mt-3 text-base/relaxed text-muted-foreground">
+          {skill.description}
+        </p>
+        <RevealPath className="mt-4" path={skill.path} />
 
-        <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-10 lg:self-start">
+        <div className="mt-8">
           <PromptInput
             allowOpenInNewTab
             autoResizeMaxHeight={240}
@@ -97,42 +99,38 @@ function SkillPage() {
                 },
               );
             }}
-            placeholder={`Ask with /${skill.name}`}
+            placeholder={`Ask ${skillTitle(skill.name)} to do something`}
             ref={promptInputRef}
             showProjectSelector
           />
+        </div>
 
-          <dl className="grid gap-4 rounded-xl border bg-muted/20 p-4 text-xs">
-            <div className="grid gap-1">
-              <dt className="font-medium text-muted-foreground">Source</dt>
-              <dd className="capitalize">{skill.source}</dd>
-            </div>
-            <div className="grid min-w-0 gap-1">
-              <dt className="font-medium text-muted-foreground">Location</dt>
-              <dd className="flex min-w-0 items-center gap-2">
-                <FolderOpenIcon className="size-4 shrink-0" />
-                <span className="truncate font-mono">{skill.path}</span>
-              </dd>
-            </div>
-            {skill.files.length > 0 ? (
-              <div className="grid min-w-0 gap-1">
-                <dt className="font-medium text-muted-foreground">Files</dt>
-                <dd className="grid gap-1">
-                  {skill.files.map((file) => (
-                    <span
-                      className="flex min-w-0 items-center gap-2"
-                      key={file}
-                    >
-                      <FileIcon className="size-4 shrink-0" />
-                      <span className="truncate font-mono">{file}</span>
-                    </span>
-                  ))}
-                  {skill.filesTruncated ? <span>…</span> : null}
-                </dd>
+        <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,1fr)_16rem]">
+          <article className="min-w-0">
+            <SessionMarkdown className="text-[15px]" markdown={skill.content} />
+          </article>
+
+          {skill.files.length > 0 ? (
+            <aside className="min-w-0">
+              <h2 className="text-xs font-medium text-muted-foreground">
+                Files
+              </h2>
+              {/* Capped and scrollable: some skills bundle dozens of scripts
+                  and references, and the list must not set the page height. */}
+              <div className="mt-3 grid max-h-80 gap-1 overflow-y-auto scroll-fade-y text-xs">
+                {skill.files.map((file) => (
+                  <span className="flex min-w-0 items-center gap-2" key={file}>
+                    <FileIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate font-mono">{file}</span>
+                  </span>
+                ))}
+                {skill.filesTruncated ? (
+                  <span className="text-muted-foreground">…</span>
+                ) : null}
               </div>
-            ) : null}
-          </dl>
-        </aside>
+            </aside>
+          ) : null}
+        </div>
       </div>
     </div>
   );

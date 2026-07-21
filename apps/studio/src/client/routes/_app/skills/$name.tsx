@@ -1,15 +1,21 @@
+import { FileIcon } from "@/client/components/file-icon";
 import { PromptInput } from "@/client/components/prompt-input";
 import { RevealPath } from "@/client/components/reveal-path";
 import { SessionMarkdown } from "@/client/components/session-markdown";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { skillTitle } from "@/client/lib/skill-title";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { ArrowLeftIcon, FileIcon } from "@phosphor-icons/react";
+import { APP_NAME } from "@instrument-org/shared";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { toast } from "sonner";
+
+const isProvided = (source: string) =>
+  source === "registry" || source === "system";
 
 export const Route = createFileRoute("/_app/skills/$name")({
   component: SkillPage,
@@ -52,10 +58,18 @@ function SkillPage() {
         <h1 className="font-serif text-3xl tracking-tight">
           {skillTitle(skill.name)}
         </h1>
-        <p className="mt-3 text-base/relaxed text-muted-foreground">
+        {isProvided(skill.source) ? (
+          // Where our own skills sit on disk is an implementation detail to
+          // everyone but us; the provenance is the part worth stating.
+          <p className="mt-2 text-xs text-muted-foreground">
+            Provided by {APP_NAME}
+          </p>
+        ) : (
+          <RevealPath className="mt-2" path={skill.path} />
+        )}
+        <p className="mt-4 text-base/relaxed text-muted-foreground">
           {skill.description}
         </p>
-        <RevealPath className="mt-4" path={skill.path} />
 
         <div className="mt-8">
           <PromptInput
@@ -105,22 +119,31 @@ function SkillPage() {
           />
         </div>
 
-        <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        {/* Two columns only when there is a rail to show; a skill with no
+            bundled files should not leave a dead gutter. */}
+        <div
+          className={cn(
+            "mt-12",
+            skill.files.length > 0 &&
+              "grid gap-10 lg:grid-cols-[minmax(0,1fr)_14rem]",
+          )}
+        >
           <article className="min-w-0">
             <SessionMarkdown className="text-[15px]" markdown={skill.content} />
           </article>
 
           {skill.files.length > 0 ? (
-            <aside className="min-w-0">
+            <aside className="min-w-0 lg:sticky lg:top-10 lg:self-start">
               <h2 className="text-xs font-medium text-muted-foreground">
                 Files
               </h2>
-              {/* Capped and scrollable: some skills bundle dozens of scripts
-                  and references, and the list must not set the page height. */}
-              <div className="mt-3 grid max-h-80 gap-1 overflow-y-auto scroll-fade-y text-xs">
+              <div className="mt-3 grid max-h-96 gap-1.5 overflow-y-auto scroll-fade-y text-xs">
                 {skill.files.map((file) => (
                   <span className="flex min-w-0 items-center gap-2" key={file}>
-                    <FileIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <FileIcon
+                      className="size-4 shrink-0 text-muted-foreground"
+                      filename={file}
+                    />
                     <span className="truncate font-mono">{file}</span>
                   </span>
                 ))}

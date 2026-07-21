@@ -234,7 +234,7 @@ export const PromptInput = ({
     setValue((current) =>
       current.trim()
         ? current
-        : `Use [$${initialSkillName}](skill:${initialSkillName}) to `,
+        : `Use [$${initialSkillName}](skill:${initialSkillName}) to \u2026`,
     );
   }, [initialSkillName, setValue]);
 

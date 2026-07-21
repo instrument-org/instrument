@@ -5,6 +5,7 @@ import {
   ReadWriteFs,
 } from "just-bash";
 import { realpathSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 
 import { REGISTRY_FOLDER_NAMES, TASK_FOLDER_NAMES } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
@@ -111,7 +112,12 @@ export async function buildBashFs(
     );
   }
 
-  if (layout.skills && (await pathExists(layout.skills.hostRoot))) {
+  if (layout.skills) {
+    // The workspace's own directory, always meant to be there, so create it if
+    // a fresh workspace has not yet. Skipping the mount instead would leave the
+    // agent writing to a `/skills` the prompt advertises but that does not
+    // exist. Unlike an attached folder, it cannot be detached out from under us.
+    await mkdir(layout.skills.hostRoot, { recursive: true });
     fs.mount(
       layout.skills.mountPoint,
       new ReadWriteFs({ maxFileReadSize, root: layout.skills.hostRoot }),

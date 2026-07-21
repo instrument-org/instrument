@@ -35,7 +35,10 @@ import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
-import { watchThemePreferenceAndApply } from "./lib/theme-utils";
+import {
+  serveResolvedTheme,
+  watchThemePreferenceAndApply,
+} from "./lib/theme-utils";
 import { applyStandardUserAgent } from "./lib/user-agent";
 import { initializeRPC } from "./rpc/initialize";
 let appUpdater: StudioAppUpdater | undefined;
@@ -148,6 +151,8 @@ void app.whenReady().then(async () => {
   createApplicationMenu();
   watchThemePreferenceAndApply(applyThemeToWindows);
   nativeTheme.on("updated", applyThemeToWindows);
+  // Registered before any window exists, so no preload can ask before it answers.
+  serveResolvedTheme();
 
   await setupBinDirectory();
 

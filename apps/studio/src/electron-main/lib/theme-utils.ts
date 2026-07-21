@@ -1,4 +1,5 @@
-import { nativeTheme } from "electron";
+import { RESOLVE_THEME_CHANNEL } from "@/shared/constants";
+import { ipcMain, nativeTheme } from "electron";
 
 import { getPreferencesStore } from "../stores/preferences";
 
@@ -9,6 +10,21 @@ export function getBackgroundColor() {
 
 export function getMainWindowBackgroundColor() {
   return getBackgroundColor();
+}
+
+/**
+ * Answers the preload's synchronous request for the resolved theme. The app's
+ * stylesheet is render-blocking, so it paints `body { background:
+ * var(--background) }` as soon as it loads -- in light mode, since the class
+ * that picks the theme only arrives once the renderer bundle has compiled. That
+ * is a white flash on a dark-mode launch. The preload runs before the document
+ * is parsed, which makes it the only place that can set the class first, and
+ * this is where it gets the answer from.
+ */
+export function serveResolvedTheme() {
+  ipcMain.on(RESOLVE_THEME_CHANNEL, (event) => {
+    event.returnValue = shouldUseDarkMode() ? "dark" : "light";
+  });
 }
 
 export function watchThemePreferenceAndApply(callback?: () => void): void {

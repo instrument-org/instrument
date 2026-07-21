@@ -1,21 +1,10 @@
-// Theme class is normally applied by ThemeProvider in an effect gated on an
-// async preferences query. That lands after first paint, so opaque light-mode
-// surfaces (e.g. the prompt input) flash white before flipping to dark. We
-// cache the last theme preference and apply the resolved class synchronously
-// before React mounts to avoid that flash.
-
-export const THEME_STORAGE_KEY = "studio-theme";
+// The theme class lands twice. The preload puts it on <html> before the
+// document is parsed, from the preference the main process holds, which is what
+// keeps the render-blocking stylesheet from painting a light background on a
+// dark-mode launch. ThemeProvider then applies it again from its own
+// preferences query, and on every change after that. Both go through here.
 
 type Theme = "dark" | "light" | "system";
-
-export function applyInitialTheme() {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  const theme: Theme =
-    stored === "dark" || stored === "light" || stored === "system"
-      ? stored
-      : "system";
-  applyThemeClass(theme);
-}
 
 export function applyThemeClass(theme: Theme) {
   const root = window.document.documentElement;

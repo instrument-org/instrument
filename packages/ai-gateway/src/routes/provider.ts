@@ -41,7 +41,7 @@ providerApp.all("/:providerConfigId/*", async (context) => {
   targetUrl.search = url.search;
 
   const headers = new Headers(context.req.raw.headers);
-  setAttributionHeaders(headers);
+  setAttributionHeaders(headers, config.type);
   setProviderAuthHeaders(headers, config);
 
   return proxy(targetUrl.toString(), {

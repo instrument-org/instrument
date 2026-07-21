@@ -54,6 +54,7 @@ import {
   type PromptDraftKey,
   promptDraftRefAtom,
   promptFocusSignalAtom,
+  removeTransientDraft,
 } from "../atoms/prompt-value";
 import { rpcClient } from "../rpc/client";
 import { PromptProjectSelector } from "./project/prompt-project-selector";
@@ -205,6 +206,20 @@ export const PromptInput = ({
     };
   }, [setInputRef]);
 
+  // A transient draft belongs to the surface that mounted it, so drop it when
+  // that surface goes away or re-keys. Without this it would outlive the page
+  // and follow the user to the next skill.
+  const transientDraftId =
+    draftKey.scope === "transient" ? draftKey.id : undefined;
+  useEffect(() => {
+    if (transientDraftId === undefined) {
+      return;
+    }
+    return () => {
+      removeTransientDraft(transientDraftId);
+    };
+  }, [transientDraftId]);
+
   // Seed the compose box once per skill. Keying off the current value instead
   // would re-insert the token every time the box goes empty, so clearing it (or
   // submitting, which clears) could never leave it empty on a skill page.
@@ -217,7 +232,7 @@ export const PromptInput = ({
     setValue((current) =>
       current.trim()
         ? current
-        : `[$${initialSkillName}](skill:${initialSkillName}) `,
+        : `[$${initialSkillName}](skill:${initialSkillName})`,
     );
   }, [initialSkillName, setValue]);
 

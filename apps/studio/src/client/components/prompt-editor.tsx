@@ -1,6 +1,6 @@
 import { cn } from "@/client/lib/utils";
 import { baseKeymap } from "prosemirror-commands";
-import { history } from "prosemirror-history";
+import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
@@ -14,10 +14,31 @@ import {
 } from "react";
 
 import {
+  deleteSkillBackward,
   promptDocFromText,
   promptSchema,
   promptTextFromDoc,
 } from "./prompt-editor-model";
+
+// `baseKeymap` deliberately leaves history out, so undo/redo only work once the
+// keys are bound alongside the history plugin.
+const editorAttributes = (placeholder?: string) => ({
+  "aria-label": placeholder ?? "Prompt",
+  class:
+    "prompt-editor max-h-full min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-sm outline-none",
+  "data-placeholder": placeholder ?? "",
+});
+
+const editorPlugins = () => [
+  history(),
+  keymap({
+    Backspace: deleteSkillBackward,
+    "Mod-y": redo,
+    "Mod-z": undo,
+    "Shift-Mod-z": redo,
+  }),
+  keymap(baseKeymap),
+];
 
 export interface PromptEditorRef {
   element: HTMLElement | null;
@@ -138,12 +159,7 @@ export function PromptEditor({
 
     const initialProps = initialPropsRef.current;
     const view = new EditorView(mount, {
-      attributes: {
-        "aria-label": initialProps.placeholder ?? "Prompt",
-        class:
-          "prompt-editor max-h-full min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-sm outline-none",
-        "data-placeholder": initialProps.placeholder ?? "",
-      },
+      attributes: editorAttributes(initialProps.placeholder),
       clipboardTextParser: (text) =>
         Slice.maxOpen(promptDocFromText(text).content),
       clipboardTextSerializer: (slice) =>
@@ -205,7 +221,7 @@ export function PromptEditor({
       },
       state: EditorState.create({
         doc: promptDocFromText(initialProps.value),
-        plugins: [history(), keymap(baseKeymap)],
+        plugins: editorPlugins(),
         schema: promptSchema,
       }),
     });
@@ -219,26 +235,33 @@ export function PromptEditor({
     };
   }, []);
 
+  // Replace the content through a transaction rather than a fresh EditorState:
+  // recreating the state drops the history stack, so an external value change
+  // (the skill prefill, a clear after submit) would silently make undo a no-op.
   useEffect(() => {
     const view = viewRef.current;
     if (!view || promptTextFromDoc(view.state.doc) === value) {
       return;
     }
     const doc = promptDocFromText(value);
-    const selection = TextSelection.atEnd(doc);
-    view.updateState(
-      EditorState.create({
-        doc,
-        plugins: [history(), keymap(baseKeymap)],
-        schema: promptSchema,
-        selection,
-      }),
+    const tr = view.state.tr.replaceWith(
+      0,
+      view.state.doc.content.size,
+      doc.content,
     );
+    tr.setSelection(TextSelection.atEnd(tr.doc));
+    view.dispatch(tr);
   }, [value]);
 
   useEffect(() => {
     viewRef.current?.setProps({ editable: () => !disabled && !readOnly });
   }, [disabled, readOnly]);
+
+  // Navigating between skills reuses this view, so the placeholder has to track
+  // the prop rather than the value captured when the view was constructed.
+  useEffect(() => {
+    viewRef.current?.setProps({ attributes: editorAttributes(placeholder) });
+  }, [placeholder]);
 
   useImperativeHandle(ref, () => ({
     element: viewRef.current?.dom ?? null,

@@ -32,6 +32,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-maxSteps": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
+  "data-skillMentions": "dev",
 };
 
 export function dataPartVisibility(type: DataPartType): DataPartVisibility {
@@ -125,6 +126,15 @@ export function renderDataPart({
     }
     case "data-projectChanges": {
       return <ProjectChangesNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-skillMentions": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={`Skills mentioned: ${part.data.names.join(", ")}`}
+        />
+      );
     }
     default: {
       // A new data-part type must be handled above (and classified in

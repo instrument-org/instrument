@@ -19,6 +19,7 @@ import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
+import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
 
@@ -334,6 +335,26 @@ export namespace SessionMessage {
           if (note) {
             injectedParts.push({ text: note, type: "text" });
           }
+        }
+
+        const skillMentionsPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-skillMentions";
+          } => part.type === "data-skillMentions",
+        );
+        if (skillMentionsPart) {
+          const names = skillMentionsPart.data.names;
+          injectedParts.push({
+            text: [
+              `The user wrote \`[$name](skill:name)\` to refer to a skill by name.`,
+              `Skills referred to in this message: ${names.join(", ")}.`,
+              `Decide which of them the request actually needs and load those with \`${TOOL_NAMES.loadSkill}\` before answering about them.`,
+              `Do not describe what a skill does from its name alone -- you have not read it until you load it.`,
+            ].join(" "),
+            type: "text",
+          });
         }
 
         const intentPart = message.parts.find(

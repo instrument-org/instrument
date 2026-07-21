@@ -9,18 +9,33 @@ import { debounce } from "radashi";
 
 import { rpcClient } from "../rpc/client";
 
-// A prompt draft is scoped one of two ways:
+// A prompt draft is scoped one of three ways:
 //  - task: the follow-up input on an existing task, persisted with the task so
 //    it survives closing and reopening the task.
 //  - compose: the "new task" input on the new-tab / project pages, keyed by the
 //    owning tab so each tab composes independently. Ephemeral by design; a
 //    half-written new task isn't worth persisting across restarts.
+//  - transient: a composer that starts from a prefill and is meant to be thrown
+//    away, like the one on a skill page. Nothing is shared or retained, so
+//    walking away from the surface loses the draft instead of carrying it to
+//    the next skill and to the new-tab composer.
 export type PromptDraftKey =
+  | { id: string; scope: "transient" }
   | { scope: "compose"; tabId: TabId }
   | { scope: "task"; taskId: TaskId };
 
 function draftKeyString(key: PromptDraftKey): string {
-  return key.scope === "task" ? `task:${key.taskId}` : `compose:${key.tabId}`;
+  switch (key.scope) {
+    case "compose": {
+      return `compose:${key.tabId}`;
+    }
+    case "task": {
+      return `task:${key.taskId}`;
+    }
+    case "transient": {
+      return `transient:${key.id}`;
+    }
+  }
 }
 
 const createTaskPromptStorage = (id: TaskId) => {
@@ -81,6 +96,14 @@ const createTaskPromptStorage = (id: TaskId) => {
 // Ephemeral, in-memory compose drafts, one per tab.
 const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
 
+// Transient drafts, discarded by the composer when it unmounts or re-keys.
+const transientDraftFamily = atomFamily((_id: string) => atom(""));
+
+/** Drop a transient draft so re-opening the surface starts from its prefill. */
+export function removeTransientDraft(id: string) {
+  transientDraftFamily.remove(id);
+}
+
 // Task follow-up drafts, persisted with the task via task-state storage.
 export const taskDraftFamily = atomFamily((taskId: TaskId) =>
   atomWithStorage(
@@ -92,9 +115,17 @@ export const taskDraftFamily = atomFamily((taskId: TaskId) =>
 
 /** The value atom for a draft, resolving to the right backing store per scope. */
 export function promptDraftAtom(key: PromptDraftKey) {
-  return key.scope === "task"
-    ? taskDraftFamily(key.taskId)
-    : composeDraftFamily(key.tabId);
+  switch (key.scope) {
+    case "compose": {
+      return composeDraftFamily(key.tabId);
+    }
+    case "task": {
+      return taskDraftFamily(key.taskId);
+    }
+    case "transient": {
+      return transientDraftFamily(key.id);
+    }
+  }
 }
 
 // The live textarea for a draft, so imperative focus targets the right input

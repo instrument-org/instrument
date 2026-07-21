@@ -1,3 +1,4 @@
+import { CreateSkillModal } from "@/client/components/studio-modals/create-skill-modal";
 import { DeleteTaskModal } from "@/client/components/studio-modals/delete-task-modal";
 import { LoginModal } from "@/client/components/studio-modals/login-modal";
 import { ProjectModal } from "@/client/components/studio-modals/project-modal";
@@ -20,6 +21,7 @@ export function StudioModals() {
       <WelcomeModal />
       <SettingsModal />
       <DeleteTaskModal />
+      <CreateSkillModal />
     </>
   );
 }

@@ -1,20 +1,40 @@
+import { createSkillModalAtom } from "@/client/atoms/create-skill-modal";
 import { PromptInput } from "@/client/components/prompt-input";
-import { useTabId } from "@/client/hooks/use-active-tab";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
+import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { ArrowLeftIcon, SparkleIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useAtom } from "jotai";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_app/skills/new")({
-  component: NewSkillPage,
-  head: () => ({ meta: [{ title: "Create skill" }] }),
-});
+/**
+ * Briefing sent alongside whatever the user types, so the agent knows the task
+ * is a skill-authoring one without the user having to say so or a skill token
+ * having to be prefilled into the composer.
+ */
+const CREATE_SKILL_INTENT = [
+  "The user started this task from the Skills area to create a new skill.",
+  "Load the skill-creator skill and follow it: interview them only as far as the",
+  "answers would change the skill, then write the package to /skills/<name>/.",
+].join(" ");
 
-function NewSkillPage() {
+/**
+ * App-wide create-skill modal, mounted once at the app-chrome root. Reads
+ * `createSkillModalAtom` (opened via `openCreateSkill`); traps tab navigation
+ * while open.
+ */
+export function CreateSkillModal() {
+  const [state, setState] = useAtom(createSkillModalAtom);
+  const isOpen = state !== null;
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const createTaskMutation = useMutation(
@@ -22,37 +42,31 @@ function NewSkillPage() {
   );
   const navigate = useNavigate();
   const { addTab } = useTabActions();
-  const tabId = useTabId();
-  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+
+  useBlockTabNavigation(isOpen);
 
   return (
-    <main className="grid h-full place-items-center overflow-y-auto px-8 py-12">
-      <div className="w-full max-w-2xl">
-        <Link
-          className="mb-12 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          to="/skills"
-        >
-          <ArrowLeftIcon className="size-4" />
-          All skills
-        </Link>
-
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-xl bg-brown-100 text-brown-700 dark:bg-brown-900/60 dark:text-brown-200">
-            <SparkleIcon className="size-6" weight="duotone" />
-          </div>
-          <h1 className="font-serif text-3xl tracking-tight">Create a skill</h1>
-          <p className="mx-auto mt-3 max-w-lg text-sm/relaxed text-muted-foreground">
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          setState(null);
+        }
+      }}
+      open={isOpen}
+    >
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Create a skill</DialogTitle>
+          <DialogDescription>
             Describe the capability or workflow you want to reuse. The agent
-            will help shape it and save the finished skill to this workspace.
-          </p>
-        </div>
-
+            shapes it with you and saves it to this workspace.
+          </DialogDescription>
+        </DialogHeader>
         <PromptInput
           allowOpenInNewTab
           autoFocus
-          autoResizeMaxHeight={300}
-          draftKey={{ scope: "compose", tabId }}
-          initialSkillName="skill-creator"
+          autoResizeMaxHeight={240}
+          draftKey={{ id: "create-skill", scope: "transient" }}
           isLoading={createTaskMutation.isPending}
           modelURI={selectedModelURI}
           onModelChange={setSelectedModelURI}
@@ -62,6 +76,7 @@ function NewSkillPage() {
               {
                 files,
                 folders,
+                intent: CREATE_SKILL_INTENT,
                 modelURI,
                 name: "Create a skill",
                 projectId: null,
@@ -74,7 +89,7 @@ function NewSkillPage() {
                   );
                 },
                 onSuccess: ({ id, sessionId }) => {
-                  promptInputRef.current?.clear();
+                  setState(null);
                   const destination = {
                     params: { id },
                     search: { selectedSessionId: sessionId },
@@ -90,12 +105,8 @@ function NewSkillPage() {
             );
           }}
           placeholder="Describe the skill you want to create"
-          ref={promptInputRef}
         />
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          New skills are saved under the workspace’s skills folder.
-        </p>
-      </div>
-    </main>
+      </DialogContent>
+    </Dialog>
   );
 }

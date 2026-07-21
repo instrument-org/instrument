@@ -32,6 +32,8 @@
         --boot-toolbar: #e7e5e4;
         --boot-border: #e7e5e4;
         --boot-foreground: #171412;
+        --boot-shadow:
+          0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05);
       }
 
       /* The main process pins nativeTheme.themeSource to the stored theme
@@ -44,6 +46,8 @@
           --boot-toolbar: #292524;
           --boot-border: rgb(255 255 255 / 10%);
           --boot-foreground: #ffffff;
+          --boot-shadow:
+            0 1px 2px 0 rgb(0 0 0 / 0.24), 0 1px 1px 0 rgb(0 0 0 / 0.28);
         }
       }
 
@@ -150,9 +154,12 @@
         min-width: 0;
       }
 
+      /* The shadow is what makes the loaded tab read as a couple of pixels
+         taller than the slot without it. */
       .boot-shell-tab[data-selected] {
         background: var(--boot-background);
         border-radius: 0.75rem;
+        box-shadow: var(--boot-shadow);
       }
 
       #boot-shell-body {

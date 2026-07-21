@@ -34,6 +34,12 @@ export const BOOT_SHELL_COLORS = {
   },
 } as const;
 
+/** Mirrors globals.css --elevation-soft, the selected tab's `shadow-soft`. */
+export const BOOT_SHELL_SHADOWS = {
+  dark: "0 1px 2px 0 rgb(0 0 0 / 0.24), 0 1px 1px 0 rgb(0 0 0 / 0.28)",
+  light: "0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05)",
+} as const;
+
 export const BOOT_SHELL_CSS_VARS = {
   gutter: "--boot-gutter",
   sidebarWidth: "--boot-sidebar-width",

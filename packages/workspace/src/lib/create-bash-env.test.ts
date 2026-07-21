@@ -50,7 +50,11 @@ describe("createBashDescription", () => {
         tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the local config.
         uv - Python package and environment manager. Also provides \`python\`, \`python3\`, and \`pip\`, backed by a per-task virtualenv in work/.venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
         python - Run Python via the per-task virtualenv (work/.venv). Shares packages installed with \`pip\`. Use the \`pip\` command to install packages: \`python -m pip\` is not available.
-        pip - Install Python packages into the per-task virtualenv (work/.venv) via uv. Use like pip, e.g. \`pip install <package>\`."
+        pip - Install Python packages into the per-task virtualenv (work/.venv) via uv. Use like pip, e.g. \`pip install <package>\`.
+        validate-skill - Check a skill written under \`/skills/\` and report what is wrong with it.
+      Errors are what the runtime already acts on: a skill that is never discovered, or one \`load_skill\` refuses. Warnings are authoring rules and context budgets.
+      Run it after writing or editing a skill -- a skill with broken frontmatter fails silently, by simply never appearing anywhere.
+      Usage: \`validate-skill [<name>...] [--json]\`. With no name it checks every skill in the workspace. Exits non-zero when there are errors."
     `);
   });
 

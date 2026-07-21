@@ -20,7 +20,7 @@ import { setTaskState } from "./task-state-store";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
-/** The composer serialises a skill token as `[$name](skill:name)`. */
+/** The composer serializes a skill token as `[$name](skill:name)`. */
 const SKILL_MENTION_PATTERN = /\[\$([^\]]+)\]\(skill:([^)]+)\)/g;
 
 export async function newMessage({

@@ -5,6 +5,7 @@ const TAB_ICONS = [
   "file-text",
   "flask-conical",
   "globe",
+  "graduation-cap",
   "our-app",
   "project",
   "table-properties",

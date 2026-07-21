@@ -5,7 +5,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
-import { StackIcon } from "@phosphor-icons/react";
+import { GraduationCapIcon } from "@phosphor-icons/react";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 
 export function NavSkills({ matches }: { matches: MakeRouteMatchUnion[] }) {
@@ -25,7 +25,7 @@ export function NavSkills({ matches }: { matches: MakeRouteMatchUnion[] }) {
             isActive={isActive}
           >
             <InternalLink openInCurrentTab to="/skills">
-              <StackIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
+              <GraduationCapIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
               <span className="font-medium">Skills</span>
             </InternalLink>
           </SidebarMenuButton>

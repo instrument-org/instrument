@@ -8,6 +8,11 @@ import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
+// ProseMirror emits DOM hacks its own stylesheet neutralises: a trailing <br>
+// after a textblock ending in an inline leaf, and separator <img>s around
+// them. Without this the <br> is a real line break, so the caret after a skill
+// token rendered on the next line.
+import "prosemirror-view/style/prosemirror.css";
 import {
   useEffect,
   useImperativeHandle,
@@ -60,7 +65,10 @@ interface SkillMatch {
   skill: Skill;
 }
 
-const SKILL_MENU_LIMIT = 8;
+// Generous rather than tight: the list scrolls, so a long query that still
+// matches broadly should let the user keep looking instead of silently cutting
+// off the one they wanted.
+const SKILL_MENU_LIMIT = 50;
 
 // Same matcher as the command menu, so a slash query behaves the way search
 // does everywhere else in the app and can show which characters it matched.
@@ -285,7 +293,7 @@ export function PromptEditor({
     <div className={cn("relative", className)} style={{ maxHeight }}>
       <div className="max-h-full" ref={mountRef} />
       {menu && matches.length > 0 ? (
-        <div className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
+        <div className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-72 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
           {matches.map((match, index) => (
             <button
               className={cn(
@@ -297,9 +305,18 @@ export function PromptEditor({
                 event.preventDefault();
                 insertSkill(match.skill);
               }}
+              // Keyboard nav has to bring its selection with it now the list
+              // scrolls past what is visible.
+              ref={(element) => {
+                if (index === selectedIndex) {
+                  element?.scrollIntoView({ block: "nearest" });
+                }
+              }}
               type="button"
             >
-              <span className="shrink-0 font-mono text-sm font-medium">
+              {/* Left at the default weight so the matched characters, which
+                  render semibold, are actually distinguishable. */}
+              <span className="shrink-0 font-mono text-sm">
                 /
                 <FuzzyHighlight
                   ranges={match.nameRanges}

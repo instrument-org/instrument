@@ -8,7 +8,7 @@ import { SidebarMenu, SidebarMenuItem } from "@/client/components/ui/sidebar";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { getInitials } from "@/client/lib/get-initials";
 import { rpcClient } from "@/client/rpc/client";
-import { FadersHorizontalIcon } from "@phosphor-icons/react";
+import { FadersHorizontalIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status";
@@ -25,11 +25,18 @@ export function NavUser() {
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
-  const { data: user } = useLiveUser();
-  const { data: subscription } = useLiveSubscriptionStatus();
+  const { data: user, error: userError } = useLiveUser();
+  const { data: subscription, error: subscriptionError } =
+    useLiveSubscriptionStatus();
 
   const planName = subscription?.plan ?? null;
   const isOutOfCredits = subscription && !subscription.hasEnoughCredits;
+
+  // A failed refetch (offline, API blip) keeps the last good data, so only
+  // swap in the error copy once there is nothing left to show. Settings
+  // holds the real handling: the row just links there.
+  const isUserUnreachable = Boolean(userError) && !user;
+  const isPlanUnreachable = Boolean(subscriptionError) && !subscription;
 
   if (hasToken === false) {
     return (
@@ -58,6 +65,7 @@ export function NavUser() {
           onClick={() => {
             openSettings({ tab: "General" });
           }}
+          title={userError?.message ?? subscriptionError?.message}
           type="button"
         >
           {user ? (
@@ -67,6 +75,10 @@ export function NavUser() {
                 {getInitials(user.name)}
               </AvatarFallback>
             </Avatar>
+          ) : isUserUnreachable ? (
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              <WarningCircleIcon className="size-4" />
+            </div>
           ) : (
             <Skeleton className="size-9 shrink-0 rounded-md" />
           )}
@@ -77,6 +89,10 @@ export function NavUser() {
               {user ? (
                 <span className="truncate text-sm/5 font-medium">
                   {user.name}
+                </span>
+              ) : isUserUnreachable ? (
+                <span className="truncate text-sm/5 font-medium text-muted-foreground">
+                  Not connected
                 </span>
               ) : (
                 <Skeleton className="my-0.5 h-4 w-24" />
@@ -91,6 +107,12 @@ export function NavUser() {
                     {planName ?? "Free"}
                   </span>
                 )
+              ) : isUserUnreachable || isPlanUnreachable ? (
+                <span className="truncate text-xs/4.5 text-muted-foreground/70">
+                  {isUserUnreachable
+                    ? "Account unavailable"
+                    : "Plan unavailable"}
+                </span>
               ) : (
                 <Skeleton className="my-0.5 h-3.5 w-12" />
               )}

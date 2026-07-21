@@ -29,7 +29,7 @@ export const promptSchema = new Schema({
         return [
           "span",
           {
-            class: "font-medium text-brown-700 dark:text-brown-300",
+            class: "font-medium text-brown-700 dark:text-brown-500",
             contenteditable: "false",
             "data-skill": name,
           },

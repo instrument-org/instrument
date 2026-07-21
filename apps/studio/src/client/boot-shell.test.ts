@@ -4,6 +4,7 @@ import {
   BOOT_SHELL_COLORS,
   BOOT_SHELL_CSS_VARS,
   BOOT_SHELL_ELEMENT_IDS,
+  BOOT_SHELL_SHADOWS,
 } from "@/shared/boot-shell";
 import { SIDEBAR_WIDTH, TOOLBAR_HEIGHT } from "@/shared/constants";
 import {
@@ -123,7 +124,24 @@ describe("boot shell colors", () => {
       expect(readCssToken(token, scope)).toBe(colors[role]);
     },
   );
+
+  // The selected tab's shadow is what makes it sit a couple of pixels lower
+  // than a plain slot, so the shell draws it too.
+  it.each([
+    { scheme: "light", scope: lightScope, shadow: BOOT_SHELL_SHADOWS.light },
+    { scheme: "dark", scope: darkScope, shadow: BOOT_SHELL_SHADOWS.dark },
+  ])("takes the $scheme tab shadow from globals.css", ({ scope, shadow }) => {
+    expect(collapseSpace(readCssToken("--elevation-soft", scope) ?? "")).toBe(
+      shadow,
+    );
+    expect(collapseSpace(html)).toContain(shadow);
+  });
 });
+
+/** Long values wrap across lines in both files, so compare them unwrapped. */
+function collapseSpace(value: string) {
+  return value.replaceAll(/\s+/g, " ");
+}
 
 function readCssToken(token: string, scope: string): string | undefined {
   const value = new RegExp(`${token}:\\s*([^;]+);`).exec(scope)?.[1]?.trim();

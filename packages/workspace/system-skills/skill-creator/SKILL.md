@@ -26,7 +26,10 @@ and edit them with the ordinary file tools. A skill saved there is available to
 5. Write the package to `/skills/<name>/`. Check whether that directory already
    exists first: revising an existing skill is fine, silently replacing one the
    user did not mean to touch is not.
-6. Tell the user the skill name and that it is available from Skills and the
+6. Run `validate-skill <name>` and fix what it reports. A skill with broken
+   frontmatter fails silently by never appearing at all, so this is the only
+   confirmation that what you wrote is a skill.
+7. Tell the user the skill name and that it is available from Skills and the
    prompt slash menu.
 
 ## Package design
@@ -67,8 +70,8 @@ changelog, or quick reference.
 - Use imperative instructions.
 - Match specificity to risk: flexible prose for judgment calls, parameterized
   scripts for repeatable work, and exact steps for fragile operations.
-- Keep the main file comfortably under 500 lines. Put extensive schemas,
-  examples, or variants in directly linked reference files.
+- Keep the main file comfortably under 500 lines and 5000 tokens. Put extensive
+  schemas, examples, or variants in directly linked reference files.
 - Avoid duplicating information between `SKILL.md` and resources.
 - Include examples when they clarify an input, output, or decision boundary.
 

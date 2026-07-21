@@ -1,4 +1,7 @@
+import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
+import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { cn } from "@/client/lib/utils";
+import uFuzzy from "@leeoniya/ufuzzy";
 import { baseKeymap } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
@@ -50,6 +53,18 @@ interface Skill {
   description: string;
   name: string;
 }
+
+interface SkillMatch {
+  descriptionRanges: null | number[];
+  nameRanges: null | number[];
+  skill: Skill;
+}
+
+const SKILL_MENU_LIMIT = 8;
+
+// Same matcher as the command menu, so a slash query behaves the way search
+// does everywhere else in the app and can show which characters it matched.
+const fuzzy = new uFuzzy({ intraMode: 1 });
 
 export function PromptEditor({
   autoFocus,
@@ -103,15 +118,7 @@ export function PromptEditor({
     onSubmitRef.current = onSubmit;
     selectedIndexRef.current = selectedIndex;
   }, [onChange, onPaste, onSubmit, selectedIndex, skills]);
-  const matches = menu
-    ? skills
-        .filter((skill) =>
-          `${skill.name} ${skill.description}`
-            .toLocaleLowerCase()
-            .includes(menu.query.toLocaleLowerCase()),
-        )
-        .slice(0, 8)
-    : [];
+  const matches = menu ? matchSkills(skills, menu.query) : [];
 
   const updateMenu = (view: EditorView) => {
     const { empty, from } = view.state.selection;
@@ -176,13 +183,10 @@ export function PromptEditor({
       handleKeyDown: (_view, event) => {
         const activeMenu = menuRef.current;
         if (activeMenu) {
-          const currentMatches = skillsRef.current
-            .filter((skill) =>
-              `${skill.name} ${skill.description}`
-                .toLocaleLowerCase()
-                .includes(activeMenu.query.toLocaleLowerCase()),
-            )
-            .slice(0, 8);
+          const currentMatches = matchSkills(
+            skillsRef.current,
+            activeMenu.query,
+          );
           if (
             currentMatches.length > 0 &&
             (event.key === "ArrowDown" || event.key === "ArrowUp")
@@ -205,9 +209,9 @@ export function PromptEditor({
           }
           if (event.key === "Enter" && currentMatches.length > 0) {
             event.preventDefault();
-            const skill = currentMatches[selectedIndexRef.current];
-            if (skill) {
-              insertSkill(skill);
+            const match = currentMatches[selectedIndexRef.current];
+            if (match) {
+              insertSkill(match.skill);
             }
             return true;
           }
@@ -282,24 +286,31 @@ export function PromptEditor({
       <div className="max-h-full" ref={mountRef} />
       {menu && matches.length > 0 ? (
         <div className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
-          {matches.map((skill, index) => (
+          {matches.map((match, index) => (
             <button
               className={cn(
                 "flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left",
                 index === selectedIndex && "bg-accent",
               )}
-              key={skill.name}
+              key={match.skill.name}
               onMouseDown={(event) => {
                 event.preventDefault();
-                insertSkill(skill);
+                insertSkill(match.skill);
               }}
               type="button"
             >
               <span className="shrink-0 font-mono text-sm font-medium">
-                /{skill.name}
+                /
+                <FuzzyHighlight
+                  ranges={match.nameRanges}
+                  text={match.skill.name}
+                />
               </span>
               <span className="line-clamp-1 text-sm text-muted-foreground">
-                {skill.description}
+                <FuzzyHighlight
+                  ranges={match.descriptionRanges}
+                  text={match.skill.description}
+                />
               </span>
             </button>
           ))}
@@ -307,4 +318,48 @@ export function PromptEditor({
       ) : null}
     </div>
   );
+}
+
+function matchSkills(skills: Skill[], query: string): SkillMatch[] {
+  if (!query) {
+    return skills.slice(0, SKILL_MENU_LIMIT).map((skill) => ({
+      descriptionRanges: null,
+      nameRanges: null,
+      skill,
+    }));
+  }
+
+  const fields = skills.map((skill) =>
+    joinFuzzyFields([skill.name, skill.description]),
+  );
+  const haystack = fields.map((field) => field.haystack);
+  // eslint-disable-next-line unicorn/no-array-method-this-argument
+  const indexes = fuzzy.filter(haystack, query);
+  if (!indexes || indexes.length === 0) {
+    return [];
+  }
+
+  const info = fuzzy.info(indexes, haystack, query);
+  const order = fuzzy.sort(info, haystack, query);
+
+  return order
+    .flatMap((orderIdx) => {
+      const index = info.idx[orderIdx] ?? -1;
+      const skill = skills[index];
+      const field = fields[index];
+      if (!skill || !field) {
+        return [];
+      }
+      const [nameRanges, descriptionRanges] = field.splitRanges(
+        info.ranges[orderIdx] ?? null,
+      );
+      return [
+        {
+          descriptionRanges: descriptionRanges ?? null,
+          nameRanges: nameRanges ?? null,
+          skill,
+        },
+      ];
+    })
+    .slice(0, SKILL_MENU_LIMIT);
 }

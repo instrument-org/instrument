@@ -17,7 +17,7 @@ import {
  * here and a skill contributed there are held to the same shape. The token
  * estimate uses the same library for the same reason.
  */
-export const SKILL_LIMITS = {
+const SKILL_LIMITS = {
   compatibilityChars: 500,
   descriptionChars: 1024,
   nameChars: 64,

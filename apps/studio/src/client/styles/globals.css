@@ -496,6 +496,38 @@ body {
   );
 }
 
+/* A native <details> that expands and collapses smoothly. `interpolate-size` is
+ * set on the element rather than the document so animating to `auto` stays scoped
+ * to this widget, and `allow-discrete` carries the content-visibility flip across
+ * the transition instead of snapping it at the start. */
+@utility details-animated {
+  interpolate-size: allow-keywords;
+
+  &::details-content {
+    block-size: 0;
+    overflow: hidden;
+    transition:
+      block-size 200ms ease-out,
+      content-visibility 200ms allow-discrete;
+  }
+
+  &[open]::details-content {
+    block-size: auto;
+  }
+}
+
+/* Opens a `details-animated` disclosure and keeps it open, for layouts wide
+ * enough to show its content outright. Pair with a container query and hide the
+ * `<summary>` at the same width, so the toggle disappears with the need for it.
+ * The disclosure's own open state is untouched and applies again when the rule
+ * stops matching. */
+@utility details-always-open {
+  &::details-content {
+    block-size: auto;
+    content-visibility: visible;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50 scrollbar-thin scrollbar-color;

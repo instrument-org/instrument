@@ -37,7 +37,7 @@ function SkillPage() {
   }
 
   return (
-    <div className="scroll-fade-y h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto scroll-fade-y">
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-8 pt-10 pb-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <article className="min-w-0">
           <Link

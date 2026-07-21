@@ -17,7 +17,7 @@ function SkillsPage() {
   );
 
   return (
-    <main className="scroll-fade-y h-full overflow-y-auto">
+    <main className="h-full overflow-y-auto scroll-fade-y">
       <div className="mx-auto w-full max-w-5xl px-8 py-12">
         <div className="mb-10 flex items-center justify-between gap-6">
           <div>

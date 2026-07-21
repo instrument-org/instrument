@@ -2,6 +2,7 @@ import { FileIcon } from "@/client/components/file-icon";
 import { PromptInput } from "@/client/components/prompt-input";
 import { RevealPath } from "@/client/components/reveal-path";
 import { SessionMarkdown } from "@/client/components/session-markdown";
+import { SkillFileView } from "@/client/components/skill-file-view";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn } from "@/client/lib/utils";
@@ -11,8 +12,10 @@ import { safe } from "@orpc/client";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
+
+const SKILL_FILE = "SKILL.md";
 
 const isProvided = (source: string) =>
   source === "registry" || source === "system";
@@ -41,6 +44,10 @@ function SkillPage() {
   const navigate = useNavigate();
   const { addTab } = useTabActions();
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  // Keyed by skill so navigating between skills starts back at SKILL.md
+  // without an effect to reset it.
+  const [selection, setSelection] = useState({ file: SKILL_FILE, skill: name });
+  const selectedFile = selection.skill === name ? selection.file : SKILL_FILE;
 
   if (isLoading || !skill) {
     return (
@@ -132,7 +139,14 @@ function SkillPage() {
           )}
         >
           <article className="min-w-0">
-            <SessionMarkdown className="text-[15px]" markdown={skill.content} />
+            {selectedFile === SKILL_FILE ? (
+              <SessionMarkdown
+                className="text-[15px]"
+                markdown={skill.content}
+              />
+            ) : (
+              <SkillFileView file={selectedFile} skillName={skill.name} />
+            )}
           </article>
 
           {skill.files.length > 0 ? (
@@ -142,16 +156,26 @@ function SkillPage() {
               </h2>
               <div className="mt-3 grid max-h-96 gap-1.5 overflow-y-auto scroll-fade-y text-xs">
                 {skill.files.map((file) => (
-                  <span className="flex min-w-0 items-center gap-2" key={file}>
+                  <button
+                    className={cn(
+                      "flex min-w-0 items-center gap-2 rounded-sm px-1.5 py-1 text-left hover:bg-muted/50",
+                      file === selectedFile && "bg-muted/70 text-foreground",
+                    )}
+                    key={file}
+                    onClick={() => {
+                      setSelection({ file, skill: name });
+                    }}
+                    type="button"
+                  >
                     <FileIcon
                       className="size-4 shrink-0 text-muted-foreground"
                       filename={file}
                     />
                     <span className="truncate font-mono">{file}</span>
-                  </span>
+                  </button>
                 ))}
                 {skill.filesTruncated ? (
-                  <span className="text-muted-foreground">…</span>
+                  <span className="px-1.5 text-muted-foreground">…</span>
                 ) : null}
               </div>
             </aside>

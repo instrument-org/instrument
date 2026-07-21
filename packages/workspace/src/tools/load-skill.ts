@@ -14,6 +14,7 @@ import { runPnpmCommand } from "../lib/run-pnpm";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { renderSkillCatalog } from "../lib/skill-catalog";
+import { getSkillRuntime } from "../lib/skill-runtime";
 import {
   FILE_LIST_LIMIT,
   findSkill,
@@ -44,72 +45,6 @@ const SkillInstallResultSchema = z.discriminatedUnion("state", [
     state: z.literal("failure"),
   }),
 ]);
-
-type SkillRuntime =
-  | { error: string; node: false; python: false }
-  | { node: boolean; python: boolean };
-
-function getSkillRuntime(skillDir: string, skillName: string): SkillRuntime {
-  const packageJsonPath = path.join(skillDir, "package.json");
-  let node = false;
-
-  if (fsSync.existsSync(packageJsonPath)) {
-    let packageJson: unknown;
-    try {
-      packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, "utf8"));
-    } catch {
-      return {
-        error: `Skill "${skillName}" has an invalid package.json.`,
-        node: false,
-        python: false,
-      };
-    }
-
-    if (!isRecord(packageJson)) {
-      return {
-        error: `Skill "${skillName}" has an invalid package.json.`,
-        node: false,
-        python: false,
-      };
-    }
-
-    for (const field of ["dependencies", "optionalDependencies"]) {
-      const dependencies = packageJson[field];
-      if (dependencies === undefined) {
-        continue;
-      }
-      if (
-        !isRecord(dependencies) ||
-        Array.isArray(dependencies) ||
-        Object.values(dependencies).some(
-          (version) => typeof version !== "string",
-        )
-      ) {
-        return {
-          error: `Skill "${skillName}" has an invalid ${field} field in package.json.`,
-          node: false,
-          python: false,
-        };
-      }
-      node ||= Object.keys(dependencies).length > 0;
-    }
-  }
-
-  const python = fsSync.existsSync(path.join(skillDir, "pyproject.toml"));
-  if (python && !fsSync.existsSync(path.join(skillDir, "uv.lock"))) {
-    return {
-      error: `Skill "${skillName}" is missing uv.lock for its Python dependencies.`,
-      node: false,
-      python: false,
-    };
-  }
-
-  return { node, python };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export const LoadSkill = setupTool({
   inputSchema: BaseInputSchema.extend({

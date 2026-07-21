@@ -19,11 +19,91 @@
       body {
         margin: 0;
       }
+
+      /* Boot shell: the empty app frame painted from this document, before the
+         renderer bundle mounts. It gives the window a draggable title area and
+         the app's own silhouette during the load, which is most visible in
+         development. The real stylesheet only arrives with the app, so the ids,
+         attributes, colors, and geometry below are literals; they are declared in
+         shared/boot-shell.ts and shared/constants.ts, and client/boot-shell.test.ts
+         fails if this markup and those constants disagree. */
+      :root {
+        --boot-background: #fafaf9;
+        --boot-toolbar: #e7e5e4;
+        --boot-border: #e7e5e4;
+      }
+
+      /* The main process pins nativeTheme.themeSource to the stored theme
+         preference before it creates a window, and Electron mirrors that onto
+         prefers-color-scheme, so this resolves the user's actual choice (not
+         just the OS one) on the very first frame, with no script involved. */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --boot-background: #1c1917;
+          --boot-toolbar: #292524;
+          --boot-border: rgb(255 255 255 / 10%);
+        }
+      }
+
+      #boot-shell {
+        background: var(--boot-background);
+        display: flex;
+        flex-direction: column;
+        /* Mirrors ZoomRoot: `zoom` rescales the box, so the viewport sizing is
+           divided by the same factor to keep covering the real viewport. */
+        height: calc(100vh / var(--boot-zoom, 1));
+        left: 0;
+        overflow: hidden;
+        position: fixed;
+        top: 0;
+        width: calc(100vw / var(--boot-zoom, 1));
+        zoom: var(--boot-zoom, 1);
+      }
+
+      /* React's first commit fills #root, retiring the shell in the same frame. */
+      #root:not(:empty) ~ #boot-shell {
+        display: none;
+      }
+
+      #boot-shell-toolbar {
+        -webkit-app-region: drag;
+        background: var(--boot-toolbar);
+        flex: none;
+        height: var(--boot-toolbar-height, 40px);
+      }
+
+      #boot-shell-body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+
+      #boot-shell-sidebar {
+        border-right: 1px solid var(--boot-border);
+        display: none;
+        flex: none;
+        width: var(--boot-sidebar-width, 250px);
+      }
+
+      :root[data-sidebar-open="true"]:not([data-window-type="onboarding"])
+        #boot-shell-sidebar {
+        display: block;
+      }
+
+      /* The onboarding window has no chrome of its own, just a drag strip. */
+      :root[data-window-type="onboarding"] #boot-shell-toolbar {
+        background: transparent;
+      }
     </style>
+    <script type="module" src="/client/boot-shell.ts"></script>
   </head>
 
   <body>
     <div id="root"></div>
+    <div aria-hidden="true" id="boot-shell">
+      <div id="boot-shell-toolbar"></div>
+      <div id="boot-shell-body"><div id="boot-shell-sidebar"></div></div>
+    </div>
     <script type="module" src="/client/main.tsx"></script>
   </body>
 </html>

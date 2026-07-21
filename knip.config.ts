@@ -25,6 +25,7 @@ const config: KnipConfig = {
         "src/client/components/ui/*.tsx",
         "src/client/router.tsx",
         "src/client/main.tsx",
+        "src/client/boot-shell.ts",
         "src/electron-main/index.ts",
         "src/electron-preload/index.ts",
         "src/client/routes/_app/debug/-sessions/data/*.ts",

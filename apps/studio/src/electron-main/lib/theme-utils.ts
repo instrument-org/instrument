@@ -1,10 +1,14 @@
+import { BOOT_SHELL_COLORS } from "@/shared/boot-shell";
 import { nativeTheme } from "electron";
 
 import { getPreferencesStore } from "../stores/preferences";
 
 export function getBackgroundColor() {
-  // Must be manually synced with globals.css var(--background) (gray-900 / gray-50).
-  return shouldUseDarkMode() ? "#1c1917" : "#fafaf9";
+  // A window paints this before its contents load, so it is the same surface the
+  // boot shell then draws on.
+  return shouldUseDarkMode()
+    ? BOOT_SHELL_COLORS.dark.background
+    : BOOT_SHELL_COLORS.light.background;
 }
 
 export function getMainWindowBackgroundColor() {

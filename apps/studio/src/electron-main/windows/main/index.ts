@@ -6,6 +6,7 @@ import { getMainWindowBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  getMainWindowZoom,
   getWindowState,
   isWindowBoundsVisible,
   setWindowState,
@@ -13,6 +14,7 @@ import {
 } from "@/electron-main/stores/window-state";
 import {
   focusMainContents,
+  getTrafficLightPosition,
   goBack,
   goForward,
 } from "@/electron-main/windows/main/controls";
@@ -48,7 +50,10 @@ export async function createMainWindow({
     minWidth: 720,
     show: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    trafficLightPosition: { x: 12, y: 12 },
+    // Centered in the toolbar at the zoom the renderer last reported, so the
+    // buttons are already in place while the boot shell is on screen instead of
+    // jumping once the renderer mounts and syncs its zoom.
+    trafficLightPosition: getTrafficLightPosition(getMainWindowZoom()),
     ...(process.platform === "linux" && icon ? { icon } : {}),
     backgroundColor: getMainWindowBackgroundColor(),
     // On macOS keep the native NSWindow frame (titleBarStyle hiddenInset already

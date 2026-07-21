@@ -30,12 +30,13 @@ function SheetContent({
       <SheetPrimitive.Content
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
-          // Divide the fixed width by --content-zoom so zoom > 1 doesn't push
-          // the panel off-screen (see useAppZoomStyle / ZOOM_CONTENT_MAX_WIDTH).
+          // `w-3/4` is a percentage, so it already resolves in the panel's own
+          // zoomed units and keeps it on-screen at any zoom; the max-width is an
+          // intrinsic size and stays undivided (see useAppZoomStyle).
           side === "right" &&
-            "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-[calc(24rem/var(--content-zoom))]",
+            "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-96",
           side === "left" &&
-            "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-[calc(24rem/var(--content-zoom))]",
+            "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-96",
           side === "top" &&
             "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
           side === "bottom" &&

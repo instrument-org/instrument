@@ -51,6 +51,8 @@ The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adj
 - Radix overlays portal to `document.body` (outside the zoomed root) and self-apply zoom on their own Content via `useAppZoomStyle` + the `--content-zoom` max-size divisors. Reuse those helpers on any new floating/portalled UI instead of hand-rolling zoom math.
 - If you portal into the zoomed tree instead of `body`, counter-scale the target back to effective 1x (see `use-portal-container.tsx`) so self-applied zoom doesn't double up.
 - See `use-app-zoom.ts` for the full rationale and the upstream floating-ui issue to drop this once fixed.
+- Zoom also makes viewport media queries a bad proxy for layout width, and splits `getBoundingClientRect()` (on-screen px) from `offsetWidth`/`ResizeObserver` (layout px). Routes lay out against the `@container/app-content` container `TabView` puts around them instead; see `docs/architecture/responsive-layout.md`.
+- Never add a `container-type` above a portal target. floating-ui counts it as a containing block for fixed content and Chrome doesn't, so every menu/popover silently shifts by that element's offset. `@container/app-content` sits below the portal target for exactly this reason.
 - Both windows (see Windows) use the same `ZoomRoot` + `zoomAtom`: the onboarding window wires it via `OnboardingZoomRoot`. `ZoomToast` (a transient corner readout on any zoom change) is mounted once per window, outside `ZoomRoot`, so keep it in sync in both roots.
 
 ## Where things are

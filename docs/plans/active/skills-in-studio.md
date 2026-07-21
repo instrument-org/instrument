@@ -37,46 +37,35 @@ packages with ordinary file tools. There is no dedicated save tool; see
 serialized as `[$name](skill:name)`. The slash menu uses the same uFuzzy matcher
 and `FuzzyHighlight` as the command menu.
 
-## Open work, roughly in priority order
+## Recently closed
 
-### 1. Render skill tokens in submitted messages
+**Skill tokens in submitted messages.** `lib/skill-tokens.ts` holds the parse;
+the composer builds ProseMirror nodes from it and `SkillMentionText` builds
+spans from it, so the two cannot drift. No read-only editor view in the
+transcript — the shipped desktop app we compared against renders mentions
+through its markdown pipeline rather than its composer schema, for the same
+reason. Copying a message copies the slash form, since neither form pastes back
+as a token.
 
-A sent message still shows raw `[$docx](skill:docx)` in the transcript. This is
-the most visible remaining defect.
+**Clickable files.** The rail selects a file into the article; `SKILL.md` is the
+default and renders as markdown, everything else as highlighted source. Backed
+by `skill.file`, which reads within the skill directory and reports binary and
+oversized files rather than pushing them through.
 
-The parse already exists: `promptDocFromText` in
-`apps/studio/src/client/components/prompt-editor-model.ts` turns the serialized
-form into a document. The open question is what renders it in the transcript. A
-read-only ProseMirror view per message is the obvious reach and probably the
-wrong one for a long scrolling list; a small renderer over the same parse is
-likely better. the reference open-in pattern handles the equivalent
-problem and its docs cover it — read that before choosing.
+**File counts.** `skill.list` now walks. Measured first: 48 skills, 364 files,
+5ms cold. It is cheap because the walk skips dependency trees and stops at
+`FILE_LIST_LIMIT`, so no cache was warranted.
 
-### 2. Click through the skill's files
+**Tab title.** `head` awaits `skill.byName` the way the task and project routes
+do. `lib/skill-title.ts` is gone.
 
-The right-hand rail on a skill page lists files but they are not clickable. They
-should open in the existing syntax-highlighted viewer, with `SKILL.md` selected
-by default and the rail showing which file is current. No router involvement
-wanted — local state is fine.
+**`skill-creator` stays bundled.** See
+`docs/decisions/2026-07-21-where-a-bundled-skill-lives.md`.
 
-### 3. File counts in the listing
+## Open work
 
-Tasteful per-card metadata (file count, and whatever else is already cheap) on
-`/skills`. Note the cost: `skill.list` does not currently walk skill
-directories, only `skill.byName` does. Adding a count means a walk per skill, so
-either measure it or cache it rather than assuming it is free.
-
-### 4. Tab title uses the display name
-
-`routes/_app/skills/$name.tsx` still derives its tab title from the route param
-through `lib/skill-title.ts`'s title-casing, because TanStack's `head` only sees
-params. The page body uses the frontmatter name. Thread the real title through
-the loader and delete `skill-title.ts` once nothing uses it.
-
-### 5. Consider moving `skill-creator`
-
-It ships as a system skill and shows under "Provided by Instrument". It may
-belong in the registry instead, which would leave the bundled source empty.
+Visual verification of the four changes above. Everything else on this branch
+was checked in the DOM; these were not.
 
 ## Things worth knowing before you touch this
 

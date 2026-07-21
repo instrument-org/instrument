@@ -23,6 +23,7 @@ import { writeUploadedAttachments } from "./write-uploaded-attachments";
 export async function newMessage({
   files,
   folders,
+  intent,
   model,
   modelURI,
   projectContext,
@@ -32,6 +33,7 @@ export async function newMessage({
 }: {
   files?: FileUpload.Type[];
   folders?: { path: string; source?: FolderAttachment.Source }[];
+  intent?: string;
   model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
   projectContext?: SessionMessageDataPart.ProjectContextDataPart;
@@ -52,6 +54,19 @@ export async function newMessage({
       },
       text: prompt.trim(),
       type: "text",
+    });
+  }
+
+  if (intent?.trim()) {
+    parts.push({
+      data: { text: intent.trim() },
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-intent",
     });
   }
 

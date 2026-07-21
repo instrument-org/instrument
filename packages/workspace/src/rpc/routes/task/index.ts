@@ -40,6 +40,7 @@ import { type FolderAttachment } from "../../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../../schemas/paths";
 import { type Project } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
+import { SessionMessageDataPart } from "../../../schemas/session/message-data-part";
 import { StoreId } from "../../../schemas/store-id";
 import { TaskSchema } from "../../../schemas/task";
 import { TaskIdSchema } from "../../../schemas/task-id";
@@ -138,6 +139,7 @@ const create = base
     z.object({
       files: z.array(FileUpload.Schema).optional(),
       folders: z.array(z.object({ path: z.string() })).optional(),
+      intent: SessionMessageDataPart.IntentDataPartSchema.shape.text.optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
       projectId: ProjectIdSchema.nullish(),
@@ -154,7 +156,7 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, modelURI, name, projectId, prompt },
+      input: { files, folders, intent, modelURI, name, projectId, prompt },
       signal,
     }) => {
       const modelResult = await fetchModel({
@@ -254,6 +256,7 @@ const create = base
       const messageResult = await newMessage({
         files,
         folders: mergedFolders.length > 0 ? mergedFolders : undefined,
+        intent,
         model,
         modelURI,
         projectContext,

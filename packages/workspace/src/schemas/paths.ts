@@ -1,8 +1,14 @@
-import path from "node:path";
 import { z } from "zod";
 
+// These schemas are shared with the renderer, so they cannot reach for
+// `node:path`. Matches `path.isAbsolute` for both posix (`/foo`) and win32
+// (`\foo`, `C:\foo`, `C:/foo`) shapes regardless of the host platform.
+const ABSOLUTE_PATH_PATTERN = /^(?:[/\\]|[a-z]:[/\\])/i;
+
+const isAbsolutePath = (val: string) => ABSOLUTE_PATH_PATTERN.test(val);
+
 const UnbrandedAbsolutePathSchema = z.string().refine((val) => {
-  return path.isAbsolute(val);
+  return isAbsolutePath(val);
 }, "Path is not absolute");
 
 export const AbsolutePathSchema =
@@ -16,7 +22,7 @@ export const TaskDirSchema = AbsolutePathSchema.brand("TaskDir");
 export type TaskDir = z.output<typeof TaskDirSchema>;
 
 const UnbrandedRelativePathSchema = z.string().refine((val) => {
-  return !path.isAbsolute(val);
+  return !isAbsolutePath(val);
 }, "Path is not relative");
 
 export const RelativePathSchema =

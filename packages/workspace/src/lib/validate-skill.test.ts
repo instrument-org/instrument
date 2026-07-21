@@ -118,14 +118,14 @@ describe("validateSkill", () => {
     `);
   });
 
-  it("reports angle brackets that would corrupt the catalog", async () => {
+  it("warns about angle brackets the catalog would render literally", async () => {
     expect(
       await rulesFor({
         "SKILL.md": good.replace("another thing.", "a <thing>."),
       }),
     ).toMatchInlineSnapshot(`
       [
-        "error:description-angle-brackets",
+        "warning:description-angle-brackets",
       ]
     `);
   });

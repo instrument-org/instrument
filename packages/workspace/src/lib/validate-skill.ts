@@ -172,13 +172,14 @@ export async function validateSkill({
   stats.descriptionChars = frontmatter.description.length;
   addUnknownKeys(frontmatter.keys, add);
 
-  // The catalog renders each description inside a <description> element, so a
-  // raw angle bracket closes it early and the rest of the entry is swallowed.
+  // The catalog escapes these before embedding them, so they no longer break
+  // it, but the agent then reads the description with `&lt;`/`&gt;` in place of
+  // the brackets.
   if (/[<>]/.test(frontmatter.description)) {
     add(
-      "error",
+      "warning",
       "description-angle-brackets",
-      "The description contains `<` or `>`, which corrupts the XML the agent's skill catalog is rendered as.",
+      "The description contains `<` or `>`, which the agent's skill catalog shows as `&lt;`/`&gt;`.",
       "SKILL.md",
     );
   }

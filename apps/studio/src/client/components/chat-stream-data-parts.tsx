@@ -28,6 +28,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-browserStatus": "dev",
   "data-externalFileChanges": "dev",
   "data-fileChanges": "always",
+  "data-intent": "dev",
   "data-maxSteps": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
@@ -101,6 +102,15 @@ export function renderDataPart({
           files={part.data.files}
           key={part.metadata.id}
           taskId={ctx.task.id}
+        />
+      );
+    }
+    case "data-intent": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={part.data.text}
         />
       );
     }

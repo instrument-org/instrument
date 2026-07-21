@@ -11,6 +11,7 @@ export namespace SessionMessageDataPart {
     "browserStatus",
     "externalFileChanges",
     "fileChanges",
+    "intent",
     "maxSteps",
     "projectChanges",
     "projectContext",
@@ -144,6 +145,17 @@ export namespace SessionMessageDataPart {
   // "Resume the agent" alert is the visible affordance); surfaced to the model
   // as a system note on the next user turn so it knows the prior run was cut
   // off at the cap rather than finished.
+  /**
+   * Why the task was started, phrased for the agent by the surface that opened
+   * it. Carried beside the user's own text so a launcher can brief the agent
+   * without putting words in the user's mouth or cluttering the composer.
+   */
+  export const IntentDataPartSchema = z.object({
+    text: z.string().trim().min(1).max(2000),
+  });
+
+  export type IntentDataPart = z.output<typeof IntentDataPartSchema>;
+
   const MaxStepsDataPartSchema = z.object({
     maxStepCount: z.number(),
   });
@@ -158,6 +170,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
+    [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,

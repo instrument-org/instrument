@@ -241,10 +241,19 @@ describe("buildBashFs skills mount", () => {
     ]);
   });
 
-  it("skips the mount when the workspace has no skills dir yet", async () => {
+  it("provisions the mount when the workspace has no skills dir yet", async () => {
     await fs.rm(path.join(tmpDir, "skills"), { force: true, recursive: true });
     const bash = await makeBash();
-    const result = await bash.exec(`ls ${SKILLS_MOUNT_POINT}`);
-    expect(result.exitCode).not.toBe(0);
+    // The prompt advertises /skills unconditionally, so it has to be there to
+    // write to even before the first skill exists.
+    const listed = await bash.exec(`ls ${SKILLS_MOUNT_POINT}`);
+    expect(listed.exitCode).toBe(0);
+    const written = await bash.exec(
+      `mkdir -p ${SKILLS_MOUNT_POINT}/first && echo body > ${SKILLS_MOUNT_POINT}/first/SKILL.md`,
+    );
+    expect(written.exitCode).toBe(0);
+    await expect(
+      fs.readFile(path.join(tmpDir, "skills", "first", "SKILL.md"), "utf8"),
+    ).resolves.toBe("body\n");
   });
 });

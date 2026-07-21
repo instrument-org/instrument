@@ -53,12 +53,30 @@ export async function findSkill(
   return { all, skill: all.find((s) => s.name === name) };
 }
 
+/**
+ * Every skill across the sources, deduplicated two ways.
+ *
+ * By canonical directory first: agent vendors' skill directories are routinely
+ * symlink farms pointing at one real folder, so the same skill is reachable
+ * through half a dozen sources. The first source to reach it wins, which keeps
+ * attribution stable instead of labelling a shared skill with whichever vendor
+ * happens to sort last.
+ *
+ * By name second, where the last source wins, so a genuinely separate copy in
+ * the workspace still overrides one from a user directory.
+ */
 export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
   const skillMap = new Map<string, SkillInfo>();
+  const seenDirs = new Set<string>();
 
   for (const { dir, source } of sources) {
     const skills = await findSkillsInDir(dir, source);
     for (const skill of skills) {
+      const canonical = await canonicalDir(skill.skillDir);
+      if (seenDirs.has(canonical)) {
+        continue;
+      }
+      seenDirs.add(canonical);
       skillMap.set(skill.name, skill);
     }
   }
@@ -168,6 +186,15 @@ export function parseFrontmatter(
     description,
     modelInvocable: parsed.data["disable-model-invocation"] !== true,
   };
+}
+
+/** Real location of a skill dir, falling back to the path itself if unresolvable. */
+async function canonicalDir(skillDir: AbsolutePath): Promise<string> {
+  try {
+    return await fs.realpath(skillDir);
+  } catch {
+    return skillDir;
+  }
 }
 
 async function findSkillsInDir(

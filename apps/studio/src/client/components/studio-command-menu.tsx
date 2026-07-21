@@ -7,6 +7,7 @@ import {
   CommandList,
 } from "@/client/components/ui/command";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { toggleSidebar } from "@/client/hooks/use-sidebar";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { debugPages } from "@/client/routes/_app/debug/-debug-routes";
@@ -19,6 +20,7 @@ import {
   BugIcon,
   ChatCircleIcon,
   PlusIcon,
+  SidebarSimpleIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
@@ -183,7 +185,14 @@ export function StudioCommandMenu() {
     "Check for updates",
     commandSearch,
   );
-  const showCommands = showNewTaskCommand || showCheckForUpdatesCommand;
+  const showToggleSidebarCommand = commandMatches(
+    "Toggle sidebar",
+    commandSearch,
+  );
+  const showCommands =
+    showNewTaskCommand ||
+    showCheckForUpdatesCommand ||
+    showToggleSidebarCommand;
 
   const handleClose = () => {
     setOpen(false);
@@ -213,6 +222,11 @@ export function StudioCommandMenu() {
     } else {
       checkForUpdates({});
     }
+  };
+
+  const handleToggleSidebar = () => {
+    handleClose();
+    toggleSidebar();
   };
 
   const handleSelectDebugItem = (item: DebugItem) => {
@@ -276,13 +290,24 @@ export function StudioCommandMenu() {
                     <span>New task</span>
                   </CommandItem>
                 )}
-                <CommandItem
-                  onSelect={handleCheckForUpdates}
-                  value="check-for-updates"
-                >
-                  <ArrowsClockwiseIcon className="size-4" />
-                  <span>Check for updates</span>
-                </CommandItem>
+                {showToggleSidebarCommand && (
+                  <CommandItem
+                    onSelect={handleToggleSidebar}
+                    value="toggle-sidebar"
+                  >
+                    <SidebarSimpleIcon className="size-4" />
+                    <span>Toggle sidebar</span>
+                  </CommandItem>
+                )}
+                {showCheckForUpdatesCommand && (
+                  <CommandItem
+                    onSelect={handleCheckForUpdates}
+                    value="check-for-updates"
+                  >
+                    <ArrowsClockwiseIcon className="size-4" />
+                    <span>Check for updates</span>
+                  </CommandItem>
+                )}
               </CommandGroup>
             )}
             {/* Only renders when "!dev" is typed exactly, so it never appears in the default list. */}
@@ -377,11 +402,16 @@ function CommandResultsList({
   }, [matchedTasks, matchedDebugItems]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
-  const virtualizer = useVirtualizer({
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 36),
     getScrollElement: () => parentRef.current,
-    measureElement: (el) => el.getBoundingClientRect().height,
+    // `offsetHeight`, not `getBoundingClientRect()`: the menu sits inside CSS
+    // `zoom`, where the rect is the on-screen height while the row offsets and
+    // spacer height this feeds are layout px. Measuring the rect reports every
+    // row as `zoom x` its own height, spacing the list out with gaps and
+    // stretching the scroll range to match.
+    measureElement: (el) => el.offsetHeight,
     overscan: 8,
   });
 

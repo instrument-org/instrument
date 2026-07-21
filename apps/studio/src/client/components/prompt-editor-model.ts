@@ -22,7 +22,7 @@ export const promptSchema = new Schema({
       group: "inline",
       inline: true,
       selectable: false,
-      // Plain inline text: colour alone marks the token, and keeping it out of
+      // Plain inline text: color alone marks the token, and keeping it out of
       // the text flow's way is what lets the caret sit beside it.
       toDOM: (node) => {
         const name = String(node.attrs.name);

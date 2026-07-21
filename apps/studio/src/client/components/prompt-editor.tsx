@@ -8,8 +8,8 @@ import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-// ProseMirror emits DOM hacks its own stylesheet neutralises: a trailing <br>
-// after a textblock ending in an inline leaf, and separator <img>s around
+// ProseMirror emits DOM hacks its own stylesheet neutralizes: a trailing <br>
+// after a text block ending in an inline leaf, and separator <img>s around
 // them. Without this the <br> is a real line break, so the caret after a skill
 // token rendered on the next line.
 import "prosemirror-view/style/prosemirror.css";

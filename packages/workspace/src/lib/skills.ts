@@ -188,9 +188,7 @@ export async function listSkillFiles(
   return { files: results, truncated };
 }
 
-export function parseFrontmatter(
-  raw: string,
-): null | {
+export function parseFrontmatter(raw: string): null | {
   body: string;
   description: string;
   modelInvocable: boolean;

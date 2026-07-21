@@ -4,10 +4,10 @@ import { RevealPath } from "@/client/components/reveal-path";
 import { SessionMarkdown } from "@/client/components/session-markdown";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { skillTitle } from "@/client/lib/skill-title";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { safe } from "@orpc/client";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -19,7 +19,12 @@ const isProvided = (source: string) =>
 
 export const Route = createFileRoute("/_app/skills/$name")({
   component: SkillPage,
-  head: ({ params }) => ({ meta: [{ title: skillTitle(params.name) }] }),
+  head: async ({ params }) => {
+    const skillResult = await safe(
+      rpcClient.workspace.skill.byName.call({ name: params.name }),
+    );
+    return { meta: [{ title: skillResult.data?.title ?? "Skill" }] };
+  },
   staticData: { tabIcon: "graduation-cap" },
 });
 

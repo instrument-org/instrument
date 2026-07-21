@@ -36,6 +36,12 @@ export interface SkillInfo {
   name: string;
   skillDir: AbsolutePath;
   source: SkillSourceKind;
+  /**
+   * The frontmatter `name`, which is prose meant for people. The directory
+   * name stays the identity, because that is what is unique on disk and what
+   * the agent and the slash menu address a skill by.
+   */
+  title: string;
 }
 
 export interface SkillSource {
@@ -168,7 +174,7 @@ export async function listSkillFiles(
       }
       if (entry.isDirectory()) {
         await walk(path.join(dir, entry.name), relPath);
-      } else if (entry.name !== "SKILL.md") {
+      } else {
         results.push(relPath);
         if (results.length >= FILE_LIST_LIMIT) {
           truncated = true;
@@ -184,7 +190,12 @@ export async function listSkillFiles(
 
 export function parseFrontmatter(
   raw: string,
-): null | { body: string; description: string; modelInvocable: boolean } {
+): null | {
+  body: string;
+  description: string;
+  modelInvocable: boolean;
+  title: string | undefined;
+} {
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(raw);
@@ -204,10 +215,14 @@ export function parseFrontmatter(
     return null;
   }
 
+  const title =
+    typeof parsed.data.name === "string" ? parsed.data.name.trim() : undefined;
+
   return {
     body: parsed.content.trim(),
     description,
     modelInvocable: parsed.data["disable-model-invocation"] !== true,
+    title: title || undefined,
   };
 }
 
@@ -262,6 +277,7 @@ async function findSkillsInDir(
       name: entry.name,
       skillDir,
       source,
+      title: parsed.title ?? entry.name,
     });
   }
 

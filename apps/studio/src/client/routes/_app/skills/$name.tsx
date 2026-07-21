@@ -56,7 +56,7 @@ function SkillPage() {
           All skills
         </Link>
         <h1 className="font-serif text-3xl tracking-tight">
-          {skillTitle(skill.name)}
+          {skill.title}
         </h1>
         {isProvided(skill.source) ? (
           // Where our own skills sit on disk is an implementation detail to
@@ -113,7 +113,7 @@ function SkillPage() {
                 },
               );
             }}
-            placeholder={`Ask ${skillTitle(skill.name)} to do something`}
+            placeholder={`Ask ${skill.title} to do something`}
             ref={promptInputRef}
             showProjectSelector
           />

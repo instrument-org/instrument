@@ -2,7 +2,6 @@ import { openCreateSkill } from "@/client/atoms/create-skill-modal";
 import { InternalLink } from "@/client/components/internal-link";
 import { RevealPath } from "@/client/components/reveal-path";
 import { Button } from "@/client/components/ui/button";
-import { skillTitle } from "@/client/lib/skill-title";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { PlusIcon } from "@phosphor-icons/react";
@@ -124,14 +123,15 @@ function SkillsPage() {
           <div className="grid gap-10">
             {groups.map((group) => (
               <section key={group.key}>
-                <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h2 className="text-sm font-medium">{group.label}</h2>
-                  {group.label === PROVIDED_LABEL ? null : (
-                    <div className="flex min-w-0 flex-wrap items-center gap-x-4">
-                      {group.dirs.map((dir) => (
-                        <RevealPath key={dir} path={dir} />
-                      ))}
-                    </div>
+                <div className="mb-4">
+                  {group.label === PROVIDED_LABEL ? (
+                    <h2 className="text-sm text-muted-foreground">
+                      {group.label}
+                    </h2>
+                  ) : (
+                    group.dirs.map((dir) => (
+                      <RevealPath key={dir} path={dir} />
+                    ))
                   )}
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -143,7 +143,7 @@ function SkillsPage() {
                       to="/skills/$name"
                     >
                       <h3 className="text-sm font-semibold">
-                        {skillTitle(skill.name)}
+                        {skill.title}
                       </h3>
                       <p className="mt-2 line-clamp-3 text-sm/relaxed text-muted-foreground">
                         {skill.description}

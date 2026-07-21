@@ -339,7 +339,7 @@ export function TaskBrowserPanel({
               onFocus={() => {
                 editingUrlRef.current = true;
               }}
-              placeholder="Enter a URL"
+              placeholder="Enter a URL or search"
               ref={inputRef}
               spellCheck={false}
               value={draftUrl}

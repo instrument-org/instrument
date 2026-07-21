@@ -4,6 +4,7 @@ import { RevealPath } from "@/client/components/reveal-path";
 import { Button } from "@/client/components/ui/button";
 import { skillTitle } from "@/client/lib/skill-title";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -27,39 +28,57 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
   cursor: 3,
   gemini: 3,
   opencode: 3,
-  registry: 1,
+  registry: 0,
   system: 0,
-  workspace: 2,
+  workspace: 1,
 };
 
+// Whether a skill we ship came from the bundle or the registry is our own
+// packaging detail, so both read as one thing to the user.
+const PROVIDED_LABEL = `Provided by ${APP_NAME}`;
+
 const GROUP_LABELS: Partial<Record<Skill["source"], string>> = {
-  registry: "Instrument registry",
-  system: "Built in",
+  registry: PROVIDED_LABEL,
+  system: PROVIDED_LABEL,
   workspace: "This workspace",
 };
 
 function groupSkills(skills: Skill[]) {
-  const groups = new Map<string, { dir: string; skills: Skill[]; source: Skill["source"] }>();
+  const groups = new Map<
+    string,
+    { dirs: Set<string>; skills: Skill[]; source: Skill["source"] }
+  >();
 
   for (const skill of skills) {
     const dir = parentDir(skill.path);
-    const group = groups.get(dir);
+    // Built-in skills ship from two directories that mean one thing to the
+    // user, so they key by label; everything else keys by its folder.
+    const key = GROUP_LABELS[skill.source] ?? dir;
+    const group = groups.get(key);
     if (group) {
+      group.dirs.add(dir);
       group.skills.push(skill);
       continue;
     }
-    groups.set(dir, { dir, skills: [skill], source: skill.source });
+    groups.set(key, {
+      dirs: new Set([dir]),
+      skills: [skill],
+      source: skill.source,
+    });
   }
 
-  return [...groups.values()]
-    .map((group) => ({
-      ...group,
-      label: GROUP_LABELS[group.source] ?? parentDir(group.dir).split("/").pop() ?? group.dir,
+  return [...groups.entries()]
+    .map(([key, group]) => ({
+      dirs: [...group.dirs].sort(),
+      key,
+      label: GROUP_LABELS[group.source] ?? key,
       skills: group.skills.sort((a, b) => a.name.localeCompare(b.name)),
+      source: group.source,
     }))
     .sort(
       (a, b) =>
-        SOURCE_RANK[a.source] - SOURCE_RANK[b.source] || a.dir.localeCompare(b.dir),
+        SOURCE_RANK[a.source] - SOURCE_RANK[b.source] ||
+        a.key.localeCompare(b.key),
     );
 }
 
@@ -104,10 +123,16 @@ function SkillsPage() {
         ) : (
           <div className="grid gap-10">
             {groups.map((group) => (
-              <section key={group.dir}>
+              <section key={group.key}>
                 <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <h2 className="text-sm font-medium">{group.label}</h2>
-                  <RevealPath path={group.dir} />
+                  {group.label === PROVIDED_LABEL ? null : (
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-4">
+                      {group.dirs.map((dir) => (
+                        <RevealPath key={dir} path={dir} />
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {group.skills.map((skill) => (

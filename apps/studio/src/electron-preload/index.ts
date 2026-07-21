@@ -1,5 +1,52 @@
+import { RESOLVE_THEME_CHANNEL } from "@/shared/constants";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+
+/**
+ * Put the theme class on <html> before the document is parsed.
+ *
+ * The app's stylesheet is render-blocking and paints `body { background:
+ * var(--background) }` the moment it loads, which resolves light until that
+ * class lands. Nothing in the renderer can beat it: every script, deferred or
+ * not, waits for pending stylesheets, and the bundle still has to compile after
+ * that. So a dark-mode launch flashes white. The preload runs earlier than any
+ * of it and can ask the main process, which owns the preference.
+ */
+function applyInitialTheme() {
+  let theme: unknown;
+  try {
+    theme = ipcRenderer.sendSync(RESOLVE_THEME_CHANNEL);
+  } catch {
+    // Leave the class to ThemeProvider rather than guessing wrong.
+    return;
+  }
+
+  if (theme !== "dark" && theme !== "light") {
+    return;
+  }
+
+  // <html> usually doesn't exist yet at document-start (querySelector rather
+  // than documentElement, which is typed as though it always does), so fall
+  // back to waiting for the parser to create it.
+  const apply = () => {
+    const root = document.querySelector("html");
+    root?.classList.add(theme);
+    return Boolean(root);
+  };
+
+  if (apply()) {
+    return;
+  }
+
+  const observer = new MutationObserver(() => {
+    if (apply()) {
+      observer.disconnect();
+    }
+  });
+  observer.observe(document, { childList: true });
+}
+
+applyInitialTheme();
 
 const api: Window["api"] = {
   getFilePath: (file: File) => webUtils.getPathForFile(file),

@@ -1,5 +1,9 @@
 import { type StudioPath } from "@/shared/studio-path";
 
+// Synchronous request the preload makes for the resolved theme, before the
+// document is parsed. See serveResolvedTheme in electron-main/lib/theme-utils.
+export const RESOLVE_THEME_CHANNEL = "resolve-theme";
+
 export const TOOLBAR_HEIGHT = 40;
 export const SIDEBAR_WIDTH = 250;
 

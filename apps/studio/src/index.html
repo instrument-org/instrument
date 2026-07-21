@@ -32,6 +32,7 @@
         --boot-toolbar: #e7e5e4;
         --boot-border: #e7e5e4;
         --boot-foreground: #171412;
+        --boot-muted: #f5f5f4;
         --boot-shadow:
           0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05);
       }
@@ -46,6 +47,7 @@
           --boot-toolbar: #292524;
           --boot-border: rgb(255 255 255 / 10%);
           --boot-foreground: #ffffff;
+          --boot-muted: rgb(255 255 255 / 8%);
           --boot-shadow:
             0 1px 2px 0 rgb(0 0 0 / 0.24), 0 1px 1px 0 rgb(0 0 0 / 0.28);
         }
@@ -157,9 +159,34 @@
 
       /* One slot per restored tab, sized the way the real strip divides itself. */
       .boot-shell-tab {
+        align-items: center;
+        display: flex;
         flex: 1 1 0;
         max-width: 15rem;
         min-width: 0;
+        overflow: hidden;
+      }
+
+      /* The tab strip's own loading treatment: SkeletonTitle in tab.tsx draws a
+         pulsing h-3.5 w-16 bar in bg-muted, inset by the tab's pl-3. */
+      .boot-shell-tab::before {
+        animation: boot-shell-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        background: var(--boot-muted);
+        /* --radius-sm: --radius (0.5rem) - 4px */
+        border-radius: 4px;
+        content: "";
+        flex: none;
+        height: 0.875rem;
+        margin-left: 0.75rem;
+        width: 4rem;
+      }
+
+      /* Tailwind's animate-pulse, under a name of its own so it can't collide
+         with the app's keyframes once its stylesheet lands. */
+      @keyframes boot-shell-pulse {
+        50% {
+          opacity: 0.5;
+        }
       }
 
       /* The shadow is what makes the loaded tab read as a couple of pixels

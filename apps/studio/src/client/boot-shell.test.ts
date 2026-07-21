@@ -113,10 +113,12 @@ describe("boot shell colors", () => {
     { colors: light, role: "background", scope: lightScope, token: "--background" }, // prettier-ignore
     { colors: light, role: "foreground", scope: lightScope, token: "--foreground" }, // prettier-ignore
     { colors: light, role: "border", scope: lightScope, token: "--border" },
+    { colors: light, role: "muted", scope: lightScope, token: "--muted" },
     { colors: light, role: "toolbar", scope: lightScope, token: "--gray-200" },
     { colors: dark, role: "background", scope: darkScope, token: "--background" }, // prettier-ignore
     { colors: dark, role: "foreground", scope: darkScope, token: "--foreground" }, // prettier-ignore
     { colors: dark, role: "border", scope: darkScope, token: "--border" },
+    { colors: dark, role: "muted", scope: darkScope, token: "--muted" },
     { colors: dark, role: "toolbar", scope: lightScope, token: "--gray-800" },
   ] as const)(
     "takes $role from globals.css $token",

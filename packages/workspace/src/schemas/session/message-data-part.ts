@@ -12,6 +12,7 @@ export namespace SessionMessageDataPart {
     "externalFileChanges",
     "fileChanges",
     "intent",
+    "skillMentions",
     "maxSteps",
     "projectChanges",
     "projectContext",
@@ -156,6 +157,20 @@ export namespace SessionMessageDataPart {
 
   export type IntentDataPart = z.output<typeof IntentDataPartSchema>;
 
+  /**
+   * Skills the user named in their message. Recorded so the model is told what
+   * the mention syntax means and can decide which, if any, to load; loading
+   * them automatically would make a message that names several skills drag all
+   * of them into context whether or not they bear on the request.
+   */
+  export const SkillMentionsDataPartSchema = z.object({
+    names: z.array(z.string()).min(1),
+  });
+
+  export type SkillMentionsDataPart = z.output<
+    typeof SkillMentionsDataPartSchema
+  >;
+
   const MaxStepsDataPartSchema = z.object({
     maxStepCount: z.number(),
   });
@@ -174,6 +189,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
+    [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;
 }

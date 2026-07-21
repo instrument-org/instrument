@@ -20,6 +20,9 @@ import { setTaskState } from "./task-state-store";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
+/** The composer serialises a skill token as `[$name](skill:name)`. */
+const SKILL_MENTION_PATTERN = /\[\$([^\]]+)\]\(skill:([^)]+)\)/g;
+
 export async function newMessage({
   files,
   folders,
@@ -54,6 +57,26 @@ export async function newMessage({
       },
       text: prompt.trim(),
       type: "text",
+    });
+  }
+
+  const mentionedSkills = [
+    ...new Set(
+      [...prompt.matchAll(SKILL_MENTION_PATTERN)].flatMap((match) =>
+        match[1] ? [match[1]] : [],
+      ),
+    ),
+  ];
+  if (mentionedSkills.length > 0) {
+    parts.push({
+      data: { names: mentionedSkills },
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-skillMentions",
     });
   }
 

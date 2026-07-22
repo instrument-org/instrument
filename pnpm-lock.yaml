@@ -72,12 +72,8 @@ overrides:
   jiti: 2.7.0
 
 patchedDependencies:
-  '@parcel/watcher@2.5.1':
-    hash: 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
-    path: patches/@parcel__watcher@2.5.1.patch
-  conf@14.0.0:
-    hash: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
-    path: patches/conf@14.0.0.patch
+  '@parcel/watcher@2.5.1': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
+  conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
 
 importers:
 
@@ -267,8 +263,8 @@ importers:
         specifier: ^2.1.3
         version: 2.1.3
       pnpm:
-        specifier: ^10.33.0
-        version: 10.33.0
+        specifier: 11.10.0
+        version: 11.10.0
       posthog-node:
         specifier: ^5.34.6
         version: 5.34.6
@@ -1941,7 +1937,7 @@ packages:
         optional: true
 
   '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/144b17b303281240b5f0b6dea5198ae3d1d005f9':
-    resolution: {tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/144b17b303281240b5f0b6dea5198ae3d1d005f9}
+    resolution: {gitHosted: true, integrity: sha512-CYmq0m+309Zz4grCxLX8GO7KODJDkO2PeS7JMkuQLwF0/rVOVHv3uFxC6KaXBh1IDjsvFiO25NoY3QUfXocTWA==, tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/144b17b303281240b5f0b6dea5198ae3d1d005f9}
     version: 1.0.0
     engines: {node: '>=22'}
 
@@ -8004,9 +8000,9 @@ packages:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
 
-  pnpm@10.33.0:
-    resolution: {integrity: sha512-EFaLtKavtYyes2MNqQzJUWQXq+vT+rvmc58K55VyjaFJHp21pUTHatjrdXD1xLs9bGN7LLQb/c20f6gjyGSTGQ==}
-    engines: {node: '>=18.12'}
+  pnpm@11.10.0:
+    resolution: {integrity: sha512-C3+LmAYAMZBMAX46QesYehbUDuuCm5XE+MsDaBdh/Eq1PdIZEVubRH9NzhoFohR2RGHn03AzkqnzL5URzoyGyA==}
+    engines: {node: '>=22.13'}
     hasBin: true
 
   possible-typed-array-names@1.1.0:
@@ -17066,7 +17062,7 @@ snapshots:
 
   pluralize@8.0.0: {}
 
-  pnpm@10.33.0: {}
+  pnpm@11.10.0: {}
 
   possible-typed-array-names@1.1.0: {}
 

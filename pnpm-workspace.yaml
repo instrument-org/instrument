@@ -67,3 +67,10 @@ patchedDependencies:
   conf@14.0.0: patches/conf@14.0.0.patch
 
 sideEffectsCache: false
+
+# pnpm 11 defaults this to "install", so every `pnpm run`/`pnpm exec` verifies
+# the store first and silently spawns an install when it looks stale. With
+# long-running dev servers and several agents sharing one store, those implicit
+# installs race and deadlock. "false" restores the pnpm 10 behavior: run the
+# command as asked, install only when asked.
+verifyDepsBeforeRun: false

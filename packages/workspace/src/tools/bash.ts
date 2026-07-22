@@ -155,14 +155,16 @@ export const BashTool = setupTool({
       (truncationNotice + displayOutput).replace(/\n+$/, ""),
     ];
 
+    // Matches both spellings pnpm uses: a warning box when strictDepBuilds is
+    // off, and ERR_PNPM_IGNORED_BUILDS when it is on. Only the shared
+    // "Ignored build scripts:" prefix is common to the two.
     if (
       output.commands.includes("pnpm") &&
-      displayOutput.includes("Ignored build scripts:") &&
-      displayOutput.includes("Warning")
+      displayOutput.includes("Ignored build scripts:")
     ) {
       outputParts.push(
         systemNote`
-          This warning means some packages were not built during installation.
+          Some packages were not built during installation.
           If you encounter "Cannot find module" errors or the package doesn't work:
 
           1. Read pnpm-workspace.yaml from the workspace root.

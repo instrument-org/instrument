@@ -54,7 +54,6 @@
       },
       "internalConsoleOptions": "openOnFirstSessionStart",
       "name": "🐛 Studio",
-      "preLaunchTask": "Build Shim Client",
       "presentation": {
         "order": 1
       },
@@ -103,7 +102,6 @@
       },
       "internalConsoleOptions": "openOnFirstSessionStart",
       "name": "🐛 Studio Fresh",
-      "preLaunchTask": "Build Shim Client",
       "presentation": {
         "order": 5
       },

@@ -178,7 +178,9 @@ function MarkdownPreview({ url }: { url: string }) {
     );
   }
 
-  return <SessionMarkdown className="p-8" markdown={data ?? ""} />;
+  return (
+    <SessionMarkdown className="p-8" hardLineBreaks markdown={data ?? ""} />
+  );
 }
 
 function TextView({

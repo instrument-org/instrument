@@ -43,6 +43,7 @@ import { contextMenuComponents } from "./ui/menu-components";
 interface MarkdownProps {
   allowRawHtml?: boolean;
   assetBaseUrl?: string;
+  hardLineBreaks?: boolean;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file
   // right-click menu (Open in {App} / Download / Reveal / …); left-click
@@ -375,7 +376,13 @@ const resolveImageSrc = (
 };
 
 export const Markdown = memo(
-  ({ allowRawHtml, assetBaseUrl, markdown, taskId }: MarkdownProps) => {
+  ({
+    allowRawHtml,
+    assetBaseUrl,
+    hardLineBreaks = false,
+    markdown,
+    taskId,
+  }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
     const [rehypePlugins, setRehypePlugins] =
       useState<PluginList>(emptyPluginList);
@@ -469,7 +476,11 @@ export const Markdown = memo(
             pre: markdownPre,
           }}
           rehypePlugins={rehypePlugins}
-          remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
+          remarkPlugins={
+            hardLineBreaks
+              ? [remarkGfm, remarkBreaks, ...remarkPlugins]
+              : [remarkGfm, ...remarkPlugins]
+          }
         >
           {remend(markdown)}
         </ReactMarkdown>

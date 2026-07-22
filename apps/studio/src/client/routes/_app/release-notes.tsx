@@ -161,6 +161,7 @@ function RouteComponent() {
                   <div className="prose prose-sm prose-custom dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
                     <Markdown
                       allowRawHtml // To support GitHub's HTML-based image attachments
+                      hardLineBreaks
                       markdown={release.body}
                     />
                   </div>

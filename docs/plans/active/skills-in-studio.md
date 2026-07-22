@@ -1,7 +1,8 @@
 # Skills in Studio
 
-Handoff for `feature/skills-sidebar` (PR #68). The branch is rebased on `main`,
-linear, and green on `pnpm check-and-test:ci`.
+Handoff for `feature/skills-sidebar` (PR #68). The branch carries merge commits
+from `main` (it stopped being kept strictly linear once `main` shipped changes
+worth pulling in mid-review) and is green on `pnpm check-and-test:ci`.
 
 ## What this is
 
@@ -31,7 +32,17 @@ what to load is its call.
 **Authoring.** The workspace `skills/` folder mounts writable at `/skills`
 alongside the read-only `/mnt` attached folders, so the agent writes skill
 packages with ordinary file tools. There is no dedicated save tool; see
-`docs/decisions/2026-07-20-skills-as-a-mount-not-a-tool.md`.
+`docs/decisions/2026-07-20-skills-as-a-mount-not-a-tool.md`. `buildBashFs`
+creates that directory so the advertised `/skills` is real even before the
+first skill exists.
+
+**Validation.** `validate-skill` (a bash command, `shell-commands/validate-skill.ts`)
+checks a skill the agent wrote under `/skills` against `validate-skill.ts`. Errors
+are what the runtime already acts on -- a skill discovery skips (unparseable
+frontmatter, no description, no closing fence) or `load_skill` refuses (bad
+`package.json`, missing `uv.lock`). Warnings are the authoring rules and the
+context budgets, sharing thresholds and the `tokenx` estimator with the skills
+registry's own CI check. `skill-creator` runs it before reporting success.
 
 **Composer.** A ProseMirror editor where skills are inline atom nodes,
 serialized as `[$name](skill:name)`. The slash menu uses the same uFuzzy matcher
@@ -61,6 +72,19 @@ do. `lib/skill-title.ts` is gone.
 
 **`skill-creator` stays bundled.** See
 `docs/decisions/2026-07-21-where-a-bundled-skill-lives.md`.
+
+**Frontmatter parses with `yaml`, not gray-matter.** gray-matter caches by
+input string and writes the entry before parsing, so a throw left an unparsed
+shell behind and the same broken SKILL.md read differently on the second pass.
+`parseFrontmatter` now splits the fence by hand (BOM, CRLF, the `----`
+horizontal-rule guard, an unterminated block) and hands the block to `yaml`,
+keeping the newline after the opening fence so a YAML error's line number
+matches the file.
+
+**The catalog escapes what it embeds.** `renderSkillCatalog` puts discovered
+names and descriptions into the XML the `load_skill` tool description carries
+into the system prompt; a description from an unvalidated source could otherwise
+close its own tag. `escapeXml` handles `<`, `>`, `&`.
 
 ## Open work
 

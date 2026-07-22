@@ -21,8 +21,7 @@ Works with Claude, GPT, Gemini, or local models.
 
 ## Setup for development
 
-Prerequisites: [.agents/setup.md](.agents/setup.md). Environment variables:
-[.agents/env.md](.agents/env.md).
+Prerequisites: [.agents/setup.md](.agents/setup.md). Environment variables: [.agents/env.md](.agents/env.md).
 
 ```bash
 pnpm install

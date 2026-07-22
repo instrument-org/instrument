@@ -5,9 +5,7 @@ description: Find recent product UI surfaces changed by Instrument commits that 
 
 # Find UI Changes
 
-Create a concise queue of review-worthy UI changes from recent commits. This is
-not a release changelog. The goal is to identify product surfaces a human may
-want to inspect, with enough repo context for a designer or agent to follow up.
+Create a concise queue of review-worthy UI changes from recent commits. This is not a release changelog. The goal is to identify product surfaces a human may want to inspect, with enough repo context for a designer or agent to follow up.
 
 ## Inputs
 
@@ -21,16 +19,14 @@ Accept ranges such as:
 - `since the last public release`
 - `since the previous stable tag`
 
-If the range is ambiguous, state the assumption. For relative dates, include the
-exact dates used.
+If the range is ambiguous, state the assumption. For relative dates, include the exact dates used.
 
 ## Discovery
 
 1. Inspect commit subjects, bodies, authors, co-authors, and touched files.
 2. Sample diffs for likely UI changes; do not rely only on commit subjects.
 3. Cluster related commits into reviewable UI surfaces.
-4. Infer human app locations from where components render in the product, not
-   from route filenames alone.
+4. Infer human app locations from where components render in the product, not from route filenames alone.
 
 Useful commands:
 
@@ -46,23 +42,17 @@ git show --name-only --oneline <sha>
 Include:
 
 - User-visible Studio UI and product surfaces.
-- New controls, panels, modals, workflows, navigation, empty/error states, or
-  layout behavior.
-- Refactors only when they change layering, scaling, navigation, modality,
-  persistence, state visibility, or interaction behavior enough to merit review.
+- New controls, panels, modals, workflows, navigation, empty/error states, or layout behavior.
+- Refactors only when they change layering, scaling, navigation, modality, persistence, state visibility, or interaction behavior enough to merit review.
 
 Exclude:
 
-- Commits authored by or co-authored with Neil Renicker, unless the user asks to
-  include designer-owned work.
-- Internal-only changes, tests, telemetry, diagnostics, release commits,
-  dependency churn, spelling, or docs-only commits.
-- Small spacing, border, token, and polish changes unless they create a reusable
-  visual pattern.
+- Commits authored by or co-authored with Neil Renicker, unless the user asks to include designer-owned work.
+- Internal-only changes, tests, telemetry, diagnostics, release commits, dependency churn, spelling, or docs-only commits.
+- Small spacing, border, token, and polish changes unless they create a reusable visual pattern.
 - Architecture changes where the intended UI stayed the same.
 
-When uncertain, prefer omitting marginal items. The queue should be short enough
-for a designer to scan.
+When uncertain, prefer omitting marginal items. The queue should be short enough for a designer to scan.
 
 ## Output
 
@@ -80,8 +70,7 @@ Use this shape:
   Source changes: [abc1234](https://github.com/instrument-org/instrument/commit/abc1234), [def5678](https://github.com/instrument-org/instrument/commit/def5678)
 
   ```text
-  Use these commits as repo context for <surface name>:
-  abc1234 def5678
+  Use these commits as repo context for <surface name>: abc1234 def5678
 
   Location: Same human app location, without route paths.
   ```
@@ -93,8 +82,7 @@ Guidelines:
 - Description: one sentence, plain and specific.
 - Location: describe the product place, not the implementation path.
 - Source changes: Markdown commit links are useful secondary context.
-- Context block: commit hashes and human location only. Do not include a request
-  placeholder or text the designer would need to delete.
+- Context block: commit hashes and human location only. Do not include a request placeholder or text the designer would need to delete.
 - Keep prose terse. Avoid recommendations unless the user asks for them.
 
 ## Common Locations

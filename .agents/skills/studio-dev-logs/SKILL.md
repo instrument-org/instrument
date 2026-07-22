@@ -5,9 +5,7 @@ description: Read Studio main-process logs written during local development. Use
 
 # Studio Dev Logs
 
-When Studio runs in development (`NODE_ENV=development`), the Electron main process
-writes every `console.debug/info/warn/error` call to a newline-delimited JSON file
-under `apps/studio/.logs/`.
+When Studio runs in development (`NODE_ENV=development`), the Electron main process writes every `console.debug/info/warn/error` call to a newline-delimited JSON file under `apps/studio/.logs/`.
 
 ## File layout
 
@@ -46,10 +44,7 @@ Fields:
 - `source` — present only on entries forwarded from the **renderer** process (value `"renderer"`). Absent on main-process entries.
 - `msg` — string for plain messages; object for `Error` instances (`name`, `message`, `stack`, optional `cause`); array when multiple arguments were passed
 
-Most entries are from the Electron **main** process. Renderer errors (uncaught
-exceptions, unhandled promise rejections, and explicit `logger.error` calls) are
-forwarded over IPC and tagged `"source":"renderer"`; other renderer `console.*`
-output still only lands in the DevTools console, not this file.
+Most entries are from the Electron **main** process. Renderer errors (uncaught exceptions, unhandled promise rejections, and explicit `logger.error` calls) are forwarded over IPC and tagged `"source":"renderer"`; other renderer `console.*` output still only lands in the DevTools console, not this file.
 
 Filter to errors only:
 

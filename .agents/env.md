@@ -1,12 +1,10 @@
 # Environment variables
 
-Copy example files to local env files before running Studio or workspace logic.
-Do not commit secrets.
+Copy example files to local env files before running Studio or workspace logic. Do not commit secrets.
 
 ## Studio (`apps/studio/.env.local`)
 
-Copy from `apps/studio/.env.local.example`. Loaded by electron-vite for the
-main and renderer processes.
+Copy from `apps/studio/.env.local.example`. Loaded by electron-vite for the main and renderer processes.
 
 | Variable                          | Required | Description                                                                                                                                      |
 | --------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -18,8 +16,6 @@ main and renderer processes.
 | `VITE_POSTHOG_API_HOST`           | no       | PostHog ingest host when telemetry is configured.                                                                                                |
 | `VITE_POSTHOG_API_KEY`            | no       | PostHog project API key when telemetry is configured.                                                                                            |
 
-`apps/studio/.env.development` ships committed defaults for non-secret dev
-settings; `.env.local` overrides and holds secrets.
+`apps/studio/.env.development` ships committed defaults for non-secret dev settings; `.env.local` overrides and holds secrets.
 
-Linked worktrees copy local env files and normalize relative registry overrides
-to absolute paths based on the source env file.
+Linked worktrees copy local env files and normalize relative registry overrides to absolute paths based on the source env file.

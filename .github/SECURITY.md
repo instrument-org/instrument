@@ -1,7 +1,6 @@
 # Security Policy
 
-We take all security vulnerabilities seriously.
-If you have a vulnerability or other security issues to disclose:
+We take all security vulnerabilities seriously. If you have a vulnerability or other security issues to disclose:
 
 - Thank you very much, please do!
 - Please send them to us by emailing `security@tryinstrument.com`

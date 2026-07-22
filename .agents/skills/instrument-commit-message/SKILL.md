@@ -9,15 +9,10 @@ description: Generate a git commit message matching the Instrument monorepo's sc
 
 `scope: clear, concise description of what changed`
 
-- **Scope:** the main area touched -- a package/app (`studio`, `workspace`,
-  `shim-client`), a workflow (`dx`, `ci`, `release`), or a feature area
-  (`breadcrumb`, `task`). Prioritize scope over type.
-- **No conventional types.** Drop `feat:`/`fix:`/`refactor:`/`chore:` etc. Let
-  the description imply the nature of the change.
-- **Description:** lowercase, no period, imperative-ish, informative and
-  scannable, no redundancy. Keep the subject under ~72 chars.
-- **Body:** optional bullet list for the _why_/_what_ when the subject alone is
-  cryptic.
+- **Scope:** the main area touched -- a package/app (`studio`, `workspace`, `shim-client`), a workflow (`dx`, `ci`, `release`), or a feature area (`breadcrumb`, `task`). Prioritize scope over type.
+- **No conventional types.** Drop `feat:`/`fix:`/`refactor:`/`chore:` etc. Let the description imply the nature of the change.
+- **Description:** lowercase, no period, imperative-ish, informative and scannable, no redundancy. Keep the subject under ~72 chars.
+- **Body:** optional bullet list for the _why_/_what_ when the subject alone is cryptic.
 
 ## Examples
 
@@ -28,17 +23,14 @@ dx: drop eslint --cache from lint scripts and editor
 studio: revert dark-mode secondary variant on new task button
 ```
 
-Use comma-separated scopes only when changes genuinely span two areas
-(`studio,workspace`). Omit scope only for truly repo-wide changes.
+Use comma-separated scopes only when changes genuinely span two areas (`studio,workspace`). Omit scope only for truly repo-wide changes.
 
 ## How to write the message
 
 **Determine what's being committed:**
 
-- If conversation context describes recent work, use that as the primary signal
-  -- don't let unrelated staged or unstaged changes dilute the subject.
-- Otherwise, prefer staged changes (`git diff --cached`). If nothing is staged,
-  assume the user wants to commit everything (`git diff HEAD`).
+- If conversation context describes recent work, use that as the primary signal -- don't let unrelated staged or unstaged changes dilute the subject.
+- Otherwise, prefer staged changes (`git diff --cached`). If nothing is staged, assume the user wants to commit everything (`git diff HEAD`).
 
 **Then write the message:**
 
@@ -48,8 +40,7 @@ Use comma-separated scopes only when changes genuinely span two areas
 
 ## Display & clipboard
 
-Display the message inline at the end of your response -- no code block.
-Subject-only example (no trailing newline):
+Display the message inline at the end of your response -- no code block. Subject-only example (no trailing newline):
 
 studio: animate collapsible tool call cards
 
@@ -59,8 +50,7 @@ workspace: write initial task name in single manifest write
 
 - avoid a race where two writes could stomp each other during initializeProject
 
-Copy to clipboard immediately after displaying
-(pipe through `tr -s '\n'` to suppress blank lines):
+Copy to clipboard immediately after displaying (pipe through `tr -s '\n'` to suppress blank lines):
 
 ```bash
 printf %s "studio: animate collapsible tool call cards" | tr -s '\n' | pbcopy

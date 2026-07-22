@@ -106,10 +106,7 @@ const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
 const WORKSPACE_HELP = dedent`
   agent-browser - Control the task's managed in-app browser.
 
-  IMPORTANT: Load the \`agent-browser\` skill before using this command. It is
-  the source of truth for workflow details and command examples.
-  The workspace manages the browser session, CDP connection, profile, state,
-  screenshots, downloads, and lifecycle.
+  IMPORTANT: Load the \`agent-browser\` skill before using this command. It is the source of truth for workflow details and command examples. The workspace manages the browser session, CDP connection, profile, state, screenshots, downloads, and lifecycle.
 
   Core workflow:
     1. agent-browser open <url>
@@ -121,16 +118,14 @@ const WORKSPACE_HELP = dedent`
     agent-browser open output/report.html   Task files load in the browser
     agent-browser open /task/output/x.html  Task-relative, /task/..., /mnt/...,
                                             and file:///task/... all work
-  Use this to check an HTML deliverable end to end -- rendered layout,
-  interactivity, and console errors -- not just its source.
+  Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
 
   Reading page content:
     agent-browser read                 Read the active page as agent-friendly text
     agent-browser read <url>           Fetch a URL as Markdown or readable text
     agent-browser get text body        Fallback for visible page copy
 
-  Use snapshot -i --urls when following links. Never fabricate deep URLs from
-  memory; discover them from search, root pages, provided URLs, or page links.
+  Use snapshot -i --urls when following links. Never fabricate deep URLs from memory; discover them from search, root pages, provided URLs, or page links.
 
   Common commands:
     open <url>                  Navigate to a URL
@@ -151,8 +146,7 @@ const WORKSPACE_HELP = dedent`
     is visible|enabled|checked  Check element state
     find role|text|label ...    Use semantic locators as an alternative to refs
 
-  Do not pass connection, provider, profile, session, restore, or state flags.
-  These are blocked because the workspace owns the in-app browser context.
+  Do not pass connection, provider, profile, session, restore, or state flags. These are blocked because the workspace owns the in-app browser context.
 `.trim();
 
 /**

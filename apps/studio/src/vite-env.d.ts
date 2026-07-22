@@ -28,6 +28,7 @@ declare namespace NodeJS {
       APPLE_NOTARIZATION_ENABLED: string | undefined;
       ARCH: string | undefined;
       BUILDER_PUBLISH_S3_ENDPOINT: string | undefined;
+      CC: string | undefined;
       CI: string | undefined;
       ELECTRON_BUILDER_OUTPUT_DIR: string | undefined;
       ELECTRON_DEV_USER_FOLDER_SUFFIX: string | undefined;

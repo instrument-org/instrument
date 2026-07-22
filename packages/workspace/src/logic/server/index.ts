@@ -3,7 +3,10 @@ import {
   type AIGatewayApp,
   type AIGatewayEnv,
 } from "@instrument-org/ai-gateway";
-import { AI_GATEWAY_API_PATH } from "@instrument-org/shared";
+import {
+  AI_GATEWAY_API_PATH,
+  APP_CLIENT_NAME_STUDIO,
+} from "@instrument-org/shared";
 import { Hono } from "hono";
 import invariant from "tiny-invariant";
 import { type ActorRefFrom, type AnyEventObject, fromCallback } from "xstate";
@@ -69,6 +72,12 @@ export const workspaceServerLogic = fromCallback<
           input.workspaceConfig.getAIProviderConfigs,
         );
         c.set("captureException", input.workspaceConfig.captureException);
+        c.set("clientInfo", {
+          clientArch: process.arch,
+          clientName: APP_CLIENT_NAME_STUDIO,
+          clientPlatform: process.platform,
+          clientVersion: input.workspaceConfig.appVersion,
+        });
         await next();
       },
     );

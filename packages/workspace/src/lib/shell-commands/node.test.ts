@@ -4,6 +4,8 @@ import {
   InMemoryFs,
   unsafeBytesFromLatin1,
 } from "just-bash";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -361,6 +363,27 @@ describe("nodeCommand", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Copy the file into the task first");
     expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+
+  it("blocks a script file that references /mnt without spawning node", async () => {
+    const { execa } = await import("execa");
+    const workDir = path.join(taskDir(taskId), "work");
+    await fs.mkdir(workDir, { recursive: true });
+    const scriptPath = path.join(workDir, "bad.js");
+    await fs.writeFile(
+      scriptPath,
+      'require("fs").readFileSync("/mnt/Photos/x.mov")',
+    );
+
+    try {
+      const result = await command.execute(["work/bad.js"], mockCtx);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Copy the file into the task first");
+      expect(vi.mocked(execa)).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(scriptPath, { force: true });
+    }
   });
 
   it("resolves the script file path without exposing the host dir", async () => {

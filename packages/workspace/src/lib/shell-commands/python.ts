@@ -9,6 +9,7 @@ import {
   bridgeInlineCodePaths,
   resolveCommandContext,
   resolvePathArgs,
+  scanScriptFileForVirtualPaths,
 } from "./utils";
 import { ensureTaskVenv } from "./uv";
 
@@ -81,22 +82,34 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
       stdin = bridged.code;
     }
 
-    const result = await execa(
-      taskVenvPython(taskId),
-      resolvePathArgs(bridgedArgs, taskId, ctx),
-      {
-        all: true,
-        cancelSignal: ctx.signal,
-        cwd: taskCwd,
-        env,
-        reject: false,
-        // Buffer, not the latin1-packed string: execa UTF-8 encodes string
-        // input, which would double-encode every non-ASCII byte.
-        ...(stdin
-          ? { input: Buffer.from(stdin, "latin1") }
-          : { stdin: "ignore" }),
-      },
-    );
+    const finalArgs = resolvePathArgs(bridgedArgs, taskId, ctx);
+
+    // Scan the entry script for sandbox-virtual path literals a real interpreter
+    // can't resolve, so it fails with copy-first / use-relative-paths guidance
+    // instead of a confusing host-filesystem error deep in a traceback.
+    const scriptIndex = pythonScriptArgIndex(bridgedArgs);
+    if (scriptIndex !== undefined) {
+      const scanError = await scanScriptFileForVirtualPaths(
+        taskCwd,
+        finalArgs[scriptIndex] ?? "",
+      );
+      if (scanError !== undefined) {
+        return { exitCode: 1, stderr: scanError, stdout: "" };
+      }
+    }
+
+    const result = await execa(taskVenvPython(taskId), finalArgs, {
+      all: true,
+      cancelSignal: ctx.signal,
+      cwd: taskCwd,
+      env,
+      reject: false,
+      // Buffer, not the latin1-packed string: execa UTF-8 encodes string
+      // input, which would double-encode every non-ASCII byte.
+      ...(stdin
+        ? { input: Buffer.from(stdin, "latin1") }
+        : { stdin: "ignore" }),
+    });
 
     return {
       exitCode: result.exitCode ?? 1,
@@ -104,4 +117,32 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
       stdout: filterShellOutput(result.all, taskDir(taskId)),
     };
   });
+}
+
+/**
+ * Index of the first arg python runs as a script file, or undefined for module
+ * (`-m`), inline (`-c`), or stdin (`-`) invocations, which have no file to scan.
+ * Good enough for the common `python [flags] script.py` shape; on a miss it
+ * simply skips the scan (fail-open).
+ */
+function pythonScriptArgIndex(args: string[]): number | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined) {
+      continue;
+    }
+    if (arg === "-c" || arg === "-m" || arg === "-") {
+      return undefined;
+    }
+    if (arg.startsWith("-")) {
+      // `-W`/`-X` take the next arg as their value; skip it so it isn't
+      // mistaken for the script file.
+      if (arg === "-W" || arg === "-X") {
+        i++;
+      }
+      continue;
+    }
+    return i;
+  }
+  return undefined;
 }

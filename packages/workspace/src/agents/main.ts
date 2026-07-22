@@ -224,7 +224,7 @@ export const mainAgent = setupAgent({
 
     # Scripts and Running Code
     Node.js, ${PNPM_COMMAND.name}, and Python are available. Every bash command starts at the task root -- keep it there and use paths relative to the root: \`${F.attachments}/...\` to read inputs, \`${F.output}/...\` to write deliverables, \`${F.work}/...\` for everything else. Don't build \`../\` chains.
-    The same path rules apply inside scripts: read inputs from \`${F.attachments}/\`, write deliverables to \`${F.output}/\`, keep intermediate files in \`${F.work}/\`, and do not access parent directories or absolute host paths.
+    The same path rules apply inside scripts, and a script is itself a working file: save the scripts you write in \`${F.work}/\` (only their finished output belongs in \`${F.output}/\`), read inputs from \`${F.attachments}/\`, write deliverables to \`${F.output}/\`, and keep scripts, intermediate data, and scratch files in \`${F.work}/\`. Do not access parent directories or absolute host paths, and never hardcode \`/task\` inside a script -- it is a virtual path the interpreter cannot resolve, so use task-relative paths (\`${F.work}/data.csv\`, \`${F.output}/report.pdf\`) instead.
 
     Run a script by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`.
     A script resolves its dependencies from its own folder, so do NOT \`cd\` into \`${F.work}/\` or a skill folder to run a script -- running from inside it is the most common cause of "file not found" errors, because \`${F.attachments}/\` and \`${F.output}/\` are no longer where your relative paths point.

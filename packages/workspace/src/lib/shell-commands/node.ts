@@ -15,6 +15,7 @@ import {
   firstString,
   parseScriptRunnerArgs,
   resolveCommandContext,
+  scanScriptFileForVirtualPaths,
   stringArray,
   subprocessStdin,
 } from "./utils";
@@ -229,6 +230,12 @@ export function createNodeCommand(taskId: TaskId) {
     }
 
     const { filePath, scriptArgs } = fileAndArgs;
+
+    const scanError = await scanScriptFileForVirtualPaths(taskCwd, filePath);
+    if (scanError !== undefined) {
+      return { exitCode: 1, stderr: scanError, stdout: "" };
+    }
+
     const execResult = await execNode(
       taskId,
       [...nodeFlags, filePath, ...scriptArgs],

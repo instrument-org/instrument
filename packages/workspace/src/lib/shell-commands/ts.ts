@@ -10,6 +10,7 @@ import {
   firstString,
   parseScriptRunnerArgs,
   resolveCommandContext,
+  scanScriptFileForVirtualPaths,
   subprocessStdin,
 } from "./utils";
 
@@ -76,6 +77,11 @@ export function createTsCommand(taskId: TaskId) {
       }
 
       ({ filePath, scriptArgs } = fileAndArgs);
+
+      const scanError = await scanScriptFileForVirtualPaths(taskCwd, filePath);
+      if (scanError !== undefined) {
+        return { exitCode: 1, stderr: scanError, stdout: "" };
+      }
     } else {
       const bridged = bridgeInlineCodePaths(evalCode, taskId, taskCwd);
       if ("error" in bridged) {

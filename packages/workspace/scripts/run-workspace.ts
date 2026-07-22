@@ -288,8 +288,24 @@ rl.on("line", (input) => {
   console.log("\nEnter another task prompt (press Enter to submit):");
 });
 
-// Keep the process running
-process.on("SIGINT", () => {
+let isShuttingDown = false;
+
+function shutdown(exitCode = 0) {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+  process.exitCode = exitCode;
   actor.stop();
-  throw new Error("SIGINT");
+  rl.close();
+}
+
+rl.once("close", () => {
+  shutdown();
+});
+process.once("SIGINT", () => {
+  shutdown(130);
+});
+process.once("SIGTERM", () => {
+  shutdown(143);
 });

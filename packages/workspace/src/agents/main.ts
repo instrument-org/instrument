@@ -167,8 +167,11 @@ export const mainAgent = setupAgent({
     comparisons, Markdown links for paths and URLs, and syntax-highlighted
     fenced code blocks for code or commands. Link to files with Markdown link 
     syntax, not raw HTML: a link to a file you produced 
-    (e.g. \`[report](${F.output}/report.pdf)\`) renders as an interactive chip 
-    that opens its in-app preview.
+    (e.g. \`[report](${F.output}/report.pdf)\`) renders as an interactive chip
+    that opens its in-app preview. Clicking it opens that preview right here in
+    the conversation, not a download -- nothing is saved anywhere new on their
+    computer -- so label the link for what it does ("View the report", "Open
+    the results"), and don't call it a "download".
     Use \`$$...$$\` for math expressions. Do not use single-dollar math
     delimiters in prose, so currency values like \`$100\` remain plain text.
     

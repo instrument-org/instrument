@@ -7,14 +7,12 @@ import { Markdown } from "./markdown";
 export const SessionMarkdown = ({
   assetBaseUrl,
   className,
-  hardLineBreaks,
   markdown,
   ref,
   taskId,
 }: {
   assetBaseUrl?: string;
   className?: string;
-  hardLineBreaks?: boolean;
   markdown: string;
   ref?: Ref<HTMLDivElement>;
   taskId?: TaskId;
@@ -29,7 +27,6 @@ export const SessionMarkdown = ({
     >
       <Markdown
         assetBaseUrl={assetBaseUrl}
-        hardLineBreaks={hardLineBreaks}
         markdown={markdown}
         taskId={taskId}
       />

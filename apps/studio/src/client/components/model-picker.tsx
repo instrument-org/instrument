@@ -503,11 +503,16 @@ function ModelGroups({
   }, [groupedModels]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
-  const virtualizer = useVirtualizer({
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 56),
     getScrollElement: () => parentRef.current,
-    measureElement: (el) => el.getBoundingClientRect().height,
+    // `offsetHeight`, not `getBoundingClientRect()`: the picker sits inside CSS
+    // `zoom`, where the rect is the on-screen height while the row offsets and
+    // spacer height this feeds are layout px. Measuring the rect reports every
+    // row as `zoom x` its own height, spacing the list out with gaps and
+    // stretching the scroll range to match.
+    measureElement: (el) => el.offsetHeight,
     overscan: 8,
   });
 

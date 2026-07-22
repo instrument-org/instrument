@@ -1,6 +1,9 @@
+import { zoomAtom } from "@/client/atoms/zoom";
+import { useAtomValue } from "jotai";
 import { useCallback } from "react";
 
 export const useHashLinkScroll = () => {
+  const zoom = useAtomValue(zoomAtom);
   const handleHashLinkClick = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
@@ -43,7 +46,9 @@ export const useHashLinkScroll = () => {
             // Get element position relative to scroll container
             const elementRect = element.getBoundingClientRect();
             const containerRect = scrollContainer.getBoundingClientRect();
-            const relativeTop = elementRect.top - containerRect.top;
+            // The rect delta is on-screen px (scaled by the app zoom); scrollTop
+            // and scrollTo expect layout px, so divide the delta back.
+            const relativeTop = (elementRect.top - containerRect.top) / zoom;
             const scrollOffset = scrollContainer.scrollTop;
 
             scrollContainer.scrollTo({
@@ -56,7 +61,7 @@ export const useHashLinkScroll = () => {
         }
       }
     },
-    [],
+    [zoom],
   );
 
   return handleHashLinkClick;

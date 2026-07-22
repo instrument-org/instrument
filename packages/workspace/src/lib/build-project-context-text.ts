@@ -13,9 +13,7 @@ export function buildProjectContextText({
 }): string {
   return dedent`
     <project_instructions>
-    This task belongs to the "${name}" project. These instructions apply to the
-    whole task and persist across every turn -- treat them as standing setup, not
-    as something attached in a single message.
+    This task belongs to the "${name}" project. These instructions apply to the whole task and persist across every turn -- treat them as standing setup, not as something attached in a single message.
 
     ${instructions}
     </project_instructions>

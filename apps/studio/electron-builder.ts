@@ -117,6 +117,8 @@ const config: Configuration = {
     extendInfo: {
       // Must match the Icon Composer bundle name (build/icon.icon).
       CFBundleIconName: "icon",
+      // Restrict macOS verification-code AutoFill to explicitly annotated OTP fields.
+      NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
     },
     gatekeeperAssess: false,
     hardenedRuntime: true,

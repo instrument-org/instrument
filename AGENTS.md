@@ -6,10 +6,6 @@ pnpm monorepo for the Instrument desktop app platform.
 - `packages/workspace`: Core AI agents, workflow logic, and workspace management
 - `packages/shim-client`: Client-side runtime injected into user apps
 
-## Readability
-
-- When editing a file, wrap long lines to match the file's own wrapping and to break up comments or string/prompt literals too long to read. Leave prose you compose as output (not written into a file) as single lines.
-
 ## Product terminology
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC,

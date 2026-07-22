@@ -274,7 +274,7 @@ function RouteComponent() {
           ref={promptInputRef}
         />
 
-        <details className="details-animated group/details @6xl/app-content:details-always-open @6xl/app-content:sticky @6xl/app-content:top-10 @6xl/app-content:col-start-2 @6xl/app-content:row-span-3 @6xl/app-content:row-start-1 @6xl/app-content:self-start">
+        <details className="group/details details-animated @6xl/app-content:sticky @6xl/app-content:top-10 @6xl/app-content:col-start-2 @6xl/app-content:row-span-3 @6xl/app-content:row-start-1 @6xl/app-content:self-start @6xl/app-content:details-always-open">
           <summary className="flex list-none items-center gap-x-1 px-3 py-1 text-xs font-medium text-muted-foreground/60 select-none hover:text-muted-foreground @6xl/app-content:hidden">
             <span>Project details</span>
             <CaretRightIcon className="size-3 shrink-0 transition-transform group-open/details:rotate-90" />

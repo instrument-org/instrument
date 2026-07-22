@@ -115,11 +115,16 @@ removed entirely.
 
 ## Other follow-ups
 
-- **Deploy agent-hooks**: `~/code/instrument/agent-hooks` commit `18df760`
-  (prettier→oxfmt in `format.mjs`) is committed locally on `main`. Push it and
-  bump the `@instrument-org/agent-hooks` github dep in each consuming repo
-  (monorepo, skills, internal) so the installed hook runs oxfmt. The installed
-  copy is patched locally in the meantime.
+- **Deploy agent-hooks**: `~/code/instrument/agent-hooks` `main` has local,
+  unpushed commits updating `format.mjs`: prettier→oxfmt, and an `oxlint --fix`
+  pass (fast, no `--type-aware`) on the Stop / batch-edit paths so agent edits
+  auto-sort Tailwind classes and pick up other oxlint autofixes — the eslint
+  `--fix` pass never covered oxlint's rules. Needed now that
+  `tailwindcss/enforce-sort-order` is an `error` (see `apps/studio/.oxlintrc.json`):
+  without it, agent-written class order fails `check:lint` with nothing fixing
+  it. Push these and bump the `@instrument-org/agent-hooks` github dep in each
+  consuming repo (monorepo, skills, internal) so the installed hook runs oxfmt +
+  oxlint. The installed copy is patched locally in the meantime.
 - **TypeScript 7**: revisit at **7.1**. TS 7.0 ships no programmatic JS API, so
   typescript-eslint's parser can't run on it; the current native-preview tsgo +
   typescript 5.9 split is already Microsoft's recommended setup.

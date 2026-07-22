@@ -20,7 +20,7 @@ export const SessionMarkdown = ({
   return (
     <div
       className={cn(
-        "prose max-w-none prose-custom text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
+        "prose prose-custom max-w-none text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
         className,
       )}
       ref={ref}

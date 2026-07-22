@@ -42,7 +42,7 @@ export function TaskBreadcrumb({
 
   if (rename.isEditing) {
     return (
-      <div className="flex h-8 min-w-0 max-w-80 flex-1 items-center px-1">
+      <div className="flex h-8 max-w-80 min-w-0 flex-1 items-center px-1">
         <Input className="h-7 text-sm" {...rename.inputProps} />
       </div>
     );

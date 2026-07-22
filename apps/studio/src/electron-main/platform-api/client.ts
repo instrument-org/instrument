@@ -17,7 +17,9 @@ const RPC_LINK = new RPCLink({
     const token = getToken();
     const version = app.getVersion();
     const baseHeaders = {
+      "x-client-arch": process.arch,
       "x-client-name": APP_CLIENT_NAME_STUDIO,
+      "x-client-os-version": process.getSystemVersion(),
       "x-client-platform": process.platform,
       "x-client-version": version,
     };

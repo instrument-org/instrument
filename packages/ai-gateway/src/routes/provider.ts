@@ -1,4 +1,7 @@
-import { AI_GATEWAY_API_PATH } from "@instrument-org/shared";
+import {
+  AI_GATEWAY_API_PATH,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { Hono } from "hono";
 import { proxy } from "hono/proxy";
 
@@ -6,6 +9,7 @@ import { PROVIDERS_PATH } from "../constants";
 import { apiURL } from "../lib/providers/api-url";
 import { setProviderAuthHeaders } from "../lib/providers/set-auth-headers";
 import { setAttributionHeaders } from "../lib/set-attribution-headers";
+import { setClientHeaders } from "../lib/set-client-headers";
 import { SlashPrefixedPathSchema } from "../schemas/slash-prefixed-path";
 import { type AIGatewayEnv } from "../types";
 
@@ -43,6 +47,9 @@ providerApp.all("/:providerConfigId/*", async (context) => {
   const headers = new Headers(context.req.raw.headers);
   setAttributionHeaders(headers, config.type);
   setProviderAuthHeaders(headers, config);
+  if (config.type === OUR_PROVIDER_CONFIG.type) {
+    setClientHeaders(headers, context.var.clientInfo);
+  }
 
   return proxy(targetUrl.toString(), {
     body: context.req.raw.body,

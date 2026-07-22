@@ -4,10 +4,13 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { taskDir } from "../task-dir-utils";
 import { createPythonCommand } from "./python";
 
 vi.mock("execa");
@@ -108,6 +111,24 @@ describe("pythonCommand", () => {
         input: Buffer.from("print('café → déjà')", "utf8"),
       }),
     );
+  });
+
+  it("blocks a script file with an absolute /task path and explains the fix", async () => {
+    const { execa } = await import("execa");
+    const workDir = path.join(taskDir(taskId), "work");
+    await fs.mkdir(workDir, { recursive: true });
+    const scriptPath = path.join(workDir, "report.py");
+    await fs.writeFile(scriptPath, 'open("/task/output/report.txt", "w")');
+
+    try {
+      const result = await command.execute(["work/report.py"], mockCtx);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("task-relative");
+      expect(vi.mocked(execa)).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(scriptPath, { force: true });
+    }
   });
 
   it("rejects -c code referencing /mnt paths without spawning", async () => {

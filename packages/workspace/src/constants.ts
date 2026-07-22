@@ -13,6 +13,11 @@ export const TASK_FOLDER_NAMES = {
   private: TASK_PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",
+  // Subprocess temp dir (TMPDIR/TEMP/TMP), under work/ so tempfile spill and
+  // mktemp scratch land inside the task instead of the host temp dir. A plain
+  // (non-dotted) name: work/ is the agent's raw workspace, so leftover temp
+  // data stays visible and browsable like the rest of it.
+  tmp: "tmp",
   // Dot-prefixed and written under work/ (see bash.ts): the agent is handed
   // spill-file paths and must read them, but the logs are noise for the user so
   // they stay out of the browsable file index.

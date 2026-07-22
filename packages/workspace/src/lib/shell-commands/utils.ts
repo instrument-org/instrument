@@ -1,4 +1,6 @@
 import { type ByteString, latin1FromBytes } from "just-bash";
+import { mkdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
@@ -7,7 +9,7 @@ import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { gitSubprocessEnv } from "../git";
 import { normalizePath } from "../normalize-path";
-import { taskDir } from "../task-dir-utils";
+import { getTaskTmpDir, taskDir } from "../task-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -55,14 +57,7 @@ export function bridgeInlineCodePaths(
   taskCwd: string,
 ): { code: string } | { error: string } {
   if (quotedMountPattern(ATTACHED_FOLDERS_MOUNT_ROOT).test(code)) {
-    return {
-      error:
-        `Inline script code references a ${ATTACHED_FOLDERS_MOUNT_ROOT}/... path. ` +
-        `Attached-folder mounts are only visible to the sandbox shell and file tools, ` +
-        `never to real interpreter processes. Copy the file into the task first ` +
-        `(cp '${ATTACHED_FOLDERS_MOUNT_ROOT}/<folder>/<file>' attachments/) and ` +
-        `reference the copy with a task-relative path (attachments/<file>).`,
-    };
+    return { error: attachedMountLiteralError("Inline script code") };
   }
 
   // The private dir is masked from the shell and file tools; block inline-code
@@ -70,12 +65,7 @@ export function bridgeInlineCodePaths(
   // via a quoted `/task/.instrument/...` string. Best-effort, like the /mnt
   // guard above.
   if (quotedMountPattern(privateMountPoint(TASK_MOUNT_POINT)).test(code)) {
-    return {
-      error:
-        `Inline script code references the private ${TASK_FOLDER_NAMES.private} directory. ` +
-        `It holds task internals (task.db, state.json, settings) and is not readable ` +
-        `by real interpreter processes.`,
-    };
+    return { error: privateDirLiteralError("Inline script code") };
   }
 
   const relativeTaskRoot =
@@ -191,6 +181,12 @@ export function resolveCommandContext(
 ) {
   const uvEnv = uvSubprocessEnv({ taskId });
   const shellEnv = { ...Object.fromEntries(ctx.env), ...uvEnv };
+  // A task-local temp dir keeps tempfile, os.tmpdir(), and mktemp inside the
+  // sandbox instead of the host temp dir; created here if absent (recursive
+  // mkdir is a no-op when it exists) because interpreters fail if TMPDIR points
+  // at a missing dir.
+  const tmpDir = getTaskTmpDir(taskDir(taskId));
+  mkdirSync(tmpDir, { recursive: true });
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
     // ffmpeg, uv, python, pip) all resolve `uv`/`python` on PATH and share the
@@ -198,9 +194,14 @@ export function resolveCommandContext(
     // gitSubprocessEnv comes last and is handed the env it has to correct, so
     // it can drop every GIT_* the agent exported into the bash env rather than
     // only overriding the ones it sets. It extends the PATH uv just built.
+    // TEMP/TMP/TMPDIR win over anything the agent exported so temp files stay
+    // inside the task.
     env: {
       ...shellEnv,
       ...gitSubprocessEnv(shellEnv),
+      TEMP: tmpDir,
+      TMP: tmpDir,
+      TMPDIR: tmpDir,
     },
     taskCwd: resolveNativeHostPath(
       taskDir(taskId),
@@ -231,6 +232,58 @@ export function resolvePathArgs(
   });
 }
 
+/**
+ * Read a script FILE the agent is about to run and scan its source for quoted
+ * sandbox-virtual path literals a real interpreter cannot resolve, returning an
+ * error to surface instead of letting the subprocess fail deep in a stack
+ * trace. Fails open: an unreadable or binary file yields undefined so the
+ * interpreter produces its own error.
+ */
+export async function scanScriptFileForVirtualPaths(
+  taskCwd: string,
+  filePath: string,
+): Promise<string | undefined> {
+  let source: string;
+  try {
+    source = await readFile(path.resolve(taskCwd, filePath), "utf8");
+  } catch {
+    return undefined;
+  }
+  return scriptFileVirtualPathError(source);
+}
+
+/**
+ * Error message for a quoted sandbox-virtual path literal in a script FILE's
+ * source, or undefined if none. Unlike inline code (bridgeInlineCodePaths),
+ * file contents are never rewritten -- the file is the agent's own artifact,
+ * and silently diverging what runs from what it wrote is worse than a clear
+ * up-front error -- so even bridgeable `/task/...` literals are reported rather
+ * than fixed (they otherwise fail with a confusing "Read-only file system:
+ * '/task'" that contradicts the agent's instructions). Quote-anchored and
+ * best-effort, matching the inline guard: only literals right after a quote
+ * match, so regex literals and paths embedded mid-string are left alone.
+ */
+export function scriptFileVirtualPathError(source: string): string | undefined {
+  if (quotedMountPattern(ATTACHED_FOLDERS_MOUNT_ROOT).test(source)) {
+    return attachedMountLiteralError("This script file");
+  }
+  if (quotedMountPattern(privateMountPoint(TASK_MOUNT_POINT)).test(source)) {
+    return privateDirLiteralError("This script file");
+  }
+  if (quotedMountPattern(TASK_MOUNT_POINT).test(source)) {
+    return (
+      `This script file references a ${TASK_MOUNT_POINT}/... absolute path, which ` +
+      `real interpreter processes cannot resolve: ${TASK_MOUNT_POINT} is a virtual ` +
+      `path only the sandbox shell and file tools see, and scripts run from the ` +
+      `task root. Use a task-relative path instead (output/report.txt, ` +
+      `work/data.csv). Command-line path arguments and quoted ${TASK_MOUNT_POINT}/... ` +
+      `strings in inline -e/-c code are translated automatically; paths written ` +
+      `inside script files are not.`
+    );
+  }
+  return undefined;
+}
+
 /** Extract a string array from a parseArgs multi-value option. */
 export function stringArray(
   value: (boolean | string)[] | boolean | string | undefined,
@@ -249,6 +302,17 @@ export function stringArray(
 export function subprocessStdin(stdin: ByteString): Buffer | undefined {
   const packed = latin1FromBytes(stdin);
   return packed ? Buffer.from(packed, "latin1") : undefined;
+}
+
+/** Copy-first guidance for a quoted `/mnt/...` literal; subject names the source. */
+function attachedMountLiteralError(subject: string): string {
+  return (
+    `${subject} references a ${ATTACHED_FOLDERS_MOUNT_ROOT}/... path. ` +
+    `Attached-folder mounts are only visible to the sandbox shell and file tools, ` +
+    `never to real interpreter processes. Copy the file into the task first ` +
+    `(cp '${ATTACHED_FOLDERS_MOUNT_ROOT}/<folder>/<file>' attachments/) and ` +
+    `reference the copy with a task-relative path (attachments/<file>).`
+  );
 }
 
 function isOptionToken(token: { kind: string }): token is {
@@ -272,6 +336,15 @@ function looksLikePath(arg: string): boolean {
     /^[a-z]:[\\/]/i.test(arg) ||
     arg.includes("/") ||
     arg.includes("\\")
+  );
+}
+
+/** Guidance for a quoted private-dir literal; subject names the source. */
+function privateDirLiteralError(subject: string): string {
+  return (
+    `${subject} references the private ${TASK_FOLDER_NAMES.private} directory. ` +
+    `It holds task internals (task.db, state.json, settings) and is not readable ` +
+    `by real interpreter processes.`
   );
 }
 

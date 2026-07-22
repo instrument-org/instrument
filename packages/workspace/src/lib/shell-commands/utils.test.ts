@@ -10,6 +10,7 @@ import {
   extractFileAndScriptArgs,
   parseScriptRunnerArgs,
   resolvePathArgs,
+  scriptFileVirtualPathError,
 } from "./utils";
 
 const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
@@ -311,6 +312,49 @@ describe("extractFileAndScriptArgs", () => {
         expect(arg).not.toContain(dir);
       }
     });
+  });
+});
+
+describe("scriptFileVirtualPathError", () => {
+  it.each([
+    {
+      expected: "Copy the file into the task first",
+      label: "quoted /mnt literal gets copy-first guidance",
+      source: 'open("/mnt/Photos/clip.mov")',
+    },
+    {
+      expected: ".instrument",
+      label: "quoted private-dir literal is refused",
+      source: 'open("/task/.instrument/state.json")',
+    },
+    {
+      expected: "task-relative path",
+      label: "quoted /task absolute literal points at relative paths",
+      source: 'open("/task/output/report.txt", "w")',
+    },
+  ])("$label", ({ expected, source }) => {
+    expect(scriptFileVirtualPathError(source)).toContain(expected);
+  });
+
+  it.each([
+    {
+      label: "task-relative path is fine",
+      source: 'open("output/report.txt", "w")',
+    },
+    {
+      label: "JS regex literal is not a quoted string",
+      source: "text.split(/task/).map(run)",
+    },
+    {
+      label: "/task embedded mid-string is not a path literal",
+      source: 'print("saved to /task/output")',
+    },
+    {
+      label: "a lookalike prefix stays untouched",
+      source: 'load("/taskmaster/config.json")',
+    },
+  ])("$label returns undefined", ({ source }) => {
+    expect(scriptFileVirtualPathError(source)).toBeUndefined();
   });
 });
 

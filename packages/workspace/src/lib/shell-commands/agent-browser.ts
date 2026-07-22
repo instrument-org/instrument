@@ -14,7 +14,11 @@ import { type TaskId } from "../../schemas/task-id";
 import { WebSearch } from "../../tools/web-search";
 import { type BrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
-import { AGENT_BROWSER_PATH, AGENT_BROWSER_SOCKET_DIR } from "../agent-browser";
+import {
+  AGENT_BROWSER_IDLE_TIMEOUT_MS,
+  AGENT_BROWSER_PATH,
+  AGENT_BROWSER_SOCKET_DIR,
+} from "../agent-browser";
 import { recordBrowserUse } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
@@ -178,11 +182,6 @@ interface SpawnAgentBrowserOptions {
   stateDir: string;
 }
 
-// Idle ms after which the agent-browser daemon self-terminates. Tuned to
-// outlast a single agent-loop tool-call gap (a few seconds) but reap soon
-// after the agent moves on. The view itself stays warm; only the daemon dies.
-const IDLE_TIMEOUT_MS = "30000";
-
 export function createAgentBrowserCommand({
   sessionId,
   taskId,
@@ -321,7 +320,7 @@ export function createAgentBrowserCommand({
           // AGENT_BROWSER_DEBUG:
           //   process.env.NODE_ENV === "development" ? "1" : undefined,
           AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
-          AGENT_BROWSER_IDLE_TIMEOUT_MS: IDLE_TIMEOUT_MS,
+          AGENT_BROWSER_IDLE_TIMEOUT_MS,
           AGENT_BROWSER_NAMESPACE: undefined,
           AGENT_BROWSER_PROFILE: undefined,
           AGENT_BROWSER_PROVIDER: undefined,

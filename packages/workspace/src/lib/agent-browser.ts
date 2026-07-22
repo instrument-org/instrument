@@ -82,6 +82,18 @@ export const AGENT_BROWSER_PATH = unpackAsarPath(
   path.join(binDir, getBinaryName()),
 );
 
+// Idle ms after which the agent-browser daemon self-terminates. Tuned to
+// outlast a single agent-loop tool-call gap (a few seconds) but reap soon
+// after the agent moves on. The view itself stays warm; only the daemon dies.
+//
+// The CLI hashes this (with a few other daemon options) into a per-session
+// fingerprint and restarts the running daemon whenever an invocation's
+// fingerprint differs from the one that started it. Every invocation for a
+// session must pass the same value, so this lives here rather than at a single
+// call site: a `close` that omitted it would replace the daemon it was trying
+// to stop, stranding the original.
+export const AGENT_BROWSER_IDLE_TIMEOUT_MS = "30000";
+
 // Use the literal "/tmp" (not os.tmpdir() which expands to a long
 // /var/folders/... path on macOS) so the socket path stays under the
 // 103-byte Unix limit regardless of the user's home directory length.

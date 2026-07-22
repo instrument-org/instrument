@@ -271,7 +271,6 @@ function RouteComponent() {
 
   // Focuses output artifacts produced by the active turn.
   useAutoOpenOutputArtifact({
-    artifactPanel,
     id,
     selectedSessionId,
   });

@@ -50,7 +50,7 @@ pnpm monorepo for the Instrument desktop app platform.
 - Avoid interfaces for component props; use inline types.
 - Avoid `useEffect` when logic can be declarative.
 - React Compiler is set up for Studio; basic `memo`, `useMemo`, and `useCallback` are unnecessary.
-- Ignore `tailwindcss/enforce-sort-order` warnings (oxlint-tailwindcss). They are auto-fixed and do not need manual correction.
+- `tailwindcss/enforce-sort-order` (oxlint-tailwindcss) is an error: class order is lint-enforced. Auto-fix on editor save or with `pnpm fix:lint` rather than sorting by hand. The reporter surfaces only a bounded batch of violations per run, so a large cleanup may need several `fix:lint` passes to fully converge.
 
 ## Monorepo checks (Turbo)
 

@@ -62,7 +62,7 @@ export function StudioSidebar({
           </InternalLink>
         </Button>
       </div>
-      <SidebarContent className="scroll-fade-y gap-0">
+      <SidebarContent className="gap-0 scroll-fade-y">
         {!isPending && (
           <>
             <NavProjects matches={matches} projects={projects} />

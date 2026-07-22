@@ -23,7 +23,7 @@ export function QueuedPrompts({
       </div>
       {/* Cap how much vertical space the queue can claim from the composer;
           overflow scrolls within this band, fading at the edges. */}
-      <div className="scroll-fade-y flex max-h-40 flex-col gap-1.5 overflow-y-auto">
+      <div className="flex max-h-40 flex-col gap-1.5 overflow-y-auto scroll-fade-y">
         {prompts.map((prompt, index) => {
           const attachmentCount =
             (prompt.files?.length ?? 0) + (prompt.folders?.length ?? 0);

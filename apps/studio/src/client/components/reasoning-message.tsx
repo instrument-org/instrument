@@ -74,7 +74,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
         <CollapsibleContent>
           <div className="mt-2">
             <div
-              className="scroll-fade-y max-h-44 overflow-y-auto"
+              className="max-h-44 overflow-y-auto scroll-fade-y"
               ref={(el) => {
                 if (isLoading) {
                   scrollRef.current = el;

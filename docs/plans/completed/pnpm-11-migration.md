@@ -1,5 +1,7 @@
 # pnpm 10 -> 11 migration
 
+Status: completed. Landed in `a7c117f2b` (`workspace,studio: migrate bundled pnpm to 11.10.0`); the root `packageManager` is now `pnpm@11.10.0`.
+
 Tracking: [FP-1202](https://linear.app/finalpoint/issue/FP-1202/pnpm-10-11-migration)
 
 Moves the bundled package manager from pnpm 10.33.0 to **11.10.0** across the Instrument monorepo and the sibling `instrument-org/skills` repo.

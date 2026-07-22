@@ -8,7 +8,7 @@ import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../lib/workspace-config";
-import { AbsolutePathSchema } from "../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { runTool } from "../test/helpers/run-tool";
@@ -263,6 +263,95 @@ describe("LoadSkill", () => {
       "# my-skill
 
       Skill instructions here."
+    `);
+  });
+
+  it("marks a skill discovered outside the workspace as read-only", async () => {
+    await createSkill({ name: "my-skill" });
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "my-skill" },
+      })
+    )._unsafeUnwrap();
+
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    // The test skill lives in the registry, not the writable /skills mount.
+    expect(result.origin).toBe("instrument");
+  });
+
+  it("marks a skill in the writable /skills mount as editable", async () => {
+    // A skill in the workspace's own skills dir, which mounts writable at
+    // /skills, unlike the registry the other tests use.
+    const workspaceRoot = path.join(tmpDir, "workspace");
+    const skillDir = path.join(workspaceRoot, "skills", "mine");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, "SKILL.md"),
+      `---\nname: mine\ndescription: "Mine"\n---\n\n# mine\n\nBody.`,
+    );
+
+    const args = baseExecuteArgs();
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(workspaceRoot),
+    });
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...args,
+        input: { explanation: "loading", name: "mine" },
+      })
+    )._unsafeUnwrap();
+
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    expect(result.origin).toBe("workspace");
+  });
+
+  it("tells the model where a skill came from and whether it can edit it", () => {
+    const render = (origin: "external" | "instrument" | "workspace") =>
+      LoadSkill.toModelOutput({
+        input: { name: "docx" },
+        output: {
+          content: "# Body",
+          files: [],
+          name: "docx",
+          origin,
+          state: "success",
+          truncated: false,
+        },
+        toolCallId: "test",
+      }).value;
+
+    expect({
+      external: render("external"),
+      instrument: render("instrument"),
+      workspace: render("workspace"),
+    }).toMatchInlineSnapshot(`
+      {
+        "external": "<skill_content name="docx">
+      # Body
+
+      This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`/skills/\` to change it.
+      </skill_content>",
+        "instrument": "<skill_content name="docx">
+      # Body
+
+      This skill is provided by Instrument and is read-only. Copy it into \`/skills/\` to change it.
+      </skill_content>",
+        "workspace": "<skill_content name="docx">
+      # Body
+
+      This skill lives at \`/skills/docx\`; edit it there to change the skill for future tasks (the \`work/\` copy is only for this task).
+      </skill_content>",
+      }
     `);
   });
 

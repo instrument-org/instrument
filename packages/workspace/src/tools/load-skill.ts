@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import ms from "ms";
 import { ok } from "neverthrow";
 import fsSync from "node:fs";
@@ -10,6 +11,7 @@ import { copySkill } from "../lib/copy-skill";
 import { executeError } from "../lib/execute-error";
 import { installPythonSkill } from "../lib/install-python-skill";
 import { normalizedPathJoin } from "../lib/normalize-path";
+import { pathIsWithin } from "../lib/path-is-within";
 import { runPnpmCommand } from "../lib/run-pnpm";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
@@ -21,9 +23,14 @@ import {
   findSkills,
   getSkillSources,
   listSkillFiles,
+  type SkillInfo,
 } from "../lib/skills";
 import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
+import {
+  getWorkspaceSkillsDir,
+  SKILLS_MOUNT_POINT,
+} from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
@@ -46,6 +53,29 @@ const SkillInstallResultSchema = z.discriminatedUnion("state", [
   }),
 ]);
 
+/**
+ * Where a loaded skill came from, from the agent's point of view: only the
+ * writable `/skills` mount is editable in place, so a skill outside it is
+ * read-only wherever it was discovered. `skillDir` is canonicalized, so the
+ * mount root is too before the containment check.
+ */
+async function skillOrigin(
+  skill: SkillInfo,
+): Promise<"external" | "instrument" | "workspace"> {
+  const workspaceSkillsDir = getWorkspaceSkillsDir();
+  const mountRoot = workspaceSkillsDir
+    ? await fsSync.promises
+        .realpath(workspaceSkillsDir)
+        .catch(() => workspaceSkillsDir)
+    : null;
+  if (mountRoot !== null && pathIsWithin(skill.skillDir, mountRoot)) {
+    return "workspace";
+  }
+  return skill.source === "registry" || skill.source === "system"
+    ? "instrument"
+    : "external";
+}
+
 export const LoadSkill = setupTool({
   inputSchema: BaseInputSchema.extend({
     name: z.string().meta({
@@ -59,6 +89,10 @@ export const LoadSkill = setupTool({
       files: z.array(z.string()),
       installResults: z.array(SkillInstallResultSchema).optional(),
       name: z.string(),
+      // Where the skill came from, so the model can say so and knows whether it
+      // can edit the skill in place: "workspace" lives in the writable /skills
+      // mount, the others are read-only where they were discovered.
+      origin: z.enum(["external", "instrument", "workspace"]),
       state: z.literal("success"),
       truncated: z.boolean(),
     }),
@@ -184,6 +218,7 @@ export const LoadSkill = setupTool({
       files,
       ...(installResults.length > 0 ? { installResults } : {}),
       name: skill.name,
+      origin: await skillOrigin(skill),
       state: "success" as const,
       truncated,
     });
@@ -240,6 +275,14 @@ export const LoadSkill = setupTool({
       fileSection = `\n\n${fileSectionText}\n\n${fileListXml}${truncationNote}`;
     }
 
+    const customizeHint = `Copy it into \`${SKILLS_MOUNT_POINT}/\` to change it.`;
+    const originSection =
+      output.origin === "workspace"
+        ? `\n\nThis skill lives at \`${SKILLS_MOUNT_POINT}/${output.name}\`; edit it there to change the skill for future tasks (the \`${TASK_FOLDER_NAMES.work}/\` copy is only for this task).`
+        : output.origin === "instrument"
+          ? `\n\nThis skill is provided by ${APP_NAME} and is read-only. ${customizeHint}`
+          : `\n\nThis skill comes from a skills folder elsewhere on this machine and is read-only. ${customizeHint}`;
+
     let installSection = "";
     if (output.installResults) {
       const installText = output.installResults.map((installResult) => {
@@ -274,6 +317,7 @@ export const LoadSkill = setupTool({
       value:
         `<${TAGS.content} name="${output.name}">\n` +
         output.content +
+        originSection +
         fileSection +
         installSection +
         `\n</${TAGS.content}>`,

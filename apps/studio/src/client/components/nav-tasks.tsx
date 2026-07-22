@@ -1,3 +1,4 @@
+import { zoomAtom } from "@/client/atoms/zoom";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -8,6 +9,7 @@ import { cn } from "@/client/lib/utils";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { InternalLink } from "./internal-link";
@@ -88,6 +90,7 @@ function TasksList({
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
+  const zoom = useAtomValue(zoomAtom);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -100,9 +103,12 @@ function TasksList({
 
     const observer = new ResizeObserver(() => {
       const scrollerRect = scroller?.getBoundingClientRect();
+      // The rect delta is on-screen px (scaled by the app zoom); scrollTop is
+      // layout px. Divide the delta back to layout px so scrollMargin, which the
+      // virtualizer consumes as layout px, stays correct at zoom != 1.
       setScrollMargin(
-        container.getBoundingClientRect().top -
-          (scrollerRect?.top ?? 0) +
+        (container.getBoundingClientRect().top - (scrollerRect?.top ?? 0)) /
+          zoom +
           (scroller?.scrollTop ?? 0),
       );
     });
@@ -110,7 +116,7 @@ function TasksList({
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [zoom]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({

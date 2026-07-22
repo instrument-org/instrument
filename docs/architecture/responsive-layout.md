@@ -134,11 +134,17 @@ generates arbitrary values it can see in source.
   breakpoint variants are not globally redefined as container queries: dialogs
   portal outside `app-content`, and every `sm:max-w-*` on them would quietly
   stop applying.
-- **`getBoundingClientRect()` returns on-screen px; `offsetWidth`/`offsetHeight`
-  and `ResizeObserver` return layout px.** Under zoom these differ by the zoom
-  factor. Any code that measures with one and positions with the other is broken
-  at zoom != 1 -- virtualizers are the classic case, since they measure rows and
-  then position them with `transform: translateY()`. Measure with `offsetHeight`.
+- **`getBoundingClientRect()` returns on-screen px; `offsetWidth`/`offsetHeight`,
+  `scrollTop`/`scrollHeight`/`clientHeight`, and `ResizeObserver` return layout
+  px.** Under zoom these differ by the zoom factor, so any code that measures with
+  one and positions or scrolls with the other is broken at zoom != 1. Two shapes
+  recur: a virtualizer that measures rows with the rect and positions them with
+  `transform: translateY()` (measure with `offsetHeight`), and a scroll container
+  whose distance-to-bottom is a rect-derived content edge minus
+  `scrollTop`/`clientHeight` -- the mismatch strands a scroll-to-bottom affordance
+  and defeats stick-to-bottom (compute the gap from
+  `scrollHeight`/`scrollTop`/`clientHeight` alone). See
+  [`docs/findings/css-zoom-rect-vs-layout-px.md`](../findings/css-zoom-rect-vs-layout-px.md).
 - **The main window has `minWidth: 720`**
   (`apps/studio/src/electron-main/windows/main/index.ts`), so `sm:` (640px) is
   always true and `md:` (768px) only varies in a 48px band. Existing `sm:`

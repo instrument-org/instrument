@@ -1,4 +1,5 @@
 import { welcomeModalAtom } from "@/client/atoms/welcome-modal";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -21,7 +22,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import {
   motion,
   useMotionTemplate,
@@ -96,6 +97,7 @@ export function WelcomeModal() {
 function WelcomeHeader() {
   const prefersReducedMotion = useReducedMotion();
   const [isHovering, setIsHovering] = useState(false);
+  const zoom = useAtomValue(zoomAtom);
 
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
@@ -119,8 +121,10 @@ function WelcomeHeader() {
   function trackPointer(event: PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
 
-    pointerX.set(event.clientX - rect.left);
-    pointerY.set(event.clientY - rect.top);
+    // Offsets are on-screen px; the dialog self-applies the app zoom, so divide
+    // back to local px for the mask's CSS-px gradient position.
+    pointerX.set((event.clientX - rect.left) / zoom);
+    pointerY.set((event.clientY - rect.top) / zoom);
   }
 
   return (
@@ -130,8 +134,8 @@ function WelcomeHeader() {
         // Snap to the entry point so the spotlight fades in under the cursor.
         const rect = event.currentTarget.getBoundingClientRect();
 
-        pointerX.jump(event.clientX - rect.left);
-        pointerY.jump(event.clientY - rect.top);
+        pointerX.jump((event.clientX - rect.left) / zoom);
+        pointerY.jump((event.clientY - rect.top) / zoom);
         setIsHovering(true);
       }}
       onPointerLeave={() => {

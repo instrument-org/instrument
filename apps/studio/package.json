@@ -124,7 +124,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "@shadcn/react": "0.2.1",
+    "@shadcn/react": "github:mutewinter/ui#a4fb2dc756980ca95e99bc6d955146816fa5b19e",
     "@tailwindcss/browser": "^4.2.2",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",

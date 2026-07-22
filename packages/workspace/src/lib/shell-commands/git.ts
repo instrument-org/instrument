@@ -327,7 +327,7 @@ function rejectUnsafeArgs(args: string[]): string | undefined {
 /**
  * `git config <key> <value>` reaches every key the `-c` denylist covers, and
  * the value persists in the repo for every later invocation. FORCED_CONFIG
- * outranks the file for the keys it names, but it cannot pre-empt an arbitrary
+ * outranks the file for the keys it names, but it cannot preempt an arbitrary
  * `alias.<anything>`, so the write itself has to be refused.
  */
 function rejectUnsafeConfigWrite(args: string[]): string | undefined {

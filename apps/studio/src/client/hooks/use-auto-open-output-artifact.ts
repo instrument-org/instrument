@@ -1,19 +1,18 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent } from "react";
 
+import { shouldAutoOpenOutputArtifact } from "./auto-open-output-artifact-plan";
+
 // Focuses the first output/ artifact a run produced, per the server's
 // outputArtifacts event stream. useEffectEvent reads current state
 // non-reactively, so the effect fires once per event, never re-opening one.
 export function useAutoOpenOutputArtifact({
-  artifactPanel,
   id,
   selectedSessionId,
 }: {
-  artifactPanel: ArtifactPanel | undefined;
   id: TaskId;
   selectedSessionId: StoreId.Session | undefined;
 }) {
@@ -28,10 +27,16 @@ export function useAutoOpenOutputArtifact({
   const onArtifacts = useEffectEvent((event: NonNullable<typeof artifacts>) => {
     const file = event.files[0];
     if (
-      event.sessionId !== selectedSessionId ||
-      artifactPanel !== undefined ||
-      !file
+      !shouldAutoOpenOutputArtifact({
+        eventSessionId: event.sessionId,
+        fileCount: event.files.length,
+        selectedSessionId,
+      })
     ) {
+      return;
+    }
+
+    if (!file) {
       return;
     }
 

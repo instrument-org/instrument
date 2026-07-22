@@ -13,18 +13,11 @@ pnpm run script:query-task-db /path/to/task \
   --format table
 ```
 
-The first argument can be a task directory or the database itself. A task
-directory resolves to `.instrument/task.db`.
+The first argument can be a task directory or the database itself. A task directory resolves to `.instrument/task.db`.
 
-The tool accepts one read-only `SELECT`, `WITH`, `EXPLAIN`, or `PRAGMA`
-statement. It opens the database read-only and denies SQLite operations other
-than reads. Use `--file query.sql` for a multi-line query, `--format json` for
-machine-readable output, or `--schema` to inspect available tables and indexes.
+The tool accepts one read-only `SELECT`, `WITH`, `EXPLAIN`, or `PRAGMA` statement. It opens the database read-only and denies SQLite operations other than reads. Use `--file query.sql` for a multi-line query, `--format json` for machine-readable output, or `--schema` to inspect available tables and indexes.
 
-Task history is a key-value store in the `sessions` table. The application uses
-key prefixes such as `sessions:`, `messages:`, and `parts:`. Structured payloads
-may be in `blob` instead of `value`; cast the blob to text before applying JSON
-functions:
+Task history is a key-value store in the `sessions` table. The application uses key prefixes such as `sessions:`, `messages:`, and `parts:`. Structured payloads may be in `blob` instead of `value`; cast the blob to text before applying JSON functions:
 
 ```sql
 select
@@ -39,6 +32,4 @@ order by
   created_at;
 ```
 
-Keep the query generic. Derive task-specific summaries, pricing, or product
-judgments from the raw result in the calling task rather than encoding them in
-this tool.
+Keep the query generic. Derive task-specific summaries, pricing, or product judgments from the raw result in the calling task rather than encoding them in this tool.

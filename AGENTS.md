@@ -8,8 +8,7 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## Product terminology
 
-- The user's unit of work is a **task** everywhere: copy, code, routes, RPC,
-  telemetry, types, tool names, and on-disk layout.
+- The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
 - On disk, tasks live under `tasks/<id>/` with `.instrument/{task.db,state.json}`.
 
 ## Registry Submodule
@@ -56,8 +55,7 @@ pnpm monorepo for the Instrument desktop app platform.
 
 Run lint/types from **repo root** through Turbo for caching. Avoid package-loop `cd` for `check:lint` / `check:types`.
 
-`turbo` is not always on PATH; use `pnpm exec turbo run …` (or root scripts
-that invoke turbo).
+`turbo` is not always on PATH; use `pnpm exec turbo run …` (or root scripts that invoke turbo).
 
 - `pnpm exec turbo run check:types check:lint` — all packages
 - `pnpm exec turbo run check:types check:lint --filter=@instrument-org/workspace`
@@ -66,20 +64,13 @@ that invoke turbo).
 - `pnpm check-and-test:ci` — what CI runs (omits pedantic checks that don't affect correctness)
 - `pnpm turbo:fix:lint` — fix lint
 
-`check:lint` / `fix:lint` run **both** ESLint and `oxlint --type-aware`. ESLint
-handles syntactic rules (perfectionist, react-compiler, regexp, yml/jsonc, turbo);
-oxlint handles all TypeScript type-aware rules (via tsgolint, see `.oxlintrc.json`)
-and Tailwind class rules (oxlint-tailwindcss, per-package `.oxlintrc.json`). ESLint
-no longer builds a TypeScript program, so it is fast. There is no typed linting in
-the ESLint config.
+`check:lint` / `fix:lint` run **both** ESLint and `oxlint --type-aware`. ESLint handles syntactic rules (perfectionist, react-compiler, regexp, yml/jsonc, turbo); oxlint handles all TypeScript type-aware rules (via tsgolint, see `.oxlintrc.json`) and Tailwind class rules (oxlint-tailwindcss, per-package `.oxlintrc.json`). ESLint no longer builds a TypeScript program, so it is fast. There is no typed linting in the ESLint config.
 
-Single test file: `cd packages/<name> && pnpm test run <file>` or
-`cd apps/studio && pnpm test run <file>`.
+Single test file: `cd packages/<name> && pnpm test run <file>` or `cd apps/studio && pnpm test run <file>`.
 
 ## Key catalog versions
 
-`package.json` files show `"catalog:"` instead of version numbers. Real versions
-are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
+`package.json` files show `"catalog:"` instead of version numbers. Real versions are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
 
 - **React** 19.2 / **react-dom** 19.2
 - **TypeScript** 5.9 (also available as `@typescript/native-preview` 7.x via `tsgo`)
@@ -90,22 +81,14 @@ are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
 
 ## Package management
 
-- `pnpm` CLI (`install`, `add`, `remove`, `why`, etc.): outside sandbox (full
-  permissions). pnpm links from the global store; sandbox isolation blocks that
-  path, so the workspace no longer matches a normal local install.
+- `pnpm` CLI (`install`, `add`, `remove`, `why`, etc.): outside sandbox (full permissions). pnpm links from the global store; sandbox isolation blocks that path, so the workspace no longer matches a normal local install.
 - `pnpm test` / `pnpm check-and-test`: sandbox OK.
 
 ## Worktrees
 
-After a manual `git worktree add`, run
-`.claude/hooks/worktree-setup.sh <path-to-worktree>`: copies the gitignored
-env files (required to boot Studio), inits `registry/`, installs deps.
-Idempotent. Hooks do this automatically only for sessions started inside a
-worktree or via EnterWorktree.
+After a manual `git worktree add`, run `.claude/hooks/worktree-setup.sh <path-to-worktree>`: copies the gitignored env files (required to boot Studio), inits `registry/`, installs deps. Idempotent. Hooks do this automatically only for sessions started inside a worktree or via EnterWorktree.
 
-Multiple worktrees can run `pnpm dev` at once: dev skips the single-instance
-lock, shares one dev userData dir, and all server ports fall back to free
-ones. For CDP, give each instance a distinct `REMOTE_DEBUGGING_PORT`.
+Multiple worktrees can run `pnpm dev` at once: dev skips the single-instance lock, shares one dev userData dir, and all server ports fall back to free ones. For CDP, give each instance a distinct `REMOTE_DEBUGGING_PORT`.
 
 ## Tests
 
@@ -117,24 +100,16 @@ ones. For CDP, give each instance a distinct `REMOTE_DEBUGGING_PORT`.
 
 ## Commits
 
-Scope-first style: `scope: description of what changed`. No conventional types
-(`feat:`/`fix:`/etc.) -- let the description imply the change. See
-`.agents/skills/instrument-commit-message/SKILL.md`.
+Scope-first style: `scope: description of what changed`. No conventional types (`feat:`/`fix:`/etc.) -- let the description imply the change. See `.agents/skills/instrument-commit-message/SKILL.md`.
 
 ## Repository knowledge base
 
-Durable, versioned docs are the system of record; prefer them over chat/history.
-Keep them evergreen and safe to share: leave out secrets and anything tied to one
-machine, person, or moment.
+Durable, versioned docs are the system of record; prefer them over chat/history. Keep them evergreen and safe to share: leave out secrets and anything tied to one machine, person, or moment.
 
-- `docs/architecture/` — evergreen maps of a subsystem or domain and how it
-  layers together, edited in place as the code changes. One file per subsystem.
-- `docs/findings/` — non-obvious issues, what we tried, what might resolve them
-  later. One file per finding.
-- `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`).
-  One file per plan.
-- `docs/decisions/` — why we chose one approach over another, dated. One file per
-  decision.
+- `docs/architecture/` — evergreen maps of a subsystem or domain and how it layers together, edited in place as the code changes. One file per subsystem.
+- `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding.
+- `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`). One file per plan.
+- `docs/decisions/` — why we chose one approach over another, dated. One file per decision.
 
 ## Additional guidance
 

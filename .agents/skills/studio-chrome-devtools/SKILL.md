@@ -21,8 +21,7 @@ Useful probe endpoints:
 - `http://127.0.0.1:48160/json/version`
 - `http://127.0.0.1:48160/json/list`
 
-The `chrome-devtools-mcp` package is installed as a dev dependency at the monorepo root.
-Always invoke it via `pnpm exec`, never a global install:
+The `chrome-devtools-mcp` package is installed as a dev dependency at the monorepo root. Always invoke it via `pnpm exec`, never a global install:
 
 ```bash
 CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1 pnpm exec chrome-devtools <subcommand>
@@ -67,28 +66,19 @@ Run this script outside the sandbox. In Cursor Shell calls, use `required_permis
 
 ## Studio Page Model
 
-Studio is a single window / single web contents: `AppChrome` (sidebar + chrome)
-and every open tab are all mounted in the same page. There's no separate shell
-window, no shield `data:` page, and no per-tab `WebContentsView` — that
-multi-view model was removed when the chrome was hoisted into one web contents.
-`list_pages` should show one Studio page (URL starts `#/...`), plus a separate
-onboarding window if that flow is active, plus any real debug/devtools pages.
+Studio is a single window / single web contents: `AppChrome` (sidebar + chrome) and every open tab are all mounted in the same page. There's no separate shell window, no shield `data:` page, and no per-tab `WebContentsView` — that multi-view model was removed when the chrome was hoisted into one web contents. `list_pages` should show one Studio page (URL starts `#/...`), plus a separate onboarding window if that flow is active, plus any real debug/devtools pages.
 
-Agent-browser tabs are renderer `<webview>` guests inside that same page, not
-separate DevTools-visible pages.
+Agent-browser tabs are renderer `<webview>` guests inside that same page, not separate DevTools-visible pages.
 
 ## How To Pick The Right Page
 
-1. Run `list_pages` and pick the Studio page (ignore any onboarding window
-   unless that's what you're testing).
-2. If multiple Studio-looking pages appear, prefer the one whose URL matches
-   the route the user is looking at right now.
+1. Run `list_pages` and pick the Studio page (ignore any onboarding window unless that's what you're testing).
+2. If multiple Studio-looking pages appear, prefer the one whose URL matches the route the user is looking at right now.
 3. After selecting, run `take_snapshot` to confirm you landed in the right renderer.
 
 ## Stable Marker In The Renderer
 
-The rendered app root has `data-testid="app-page"` (`app-chrome.tsx`). Use it
-in snapshots or script evaluation to confirm you're on the right root.
+The rendered app root has `data-testid="app-page"` (`app-chrome.tsx`). Use it in snapshots or script evaluation to confirm you're on the right root.
 
 ## Recommended Workflow
 
@@ -108,8 +98,7 @@ pnpm exec chrome-devtools evaluate_script "function() {
 }"
 ```
 
-Important: the argument must be a named `function()` declaration string, not an arrow function or bare
-expression. The function must return a JSON-serializable value.
+Important: the argument must be a named `function()` declaration string, not an arrow function or bare expression. The function must return a JSON-serializable value.
 
 ## Interaction Notes
 
@@ -120,9 +109,4 @@ expression. The function must return a JSON-serializable value.
 
 ## Reproducing A Bug End-To-End
 
-See [references/repro-recipes.md](references/repro-recipes.md) for: replaying
-a recorded task instead of live-driving the agent (fast, free, deterministic),
-the `#/debug/*` pages, the chat composer's controlled-input gotcha (`fill`
-looks like it works but leaves the send button disabled), reading a
-`<webview>` guest's real internal state, and why screenshot pixel math should
-never be hand-converted.
+See [references/repro-recipes.md](references/repro-recipes.md) for: replaying a recorded task instead of live-driving the agent (fast, free, deterministic), the `#/debug/*` pages, the chat composer's controlled-input gotcha (`fill` looks like it works but leaves the send button disabled), reading a `<webview>` guest's real internal state, and why screenshot pixel math should never be hand-converted.

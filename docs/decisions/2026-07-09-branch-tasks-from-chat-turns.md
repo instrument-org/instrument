@@ -2,24 +2,17 @@
 
 ## Context
 
-Duplicating an entire task could not express the common intent to continue from
-an earlier point in its conversation. It also made branching look like a task
-management action instead of a choice made at the relevant assistant turn.
+Duplicating an entire task could not express the common intent to continue from an earlier point in its conversation. It also made branching look like a task management action instead of a choice made at the relevant assistant turn.
 
 ## Decision
 
-Task branching starts from an assistant message. The new task keeps the source
-conversation through that message and receives a copy of the source task's
-working files and state. The source remains unchanged.
+Task branching starts from an assistant message. The new task keeps the source conversation through that message and receives a copy of the source task's working files and state. The source remains unchanged.
 
-The UI exposes this as "Branch from here" on assistant turns, not as a
-whole-task duplicate action.
+The UI exposes this as "Branch from here" on assistant turns, not as a whole-task duplicate action.
 
 ## Consequences
 
-The branch operation copies the task database, removes later messages, and
-clears file-index baselines so the branched task establishes its own first-turn
-file state. Task-private files are not copied wholesale.
+The branch operation copies the task database, removes later messages, and clears file-index baselines so the branched task establishes its own first-turn file state. Task-private files are not copied wholesale.
 
 ## Implementation
 

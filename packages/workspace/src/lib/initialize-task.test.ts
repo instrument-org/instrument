@@ -73,12 +73,38 @@ describe("initializeTask", () => {
     await expect(
       fs.readFile(path.join(taskDir(taskId), "work", "package.json"), "utf8"),
     ).resolves.toContain('"name": "@instrument-org/task"');
+    // Snapshotted in full so the supply-chain settings a task installs under
+    // stay visible: weakening the age gate or the build allowlist has to show
+    // up as a diff here.
     await expect(
       fs.readFile(
         path.join(taskDir(taskId), "work", "pnpm-workspace.yaml"),
         "utf8",
       ),
-    ).resolves.not.toContain("allowBuilds");
+    ).resolves.toMatchInlineSnapshot(`
+      "minimumReleaseAge: 10080
+      # Declared empty so the key resolves here rather than from a task-local .npmrc,
+      # a \`pnpm_config_*\` env var, or the host's global pnpm config, any of which
+      # could otherwise punch per-package holes in the age gate above.
+      minimumReleaseAgeExclude: []
+
+      allowBuilds:
+        sharp: true
+      dlxCacheMaxAge: 259200 # 180 days in minutes, extended for pnpm dlx jiti
+      packages:
+        - skills/*
+      # Unapproved build scripts are skipped with a warning instead of failing the
+      # install, so a package the agent adds mid-task cannot dead-end it. The bash
+      # tool turns that warning into instructions for extending allowBuilds.
+      strictDepBuilds: false
+      # The agent runs its dev server and other pnpm commands concurrently against a
+      # shared store. pnpm 11 defaults this to "install", which makes every
+      # \`pnpm run\`/\`pnpm exec\` verify deps and silently spawn a competing install;
+      # those race and deadlock. Install only when the agent explicitly installs.
+      verifyDepsBeforeRun: false
+      updateNotifier: false
+      "
+    `);
     await expect(
       fs.access(path.join(taskDir(taskId), TASK_FOLDER_NAMES.private)),
     ).resolves.toBeUndefined();

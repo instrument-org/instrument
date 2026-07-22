@@ -8,7 +8,7 @@ import { getWorkspaceConfig } from "./workspace-config";
 vi.mock(import("./execa-node-for-task"));
 
 describe("runPnpmCommand", () => {
-  it("sets npm_config_reporter=append-only on the child process env", async () => {
+  it("sets pnpm_config_reporter=append-only on the child process env", async () => {
     const { execaNodeForTask } = await import("./execa-node-for-task");
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
@@ -38,13 +38,13 @@ describe("runPnpmCommand", () => {
     expect(pnpmBin).toBe(getWorkspaceConfig().pnpmBinPath);
     expect(cliArgs).toEqual(["install"]);
     expect(execaOpts.env).toMatchObject({
-      npm_config_reporter: "append-only",
+      pnpm_config_reporter: "append-only",
     });
-    expect(execaOpts.env).not.toHaveProperty("npm_config_loglevel");
+    expect(execaOpts.env).not.toHaveProperty("pnpm_config_loglevel");
     expect(cwdArg).toBeUndefined();
   });
 
-  it("sets npm_config_loglevel=error when pnpmLogLevel is error", async () => {
+  it("sets pnpm_config_loglevel=error when pnpmLogLevel is error", async () => {
     const { execaNodeForTask } = await import("./execa-node-for-task");
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
       all: "",
@@ -64,8 +64,8 @@ describe("runPnpmCommand", () => {
       ["dlx", "jiti@2.6.1", "x.ts"],
       expect.objectContaining({
         env: expect.objectContaining({
-          npm_config_loglevel: "error",
-          npm_config_reporter: "append-only",
+          pnpm_config_loglevel: "error",
+          pnpm_config_reporter: "append-only",
         }),
       }),
       undefined,

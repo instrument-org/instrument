@@ -19,7 +19,7 @@ export async function runPnpmCommand({
   args: string[];
   cwd?: AbsolutePath;
   env?: Record<string, string>;
-  /** Forwarded to pnpm as `npm_config_loglevel`. Only `"error"` is supported (suppresses info noise; not `silent`). */
+  /** Forwarded to pnpm as `pnpm_config_loglevel`. Only `"error"` is supported (suppresses info noise; not `silent`). */
   pnpmLogLevel?: "error";
   signal?: AbortSignal;
   /** Raw bytes; a string would be UTF-8 re-encoded by execa (see subprocessStdin). */
@@ -42,8 +42,8 @@ export async function runPnpmCommand({
         // node_modules, which fails without a TTY (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY).
         // Must come after ...env so ctx.env (which contains HOME=/) cannot override it.
         ...(process.env.HOME && { HOME: process.env.HOME }),
-        npm_config_reporter: "append-only",
-        ...(pnpmLogLevel === "error" ? { npm_config_loglevel: "error" } : {}),
+        pnpm_config_reporter: "append-only",
+        ...(pnpmLogLevel === "error" ? { pnpm_config_loglevel: "error" } : {}),
       },
       // Don't reject so we can filter the output
       reject: false,

@@ -105,6 +105,7 @@
     "panzoom",
     "panzoomchange",
     "PATHEXT",
+    "pathspecs",
     "PNGS",
     "posthog",
     "prefault",

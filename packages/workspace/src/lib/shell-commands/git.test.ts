@@ -170,6 +170,7 @@ describe("createGitCommand", () => {
       ...mockCtx,
       env: new Map([
         ["GIT_ALLOW_PROTOCOL", "ssh:http:https"],
+        // cspell:ignore ASKPASS
         ["GIT_ASKPASS", "/bin/echo"],
         ["GIT_AUTHOR_NAME", "Someone Else"],
         // Sets any config key with no argv involved, so overriding an

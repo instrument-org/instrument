@@ -4,6 +4,7 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
+import { hostCompilerEnv } from "./host-compiler-env";
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -70,6 +71,9 @@ export function uvSubprocessEnv({
   ];
 
   return {
+    // Keep an unexpected native compile from launching the macOS Command Line
+    // Tools installer dialog and hanging the tool call.
+    ...hostCompilerEnv(),
     // Redirect heavy model/data caches to an app-managed, writable dir shared
     // across tasks so big downloads land once and persist. just-bash sets
     // HOME=/ (read-only), so libraries that cache under `~` would otherwise

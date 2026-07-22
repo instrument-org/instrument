@@ -2,6 +2,7 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { execaNodeForTask } from "./execa-node-for-task";
 import { filterShellOutput } from "./filter-shell-output";
+import { hostCompilerEnv } from "./host-compiler-env";
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -35,6 +36,9 @@ export async function runPnpmCommand({
       cancelSignal: signal,
       env: {
         ...env,
+        // Keep a native (node-gyp) build from launching the macOS Command Line
+        // Tools installer dialog and hanging the tool call.
+        ...hostCompilerEnv(),
         // just-bash sets HOME=/ when a cwd is given. pnpm uses os.homedir() to
         // locate its store and cache, so HOME=/ causes it to write to /Library/...
         // on the host filesystem and record that wrong store path in .modules.yaml.

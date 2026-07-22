@@ -64,7 +64,7 @@ const config: KnipConfig = {
     "packages/workspace": {
       entry: ["__mocks__/*"],
       ignore: ["fixtures/**/*"],
-      ignoreBinaries: ["which", "ldd"],
+      ignoreBinaries: ["which", "ldd", "xcode-select"],
     },
   },
 };

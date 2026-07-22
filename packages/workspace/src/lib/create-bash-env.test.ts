@@ -10,66 +10,28 @@ describe("createBashDescription", () => {
 
       IMPORTANT: This is a unix-like (POSIX) shell, regardless of the host OS.
 
-      IMPORTANT: Folders the user attaches appear as read-only mounts under
-      \`/mnt/\` (one directory per folder). You can read, list, and search them
-      (\`ls\`, \`cat\`, \`grep\`, \`find\`) but cannot write into them -- any write,
-      or a script/command that outputs into \`/mnt/\`, fails with EROFS. They live
-      outside the task root, so address them by their \`/mnt/...\` path. To modify
-      or process an attached file, copy it into the task first (e.g.
-      \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
+      IMPORTANT: Folders the user attaches appear as read-only mounts under \`/mnt/\` (one directory per folder). You can read, list, and search them (\`ls\`, \`cat\`, \`grep\`, \`find\`) but cannot write into them -- any write, or a script/command that outputs into \`/mnt/\`, fails with EROFS. They live outside the task root, so address them by their \`/mnt/...\` path. To modify or process an attached file, copy it into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
 
-      IMPORTANT: Python is available via the specialized
-      \`python\`/\`python3\`/\`pip\`/\`uv\`
-      commands below (backed by a per-task virtualenv in work/.venv), and
-      TypeScript/JavaScript via the specialized \`tsx\` command. If a
-      system command is unavailable, don't keep probing for equivalent binaries
-      -- a short script can usually do the job, and a missing command does not
-      mean the task is impossible. Inside script code run by these commands, use
-      task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are
-      translated, and quoted \`/task/...\` strings in inline code
-      (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy
-      attached files into the task first) and paths inside script FILES on disk
-      are never translated.
+      IMPORTANT: Python is available via the specialized \`python\`/\`python3\`/\`pip\`/\`uv\` commands below (backed by a per-task virtualenv in work/.venv), and TypeScript/JavaScript via the specialized \`tsx\` command. If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`/task/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
 
-      IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all
-      package management.
+      IMPORTANT: \`npm\` is NOT available. Use \`pnpm\` for all package management.
 
-      IMPORTANT: Not a persistent terminal -- each call starts fresh from the
-      task root (\`/task\`, your working directory), so \`cd .\` is
-      always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only
-      \`/task\` and the \`/mnt\` mounts exist; writing anywhere else
-      (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env
-      vars, exported functions, cwd) does NOT carry across calls; to run somewhere
-      else, prefix your command (\`cd subdir && ...\`) within a single call.
+      IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\` and the \`/mnt\` mounts exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
-      IMPORTANT: Backgrounding is NOT supported. Each call must complete within
-      \`timeoutMs\`.
+      IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
 
       IMPORTANT: Prefer specialized tools over shell equivalents:
         - Use the \`read_file\` tool instead of \`cat\`/\`head\`/\`tail\`.
-        - Use the \`edit_file\`/\`write_file\` tools instead
-          of \`sed\`/\`awk\`/redirects for editing.
-        - For audio, video, or image inspection, prefer
-          \`ffprobe -v error -show_format -show_streams -of json <path>\`
-          over \`file\`.
+        - Use the \`edit_file\`/\`write_file\` tools instead of \`sed\`/\`awk\`/redirects for editing.
+        - For audio, video, or image inspection, prefer \`ffprobe -v error -show_format -show_streams -of json <path>\` over \`file\`.
 
-      TIP: Before using an unfamiliar command, run \`<command> --help\` to check
-      its argument syntax.
+      TIP: Before using an unfamiliar command, run \`<command> --help\` to check its argument syntax.
 
-      TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`:
-      \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
+      TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`: \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
 
-      Available commands (this is the complete set of unix builtins; if a
-      command is not listed here it is NOT available, so use one of these or a
-      specialized command below instead of assuming): alias, awk, base64, basename, bash, cat, chmod, clear, column, comm, cp, cut, date, diff, dirname, du, echo, egrep, env, expand, expr, false, fgrep, file, find, fold, grep, gunzip, gzip, head, help, history, hostname, join, ln, ls, md5sum, mkdir, mv, nl, od, paste, printenv, printf, pwd, readlink, rev, rg, rm, rmdir, sed, seq, sh, sha1sum, sha256sum, sleep, sort, split, stat, strings, tac, tail, tar, tee, time, timeout, touch, tr, tree, true, unalias, unexpand, uniq, wc, whoami, xargs, zcat
+      Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): alias, awk, base64, basename, bash, cat, chmod, clear, column, comm, cp, cut, date, diff, dirname, du, echo, egrep, env, expand, expr, false, fgrep, file, find, fold, grep, gunzip, gzip, head, help, history, hostname, join, ln, ls, md5sum, mkdir, mv, nl, od, paste, printenv, printf, pwd, readlink, rev, rg, rm, rmdir, sed, seq, sh, sha1sum, sha256sum, sleep, sort, split, stat, strings, tac, tail, tar, tee, time, timeout, touch, tr, tree, true, unalias, unexpand, uniq, wc, whoami, xargs, zcat
 
-      IMPORTANT: Specialized commands below (e.g. ffmpeg,
-      ffprobe) are invoked by bare name only -- never by an
-      absolute path. \`which\`/\`command -v\`/\`type\` may report a path like
-      /usr/bin/ffmpeg, but that path does NOT exist; ignore it.
-      These binaries are also on PATH inside tsx/node
-      scripts, so a script may shell out to
-      \`ffmpeg\`/\`ffprobe\` directly.
+      IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside tsx/node scripts, so a script may shell out to \`ffmpeg\`/\`ffprobe\` directly.
 
       Specialized commands:
         jq - Parse and manipulate JSON

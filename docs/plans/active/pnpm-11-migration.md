@@ -1,6 +1,6 @@
 # pnpm 10 -> 11 migration
 
-Status: completed. Landed in `a7c117f2b` (`workspace,studio: migrate bundled pnpm to 11.10.0`); the root `packageManager` is now `pnpm@11.10.0`.
+Status: reopened. The version migration landed in `a7c117f2b` (`workspace,studio: migrate bundled pnpm to 11.10.0`), but a smoke test against beta.2 found the packaged app could not fork pnpm at all (`Cannot find module .../app.asar.unpacked/node_modules/pnpm/bin/pnpm.cjs`), so skill dependency installs were broken in production. A packaging fix followed (see "Packaging: pnpm must be explicitly unpacked" below). Not complete until a fresh packaged build passes smoke test 1.
 
 Tracking: [FP-1202](https://linear.app/finalpoint/issue/FP-1202/pnpm-10-11-migration)
 
@@ -70,6 +70,18 @@ Applied in the task template as well: an agent runs its dev server plus other pn
 - **`skills/spreadsheet` had an unpinned tarball dependency.** `xlsx` is fetched from `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` (SheetJS is delisted from npm) and the lockfile recorded no `integrity`, so any bytes the CDN served were trusted. pnpm 11 rejects this (`ERR_PNPM_MISSING_TARBALL_INTEGRITY`). Regenerating the lockfile pinned a hash. **Caveat: trust-on-first-use** -- the hash was computed from what the CDN serves now. Cross-check against SheetJS's published checksum before fully trusting it.
 - **dugite postinstall raced once** with `EEXIST` on `mkdir .../dugite/git/`. The git distribution was complete and functional afterward (2.47.1) and a rerun was clean, but pnpm does not retry a failed postinstall, so a genuinely partial extract would go unnoticed.
 - **A partial/interrupted install leaves node_modules with missing native bindings** (e.g. `@parcel/watcher`), which surfaces as a "native bindings not available" error from watchers during checks. Resolved by letting one clean install complete.
+
+## Packaging: pnpm must be explicitly unpacked
+
+The packaged app forks `pnpm/bin/pnpm.cjs` as a subprocess to install task dependencies, so pnpm has to sit on the real filesystem (`app.asar.unpacked`), not inside the asar. On pnpm 10 electron-builder unpacked it automatically: pnpm 10 shipped a top-level native `reflink.*.node` in `dist/`, and electron-builder auto-unpacks any package it detects as native by walking the declared dependency graph. pnpm 11 broke both signals -- it declares no dependencies (everything is bundled into `dist/node_modules/`) and its reflink addon moved to `dist/node_modules/@reflink/reflink-<platform>-<arch>/`, so electron-builder no longer sees pnpm as native and packs it into the asar. The forked subprocess then can't read it: `Cannot find module .../app.asar.unpacked/node_modules/pnpm/bin/pnpm.cjs`. This is NOT the `.cjs`->`.mjs` change (pnpm 11 still ships `bin/pnpm.cjs` as a working shim); the file exists, it just wasn't on disk.
+
+Fix (`apps/studio/electron-builder.ts`, `.../electron-builder/paths.ts`, `.../after-pack.ts`):
+
+- Add `**/node_modules/pnpm/**` to `asarUnpack` so the whole pnpm package is unpacked.
+- Add an `afterPack` guard (`verifyPackagedPnpm`) that fails the build if `pnpm/bin/pnpm.cjs` is missing from the unpacked tree -- the same pattern already used for ripgrep and uv. This converts a silent ship-broken into a loud build failure.
+- Update `prunePnpmReflink`: it targeted the pnpm 10 `dist/reflink.*.node` layout and had silently become a no-op, so every build shipped all four foreign reflink packages. It now prunes foreign `@reflink/reflink-*` package dirs under `dist/node_modules/@reflink/`.
+
+Requires a fresh packaged build to verify; smoke test 1 exercises exactly this path.
 
 ## Verification: agent smoke tests
 

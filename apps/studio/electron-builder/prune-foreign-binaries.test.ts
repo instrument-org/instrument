@@ -17,13 +17,12 @@ const AGENT_BROWSER_BINARIES = [
   "agent-browser.js",
 ];
 
-const PNPM_REFLINK_BINARIES = [
-  "reflink.darwin-x64-3G3H6IW4.node",
-  "reflink.darwin-arm64-2HJ4WGO6.node",
-  // cspell:ignore msvc J2TZHRQI Q6BARPPB
-  "reflink.win32-x64-msvc-J2TZHRQI.node",
-  "reflink.win32-arm64-msvc-Q6BARPPB.node",
-  "pnpm.cjs",
+// cspell:ignore msvc
+const PNPM_REFLINK_PACKAGES = [
+  "reflink-darwin-x64",
+  "reflink-darwin-arm64",
+  "reflink-win32-x64-msvc",
+  "reflink-win32-arm64-msvc",
 ];
 
 function makeUnpackedFixture() {
@@ -40,22 +39,32 @@ function makeUnpackedFixture() {
     writeFileSync(path.join(agentBrowserBin, name), "binary");
   }
 
-  const pnpmDist = path.join(unpackedDir, "node_modules", "pnpm", "dist");
-  mkdirSync(pnpmDist, { recursive: true });
-  for (const name of PNPM_REFLINK_BINARIES) {
-    writeFileSync(path.join(pnpmDist, name), "binary");
+  const reflinkDir = path.join(
+    unpackedDir,
+    "node_modules",
+    "pnpm",
+    "dist",
+    "node_modules",
+    "@reflink",
+  );
+  for (const pkg of PNPM_REFLINK_PACKAGES) {
+    mkdirSync(path.join(reflinkDir, pkg), { recursive: true });
+    writeFileSync(
+      path.join(reflinkDir, pkg, `${pkg.replace("reflink-", "reflink.")}.node`),
+      "binary",
+    );
   }
 
   return {
     agentBrowserBin,
-    pnpmDist,
+    reflinkDir,
     unpackedDir,
   };
 }
 
 describe("pruneForeignBinaries", () => {
   it("keeps only the win32-x64 agent-browser and reflink binaries", () => {
-    const { agentBrowserBin, pnpmDist, unpackedDir } = makeUnpackedFixture();
+    const { agentBrowserBin, reflinkDir, unpackedDir } = makeUnpackedFixture();
 
     pruneForeignBinaries({
       arch: Arch.x64,
@@ -69,16 +78,15 @@ describe("pruneForeignBinaries", () => {
         "agent-browser.js",
       ]
     `);
-    expect(readdirSync(pnpmDist).sort()).toMatchInlineSnapshot(`
+    expect(readdirSync(reflinkDir).sort()).toMatchInlineSnapshot(`
       [
-        "pnpm.cjs",
-        "reflink.win32-x64-msvc-J2TZHRQI.node",
+        "reflink-win32-x64-msvc",
       ]
     `);
   });
 
   it("keeps win32-x64 agent-browser for a win32-arm64 build", () => {
-    const { agentBrowserBin, pnpmDist, unpackedDir } = makeUnpackedFixture();
+    const { agentBrowserBin, reflinkDir, unpackedDir } = makeUnpackedFixture();
 
     pruneForeignBinaries({
       arch: Arch.arm64,
@@ -92,10 +100,9 @@ describe("pruneForeignBinaries", () => {
         "agent-browser.js",
       ]
     `);
-    expect(readdirSync(pnpmDist).sort()).toMatchInlineSnapshot(`
+    expect(readdirSync(reflinkDir).sort()).toMatchInlineSnapshot(`
       [
-        "pnpm.cjs",
-        "reflink.win32-arm64-msvc-Q6BARPPB.node",
+        "reflink-win32-arm64-msvc",
       ]
     `);
   });
@@ -152,9 +159,9 @@ describe("pruneForeignBinaries", () => {
         "agent-browser-linux-musl-arm64",
         "agent-browser-linux-musl-x64",
         "agent-browser-linux-x64",
-        "reflink.darwin-arm64-2HJ4WGO6.node",
-        "reflink.darwin-x64-3G3H6IW4.node",
-        "reflink.win32-arm64-msvc-Q6BARPPB.node",
+        "reflink-darwin-arm64",
+        "reflink-darwin-x64",
+        "reflink-win32-arm64-msvc",
       ]
     `);
   });

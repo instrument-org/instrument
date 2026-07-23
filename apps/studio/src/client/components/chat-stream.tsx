@@ -7,7 +7,7 @@ import {
   type Task,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getAssetBaseUrl } from "../lib/asset-base-url";
 import { cn } from "../lib/utils";
@@ -30,6 +30,10 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
 import { Wordmark } from "./wordmark";
+
+// After a streaming text part stops growing for this long, treat it as stalled
+// so the planning loader can reappear beneath the otherwise-finished prose.
+const STREAM_STALL_MS = 700;
 
 interface ChatStreamProps {
   isAgentRunning: boolean;
@@ -105,6 +109,27 @@ export function ChatStream({
     )?.metadata.id;
   }, [isAgentRunning, isDeveloperMode, lastRegularMessage]);
 
+  // A still-streaming text part at the tail of the live assistant message that
+  // already has visible content. It is the one active state with no inline
+  // loading affordance of its own (AssistantMessage renders plain markdown), so
+  // it, and only it, suppresses the planning loader while it grows.
+  const streamingTailText = useMemo(() => {
+    if (!isAgentRunning || !lastAssistantMessage) {
+      return;
+    }
+    const lastPart = lastAssistantMessage.parts.at(-1);
+    if (
+      lastPart?.type === "text" &&
+      lastPart.state !== "done" &&
+      lastPart.text.trim() !== ""
+    ) {
+      return lastPart.text;
+    }
+    return;
+  }, [isAgentRunning, lastAssistantMessage]);
+
+  const streamingTailTextStalled = useStreamStalled(streamingTailText);
+
   const hasActiveLoadingState = useMemo(() => {
     if (!isAgentRunning || !lastAssistantMessage) {
       return false;
@@ -114,8 +139,10 @@ export function ChatStream({
     if (!lastPart) {
       return false;
     }
-    if (lastPart.type === "text" && lastPart.state !== "done") {
-      return true;
+    if (lastPart.type === "text") {
+      // Empty streaming text renders nothing and stalled streaming text has
+      // stopped producing output; neither should mask the planning loader.
+      return streamingTailText !== undefined && !streamingTailTextStalled;
     }
     if (isToolPart(lastPart)) {
       return isActiveToolPart(lastPart);
@@ -124,7 +151,12 @@ export function ChatStream({
       return true;
     }
     return false;
-  }, [isAgentRunning, lastAssistantMessage]);
+  }, [
+    isAgentRunning,
+    lastAssistantMessage,
+    streamingTailText,
+    streamingTailTextStalled,
+  ]);
 
   const isPlanningVisible = isAgentRunning && !hasActiveLoadingState;
 
@@ -484,4 +516,25 @@ export function ChatStream({
       {continueNode}
     </div>
   );
+}
+
+// True once `text` stops changing for STREAM_STALL_MS. Timer-based, so it can't
+// be derived declaratively: each new value arms a fresh timeout that records the
+// value it settled on, and the result compares that against the current text so
+// a still-growing stream never reads as stalled. Returns false when there is no
+// streaming text.
+function useStreamStalled(text: string | undefined) {
+  const [stalledText, setStalledText] = useState<string>();
+  useEffect(() => {
+    if (text === undefined) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setStalledText(text);
+    }, STREAM_STALL_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [text]);
+  return text !== undefined && stalledText === text;
 }

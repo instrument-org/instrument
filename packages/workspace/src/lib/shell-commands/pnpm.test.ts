@@ -75,15 +75,47 @@ describe("createPnpmCommand", () => {
     },
   );
 
-  it("errors when trying to run pnpm exec", async () => {
+  it("refuses pnpm exec for a binary that is not installed locally", async () => {
     const result = await command.execute(
       ["exec", "node", "script.js"],
       mockCtx,
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      `'${PNPM_COMMAND.name} exec' is not allowed`,
+    expect(result.stderr).toContain("was not found in node_modules/.bin");
+  });
+
+  it("refuses pnpm exec with no binary named", async () => {
+    const result = await command.execute(["exec"], mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Name a locally-installed binary");
+  });
+
+  it("runs pnpm exec for a binary present in node_modules/.bin", async () => {
+    const fs = new InMemoryFs();
+    await fs.writeFile("/package.json", "{}");
+    await fs.writeFile("/node_modules/.bin/esbuild", "#!/bin/sh\n");
+
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
+      all: "0.28.1",
+      exitCode: 0,
+    });
+
+    const result = await command.execute(["exec", "esbuild", "--version"], {
+      ...mockCtx,
+      fs,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("0.28.1");
+    expect(vi.mocked(execaNodeForTask)).toHaveBeenLastCalledWith(
+      taskId,
+      getWorkspaceConfig().pnpmBinPath,
+      ["exec", "esbuild", "--version"],
+      expect.any(Object),
+      expect.any(String),
     );
   });
 

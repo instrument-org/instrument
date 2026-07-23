@@ -74,6 +74,10 @@ export function parseWorkersAiModelsList({
       toolSupport: model.supported_features?.includes("tools") ?? false,
     });
 
+    if (!features.includes("tools")) {
+      continue;
+    }
+
     const tags: AIGatewayModel.ModelTag[] = [];
     if (isModelNew(model.created)) {
       tags.push("new");

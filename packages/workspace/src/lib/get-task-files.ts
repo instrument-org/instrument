@@ -51,10 +51,51 @@ export const TaskFilesSchema = z.array(TaskFileSchema);
 export const MAX_TASK_FILE_INDEX_FILES = 5000;
 
 export type TaskFile = z.output<typeof TaskFileSchema>;
+
 export type TaskFileChange = TaskFile & {
   status: "added" | "deleted" | "modified";
 };
+
 export type TaskFileIndex = Map<string, TaskFileEntry>;
+
+// While walking a live tree, a path can disappear between its parent's readdir
+// and the moment we touch it -- routine when the tree is being rewritten under
+// us (a failed clone getting cleaned up, a checkout aborting). Treat these
+// codes as "the entry is gone" and skip it rather than aborting the whole walk.
+function isVanishedPathError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error.code === "ENOENT" || error.code === "ENOTDIR")
+  );
+}
+// Reads a directory, tolerating a subtree that vanished mid-walk (returns null
+// to skip it). The task root going missing is a real error and still throws.
+async function readDirEntries(
+  absoluteDir: string,
+  { isRoot }: { isRoot: boolean },
+) {
+  try {
+    return await fs.readdir(absoluteDir, { withFileTypes: true });
+  } catch (error) {
+    if (isRoot || !isVanishedPathError(error)) {
+      throw error;
+    }
+    return null;
+  }
+}
+// lstats a walked entry, tolerating a file deleted between the readdir above
+// and now (returns null to skip it). Other errors still abort the walk.
+async function statEntry(absolutePath: string) {
+  try {
+    return await fs.lstat(absolutePath);
+  } catch (error) {
+    if (isVanishedPathError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
 
 const TaskFileIndexEntrySchema = z.object({
   filename: z.string(),
@@ -123,9 +164,12 @@ export async function getTaskFileIndex(
       const absoluteDir = relativeDir
         ? absolutePathJoin(dir, relativeDir)
         : dir;
-      const entries = await fs.readdir(absoluteDir, {
-        withFileTypes: true,
+      const entries = await readDirEntries(absoluteDir, {
+        isRoot: !relativeDir,
       });
+      if (!entries) {
+        return;
+      }
 
       entries.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -161,8 +205,8 @@ export async function getTaskFileIndex(
           continue;
         }
 
-        const stats = await fs.lstat(absolutePath);
-        if (!stats.isFile()) {
+        const stats = await statEntry(absolutePath);
+        if (!stats || !stats.isFile()) {
           continue;
         }
 

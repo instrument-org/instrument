@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { TaskDirSchema } from "../schemas/paths";
@@ -116,6 +116,49 @@ describe("getTaskFileIndex", () => {
     const filePaths = [...result.value.keys()];
     expect(filePaths).toHaveLength(4);
     expect(filePaths).not.toContain("linked-notes.md");
+  });
+
+  it("skips a subtree that vanishes mid-walk instead of failing the whole index", async () => {
+    await fs.mkdir(path.join(taskDirPath, "work", "gone", "deep"), {
+      recursive: true,
+    });
+    await fs.writeFile(path.join(taskDirPath, "work", "keep.txt"), "keep");
+    await fs.writeFile(
+      path.join(taskDirPath, "work", "gone", "deep", "x.txt"),
+      "x",
+    );
+
+    // Simulate the race: the parent's readdir listed `work/gone` as a dir, but
+    // it is deleted before the walk recurses into it, so its readdir throws.
+    const goneDir = path.join(taskDirPath, "work", "gone");
+    const realReaddir = fs.readdir;
+    vi.spyOn(fs, "readdir").mockImplementation(
+      (...args: Parameters<typeof realReaddir>) => {
+        if (args[0] === goneDir) {
+          return Promise.reject(
+            Object.assign(
+              new Error(
+                `ENOENT: no such file or directory, scandir '${goneDir}'`,
+              ),
+              { code: "ENOENT" },
+            ),
+          );
+        }
+        return realReaddir(...args);
+      },
+    );
+
+    const result = await getTaskFileIndex(dir);
+    vi.restoreAllMocks();
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    const keys = [...result.value.keys()];
+    expect(keys).toContain("work/keep.txt");
+    expect(keys.some((key) => key.startsWith("work/gone"))).toBe(false);
   });
 
   it("skips filenames that normalize into a traversal path instead of aborting", async () => {

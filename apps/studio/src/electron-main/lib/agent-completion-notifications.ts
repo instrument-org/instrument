@@ -119,7 +119,7 @@ export function startAgentCompletionNotifications({
     presentNotification({
       body,
       onClick: () => {
-        focusTask(id);
+        focusTask({ id, sessionId });
       },
       title: taskTitle,
     });
@@ -161,7 +161,13 @@ function canShowAgentCompletionNotification({
   });
 }
 
-function focusTask(id: string) {
+function focusTask({
+  id,
+  sessionId,
+}: {
+  id: TaskId;
+  sessionId: StoreId.Session;
+}) {
   const mainWindow = getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -174,9 +180,9 @@ function focusTask(id: string) {
   mainWindow.focus();
   focusMainContents();
   sendAppCommand({
-    params: { id },
-    to: "/tasks/$id/",
-    type: "navigate",
+    id,
+    sessionId,
+    type: "focusTask",
   });
 }
 

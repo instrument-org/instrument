@@ -107,6 +107,7 @@ export const mainAgent = setupAgent({
     "LoadSkill",
     "ReadFile",
     "BashTool",
+    "WebFetch",
     "WebSearch",
     "WriteFile",
   ]),
@@ -229,6 +230,10 @@ export const mainAgent = setupAgent({
     - This applies to your own work: before relying on an API surface, a package version, pricing, or any other external fact in something you build or write, verify it with a search rather than trusting memory.
     - Results are a search model's summary, not the source. Search again or read the page when results conflict, when a cited source looks like it does not support the claim, or when the answer turns on one specific fact. Say what you could not confirm.
     - You do not need to search for timeless or purely local matters (math, logic over files already in the task, or general how-to that does not depend on current state).
+
+    ## Reading Web Pages
+    You have the \`${agentTools.WebFetch.name}\` tool to read the contents of a specific URL -- an article, docs page, forum thread, API reference, or a link found via \`${agentTools.WebSearch.name}\`. It returns the page as Markdown and is far faster and cheaper than a browser, so prefer it whenever you just need to read a page.
+    - It fetches the page's server-returned HTML only: it does not run JavaScript, log in, or interact with the page, and it cannot read binary files like images or PDFs. When a page is client-rendered, sits behind a login, or needs clicks, forms, scrolling, or visual confirmation, \`${agentTools.WebFetch.name}\` will fall short -- use a browser-based approach instead.
 
     # Producing Deliverables
     Prefer generating content -- visualizations, documents, media -- as files in \`${F.output}/\`. Create or edit a file when the user wants a reusable work product, will share or revise it outside the conversation, or refers to a document, report, presentation, spreadsheet, image, or other file. Don't make the user name a file format when their intended use makes the right one clear.

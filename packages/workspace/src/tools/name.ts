@@ -21,6 +21,7 @@ export const ToolNameSchema = z.enum([
   TOOL_NAMES.loadSkill,
   TOOL_NAMES.readFile,
   TOOL_NAMES.unavailable,
+  TOOL_NAMES.webFetch,
   TOOL_NAMES.webSearch,
   TOOL_NAMES.writeFile,
 ]);

@@ -3,7 +3,7 @@ import { type Tab, type TabId, TabIdSchema } from "@/shared/tabs";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { planFocusTask } from "./focus-task-plan";
+import { resolveTaskFocusAction } from "./task-focus-action";
 
 const tabId = (value: string) => TabIdSchema.parse(value);
 const taskId = TaskIdSchema.parse("task");
@@ -23,13 +23,13 @@ function tab({
   return { id: tabId(id), pathname: "/new-tab", taskId: idTask };
 }
 
-describe("planFocusTask", () => {
+describe("resolveTaskFocusAction", () => {
   it("selects an exact task session without navigating", () => {
     const exact = tab({ id: "exact", taskId });
     const other = tab({ id: "other" });
 
     expect(
-      planFocusTask({
+      resolveTaskFocusAction({
         model: model([other, exact], other.id),
         readSelectedSessionId: (id) =>
           id === exact.id ? sessionId : undefined,
@@ -44,7 +44,7 @@ describe("planFocusTask", () => {
     const selected = tab({ id: "selected", taskId });
 
     expect(
-      planFocusTask({
+      resolveTaskFocusAction({
         model: model([first, selected], selected.id),
         readSelectedSessionId: () => sessionId,
         sessionId,
@@ -57,7 +57,7 @@ describe("planFocusTask", () => {
     const task = tab({ id: "task", taskId });
 
     expect(
-      planFocusTask({
+      resolveTaskFocusAction({
         model: model([task], task.id),
         readSelectedSessionId: () => StoreId.newSessionId(),
         sessionId,
@@ -71,7 +71,7 @@ describe("planFocusTask", () => {
     const selectedSessions = new Map<TabId, StoreId.Session>();
 
     expect(
-      planFocusTask({
+      resolveTaskFocusAction({
         model: model([selected], selected.id),
         readSelectedSessionId: (id) => selectedSessions.get(id),
         sessionId,

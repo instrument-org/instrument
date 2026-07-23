@@ -11,6 +11,7 @@ import { z } from "zod";
 import { TASK_FOLDER_NAMES } from "../constants";
 import { addLineNumbers } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
+import { redactHostPaths } from "../lib/filter-shell-output";
 import { formatBytes } from "../lib/format-bytes";
 import { getMimeType } from "../lib/get-mime-type";
 import { listFiles } from "../lib/list-files";
@@ -317,7 +318,10 @@ export const ReadFile = setupTool({
       }
 
       return ok({
-        content: rawContent,
+        // A script that resolved an absolute path may have written a host path
+        // into the file; keep it out of the model context and the persisted
+        // tool result.
+        content: redactHostPaths(rawContent, taskDir(taskId)),
         displayedLines: selectedLines.length,
         filePath: displayPath,
         hasMoreLines,

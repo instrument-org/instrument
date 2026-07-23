@@ -81,7 +81,7 @@ function verifyPackagedPnpm(context: AfterPackContext) {
   const binaryPath = resolvePackagedPnpm(context.appOutDir, platformName);
   if (!binaryPath) {
     throw new Error(
-      `Could not locate packaged pnpm at node_modules/pnpm/bin/pnpm.cjs under ${context.appOutDir} for ${platformName} ${Arch[context.arch]}. It must be listed in electron-builder \`asarUnpack\` so it can be forked to install task dependencies.`,
+      `Could not locate packaged pnpm at node_modules/pnpm/bin/pnpm.mjs under ${context.appOutDir} for ${platformName} ${Arch[context.arch]}. It must be listed in electron-builder \`asarUnpack\` so it can be forked to install task dependencies.`,
     );
   }
 

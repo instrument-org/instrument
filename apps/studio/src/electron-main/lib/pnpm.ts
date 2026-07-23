@@ -13,5 +13,5 @@ function getPnpmPath() {
   const packageJsonPath = require.resolve("pnpm");
   const unpackedPath = packageJsonPath.replace("app.asar", "app.asar.unpacked");
   const pnpmPath = path.dirname(unpackedPath);
-  return path.join(pnpmPath, "bin", "pnpm.cjs");
+  return path.join(pnpmPath, "bin", "pnpm.mjs");
 }

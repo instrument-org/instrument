@@ -118,10 +118,50 @@ export function createPnpmCommand(taskId: TaskId) {
     }
 
     if (subcommand === "exec") {
-      return blockedSubcommand(
-        "exec",
-        "Use the bash tool directly to run shell commands.",
+      // `pnpm exec` normally resolves its command off PATH too, which would run
+      // arbitrary host binaries outside the sandbox's virtual filesystem. Allow
+      // it only for binaries the project has actually installed (present in
+      // node_modules/.bin). Those run correctly through real pnpm -- the
+      // isolated-store symlinks that just-bash can't follow resolve fine on the
+      // real filesystem -- while anything not installed locally is refused
+      // rather than resolved off PATH.
+      const binName = args
+        .slice(1)
+        .find((arg) => arg !== "--" && !arg.startsWith("-"));
+      if (!binName || binName.includes("/") || binName.includes("\\")) {
+        return blockedSubcommand(
+          "exec",
+          `Name a locally-installed binary to run, e.g. \`${PNPM_COMMAND.name} exec esbuild --version\`.`,
+        );
+      }
+      const localBin = ctx.fs.resolvePath(
+        ctx.cwd,
+        `node_modules/.bin/${binName}`,
       );
+      if (!(await ctx.fs.exists(localBin))) {
+        return {
+          exitCode: 1,
+          stderr: dedent`
+            '${PNPM_COMMAND.name} exec ${binName}' is not allowed: only binaries installed in this project can be run with '${PNPM_COMMAND.name} exec'.
+            '${binName}' was not found in node_modules/.bin. Install it first (e.g. '${PNPM_COMMAND.name} add ${binName}'), or run a package.json script with '${PNPM_COMMAND.name} run <script>'.
+          `,
+          stdout: "",
+        };
+      }
+      const { env: execEnv, taskCwd } = resolveCommandContext(taskId, ctx);
+      const execResult = await runPnpmCommand({
+        args: ["exec", ...args.slice(1)],
+        cwd: taskCwd,
+        env: execEnv,
+        signal: ctx.signal,
+        stdin: subprocessStdin(ctx.stdin),
+        taskId,
+      });
+      return {
+        exitCode: execResult.exitCode,
+        stderr: "",
+        stdout: execResult.combined,
+      };
     }
 
     if (subcommand === "setup") {

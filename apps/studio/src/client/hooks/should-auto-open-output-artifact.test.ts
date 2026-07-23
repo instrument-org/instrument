@@ -1,7 +1,7 @@
 import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { shouldAutoOpenOutputArtifact } from "./auto-open-output-artifact-plan";
+import { shouldAutoOpenOutputArtifact } from "./should-auto-open-output-artifact";
 
 const sessionId = StoreId.newSessionId();
 

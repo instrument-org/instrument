@@ -132,6 +132,7 @@ function prunePnpmReflink({
     return [];
   }
 
+  // cspell:ignore msvc
   // Windows packages carry a `-msvc` suffix (e.g. reflink-win32-x64-msvc);
   // darwin does not. The runtime picks the package matching the build target.
   const keep =

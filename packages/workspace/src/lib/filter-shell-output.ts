@@ -94,6 +94,7 @@ function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// cspell:ignore firmlink firmlinks
 // macOS firmlinks: a resolved path under these roots canonicalizes to its
 // /private-prefixed spelling (`/var/folders/...` -> `/private/var/folders/...`),
 // so a task or home dir handed in one spelling must be redacted in the other.

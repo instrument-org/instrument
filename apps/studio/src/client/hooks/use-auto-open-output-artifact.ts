@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent } from "react";
 
-import { shouldAutoOpenOutputArtifact } from "./auto-open-output-artifact-plan";
+import { shouldAutoOpenOutputArtifact } from "./should-auto-open-output-artifact";
 
 // Focuses the first output/ artifact a run produced, per the server's
 // outputArtifacts event stream. useEffectEvent reads current state

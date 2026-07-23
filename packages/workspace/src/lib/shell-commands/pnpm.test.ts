@@ -159,14 +159,14 @@ describe("createPnpmCommand", () => {
     const execaNodeForTaskMock = vi.mocked(execaNodeForTask);
     execaNodeForTaskMock.mockClear();
     execaNodeForTaskMock.mockResolvedValueOnce({
-      all: "10.33.0",
+      all: "11.10.0",
       exitCode: 0,
     });
 
     const result = await command.execute(["--version"], mockCtx);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("10.33.0");
+    expect(result.stdout).toBe("11.10.0");
     expect(execaNodeForTaskMock).toHaveBeenCalledOnce();
   });
 

@@ -78,10 +78,18 @@ The packaged app forks `pnpm/bin/pnpm.cjs` as a subprocess to install task depen
 Fix (`apps/studio/electron-builder.ts`, `.../electron-builder/paths.ts`, `.../after-pack.ts`):
 
 - Add `**/node_modules/pnpm/**` to `asarUnpack` so the whole pnpm package is unpacked.
-- Add an `afterPack` guard (`verifyPackagedPnpm`) that fails the build if `pnpm/bin/pnpm.cjs` is missing from the unpacked tree -- the same pattern already used for ripgrep and uv. This converts a silent ship-broken into a loud build failure.
+- Add an `afterPack` guard (`verifyPackagedPnpm`) that fails the build if `pnpm/bin/pnpm.mjs` is missing from the unpacked tree -- the same pattern already used for ripgrep and uv. This converts a silent ship-broken into a loud build failure.
 - Update `prunePnpmReflink`: it targeted the pnpm 10 `dist/reflink.*.node` layout and had silently become a no-op, so every build shipped all four foreign reflink packages. It now prunes foreign `@reflink/reflink-*` package dirs under `dist/node_modules/@reflink/`.
 
 Requires a fresh packaged build to verify; smoke test 1 exercises exactly this path.
+
+## Bundled pnpm resolved via `pnpm.mjs`, not `pnpm.cjs`
+
+Separate from the unpacking bug above. pnpm 10's canonical bin was `bin/pnpm.cjs` (executable); pnpm 11 made `bin/pnpm.mjs` canonical and demoted `pnpm.cjs` to a non-executable (`0644`) "older Corepack" compat shim. Studio referenced `pnpm.cjs` in three places (`setup-bin-directory.ts` twice, `pnpm.ts` once) plus the afterPack guard. The two fork paths (`runPnpmCommand`, `pnpmVersion`) run pnpm with node explicitly, so `.cjs` worked there -- but `setupBinDirectory` also creates a PATH symlink that child processes (user apps) exec **directly**, and a symlink to the non-executable `pnpm.cjs` fails `EACCES` on pnpm 11. Standardized all four references on the executable canonical `.mjs`. No packaging impact (both files are already in the unpacked tree). Verified `child_process.fork` and `execaNode` both run `pnpm.mjs`; the child-process PATH shim needs a packaged build to confirm.
+
+## `pnpm exec` allowed for project-local binaries
+
+Not a version issue, surfaced by smoke test 4. `pnpm exec` was blocked wholesale (it would resolve commands off PATH and escape the sandbox), which left an agent that just installed a CLI with no clean way to run it: `pnpm exec` refused, `node_modules/.bin` shims break in just-bash (the isolated-store symlink reads as a zero-byte file), and the raw binary is too large for just-bash to interpret. `pnpm exec <name>` now runs through real pnpm when `<name>` resolves to a `node_modules/.bin` entry, and stays refused otherwise. Verified in the just-bash sandbox: `pnpm exec esbuild` runs, `pnpm exec echo` is refused.
 
 ## Verification: agent smoke tests
 

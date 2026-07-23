@@ -42,7 +42,7 @@ const config: Configuration = {
   // executable; dugite resolves it by rewriting `app.asar` to
   // `app.asar.unpacked` and gets ENOENT if it was never unpacked.
   //
-  // pnpm is forked as a subprocess (`pnpm/bin/pnpm.cjs`) to install task
+  // pnpm is forked as a subprocess (`pnpm/bin/pnpm.mjs`) to install task
   // dependencies, so it too must live on the real filesystem. pnpm 11 bundles
   // its own dependencies and ships no top-level native module, so
   // electron-builder's automatic native-module unpacking no longer covers it

@@ -5,7 +5,6 @@ import { tabsAtom } from "@/client/atoms/tabs";
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { toggleSidebar } from "@/client/hooks/use-sidebar";
 import { requestBrowserFind } from "@/client/lib/browser-find-registry";
-import { planFocusTask } from "@/client/lib/focus-task-plan";
 import { closeSelectedTab, openTab, reopenTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import {
@@ -13,6 +12,7 @@ import {
   selectByIndex,
   selectTab,
 } from "@/client/lib/tabs-model";
+import { resolveTaskFocusAction } from "@/client/lib/task-focus-action";
 import { rpcClient } from "@/client/rpc/client";
 import { type AppCommand } from "@/shared/app-command";
 import { steppedZoom } from "@/shared/zoom";
@@ -87,7 +87,7 @@ export function useAppCommands() {
               }
               case "focusTask": {
                 const model = store.get(tabsAtom);
-                const plan = planFocusTask({
+                const action = resolveTaskFocusAction({
                   model,
                   readSelectedSessionId: (tabId) => {
                     const search = getTabRouter(tabId)?.state.location.search;
@@ -99,15 +99,15 @@ export function useAppCommands() {
                   sessionId: command.sessionId,
                   taskId: command.id,
                 });
-                if (!plan) {
+                if (!action) {
                   break;
                 }
 
-                const router = getTabRouter(plan.tabId);
+                const router = getTabRouter(action.tabId);
                 if (!router) {
                   break;
                 }
-                if (plan.type === "navigateTaskTab") {
+                if (action.type === "navigateTaskTab") {
                   void router.navigate({
                     from: "/tasks/$id/",
                     params: { id: command.id },
@@ -117,7 +117,7 @@ export function useAppCommands() {
                     }),
                     to: "/tasks/$id",
                   });
-                } else if (plan.type === "navigateSelectedTab") {
+                } else if (action.type === "navigateSelectedTab") {
                   void router.navigate({
                     params: { id: command.id },
                     search: { selectedSessionId: command.sessionId },
@@ -125,7 +125,7 @@ export function useAppCommands() {
                   });
                 }
                 store.set(tabsAtom, (current) =>
-                  selectTab(current, { id: plan.tabId }),
+                  selectTab(current, { id: action.tabId }),
                 );
                 break;
               }

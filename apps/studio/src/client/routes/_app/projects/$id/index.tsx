@@ -177,9 +177,10 @@ function RouteComponent() {
         One column of content with the details panel beside it once there's room
         for both at full width. Only the panel is placed explicitly; the heading,
         composer and task list auto-flow down column one, which is also the order
-        they read in when the grid collapses to a single column. Narrow, the panel
-        is a disclosure so it doesn't push the task list down the page; wide, the
-        same rule that gives it its own column forces it open and drops the toggle.
+        they read in when the grid collapses to a single column, with the panel
+        tucked under the heading. Narrow, the panel is a disclosure so it stays
+        collapsed by default and keeps the composer near the top; wide, the same
+        rule that gives it its own column forces it open and drops the toggle.
       */}
       <div className="mx-auto grid max-w-2xl grid-cols-1 gap-y-6 px-6 py-10 @6xl/app-content:max-w-none @6xl/app-content:grid-cols-[minmax(0,42rem)_30rem] @6xl/app-content:justify-center @6xl/app-content:gap-x-8">
         <div className="flex items-start justify-between gap-x-4">
@@ -230,6 +231,24 @@ function RouteComponent() {
           </DropdownMenu>
         </div>
 
+        <details className="group/details details-animated @6xl/app-content:sticky @6xl/app-content:top-10 @6xl/app-content:col-start-2 @6xl/app-content:row-span-3 @6xl/app-content:row-start-1 @6xl/app-content:self-start @6xl/app-content:details-always-open">
+          <summary className="flex list-none items-center gap-x-1 px-3 py-1 text-xs font-medium text-muted-foreground/60 select-none hover:text-muted-foreground @6xl/app-content:hidden">
+            <span>Project details</span>
+            <CaretRightIcon className="size-3 shrink-0 transition-transform group-open/details:rotate-90" />
+          </summary>
+          <div className="flex flex-col gap-y-2 pt-2 @6xl/app-content:pt-0">
+            <ProjectInstructions
+              instructions={projectData.instructions}
+              key={projectData.id}
+              projectId={projectData.id}
+            />
+            <ProjectFolders
+              folders={projectData.folders}
+              projectId={projectData.id}
+            />
+          </div>
+        </details>
+
         <PromptInput
           allowOpenInNewTab
           autoFocus
@@ -273,24 +292,6 @@ function RouteComponent() {
           placeholder={`Talk to ${APP_NAME}`}
           ref={promptInputRef}
         />
-
-        <details className="group/details details-animated @6xl/app-content:sticky @6xl/app-content:top-10 @6xl/app-content:col-start-2 @6xl/app-content:row-span-3 @6xl/app-content:row-start-1 @6xl/app-content:self-start @6xl/app-content:details-always-open">
-          <summary className="flex list-none items-center gap-x-1 px-3 py-1 text-xs font-medium text-muted-foreground/60 select-none hover:text-muted-foreground @6xl/app-content:hidden">
-            <span>Project details</span>
-            <CaretRightIcon className="size-3 shrink-0 transition-transform group-open/details:rotate-90" />
-          </summary>
-          <div className="flex flex-col gap-y-2 pt-2 @6xl/app-content:pt-0">
-            <ProjectInstructions
-              instructions={projectData.instructions}
-              key={projectData.id}
-              projectId={projectData.id}
-            />
-            <ProjectFolders
-              folders={projectData.folders}
-              projectId={projectData.id}
-            />
-          </div>
-        </details>
 
         <div className="flex flex-col gap-y-1">
           <div className="px-3 py-1 text-xs font-medium text-muted-foreground/60">

@@ -46,6 +46,14 @@ export function fetchModelsForVercel(config: AIGatewayProviderConfig.Type) {
     const validModels: AIGatewayModel.Type[] = [];
 
     for (const model of models) {
+      // The gateway lists embedding/image/video models alongside
+      // language ones. Only language models can use tools, so skip the rest
+      // rather than surfacing them as falsely tool-capable chat models. Entries
+      // with no modelType are treated as language to preserve prior behavior.
+      if (model.modelType && model.modelType !== "language") {
+        continue;
+      }
+
       const providerId = AIGatewayModel.ProviderIdSchema.parse(model.id);
       const [author, modelId] = providerId.split("/");
       if (!author || !modelId) {

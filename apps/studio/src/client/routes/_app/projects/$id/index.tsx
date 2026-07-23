@@ -232,7 +232,7 @@ function RouteComponent() {
         </div>
 
         <details className="group/details details-animated @6xl/app-content:sticky @6xl/app-content:top-10 @6xl/app-content:col-start-2 @6xl/app-content:row-span-3 @6xl/app-content:row-start-1 @6xl/app-content:self-start @6xl/app-content:details-always-open">
-          <summary className="flex list-none items-center gap-x-1 px-3 py-1 text-xs font-medium text-muted-foreground/60 select-none hover:text-muted-foreground @6xl/app-content:hidden">
+          <summary className="flex list-none items-center gap-x-1 py-1 text-xs font-medium text-muted-foreground/60 select-none hover:text-muted-foreground @6xl/app-content:hidden">
             <span>Project details</span>
             <CaretRightIcon className="size-3 shrink-0 transition-transform group-open/details:rotate-90" />
           </summary>
@@ -294,11 +294,11 @@ function RouteComponent() {
         />
 
         <div className="flex flex-col gap-y-1">
-          <div className="px-3 py-1 text-xs font-medium text-muted-foreground/60">
+          <div className="py-1 text-xs font-medium text-muted-foreground/60">
             Tasks
           </div>
           {memberTasks.length === 0 ? (
-            <p className="px-3 py-1 text-sm text-muted-foreground">
+            <p className="py-1 text-sm text-muted-foreground">
               No tasks in this project yet.
             </p>
           ) : (

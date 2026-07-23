@@ -256,7 +256,7 @@ function TextView({
         initial={{ opacity: 0 }}
         transition={{ delay: 0.3, duration: 0 }}
       >
-        {children(data ?? "")}
+        {children(data)}
       </motion.div>
     );
   }

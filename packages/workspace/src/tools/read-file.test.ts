@@ -76,14 +76,16 @@ describe("ReadFile", () => {
       }
     });
 
-    it("redacts host paths a script wrote into a file", async () => {
-      // A script that resolved an absolute path can write a real host path into
-      // a deliverable; reading it back must not leak the host layout/username.
+    it("collapses the task dir a script wrote into a file, leaving home paths as data", async () => {
+      // A script that resolved an absolute path can write the task dir into a
+      // deliverable; reading it back must not leak the task layout. An unrelated
+      // home path stays untouched -- redacting it risks mangling a legitimately
+      // absolute path the agent then edits.
       const home = os.homedir();
       const probePath = path.join(fixturesPath, "redact-probe.txt");
       await fs.writeFile(
         probePath,
-        `Attachments: ${fixturesPath}/attachments\nCache: ${home}/Library/Caches\n`,
+        `Attachments: ${fixturesPath}/attachments\nUnrelated: ${home}/elsewhere\n`,
       );
 
       try {
@@ -97,9 +99,8 @@ describe("ReadFile", () => {
         expect(value.state).toBe("exists");
         if (value.state === "exists") {
           expect(value.content).toContain("Attachments: ./attachments");
-          expect(value.content).toContain("Cache: ~/Library/Caches");
           expect(value.content).not.toContain(fixturesPath);
-          expect(value.content).not.toContain(home);
+          expect(value.content).toContain(`Unrelated: ${home}/elsewhere`);
         }
       } finally {
         await fs.rm(probePath, { force: true });

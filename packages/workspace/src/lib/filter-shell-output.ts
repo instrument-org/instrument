@@ -44,25 +44,15 @@ export function filterShellOutput(output: string, dir: TaskDir): string {
 }
 
 /**
- * Replace host filesystem paths with their sandbox-shaped forms: the task dir
- * becomes ".", the host home dir becomes "~". Keeps the host layout and the
- * username out of anything that re-enters the model or a user-facing
- * deliverable -- shell output (via filterShellOutput) and file contents read
- * back through read_file/grep. A script that calls `.resolve()` /
- * `os.path.abspath` can otherwise write a real host path into a file the agent
- * then reads.
+ * redactTaskDir plus the host home dir -> "~". The home pass keeps the username
+ * and host layout out of subprocess output (the pnpm store/cache/dlx paths and
+ * tool stack traces sit beneath the home dir). It is deliberately NOT applied
+ * to file contents -- read_file/grep use redactTaskDir alone -- because a file
+ * may legitimately hold an absolute home path, and rewriting it would mangle a
+ * path the agent then edits or reports back.
  */
 export function redactHostPaths(text: string, dir: TaskDir): string {
-  let redacted = text;
-  for (const variant of pathVariants(dir)) {
-    redacted = redacted.replaceAll(
-      new RegExp(escapeRegExp(variant), "gi"),
-      ".",
-    );
-  }
-
-  // The pnpm store/cache/dlx paths and tool stack traces sit beneath the home
-  // dir. Runs after the task-dir pass so task paths still collapse to ".".
+  let redacted = redactTaskDir(text, dir);
   const home = os.homedir();
   if (home) {
     for (const variant of pathVariants(home)) {
@@ -72,7 +62,23 @@ export function redactHostPaths(text: string, dir: TaskDir): string {
       );
     }
   }
+  return redacted;
+}
 
+/**
+ * Collapse the task dir to "." wherever it appears. Safe for file contents: a
+ * full task-dir path in a file is essentially always a leak (a script resolved
+ * an absolute path via `.resolve()` / `__file__`), never legitimate content, so
+ * redacting it can't mangle a path the agent needs to read or edit verbatim.
+ */
+export function redactTaskDir(text: string, dir: TaskDir): string {
+  let redacted = text;
+  for (const variant of pathVariants(dir)) {
+    redacted = redacted.replaceAll(
+      new RegExp(escapeRegExp(variant), "gi"),
+      ".",
+    );
+  }
   return redacted;
 }
 

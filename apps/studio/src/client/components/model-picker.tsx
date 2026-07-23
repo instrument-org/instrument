@@ -400,14 +400,22 @@ function AutoModeSwitch({
 
   return (
     <div
-      className="flex flex-col gap-1 px-4 py-3"
+      className="flex flex-col gap-1 px-4 py-3 select-none hover:bg-accent"
       onClick={(e) => {
         e.stopPropagation();
+        onCheckedChange(!checked);
       }}
+      role="button"
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Auto</span>
-        <Switch checked={checked} onCheckedChange={onCheckedChange} />
+        <Switch
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        />
       </div>
       <span className="text-xs text-muted-foreground">
         Selects the best model for your task

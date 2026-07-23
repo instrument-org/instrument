@@ -130,6 +130,7 @@ const config: Configuration = {
       CFBundleIconName: "icon",
       // Restrict macOS verification-code AutoFill to explicitly annotated OTP fields.
       NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
+      NSLocalNetworkUsageDescription: `${APP_NAME} uses your local network to connect to tools needed for your tasks.`,
     },
     gatekeeperAssess: false,
     hardenedRuntime: true,

@@ -8,6 +8,7 @@ export const TOOL_NAMES = {
   loadSkill: "load_skill",
   readFile: "read_file",
   unavailable: "unavailable",
+  webFetch: "web_fetch",
   webSearch: "web_search",
   writeFile: "write_file",
 } as const;

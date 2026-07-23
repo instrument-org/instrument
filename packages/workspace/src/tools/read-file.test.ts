@@ -76,6 +76,36 @@ describe("ReadFile", () => {
       }
     });
 
+    it("redacts host paths a script wrote into a file", async () => {
+      // A script that resolved an absolute path can write a real host path into
+      // a deliverable; reading it back must not leak the host layout/username.
+      const home = os.homedir();
+      const probePath = path.join(fixturesPath, "redact-probe.txt");
+      await fs.writeFile(
+        probePath,
+        `Attachments: ${fixturesPath}/attachments\nCache: ${home}/Library/Caches\n`,
+      );
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./redact-probe.txt" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("exists");
+        if (value.state === "exists") {
+          expect(value.content).toContain("Attachments: ./attachments");
+          expect(value.content).toContain("Cache: ~/Library/Caches");
+          expect(value.content).not.toContain(fixturesPath);
+          expect(value.content).not.toContain(home);
+        }
+      } finally {
+        await fs.rm(probePath, { force: true });
+      }
+    });
+
     it("reads a file from a read-only attached folder by its mount path", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {

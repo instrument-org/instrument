@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -435,6 +437,42 @@ describe("Grep", () => {
           },
         ]
       `);
+    });
+
+    it("redacts host paths from matched line text", async () => {
+      // A matched line can carry a host path a script resolved and wrote to a
+      // file; it must not leak the host layout/username back to the model.
+      const fixturesPath = path.join(
+        import.meta.dirname,
+        "../../fixtures/file-system",
+      );
+      const home = os.homedir();
+      const probePath = path.join(fixturesPath, "grep-redact-probe.txt");
+      await fs.writeFile(
+        probePath,
+        `MARKERXYZ path ${fixturesPath}/output and ${home}/Library\n`,
+      );
+
+      try {
+        const result = await runTool(TOOLS.Grep, {
+          agentName: "main",
+          input: { explanation: "probe", pattern: "MARKERXYZ" },
+          model,
+          signal: AbortSignal.timeout(10_000),
+          spawnAgent: vi.fn(),
+          taskId: createFixturesTaskConfig(),
+          taskState: {},
+        });
+
+        const value = result._unsafeUnwrap();
+        expect(value.matches).toHaveLength(1);
+        const [match] = value.matches;
+        expect(match?.lineText).toBe("MARKERXYZ path ./output and ~/Library");
+        expect(match?.lineText).not.toContain(fixturesPath);
+        expect(match?.lineText).not.toContain(home);
+      } finally {
+        await fs.rm(probePath, { force: true });
+      }
     });
 
     it("searches a read-only attached folder by mount path, returning mount paths", async () => {

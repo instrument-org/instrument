@@ -18,27 +18,7 @@ const URL_USERINFO_PATTERN = /([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi;
 const CREDENTIAL_FIELD_PATTERN = /^(password|username)=.*$/gim;
 
 export function filterShellOutput(output: string, dir: TaskDir): string {
-  let filtered = output;
-  for (const variant of pathVariants(dir)) {
-    filtered = filtered.replaceAll(
-      new RegExp(escapeRegExp(variant), "gi"),
-      ".",
-    );
-  }
-
-  // Redact the host home dir (the pnpm store/cache/dlx paths and tool stack
-  // traces sit beneath it) so output stays sandbox-shaped and never leaks the
-  // host layout or username. Runs after the task-dir pass so task paths still
-  // collapse to ".".
-  const home = os.homedir();
-  if (home) {
-    for (const variant of pathVariants(home)) {
-      filtered = filtered.replaceAll(
-        new RegExp(escapeRegExp(variant), "gi"),
-        "~",
-      );
-    }
-  }
+  let filtered = redactHostPaths(output, dir);
 
   // Redact credentials embedded in a URL's userinfo (`https://user:token@host`,
   // `https://token@host`), the form a token reaches git, curl, and package
@@ -63,6 +43,39 @@ export function filterShellOutput(output: string, dir: TaskDir): string {
   return filtered;
 }
 
+/**
+ * Replace host filesystem paths with their sandbox-shaped forms: the task dir
+ * becomes ".", the host home dir becomes "~". Keeps the host layout and the
+ * username out of anything that re-enters the model or a user-facing
+ * deliverable -- shell output (via filterShellOutput) and file contents read
+ * back through read_file/grep. A script that calls `.resolve()` /
+ * `os.path.abspath` can otherwise write a real host path into a file the agent
+ * then reads.
+ */
+export function redactHostPaths(text: string, dir: TaskDir): string {
+  let redacted = text;
+  for (const variant of pathVariants(dir)) {
+    redacted = redacted.replaceAll(
+      new RegExp(escapeRegExp(variant), "gi"),
+      ".",
+    );
+  }
+
+  // The pnpm store/cache/dlx paths and tool stack traces sit beneath the home
+  // dir. Runs after the task-dir pass so task paths still collapse to ".".
+  const home = os.homedir();
+  if (home) {
+    for (const variant of pathVariants(home)) {
+      redacted = redacted.replaceAll(
+        new RegExp(escapeRegExp(variant), "gi"),
+        "~",
+      );
+    }
+  }
+
+  return redacted;
+}
+
 export function shouldFilterDebuggerMessage(message: string): boolean {
   return (
     shouldFilter() &&
@@ -75,19 +88,50 @@ function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// macOS firmlinks: a resolved path under these roots canonicalizes to its
+// /private-prefixed spelling (`/var/folders/...` -> `/private/var/folders/...`),
+// so a task or home dir handed in one spelling must be redacted in the other.
+const FIRMLINK_ROOTS = ["/var", "/tmp", "/etc"];
+
+function firmlinkSpellings(value: string): string[] {
+  const spellings = [value];
+  for (const root of FIRMLINK_ROOTS) {
+    if (value === root || value.startsWith(`${root}/`)) {
+      spellings.push(`/private${value}`);
+    }
+    const priv = `/private${root}`;
+    if (value === priv || value.startsWith(`${priv}/`)) {
+      spellings.push(value.slice("/private".length));
+    }
+  }
+  return spellings;
+}
+
 /**
- * Every spelling of a path that can appear in subprocess output: as given,
- * slash-normalized, backslash-separated, and the string-escaped form of each
- * -- printed error objects render Windows paths with doubled backslashes
- * (`path: 'C:\\Users\\...'`), which the plain variants never match.
+ * Every spelling of a path that can appear in subprocess output or file
+ * contents: as given, slash-normalized, backslash-separated, the string-escaped
+ * form of each (printed error objects render Windows paths with doubled
+ * backslashes -- `path: 'C:\\Users\\...'` -- which the plain variants never
+ * match), and each macOS firmlink spelling of all the above.
  */
-function pathVariants(value: string): Set<string> {
-  const normalized = normalizePath(value);
-  const base = [value, normalized, normalized.replaceAll("/", "\\")];
-  const escaped = base
-    .filter((variant) => variant.includes("\\"))
-    .map((variant) => variant.replaceAll("\\", "\\\\"));
-  return new Set([...base, ...escaped]);
+function pathVariants(value: string): string[] {
+  const variants = new Set<string>();
+  for (const spelling of firmlinkSpellings(value)) {
+    const normalized = normalizePath(spelling);
+    for (const form of [
+      spelling,
+      normalized,
+      normalized.replaceAll("/", "\\"),
+    ]) {
+      variants.add(form);
+      if (form.includes("\\")) {
+        variants.add(form.replaceAll("\\", "\\\\"));
+      }
+    }
+  }
+  // Longest first so a shorter spelling (the bare `/var/...` form) never eats
+  // into a longer one (its `/private/var/...` firmlink spelling) mid-replace.
+  return [...variants].sort((a, b) => b.length - a.length);
 }
 
 function shouldFilter() {

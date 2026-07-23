@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { type TaskDir, TaskDirSchema } from "../schemas/paths";
 import {
   filterShellOutput,
+  redactHostPaths,
   shouldFilterDebuggerMessage,
 } from "./filter-shell-output";
 
@@ -183,6 +184,36 @@ ${dir}\output\rainbow.pdf`;
           ✓ Caught validation errors:
           TypeError: Cannot read properties of undefined (reading 'forEach')"
     `);
+  });
+});
+
+describe("redactHostPaths", () => {
+  const dir = TaskDirSchema.parse("/absolute/path/to/my task");
+
+  it("collapses the task dir to '.' and the home dir to '~'", () => {
+    const home = os.homedir();
+    const text = `attachments: ${dir}/attachments\ncache: ${home}/Library/Caches/pnpm`;
+
+    expect(redactHostPaths(text, dir)).toBe(
+      "attachments: ./attachments\ncache: ~/Library/Caches/pnpm",
+    );
+  });
+
+  it("redacts a /var task dir written in its /private firmlink spelling", () => {
+    // A script that calls Path(...).resolve() canonicalizes /var -> /private/var.
+    const varDir = TaskDirSchema.parse("/var/folders/dj/abc/T/tasks/my-task");
+    const text =
+      "Wrote report to /private/var/folders/dj/abc/T/tasks/my-task/output/r.txt";
+
+    expect(redactHostPaths(text, varDir)).toBe(
+      "Wrote report to ./output/r.txt",
+    );
+  });
+
+  it("touches only host paths: leaves backslashes and URL credentials alone", () => {
+    const text = String.raw`re=/a\b/ and https://user:tok@example.com`;
+
+    expect(redactHostPaths(text, dir)).toBe(text);
   });
 });
 

@@ -10,6 +10,27 @@ export function isElectronPlatform(value: string): value is ElectronPlatform {
 }
 
 /**
+ * Locate the packaged pnpm CLI entry within the unpacked tree, or `undefined`
+ * if it is missing. Forked as a subprocess to install task dependencies, so it
+ * must be unpacked; pnpm 11 no longer unpacks automatically (see the
+ * `asarUnpack` note in electron-builder.ts), which this guards against.
+ */
+export function resolvePackagedPnpm(
+  appOutDir: string,
+  platformName: ElectronPlatform,
+) {
+  const candidate = path.join(
+    resolveUnpackedDir(appOutDir, platformName),
+    "node_modules",
+    "pnpm",
+    "bin",
+    "pnpm.cjs",
+  );
+
+  return existsSync(candidate) ? candidate : undefined;
+}
+
+/**
  * Locate the packaged ripgrep binary within the unpacked tree, or `undefined`
  * if it is missing.
  */

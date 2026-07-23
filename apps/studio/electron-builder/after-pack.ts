@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import {
   type ElectronPlatform,
   isElectronPlatform,
+  resolvePackagedPnpm,
   resolvePackagedRipgrep,
   resolvePackagedUv,
   resolveUnpackedDir,
@@ -20,6 +21,7 @@ export function runAfterPack(context: AfterPackContext) {
   pruneForeignPackagedBinaries(context);
   verifyPackagedRipgrep(context);
   verifyPackagedUv(context);
+  verifyPackagedPnpm(context);
 }
 
 // Only a binary matching the host platform AND arch can be executed during
@@ -68,6 +70,22 @@ function pruneForeignPackagedBinaries(context: AfterPackContext) {
       `afterPack: pruned ${removed.length} foreign binaries: ${removed.join(", ")}`,
     );
   }
+}
+
+function verifyPackagedPnpm(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    throw new Error(`Unsupported electron platform: ${platformName}`);
+  }
+
+  const binaryPath = resolvePackagedPnpm(context.appOutDir, platformName);
+  if (!binaryPath) {
+    throw new Error(
+      `Could not locate packaged pnpm at node_modules/pnpm/bin/pnpm.cjs under ${context.appOutDir} for ${platformName} ${Arch[context.arch]}. It must be listed in electron-builder \`asarUnpack\` so it can be forked to install task dependencies.`,
+    );
+  }
+
+  console.log(`afterPack: verified pnpm at ${binaryPath}`);
 }
 
 function verifyPackagedRipgrep(context: AfterPackContext) {

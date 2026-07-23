@@ -41,7 +41,18 @@ const config: Configuration = {
   // dugite's git distribution has to sit on the real filesystem to be
   // executable; dugite resolves it by rewriting `app.asar` to
   // `app.asar.unpacked` and gets ENOENT if it was never unpacked.
-  asarUnpack: ["resources/**", "**/node_modules/dugite/git/**"],
+  //
+  // pnpm is forked as a subprocess (`pnpm/bin/pnpm.cjs`) to install task
+  // dependencies, so it too must live on the real filesystem. pnpm 11 bundles
+  // its own dependencies and ships no top-level native module, so
+  // electron-builder's automatic native-module unpacking no longer covers it
+  // (pnpm 10 was unpacked as a side effect of its top-level reflink `.node`).
+  // Unpack it explicitly; afterPack verifies the entry survived.
+  asarUnpack: [
+    "resources/**",
+    "**/node_modules/dugite/git/**",
+    "**/node_modules/pnpm/**",
+  ],
   directories: {
     buildResources: "build",
     output: process.env.ELECTRON_BUILDER_OUTPUT_DIR ?? "dist",

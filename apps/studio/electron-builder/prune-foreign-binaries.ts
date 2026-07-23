@@ -107,8 +107,10 @@ function pruneAgentBrowser({
   return removed;
 }
 
-// pnpm bundles `dist/reflink.{platform}-{arch}-*.node` for every target. Keep
-// only the current platform+arch addon.
+// pnpm bundles the reflink addon as `@reflink/reflink-{platform}-{arch}`
+// packages under `dist/node_modules/@reflink/`, one per target. Keep only the
+// current platform+arch package and drop the rest; reflink is an optional
+// copy-on-write store optimization that falls back cleanly when absent.
 function prunePnpmReflink({
   arch,
   platform,
@@ -118,20 +120,31 @@ function prunePnpmReflink({
   platform: ElectronPlatform;
   unpackedDir: string;
 }) {
-  const distDir = path.join(unpackedDir, "node_modules", "pnpm", "dist");
-  if (!existsSync(distDir)) {
+  const reflinkDir = path.join(
+    unpackedDir,
+    "node_modules",
+    "pnpm",
+    "dist",
+    "node_modules",
+    "@reflink",
+  );
+  if (!existsSync(reflinkDir)) {
     return [];
   }
 
+  // Windows packages carry a `-msvc` suffix (e.g. reflink-win32-x64-msvc);
+  // darwin does not. The runtime picks the package matching the build target.
+  const keep =
+    platform === "win32"
+      ? `reflink-win32-${arch}-msvc`
+      : `reflink-${platform}-${arch}`;
+
   const removed: string[] = [];
-  for (const entry of readdirSync(distDir)) {
-    if (!entry.startsWith("reflink.") || !entry.endsWith(".node")) {
+  for (const entry of readdirSync(reflinkDir)) {
+    if (!entry.startsWith("reflink-") || entry === keep) {
       continue;
     }
-    if (entry.startsWith(`reflink.${platform}-${arch}-`)) {
-      continue;
-    }
-    rmSync(path.join(distDir, entry), { force: true });
+    rmSync(path.join(reflinkDir, entry), { force: true, recursive: true });
     removed.push(entry);
   }
   return removed;

@@ -181,6 +181,12 @@ function MarkdownPreview({ url }: { url: string }) {
   return <SessionMarkdown className="p-8" markdown={data ?? ""} />;
 }
 
+// Syntax highlighting round-trips the whole file through the highlighter and
+// injects a per-token DOM node for every line at once, so its cost scales with
+// file size; large files (e.g. a 50k-row generated CSV) freeze the viewer.
+// Above this size we skip highlighting and render plain text.
+const MAX_SYNTAX_HIGHLIGHT_CHARS = 512 * 1024;
+
 function TextView({
   children,
   filename,
@@ -203,8 +209,10 @@ function TextView({
   });
 
   const language = getLanguageFromFilePath(filename);
+  const canHighlight =
+    data != null && data.length <= MAX_SYNTAX_HIGHLIGHT_CHARS;
   const { highlightedHtml } = useSyntaxHighlighting({
-    code: language ? data : undefined,
+    code: language && canHighlight ? data : undefined,
     language,
   });
 
@@ -240,7 +248,7 @@ function TextView({
     );
   }
 
-  if (language) {
+  if (language && canHighlight) {
     // Delay showing plain text fallback to give syntax highlighting time to load
     return (
       <motion.div

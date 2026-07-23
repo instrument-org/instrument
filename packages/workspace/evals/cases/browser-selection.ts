@@ -69,9 +69,11 @@ const usedTaskBrowserOnly: Assertion = {
 const usedProfileForLogins: Assertion = {
   check: ({ sessions }) => {
     const commands = agentBrowserCommands(sessions);
-    const profileCommands = commands.filter(
-      (command) =>
-        command.includes("--profile") || /\bprofiles\b/.test(command),
+    // Reaching the login requires opening a page under the profile. A bare
+    // `profiles` listing only discovers profile names and never touches the
+    // logged-in state, so it does not count on its own.
+    const profileCommands = commands.filter((command) =>
+      command.includes("--profile"),
     );
     const bareOpens = commands.filter(
       (command) =>
@@ -88,10 +90,10 @@ const usedProfileForLogins: Assertion = {
           ? "No agent-browser invocations (agent deferred to the user)"
           : `Profile-flow: ${profileCommands.join(" | ") || "(none)"}; bare opens: ${bareOpens.join(" | ") || "(none)"}`,
       passed,
-      text: "Reached the user's logins via --profile/profiles, not the task browser",
+      text: "Reached the user's logins via --profile, not the task browser",
     };
   },
-  text: "Reached the user's logins via --profile/profiles, not the task browser",
+  text: "Reached the user's logins via --profile, not the task browser",
 };
 
 const usedCdpTarget: Assertion = {

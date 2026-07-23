@@ -28,9 +28,6 @@ const INPUT_PARAMS = {
 
 export const WebFetch = setupTool({
   inputSchema: BaseInputSchema.extend({
-    [INPUT_PARAMS.url]: z.string().meta({
-      description: "The http(s) URL to fetch.",
-    }),
     [INPUT_PARAMS.format]: z.enum(FETCH_FORMATS).optional().meta({
       description:
         "Return format for HTML pages: 'markdown' (default, readable) or 'html' (raw). Ignored for non-HTML content.",
@@ -44,6 +41,9 @@ export const WebFetch = setupTool({
       .meta({
         description: `Optional request timeout in seconds (max ${MAX_TIMEOUT_SECONDS}).`,
       }),
+    [INPUT_PARAMS.url]: z.string().meta({
+      description: "The http(s) URL to fetch.",
+    }),
   }),
   name: "web_fetch",
   outputSchema: z.discriminatedUnion("state", [
@@ -137,21 +137,21 @@ export const WebFetch = setupTool({
   },
 });
 
-function parseHttpUrl(raw: string): URL | undefined {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return undefined;
-  }
-  return url.protocol === "http:" || url.protocol === "https:"
-    ? url
-    : undefined;
-}
-
 type FetchTextualResult =
   | { contentType: string; ok: true; text: string }
   | { error: string; ok: false };
+
+function convert(content: string, mime: string, format: FetchFormat): string {
+  if (!isHtmlMime(mime) || format === "html") {
+    return content;
+  }
+  try {
+    return NodeHtmlMarkdown.translate(content);
+  } catch {
+    // Fall back to the raw HTML if conversion fails on malformed markup.
+    return content;
+  }
+}
 
 async function fetchTextual({
   format,
@@ -203,17 +203,8 @@ async function fetchTextual({
   return { contentType, ok: true, text: convert(body.text, mime, format) };
 }
 
-function requestHeaders(userAgent: string): Record<string, string> {
-  return {
-    Accept:
-      "text/markdown;q=1.0, text/html;q=0.9, text/plain;q=0.8, application/json;q=0.8, */*;q=0.1",
-    "Accept-Language": "en-US,en;q=0.9",
-    "User-Agent": userAgent,
-  };
-}
-
-function mimeType(contentType: string): string {
-  return contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+function isHtmlMime(mime: string): boolean {
+  return mime === "text/html" || mime === "application/xhtml+xml";
 }
 
 function isTextualMime(mime: string): boolean {
@@ -229,26 +220,26 @@ function isTextualMime(mime: string): boolean {
   );
 }
 
-function isHtmlMime(mime: string): boolean {
-  return mime === "text/html" || mime === "application/xhtml+xml";
+function mimeType(contentType: string): string {
+  return contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 }
 
-function convert(content: string, mime: string, format: FetchFormat): string {
-  if (!isHtmlMime(mime) || format === "html") {
-    return content;
-  }
+function parseHttpUrl(raw: string): undefined | URL {
+  let url: URL;
   try {
-    return NodeHtmlMarkdown.translate(content);
+    url = new URL(raw);
   } catch {
-    // Fall back to the raw HTML if conversion fails on malformed markup.
-    return content;
+    return undefined;
   }
+  return url.protocol === "http:" || url.protocol === "https:"
+    ? url
+    : undefined;
 }
 
 async function readBoundedText(
   response: Response,
   maxBytes: number,
-): Promise<{ ok: true; text: string } | { error: string; ok: false }> {
+): Promise<{ error: string; ok: false } | { ok: true; text: string }> {
   if (!response.body) {
     return { error: "Response had no body.", ok: false };
   }
@@ -260,17 +251,15 @@ async function readBoundedText(
     if (done) {
       break;
     }
-    if (value) {
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        return {
-          error: `Response too large (exceeds ${maxBytes} bytes).`,
-          ok: false,
-        };
-      }
-      chunks.push(value);
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return {
+        error: `Response too large (exceeds ${maxBytes} bytes).`,
+        ok: false,
+      };
     }
+    chunks.push(value);
   }
   const bytes = new Uint8Array(total);
   let offset = 0;
@@ -279,4 +268,13 @@ async function readBoundedText(
     offset += chunk.byteLength;
   }
   return { ok: true, text: new TextDecoder().decode(bytes) };
+}
+
+function requestHeaders(userAgent: string): Record<string, string> {
+  return {
+    Accept:
+      "text/markdown;q=1.0, text/html;q=0.9, text/plain;q=0.8, application/json;q=0.8, */*;q=0.1",
+    "Accept-Language": "en-US,en;q=0.9",
+    "User-Agent": userAgent,
+  };
 }

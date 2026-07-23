@@ -12,8 +12,13 @@ interface BinaryConfig {
   name: string;
 }
 
+// pnpm.mjs is pnpm's canonical entry (its package.json maps the `pnpm` bin to
+// it) and the only executable one -- pnpm 11's bin/pnpm.cjs is a non-executable
+// "older Corepack" compatibility shim. We fork this with node ourselves (where
+// either would run), but the PATH shim below is exec'd directly by child
+// processes, so it must be the executable .mjs.
 export function getPNPMBinPath(): string {
-  return getNodeModulePath("pnpm", "bin", "pnpm.cjs");
+  return getNodeModulePath("pnpm", "bin", "pnpm.mjs");
 }
 
 // The uv binary is vendored into `resources/uv/` (see scripts/download-uv.ts),
@@ -117,7 +122,7 @@ function getBinaryConfigs(): BinaryConfig[] {
 
   return [
     {
-      getTargetPath: () => getNodeModulePath("pnpm", "bin", "pnpm.cjs"),
+      getTargetPath: () => getNodeModulePath("pnpm", "bin", "pnpm.mjs"),
       name: "pnpm",
     },
     {

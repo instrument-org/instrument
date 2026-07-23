@@ -24,7 +24,7 @@ export function resolvePackagedPnpm(
     "node_modules",
     "pnpm",
     "bin",
-    "pnpm.cjs",
+    "pnpm.mjs",
   );
 
   return existsSync(candidate) ? candidate : undefined;

@@ -61,15 +61,19 @@ export function parseOpenRouterModelsList({
       const { author, modelId } = split;
       const canonicalId = AIGatewayModel.CanonicalIdSchema.parse(modelId);
 
-      validModels.push(
-        mapOpenRouterShapedModel({
-          author,
-          canonicalId,
-          config,
-          model,
-          providerId,
-        }),
-      );
+      const mapped = mapOpenRouterShapedModel({
+        author,
+        canonicalId,
+        config,
+        model,
+        providerId,
+      });
+
+      if (!mapped.features.includes("tools")) {
+        continue;
+      }
+
+      validModels.push(mapped);
     }
 
     const baseModelsWithExacto = new Set<string>();

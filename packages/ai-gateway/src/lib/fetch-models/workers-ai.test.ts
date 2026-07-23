@@ -111,10 +111,12 @@ describe("fetchAndParseWorkersAiModels", () => {
             openRouterModel({
               id: "@cf/moonshotai/kimi-k2.6",
               name: "Kimi K2.6",
+              supported_features: ["tools"],
             }),
             openRouterModel({
               id: "@cf/meta/llama-4-scout-17b-16e-instruct",
               name: "Llama 4 Scout",
+              supported_features: ["tools"],
             }),
             openRouterModel({
               id: "@cf/qwen/qwen3-embedding-0.6b",
@@ -178,6 +180,7 @@ describe("fetchAndParseWorkersAiModels", () => {
       openRouterModel({
         id: `@cf/meta/model-${index}`,
         name: `Model ${index}`,
+        supported_features: ["tools"],
       }),
     );
 
@@ -194,6 +197,7 @@ describe("fetchAndParseWorkersAiModels", () => {
               openRouterModel({
                 id: "@cf/openai/gpt-oss-120b",
                 name: "GPT OSS 120B",
+                supported_features: ["tools"],
               }),
             ]),
           ),
@@ -239,9 +243,6 @@ describe("fetchAndParseWorkersAiModels", () => {
     expect(result.value.map((m) => m.providerId)).toMatchInlineSnapshot(`
       [
         "@cf/openai/gpt-oss-120b",
-        "@cf/meta/llama-3.2-11b-vision-instruct",
-        "@cf/meta/llama-3.2-3b-instruct",
-        "@cf/qwen/qwq-32b",
       ]
     `);
     expect(
@@ -256,31 +257,6 @@ describe("fetchAndParseWorkersAiModels", () => {
             "tools",
           ],
           "id": "@cf/openai/gpt-oss-120b",
-        },
-        {
-          "features": [
-            "inputText",
-            "inputFile",
-            "inputImage",
-            "outputText",
-          ],
-          "id": "@cf/meta/llama-3.2-11b-vision-instruct",
-        },
-        {
-          "features": [
-            "inputText",
-            "inputFile",
-            "outputText",
-          ],
-          "id": "@cf/meta/llama-3.2-3b-instruct",
-        },
-        {
-          "features": [
-            "inputText",
-            "inputFile",
-            "outputText",
-          ],
-          "id": "@cf/qwen/qwq-32b",
         },
       ]
     `);

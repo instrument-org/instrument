@@ -4,7 +4,6 @@ import { fork, listify } from "radashi";
 
 interface GroupedModels {
   Legacy: AIGatewayModel.Type[];
-  "May not support tools": AIGatewayModel.Type[];
   New: AIGatewayModel.Type[];
   Other: AIGatewayModel.Type[];
   Recommended: AIGatewayModel.Type[];
@@ -44,11 +43,7 @@ export function groupAndFilterModels({
     (model) => model.tags.includes("default"),
   );
 
-  const [supportsTools, doesNotSupportTools] = fork(notRecommended, (model) =>
-    model.features.includes("tools"),
-  );
-
-  const [newModels, notNewModels] = fork(supportsTools, (model) =>
+  const [newModels, notNewModels] = fork(notRecommended, (model) =>
     model.tags.includes("new"),
   );
 
@@ -66,7 +61,6 @@ export function groupAndFilterModels({
     New: prioritizeOurModels(newModels),
     Other: prioritizeOurModels(notLegacy),
     Legacy: prioritizeOurModels(legacy),
-    "May not support tools": prioritizeOurModels(doesNotSupportTools),
   };
   /* eslint-enable perfectionist/sort-objects */
 

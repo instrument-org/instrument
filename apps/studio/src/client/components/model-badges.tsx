@@ -10,7 +10,6 @@ import {
   TextTSlashIcon,
   VideoCameraIcon,
   WaveformIcon,
-  WrenchIcon,
 } from "@phosphor-icons/react";
 import { tv, type VariantProps } from "tailwind-variants";
 
@@ -110,13 +109,6 @@ const BADGE_CONFIGS: BadgeConfig[] = [
     key: "no-text",
     shouldShow: (model) => !model.features.includes("inputText"),
     tooltip: "This model cannot process text prompts",
-  },
-  {
-    color: "destructive",
-    icon: WrenchIcon,
-    key: "no-tools",
-    shouldShow: (model) => !model.features.includes("tools"),
-    tooltip: "This model cannot use tools to perform actions",
   },
 ];
 

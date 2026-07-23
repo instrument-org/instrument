@@ -4,6 +4,7 @@ import { NodeHtmlMarkdown } from "node-html-markdown";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { SKILL_NAMES } from "../lib/skill-names";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -82,7 +83,7 @@ export const WebFetch = setupTool({
     - Following a link surfaced by web_search
     - Pulling text or JSON from a known endpoint
 
-    This is a lightweight, read-only fetch of the page's server-returned HTML. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. Binary files such as images and PDFs are not supported here.
+    This is a lightweight, read-only fetch of the page's server-returned HTML. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. For a PDF or office document, download it into the task folder and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to read it.
   `,
   async execute({ input, signal }) {
     const parsedUrl = parseHttpUrl(input.url);
@@ -207,10 +208,7 @@ async function fetchTextual({
   const contentType = response.headers.get("content-type") ?? "";
   const mime = mimeType(contentType);
   if (!isTextualMime(mime)) {
-    return {
-      error: `Unsupported content type "${mime || "unknown"}". web_fetch only reads text, HTML, and JSON pages; use the browser for this URL.`,
-      ok: false,
-    };
+    return { error: unsupportedContentMessage(mime), ok: false };
   }
 
   const body = await readBoundedText(response, MAX_RESPONSE_BYTES);
@@ -227,6 +225,18 @@ async function fetchTextual({
     truncated,
   };
 }
+
+// Documents the workspace can already read once they are on disk, via the
+// `pdf` / `document-to-markdown` skills. Worth routing to rather than refusing.
+const DOCUMENT_MIMES = new Set([
+  "application/msword",
+  "application/pdf",
+  "application/vnd.ms-excel",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
 
 function isHtmlMime(mime: string): boolean {
   return mime === "text/html" || mime === "application/xhtml+xml";
@@ -302,4 +312,12 @@ function requestHeaders(userAgent: string): Record<string, string> {
     "Accept-Language": "en-US,en;q=0.9",
     "User-Agent": userAgent,
   };
+}
+
+function unsupportedContentMessage(mime: string): string {
+  const label = mime || "unknown";
+  if (DOCUMENT_MIMES.has(mime)) {
+    return `web_fetch cannot read "${label}" documents directly. Download the file into the task folder (for example \`curl -L -o\`), then use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.`;
+  }
+  return `Unsupported content type "${label}". web_fetch reads text, HTML, and JSON pages. If the page needs JavaScript, a login, or interaction, use the browser instead.`;
 }

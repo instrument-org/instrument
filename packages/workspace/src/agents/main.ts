@@ -23,6 +23,7 @@ import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
+import { SKILL_NAMES } from "../lib/skill-names";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import {
@@ -233,7 +234,8 @@ export const mainAgent = setupAgent({
 
     ## Reading Web Pages
     You have the \`${agentTools.WebFetch.name}\` tool to read the contents of a specific URL -- an article, docs page, forum thread, API reference, or a link found via \`${agentTools.WebSearch.name}\`. It returns the page as Markdown and is far faster and cheaper than a browser, so prefer it whenever you just need to read a page.
-    - It fetches the page's server-returned HTML only: it does not run JavaScript, log in, or interact with the page, and it cannot read binary files like images or PDFs. When a page is client-rendered, sits behind a login, or needs clicks, forms, scrolling, or visual confirmation, \`${agentTools.WebFetch.name}\` will fall short -- use a browser-based approach instead.
+    - It fetches the page's server-returned HTML only: it does not run JavaScript, log in, or interact with the page. When a page is client-rendered, sits behind a login, or needs clicks, forms, scrolling, or visual confirmation, \`${agentTools.WebFetch.name}\` will fall short -- use a browser-based approach instead.
+    - It does not read binary files. When a URL points at a PDF or office document, download it into the task folder with \`${agentTools.BashTool.name}\` (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.
 
     # Producing Deliverables
     Prefer generating content -- visualizations, documents, media -- as files in \`${F.output}/\`. Create or edit a file when the user wants a reusable work product, will share or revise it outside the conversation, or refers to a document, report, presentation, spreadsheet, image, or other file. Don't make the user name a file format when their intended use makes the right one clear.

@@ -6,7 +6,7 @@ import { type TaskId } from "@instrument-org/workspace/client";
 // already sitting on the task clears at once so its dot never dwells on screen.
 export const VIEW_CLEAR_DELAY_MS = 500;
 
-interface ClearOnViewState {
+interface TaskIndicatorViewState {
   // The task the hook is currently rendering.
   currentId: TaskId;
   // Whether the hook's tab is the foreground tab right now.
@@ -25,14 +25,14 @@ interface ClearOnViewState {
 // Decides whether a viewed task's unread indicator should clear, and after how
 // long -- `null` means leave it. Kept pure (no React, no timers) because this
 // branching is where the bugs lived; the surrounding hook is thin plumbing.
-export function planClearOnView({
+export function getTaskIndicatorClearDelay({
   currentId,
   isActiveTab,
   isManual,
   isUnread,
   previousId,
   wasActive,
-}: ClearOnViewState): null | { delayMs: number } {
+}: TaskIndicatorViewState): null | number {
   // Only the foreground tab clears its own indicator, and only when unread.
   if (!isUnread || !isActiveTab) {
     return null;
@@ -52,5 +52,5 @@ export function planClearOnView({
 
   // Debounce only a fresh arrival; a mark that appears while we're already here
   // -- the task finished under our eyes -- clears immediately.
-  return { delayMs: justArrived ? VIEW_CLEAR_DELAY_MS : 0 };
+  return justArrived ? VIEW_CLEAR_DELAY_MS : 0;
 }

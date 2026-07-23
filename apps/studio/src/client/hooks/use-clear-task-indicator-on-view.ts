@@ -4,14 +4,14 @@ import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
-import { planClearOnView } from "./clear-task-indicator-plan";
+import { getTaskIndicatorClearDelay } from "./task-indicator-clear-delay";
 
 // Clears a task's unread indicator once it is actually being viewed -- i.e. it is
 // the foreground tab (every tab stays mounted in one renderer, so `useIsActiveTab`
 // is what distinguishes them) and the window is visible (not minimized/occluded).
-// The clear/hold/debounce decision lives in `planClearOnView`; this hook is the
-// React plumbing around it: subscribe to the task, remember the prior view state,
-// run the timer, and gate on window visibility.
+// The clear/hold/debounce decision lives in `getTaskIndicatorClearDelay`; this
+// hook is the React plumbing around it: subscribe to the task, remember the
+// prior view state, run the timer, and gate on window visibility.
 export function useClearTaskIndicatorOnView(id: TaskId) {
   // The task page already subscribes to this same byId stream, so this shares
   // its data rather than adding a fetch.
@@ -28,14 +28,14 @@ export function useClearTaskIndicatorOnView(id: TaskId) {
     rpcClient.workspace.task.clearIndicator.mutationOptions(),
   );
 
-  // Previous render's foreground state and viewed task id, so the plan can tell
-  // a fresh arrival from sitting on a task that was already open. Both `null`
-  // until the first render, which counts as an arrival.
+  // Previous render's foreground state and viewed task id distinguish a fresh
+  // arrival from sitting on a task that was already open. Both are `null` until
+  // the first render, which counts as an arrival.
   const wasActive = useRef<boolean | null>(null);
   const previousId = useRef<null | TaskId>(null);
 
   useEffect(() => {
-    const plan = planClearOnView({
+    const clearDelay = getTaskIndicatorClearDelay({
       currentId: id,
       isActiveTab,
       isManual,
@@ -46,7 +46,7 @@ export function useClearTaskIndicatorOnView(id: TaskId) {
     wasActive.current = isActiveTab;
     previousId.current = id;
 
-    if (!plan) {
+    if (clearDelay === null) {
       return;
     }
 
@@ -68,7 +68,7 @@ export function useClearTaskIndicatorOnView(id: TaskId) {
       }
       timer = setTimeout(() => {
         clearIndicator({ id });
-      }, plan.delayMs);
+      }, clearDelay);
     };
 
     scheduleWhileVisible();

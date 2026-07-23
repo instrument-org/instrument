@@ -439,9 +439,10 @@ describe("Grep", () => {
       `);
     });
 
-    it("redacts host paths from matched line text", async () => {
-      // A matched line can carry a host path a script resolved and wrote to a
-      // file; it must not leak the host layout/username back to the model.
+    it("collapses the task dir in matched line text, leaving home paths as data", async () => {
+      // A matched line can carry a task-dir path a script resolved and wrote to
+      // a file; it must not leak the task layout back to the model. An unrelated
+      // home path stays untouched.
       const fixturesPath = path.join(
         import.meta.dirname,
         "../../fixtures/file-system",
@@ -450,13 +451,13 @@ describe("Grep", () => {
       const probePath = path.join(fixturesPath, "grep-redact-probe.txt");
       await fs.writeFile(
         probePath,
-        `MARKERXYZ path ${fixturesPath}/output and ${home}/Library\n`,
+        `MARKER_XYZ path ${fixturesPath}/output and ${home}/Library\n`,
       );
 
       try {
         const result = await runTool(TOOLS.Grep, {
           agentName: "main",
-          input: { explanation: "probe", pattern: "MARKERXYZ" },
+          input: { explanation: "probe", pattern: "MARKER_XYZ" },
           model,
           signal: AbortSignal.timeout(10_000),
           spawnAgent: vi.fn(),
@@ -467,9 +468,10 @@ describe("Grep", () => {
         const value = result._unsafeUnwrap();
         expect(value.matches).toHaveLength(1);
         const [match] = value.matches;
-        expect(match?.lineText).toBe("MARKERXYZ path ./output and ~/Library");
+        expect(match?.lineText).toBe(
+          `MARKER_XYZ path ./output and ${home}/Library`,
+        );
         expect(match?.lineText).not.toContain(fixturesPath);
-        expect(match?.lineText).not.toContain(home);
       } finally {
         await fs.rm(probePath, { force: true });
       }

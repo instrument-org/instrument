@@ -5,6 +5,7 @@ import { type TaskDir, TaskDirSchema } from "../schemas/paths";
 import {
   filterShellOutput,
   redactHostPaths,
+  redactTaskDir,
   shouldFilterDebuggerMessage,
 } from "./filter-shell-output";
 
@@ -199,6 +200,7 @@ describe("redactHostPaths", () => {
     );
   });
 
+  // cspell:ignore firmlink
   it("redacts a /var task dir written in its /private firmlink spelling", () => {
     // A script that calls Path(...).resolve() canonicalizes /var -> /private/var.
     const varDir = TaskDirSchema.parse("/var/folders/dj/abc/T/tasks/my-task");
@@ -214,6 +216,32 @@ describe("redactHostPaths", () => {
     const text = String.raw`re=/a\b/ and https://user:tok@example.com`;
 
     expect(redactHostPaths(text, dir)).toBe(text);
+  });
+});
+
+describe("redactTaskDir", () => {
+  const dir = TaskDirSchema.parse("/absolute/path/to/my task");
+
+  it("collapses the task dir but leaves an unrelated home path (file-content scope)", () => {
+    const home = os.homedir();
+    const text = `in: ${dir}/attachments  home: ${home}/elsewhere`;
+
+    const result = redactTaskDir(text, dir);
+
+    expect(result).toContain("in: ./attachments");
+    expect(result).toContain(`${home}/elsewhere`);
+    expect(result).not.toContain(dir);
+  });
+
+  it("handles the /private firmlink spelling of the task dir", () => {
+    const varDir = TaskDirSchema.parse("/var/folders/dj/abc/T/tasks/my-task");
+
+    expect(
+      redactTaskDir(
+        "wrote /private/var/folders/dj/abc/T/tasks/my-task/out",
+        varDir,
+      ),
+    ).toBe("wrote ./out");
   });
 });
 

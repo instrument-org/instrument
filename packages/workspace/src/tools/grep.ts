@@ -3,7 +3,7 @@ import { err, ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { redactHostPaths } from "../lib/filter-shell-output";
+import { redactTaskDir } from "../lib/filter-shell-output";
 import { grep } from "../lib/grep";
 import { resolveAgentPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
@@ -89,15 +89,15 @@ export const Grep = setupTool({
       signal,
     });
 
-    // Redact any host path a matched line carries (a script may have written a
-    // resolved absolute path into a file), and map ripgrep's attached-mount host
-    // paths back to their virtual /mnt path so no host path leaks and a
-    // follow-up read_file resolves to the same place.
+    // Collapse a task-dir path a matched line carries (a script may have
+    // written a resolved absolute path into a file), and map ripgrep's
+    // attached-mount host paths back to their virtual /mnt path so no host path
+    // leaks and a follow-up read_file resolves to the same place.
     return ok({
       ...result,
       matches: result.matches.map((match) => ({
         ...match,
-        lineText: redactHostPaths(match.lineText, taskDir(taskId)),
+        lineText: redactTaskDir(match.lineText, taskDir(taskId)),
         path: attachedMount
           ? (resolveVirtualPath(layout, match.path) ?? match.path)
           : match.path,

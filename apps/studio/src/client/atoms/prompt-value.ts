@@ -99,11 +99,6 @@ const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
 // Transient drafts, discarded by the composer when it unmounts or re-keys.
 const transientDraftFamily = atomFamily((_id: string) => atom(""));
 
-/** Drop a transient draft so re-opening the surface starts from its prefill. */
-export function removeTransientDraft(id: string) {
-  transientDraftFamily.remove(id);
-}
-
 // Task follow-up drafts, persisted with the task via task-state storage.
 export const taskDraftFamily = atomFamily((taskId: TaskId) =>
   atomWithStorage(
@@ -155,6 +150,12 @@ export function focusPromptDraft(el: HTMLElement | null) {
 
 export function promptDraftRefAtom(key: PromptDraftKey) {
   return promptDraftRefFamily(draftKeyString(key));
+}
+
+/** Drop a transient draft so re-opening the surface starts from its prefill. */
+export function removeTransientDraft(id: string) {
+  transientDraftFamily.remove(id);
+  promptDraftRefFamily.remove(draftKeyString({ id, scope: "transient" }));
 }
 
 // A per-tab focus signal, bumped whenever the active tab navigates in place (see

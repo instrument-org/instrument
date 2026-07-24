@@ -597,7 +597,7 @@ describe("LoadSkill", () => {
 
       This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`/skills/\` to change it.
 
-      This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`pnpm install\` in \`work/\` yourself if you trust it.
+      This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd work/skills/third-party && pnpm install\` yourself if you trust it.
 
       This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into \`work/.venv\` yourself if you trust it.
       </skill_content>"

@@ -30,6 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
@@ -81,13 +82,17 @@ function SkillPage() {
   );
   const navigate = useNavigate();
   const { addTab } = useTabActions();
+  const tabId = useTabId();
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
   // Keyed by skill so navigating between skills starts back at SKILL.md
   // without an effect to reset it.
   const [selection, setSelection] = useState({ file: SKILL_FILE, skill: name });
   const selectedFile = selection.skill === name ? selection.file : SKILL_FILE;
 
-  const draftKey = { id: `skill:${name}`, scope: "transient" } as const;
+  const draftKey = {
+    id: `skill:${tabId}:${name}`,
+    scope: "transient",
+  } as const;
   const setDraft = useSetAtom(promptDraftAtom(draftKey));
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   // Seed the compose box once per skill, showing what invoking it looks like and

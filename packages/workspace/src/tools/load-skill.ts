@@ -320,7 +320,7 @@ export const LoadSkill = setupTool({
         if (installResult.state === "skipped") {
           const installHint =
             installResult.runtime === "node"
-              ? `run \`${PNPM_COMMAND.name} install\` in \`${TASK_FOLDER_NAMES.work}/\``
+              ? `run \`cd ${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}/${output.name} && ${PNPM_COMMAND.name} install\``
               : `install its locked dependencies into \`${TASK_FOLDER_NAMES.work}/.venv\``;
           return [
             `This skill declares ${installResult.runtime === "node" ? "Node.js" : "Python"} dependencies, but ${APP_NAME} did not install them because the skill comes from a third-party skills folder on this machine.`,

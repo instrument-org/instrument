@@ -5,6 +5,7 @@ import { z } from "zod";
 import { REGISTRY_FOLDER_NAMES } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { deleteSkill } from "../../lib/delete-skill";
+import { pathIsWithin } from "../../lib/path-is-within";
 import {
   findSkill,
   findSkills,
@@ -162,21 +163,38 @@ const file = base
     // The caller picks from a list we produced, so containment is a guard
     // against a crafted path rather than an expected case.
     const filePath = path.resolve(skill.skillDir, input.path);
-    if (!filePath.startsWith(skill.skillDir + path.sep)) {
+    if (!pathIsWithin(filePath, skill.skillDir)) {
       throw errors.NOT_FOUND({
         message: `"${input.path}" is not part of the "${input.name}" skill.`,
       });
     }
 
-    const stats = await fs.stat(filePath).catch(() => null);
-    if (!stats?.isFile()) {
+    const stats = await fs.lstat(filePath).catch(() => null);
+    if (!stats) {
       throw errors.NOT_FOUND({ message: `"${input.path}" was not found.` });
     }
-    if (stats.size > FILE_SIZE_LIMIT) {
+
+    const canonicalFilePath = stats.isSymbolicLink()
+      ? await fs.realpath(filePath).catch(() => null)
+      : filePath;
+    if (
+      canonicalFilePath === null ||
+      !pathIsWithin(canonicalFilePath, skill.skillDir)
+    ) {
+      throw errors.NOT_FOUND({
+        message: `"${input.path}" is not part of the "${input.name}" skill.`,
+      });
+    }
+
+    const fileStats = await fs.stat(canonicalFilePath).catch(() => null);
+    if (!fileStats?.isFile()) {
+      throw errors.NOT_FOUND({ message: `"${input.path}" was not found.` });
+    }
+    if (fileStats.size > FILE_SIZE_LIMIT) {
       return { kind: "too-large" } as const;
     }
 
-    const bytes = await fs.readFile(filePath);
+    const bytes = await fs.readFile(canonicalFilePath);
     // A NUL byte is what separates something worth showing as text from an
     // image or a compiled artifact the skill happens to ship.
     if (bytes.includes(0)) {
@@ -194,7 +212,6 @@ const remove = base
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
-    context.workspaceConfig.captureEvent("skill.removed");
   });
 
 export const skill = { byName, file, list, remove };

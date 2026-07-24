@@ -27,8 +27,11 @@ export function SkillFileView({
     }),
     placeholderData: keepPreviousData,
   });
-  const split = data?.kind === "text" ? splitFrontmatter(data.content) : null;
   const isMarkdownFile = isMarkdown(file);
+  const split =
+    data?.kind === "text" && isMarkdownFile
+      ? splitFrontmatter(data.content)
+      : null;
   const { highlightedHtml } = useSyntaxHighlighting({
     code: split?.body,
     language: getLanguageFromFilePath(file),
@@ -99,11 +102,6 @@ export function SkillFileView({
               onCopy={() => navigator.clipboard.writeText(data.content)}
             />
           </div>
-          {split?.frontmatter ? (
-            <pre className="overflow-x-auto border-t px-4 py-3 text-xs text-muted-foreground">
-              {split.frontmatter}
-            </pre>
-          ) : null}
         </div>
         <div
           className="overflow-x-auto p-4 text-xs"
@@ -124,11 +122,6 @@ export function SkillFileView({
             onCopy={() => navigator.clipboard.writeText(data.content)}
           />
         </div>
-        {split?.frontmatter ? (
-          <pre className="overflow-x-auto border-t px-4 py-3 text-xs text-muted-foreground">
-            {split.frontmatter}
-          </pre>
-        ) : null}
       </div>
       <pre className="overflow-x-auto p-4 text-xs">
         {split?.body ?? data.content}

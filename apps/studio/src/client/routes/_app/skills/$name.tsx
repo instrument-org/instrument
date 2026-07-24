@@ -134,7 +134,7 @@ function SkillPage() {
 
   return (
     <div className="h-full overflow-y-auto scroll-fade-y">
-      <div className="mx-auto w-full max-w-4xl px-8 pt-10 pb-12">
+      <div className="mx-auto w-full max-w-5xl px-8 py-12">
         <Link
           className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           to="/skills"
@@ -148,6 +148,7 @@ function SkillPage() {
               <h1 className="font-serif text-3xl tracking-tight">
                 {skill.userInvocable ? `/${skill.name}` : skill.name}
               </h1>
+              <SkillBadges className="flex flex-wrap gap-2" skill={skill} />
               {skill.userInvocable ? (
                 <CopyButton
                   className="shrink-0 rounded-sm p-1 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
@@ -156,17 +157,6 @@ function SkillPage() {
                 />
               ) : null}
             </div>
-            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span>{skillSourceLabel(skill.source)}</span>
-              {!isProvidedSource(skill.source) && (
-                <RevealPath
-                  className="min-w-0 max-w-full"
-                  hideIcon
-                  path={skill.path}
-                />
-              )}
-            </div>
-            <SkillBadges className="mt-2 flex flex-wrap gap-2" skill={skill} />
           </div>
           {skill.editable ? (
             <DropdownMenu>
@@ -219,10 +209,6 @@ function SkillPage() {
             </Tooltip>
           )}
         </div>
-        <p className="mt-4 text-base/relaxed text-muted-foreground">
-          {skill.description}
-        </p>
-
         <div className="mt-8">
           <PromptInput
             allowOpenInNewTab
@@ -273,6 +259,22 @@ function SkillPage() {
             showProjectSelector
           />
         </div>
+        <p className="mt-4 max-h-24 overflow-y-auto pr-2 text-sm/relaxed text-muted-foreground">
+          {skill.description}
+        </p>
+        <div className="mt-6 border-t pt-4">
+          <div className="grid gap-1 text-xs text-muted-foreground">
+            <span>{`Source: ${skillSourceLabel(skill.source)}`}</span>
+            {isProvidedSource(skill.source) ? null : (
+              <RevealPath
+                allowWrap
+                className="max-w-full"
+                hideIcon
+                path={skill.path}
+              />
+            )}
+          </div>
+        </div>
 
         <AlertDialog
           onOpenChange={(open) => {
@@ -307,7 +309,7 @@ function SkillPage() {
             bundled files should not leave a dead gutter. */}
         <div
           className={cn(
-            "mt-12",
+            "mt-8",
             skill.files.length > 0 &&
               "grid gap-10 lg:grid-cols-[minmax(0,1fr)_14rem]",
           )}

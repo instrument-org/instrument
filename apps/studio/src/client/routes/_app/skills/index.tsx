@@ -191,16 +191,21 @@ function SkillsPage() {
                 {groups.map((group) => (
                   <section className="min-w-0" key={group.key}>
                     <div className="mb-4">
-                      <h2 className="text-base font-semibold tracking-tight">
-                        {group.label}
-                      </h2>
-                      {isProvidedSource(group.source) ? null : (
-                        <div className="mt-1 grid gap-0.5">
-                          {group.dirs.map((dir) => (
-                            <RevealPath key={dir} path={dir} />
-                          ))}
-                        </div>
-                      )}
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        <h2 className="text-base font-semibold tracking-tight text-foreground">
+                          {group.label}
+                        </h2>
+                        {isProvidedSource(group.source)
+                          ? null
+                          : group.dirs.map((dir) => (
+                              <RevealPath
+                                className="min-w-0 max-w-full"
+                                hideIcon
+                                key={dir}
+                                path={dir}
+                              />
+                            ))}
+                      </div>
                     </div>
                     <div className="divide-y overflow-hidden rounded-lg border">
                       {group.skills.map((skill) => {
@@ -224,17 +229,17 @@ function SkillsPage() {
                                   text={skill.name}
                                 />
                               </span>
-                              <CopyButton
-                                className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
-                                iconSize={13}
-                                onCopy={() =>
-                                  navigator.clipboard.writeText(
-                                    skill.userInvocable
-                                      ? `/${skill.name}`
-                                      : skill.name,
-                                  )
-                                }
-                              />
+                              {skill.userInvocable ? (
+                                <CopyButton
+                                  className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
+                                  iconSize={13}
+                                  onCopy={() =>
+                                    navigator.clipboard.writeText(
+                                      `/${skill.name}`,
+                                    )
+                                  }
+                                />
+                              ) : null}
                             </div>
                             <div className="min-w-0 flex flex-1 items-center gap-2 text-sm text-muted-foreground">
                               <SkillBadges

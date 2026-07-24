@@ -11,6 +11,10 @@ pnpm monorepo for the Instrument desktop app platform.
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
 - On disk, tasks live under `tasks/<id>/` with `.instrument/{task.db,state.json}`.
 
+## Local references
+
+Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names of sibling repos/checkouts on one dev's disk — not in code, docs, plans, commits, or PRs. Meaningless to others, goes stale when layout changes. Such pointers go in local notes, not shared history.
+
 ## Registry Submodule
 
 **NEVER edit `registry/`.** It is the `instrument-org/skills` git submodule. Read freely; do not create, edit, or delete files there.

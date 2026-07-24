@@ -1,3 +1,4 @@
+import { CopyButton } from "@/client/components/copy-button";
 import { useSyntaxHighlighting } from "@/client/hooks/use-syntax-highlighting";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { rpcClient } from "@/client/rpc/client";
@@ -25,8 +26,9 @@ export function SkillFileView({
     }),
     placeholderData: keepPreviousData,
   });
+  const split = data?.kind === "text" ? splitFrontmatter(data.content) : null;
   const { highlightedHtml } = useSyntaxHighlighting({
-    code: data?.kind === "text" ? data.content : undefined,
+    code: split?.body,
     language: getLanguageFromFilePath(file),
   });
 
@@ -60,16 +62,63 @@ export function SkillFileView({
 
   if (highlightedHtml) {
     return (
-      <div
-        className="overflow-x-auto rounded-lg bg-card p-4 text-xs"
-        dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
-      />
+      <div className="overflow-hidden rounded-lg bg-card">
+        {split?.frontmatter ? (
+          <pre className="overflow-x-auto border-b bg-muted/30 px-4 py-3 text-xs">
+            {split.frontmatter}
+          </pre>
+        ) : null}
+        <div className="flex items-center justify-between border-b px-3 py-2">
+          <h2 className="font-mono text-xs font-medium">{file}</h2>
+          <CopyButton
+            className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+            iconSize={14}
+            onCopy={() => navigator.clipboard.writeText(data.content)}
+          />
+        </div>
+        <div
+          className="overflow-x-auto p-4 text-xs"
+          dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
+        />
+      </div>
     );
   }
 
   return (
-    <pre className="overflow-x-auto rounded-lg bg-card p-4 text-xs">
-      {data.content}
-    </pre>
+    <div className="overflow-hidden rounded-lg bg-card">
+      {split?.frontmatter ? (
+        <pre className="overflow-x-auto border-b bg-muted/30 px-4 py-3 text-xs">
+          {split.frontmatter}
+        </pre>
+      ) : null}
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <h2 className="font-mono text-xs font-medium">{file}</h2>
+        <CopyButton
+          className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+          iconSize={14}
+          onCopy={() => navigator.clipboard.writeText(data.content)}
+        />
+      </div>
+      <pre className="overflow-x-auto p-4 text-xs">
+        {split?.body ?? data.content}
+      </pre>
+    </div>
   );
+}
+
+function splitFrontmatter(raw: string) {
+  if (!raw.startsWith("---\n") && !raw.startsWith("---\r\n")) {
+    return { body: raw, frontmatter: null as null | string };
+  }
+
+  const normalized = raw.replaceAll("\r\n", "\n");
+  const end = normalized.indexOf("\n---\n");
+  if (end === -1) {
+    return { body: raw, frontmatter: null as null | string };
+  }
+
+  return {
+    body: normalized.slice(end + "\n---\n".length),
+    frontmatter: normalized.slice(0, end + "\n---".length),
+  };
 }

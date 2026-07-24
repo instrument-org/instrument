@@ -4,7 +4,8 @@ import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
 import { PromptInput } from "@/client/components/prompt-input";
 import { RevealPath } from "@/client/components/reveal-path";
-import { SessionMarkdown } from "@/client/components/session-markdown";
+import { Markdown } from "@/client/components/markdown";
+import { SkillBadges } from "@/client/components/skill-badges";
 import { SkillFileView } from "@/client/components/skill-file-view";
 import { Button } from "@/client/components/ui/button";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
@@ -89,11 +90,18 @@ function SkillPage() {
           All skills
         </Link>
         <div className="group flex items-center gap-2">
-          <h1 className="font-serif text-3xl tracking-tight">/{skill.name}</h1>
+          <h1 className="font-serif text-3xl tracking-tight">
+            {skill.userInvocable ? `/${skill.name}` : skill.name}
+          </h1>
+          <SkillBadges className="flex flex-wrap gap-2" skill={skill} />
           <CopyButton
             className="shrink-0 rounded-sm p-1 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
             iconSize={16}
-            onCopy={() => navigator.clipboard.writeText(`/${skill.name}`)}
+            onCopy={() =>
+              navigator.clipboard.writeText(
+                skill.userInvocable ? `/${skill.name}` : skill.name,
+              )
+            }
           />
           {skill.editable ? (
             <Button
@@ -180,10 +188,28 @@ function SkillPage() {
         >
           <article className="min-w-0">
             {selectedFile === SKILL_FILE ? (
-              <SessionMarkdown
-                className="text-[15px]"
-                markdown={skill.content}
-              />
+              <div className="overflow-hidden rounded-lg bg-card">
+                {skill.frontmatter ? (
+                  <pre className="overflow-x-auto border-b bg-muted/30 px-4 py-3 text-xs">
+                    {skill.frontmatter}
+                  </pre>
+                ) : null}
+                <div className="flex items-center justify-between border-b px-3 py-2">
+                  <h2 className="font-mono text-xs font-medium">
+                    {SKILL_FILE}
+                  </h2>
+                  <CopyButton
+                    className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+                    iconSize={14}
+                    onCopy={() =>
+                      navigator.clipboard.writeText(skill.rawSkillFile)
+                    }
+                  />
+                </div>
+                <div className="prose prose-custom max-w-none px-4 py-4 text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
+                  <Markdown markdown={skill.content} />
+                </div>
+              </div>
             ) : (
               <SkillFileView file={selectedFile} skillName={skill.name} />
             )}

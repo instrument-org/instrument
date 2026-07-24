@@ -91,6 +91,12 @@ describe("extractSkillMentions", () => {
       extractSkillMentions("[$b](skill:b) [$a](skill:a) [$b](skill:b)"),
     ).toEqual(["b", "a"]);
   });
+
+  it("skips a link whose label and target disagree", () => {
+    expect(
+      extractSkillMentions("[$a](skill:a) [$label](skill:different)"),
+    ).toEqual(["a"]);
+  });
 });
 
 describe("skillMentionToken", () => {

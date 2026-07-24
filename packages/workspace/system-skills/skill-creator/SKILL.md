@@ -32,6 +32,12 @@ description: <what it does and when to use it>
 
 Add `disable-model-invocation: true` when the skill should only ever run because the user asked for it by name. It then stays listed in Skills and the slash menu but is kept out of the catalog agents choose from.
 
+Add `user-invocable: false` when the skill should be available for automatic model loading but hidden from the slash menu and other direct manual-invocation affordances.
+
+Avoid combining `disable-model-invocation: true` with `user-invocable: false` unless the user explicitly wants a skill that is neither auto-loaded nor manually invocable.
+
+The runtime also understands `compatibility`, and it tolerates harmless extra keys. When revising or importing an existing skill, preserve frontmatter keys such as `argument-hint`, `allowed-tools`, `context`, `license`, and `metadata` unless you have a specific reason to change them. Do not delete extra keys only to chase validation cleanliness.
+
 Optional resources use these directories:
 
 - `scripts/` for deterministic or repeatedly rewritten operations

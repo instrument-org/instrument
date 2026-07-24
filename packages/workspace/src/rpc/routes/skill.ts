@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { REGISTRY_FOLDER_NAMES } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
+import { deleteSkill } from "../../lib/delete-skill";
 import {
   findSkill,
   findSkills,
@@ -13,7 +14,7 @@ import {
   splitFrontmatter,
 } from "../../lib/skills";
 import { type AbsolutePath } from "../../schemas/paths";
-import { base } from "../base";
+import { base, toORPCError } from "../base";
 
 /**
  * Past this a file stops being something to read on a skill page, and the cost
@@ -185,4 +186,15 @@ const file = base
     return { content: bytes.toString("utf8"), kind: "text" } as const;
   });
 
-export const skill = { byName, file, list };
+const remove = base
+  .input(z.object({ name: z.string() }))
+  .output(z.void())
+  .handler(async ({ context, errors, input }) => {
+    const result = await deleteSkill(context.workspaceConfig, input.name);
+    if (result.isErr()) {
+      throw toORPCError(result.error, errors);
+    }
+    context.workspaceConfig.captureEvent("skill.removed");
+  });
+
+export const skill = { byName, file, list, remove };

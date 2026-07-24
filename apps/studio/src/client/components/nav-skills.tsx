@@ -16,7 +16,7 @@ export function NavSkills({ matches }: { matches: MakeRouteMatchUnion[] }) {
   );
 
   return (
-    <SidebarGroup className="px-3 pt-1 pb-0 group-data-[collapsible=icon]:hidden">
+    <SidebarGroup className="px-3 pt-4 pb-0 group-data-[collapsible=icon]:hidden">
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton

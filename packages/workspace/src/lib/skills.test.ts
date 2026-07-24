@@ -38,6 +38,7 @@ describe("parseFrontmatter", () => {
           "modelInvocable": true,
           "ok": true,
           "title": undefined,
+          "userInvocable": true,
         }
       `);
   });
@@ -90,18 +91,19 @@ describe("parseFrontmatter", () => {
   it("handles Windows-style CRLF line endings", () => {
     const raw = "---\r\ndescription: Windows skill\r\n---\r\nBody";
     expect(parseFrontmatter(raw)).toMatchInlineSnapshot(`
-      {
-        "body": "Body",
-        "compatibility": undefined,
-        "description": "Windows skill",
-        "keys": [
-          "description",
-        ],
-        "modelInvocable": true,
-        "ok": true,
-        "title": undefined,
-      }
-    `);
+        {
+          "body": "Body",
+          "compatibility": undefined,
+          "description": "Windows skill",
+          "keys": [
+            "description",
+          ],
+          "modelInvocable": true,
+          "ok": true,
+          "title": undefined,
+          "userInvocable": true,
+        }
+      `);
   });
 
   it("falls back to sanitizer for description with colon (invalid YAML)", () => {
@@ -117,6 +119,7 @@ describe("parseFrontmatter", () => {
           "modelInvocable": true,
           "ok": true,
           "title": undefined,
+          "userInvocable": true,
         }
       `);
   });
@@ -135,6 +138,52 @@ describe("parseFrontmatter", () => {
       expect(result.ok && result.modelInvocable).toBe(expected);
     },
   );
+
+  it.each([
+    { expected: false, frontmatter: "user-invocable: false" },
+    { expected: true, frontmatter: "user-invocable: true" },
+    { expected: true, frontmatter: "" },
+  ])(
+    "reads userInvocable=$expected from `$frontmatter`",
+    ({ expected, frontmatter }) => {
+      const raw = make(
+        ["description: Does a thing", frontmatter].filter(Boolean).join("\n"),
+      );
+      const result = parseFrontmatter(raw);
+      expect(result.ok && result.userInvocable).toBe(expected);
+    },
+  );
+
+  it("preserves extra frontmatter keys like argument-hint", () => {
+    expect(
+      parseFrontmatter(
+        make(
+          [
+            "name: teach",
+            "description: Teach the user a new skill or concept.",
+            'argument-hint: "What would you like to learn about?"',
+            "disable-model-invocation: true",
+          ].join("\n"),
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "body": "Body content",
+        "compatibility": undefined,
+        "description": "Teach the user a new skill or concept.",
+        "keys": [
+          "name",
+          "description",
+          "argument-hint",
+          "disable-model-invocation",
+        ],
+        "modelInvocable": false,
+        "ok": true,
+        "title": "teach",
+        "userInvocable": true,
+      }
+    `);
+  });
 
   it("trims leading/trailing whitespace from body", () => {
     const result = parseFrontmatter(

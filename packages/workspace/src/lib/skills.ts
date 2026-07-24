@@ -23,18 +23,20 @@ export type FrontmatterResult =
       modelInvocable: boolean;
       ok: true;
       title: string | undefined;
+      userInvocable: boolean;
     }
   | { detail: string; ok: false; reason: "unparseable" }
   | { keys: string[]; ok: false; reason: "no-description" }
   | { ok: false; reason: "no-frontmatter" | "unterminated" };
 
 export interface SkillInfo {
+  compatibility: string | undefined;
   content: string;
   description: string;
   /**
    * False when the skill's frontmatter sets `disable-model-invocation: true`.
    * Such a skill is kept out of the agent's catalog but stays listed in Studio
-   * and invocable by name, so the user can still run it deliberately.
+   * so the user can still inspect or edit it deliberately.
    */
   modelInvocable: boolean;
   name: string;
@@ -46,6 +48,8 @@ export interface SkillInfo {
    * the agent and the slash menu address a skill by.
    */
   title: string;
+  /** False when the skill opts out of manual invocation affordances. */
+  userInvocable: boolean;
 }
 
 export interface SkillSource {
@@ -273,6 +277,36 @@ export function parseFrontmatter(raw: string): FrontmatterResult {
     modelInvocable: record["disable-model-invocation"] !== true,
     ok: true,
     title: title || undefined,
+    userInvocable: record["user-invocable"] !== false,
+  };
+}
+
+/**
+ * Separate the YAML block from the body without a library.
+ *
+ * The block keeps the newline that follows the opening `---`, so a YAML error's
+ * line number matches the line in the file. CRLF is normalized to LF for the
+ * parser; the body is returned verbatim for the caller to trim.
+ */
+export function splitFrontmatter(raw: string): FrontmatterSplit {
+  // A leading byte-order mark would hide the opening fence.
+  const text = raw.startsWith("\uFEFF") ? raw.slice(1) : raw;
+
+  // The fence has to open the file, and `----` is a horizontal rule.
+  if (!text.startsWith("---") || text.charAt(3) === "-") {
+    return { ok: false, reason: "no-frontmatter" };
+  }
+
+  const rest = text.slice(3);
+  const end = rest.indexOf("\n---");
+  if (end === -1) {
+    return { ok: false, reason: "unterminated" };
+  }
+
+  return {
+    block: rest.slice(0, end).replaceAll("\r\n", "\n"),
+    body: rest.slice(end + "\n---".length),
+    ok: true,
   };
 }
 
@@ -328,6 +362,7 @@ async function findSkillsInDir(
     }
 
     skills.push({
+      compatibility: parsed.compatibility,
       content: parsed.body,
       description: parsed.description,
       modelInvocable: parsed.modelInvocable,
@@ -336,6 +371,7 @@ async function findSkillsInDir(
       skillDir,
       source,
       title: parsed.title ?? entry.name,
+      userInvocable: parsed.userInvocable,
     });
   }
 
@@ -394,33 +430,4 @@ function sanitizeFrontmatter(block: string): string {
   }
 
   return result.join("\n");
-}
-
-/**
- * Separate the YAML block from the body without a library.
- *
- * The block keeps the newline that follows the opening `---`, so a YAML error's
- * line number matches the line in the file. CRLF is normalized to LF for the
- * parser; the body is returned verbatim for the caller to trim.
- */
-function splitFrontmatter(raw: string): FrontmatterSplit {
-  // A leading byte-order mark would hide the opening fence.
-  const text = raw.startsWith("\uFEFF") ? raw.slice(1) : raw;
-
-  // The fence has to open the file, and `----` is a horizontal rule.
-  if (!text.startsWith("---") || text.charAt(3) === "-") {
-    return { ok: false, reason: "no-frontmatter" };
-  }
-
-  const rest = text.slice(3);
-  const end = rest.indexOf("\n---");
-  if (end === -1) {
-    return { ok: false, reason: "unterminated" };
-  }
-
-  return {
-    block: rest.slice(0, end).replaceAll("\r\n", "\n"),
-    body: rest.slice(end + "\n---".length),
-    ok: true,
-  };
 }

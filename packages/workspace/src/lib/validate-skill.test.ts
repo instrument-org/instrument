@@ -158,6 +158,7 @@ describe("validateSkill", () => {
             "name: Something Else",
             "description: Does a thing. Use when asked.",
             "disable_model_invocation: true",
+            "user-invocable: false",
             "---",
             "",
             "Run [the script](scripts/missing.ts).",
@@ -188,6 +189,7 @@ describe("validateSkill", () => {
 
   it("reports a name another skill has already claimed", async () => {
     const other: SkillInfo = {
+      compatibility: undefined,
       content: "body",
       description: "A different skill with the same name.",
       modelInvocable: true,
@@ -195,6 +197,7 @@ describe("validateSkill", () => {
       skillDir: AbsolutePathSchema.parse("/elsewhere/test-skill"),
       source: "claude",
       title: "test-skill",
+      userInvocable: true,
     };
     expect(await rulesFor({ "SKILL.md": good }, { installed: [other, other] }))
       .toMatchInlineSnapshot(`

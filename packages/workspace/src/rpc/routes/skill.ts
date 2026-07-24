@@ -10,6 +10,7 @@ import {
   getSkillSources,
   listSkillFiles,
   SKILL_SOURCE_KINDS,
+  splitFrontmatter,
 } from "../../lib/skills";
 import { type AbsolutePath } from "../../schemas/paths";
 import { base } from "../base";
@@ -39,11 +40,15 @@ const SkillSummarySchema = z.object({
   path: z.string(),
   source: SkillSourceSchema,
   title: z.string(),
+  userInvocable: z.boolean(),
 });
 
 const SkillDetailSchema = SkillSummarySchema.extend({
+  compatibility: z.string().nullable(),
   content: z.string(),
   files: z.array(z.string()),
+  frontmatter: z.string(),
+  rawSkillFile: z.string(),
 });
 
 const SkillFileSchema = z.discriminatedUnion("kind", [
@@ -94,6 +99,7 @@ const list = base
       path: skill.skillDir,
       source: skill.source,
       title: skill.title,
+      userInvocable: skill.userInvocable,
     }));
   });
 
@@ -115,18 +121,29 @@ const byName = base
     const writableRoot = await writableSkillsRoot(
       context.workspaceConfig.rootDir,
     );
+    const rawSkillFile = await fs.readFile(
+      path.join(skill.skillDir, "SKILL.md"),
+      "utf8",
+    );
+    const frontmatterResult = splitFrontmatter(rawSkillFile);
     return {
+      compatibility: skill.compatibility ?? null,
       content: skill.content,
       description: skill.description,
       editable: isEditable(skill.skillDir, writableRoot),
       fileCount: files.length,
       files,
       filesTruncated: truncated,
+      frontmatter: frontmatterResult.ok
+        ? `---\n${frontmatterResult.block}\n---`
+        : "",
       modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
+      rawSkillFile,
       source: skill.source,
       title: skill.title,
+      userInvocable: skill.userInvocable,
     };
   });
 

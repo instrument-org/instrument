@@ -9,6 +9,7 @@ const skill = (
   description: string,
   source: SkillSourceKind = "workspace",
 ): SkillInfo => ({
+  compatibility: undefined,
   content: "body",
   description,
   modelInvocable: true,
@@ -16,6 +17,7 @@ const skill = (
   skillDir: AbsolutePathSchema.parse(`/workspace/skills/${name}`),
   source,
   title: name,
+  userInvocable: true,
 });
 
 describe("renderSkillCatalog", () => {

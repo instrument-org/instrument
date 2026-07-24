@@ -4,7 +4,7 @@ import { RevealPath } from "@/client/components/reveal-path";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { PlusIcon } from "@phosphor-icons/react";
+import { FilesIcon, PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -17,9 +17,8 @@ export const Route = createFileRoute("/_app/skills/")({
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
 // Where a group sits in the list. Instrument's own skills first because they
-// are the ones we can vouch for; everything else is grouped by the folder it
-// actually lives in, so the listing describes the disk rather than which agent
-// vendor happened to symlink it.
+// are the ones we can vouch for, then the workspace, then skills discovered in
+// the folders other agents keep theirs in.
 const SOURCE_RANK: Record<Skill["source"], number> = {
   agents: 3,
   claude: 3,
@@ -36,7 +35,15 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
 // packaging detail, so both read as one thing to the user.
 const PROVIDED_LABEL = `Provided by ${APP_NAME}`;
 
-const GROUP_LABELS: Partial<Record<Skill["source"], string>> = {
+// Each source names the app or place its skills come from; the folder on disk
+// rides underneath as secondary detail rather than standing in as the heading.
+const SOURCE_LABELS: Record<Skill["source"], string> = {
+  agents: "Agent skills",
+  claude: "Claude Code",
+  codex: "Codex",
+  cursor: "Cursor",
+  gemini: "Gemini",
+  opencode: "OpenCode",
   registry: PROVIDED_LABEL,
   system: PROVIDED_LABEL,
   workspace: "This workspace",
@@ -56,9 +63,9 @@ function groupSkills(skills: Skill[]) {
 
   for (const skill of skills) {
     const dir = parentDir(skill.path);
-    // Built-in skills ship from two directories that mean one thing to the
-    // user, so they key by label; everything else keys by its folder.
-    const key = GROUP_LABELS[skill.source] ?? dir;
+    // Skills group under their source's name, not their folder, so one vendor's
+    // skills read as a single section however many folders they span.
+    const key = SOURCE_LABELS[skill.source];
     const group = groups.get(key);
     if (group) {
       group.dirs.add(dir);
@@ -76,7 +83,7 @@ function groupSkills(skills: Skill[]) {
     .map(([key, group]) => ({
       dirs: [...group.dirs].sort(),
       key,
-      label: GROUP_LABELS[group.source] ?? key,
+      label: SOURCE_LABELS[group.source],
       skills: group.skills.sort((a, b) => a.name.localeCompare(b.name)),
       source: group.source,
     }))
@@ -130,12 +137,15 @@ function SkillsPage() {
             {groups.map((group) => (
               <section key={group.key}>
                 <div className="mb-4">
-                  {group.label === PROVIDED_LABEL ? (
-                    <h2 className="text-sm text-muted-foreground">
-                      {group.label}
-                    </h2>
-                  ) : (
-                    group.dirs.map((dir) => <RevealPath key={dir} path={dir} />)
+                  <h2 className="text-base font-semibold tracking-tight">
+                    {group.label}
+                  </h2>
+                  {group.label === PROVIDED_LABEL ? null : (
+                    <div className="mt-1 grid gap-0.5">
+                      {group.dirs.map((dir) => (
+                        <RevealPath key={dir} path={dir} />
+                      ))}
+                    </div>
                   )}
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -151,7 +161,8 @@ function SkillsPage() {
                         {skill.description}
                       </p>
                       {skill.fileCount > 1 ? (
-                        <p className="mt-3 text-xs text-muted-foreground">
+                        <p className="mt-3 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                          <FilesIcon className="size-3.5" />
                           {fileCountLabel(skill)}
                         </p>
                       ) : null}

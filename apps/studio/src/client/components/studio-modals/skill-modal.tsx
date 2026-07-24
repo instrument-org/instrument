@@ -1,4 +1,5 @@
 import { skillModalAtom } from "@/client/atoms/skill-modal";
+import { ExternalLink } from "@/client/components/external-link";
 import { PromptInput } from "@/client/components/prompt-input";
 import {
   Dialog,
@@ -11,7 +12,7 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, SKILLS_MARKETPLACE_URL } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
@@ -63,9 +64,22 @@ export function SkillModal() {
             {isEdit ? `Edit ${state.title}` : "Create a skill"}
           </DialogTitle>
           <DialogDescription>
-            {isEdit
-              ? `Describe the change you want. ${APP_NAME} revises the skill with you and saves it back to this workspace.`
-              : `Describe the know-how you want to reuse. ${APP_NAME} shapes it with you and saves it to this workspace.`}
+            {isEdit ? (
+              `Describe the change you want. ${APP_NAME} revises the skill with you and saves it back to this workspace.`
+            ) : (
+              <>
+                Describe the know-how you want to reuse. {APP_NAME} shapes it
+                with you and saves it to this workspace, or browse ready-made
+                skills to install from{" "}
+                <ExternalLink
+                  className="underline underline-offset-2 hover:text-foreground"
+                  href={SKILLS_MARKETPLACE_URL}
+                >
+                  skills.sh
+                </ExternalLink>
+                .
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         <PromptInput

@@ -180,6 +180,7 @@ export const PromptInput = ({
       staleTime: SKILL_LIST_STALE_TIME_MS,
     }),
   );
+  const userInvocableSkills = skills.filter((skill) => skill.userInvocable);
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
@@ -587,7 +588,7 @@ export const PromptInput = ({
           }}
           placeholder={placeholder}
           ref={promptEditorRef}
-          skills={skills}
+          skills={userInvocableSkills}
           value={value}
         />
 

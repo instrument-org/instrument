@@ -3,6 +3,7 @@ import { CopyButton } from "@/client/components/copy-button";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { InternalLink } from "@/client/components/internal-link";
 import { RevealPath } from "@/client/components/reveal-path";
+import { SkillBadges } from "@/client/components/skill-badges";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { matchSkills } from "@/client/lib/skill-search";
@@ -214,9 +215,9 @@ function SkillsPage() {
                               params={{ name: skill.name }}
                               to="/skills/$name"
                             />
-                            <div className="flex w-52 shrink-0 items-center gap-1">
+                            <div className="flex w-52 shrink-0 items-center gap-2">
                               <span className="min-w-0 truncate font-mono text-sm font-medium">
-                                /
+                                {skill.userInvocable ? "/" : null}
                                 <FuzzyHighlight
                                   matchClassName={NAME_MATCH_CLASS_NAME}
                                   ranges={ranges?.nameRanges ?? null}
@@ -228,17 +229,25 @@ function SkillsPage() {
                                 iconSize={13}
                                 onCopy={() =>
                                   navigator.clipboard.writeText(
-                                    `/${skill.name}`,
+                                    skill.userInvocable
+                                      ? `/${skill.name}`
+                                      : skill.name,
                                   )
                                 }
                               />
                             </div>
-                            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                              <FuzzyHighlight
-                                ranges={ranges?.descriptionRanges ?? null}
-                                text={skill.description}
+                            <div className="min-w-0 flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+                              <SkillBadges
+                                className="relative z-10 flex shrink-0 flex-wrap gap-1"
+                                skill={skill}
                               />
-                            </span>
+                              <span className="min-w-0 truncate">
+                                <FuzzyHighlight
+                                  ranges={ranges?.descriptionRanges ?? null}
+                                  text={skill.description}
+                                />
+                              </span>
+                            </div>
                             {skill.fileCount > 1 ? (
                               <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                                 <FilesIcon className="size-3.5" />

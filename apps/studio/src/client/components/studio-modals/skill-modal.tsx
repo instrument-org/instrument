@@ -13,6 +13,7 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SKILLS_MARKETPLACE_URL } from "@instrument-org/shared";
+import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
@@ -23,10 +24,17 @@ import { toast } from "sonner";
  * is a skill-authoring one without the user having to say so or a skill token
  * having to be prefilled into the composer.
  */
+const SKILL_CREATOR_SKILL_NAME = "skill-creator";
+const SKILLS_DIR_TEMPLATE = `/${TASK_FOLDER_NAMES.skills}/<name>`;
+
 const CREATE_SKILL_INTENT = [
-  "The user started this task from the Skills area to create a new skill.",
-  "Load the skill-creator skill and follow it: interview them only as far as the",
-  "answers would change the skill, then write the package to /skills/<name>/.",
+  "The user started this task from the Skills area to add a skill to this workspace.",
+  `Always load the ${SKILL_CREATOR_SKILL_NAME} skill first.`,
+  "Use it for the required packaging, placement, and validation steps so the",
+  `result is installed correctly in ${SKILLS_DIR_TEMPLATE}.`,
+  "If the user is describing a new skill, create it.",
+  "If they pasted instructions, a command, or a link for an existing skill,",
+  "treat that as an install/import request instead of inventing a new skill.",
 ].join(" ");
 
 /**
@@ -145,13 +153,13 @@ export function SkillModal() {
 /**
  * Edit counterpart to `CREATE_SKILL_INTENT`, naming the skill so the agent
  * revises the existing package in place rather than starting a new one. The
- * name is the directory slug, which is what `/skills/<name>/` addresses.
+ * name is the directory slug under the shared skills directory.
  */
 function editSkillIntent(name: string) {
   return [
     `The user opened the "${name}" skill from the Skills area to edit it.`,
-    "Load the skill-creator skill and follow it to revise the existing package",
-    `at /skills/${name}/: interview them only as far as the answers would change`,
+    `Load the ${SKILL_CREATOR_SKILL_NAME} skill and follow it to revise the existing package`,
+    `at /${TASK_FOLDER_NAMES.skills}/${name}/: interview them only as far as the answers would change`,
     "the skill, then apply the edits.",
   ].join(" ");
 }

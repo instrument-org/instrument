@@ -4,6 +4,7 @@ import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   AgentCompletionNotificationModeSchema,
+  consumeRecentVersionBump,
   getDefaultModelURI,
   getPreferencesStore,
   PreferencesStoreSchema,
@@ -138,6 +139,14 @@ const getAppVersion = base.handler(() => {
   return { version: app.getVersion() };
 });
 
+// Returns the version jump if the app was updated since the previous launch,
+// otherwise null. Consumed once, so only the first renderer to ask sees it.
+const getRecentUpdate = base
+  .output(z.object({ from: z.string(), to: z.string() }).nullable())
+  .handler(() => {
+    return consumeRecentVersionBump();
+  });
+
 const ensureTaskDefaultModelURI = base
   .input(z.object({ id: TaskIdSchema }))
   .output(z.object({ modelURI: AIGatewayModelURI.Schema.optional() }))
@@ -206,6 +215,7 @@ export const preferences = {
   ensureTaskDefaultModelURI,
   get,
   getAppVersion,
+  getRecentUpdate,
   live,
   openNotificationSettings,
   quitAndInstall,

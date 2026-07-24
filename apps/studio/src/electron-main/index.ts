@@ -6,6 +6,7 @@ import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { StudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
+import { checkRecentVersionBump } from "@/electron-main/stores/preferences";
 import {
   createMainWindow,
   ensureMainWindowVisible,
@@ -158,6 +159,10 @@ void app.whenReady().then(async () => {
   await setupBinDirectory();
 
   runMigrations();
+
+  // Detect whether the app was updated since the last launch so the renderer
+  // can surface a one-time "updated" notification.
+  checkRecentVersionBump();
 
   const {
     actor: workspaceRef,

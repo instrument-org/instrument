@@ -526,6 +526,84 @@ describe("LoadSkill", () => {
     });
   });
 
+  it("skips dependency installs for a third-party skill", async () => {
+    const { installPythonSkill } = await import("../lib/install-python-skill");
+    const { runPnpmCommand } = await import("../lib/run-pnpm");
+
+    // A skill discovered in another tool's home folder, not the registry or the
+    // writable workspace mount, so its origin is "external".
+    const externalSkillDir = path.join(
+      tmpDir,
+      "home",
+      ".claude",
+      "skills",
+      "third-party",
+    );
+    await fs.mkdir(externalSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(externalSkillDir, "SKILL.md"),
+      `---\nname: third-party\ndescription: "External"\n---\n\n# third-party\n\nBody.`,
+    );
+    await fs.writeFile(
+      path.join(externalSkillDir, "package.json"),
+      JSON.stringify({ dependencies: { example: "1.0.0" } }),
+    );
+    await fs.writeFile(
+      path.join(externalSkillDir, "pyproject.toml"),
+      "[project]\nname = 'third-party'\n",
+    );
+    await fs.writeFile(path.join(externalSkillDir, "uv.lock"), "version = 1\n");
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "third-party" },
+      })
+    )._unsafeUnwrap();
+
+    expect(runPnpmCommand).not.toHaveBeenCalled();
+    expect(installPythonSkill).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      installResults: [
+        { runtime: "node", state: "skipped" },
+        { runtime: "python", state: "skipped" },
+      ],
+      origin: "external",
+      state: "success",
+    });
+  });
+
+  it("tells the model that a third-party skill's dependencies were not installed", () => {
+    const value = LoadSkill.toModelOutput({
+      input: { name: "third-party" },
+      output: {
+        content: "# Body",
+        files: [],
+        installResults: [
+          { runtime: "node", state: "skipped" },
+          { runtime: "python", state: "skipped" },
+        ],
+        name: "third-party",
+        origin: "external",
+        state: "success",
+        truncated: false,
+      },
+      toolCallId: "test",
+    }).value;
+
+    expect(value).toMatchInlineSnapshot(`
+      "<skill_content name="third-party">
+      # Body
+
+      This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`/skills/\` to change it.
+
+      This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`pnpm install\` in \`work/\` yourself if you trust it.
+
+      This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into \`work/.venv\` yourself if you trust it.
+      </skill_content>"
+    `);
+  });
+
   it("allows setup time for every runtime a skill uses", async () => {
     await createSkill({
       extraFiles: {

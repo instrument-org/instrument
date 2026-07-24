@@ -12,6 +12,7 @@ export default defineConfig({
   test: {
     clearMocks: true,
     exclude: ["node_modules", "*.local"],
+    setupFiles: ["./src/test/setup.ts"],
     typecheck: {
       enabled: true,
       ignoreSourceErrors: true,

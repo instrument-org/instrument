@@ -30,9 +30,6 @@ export const VALIDATE_SKILL_COMMAND = {
 export function createValidateSkillCommand() {
   return defineCommand(VALIDATE_SKILL_COMMAND.name, async (args, ctx) => {
     const skillsDir = getWorkspaceSkillsDir();
-    if (!skillsDir) {
-      return fail(`${SKILLS_MOUNT_POINT}/ is not available.`);
-    }
 
     const json = args.includes("--json");
     const requested = args.filter((arg) => !arg.startsWith("-"));

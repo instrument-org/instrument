@@ -12,13 +12,18 @@ const PROVIDED_LABEL = `Provided by ${APP_NAME}`;
 // folder on disk is shown separately, as secondary detail.
 const SOURCE_LABELS: Record<SkillSource, string> = {
   agents: "Agent skills",
+  antigravity: "Antigravity",
   claude: "Claude Code",
   codex: "Codex",
+  copilot: "GitHub Copilot",
   cursor: "Cursor",
   gemini: "Gemini",
+  goose: "Goose",
+  kiro: "Kiro",
   opencode: "OpenCode",
   registry: PROVIDED_LABEL,
   system: PROVIDED_LABEL,
+  windsurf: "Windsurf",
   workspace: "Your workspace",
 };
 

@@ -82,7 +82,7 @@ function SkillMention({
           <span className={SKILL_TOKEN_CLASS_NAME}>{label}</span>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
-          This skill is no longer available.
+          This skill is no longer available in this workspace.
         </TooltipContent>
       </Tooltip>
     );

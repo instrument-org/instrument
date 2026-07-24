@@ -12,8 +12,11 @@ export type SkillMentionSegment =
 export function extractSkillMentions(text: string) {
   return [
     ...new Set(
-      [...text.matchAll(SKILL_MENTION_PATTERN)].flatMap((match) =>
-        match[1] ? [match[1]] : [],
+      [...text.matchAll(SKILL_MENTION_PATTERN)].flatMap(([, label, name]) =>
+        // A link whose label and target disagree is not something the composer
+        // produces, so it renders as literal text everywhere else; keep it out
+        // of the mention list too, matching `splitSkillMention`.
+        label && name && label === name ? [name] : [],
       ),
     ),
   ];

@@ -31,7 +31,7 @@ export function SkillMentionText({ text }: { text: string }) {
   // The list is only wanted to name and describe the tokens on hover, so leave
   // it unfetched for the many messages that mention no skill.
   const hasMentions = extractSkillMentions(text).length > 0;
-  const { data: skills = [] } = useQuery(
+  const { data: skills = [], isSuccess } = useQuery(
     rpcClient.workspace.skill.list.queryOptions({
       enabled: hasMentions,
       staleTime: SKILL_LIST_STALE_TIME_MS,
@@ -47,6 +47,7 @@ export function SkillMentionText({ text }: { text: string }) {
           <SkillMention
             key={segmentIndex}
             name={segment.name}
+            resolved={isSuccess}
             summary={byName.get(segment.name)}
           />
         ) : (
@@ -59,23 +60,44 @@ export function SkillMentionText({ text }: { text: string }) {
 
 function SkillMention({
   name,
+  resolved,
   summary,
 }: {
   name: string;
+  resolved: boolean;
   summary?: SkillSummary;
 }) {
+  const label = skillMentionLabel(name);
+
+  // A mention can outlive its skill: renamed or deleted, or in a workspace no
+  // longer read. The list is the same source the composer offers mentions from,
+  // so once it has loaded, a name it does not carry has no page to reach.
+  // Linking there only dead-ends, so leave the token inert but still legible as
+  // the mention the user wrote. Until the list resolves it stays a link, since
+  // the far more common case is a skill that is simply present.
+  if (resolved && !summary) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={SKILL_TOKEN_CLASS_NAME}>{label}</span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          This skill is no longer available.
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
   const link = (
     <InternalLink
       className={cn(SKILL_TOKEN_CLASS_NAME, "hover:underline")}
       params={{ name }}
       to="/skills/$name"
     >
-      {skillMentionLabel(name)}
+      {label}
     </InternalLink>
   );
 
-  // A mention can outlive its skill (deleted, or a workspace it no longer
-  // reads). With nothing to describe, the link alone still leads somewhere.
   if (!summary) {
     return link;
   }

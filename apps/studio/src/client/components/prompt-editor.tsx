@@ -267,8 +267,27 @@ export function PromptEditor({
     view.dispatch(tr);
   }, [value]);
 
+  // ProseMirror maps `editable: false` to `contentEditable="false"`, and the
+  // browser blurs a contenteditable element the instant it stops being editable.
+  // A native textarea keeps focus when it goes readonly; submitting flips this
+  // editor readonly for the in-flight window, so without re-asserting focus the
+  // composer goes dead after every send. Remember whether the view held focus
+  // when it locked and restore it once editing is allowed again.
+  const refocusOnEditableRef = useRef(false);
   useEffect(() => {
-    viewRef.current?.setProps({ editable: () => !disabled && !readOnly });
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    const editable = !disabled && !readOnly;
+    if (!editable) {
+      refocusOnEditableRef.current = view.hasFocus();
+    }
+    view.setProps({ editable: () => editable });
+    if (editable && refocusOnEditableRef.current) {
+      refocusOnEditableRef.current = false;
+      view.focus();
+    }
   }, [disabled, readOnly]);
 
   // Navigating between skills reuses this view, so the placeholder has to track

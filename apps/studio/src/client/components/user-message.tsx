@@ -1,5 +1,5 @@
-import { skillTokensToDisplayText } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
+import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { CaretUpIcon } from "@phosphor-icons/react";
 import { debounce } from "radashi";
@@ -31,7 +31,7 @@ export const UserMessage = memo(function UserMessage({
   const handleCopy = async () => {
     // Copy what is on screen. Neither form round trips back into the composer
     // as a token, so the serialized one is only noise to whoever pastes it.
-    await navigator.clipboard.writeText(skillTokensToDisplayText(messageText));
+    await navigator.clipboard.writeText(renderSkillMentionsAsText(messageText));
   };
 
   useEffect(() => {

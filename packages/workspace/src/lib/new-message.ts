@@ -2,6 +2,7 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway";
+import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { ok } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
@@ -15,7 +16,6 @@ import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectExternalFileChanges } from "./external-file-changes";
-import { extractSkillMentions } from "./skill-mention";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-state-store";
 import { getWorkspaceConfig } from "./workspace-config";

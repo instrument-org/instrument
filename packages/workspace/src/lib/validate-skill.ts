@@ -38,6 +38,7 @@ const KNOWN_FRONTMATTER_KEYS = new Set([
   "license",
   "metadata",
   "name",
+  "user-invocable",
 ]);
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

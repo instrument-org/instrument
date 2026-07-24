@@ -1,7 +1,7 @@
 import { useSyntaxHighlighting } from "@/client/hooks/use-syntax-highlighting";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { Spinner } from "./ui/spinner";
 
@@ -19,11 +19,12 @@ export function SkillFileView({
   file: string;
   skillName: string;
 }) {
-  const { data, error, isLoading } = useQuery(
-    rpcClient.workspace.skill.file.queryOptions({
+  const { data, error, isLoading } = useQuery({
+    ...rpcClient.workspace.skill.file.queryOptions({
       input: { name: skillName, path: file },
     }),
-  );
+    placeholderData: keepPreviousData,
+  });
   const { highlightedHtml } = useSyntaxHighlighting({
     code: data?.kind === "text" ? data.content : undefined,
     language: getLanguageFromFilePath(file),

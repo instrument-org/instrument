@@ -34,12 +34,14 @@ const PANEL_SIZES = {
   sidebarMin: 350,
 };
 
+// Default split when the artifact panel opens: favor the artifact and keep the
+// chat compact. These are proportions clamped by the pixel min sizes, so the
+// sidebar still snaps to sidebarMin on narrow windows.
+const OPEN_LAYOUT = { artifact: 65, sidebar: 35 };
+
 const LAYOUT = {
-  closed: Object.fromEntries([["sidebar", 100]]),
-  open: Object.fromEntries([
-    ["sidebar", 50],
-    ["artifact", 50],
-  ]),
+  closed: { sidebar: 100 },
+  open: OPEN_LAYOUT,
 };
 
 export function TaskView({
@@ -190,7 +192,7 @@ export function TaskView({
         orientation="horizontal"
       >
         <ResizablePanel
-          defaultSize={showArtifactPanel ? "50%" : "100%"}
+          defaultSize={showArtifactPanel ? `${OPEN_LAYOUT.sidebar}%` : "100%"}
           id="sidebar"
           minSize={PANEL_SIZES.sidebarMin}
         >
@@ -212,7 +214,7 @@ export function TaskView({
             <ResizableHandle />
 
             <ResizablePanel
-              defaultSize="50%"
+              defaultSize={`${OPEN_LAYOUT.artifact}%`}
               id="artifact"
               minSize={PANEL_SIZES.artifactMin}
             >

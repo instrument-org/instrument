@@ -32,6 +32,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
+import { useTimedFlag } from "@/client/hooks/use-timed-flag";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -145,17 +146,8 @@ function SkillPage() {
         <div className="flex items-start gap-4">
           <div className="min-w-0 flex-1">
             <div className="group flex flex-wrap items-center gap-2">
-              <h1 className="font-serif text-3xl tracking-tight">
-                {skill.userInvocable ? `/${skill.name}` : skill.name}
-              </h1>
+              <SkillTitle skill={skill} />
               <SkillBadges className="flex flex-wrap gap-2" skill={skill} />
-              {skill.userInvocable ? (
-                <CopyButton
-                  className="shrink-0 rounded-sm p-1 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
-                  iconSize={16}
-                  onCopy={() => navigator.clipboard.writeText(`/${skill.name}`)}
-                />
-              ) : null}
             </div>
           </div>
           {skill.editable ? (
@@ -227,7 +219,18 @@ function SkillPage() {
             }) => {
               saveSelectedModelURI(modelURI);
               createTaskMutation.mutate(
-                { files, folders, modelURI, projectId, prompt },
+                {
+                  files,
+                  folders,
+                  intent: skillPageIntent({
+                    name: skill.name,
+                    title: skill.title,
+                    userInvocable: skill.userInvocable,
+                  }),
+                  modelURI,
+                  projectId,
+                  prompt,
+                },
                 {
                   onError: (error) => {
                     toast.error(
@@ -250,11 +253,7 @@ function SkillPage() {
                 },
               );
             }}
-            placeholder={
-              skill.userInvocable
-                ? `Ask ${skill.title} to do something`
-                : `Start a task where ${skill.title} may help`
-            }
+            placeholder="Describe the task"
             ref={promptInputRef}
             showProjectSelector
           />
@@ -262,7 +261,7 @@ function SkillPage() {
         <p className="mt-4 max-h-24 overflow-y-auto pr-2 text-sm/relaxed text-muted-foreground">
           {skill.description}
         </p>
-        <div className="mt-6 border-t pt-4">
+        <div className="mt-6">
           <div className="grid gap-1 text-xs text-muted-foreground">
             <span>{`Source: ${skillSourceLabel(skill.source)}`}</span>
             {isProvidedSource(skill.source) ? null : (
@@ -309,7 +308,7 @@ function SkillPage() {
             bundled files should not leave a dead gutter. */}
         <div
           className={cn(
-            "mt-8",
+            "mt-8 border-t pt-8",
             skill.files.length > 0 &&
               "grid gap-10 lg:grid-cols-[minmax(0,1fr)_14rem]",
           )}
@@ -382,5 +381,58 @@ function SkillPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function skillPageIntent({
+  name,
+  title,
+  userInvocable,
+}: {
+  name: string;
+  title: string;
+  userInvocable: boolean;
+}) {
+  return userInvocable
+    ? [
+        `The user started this task from the "${title}" skill page in the Skills area.`,
+        `They were looking at the /${name} skill specifically, so prefer using it if it fits their request.`,
+      ].join(" ")
+    : [
+        `The user started this task from the "${title}" skill page in the Skills area.`,
+        "Treat that skill as especially relevant context if it matches their request.",
+      ].join(" ");
+}
+
+function SkillTitle({
+  skill,
+}: {
+  skill: { name: string; userInvocable: boolean };
+}) {
+  const { active: showCopied, trigger } = useTimedFlag();
+  const label = skill.userInvocable ? `/${skill.name}` : skill.name;
+
+  if (!skill.userInvocable) {
+    return <h1 className="font-serif text-3xl tracking-tight">{label}</h1>;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className="rounded-sm font-serif text-3xl tracking-tight transition-colors hover:bg-accent/40 focus-visible:bg-accent/40"
+          onClick={() => {
+            void navigator.clipboard.writeText(label);
+            trigger();
+          }}
+          type="button"
+        >
+          {label}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {showCopied ? "Copied" : "Copy slash command"}
+      </TooltipContent>
+    </Tooltip>
   );
 }

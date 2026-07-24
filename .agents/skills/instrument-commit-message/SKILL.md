@@ -12,7 +12,7 @@ description: Generate a git commit message matching the Instrument monorepo's sc
 - **Scope:** the main area touched -- a package/app (`studio`, `workspace`, `shim-client`), a workflow (`dx`, `ci`, `release`), or a feature area (`breadcrumb`, `task`). Prioritize scope over type.
 - **No conventional types.** Drop `feat:`/`fix:`/`refactor:`/`chore:` etc. Let the description imply the nature of the change.
 - **Description:** lowercase, no period, imperative-ish, informative and scannable, no redundancy. Keep the subject under ~72 chars.
-- **Body:** optional bullet list for the _why_/_what_ when the subject alone is cryptic.
+- **Body:** add a short body when context, rationale, or follow-on detail would help.
 
 ## Examples
 
@@ -36,11 +36,11 @@ Use comma-separated scopes only when changes genuinely span two areas (`studio,w
 
 1. Pick the `scope` -- the main area touched.
 2. Write the subject as a short description: _what does this commit do?_
-3. Add a body only when the subject alone would be cryptic -- keep bullets tight.
+3. Add a body when it adds useful context -- keep bullets tight.
 
 ## Display & clipboard
 
-Display the message inline at the end of your response -- no code block. Subject-only example (no trailing newline):
+Display the message inline at the end of your response -- no code block. Example without body (no trailing newline):
 
 studio: animate collapsible tool call cards
 

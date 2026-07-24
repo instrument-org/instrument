@@ -104,7 +104,7 @@ Multiple worktrees can run `pnpm dev` at once: dev skips the single-instance loc
 
 ## Commits
 
-Scope-first style: `scope: description of what changed`. No conventional types (`feat:`/`fix:`/etc.) -- let the description imply the change. See `.agents/skills/instrument-commit-message/SKILL.md`.
+Use a scope-first subject: `scope: description of what changed`. No conventional types (`feat:`/`fix:`/etc.) -- let the description imply the change. Add a body when it helps. See `.agents/skills/instrument-commit-message/SKILL.md`.
 
 ## Repository knowledge base
 

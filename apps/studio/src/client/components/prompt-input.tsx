@@ -14,6 +14,7 @@ import { TextareaContainer } from "@/client/components/ui/textarea-container";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
+import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import {
   type DroppedFolder,
   useWindowFileDrop,
@@ -101,7 +102,6 @@ interface PromptInputProps {
   disabled?: boolean;
   draftKey: PromptDraftKey;
   id?: TaskId;
-  initialSkillName?: string;
   isLoading: boolean;
   isStoppable?: boolean;
   isSubmittable?: boolean;
@@ -136,7 +136,6 @@ export const PromptInput = ({
   disabled = false,
   draftKey,
   id,
-  initialSkillName,
   isLoading,
   isStoppable = false,
   isSubmittable = true,
@@ -176,7 +175,10 @@ export const PromptInput = ({
   // An empty list also closes off the editor's slash menu, so the flag gates
   // both the lookup and the completion UI.
   const { data: skills = [] } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions({ enabled: features.skills }),
+    rpcClient.workspace.skill.list.queryOptions({
+      enabled: features.skills,
+      staleTime: SKILL_LIST_STALE_TIME_MS,
+    }),
   );
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
@@ -219,24 +221,6 @@ export const PromptInput = ({
       removeTransientDraft(transientDraftId);
     };
   }, [transientDraftId]);
-
-  // Seed the compose box once per skill. Keying off the current value instead
-  // would re-insert the token every time the box goes empty, so clearing it (or
-  // submitting, which clears) could never leave it empty on a skill page.
-  const prefilledSkillRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (!initialSkillName || prefilledSkillRef.current === initialSkillName) {
-      return;
-    }
-    prefilledSkillRef.current = initialSkillName;
-    // Seed a whole opening line, not a bare token: it shows what invoking a
-    // skill looks like and leaves the user somewhere sensible to keep typing.
-    setValue((current) =>
-      current.trim()
-        ? current
-        : `Use [$${initialSkillName}](skill:${initialSkillName}) to\u2026`,
-    );
-  }, [initialSkillName, setValue]);
 
   useLayoutEffect(() => {
     if (!autoFocus || !isActiveTab) {
@@ -594,7 +578,7 @@ export const PromptInput = ({
         <PromptEditor
           autoFocus={autoFocus}
           className="min-h-12"
-          disabled={disabled}
+          disabled={disabled || isLoading}
           maxHeight={Math.max(autoResizeMaxHeight - 72, 48)}
           onChange={setValue}
           onPaste={handlePaste}
@@ -602,7 +586,6 @@ export const PromptInput = ({
             handleSubmit(allowOpenInNewTab && modifierPressed);
           }}
           placeholder={placeholder}
-          readOnly={isLoading}
           ref={promptEditorRef}
           skills={skills}
           value={value}

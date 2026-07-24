@@ -1,3 +1,4 @@
+import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { openEditSkill } from "@/client/atoms/skill-modal";
 import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
@@ -8,20 +9,20 @@ import { SkillFileView } from "@/client/components/skill-file-view";
 import { Button } from "@/client/components/ui/button";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
+import { isProvidedSource } from "@/client/lib/skill-source";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { safe } from "@orpc/client";
 import { ArrowLeftIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useSetAtom } from "jotai";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const SKILL_FILE = "SKILL.md";
-
-const isProvided = (source: string) =>
-  source === "registry" || source === "system";
 
 export const Route = createFileRoute("/_app/skills/$name")({
   component: SkillPage,
@@ -52,6 +53,23 @@ function SkillPage() {
   const [selection, setSelection] = useState({ file: SKILL_FILE, skill: name });
   const selectedFile = selection.skill === name ? selection.file : SKILL_FILE;
 
+  const draftKey = { id: `skill:${name}`, scope: "transient" } as const;
+  const setDraft = useSetAtom(promptDraftAtom(draftKey));
+  // Seed the compose box once per skill, showing what invoking it looks like and
+  // leaving the user somewhere to keep typing. The route owns this so the shared
+  // composer stays skill-agnostic. Guarded by a ref, not the draft's emptiness,
+  // so clearing or submitting can't retrigger the prefill.
+  const seededSkillRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (seededSkillRef.current === name) {
+      return;
+    }
+    seededSkillRef.current = name;
+    setDraft((current) =>
+      current.trim() ? current : `Use ${skillMentionToken(name)} to…`,
+    );
+  }, [name, setDraft]);
+
   if (isLoading || !skill) {
     return (
       <div className="grid h-full place-items-center text-sm text-muted-foreground">
@@ -70,10 +88,10 @@ function SkillPage() {
           <ArrowLeftIcon className="size-4" />
           All skills
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="group flex items-center gap-2">
           <h1 className="font-serif text-3xl tracking-tight">/{skill.name}</h1>
           <CopyButton
-            className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+            className="shrink-0 rounded-sm p-1 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
             iconSize={16}
             onCopy={() => navigator.clipboard.writeText(`/${skill.name}`)}
           />
@@ -91,7 +109,7 @@ function SkillPage() {
             </Button>
           ) : null}
         </div>
-        {isProvided(skill.source) ? (
+        {isProvidedSource(skill.source) ? (
           // Where our own skills sit on disk is an implementation detail to
           // everyone but us; the provenance is the part worth stating.
           <p className="mt-2 text-xs text-muted-foreground">
@@ -108,8 +126,7 @@ function SkillPage() {
           <PromptInput
             allowOpenInNewTab
             autoResizeMaxHeight={240}
-            draftKey={{ id: `skill:${skill.name}`, scope: "transient" }}
-            initialSkillName={skill.name}
+            draftKey={draftKey}
             isLoading={createTaskMutation.isPending}
             modelURI={selectedModelURI}
             onModelChange={setSelectedModelURI}

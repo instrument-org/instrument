@@ -1,3 +1,5 @@
+import { sum } from "radashi";
+
 import { type SkillInfo, type SkillSourceKind } from "./skills";
 
 const CATALOG_TAGS = {
@@ -194,12 +196,4 @@ function renderEntry(name: string, description: string) {
     `    <${CATALOG_TAGS.description}>${escapeXml(description)}</${CATALOG_TAGS.description}>`,
     `  </${CATALOG_TAGS.skill}>`,
   ].join("\n");
-}
-
-function sum(values: number[]) {
-  let total = 0;
-  for (const value of values) {
-    total += value;
-  }
-  return total;
 }

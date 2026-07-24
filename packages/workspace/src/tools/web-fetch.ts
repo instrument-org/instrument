@@ -219,6 +219,8 @@ async function fetchTextual({
 
   const response = fetched.response;
   if (!response.ok) {
+    // Release the connection instead of leaving the body to linger until GC.
+    void response.body?.cancel();
     return {
       error: `Request failed with status ${response.status} ${response.statusText}.`,
       ok: false,
@@ -228,6 +230,7 @@ async function fetchTextual({
   const contentType = response.headers.get("content-type") ?? "";
   const mime = mimeType(contentType);
   if (!isTextualMime(mime)) {
+    void response.body?.cancel();
     return { error: unsupportedContentMessage(mime), ok: false };
   }
 

@@ -43,14 +43,39 @@ describe("skill-creator system skill", () => {
     expect(SKILL_MD).toContain(value);
   });
 
-  it("teaches the frontmatter key the parser still honors", () => {
-    const key = "disable-model-invocation";
-    // Prove the parser reads the key the doc teaches, so renaming it in the
-    // parser can't leave the doc pointing at one nothing acts on.
-    expect(SKILL_MD).toContain(key);
-    const parsed = parseFrontmatter(
-      `---\nname: x\ndescription: y\n${key}: true\n---\nbody`,
-    );
-    expect(parsed.ok && parsed.modelInvocable).toBe(false);
+  it.each([
+    {
+      assertion: (parsed: ReturnType<typeof parseFrontmatter>) =>
+        parsed.ok && parsed.modelInvocable,
+      expected: false,
+      key: "disable-model-invocation",
+      value: "true",
+    },
+    {
+      assertion: (parsed: ReturnType<typeof parseFrontmatter>) =>
+        parsed.ok && parsed.userInvocable,
+      expected: false,
+      key: "user-invocable",
+      value: "false",
+    },
+  ])(
+    "teaches the frontmatter key $key that the parser still honors",
+    ({ assertion, expected, key, value }) => {
+      // Prove the parser reads the key the doc teaches, so renaming it in the
+      // parser can't leave the doc pointing at one nothing acts on.
+      expect(SKILL_MD).toContain(key);
+      const parsed = parseFrontmatter(
+        `---\nname: x\ndescription: y\n${key}: ${value}\n---\nbody`,
+      );
+      expect(assertion(parsed)).toBe(expected);
+    },
+  );
+
+  it("tells authors to preserve tolerated extra frontmatter keys", () => {
+    expect(SKILL_MD).toContain("argument-hint");
+    expect(SKILL_MD).toContain("allowed-tools");
+    expect(SKILL_MD).toContain("context");
+    expect(SKILL_MD).toContain("license");
+    expect(SKILL_MD).toContain("metadata");
   });
 });

@@ -75,14 +75,33 @@ describe("validateSkill", () => {
   });
 
   it.each([
-    { case: "unparseable", raw: "---\ndescription: [\n---\nBody" },
-    { case: "no description", raw: "---\nname: test-skill\n---\nBody" },
-    { case: "no frontmatter", raw: "Just a document" },
-    { case: "unterminated", raw: "---\ndescription: Oops\nBody, no close" },
-  ])("reports frontmatter that hides the skill ($case)", async ({ raw }) => {
-    const rules = await rulesFor({ "SKILL.md": raw });
-    expect(rules[0]).toMatchSnapshot();
-  });
+    {
+      case: "unparseable",
+      expected: "error:unparseable",
+      raw: "---\ndescription: [\n---\nBody",
+    },
+    {
+      case: "no description",
+      expected: "error:no-description",
+      raw: "---\nname: test-skill\n---\nBody",
+    },
+    {
+      case: "no frontmatter",
+      expected: "error:no-frontmatter",
+      raw: "Just a document",
+    },
+    {
+      case: "unterminated",
+      expected: "error:unterminated",
+      raw: "---\ndescription: Oops\nBody, no close",
+    },
+  ])(
+    "reports frontmatter that hides the skill ($case)",
+    async ({ expected, raw }) => {
+      const rules = await rulesFor({ "SKILL.md": raw });
+      expect(rules[0]).toBe(expected);
+    },
+  );
 
   it("points at the line the YAML broke on", async () => {
     const report = await reportFor({

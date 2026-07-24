@@ -1,8 +1,12 @@
+import {
+  extractSkillMentions,
+  renderSkillMentionsAsText,
+  skillMentionToken,
+  splitSkillMention,
+} from "@instrument-org/shared/skill-mention";
 import { describe, expect, it } from "vitest";
 
-import { skillTokensToDisplayText, splitSkillTokens } from "./skill-tokens";
-
-describe("splitSkillTokens", () => {
+describe("splitSkillMention", () => {
   it("separates mentions from the text around them", () => {
     const lines = [
       "Use [$release](skill:release) to ship",
@@ -12,7 +16,7 @@ describe("splitSkillTokens", () => {
       "[$a](skill:a)[$b](skill:b)",
     ];
     expect(
-      Object.fromEntries(lines.map((line) => [line, splitSkillTokens(line)])),
+      Object.fromEntries(lines.map((line) => [line, splitSkillMention(line)])),
     ).toMatchInlineSnapshot(`
       {
         "Nothing to see here": [
@@ -62,15 +66,37 @@ describe("splitSkillTokens", () => {
   });
 });
 
-describe("skillTokensToDisplayText", () => {
+describe("renderSkillMentionsAsText", () => {
   it("renders tokens as their slash form across lines", () => {
     expect(
-      skillTokensToDisplayText(
+      renderSkillMentionsAsText(
         "Use [$release](skill:release) to ship this.\nThen [$docx](skill:docx).",
       ),
     ).toMatchInlineSnapshot(`
       "Use /release to ship this.
       Then /docx."
     `);
+  });
+
+  it("leaves a link whose label and target disagree untouched", () => {
+    expect(renderSkillMentionsAsText("[$label](skill:different)")).toBe(
+      "[$label](skill:different)",
+    );
+  });
+});
+
+describe("extractSkillMentions", () => {
+  it("collects distinct names in first-seen order", () => {
+    expect(
+      extractSkillMentions("[$b](skill:b) [$a](skill:a) [$b](skill:b)"),
+    ).toEqual(["b", "a"]);
+  });
+});
+
+describe("skillMentionToken", () => {
+  it("round-trips with the split", () => {
+    expect(splitSkillMention(skillMentionToken("tdd"))).toEqual([
+      { name: "tdd", type: "skill" },
+    ]);
   });
 });

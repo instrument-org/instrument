@@ -1,6 +1,10 @@
 import { AIGatewayModel } from "@instrument-org/ai-gateway";
 import { type SyntheticModelId } from "@instrument-org/shared";
 import {
+  renderSkillMentionsAsText,
+  skillMentionLabel,
+} from "@instrument-org/shared/skill-mention";
+import {
   convertToModelMessages,
   type ModelMessage,
   type ToolSet,
@@ -19,10 +23,6 @@ import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
-import {
-  renderSkillMentionsForModel,
-  skillMentionLabel,
-} from "../../lib/skill-mention";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -249,7 +249,7 @@ export namespace SessionMessage {
         // The footnote below tells it what a `/name` reference means.
         parts = parts.map((part) =>
           part.type === "text"
-            ? { ...part, text: renderSkillMentionsForModel(part.text) }
+            ? { ...part, text: renderSkillMentionsAsText(part.text) }
             : part,
         );
 

@@ -1,8 +1,9 @@
+import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import {
-  SKILL_TOKEN_CLASS_NAME,
-  skillTokenLabel,
-  splitSkillTokens,
-} from "@/client/lib/skill-tokens";
+  skillMentionLabel,
+  skillMentionToken,
+  splitSkillMention,
+} from "@instrument-org/shared/skill-mention";
 import {
   Fragment,
   type Node as ProseMirrorNode,
@@ -34,7 +35,7 @@ export const promptSchema = new Schema({
             contenteditable: "false",
             "data-skill": name,
           },
-          skillTokenLabel(name),
+          skillMentionLabel(name),
         ];
       },
     },
@@ -64,7 +65,7 @@ export const deleteSkillBackward: Command = (state, dispatch) => {
 
 export function promptDocFromText(value: string) {
   const paragraphs = value.split("\n").map((line) => {
-    const nodes: ProseMirrorNode[] = splitSkillTokens(line).map((segment) =>
+    const nodes: ProseMirrorNode[] = splitSkillMention(line).map((segment) =>
       segment.type === "skill"
         ? promptSchema.nodes.skill.create({ name: segment.name })
         : promptSchema.text(segment.text),
@@ -83,7 +84,7 @@ export function promptTextFromDoc(doc: ProseMirrorNode) {
       const node = paragraph.child(childIndex);
       value +=
         node.type === promptSchema.nodes.skill
-          ? `[$${String(node.attrs.name)}](skill:${String(node.attrs.name)})`
+          ? skillMentionToken(String(node.attrs.name))
           : (node.text ?? "");
     }
     paragraphs.push(value);

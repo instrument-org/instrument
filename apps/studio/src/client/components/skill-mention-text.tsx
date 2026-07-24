@@ -1,10 +1,10 @@
 import { InternalLink } from "@/client/components/internal-link";
-import {
-  SKILL_TOKEN_CLASS_NAME,
-  skillTokenLabel,
-  splitSkillTokens,
-} from "@/client/lib/skill-tokens";
+import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
+import {
+  skillMentionLabel,
+  splitSkillMention,
+} from "@instrument-org/shared/skill-mention";
 import { Fragment } from "react";
 
 /**
@@ -20,7 +20,7 @@ export function SkillMentionText({ text }: { text: string }) {
   return text.split("\n").map((line, lineIndex) => (
     <Fragment key={lineIndex}>
       {lineIndex > 0 ? "\n" : null}
-      {splitSkillTokens(line).map((segment, segmentIndex) =>
+      {splitSkillMention(line).map((segment, segmentIndex) =>
         segment.type === "skill" ? (
           <InternalLink
             className={cn(SKILL_TOKEN_CLASS_NAME, "hover:underline")}
@@ -28,7 +28,7 @@ export function SkillMentionText({ text }: { text: string }) {
             params={{ name: segment.name }}
             to="/skills/$name"
           >
-            {skillTokenLabel(segment.name)}
+            {skillMentionLabel(segment.name)}
           </InternalLink>
         ) : (
           <Fragment key={segmentIndex}>{segment.text}</Fragment>

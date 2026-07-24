@@ -5,8 +5,8 @@ export type SkillSource =
   RPCOutput["workspace"]["skill"]["list"][number]["source"];
 
 // A skill we ship reads as one thing whether it came from the bundle or the
-// registry, so both collapse to this label.
-const PROVIDED_LABEL = `Provided by ${APP_NAME}`;
+// registry, so both collapse to the app's own name.
+const PROVIDED_LABEL = APP_NAME;
 
 // Each source names the app or place its skills come from, for a person. The
 // folder on disk is shown separately, as secondary detail.

@@ -1,4 +1,5 @@
 import { CopyButton } from "@/client/components/copy-button";
+import { Markdown } from "@/client/components/markdown";
 import { useSyntaxHighlighting } from "@/client/hooks/use-syntax-highlighting";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { rpcClient } from "@/client/rpc/client";
@@ -10,8 +11,8 @@ import { Spinner } from "./ui/spinner";
  * One file from a skill package, shown as source.
  *
  * SKILL.md is the exception the caller handles: it is the skill itself and
- * reads as prose, so it renders through the markdown pipeline. Everything else
- * is here to be inspected, so it shows the way it is written.
+ * reads as prose. Other markdown files should read the same way; everything
+ * else is here to be inspected, so it shows the way it is written.
  */
 export function SkillFileView({
   file,
@@ -27,6 +28,7 @@ export function SkillFileView({
     placeholderData: keepPreviousData,
   });
   const split = data?.kind === "text" ? splitFrontmatter(data.content) : null;
+  const isMarkdownFile = isMarkdown(file);
   const { highlightedHtml } = useSyntaxHighlighting({
     code: split?.body,
     language: getLanguageFromFilePath(file),
@@ -60,21 +62,48 @@ export function SkillFileView({
     );
   }
 
+  if (isMarkdownFile) {
+    return (
+      <div className="overflow-hidden rounded-lg bg-card">
+        <div className="border-b bg-muted/20">
+          <div className="flex items-center justify-between gap-3 px-3 py-2">
+            <h2 className="font-mono text-xs font-medium">{file}</h2>
+            <CopyButton
+              className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+              iconSize={14}
+              onCopy={() => navigator.clipboard.writeText(data.content)}
+            />
+          </div>
+          {split?.frontmatter ? (
+            <pre className="overflow-x-auto border-t px-4 py-3 text-xs text-muted-foreground">
+              {split.frontmatter}
+            </pre>
+          ) : null}
+        </div>
+        <div className="prose prose-custom max-w-none px-4 py-4 text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
+          <Markdown markdown={split?.body ?? data.content} />
+        </div>
+      </div>
+    );
+  }
+
   if (highlightedHtml) {
     return (
       <div className="overflow-hidden rounded-lg bg-card">
-        {split?.frontmatter ? (
-          <pre className="overflow-x-auto border-b bg-muted/30 px-4 py-3 text-xs">
-            {split.frontmatter}
-          </pre>
-        ) : null}
-        <div className="flex items-center justify-between border-b px-3 py-2">
-          <h2 className="font-mono text-xs font-medium">{file}</h2>
-          <CopyButton
-            className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
-            iconSize={14}
-            onCopy={() => navigator.clipboard.writeText(data.content)}
-          />
+        <div className="border-b bg-muted/20">
+          <div className="flex items-center justify-between gap-3 px-3 py-2">
+            <h2 className="font-mono text-xs font-medium">{file}</h2>
+            <CopyButton
+              className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+              iconSize={14}
+              onCopy={() => navigator.clipboard.writeText(data.content)}
+            />
+          </div>
+          {split?.frontmatter ? (
+            <pre className="overflow-x-auto border-t px-4 py-3 text-xs text-muted-foreground">
+              {split.frontmatter}
+            </pre>
+          ) : null}
         </div>
         <div
           className="overflow-x-auto p-4 text-xs"
@@ -86,24 +115,31 @@ export function SkillFileView({
 
   return (
     <div className="overflow-hidden rounded-lg bg-card">
-      {split?.frontmatter ? (
-        <pre className="overflow-x-auto border-b bg-muted/30 px-4 py-3 text-xs">
-          {split.frontmatter}
-        </pre>
-      ) : null}
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <h2 className="font-mono text-xs font-medium">{file}</h2>
-        <CopyButton
-          className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
-          iconSize={14}
-          onCopy={() => navigator.clipboard.writeText(data.content)}
-        />
+      <div className="border-b bg-muted/20">
+        <div className="flex items-center justify-between gap-3 px-3 py-2">
+          <h2 className="font-mono text-xs font-medium">{file}</h2>
+          <CopyButton
+            className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+            iconSize={14}
+            onCopy={() => navigator.clipboard.writeText(data.content)}
+          />
+        </div>
+        {split?.frontmatter ? (
+          <pre className="overflow-x-auto border-t px-4 py-3 text-xs text-muted-foreground">
+            {split.frontmatter}
+          </pre>
+        ) : null}
       </div>
       <pre className="overflow-x-auto p-4 text-xs">
         {split?.body ?? data.content}
       </pre>
     </div>
   );
+}
+
+function isMarkdown(file: string) {
+  const ext = file.split(".").pop()?.toLowerCase();
+  return ext === "md" || ext === "mdx";
 }
 
 function splitFrontmatter(raw: string) {

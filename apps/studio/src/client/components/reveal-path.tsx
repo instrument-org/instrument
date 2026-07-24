@@ -18,16 +18,21 @@ const HOME_PREFIX =
  * screenshot or a shared recording.
  */
 export function RevealPath({
+  allowWrap = false,
   className,
+  hideIcon = false,
   path,
 }: {
+  allowWrap?: boolean;
   className?: string;
+  hideIcon?: boolean;
   path: string;
 }) {
   return (
     <button
       className={cn(
-        "flex min-w-0 items-center gap-2 text-xs text-muted-foreground hover:text-foreground",
+        "flex min-w-0 gap-2 text-xs text-muted-foreground hover:text-foreground",
+        allowWrap ? "items-start" : "items-center",
         className,
       )}
       onClick={async () => {
@@ -38,11 +43,15 @@ export function RevealPath({
           toast.error("That folder is no longer on disk.");
         }
       }}
-      title={path}
       type="button"
     >
-      <FolderOpenIcon className="size-4 shrink-0" />
-      <span className="truncate font-mono">
+      {hideIcon ? null : <FolderOpenIcon className="size-4 shrink-0" />}
+      <span
+        className={cn(
+          "font-mono",
+          allowWrap ? "break-all whitespace-normal text-left" : "truncate",
+        )}
+      >
         {path.replace(HOME_PREFIX, "~")}
       </span>
     </button>

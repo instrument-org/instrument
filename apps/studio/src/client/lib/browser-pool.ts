@@ -374,6 +374,11 @@ function ensureWebview(
   // carrier, see browserPartition).
   webview.setAttribute("partition", browserPartition(targetId));
   webview.setAttribute("src", "about:blank");
+  // Permit window.open so a genuine sign-in popup reaches the main process's
+  // window-open handler (which allows only real popups; see manager.ts). Without
+  // this attribute Chromium blocks every `<webview>` popup before the handler
+  // runs, which hangs OAuth "Continue with Google" flows.
+  webview.setAttribute("allowpopups", "true");
   webview.style.border = "0";
 
   // Report real DOM focus/blur so the main process can target keyboard

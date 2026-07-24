@@ -38,6 +38,7 @@ import { canStealFocus, createFocusGuard } from "./focus-guard";
 import { attachGuestInteractions } from "./guest-interactions";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
+import { guestWindowOpenHandler } from "./window-open-policy";
 
 // How long createTarget waits for the renderer to mount the guest `<webview>`
 // and Electron to fire `did-attach-webview`. The main-window renderer is alive
@@ -149,9 +150,24 @@ export function createBrowserViewManager(): BrowserViewManager {
     entry.webContents = guest;
     const { targetId } = entry;
 
-    // Block all popup windows. Agent-controlled guests must never spawn new
-    // windows via window.open / target=_blank / link[target].
-    guest.setWindowOpenHandler(() => ({ action: "deny" }));
+    // Allow only genuine sign-in popups, and only when the user -- not agent CDP
+    // activity -- is driving this guest. A popup the agent triggers would be a
+    // separate window it can neither see nor control (no CDP debugger, not in
+    // the entry map) and that the user never asked for, so deny while the guest
+    // is agent-guarded. When the user drives it, the child window inherits the
+    // guest's locked-down, same-partition session (see guestWindowOpenHandler),
+    // so the opener/postMessage channel that "Continue with Google" and similar
+    // flows complete through stays intact instead of hanging.
+    guest.setWindowOpenHandler((details) =>
+      focusGuard.isGuarded(targetId)
+        ? { action: "deny" }
+        : guestWindowOpenHandler(details),
+    );
+    // A sign-in popup may open a further popup (multi-step / account-chooser
+    // flows); keep the shape policy on the child so those don't hang either.
+    guest.on("did-create-window", (child) => {
+      child.webContents.setWindowOpenHandler(guestWindowOpenHandler);
+    });
     // Mute: the page may be agent-driven and not visible to the user.
     guest.setAudioMuted(true);
     // Keep the guest compositing when the whole Studio window is

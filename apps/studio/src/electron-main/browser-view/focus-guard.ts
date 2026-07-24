@@ -92,6 +92,11 @@ export function createFocusGuard({
       commandGuards.delete(targetId);
       navigationGuards.delete(targetId);
     },
+    // Whether agent CDP activity (a command or its follow-on navigation, plus
+    // the settle tail) currently owns this guest rather than the user. Lets
+    // callers attribute a side effect -- e.g. a window.open -- to the agent vs.
+    // the user.
+    isGuarded,
     // Guest WebContents gained Chromium focus. During a guard this is the
     // steal itself landing (possibly after a settle already restored), so
     // bounce it again.

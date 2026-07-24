@@ -38,43 +38,36 @@ Drop anything a user never sees:
 - For a general audience: no jargon. Translate internal terms into plain language (e.g. "User-Agent" -> "the browser identifies itself as Chrome"; "session refs" / "data parts" / "tokens" -> describe the effect, not the internals).
 - Do not quote commit messages verbatim.
 - No em dashes.
+- Do not soft-wrap prose. Keep each paragraph and list item on one source line.
 - Do not add a release title or repeat the app name or version number.
 - Prefer product-area headings (Browser, Tasks, Image generation, etc.) with a final "Fixes and polish" catch-all.
 
 ## Example output
 
 ```markdown
-A maintenance and refinement release focused on the built-in browser, task
-handling, and image generation.
+A maintenance and refinement release focused on the built-in browser, task handling, and image generation.
 
 ## Browser
 
-- Each workspace now keeps its own browsing profile, so logins and cookies stay
-  separate between workspaces.
-- Type something that isn't a web address into the address bar and it falls back
-  to a web search.
+- Each workspace now keeps its own browsing profile, so logins and cookies stay separate between workspaces.
+- Type something that isn't a web address into the address bar and it falls back to a web search.
 - New "View as" menu to preview a page at phone and tablet sizes.
-- The browser now identifies itself as standard Chrome, so more sites load
-  correctly.
+- The browser now identifies itself as standard Chrome, so more sites load correctly.
 
 ## Tasks
 
-- Branch a task from any point in a conversation instead of duplicating the
-  whole thing.
+- Branch a task from any point in a conversation instead of duplicating the whole thing.
 - Finished tasks now show an unread indicator.
-- File links in chat stay live and open the current file, rather than a stale
-  snapshot.
+- File links in chat stay live and open the current file, rather than a stale snapshot.
 
 ## Image generation
 
-- Requests now route to the best available model and respect the settings you
-  provide.
+- Requests now route to the best available model and respect the settings you provide.
 - Generating an image no longer overwrites earlier ones by default.
 
 ## Fixes and polish
 
-- Refreshed shadows and borders throughout the app; tidied the settings
-  controls.
+- Refreshed shadows and borders throughout the app; tidied the settings controls.
 - Agents run longer on their own before pausing.
 - Fixed a crash that could happen when quitting.
 ```

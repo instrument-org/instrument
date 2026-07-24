@@ -61,9 +61,7 @@ Use this shape:
 ````markdown
 - **Concrete surface name**
 
-  Location: where a designer can find it in the app, described as a page, modal,
-  panel, toolbar, debug page, or workflow. Do not show internal route paths unless
-  the user asks for technical routing details.
+  Location: where a designer can find it in the app, described as a page, modal, panel, toolbar, debug page, or workflow. Do not show internal route paths unless the user asks for technical routing details.
 
   One short sentence describing what changed.
 
@@ -84,6 +82,7 @@ Guidelines:
 - Source changes: Markdown commit links are useful secondary context.
 - Context block: commit hashes and human location only. Do not include a request placeholder or text the designer would need to delete.
 - Keep prose terse. Avoid recommendations unless the user asks for them.
+- Do not soft-wrap prose. Keep each paragraph and list item on one source line.
 
 ## Common Locations
 

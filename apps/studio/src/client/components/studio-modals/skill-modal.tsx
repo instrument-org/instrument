@@ -1,3 +1,4 @@
+import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { skillModalAtom } from "@/client/atoms/skill-modal";
 import { ExternalLink } from "@/client/components/external-link";
 import { PromptInput } from "@/client/components/prompt-input";
@@ -13,10 +14,12 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SKILLS_MARKETPLACE_URL } from "@instrument-org/shared";
+import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 /**
@@ -47,6 +50,11 @@ export function SkillModal() {
   const [state, setState] = useAtom(skillModalAtom);
   const isOpen = state !== null;
   const isEdit = state?.mode === "edit";
+  const draftKey = {
+    id: isEdit ? `edit-skill:${state.name}` : "create-skill",
+    scope: "transient",
+  } as const;
+  const setDraft = useSetAtom(promptDraftAtom(draftKey));
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const createTaskMutation = useMutation(
@@ -54,8 +62,23 @@ export function SkillModal() {
   );
   const navigate = useNavigate();
   const { addTab } = useTabActions();
+  const seededEditSkillRef = useRef<string | undefined>(undefined);
 
   useBlockTabNavigation(isOpen);
+
+  useEffect(() => {
+    if (!isEdit) {
+      seededEditSkillRef.current = undefined;
+      return;
+    }
+    if (seededEditSkillRef.current === state.name) {
+      return;
+    }
+    seededEditSkillRef.current = state.name;
+    setDraft((current) =>
+      current.trim() ? current : `Edit ${skillMentionToken(state.name)} to…`,
+    );
+  }, [isEdit, setDraft, state]);
 
   return (
     <Dialog
@@ -68,12 +91,10 @@ export function SkillModal() {
     >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
-            {isEdit ? `Edit ${state.title}` : "Create a skill"}
-          </DialogTitle>
+          <DialogTitle>{isEdit ? "Edit skill" : "Create a skill"}</DialogTitle>
           <DialogDescription>
             {isEdit ? (
-              `Describe the change you want. ${APP_NAME} revises the skill with you and saves it back to this workspace.`
+              `${APP_NAME} revises the skill with you and saves it back to this workspace.`
             ) : (
               <>
                 Describe the know-how you want to reuse. {APP_NAME} shapes it
@@ -94,10 +115,7 @@ export function SkillModal() {
           allowOpenInNewTab
           autoFocus
           autoResizeMaxHeight={240}
-          draftKey={{
-            id: isEdit ? `edit-skill:${state.name}` : "create-skill",
-            scope: "transient",
-          }}
+          draftKey={draftKey}
           isLoading={createTaskMutation.isPending}
           modelURI={selectedModelURI}
           onModelChange={setSelectedModelURI}

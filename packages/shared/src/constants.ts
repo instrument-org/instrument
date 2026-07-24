@@ -22,6 +22,7 @@ export const NEW_ISSUE_URL = `${APP_REPO_URL}/issues/new/choose`;
 export const REGISTRY_REPO_NAME = "registry";
 export const REGISTRY_REPO_URL = `https://github.com/${GITHUB_ORG}/${REGISTRY_REPO_NAME}`;
 export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;
+export const SKILLS_MARKETPLACE_URL = "https://skills.sh";
 export const X_HANDLE = "@tryinstrument";
 export const X_URL = `https://x.com/${X_HANDLE}`;
 export const SUPPORT_URL = `https://${APP_DOMAIN}/support`;

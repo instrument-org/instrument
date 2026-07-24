@@ -18,16 +18,24 @@ pnpm run script:dump-session-transcript ~/Downloads/my-task.zip
 
 # Write to a file instead of stdout
 pnpm run script:dump-session-transcript my-task.zip --output transcript.md
-
-# Include the model context messages (system/context), normally omitted
-pnpm run script:dump-session-transcript my-task --include-context
 ```
 
 ## What it does
 
 - Picks the root session (warns and uses the first if a task has more than one).
-- Renders it via `getSessionMarkdown` (`src/lib/session-to-markdown.ts`), which inlines child sessions spawned by the `task` tool.
-- Emits YAML front matter: task name, session id/title, and source path.
+- Renders the selected session via `getSessionMarkdown`
+  (`src/lib/session-to-markdown.ts`).
+- Includes the latest persisted system and agent-context snapshot. Long-running
+  sessions may have refreshed this snapshot, so it may differ from context used
+  by earlier responses.
+- Emits YAML front matter with task/session identity, model/provider usage,
+  token totals, AI-generation and elapsed durations, message/tool counts, and
+  source details.
+- Annotates each assistant response with its model, finish reason, token
+  breakdown, latency, throughput, and full persisted error metadata.
+- Preserves user-turn/model-step boundaries, provider sources, file changes,
+  other persisted data, empty/aborted steps, and interrupted or invalid tool
+  diagnostics.
 
 ## Notes
 

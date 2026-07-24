@@ -19,20 +19,18 @@ import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
-    "include-context": { default: false, type: "boolean" },
     output: { short: "o", type: "string" },
   },
 });
 
 const inputPath = positionals[0];
-const includeContextMessages = values["include-context"];
 const outputPath = values.output;
 
 if (!inputPath) {
   throw new Error(
     [
       "Usage: pnpm run script:dump-session-transcript <task-dir-or.zip>",
-      "  [--output <file>] [--include-context]",
+      "  [--output <file>]",
     ].join("\n"),
   );
 }
@@ -88,12 +86,12 @@ if (!rootSession) {
 
 const markdown = await getSessionMarkdown({
   frontMatter: {
-    sessionId: rootSession.id,
-    sessionTitle: rootSession.title,
     source: isZip ? absoluteInputPath : dir,
+    sourceType: isZip ? "exported-task-zip" : "task-directory",
+    taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
     taskName: settings?.name ?? folderName,
+    transcriptGeneratedAt: new Date().toISOString(),
   },
-  includeContextMessages,
   sessionId: rootSession.id,
   taskId,
 });

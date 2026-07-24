@@ -34,20 +34,24 @@ async function buildSystemFrontMatter(taskId: TaskId) {
   const env = app.isPackaged ? "production" : "development";
 
   const taskDirPath = taskDir(taskId);
-  // Prefer the version the task was created under, so exported/imported
-  // transcripts show the original app version, not the running instance's.
   const settings = await getTaskSettings(taskDirPath);
-  const appVersion = settings?.createdWithAppVersion ?? app.getVersion();
 
   return {
-    app: `${APP_NAME} v${appVersion} (${env})`,
-    locale: app.getLocale(),
-    node: process.version,
-    os: `${osName} ${os.release()} / ${os.arch()}`,
+    appEnvironment: env,
+    appName: APP_NAME,
+    currentAppVersion: app.getVersion(),
+    runtimeChromeVersion: process.versions.chrome,
+    runtimeElectronVersion: process.versions.electron,
+    runtimeLocale: app.getLocale(),
+    runtimeNodeVersion: process.version,
+    runtimeOs: `${osName} ${os.release()} / ${os.arch()}`,
+    taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
+    taskName: settings?.name ?? "unknown",
     // Absolute path to the task's on-disk folder so an agent reading this
     // transcript can inspect its artifacts (screenshots, output, task.db).
     // Safe to expose unconditionally: this route is dev-only.
     taskDir: taskDirPath,
+    transcriptGeneratedAt: new Date().toISOString(),
   };
 }
 

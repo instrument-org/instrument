@@ -61,11 +61,16 @@ export namespace SessionMessagePart {
     endedAt?: Date;
   }
 
-  export type ToolPart =
-    | ToolPartInputAvailable
-    | ToolPartInputStreaming
-    | ToolPartOutputAvailable
-    | ToolPartOutputError;
+  export type ToolPart = Pick<
+    SessionMessageRelaxedPart.ToolPart,
+    "approval" | "preliminary" | "rawInput"
+  > &
+    (
+      | ToolPartInputAvailable
+      | ToolPartInputStreaming
+      | ToolPartOutputAvailable
+      | ToolPartOutputError
+    );
 
   export type ToolPartInputAvailable = ToolUIPart<AISDKTools> & {
     metadata: BaseMetadata;

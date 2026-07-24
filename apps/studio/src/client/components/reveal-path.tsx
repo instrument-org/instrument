@@ -4,7 +4,11 @@ import { safe } from "@orpc/client";
 import { FolderOpenIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
-const HOME_PREFIX = /^\/Users\/[^/]+/;
+// Collapse the user's home directory to ~ across platforms, so the username in
+// it never renders verbatim off-mac: macOS (/Users/<name>), Linux (/home/<name>),
+// and Windows (C:\Users\<name>).
+const HOME_PREFIX =
+  /^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[/\\]Users[/\\][^/\\]+)/;
 
 /**
  * A path with the home directory collapsed, that reveals itself in Finder.

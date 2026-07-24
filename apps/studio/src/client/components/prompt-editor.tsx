@@ -1,8 +1,8 @@
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
-import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
-import { type SkillSource, skillSourceLabel } from "@/client/lib/skill-source";
+import { matchSkills } from "@/client/lib/skill-search";
+import { skillSourceLabel } from "@/client/lib/skill-source";
 import { cn } from "@/client/lib/utils";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { type RPCOutput } from "@/client/rpc/client";
 import { baseKeymap } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
@@ -34,7 +34,7 @@ import {
 const editorAttributes = (placeholder?: string) => ({
   "aria-label": placeholder ?? "Prompt",
   class:
-    "prompt-editor max-h-full min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-sm outline-none",
+    "prompt-editor min-h-12 flex-1 whitespace-pre-wrap break-words text-sm outline-none",
   "data-placeholder": placeholder ?? "",
 });
 
@@ -55,26 +55,15 @@ export interface PromptEditorRef {
   moveCaretToEnd: () => void;
 }
 
-interface Skill {
-  description: string;
-  name: string;
-  source: SkillSource;
-}
-
-interface SkillMatch {
-  descriptionRanges: null | number[];
-  nameRanges: null | number[];
-  skill: Skill;
-}
+type Skill = Pick<
+  RPCOutput["workspace"]["skill"]["list"][number],
+  "description" | "name" | "source"
+>;
 
 // Generous rather than tight: the list scrolls, so a long query that still
 // matches broadly should let the user keep looking instead of silently cutting
 // off the one they wanted.
 const SKILL_MENU_LIMIT = 50;
-
-// Same matcher as the command menu, so a slash query behaves the way search
-// does everywhere else in the app and can show which characters it matched.
-const fuzzy = new uFuzzy({ intraMode: 1 });
 
 export function PromptEditor({
   autoFocus,
@@ -85,7 +74,6 @@ export function PromptEditor({
   onPaste,
   onSubmit,
   placeholder,
-  readOnly,
   ref,
   skills,
   value,
@@ -98,7 +86,6 @@ export function PromptEditor({
   onPaste: (event: ClipboardEvent) => boolean;
   onSubmit: (openInNewTab: boolean) => void;
   placeholder?: string;
-  readOnly: boolean;
   ref?: React.Ref<PromptEditorRef>;
   skills: Skill[];
   value: string;
@@ -128,7 +115,7 @@ export function PromptEditor({
     onSubmitRef.current = onSubmit;
     selectedIndexRef.current = selectedIndex;
   }, [onChange, onPaste, onSubmit, selectedIndex, skills]);
-  const matches = menu ? matchSkills(skills, menu.query) : [];
+  const matches = menu ? matchSkills(skills, menu.query, SKILL_MENU_LIMIT) : [];
 
   const updateMenu = (view: EditorView) => {
     const { empty, from } = view.state.selection;
@@ -196,6 +183,7 @@ export function PromptEditor({
           const currentMatches = matchSkills(
             skillsRef.current,
             activeMenu.query,
+            SKILL_MENU_LIMIT,
           );
           if (
             currentMatches.length > 0 &&
@@ -269,17 +257,17 @@ export function PromptEditor({
 
   // ProseMirror maps `editable: false` to `contentEditable="false"`, and the
   // browser blurs a contenteditable element the instant it stops being editable.
-  // A native textarea keeps focus when it goes readonly; submitting flips this
-  // editor readonly for the in-flight window, so without re-asserting focus the
-  // composer goes dead after every send. Remember whether the view held focus
-  // when it locked and restore it once editing is allowed again.
+  // A native textarea keeps focus when it goes readonly; submitting disables this
+  // editor for the in-flight window, so without re-asserting focus the composer
+  // goes dead after every send. Remember whether the view held focus when it
+  // locked and restore it once editing is allowed again.
   const refocusOnEditableRef = useRef(false);
   useEffect(() => {
     const view = viewRef.current;
     if (!view) {
       return;
     }
-    const editable = !disabled && !readOnly;
+    const editable = !disabled;
     if (!editable) {
       refocusOnEditableRef.current = view.hasFocus();
     }
@@ -288,7 +276,7 @@ export function PromptEditor({
       refocusOnEditableRef.current = false;
       view.focus();
     }
-  }, [disabled, readOnly]);
+  }, [disabled]);
 
   // Navigating between skills reuses this view, so the placeholder has to track
   // the prop rather than the value captured when the view was constructed.
@@ -311,8 +299,8 @@ export function PromptEditor({
   }));
 
   return (
-    <div className={cn("relative", className)} style={{ maxHeight }}>
-      <div className="max-h-full" ref={mountRef} />
+    <div className={cn("relative", className)}>
+      <div className="overflow-y-auto" ref={mountRef} style={{ maxHeight }} />
       {menu && matches.length > 0 ? (
         <div className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-72 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
           {matches.map((match, index) => (
@@ -359,48 +347,4 @@ export function PromptEditor({
       ) : null}
     </div>
   );
-}
-
-function matchSkills(skills: Skill[], query: string): SkillMatch[] {
-  if (!query) {
-    return skills.slice(0, SKILL_MENU_LIMIT).map((skill) => ({
-      descriptionRanges: null,
-      nameRanges: null,
-      skill,
-    }));
-  }
-
-  const fields = skills.map((skill) =>
-    joinFuzzyFields([skill.name, skill.description]),
-  );
-  const haystack = fields.map((field) => field.haystack);
-  // eslint-disable-next-line unicorn/no-array-method-this-argument
-  const indexes = fuzzy.filter(haystack, query);
-  if (!indexes || indexes.length === 0) {
-    return [];
-  }
-
-  const info = fuzzy.info(indexes, haystack, query);
-  const order = fuzzy.sort(info, haystack, query);
-
-  return order
-    .flatMap((orderIdx) => {
-      const index = info.idx[orderIdx] ?? -1;
-      const skill = skills[index];
-      const field = fields[index];
-      if (!skill || !field) {
-        return [];
-      }
-      const [nameRanges, descriptionRanges] = field.splitRanges(
-        info.ranges[orderIdx] ?? null,
-      );
-      return [
-        {
-          descriptionRanges: descriptionRanges ?? null,
-          nameRanges: nameRanges ?? null,
-          skill,
-        },
-      ];
-    })
-    .slice(0, SKILL_MENU_LIMIT);
 }

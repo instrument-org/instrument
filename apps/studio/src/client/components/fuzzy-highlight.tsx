@@ -1,9 +1,11 @@
 import uFuzzy from "@leeoniya/ufuzzy";
 
 export function FuzzyHighlight({
+  matchClassName = "bg-transparent font-semibold text-foreground",
   ranges,
   text,
 }: {
+  matchClassName?: string;
   ranges: null | number[];
   text: string;
 }) {
@@ -25,10 +27,7 @@ export function FuzzyHighlight({
     <span>
       {parts.map((p, i) =>
         p.matched ? (
-          <mark
-            className="bg-transparent font-semibold text-foreground"
-            key={i}
-          >
+          <mark className={matchClassName} key={i}>
             {p.part}
           </mark>
         ) : (

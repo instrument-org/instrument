@@ -310,27 +310,19 @@ function addCatalogFindings({
     return;
   }
 
-  // Render the catalog the agent will actually be given, then look for this
-  // skill in it. Whether a description survives depends on every other skill
-  // installed, so it cannot be answered by measuring this one alone.
+  // Render the catalog the agent will actually be given and check this skill
+  // made it in; that depends on every other skill installed, so measuring this
+  // one alone can't answer it. A description the budget merely shortened is not
+  // flagged: its full text still loads on demand, and the spec favors a richer
+  // description over a shorter one, so nudging it shorter would work against it.
   const catalog = renderSkillCatalog(invocable);
   const entry = catalog.entries.find((item) => item.name === skillName);
-  const full = invocable.find((skill) => skill.name === skillName)?.description;
 
   if (!entry) {
     add(
       "warning",
       "catalog-omitted",
       "There are so many skills installed that this one is left out of the catalog entirely. The agent will not choose it on its own.",
-    );
-    return;
-  }
-  if (full !== undefined && entry.description !== full) {
-    add(
-      "warning",
-      "catalog-shortened",
-      `The catalog cut this description to ${entry.description.length} of ${full.length} characters to fit its budget. Say what the skill is for early.`,
-      "SKILL.md",
     );
   }
 }

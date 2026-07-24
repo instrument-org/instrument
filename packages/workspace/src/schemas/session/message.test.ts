@@ -533,6 +533,62 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("normalizes a skill mention to /name and footnotes it", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: messageMetadata,
+        parts: [
+          {
+            metadata: partMetadata,
+            state: "done",
+            text: "Use [$tdd](skill:tdd) to write the tests.",
+            type: "text",
+          },
+          {
+            data: { names: ["tdd"] },
+            metadata: { ...partMetadata, id: StoreId.newPartId() },
+            type: "data-skillMentions",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
+              "text": "Use /tdd to write the tests.",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
+              "type": "text",
+            },
+            {
+              "text": "Skill reference in the message above: \`/tdd\` (the installed skill "tdd"). Load it with \`load_skill\` before relying on it, and don't describe a skill from its name alone.",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   it("includes tool parts in output-available state", async () => {
     const { sessionId } = baseMetadata();
 

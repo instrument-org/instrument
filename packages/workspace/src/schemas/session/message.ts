@@ -19,6 +19,10 @@ import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
+import {
+  renderSkillMentionsForModel,
+  skillMentionLabel,
+} from "../../lib/skill-mention";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -236,9 +240,19 @@ export namespace SessionMessage {
         )
         .map((part) => SessionMessagePart.toUIPart(part));
 
-      const parts = [...filteredParts];
+      let parts = [...filteredParts];
 
       if (message.role === "user") {
+        // Skill mentions are stored in their `[$name](skill:name)` wire form so
+        // the transcript can render them as chips; the model should read them as
+        // the `/name` the user typed, or it quotes the wire form back verbatim.
+        // The footnote below tells it what a `/name` reference means.
+        parts = parts.map((part) =>
+          part.type === "text"
+            ? { ...part, text: renderSkillMentionsForModel(part.text) }
+            : part,
+        );
+
         const injectedParts: { text: string; type: "text" }[] = [];
 
         const attachmentsPart = message.parts.find(
@@ -346,13 +360,18 @@ export namespace SessionMessage {
         );
         if (skillMentionsPart) {
           const names = skillMentionsPart.data.names;
+          const mentions = names
+            .map(
+              (name) =>
+                `\`${skillMentionLabel(name)}\` (the installed skill "${name}")`,
+            )
+            .join(", ");
+          const plural = names.length > 1;
+          const loadLine = plural
+            ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
+            : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
           injectedParts.push({
-            text: [
-              `The user wrote \`[$name](skill:name)\` to refer to a skill by name.`,
-              `Skills referred to in this message: ${names.join(", ")}.`,
-              `Decide which of them the request actually needs and load those with \`${TOOL_NAMES.loadSkill}\` before answering about them.`,
-              `Do not describe what a skill does from its name alone -- you have not read it until you load it.`,
-            ].join(" "),
+            text: `Skill ${plural ? "references" : "reference"} in the message above: ${mentions}. ${loadLine}`,
             type: "text",
           });
         }

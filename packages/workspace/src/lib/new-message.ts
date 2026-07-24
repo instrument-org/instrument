@@ -15,13 +15,11 @@ import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectExternalFileChanges } from "./external-file-changes";
+import { extractSkillMentions } from "./skill-mention";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-state-store";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
-
-/** The composer serializes a skill token as `[$name](skill:name)`. */
-const SKILL_MENTION_PATTERN = /\[\$([^\]]+)\]\(skill:([^)]+)\)/g;
 
 export async function newMessage({
   files,
@@ -60,13 +58,7 @@ export async function newMessage({
     });
   }
 
-  const mentionedSkills = [
-    ...new Set(
-      [...prompt.matchAll(SKILL_MENTION_PATTERN)].flatMap((match) =>
-        match[1] ? [match[1]] : [],
-      ),
-    ),
-  ];
+  const mentionedSkills = extractSkillMentions(prompt);
   if (mentionedSkills.length > 0) {
     parts.push({
       data: { names: mentionedSkills },

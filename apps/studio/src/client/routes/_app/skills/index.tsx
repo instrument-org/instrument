@@ -5,27 +5,39 @@ import { InternalLink } from "@/client/components/internal-link";
 import { RevealPath } from "@/client/components/reveal-path";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
-import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { matchSkills } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
+import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
+import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   FilesIcon,
   MagnifyingGlassIcon,
   PlusIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue } from "react";
+import { z } from "zod";
+
+const skillsSearchSchema = z.object({
+  q: z.string().optional().default(""),
+});
 
 export const Route = createFileRoute("/_app/skills/")({
   component: SkillsPage,
   head: () => ({ meta: [{ title: "Skills" }] }),
   staticData: { tabIcon: "graduation-cap" },
+  validateSearch: skillsSearchSchema,
 });
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
+
+// The name is already bold, so a matched run reads as a color shift instead of
+// extra weight, reusing the same brown that marks a skill mention elsewhere.
+const NAME_MATCH_CLASS_NAME = cn("bg-transparent", SKILL_TOKEN_CLASS_NAME);
 
 // Where a group sits in the list. The user's own workspace first, since it is
 // the one they author; then Instrument's provided skills; then skills found in
@@ -99,9 +111,7 @@ function parentDir(path: string) {
 
 function SkillsPage() {
   const { data: skills = [], isLoading } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions({
-      staleTime: SKILL_LIST_STALE_TIME_MS,
-    }),
+    rpcClient.workspace.skill.list.queryOptions(),
   );
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -188,6 +198,7 @@ function SkillsPage() {
                               <span className="min-w-0 truncate font-mono text-sm font-medium">
                                 /
                                 <FuzzyHighlight
+                                  matchClassName={NAME_MATCH_CLASS_NAME}
                                   ranges={ranges?.nameRanges ?? null}
                                   text={skill.name}
                                 />

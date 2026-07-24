@@ -24,6 +24,7 @@ import {
 
 import {
   deleteSkillBackward,
+  deleteSkillForward,
   promptDocFromText,
   promptSchema,
   promptTextFromDoc,
@@ -42,6 +43,7 @@ const editorPlugins = () => [
   history(),
   keymap({
     Backspace: deleteSkillBackward,
+    Delete: deleteSkillForward,
     "Mod-y": redo,
     "Mod-z": undo,
     "Shift-Mod-z": redo,
@@ -175,6 +177,11 @@ export function PromptEditor({
         updateMenu(view);
       },
       handleDOMEvents: {
+        blur: () => {
+          menuRef.current = null;
+          setMenu(null);
+          return false;
+        },
         paste: (_view, event) => onPasteRef.current(event),
       },
       handleKeyDown: (_view, event) => {

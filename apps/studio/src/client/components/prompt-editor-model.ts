@@ -63,6 +63,19 @@ export const deleteSkillBackward: Command = (state, dispatch) => {
   return true;
 };
 
+export const deleteSkillForward: Command = (state, dispatch) => {
+  const { $cursor } = state.selection as TextSelection;
+  if (!$cursor) {
+    return false;
+  }
+  const after = $cursor.nodeAfter;
+  if (after?.type !== promptSchema.nodes.skill) {
+    return false;
+  }
+  dispatch?.(state.tr.delete($cursor.pos, $cursor.pos + after.nodeSize));
+  return true;
+};
+
 export function promptDocFromText(value: string) {
   const paragraphs = value.split("\n").map((line) => {
     const nodes: ProseMirrorNode[] = splitSkillMention(line).map((segment) =>

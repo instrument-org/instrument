@@ -49,7 +49,7 @@ export function RevealPath({
       <span
         className={cn(
           "font-mono",
-          allowWrap ? "break-all whitespace-normal text-left" : "truncate",
+          allowWrap ? "text-left break-all whitespace-normal" : "truncate",
         )}
       >
         {path.replace(HOME_PREFIX, "~")}

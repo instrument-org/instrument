@@ -1,6 +1,6 @@
 # Skills in Studio
 
-Handoff for `feature/skills-sidebar` (PR #68). The branch carries merge commits from `main` (it stopped being kept strictly linear once `main` shipped changes worth pulling in mid-review) and is green on `pnpm check-and-test:ci`.
+Handoff for `feature/skills-sidebar` (PR #71). The branch is under final merge prep. CI is not green as of July 24, 2026: `check-and-test:ci` failed on workspace snapshot drift caused by the new global test setup preloading `store-id`, a `captureEvent` type error in `rpc/routes/skill.ts`, and a few Studio lint findings.
 
 ## What this is
 
@@ -36,7 +36,13 @@ Agent Skills, surfaced in Studio: a browsable list, a page per skill, a slash me
 
 ## Open work
 
-Visual verification of the four changes above. Everything else on this branch was checked in the DOM; these were not.
+Visual verification of the four changes above.
+
+Merge readiness cleanup still in flight:
+
+- keep the branch linear when rebasing or rewriting history
+- clear the remaining substantive PR review comments
+- rerun `pnpm check-and-test:ci` after the snapshot/test-harness fix and the remaining lint cleanups
 
 ## Things worth knowing before you touch this
 
@@ -50,7 +56,7 @@ Visual verification of the four changes above. Everything else on this branch wa
 
 **`pnpm turbo:fix:lint` reorders Tailwind classes in files you did not touch.** It will dirty five or six unrelated components every run. Revert those before committing; `check:lint` tolerates the original order.
 
-**`check:unused-words` fails in any worktree nested under `.claude/worktrees/`.** It lacks the `--gitignore-root .` flag that `check:spelling` passes, so it inherits the parent repo's `.gitignore` and scans nothing. Not caused by this branch, and not part of CI.
+**This worktree currently lacks its own installed bins.** `pnpm check-and-test` from the worktree fails before validation because `turbo`/`eslint` are missing there. Either hydrate the worktree install first or run the validation from a checkout that has `node_modules`.
 
 ## Conflicts to expect
 

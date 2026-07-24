@@ -188,83 +188,87 @@ function SkillsPage() {
               </p>
             ) : (
               <div className="grid gap-10">
-                {groups.map((group) => (
-                  <section className="min-w-0" key={group.key}>
-                    <div className="mb-4">
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                        <h2 className="text-base font-semibold tracking-tight text-foreground">
-                          {group.label}
-                        </h2>
-                        {isProvidedSource(group.source)
-                          ? null
-                          : group.dirs.map((dir) => (
-                              <RevealPath
-                                className="min-w-0 max-w-full"
-                                hideIcon
-                                key={dir}
-                                path={dir}
-                              />
-                            ))}
-                      </div>
-                    </div>
-                    <div className="divide-y overflow-hidden rounded-lg border">
-                      {group.skills.map((skill) => {
-                        const ranges = matchBySkill.get(skill);
-                        return (
-                          <div
-                            className="group relative flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
-                            key={skill.name}
-                          >
-                            <InternalLink
-                              className="absolute inset-0"
-                              params={{ name: skill.name }}
-                              to="/skills/$name"
+                {groups.map((group) => {
+                  const sourcePaths = isProvidedSource(group.source)
+                    ? []
+                    : group.dirs;
+
+                  return (
+                    <section className="min-w-0" key={group.key}>
+                      <div className="mb-4">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                          <h2 className="text-base font-semibold tracking-tight text-foreground">
+                            {group.label}
+                          </h2>
+                          {sourcePaths.map((dir) => (
+                            <RevealPath
+                              className="max-w-full min-w-0"
+                              hideIcon
+                              key={dir}
+                              path={dir}
                             />
-                            <div className="flex w-52 shrink-0 items-center gap-2">
-                              <span className="min-w-0 truncate font-mono text-sm font-medium">
-                                {skill.userInvocable ? "/" : null}
-                                <FuzzyHighlight
-                                  matchClassName={NAME_MATCH_CLASS_NAME}
-                                  ranges={ranges?.nameRanges ?? null}
-                                  text={skill.name}
+                          ))}
+                        </div>
+                      </div>
+                      <div className="divide-y overflow-hidden rounded-lg border">
+                        {group.skills.map((skill) => {
+                          const ranges = matchBySkill.get(skill);
+                          return (
+                            <div
+                              className="group relative flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
+                              key={skill.name}
+                            >
+                              <InternalLink
+                                className="absolute inset-0"
+                                params={{ name: skill.name }}
+                                to="/skills/$name"
+                              />
+                              <div className="flex w-52 shrink-0 items-center gap-2">
+                                <span className="min-w-0 truncate font-mono text-sm font-medium">
+                                  {skill.userInvocable ? "/" : null}
+                                  <FuzzyHighlight
+                                    matchClassName={NAME_MATCH_CLASS_NAME}
+                                    ranges={ranges?.nameRanges ?? null}
+                                    text={skill.name}
+                                  />
+                                </span>
+                                {skill.userInvocable ? (
+                                  <CopyButton
+                                    className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
+                                    iconSize={13}
+                                    onCopy={() =>
+                                      navigator.clipboard.writeText(
+                                        `/${skill.name}`,
+                                      )
+                                    }
+                                  />
+                                ) : null}
+                              </div>
+                              <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
+                                <SkillBadges
+                                  className="relative z-10 flex shrink-0 flex-wrap gap-1"
+                                  skill={skill}
                                 />
-                              </span>
-                              {skill.userInvocable ? (
-                                <CopyButton
-                                  className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
-                                  iconSize={13}
-                                  onCopy={() =>
-                                    navigator.clipboard.writeText(
-                                      `/${skill.name}`,
-                                    )
-                                  }
-                                />
+                                <span className="min-w-0 truncate">
+                                  <FuzzyHighlight
+                                    ranges={ranges?.descriptionRanges ?? null}
+                                    text={skill.description}
+                                  />
+                                </span>
+                              </div>
+                              {skill.fileCount > 1 ? (
+                                <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                                  <FilesIcon className="size-3.5" />
+                                  {fileCountLabel(skill)}
+                                </span>
                               ) : null}
                             </div>
-                            <div className="min-w-0 flex flex-1 items-center gap-2 text-sm text-muted-foreground">
-                              <SkillBadges
-                                className="relative z-10 flex shrink-0 flex-wrap gap-1"
-                                skill={skill}
-                              />
-                              <span className="min-w-0 truncate">
-                                <FuzzyHighlight
-                                  ranges={ranges?.descriptionRanges ?? null}
-                                  text={skill.description}
-                                />
-                              </span>
-                            </div>
-                            {skill.fileCount > 1 ? (
-                              <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                                <FilesIcon className="size-3.5" />
-                                {fileCountLabel(skill)}
-                              </span>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                ))}
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })}
               </div>
             )}
           </>

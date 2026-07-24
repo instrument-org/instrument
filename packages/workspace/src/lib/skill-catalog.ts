@@ -77,6 +77,7 @@ export function renderSkillCatalog(
     )
     .map((skill) => ({
       description: skill.description,
+      descriptionCost: escapedLength(skill.description),
       name: skill.name,
       // Its own trailing newline, so the entry costs add up to `xml.length`
       // once the wrapper is accounted for.
@@ -94,7 +95,7 @@ export function renderSkillCatalog(
 
   const entryBudget = budget - WRAPPER_COST;
   const fullCost = sum(
-    entries.map((entry) => entry.nameOnlyCost + entry.description.length),
+    entries.map((entry) => entry.nameOnlyCost + entry.descriptionCost),
   );
   if (fullCost <= entryBudget) {
     return build(
@@ -106,13 +107,13 @@ export function renderSkillCatalog(
   const nameOnlyCost = sum(entries.map((entry) => entry.nameOnlyCost));
   if (nameOnlyCost <= entryBudget) {
     const cap = fairShareLength(
-      entries.map((entry) => entry.description.length),
+      entries.map((entry) => entry.descriptionCost),
       entryBudget - nameOnlyCost,
     );
     return build(
       entries.map((entry) => ({
         ...entry,
-        shown: entry.description.slice(0, cap).trimEnd(),
+        shown: trimDescriptionToEscapedLength(entry.description, cap),
       })),
       0,
     );
@@ -153,6 +154,10 @@ function build(
       `</${CATALOG_TAGS.availableSkills}>`,
     ].join("\n"),
   };
+}
+
+function escapedLength(value: string) {
+  return escapeXml(value).length;
 }
 
 /**
@@ -196,4 +201,21 @@ function renderEntry(name: string, description: string) {
     `    <${CATALOG_TAGS.description}>${escapeXml(description)}</${CATALOG_TAGS.description}>`,
     `  </${CATALOG_TAGS.skill}>`,
   ].join("\n");
+}
+
+function trimDescriptionToEscapedLength(value: string, cap: number) {
+  if (!Number.isFinite(cap)) {
+    return value;
+  }
+  let rawLength = 0;
+  let remaining = cap;
+  for (const char of value) {
+    const cost = escapedLength(char);
+    if (cost > remaining) {
+      break;
+    }
+    remaining -= cost;
+    rawLength += char.length;
+  }
+  return value.slice(0, rawLength).trimEnd();
 }

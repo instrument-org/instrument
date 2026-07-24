@@ -180,7 +180,9 @@ export const PromptInput = ({
       staleTime: SKILL_LIST_STALE_TIME_MS,
     }),
   );
-  const userInvocableSkills = skills.filter((skill) => skill.userInvocable);
+  const userInvocableSkills = features.skills
+    ? skills.filter((skill) => skill.userInvocable)
+    : [];
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);

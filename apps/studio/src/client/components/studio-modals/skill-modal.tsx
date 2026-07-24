@@ -83,7 +83,7 @@ export function SkillModal() {
   return (
     <Dialog
       onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !createTaskMutation.isPending) {
           setState(null);
         }
       }}

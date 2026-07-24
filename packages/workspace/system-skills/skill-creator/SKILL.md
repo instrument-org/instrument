@@ -15,7 +15,7 @@ Skills live in `/skills/<name>/`, a writable mount outside the task root. Write 
 2. Ask only the questions whose answers would materially change the skill. Use concrete examples to resolve ambiguity.
 3. Decide whether the skill needs only instructions or also reusable scripts, references, or assets.
 4. Draft a concise `SKILL.md` body. Assume the agent already knows general concepts and include only domain-specific procedures, constraints, and decision guidance.
-5. Write the package to `/skills/<name>/`. Check whether that directory already exists first: revising an existing skill is fine, silently replacing one the user did not mean to touch is not.
+5. Write the package to `/skills/<name>/`. Check whether that directory already exists first. If it does, stop and ask whether to revise that existing skill or choose another name; revising is fine, silently replacing the wrong skill is not.
 6. Run `validate-skill <name>` and fix what it reports. A skill with broken frontmatter fails silently by never appearing at all, so this is the only confirmation that what you wrote is a skill.
 7. Tell the user the skill name and that it is available from Skills and the prompt slash menu.
 

@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
+import { REGISTRY_FOLDER_NAMES } from "../../constants";
+import { absolutePathJoin } from "../../lib/absolute-path-join";
 import {
   findSkill,
   findSkills,
@@ -9,6 +11,7 @@ import {
   listSkillFiles,
   SKILL_SOURCE_KINDS,
 } from "../../lib/skills";
+import { type AbsolutePath } from "../../schemas/paths";
 import { base } from "../base";
 
 /**
@@ -21,6 +24,14 @@ const SkillSourceSchema = z.enum(SKILL_SOURCE_KINDS);
 
 const SkillSummarySchema = z.object({
   description: z.string(),
+  /**
+   * True when the skill lives in the one workspace directory the agent can
+   * write to, so the UI can offer an edit action that actually lands. The
+   * other workspace source (`.agents/skills`) is listed but sits outside the
+   * writable `/skills` mount, so pointing an edit agent at it would fork a
+   * duplicate rather than revise it in place.
+   */
+  editable: z.boolean(),
   fileCount: z.number(),
   filesTruncated: z.boolean(),
   modelInvocable: z.boolean(),
@@ -41,10 +52,30 @@ const SkillFileSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("too-large") }),
 ]);
 
+function isEditable(skillDir: string, writableRoot: string): boolean {
+  return (
+    skillDir === writableRoot || skillDir.startsWith(writableRoot + path.sep)
+  );
+}
+
+/**
+ * Canonical path of the one workspace skills directory the agent can write to
+ * (the writable `/skills` mount). Editability is decided by containment here,
+ * which matches agent writability exactly: a symlinked skill dir canonicalizes
+ * outside this root and the mount blocks the escape anyway.
+ */
+async function writableSkillsRoot(rootDir: AbsolutePath): Promise<string> {
+  const root = absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills);
+  return fs.realpath(root).catch(() => root);
+}
+
 const list = base
   .output(SkillSummarySchema.array())
   .handler(async ({ context }) => {
     const skills = await findSkills(getSkillSources(context.workspaceConfig));
+    const writableRoot = await writableSkillsRoot(
+      context.workspaceConfig.rootDir,
+    );
     // Counting means walking every skill. Measured at a few milliseconds for a
     // few dozen skills, because the walk skips dependency trees and stops at
     // FILE_LIST_LIMIT, so it stays bounded however large a skill is.
@@ -55,6 +86,7 @@ const list = base
 
     return skills.map((skill, index) => ({
       description: skill.description,
+      editable: isEditable(skill.skillDir, writableRoot),
       fileCount: listings[index]?.files.length ?? 0,
       filesTruncated: listings[index]?.truncated ?? false,
       modelInvocable: skill.modelInvocable,
@@ -80,9 +112,13 @@ const byName = base
       skill.skillDir,
       AbortSignal.timeout(10_000),
     );
+    const writableRoot = await writableSkillsRoot(
+      context.workspaceConfig.rootDir,
+    );
     return {
       content: skill.content,
       description: skill.description,
+      editable: isEditable(skill.skillDir, writableRoot),
       fileCount: files.length,
       files,
       filesTruncated: truncated,

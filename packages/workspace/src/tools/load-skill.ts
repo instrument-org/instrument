@@ -62,16 +62,25 @@ const SkillInstallResultSchema = z.discriminatedUnion("state", [
  * writable `/skills` mount is editable in place, so a skill outside it is
  * read-only wherever it was discovered. `skillDir` is canonicalized, so the
  * mount root is too before the containment check.
+ *
+ * A skill discovered under the project's `.agents/skills` is also `"workspace"`
+ * source but sits outside that mount, so it reports as `"in-repo"`: still the
+ * user's own trusted project (dependencies install), but not agent-editable in
+ * place, and not "elsewhere on this machine" the way a co-installed agent's
+ * home directory is.
  */
 async function skillOrigin(
   skill: SkillInfo,
-): Promise<"external" | "instrument" | "workspace"> {
+): Promise<"external" | "in-repo" | "instrument" | "workspace"> {
   const workspaceSkillsDir = getWorkspaceSkillsDir();
   const mountRoot = await fsSync.promises
     .realpath(workspaceSkillsDir)
     .catch(() => workspaceSkillsDir);
   if (pathIsWithin(skill.skillDir, mountRoot)) {
     return "workspace";
+  }
+  if (skill.source === "workspace") {
+    return "in-repo";
   }
   return skill.source === "registry" || skill.source === "system"
     ? "instrument"
@@ -94,7 +103,7 @@ export const LoadSkill = setupTool({
       // Where the skill came from, so the model can say so and knows whether it
       // can edit the skill in place: "workspace" lives in the writable /skills
       // mount, the others are read-only where they were discovered.
-      origin: z.enum(["external", "instrument", "workspace"]),
+      origin: z.enum(["external", "in-repo", "instrument", "workspace"]),
       state: z.literal("success"),
       truncated: z.boolean(),
     }),
@@ -252,8 +261,10 @@ export const LoadSkill = setupTool({
         ? { node: false, python: false }
         : getSkillRuntime(path.join(skillsDir, input.name), input.name);
     const extra =
-      (runtime.node ? ms("2 minutes") : 0) +
-      (runtime.python ? ms("5 minutes") : 0);
+      "error" in runtime
+        ? 0
+        : (runtime.node ? ms("2 minutes") : 0) +
+          (runtime.python ? ms("5 minutes") : 0);
     return base + extra;
   },
   toModelOutput: ({ output }) => {
@@ -297,9 +308,11 @@ export const LoadSkill = setupTool({
     const originSection =
       output.origin === "workspace"
         ? `\n\nThis skill lives at \`${SKILLS_MOUNT_POINT}/${output.name}\`; edit it there to change the skill for future tasks (the \`${TASK_FOLDER_NAMES.work}/\` copy is only for this task).`
-        : output.origin === "instrument"
-          ? `\n\nThis skill is provided by ${APP_NAME} and is read-only. ${customizeHint}`
-          : `\n\nThis skill comes from a skills folder elsewhere on this machine and is read-only. ${customizeHint}`;
+        : output.origin === "in-repo"
+          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.name}\`, outside the writable \`${SKILLS_MOUNT_POINT}/\` mount, so you cannot edit it in place from here. ${customizeHint}`
+          : output.origin === "instrument"
+            ? `\n\nThis skill is provided by ${APP_NAME} and is read-only. ${customizeHint}`
+            : `\n\nThis skill comes from a skills folder elsewhere on this machine and is read-only. ${customizeHint}`;
 
     let installSection = "";
     if (output.installResults) {

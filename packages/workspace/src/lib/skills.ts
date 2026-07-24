@@ -172,6 +172,10 @@ export function getSkillSources(
   ];
 }
 
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function listSkillFiles(
   destDir: AbsolutePath,
   signal: AbortSignal,
@@ -345,10 +349,6 @@ async function isDirectorySymlink(candidate: AbsolutePath) {
   } catch {
     return false;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // Adapted from https://github.com/sst/opencode/blob/main/packages/opencode/src/config/markdown.ts

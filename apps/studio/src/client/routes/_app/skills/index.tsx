@@ -113,8 +113,9 @@ function SkillsPage() {
   const { data: skills = [], isLoading } = useQuery(
     rpcClient.workspace.skill.list.queryOptions(),
   );
-  const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
+  const { q } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const deferredQuery = useDeferredValue(q);
   const matches = matchSkills(skills, deferredQuery);
   const matchBySkill = new Map(matches.map((match) => [match.skill, match]));
   const groups = groupSkills(matches.map((match) => match.skill));
@@ -151,14 +152,33 @@ function SkillsPage() {
             <div className="relative mb-8 max-w-md">
               <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="pl-9"
+                className="pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden"
                 onChange={(event) => {
-                  setQuery(event.target.value);
+                  const value = event.target.value;
+                  void navigate({
+                    replace: true,
+                    search: (prev) => ({ ...prev, q: value || undefined }),
+                  });
                 }}
                 placeholder="Search skills"
                 type="search"
-                value={query}
+                value={q}
               />
+              {q ? (
+                <button
+                  aria-label="Clear search"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+                  onClick={() => {
+                    void navigate({
+                      replace: true,
+                      search: (prev) => ({ ...prev, q: undefined }),
+                    });
+                  }}
+                  type="button"
+                >
+                  <XIcon className="size-4" />
+                </button>
+              ) : null}
             </div>
 
             {groups.length === 0 ? (

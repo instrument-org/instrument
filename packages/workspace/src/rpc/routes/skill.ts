@@ -7,6 +7,7 @@ import {
   findSkills,
   getSkillSources,
   listSkillFiles,
+  SKILL_SOURCE_KINDS,
 } from "../../lib/skills";
 import { base } from "../base";
 
@@ -16,17 +17,7 @@ import { base } from "../base";
  */
 const FILE_SIZE_LIMIT = 512 * 1024;
 
-const SkillSourceSchema = z.enum([
-  "agents",
-  "claude",
-  "codex",
-  "cursor",
-  "gemini",
-  "opencode",
-  "registry",
-  "system",
-  "workspace",
-]);
+const SkillSourceSchema = z.enum(SKILL_SOURCE_KINDS);
 
 const SkillSummarySchema = z.object({
   description: z.string(),

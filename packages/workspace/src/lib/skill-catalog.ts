@@ -32,13 +32,18 @@ const WRAPPER_COST =
  */
 const SOURCE_PRIORITY: Record<SkillSourceKind, number> = {
   agents: 3,
+  antigravity: 3,
   claude: 3,
   codex: 3,
+  copilot: 3,
   cursor: 3,
   gemini: 3,
+  goose: 3,
+  kiro: 3,
   opencode: 3,
   registry: 2,
   system: 0,
+  windsurf: 3,
   workspace: 1,
 };
 

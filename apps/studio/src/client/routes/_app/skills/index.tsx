@@ -22,13 +22,18 @@ type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 // the folders other agents keep theirs in.
 const SOURCE_RANK: Record<Skill["source"], number> = {
   agents: 3,
+  antigravity: 3,
   claude: 3,
   codex: 3,
+  copilot: 3,
   cursor: 3,
   gemini: 3,
+  goose: 3,
+  kiro: 3,
   opencode: 3,
   registry: 1,
   system: 1,
+  windsurf: 3,
   workspace: 0,
 };
 

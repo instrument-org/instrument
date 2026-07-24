@@ -64,16 +64,27 @@ export interface SkillSource {
   source: SkillSourceKind;
 }
 
-export type SkillSourceKind =
-  | "agents"
-  | "claude"
-  | "codex"
-  | "cursor"
-  | "gemini"
-  | "opencode"
-  | "registry"
-  | "system"
-  | "workspace";
+// The single source of truth for the source kinds. The RPC schema's Zod enum
+// and every exhaustive `Record<SkillSourceKind>` derive from this, so adding a
+// source is one edit here plus whatever the compiler then demands.
+export const SKILL_SOURCE_KINDS = [
+  "agents",
+  "antigravity",
+  "claude",
+  "codex",
+  "copilot",
+  "cursor",
+  "gemini",
+  "goose",
+  "kiro",
+  "opencode",
+  "registry",
+  "system",
+  "windsurf",
+  "workspace",
+] as const;
+
+export type SkillSourceKind = (typeof SKILL_SOURCE_KINDS)[number];
 
 type FrontmatterSplit =
   | { block: string; body: string; ok: true }
@@ -150,11 +161,17 @@ export function getSkillSources(
       source: "registry",
     },
     fromHome("agents", ".agents", "skills"),
+    fromHome("agents", ".config", "agents", "skills"),
+    fromHome("antigravity", ".gemini", "antigravity", "skills"),
     fromHome("claude", ".claude", "skills"),
     fromHome("codex", ".codex", "skills"),
+    fromHome("copilot", ".copilot", "skills"),
     fromHome("cursor", ".cursor", "skills"),
     fromHome("gemini", ".gemini", "skills"),
+    fromHome("goose", ".config", "goose", "skills"),
+    fromHome("kiro", ".kiro", "skills"),
     fromHome("opencode", ".config", "opencode", "skills"),
+    fromHome("windsurf", ".codeium", "windsurf", "skills"),
     {
       dir: absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills),
       source: "workspace",

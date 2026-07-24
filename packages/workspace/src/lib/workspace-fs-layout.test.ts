@@ -179,6 +179,7 @@ describe("buildBashFs", () => {
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
       "mnt",
+      "skills",
       "task",
     ]);
   });

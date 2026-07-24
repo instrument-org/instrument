@@ -17,7 +17,7 @@ import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
-import { getWorkspaceConfigIfInitialized } from "./workspace-config";
+import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * Virtual mount point of the writable task directory.
@@ -50,7 +50,7 @@ export const SKILLS_MOUNT_POINT = "/skills";
  */
 export interface WorkspaceFsLayout {
   attached: WorkspaceFsMount[];
-  skills: null | WorkspaceFsMount;
+  skills: WorkspaceFsMount;
   task: WorkspaceFsMount & { hostRoot: TaskDir; readOnly: false };
 }
 
@@ -112,17 +112,16 @@ export async function buildBashFs(
     );
   }
 
-  if (layout.skills) {
-    // The workspace's own directory, always meant to be there, so create it if
-    // a fresh workspace has not yet. Skipping the mount instead would leave the
-    // agent writing to a `/skills` the prompt advertises but that does not
-    // exist. Unlike an attached folder, it cannot be detached out from under us.
-    await mkdir(layout.skills.hostRoot, { recursive: true });
-    fs.mount(
-      layout.skills.mountPoint,
-      new ReadWriteFs({ maxFileReadSize, root: layout.skills.hostRoot }),
-    );
-  }
+  // The workspace's own directory, always meant to be there, so create it if a
+  // fresh workspace has not yet. Skipping the mount instead would leave the
+  // agent writing to a `/skills` the prompt advertises but that does not exist.
+  // Unlike an attached folder, it cannot be detached out from under us, so it
+  // always mounts.
+  await mkdir(layout.skills.hostRoot, { recursive: true });
+  fs.mount(
+    layout.skills.mountPoint,
+    new ReadWriteFs({ maxFileReadSize, root: layout.skills.hostRoot }),
+  );
 
   return fs;
 }
@@ -147,17 +146,13 @@ export function buildWorkspaceFsLayout({
     readOnly: true,
   }));
 
-  const skillsHostRoot = getWorkspaceSkillsDir();
-
   return {
     attached,
-    skills: skillsHostRoot
-      ? {
-          hostRoot: skillsHostRoot,
-          mountPoint: SKILLS_MOUNT_POINT,
-          readOnly: false,
-        }
-      : null,
+    skills: {
+      hostRoot: getWorkspaceSkillsDir(),
+      mountPoint: SKILLS_MOUNT_POINT,
+      readOnly: false,
+    },
     task: {
       hostRoot: taskHostRoot,
       mountPoint: TASK_MOUNT_POINT,
@@ -166,15 +161,12 @@ export function buildWorkspaceFsLayout({
   };
 }
 
-/**
- * Workspace skills dir, or null outside a running workspace (unit tests and the
- * standalone run-bash script), where there is nothing to mount.
- */
-export function getWorkspaceSkillsDir(): AbsolutePath | null {
-  const config = getWorkspaceConfigIfInitialized();
-  return config
-    ? absolutePathJoin(config.rootDir, REGISTRY_FOLDER_NAMES.skills)
-    : null;
+/** The workspace's own `skills/` directory, which always mounts writable. */
+export function getWorkspaceSkillsDir(): AbsolutePath {
+  return absolutePathJoin(
+    getWorkspaceConfig().rootDir,
+    REGISTRY_FOLDER_NAMES.skills,
+  );
 }
 
 /**
@@ -206,7 +198,7 @@ export function hostPathEscapesMount(
 
 /** Every mount other than the task, in the order they are advertised. */
 export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
-  return [...layout.attached, ...(layout.skills ? [layout.skills] : [])];
+  return [...layout.attached, layout.skills];
 }
 
 /** Virtual mount point of the masked-off private dir under the task mount. */

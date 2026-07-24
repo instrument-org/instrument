@@ -1,13 +1,23 @@
-import { openCreateSkill } from "@/client/atoms/create-skill-modal";
+import { openCreateSkill } from "@/client/atoms/skill-modal";
+import { CopyButton } from "@/client/components/copy-button";
+import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { InternalLink } from "@/client/components/internal-link";
 import { RevealPath } from "@/client/components/reveal-path";
 import { Button } from "@/client/components/ui/button";
+import { Input } from "@/client/components/ui/input";
+import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
+import { matchSkills } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { FilesIcon, PlusIcon } from "@phosphor-icons/react";
+import {
+  FilesIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useDeferredValue, useState } from "react";
 
 export const Route = createFileRoute("/_app/skills/")({
   component: SkillsPage,
@@ -89,9 +99,15 @@ function parentDir(path: string) {
 
 function SkillsPage() {
   const { data: skills = [], isLoading } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions(),
+    rpcClient.workspace.skill.list.queryOptions({
+      staleTime: SKILL_LIST_STALE_TIME_MS,
+    }),
   );
-  const groups = groupSkills(skills);
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const matches = matchSkills(skills, deferredQuery);
+  const matchBySkill = new Map(matches.map((match) => [match.skill, match]));
+  const groups = groupSkills(matches.map((match) => match.skill));
 
   return (
     <main className="h-full overflow-y-auto scroll-fade-y">
@@ -113,7 +129,7 @@ function SkillsPage() {
           <p className="text-sm text-muted-foreground">
             Finding installed skills…
           </p>
-        ) : groups.length === 0 ? (
+        ) : skills.length === 0 ? (
           <div className="rounded-2xl border border-dashed p-10 text-center">
             <p className="font-medium">No skills yet</p>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -121,47 +137,92 @@ function SkillsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-10">
-            {groups.map((group) => (
-              <section key={group.key}>
-                <div className="mb-4">
-                  <h2 className="text-base font-semibold tracking-tight">
-                    {group.label}
-                  </h2>
-                  {isProvidedSource(group.source) ? null : (
-                    <div className="mt-1 grid gap-0.5">
-                      {group.dirs.map((dir) => (
-                        <RevealPath key={dir} path={dir} />
-                      ))}
+          <>
+            <div className="relative mb-8 max-w-md">
+              <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                }}
+                placeholder="Search skills"
+                type="search"
+                value={query}
+              />
+            </div>
+
+            {groups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {`No skills match “${deferredQuery}”.`}
+              </p>
+            ) : (
+              <div className="grid gap-10">
+                {groups.map((group) => (
+                  <section className="min-w-0" key={group.key}>
+                    <div className="mb-4">
+                      <h2 className="text-base font-semibold tracking-tight">
+                        {group.label}
+                      </h2>
+                      {isProvidedSource(group.source) ? null : (
+                        <div className="mt-1 grid gap-0.5">
+                          {group.dirs.map((dir) => (
+                            <RevealPath key={dir} path={dir} />
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="divide-y overflow-hidden rounded-lg border">
-                  {group.skills.map((skill) => (
-                    <InternalLink
-                      className="flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
-                      key={skill.name}
-                      params={{ name: skill.name }}
-                      to="/skills/$name"
-                    >
-                      <span className="w-52 shrink-0 truncate font-mono text-sm font-medium">
-                        /{skill.name}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                        {skill.description}
-                      </span>
-                      {skill.fileCount > 1 ? (
-                        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                          <FilesIcon className="size-3.5" />
-                          {fileCountLabel(skill)}
-                        </span>
-                      ) : null}
-                    </InternalLink>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+                    <div className="divide-y overflow-hidden rounded-lg border">
+                      {group.skills.map((skill) => {
+                        const ranges = matchBySkill.get(skill);
+                        return (
+                          <div
+                            className="group relative flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
+                            key={skill.name}
+                          >
+                            <InternalLink
+                              className="absolute inset-0"
+                              params={{ name: skill.name }}
+                              to="/skills/$name"
+                            />
+                            <div className="flex w-52 shrink-0 items-center gap-1">
+                              <span className="min-w-0 truncate font-mono text-sm font-medium">
+                                /
+                                <FuzzyHighlight
+                                  ranges={ranges?.nameRanges ?? null}
+                                  text={skill.name}
+                                />
+                              </span>
+                              <CopyButton
+                                className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
+                                iconSize={13}
+                                onCopy={() =>
+                                  navigator.clipboard.writeText(
+                                    `/${skill.name}`,
+                                  )
+                                }
+                              />
+                            </div>
+                            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                              <FuzzyHighlight
+                                ranges={ranges?.descriptionRanges ?? null}
+                                text={skill.description}
+                              />
+                            </span>
+                            {skill.fileCount > 1 ? (
+                              <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                                <FilesIcon className="size-3.5" />
+                                {fileCountLabel(skill)}
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>

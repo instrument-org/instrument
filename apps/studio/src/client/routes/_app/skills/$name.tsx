@@ -1,15 +1,18 @@
+import { openEditSkill } from "@/client/atoms/skill-modal";
+import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
 import { PromptInput } from "@/client/components/prompt-input";
 import { RevealPath } from "@/client/components/reveal-path";
 import { SessionMarkdown } from "@/client/components/session-markdown";
 import { SkillFileView } from "@/client/components/skill-file-view";
+import { Button } from "@/client/components/ui/button";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
-import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -67,7 +70,27 @@ function SkillPage() {
           <ArrowLeftIcon className="size-4" />
           All skills
         </Link>
-        <h1 className="font-serif text-3xl tracking-tight">{skill.title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="font-serif text-3xl tracking-tight">/{skill.name}</h1>
+          <CopyButton
+            className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+            iconSize={16}
+            onCopy={() => navigator.clipboard.writeText(`/${skill.name}`)}
+          />
+          {skill.editable ? (
+            <Button
+              className="ml-auto"
+              onClick={() => {
+                openEditSkill({ name: skill.name, title: skill.title });
+              }}
+              size="sm"
+              variant="outline"
+            >
+              <PencilSimpleIcon className="size-4" />
+              Edit
+            </Button>
+          ) : null}
+        </div>
         {isProvided(skill.source) ? (
           // Where our own skills sit on disk is an implementation detail to
           // everyone but us; the provenance is the part worth stating.

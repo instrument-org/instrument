@@ -1,4 +1,4 @@
-import { createSkillModalAtom } from "@/client/atoms/create-skill-modal";
+import { skillModalAtom } from "@/client/atoms/skill-modal";
 import { PromptInput } from "@/client/components/prompt-input";
 import {
   Dialog,
@@ -29,13 +29,15 @@ const CREATE_SKILL_INTENT = [
 ].join(" ");
 
 /**
- * App-wide create-skill modal, mounted once at the app-chrome root. Reads
- * `createSkillModalAtom` (opened via `openCreateSkill`); traps tab navigation
- * while open.
+ * App-wide skill modal, mounted once at the app-chrome root. Reads
+ * `skillModalAtom` (opened via `openCreateSkill` / `openEditSkill`); creating
+ * and editing are the same flow with a different briefing, so they share this
+ * one dialog. Traps tab navigation while open.
  */
-export function CreateSkillModal() {
-  const [state, setState] = useAtom(createSkillModalAtom);
+export function SkillModal() {
+  const [state, setState] = useAtom(skillModalAtom);
   const isOpen = state !== null;
+  const isEdit = state?.mode === "edit";
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const createTaskMutation = useMutation(
@@ -57,16 +59,23 @@ export function CreateSkillModal() {
     >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Create a skill</DialogTitle>
+          <DialogTitle>
+            {isEdit ? `Edit ${state.title}` : "Create a skill"}
+          </DialogTitle>
           <DialogDescription>
-            {`Describe the know-how you want to reuse. ${APP_NAME} shapes it with you and saves it to this workspace.`}
+            {isEdit
+              ? `Describe the change you want. ${APP_NAME} revises the skill with you and saves it back to this workspace.`
+              : `Describe the know-how you want to reuse. ${APP_NAME} shapes it with you and saves it to this workspace.`}
           </DialogDescription>
         </DialogHeader>
         <PromptInput
           allowOpenInNewTab
           autoFocus
           autoResizeMaxHeight={240}
-          draftKey={{ id: "create-skill", scope: "transient" }}
+          draftKey={{
+            id: isEdit ? `edit-skill:${state.name}` : "create-skill",
+            scope: "transient",
+          }}
           isLoading={createTaskMutation.isPending}
           modelURI={selectedModelURI}
           onModelChange={setSelectedModelURI}
@@ -76,16 +85,20 @@ export function CreateSkillModal() {
               {
                 files,
                 folders,
-                intent: CREATE_SKILL_INTENT,
+                intent: isEdit
+                  ? editSkillIntent(state.name)
+                  : CREATE_SKILL_INTENT,
                 modelURI,
-                name: "Create a skill",
+                name: isEdit ? `Edit ${state.title}` : "Create a skill",
                 projectId: null,
                 prompt,
               },
               {
                 onError: (error) => {
                   toast.error(
-                    `There was an error starting skill creation: ${error.message}`,
+                    isEdit
+                      ? `There was an error starting skill editing: ${error.message}`
+                      : `There was an error starting skill creation: ${error.message}`,
                   );
                 },
                 onSuccess: ({ id, sessionId }) => {
@@ -104,9 +117,27 @@ export function CreateSkillModal() {
               },
             );
           }}
-          placeholder="Describe the skill you want to create"
+          placeholder={
+            isEdit
+              ? "Describe the change you want to make"
+              : "Describe the skill you want to create"
+          }
         />
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * Edit counterpart to `CREATE_SKILL_INTENT`, naming the skill so the agent
+ * revises the existing package in place rather than starting a new one. The
+ * name is the directory slug, which is what `/skills/<name>/` addresses.
+ */
+function editSkillIntent(name: string) {
+  return [
+    `The user opened the "${name}" skill from the Skills area to edit it.`,
+    "Load the skill-creator skill and follow it to revise the existing package",
+    `at /skills/${name}/: interview them only as far as the answers would change`,
+    "the skill, then apply the edits.",
+  ].join(" ");
 }

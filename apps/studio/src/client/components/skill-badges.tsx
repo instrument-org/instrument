@@ -8,9 +8,9 @@ import {
 const SKILL_BADGES = [
   {
     active: (skill: { userInvocable: boolean }) => !skill.userInvocable,
-    label: "Hidden",
+    label: "Automatic",
     tooltip:
-      "Set by `user-invocable: false` in the frontmatter. This keeps the skill out of the slash menu and other direct pickers.",
+      "Set by `user-invocable: false` in the frontmatter. This keeps the skill out of the slash menu and other direct pickers, so it is only available for automatic use.",
     variant: "outline",
   },
   {

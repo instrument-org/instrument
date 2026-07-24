@@ -151,32 +151,35 @@ function SkillPage() {
 
           {skill.files.length > 0 ? (
             <aside className="min-w-0 lg:sticky lg:top-10 lg:self-start">
-              <h2 className="text-xs font-medium text-muted-foreground">
-                Files
-              </h2>
-              <div className="mt-3 grid max-h-96 gap-1.5 overflow-y-auto scroll-fade-y text-xs">
-                {skill.files.map((file) => (
-                  <button
-                    className={cn(
-                      "flex min-w-0 items-center gap-2 rounded-sm px-1.5 py-1 text-left hover:bg-muted/50",
-                      file === selectedFile && "bg-muted/70 text-foreground",
-                    )}
-                    key={file}
-                    onClick={() => {
-                      setSelection({ file, skill: name });
-                    }}
-                    type="button"
-                  >
-                    <FileIcon
-                      className="size-4 shrink-0 text-muted-foreground"
-                      filename={file}
-                    />
-                    <span className="truncate font-mono">{file}</span>
-                  </button>
-                ))}
-                {skill.filesTruncated ? (
-                  <span className="px-1.5 text-muted-foreground">…</span>
-                ) : null}
+              <div className="overflow-hidden rounded-lg bg-card shadow-xs">
+                <div className="border-b px-3 py-2">
+                  <h2 className="text-xs font-medium">Files</h2>
+                </div>
+                <div className="grid max-h-96 gap-0.5 overflow-y-auto scroll-fade-y p-1.5 text-xs">
+                  {skill.files.map((file) => (
+                    <button
+                      className={cn(
+                        "flex min-w-0 items-center gap-2 rounded-sm px-1.5 py-1 text-left hover:bg-accent/50",
+                        file === selectedFile &&
+                          "bg-accent text-accent-foreground",
+                      )}
+                      key={file}
+                      onClick={() => {
+                        setSelection({ file, skill: name });
+                      }}
+                      type="button"
+                    >
+                      <FileIcon
+                        className="size-4 shrink-0 text-muted-foreground"
+                        filename={file}
+                      />
+                      <span className="truncate font-mono">{file}</span>
+                    </button>
+                  ))}
+                  {skill.filesTruncated ? (
+                    <span className="px-1.5 py-1 text-muted-foreground">…</span>
+                  ) : null}
+                </div>
               </div>
             </aside>
           ) : null}

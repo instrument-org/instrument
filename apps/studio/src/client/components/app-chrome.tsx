@@ -5,6 +5,7 @@ import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { StudioToolbar } from "@/client/components/studio-toolbar";
 import { Toaster } from "@/client/components/ui/sonner";
+import { UpdatedToast } from "@/client/components/updated-toast";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
@@ -103,6 +104,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
         </Suspense>
       )}
       <Toaster position="top-center" />
+      <UpdatedToast />
     </div>
   );
 }

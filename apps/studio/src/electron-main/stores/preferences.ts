@@ -1,7 +1,9 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { app } from "electron";
 import Store from "electron-store";
+import semver from "semver";
 import { z } from "zod";
 
 function getDefaultEnableUsageMetrics() {
@@ -26,6 +28,7 @@ export const PreferencesStoreSchema = z.object({
   defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
   developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
   enableUsageMetrics: z.boolean().catch(getDefaultEnableUsageMetrics()),
+  lastLaunchedVersion: z.string().optional(),
   lastUpdateCheck: z.number().optional(),
   preferApiKeyOverAccount: z.boolean().catch(false),
   // Release channels are not exposed to the user and are used internally for testing
@@ -68,6 +71,11 @@ export const getPreferencesStore = (): Store<PreferencesStore> => {
   return PREFERENCES_STORE;
 };
 
+interface VersionBump {
+  from: string;
+  to: string;
+}
+
 export function getDefaultModelURI(): AIGatewayModelURI.Type | undefined {
   const store = getPreferencesStore();
   return store.get("defaultModelURI");
@@ -86,4 +94,44 @@ export function setDefaultModelURI(modelURI: AIGatewayModelURI.Type): void {
 export function setLastUpdateCheck(): void {
   const store = getPreferencesStore();
   store.set("lastUpdateCheck", Date.now());
+}
+
+// Computed once at startup and consumed exactly once, so the "updated" toast
+// fires for the launch that followed the update and not again on a later
+// renderer reload.
+let recentVersionBump: null | VersionBump = null;
+let versionBumpChecked = false;
+
+// Compares the version we last launched with the version running now. A
+// strictly-newer running version means the app was updated since the last
+// launch. Persists the current version so the next launch has a baseline.
+export function checkRecentVersionBump(): void {
+  if (versionBumpChecked) {
+    return;
+  }
+  versionBumpChecked = true;
+
+  const store = getPreferencesStore();
+  const previous = store.get("lastLaunchedVersion");
+  const current = app.getVersion();
+
+  if (
+    previous &&
+    previous !== current &&
+    semver.valid(previous) &&
+    semver.valid(current) &&
+    semver.gt(current, previous)
+  ) {
+    recentVersionBump = { from: previous, to: current };
+  }
+
+  store.set("lastLaunchedVersion", current);
+}
+
+// Returns the pending version bump and clears it, so only the first caller sees
+// it however many times the renderer asks.
+export function consumeRecentVersionBump(): null | VersionBump {
+  const bump = recentVersionBump;
+  recentVersionBump = null;
+  return bump;
 }

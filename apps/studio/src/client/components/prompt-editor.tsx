@@ -1,5 +1,6 @@
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
+import { type SkillSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { cn } from "@/client/lib/utils";
 import uFuzzy from "@leeoniya/ufuzzy";
 import { baseKeymap } from "prosemirror-commands";
@@ -57,6 +58,7 @@ export interface PromptEditorRef {
 interface Skill {
   description: string;
   name: string;
+  source: SkillSource;
 }
 
 interface SkillMatch {
@@ -297,7 +299,7 @@ export function PromptEditor({
           {matches.map((match, index) => (
             <button
               className={cn(
-                "flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left",
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left",
                 index === selectedIndex && "bg-accent",
               )}
               key={match.skill.name}
@@ -323,11 +325,14 @@ export function PromptEditor({
                   text={match.skill.name}
                 />
               </span>
-              <span className="line-clamp-1 text-sm text-muted-foreground">
+              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
                 <FuzzyHighlight
                   ranges={match.descriptionRanges}
                   text={match.skill.description}
                 />
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground/70">
+                {skillSourceLabel(match.skill.source)}
               </span>
             </button>
           ))}

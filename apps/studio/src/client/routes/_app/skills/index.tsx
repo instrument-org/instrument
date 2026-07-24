@@ -2,6 +2,7 @@ import { openCreateSkill } from "@/client/atoms/create-skill-modal";
 import { InternalLink } from "@/client/components/internal-link";
 import { RevealPath } from "@/client/components/reveal-path";
 import { Button } from "@/client/components/ui/button";
+import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { FilesIcon, PlusIcon } from "@phosphor-icons/react";
@@ -16,8 +17,8 @@ export const Route = createFileRoute("/_app/skills/")({
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
-// Where a group sits in the list. Instrument's own skills first because they
-// are the ones we can vouch for, then the workspace, then skills discovered in
+// Where a group sits in the list. The user's own workspace first, since it is
+// the one they author; then Instrument's provided skills; then skills found in
 // the folders other agents keep theirs in.
 const SOURCE_RANK: Record<Skill["source"], number> = {
   agents: 3,
@@ -26,27 +27,9 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
   cursor: 3,
   gemini: 3,
   opencode: 3,
-  registry: 0,
-  system: 0,
-  workspace: 1,
-};
-
-// Whether a skill we ship came from the bundle or the registry is our own
-// packaging detail, so both read as one thing to the user.
-const PROVIDED_LABEL = `Provided by ${APP_NAME}`;
-
-// Each source names the app or place its skills come from; the folder on disk
-// rides underneath as secondary detail rather than standing in as the heading.
-const SOURCE_LABELS: Record<Skill["source"], string> = {
-  agents: "Agent skills",
-  claude: "Claude Code",
-  codex: "Codex",
-  cursor: "Cursor",
-  gemini: "Gemini",
-  opencode: "OpenCode",
-  registry: PROVIDED_LABEL,
-  system: PROVIDED_LABEL,
-  workspace: "This workspace",
+  registry: 1,
+  system: 1,
+  workspace: 0,
 };
 
 // Every skill has a SKILL.md, so a count of one says nothing; what is worth
@@ -65,7 +48,7 @@ function groupSkills(skills: Skill[]) {
     const dir = parentDir(skill.path);
     // Skills group under their source's name, not their folder, so one vendor's
     // skills read as a single section however many folders they span.
-    const key = SOURCE_LABELS[skill.source];
+    const key = skillSourceLabel(skill.source);
     const group = groups.get(key);
     if (group) {
       group.dirs.add(dir);
@@ -83,7 +66,7 @@ function groupSkills(skills: Skill[]) {
     .map(([key, group]) => ({
       dirs: [...group.dirs].sort(),
       key,
-      label: SOURCE_LABELS[group.source],
+      label: skillSourceLabel(group.source),
       skills: group.skills.sort((a, b) => a.name.localeCompare(b.name)),
       source: group.source,
     }))
@@ -140,7 +123,7 @@ function SkillsPage() {
                   <h2 className="text-base font-semibold tracking-tight">
                     {group.label}
                   </h2>
-                  {group.label === PROVIDED_LABEL ? null : (
+                  {isProvidedSource(group.source) ? null : (
                     <div className="mt-1 grid gap-0.5">
                       {group.dirs.map((dir) => (
                         <RevealPath key={dir} path={dir} />
@@ -148,23 +131,25 @@ function SkillsPage() {
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="divide-y overflow-hidden rounded-lg border">
                   {group.skills.map((skill) => (
                     <InternalLink
-                      className="group rounded-2xl border bg-card p-5 transition-colors hover:bg-accent/40"
+                      className="flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
                       key={skill.name}
                       params={{ name: skill.name }}
                       to="/skills/$name"
                     >
-                      <h3 className="text-sm font-semibold">{skill.title}</h3>
-                      <p className="mt-2 line-clamp-3 text-sm/relaxed text-muted-foreground">
+                      <span className="w-52 shrink-0 truncate font-mono text-sm font-medium">
+                        /{skill.name}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
                         {skill.description}
-                      </p>
+                      </span>
                       {skill.fileCount > 1 ? (
-                        <p className="mt-3 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                           <FilesIcon className="size-3.5" />
                           {fileCountLabel(skill)}
-                        </p>
+                        </span>
                       ) : null}
                     </InternalLink>
                   ))}

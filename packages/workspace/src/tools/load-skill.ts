@@ -51,6 +51,10 @@ const SkillInstallResultSchema = z.discriminatedUnion("state", [
     runtime: z.enum(["node", "python"]),
     state: z.literal("failure"),
   }),
+  z.object({
+    runtime: z.enum(["node", "python"]),
+    state: z.literal("skipped"),
+  }),
 ]);
 
 /**
@@ -63,12 +67,10 @@ async function skillOrigin(
   skill: SkillInfo,
 ): Promise<"external" | "instrument" | "workspace"> {
   const workspaceSkillsDir = getWorkspaceSkillsDir();
-  const mountRoot = workspaceSkillsDir
-    ? await fsSync.promises
-        .realpath(workspaceSkillsDir)
-        .catch(() => workspaceSkillsDir)
-    : null;
-  if (mountRoot !== null && pathIsWithin(skill.skillDir, mountRoot)) {
+  const mountRoot = await fsSync.promises
+    .realpath(workspaceSkillsDir)
+    .catch(() => workspaceSkillsDir);
+  if (pathIsWithin(skill.skillDir, mountRoot)) {
     return "workspace";
   }
   return skill.source === "registry" || skill.source === "system"
@@ -182,29 +184,45 @@ export const LoadSkill = setupTool({
       signal,
     );
 
+    const origin = await skillOrigin(skill);
+
+    // Third-party skills discovered in another tool's folder on this machine are
+    // never eagerly installed: their declared dependencies are code we'd fetch
+    // and run before anyone has vetted the skill. First-party and workspace
+    // skills are trusted enough to provision on load.
+    const installDependencies = origin !== "external";
+
     const installResults: z.output<typeof SkillInstallResultSchema>[] = [];
 
     if (runtime.node) {
-      const { combined, exitCode } = await runPnpmCommand({
-        args: ["install"],
-        cwd: getTaskWorkDir(taskDir(taskId)),
-        signal,
-        taskId,
-      });
-      installResults.push(
-        exitCode === 0
-          ? { runtime: "node", state: "success" }
-          : { exitCode, output: combined, runtime: "node", state: "failure" },
-      );
+      if (installDependencies) {
+        const { combined, exitCode } = await runPnpmCommand({
+          args: ["install"],
+          cwd: getTaskWorkDir(taskDir(taskId)),
+          signal,
+          taskId,
+        });
+        installResults.push(
+          exitCode === 0
+            ? { runtime: "node", state: "success" }
+            : { exitCode, output: combined, runtime: "node", state: "failure" },
+        );
+      } else {
+        installResults.push({ runtime: "node", state: "skipped" });
+      }
     }
 
     if (runtime.python) {
-      const installResult = await installPythonSkill({
-        signal,
-        skillDir: destDir,
-        taskId,
-      });
-      installResults.push({ ...installResult, runtime: "python" });
+      if (installDependencies) {
+        const installResult = await installPythonSkill({
+          signal,
+          skillDir: destDir,
+          taskId,
+        });
+        installResults.push({ ...installResult, runtime: "python" });
+      } else {
+        installResults.push({ runtime: "python", state: "skipped" });
+      }
     }
 
     // SKILL.md is already inlined above as the skill's content, so listing it
@@ -218,7 +236,7 @@ export const LoadSkill = setupTool({
       files,
       ...(installResults.length > 0 ? { installResults } : {}),
       name: skill.name,
-      origin: await skillOrigin(skill),
+      origin,
       state: "success" as const,
       truncated,
     });
@@ -286,6 +304,17 @@ export const LoadSkill = setupTool({
     let installSection = "";
     if (output.installResults) {
       const installText = output.installResults.map((installResult) => {
+        if (installResult.state === "skipped") {
+          const installHint =
+            installResult.runtime === "node"
+              ? `run \`${PNPM_COMMAND.name} install\` in \`${TASK_FOLDER_NAMES.work}/\``
+              : `install its locked dependencies into \`${TASK_FOLDER_NAMES.work}/.venv\``;
+          return [
+            `This skill declares ${installResult.runtime === "node" ? "Node.js" : "Python"} dependencies, but ${APP_NAME} did not install them because the skill comes from a third-party skills folder on this machine.`,
+            `Review the skill first, then ${installHint} yourself if you trust it.`,
+          ].join(" ");
+        }
+
         if (installResult.state === "failure") {
           const command =
             installResult.runtime === "node"

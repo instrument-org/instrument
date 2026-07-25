@@ -1,5 +1,6 @@
 import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { describe, expect, it } from "vitest";
+import os from "node:os";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -12,6 +13,8 @@ import {
   isExternalBrowserInvocation,
   scrubHostPaths,
 } from "./agent-browser";
+
+vi.mock("execa");
 
 const mockCtx: CommandContext = {
   cwd: "/",
@@ -75,6 +78,122 @@ describe("createAgentBrowserCommand", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("subcommand 'close' is not available");
+  });
+});
+
+describe("agent-browser routing", () => {
+  const taskId = createMockTaskConfig(TaskIdSchema.parse("routing"));
+  const sessionId = StoreId.newSessionId();
+  const command = createAgentBrowserCommand({ sessionId, taskId });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  async function spawnedWith(
+    args: string[],
+    agentEnv: [string, string][] = [],
+  ) {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValue({
+      exitCode: 0,
+      stderr: "",
+      stdout: "",
+    } as never);
+
+    await command.execute(args, {
+      ...mockCtx,
+      env: new Map(agentEnv),
+    });
+
+    const call = vi.mocked(execa).mock.calls[0];
+    if (!call) {
+      throw new Error("agent-browser was never spawned");
+    }
+    // execa's overloads type the call tuple as its 2-argument form, so read
+    // the (binary, args, options) triple positionally and narrow each part.
+    const positional: unknown[] = [...call];
+    const spawnedArgs = positional[1];
+    const options = positional[2];
+    const optionsEnv =
+      typeof options === "object" && options !== null && "env" in options
+        ? options.env
+        : undefined;
+    const env: Record<string, string | undefined> =
+      typeof optionsEnv === "object" && optionsEnv !== null
+        ? Object.fromEntries(
+            Object.entries(optionsEnv).map(([key, value]) => [
+              key,
+              typeof value === "string" ? value : undefined,
+            ]),
+          )
+        : {};
+    return {
+      args: Array.isArray(spawnedArgs) ? spawnedArgs.map(String) : [],
+      env,
+    };
+  }
+
+  it("routes a bare command to the task browser via the instrument provider", async () => {
+    const { args, env } = await spawnedWith(["open", "https://example.com"]);
+
+    expect(args).toContain("--session");
+    expect(args[args.indexOf("--session") + 1]).toBe(sessionId);
+    expect(env.AGENT_BROWSER_PROVIDER).toBe("instrument");
+    expect(env.AGENT_BROWSER_PLUGINS).toContain('"name":"instrument"');
+    // Lets the daemon run the plugin under Electron's node on packaged builds.
+    expect(env.ELECTRON_RUN_AS_NODE).toBe("1");
+    expect(env.HOME).not.toBe(os.homedir());
+  });
+
+  it("routes an external targeting flag to the sibling session with no provider", async () => {
+    const { args, env } = await spawnedWith([
+      "--profile",
+      "Default",
+      "open",
+      "https://example.com",
+    ]);
+
+    expect(args[args.indexOf("--session") + 1]).toBe(`${sessionId}-ext`);
+    expect(env.AGENT_BROWSER_PROVIDER).toBeUndefined();
+    expect(env.AGENT_BROWSER_PLUGINS).toBeUndefined();
+    expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+    // --profile and --auto-connect resolve against the real user-data dirs.
+    expect(env.HOME).toBe(os.homedir());
+  });
+
+  it("routes profiles to the host even without a targeting flag", async () => {
+    const { args, env } = await spawnedWith(["profiles"]);
+
+    expect(args[args.indexOf("--session") + 1]).toBe(`${sessionId}-ext`);
+    expect(env.HOME).toBe(os.homedir());
+    expect(env.AGENT_BROWSER_PROVIDER).toBeUndefined();
+  });
+
+  it("ignores connection env the agent exported into its shell", async () => {
+    const { args, env } = await spawnedWith(
+      ["open", "https://example.com"],
+      [
+        ["AGENT_BROWSER_CDP", "9222"],
+        ["AGENT_BROWSER_AUTO_CONNECT", "1"],
+        ["AGENT_BROWSER_PROFILE", "Default"],
+        ["AGENT_BROWSER_PLUGINS", '[{"name":"evil","command":"/bin/sh"}]'],
+        ["AGENT_BROWSER_PROVIDER", "evil"],
+        ["AGENT_BROWSER_SESSION", "hijacked"],
+        ["AGENT_BROWSER_CONFIG", "/task/agent-browser.json"],
+      ],
+    );
+
+    // Routing stays argv-derived: the shell env cannot move the invocation off
+    // the task browser or re-point the plugin registry.
+    expect(args[args.indexOf("--session") + 1]).toBe(sessionId);
+    expect(env.AGENT_BROWSER_CDP).toBeUndefined();
+    expect(env.AGENT_BROWSER_AUTO_CONNECT).toBeUndefined();
+    expect(env.AGENT_BROWSER_PROFILE).toBeUndefined();
+    expect(env.AGENT_BROWSER_SESSION).toBeUndefined();
+    expect(env.AGENT_BROWSER_CONFIG).toBeUndefined();
+    expect(env.AGENT_BROWSER_PROVIDER).toBe("instrument");
+    expect(env.AGENT_BROWSER_PLUGINS).not.toContain("evil");
   });
 });
 

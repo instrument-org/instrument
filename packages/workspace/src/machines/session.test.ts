@@ -1377,12 +1377,13 @@ describe("sessionMachine", () => {
           </user>
           <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
             <step-start step="1" />
-            <tool tool="read_file" state="input-available" callId="test-call-1">
+            <tool tool="read_file" state="output-error" callId="test-call-1">
               <input>
                 {
                   "filePath": "test.txt"
                 }
               </input>
+              <error>This action was stopped by you.</error>
             </tool>
           </assistant>
           <session-context main realRole="system" />

@@ -191,7 +191,7 @@ function SkillPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Tooltip>
+            <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <span className="inline-flex shrink-0">
                   <Button disabled size="icon-sm" variant="ghost">

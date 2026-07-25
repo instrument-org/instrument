@@ -32,7 +32,11 @@ import {
 } from "../lib/task-file-watcher";
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
+import {
+  CONNECTORS_MOUNT_POINT,
+  getWorkspaceConnectorsDir,
+  SKILLS_MOUNT_POINT,
+} from "../lib/workspace-fs-layout";
 import { publisher } from "../rpc/publisher";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -189,7 +193,7 @@ export const mainAgent = setupAgent({
     - \`${F.output}/\` -- finished deliverables, shown to the user inline with previews. Write final results here.
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
-    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders, \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills, and \`/connectors/...\` for connectors. Never use host paths like \`/Users/...\`.
+    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders, \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills, and \`${CONNECTORS_MOUNT_POINT}/...\` for connectors. Never use host paths like \`/Users/...\`.
     - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory per folder; the attached-folders context lists the exact paths). Browse, read, and search them by their \`/mnt/...\` path with your normal file tools (\`${agentTools.ReadFile.name}\`, \`${agentTools.Glob.name}\`, \`${agentTools.Grep.name}\`) or the \`${agentTools.BashTool.name}\` tool (\`ls\`, \`cat\`, \`grep\`/\`rg\`, \`find\`). They are NOT under the task root, so reach them by their \`/mnt/...\` path, not a relative one. When referencing an attached file from agent-authored HTML or CSS, use its absolute \`/mnt/...\` path so the static asset origin resolves it.
     - These mounts are read-only and reflect the user's real files: do not try to edit, write into, or build outputs inside \`/mnt/\` (it will fail). Native tools (ffmpeg, python, scripts) also cannot read from \`/mnt/\` directly. To edit, run, or process an attached file, copy it into the task first (e.g. \`cp '/mnt/<folder>/file' ${F.attachments}/\`) and operate on the copy.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
@@ -225,10 +229,10 @@ export const mainAgent = setupAgent({
     - CRITICAL: Do NOT use \`${agentTools.WriteFile.name}\` to re-emit content you have already produced or read from disk. That wastes tokens and risks corrupting bytes (line endings, whitespace, base64-ish or minified content). Use \`cp\`/\`mv\` instead.
 
     ## Data Connectors
-    The workspace can hold data connectors: per-service folders at \`/connectors/<slug>/\` holding a \`connector.json\` manifest and a \`guide.md\`, giving you authenticated access to external services (e.g. Notion) via the \`${agentTools.ConnectorRequest.name}\` tool.
+    The workspace can hold data connectors: per-service folders at \`${CONNECTORS_MOUNT_POINT}/<slug>/\` holding a \`connector.json\` manifest and a \`guide.md\`, giving you authenticated access to external services (e.g. Notion) via the \`${agentTools.ConnectorRequest.name}\` tool.
     - Credentials are stored by the app and injected at request time. NEVER ask the user to paste an API key into the chat, NEVER write a credential into any file, and never add your own auth headers. When a credential is missing, use \`${agentTools.ConnectorCredentialPrompt.name}\` -- it shows a secure entry field; you only learn granted or denied.
     - The first \`${agentTools.ConnectorRequest.name}\` call for a connector returns its guide; read it, then repeat the request.
-    - You can create or repair a connector by editing its files under \`/connectors/<slug>/\` and validating with \`${agentTools.ConnectorTest.name}\` until it passes (a pass enables the connector).
+    - You can create or repair a connector by editing its files under \`${CONNECTORS_MOUNT_POINT}/<slug>/\` and validating with \`${agentTools.ConnectorTest.name}\` until it passes (a pass enables the connector).
     - When setting up a new connector, research the service's API first: \`curl https://integrations.sh/api/<domain>/detect\` (or \`/discover\`) returns known API surfaces with credential-acquisition steps, and \`${agentTools.WebSearch.name}\` covers the rest. Write what you learn into the connector's \`guide.md\`.
     - Connectors come in two types. \`type: "api"\` connectors make authenticated HTTP requests via \`${agentTools.ConnectorRequest.name}\`. \`type: "mcp"\` connectors point at a hosted MCP server (e.g. \`https://mcp.linear.app/mcp\`); use \`${agentTools.ConnectorMcp.name}\` to list and call their tools. Both are validated and enabled by \`${agentTools.ConnectorTest.name}\`.
     - For an MCP connector whose \`auth.kind\` is \`"oauth"\` (one-click sign-in, no key -- e.g. Linear, Notion, Sentry), do NOT collect a credential. After creating its folder + guide, use \`${agentTools.ConnectorOAuthPrompt.name}\` to show the user a Connect button; once they sign in the connector is enabled automatically.
@@ -327,7 +331,7 @@ export const mainAgent = setupAgent({
             "The user has attached these folders to this task. They are mounted read-only for direct access:",
         }),
         await buildConnectorsContextText({
-          connectorsDir: getWorkspaceConfig().connectorsDir,
+          connectorsDir: getWorkspaceConnectorsDir(),
           getCredential: (slug) =>
             getWorkspaceConfig().connectors.getCredential(slug),
         }),

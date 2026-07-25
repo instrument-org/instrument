@@ -216,11 +216,11 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
 
 /**
  * Resolve a write-path input against the workspace layout. Task-relative paths,
- * the task's own virtual paths (/task/...), and the writable skills mount
- * (/skills/...) resolve normally; read-only mounts are rejected with
- * copy-into-task guidance instead of silently landing somewhere else. Whether a
- * non-task mount is writable is decided by its readOnly flag, never by a
- * per-mount special case here.
+ * the task's own virtual paths (/task/...), and the writable workspace mounts
+ * (/skills/..., /connectors/...) resolve normally; read-only mounts are rejected
+ * with copy-into-task guidance instead of silently landing somewhere else.
+ * Whether a non-task mount is writable is decided by its readOnly flag, never by
+ * a per-mount special case here.
  */
 export function resolveWritableToolPath(options: {
   inputPath: string;
@@ -276,8 +276,9 @@ function privateDirError(displayPath: string) {
 }
 
 /**
- * Resolve an absolute virtual path (/task/..., /mnt/<name>/..., /skills/...)
- * through the layout. Absolute paths outside every mount error with steering:
+ * Resolve an absolute virtual path (/task/..., /mnt/<name>/..., /skills/...,
+ * /connectors/...) through the layout. Absolute paths outside every mount error
+ * with steering:
  * real host paths into a mounted directory point at that mount's virtual path,
  * and anything else lists what the layout actually exposes.
  */

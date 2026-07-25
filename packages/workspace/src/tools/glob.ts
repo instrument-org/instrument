@@ -15,7 +15,7 @@ export const Glob = setupTool({
   inputSchema: BaseInputSchema.extend({
     path: z.string().optional().meta({
       description:
-        "Relative path to a folder to search within, or a read-only attached-folder mount path (/mnt/<name>). Defaults to the task root if not specified.",
+        "Relative path to a folder to search within, or a mount path (a read-only attached folder at /mnt/<name>, or a workspace mount like /skills or /connectors). Defaults to the task root if not specified.",
     }),
     pattern: z
       .string()
@@ -30,7 +30,7 @@ export const Glob = setupTool({
   }),
 }).create({
   description:
-    "Find files matching a glob pattern in the codebase. Specify a path to search within a specific folder (including a read-only attached folder at /mnt/<name>), or omit to search from the task root.",
+    "Find files matching a glob pattern in the codebase. Specify a path to search within a specific folder (including a mount path like /mnt/<name>, /skills, or /connectors), or omit to search from the task root.",
   execute: async ({ input, signal, taskId, taskState }) => {
     const layout = buildTaskFsLayout(taskId, taskState);
     const pathResult = resolveAgentPath({

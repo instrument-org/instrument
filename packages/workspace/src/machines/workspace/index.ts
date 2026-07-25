@@ -9,7 +9,6 @@ import {
   type CaptureExceptionFunction,
 } from "@instrument-org/shared";
 import ms from "ms";
-import { mkdirSync } from "node:fs";
 import {
   type ActorRefFrom,
   assign,
@@ -440,14 +439,6 @@ export const workspaceMachine = setup({
     // Publish the single per-process config so code can read it via
     // getWorkspaceConfig() instead of threading it through every TaskId.
     setWorkspaceConfig(workspaceConfig);
-    // The /connectors mount and connector discovery expect the folder to
-    // exist; create it up front so a fresh workspace starts connector-ready.
-    try {
-      mkdirSync(workspaceConfig.connectorsDir, { recursive: true });
-    } catch (error) {
-      // Non-fatal: connector features degrade gracefully when missing.
-      workspaceConfig.captureException(error);
-    }
     return {
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),

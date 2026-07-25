@@ -43,33 +43,30 @@ const DEV_MOUNT_POINT = "/dev";
 /**
  * Virtual mount point of the workspace's own `skills/` directory.
  *
- * Writable, unlike the read-only attached folders: authoring a skill is editing
- * a plain package of files, so the agent does it with the ordinary file tools
- * rather than a dedicated tool. Only the workspace's skills live here -- skills
- * discovered in a co-installed agent's home directory stay readable through
- * `load_skill` and are never exposed for writing.
+ * Only the workspace's skills live here -- skills discovered in a co-installed
+ * agent's home directory stay readable through `load_skill` and are never
+ * exposed for writing.
  */
 export const SKILLS_MOUNT_POINT = "/skills";
 
 /**
- * Virtual mount point of the workspace-level connectors folder. Unlike /mnt
- * mounts it is writable: the agent creates and repairs connector configs and
- * guides here with its ordinary file tools. Secrets never live in this folder;
- * they stay in the app's encrypted credential store.
+ * Virtual mount point of the workspace's own `connectors/` directory.
+ *
+ * Secrets never live in this folder; they stay in the app's encrypted
+ * credential store, and are injected at request time.
  */
 export const CONNECTORS_MOUNT_POINT = "/connectors";
 
 /**
  * The complete virtual filesystem layout for a task: the writable task mount,
- * the writable workspace skills mount, any read-only user-attached folders, and
- * the writable workspace connectors folder. This is the single source of truth
- * shared by the bash sandbox (just-bash filesystem), the native-binary path
- * bridge, and the dedicated file tools, so all three agree on what the agent
- * can see and where.
+ * the writable workspace mounts (skills, connectors), and any read-only
+ * user-attached folders. This is the single source of truth shared by the bash
+ * sandbox (just-bash filesystem), the native-binary path bridge, and the
+ * dedicated file tools, so all three agree on what the agent can see and where.
  */
 export interface WorkspaceFsLayout {
   attached: WorkspaceFsMount[];
-  connectors: null | WorkspaceFsMount;
+  connectors: WorkspaceFsMount;
   skills: WorkspaceFsMount;
   task: WorkspaceFsMount & { hostRoot: TaskDir; readOnly: false };
 }
@@ -149,24 +146,16 @@ export async function buildBashFs(
     );
   }
 
-  // The workspace's own directory, always meant to be there, so create it if a
-  // fresh workspace has not yet. Skipping the mount instead would leave the
-  // agent writing to a `/skills` the prompt advertises but that does not exist.
-  // Unlike an attached folder, it cannot be detached out from under us, so it
-  // always mounts.
-  await mkdir(layout.skills.hostRoot, { recursive: true });
-  fs.mount(
-    layout.skills.mountPoint,
-    new ReadWriteFs({ maxFileReadSize, root: layout.skills.hostRoot }),
-  );
-
-  if (layout.connectors && (await pathExists(layout.connectors.hostRoot))) {
+  // The workspace's own directories, always meant to be there, so create any a
+  // fresh workspace has not yet. Skipping a mount instead would leave the agent
+  // writing to a path the prompt advertises but that does not exist. Unlike an
+  // attached folder, these cannot be detached out from under us, so they always
+  // mount.
+  for (const mount of workspaceMounts(layout)) {
+    await mkdir(mount.hostRoot, { recursive: true });
     fs.mount(
-      layout.connectors.mountPoint,
-      new ReadWriteFs({
-        maxFileReadSize,
-        root: layout.connectors.hostRoot,
-      }),
+      mount.mountPoint,
+      new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
     );
   }
 
@@ -180,11 +169,9 @@ export async function buildBashFs(
  */
 export function buildWorkspaceFsLayout({
   attachedFolders,
-  connectorsHostRoot,
   taskHostRoot,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
-  connectorsHostRoot?: AbsolutePath;
   taskHostRoot: TaskDir;
 }): WorkspaceFsLayout {
   const attached: WorkspaceFsMount[] = assignAttachedMounts(
@@ -197,13 +184,11 @@ export function buildWorkspaceFsLayout({
 
   return {
     attached,
-    connectors: connectorsHostRoot
-      ? {
-          hostRoot: connectorsHostRoot,
-          mountPoint: CONNECTORS_MOUNT_POINT,
-          readOnly: false,
-        }
-      : null,
+    connectors: {
+      hostRoot: getWorkspaceConnectorsDir(),
+      mountPoint: CONNECTORS_MOUNT_POINT,
+      readOnly: false,
+    },
     skills: {
       hostRoot: getWorkspaceSkillsDir(),
       mountPoint: SKILLS_MOUNT_POINT,
@@ -215,6 +200,11 @@ export function buildWorkspaceFsLayout({
       readOnly: false,
     },
   };
+}
+
+/** The workspace's own `connectors/` directory, which always mounts writable. */
+export function getWorkspaceConnectorsDir(): AbsolutePath {
+  return getWorkspaceConfig().connectorsDir;
 }
 
 /** The workspace's own `skills/` directory, which always mounts writable. */
@@ -261,15 +251,11 @@ export function hostPathEscapesMount(
 
 /**
  * Every mount except the task, in the order they are advertised: read-only
- * attached folders under /mnt plus the writable /skills and /connectors mounts.
- * Steering errors and mount-path hints iterate these.
+ * attached folders under /mnt plus the writable workspace mounts. Steering
+ * errors and mount-path hints iterate these.
  */
 export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
-  return [
-    ...layout.attached,
-    layout.skills,
-    ...(layout.connectors ? [layout.connectors] : []),
-  ];
+  return [...layout.attached, ...workspaceMounts(layout)];
 }
 
 /** Virtual mount point of the masked-off private dir under the task mount. */
@@ -408,4 +394,15 @@ function relativeWithin(mountPoint: string, virtualAbs: string): null | string {
     return virtualAbs.slice(mountPoint.length);
   }
   return null;
+}
+
+/**
+ * The workspace's own directories, mounted writable outside the task: authoring
+ * a skill or a connector is editing a plain package of files, so the agent does
+ * it with the ordinary file tools rather than a dedicated tool. They share one
+ * lifecycle -- always part of the layout, created on demand, never detachable --
+ * so anything that treats one of them specially should treat both the same way.
+ */
+function workspaceMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
+  return [layout.skills, layout.connectors];
 }

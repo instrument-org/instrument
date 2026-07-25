@@ -17,6 +17,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
+  CONNECTORS_MOUNT_POINT,
   SKILLS_MOUNT_POINT,
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
@@ -178,6 +179,7 @@ describe("buildBashFs", () => {
     const bash = await makeBash();
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "connectors",
       "dev",
       "mnt",
       "skills",
@@ -215,20 +217,34 @@ describe("buildBashFs", () => {
   });
 });
 
-describe("buildBashFs skills mount", () => {
+// /skills and /connectors are the workspace's own writable mounts and share one
+// lifecycle, so every case runs against both.
+describe("buildBashFs workspace mounts", () => {
   let tmpDir: string;
+
+  const WORKSPACE_MOUNTS = [
+    { dirName: "skills", entryFile: "SKILL.md", mountPoint: SKILLS_MOUNT_POINT },
+    {
+      dirName: "connectors",
+      entryFile: "connector.json",
+      mountPoint: CONNECTORS_MOUNT_POINT,
+    },
+  ];
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), `${APP_NAME_SLUG}-skills-fs-test-`),
+      path.join(os.tmpdir(), `${APP_NAME_SLUG}-workspace-fs-test-`),
     );
     await fs.mkdir(path.join(tmpDir, "task"));
-    await fs.mkdir(path.join(tmpDir, "skills", "existing"), {
-      recursive: true,
-    });
-    createMockTaskConfig(TaskIdSchema.parse("skills-mount-test"));
+    for (const { dirName } of WORKSPACE_MOUNTS) {
+      await fs.mkdir(path.join(tmpDir, dirName, "existing"), {
+        recursive: true,
+      });
+    }
+    createMockTaskConfig(TaskIdSchema.parse("workspace-mount-test"));
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
+      connectorsDir: AbsolutePathSchema.parse(path.join(tmpDir, "connectors")),
       rootDir: WorkspaceDirSchema.parse(tmpDir),
     });
   });
@@ -245,40 +261,47 @@ describe("buildBashFs skills mount", () => {
     return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
   }
 
-  it("mounts the workspace skills dir writable", async () => {
-    const bash = await makeBash();
-    const result = await bash.exec(
-      `mkdir -p ${SKILLS_MOUNT_POINT}/made-up && echo body > ${SKILLS_MOUNT_POINT}/made-up/SKILL.md`,
-    );
-    expect(result.exitCode).toBe(0);
-    await expect(
-      fs.readFile(path.join(tmpDir, "skills", "made-up", "SKILL.md"), "utf8"),
-    ).resolves.toBe("body\n");
-  });
+  it.each(WORKSPACE_MOUNTS)(
+    "mounts the workspace $dirName dir writable",
+    async ({ dirName, entryFile, mountPoint }) => {
+      const bash = await makeBash();
+      const result = await bash.exec(
+        `mkdir -p ${mountPoint}/made-up && echo body > ${mountPoint}/made-up/${entryFile}`,
+      );
+      expect(result.exitCode).toBe(0);
+      await expect(
+        fs.readFile(path.join(tmpDir, dirName, "made-up", entryFile), "utf8"),
+      ).resolves.toBe("body\n");
+    },
+  );
 
-  it("lists the skills mount at the virtual root", async () => {
+  it("lists both workspace mounts at the virtual root", async () => {
     const bash = await makeBash();
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "connectors",
       "dev",
       "skills",
       "task",
     ]);
   });
 
-  it("provisions the mount when the workspace has no skills dir yet", async () => {
-    await fs.rm(path.join(tmpDir, "skills"), { force: true, recursive: true });
-    const bash = await makeBash();
-    // The prompt advertises /skills unconditionally, so it has to be there to
-    // write to even before the first skill exists.
-    const listed = await bash.exec(`ls ${SKILLS_MOUNT_POINT}`);
-    expect(listed.exitCode).toBe(0);
-    const written = await bash.exec(
-      `mkdir -p ${SKILLS_MOUNT_POINT}/first && echo body > ${SKILLS_MOUNT_POINT}/first/SKILL.md`,
-    );
-    expect(written.exitCode).toBe(0);
-    await expect(
-      fs.readFile(path.join(tmpDir, "skills", "first", "SKILL.md"), "utf8"),
-    ).resolves.toBe("body\n");
-  });
+  it.each(WORKSPACE_MOUNTS)(
+    "provisions the mount when the workspace has no $dirName dir yet",
+    async ({ dirName, entryFile, mountPoint }) => {
+      await fs.rm(path.join(tmpDir, dirName), { force: true, recursive: true });
+      const bash = await makeBash();
+      // The prompt advertises the mount unconditionally, so it has to be there
+      // to write to even before the first entry exists.
+      const listed = await bash.exec(`ls ${mountPoint}`);
+      expect(listed.exitCode).toBe(0);
+      const written = await bash.exec(
+        `mkdir -p ${mountPoint}/first && echo body > ${mountPoint}/first/${entryFile}`,
+      );
+      expect(written.exitCode).toBe(0);
+      await expect(
+        fs.readFile(path.join(tmpDir, dirName, "first", entryFile), "utf8"),
+      ).resolves.toBe("body\n");
+    },
+  );
 });

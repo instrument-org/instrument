@@ -15,7 +15,6 @@ import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
-import { getConnectorsDirIfInitialized } from "./connectors/paths";
 import {
   AGENT_BROWSER_COMMAND,
   createAgentBrowserCommand,
@@ -362,13 +361,13 @@ export async function createBashEnv({
   taskId: TaskId;
 }) {
   // The layout is the single source of truth for what the agent can see: the
-  // writable task directory mounted at /task (the working directory) plus any
-  // read-only user-attached folders under /mnt. The bash interpreter, the
-  // native-binary path bridge, and the dedicated file tools all route through
-  // it so they agree on virtual<->real mapping.
+  // writable task directory mounted at /task (the working directory), the
+  // workspace's own writable mounts (/skills, /connectors), and any read-only
+  // user-attached folders under /mnt. The bash interpreter, the native-binary
+  // path bridge, and the dedicated file tools all route through it so they
+  // agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
-    connectorsHostRoot: getConnectorsDirIfInitialized(),
     taskHostRoot: taskDir(taskId),
   });
   const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });

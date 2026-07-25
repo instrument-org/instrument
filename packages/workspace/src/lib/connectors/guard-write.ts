@@ -1,8 +1,8 @@
 import path from "node:path";
 
 import { type AbsolutePath } from "../../schemas/paths";
+import { getWorkspaceConnectorsDir } from "../workspace-fs-layout";
 import { CONNECTOR_MANIFEST_FILE_NAME } from "./manifest";
-import { getConnectorsDirIfInitialized } from "./paths";
 import { loadConnector } from "./store";
 
 /**
@@ -18,11 +18,7 @@ import { loadConnector } from "./store";
 export async function guardConnectorManifestOverwrite(
   absolutePath: AbsolutePath,
 ): Promise<null | string> {
-  const connectorsDir = getConnectorsDirIfInitialized();
-  if (!connectorsDir) {
-    return null;
-  }
-
+  const connectorsDir = getWorkspaceConnectorsDir();
   const normalized = path.normalize(absolutePath);
   const connectorsRoot = path.normalize(connectorsDir);
   if (!normalized.startsWith(connectorsRoot + path.sep)) {

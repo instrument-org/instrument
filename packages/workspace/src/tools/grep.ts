@@ -29,7 +29,7 @@ export const Grep = setupTool({
     }),
     [INPUT_PARAMS.path]: z.string().optional().meta({
       description:
-        "The directory to search in (relative to task root), or a read-only attached-folder mount path (/mnt/<name>). Defaults to the task root if not specified.",
+        "The directory to search in (relative to task root), or a mount path (a read-only attached folder at /mnt/<name>, or a workspace mount like /skills or /connectors). Defaults to the task root if not specified.",
     }),
     [INPUT_PARAMS.pattern]: z
       .string()
@@ -57,7 +57,7 @@ export const Grep = setupTool({
     - Uses smart case by default: searches case insensitively if ${INPUT_PARAMS.pattern} is all lowercase, otherwise searches case sensitively.
     - Filter files by pattern with the ${INPUT_PARAMS.include} parameter (eg. "*.js", "*.{ts,tsx}").
     - Search in specific directories by providing a ${INPUT_PARAMS.path} parameter.
-    - The ${INPUT_PARAMS.path} parameter can be a task-relative path (e.g. ./path/to/search) or a read-only attached-folder mount path (/mnt/<name>).
+    - The ${INPUT_PARAMS.path} parameter can be a task-relative path (e.g. ./path/to/search) or a mount path (/mnt/<name>, /skills, /connectors).
     - Returns file paths with line numbers and content, sorted by modification time.
     - Use this tool when you need to find files containing specific patterns.
   `,

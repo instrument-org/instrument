@@ -1,7 +1,8 @@
+import parcel from "@parcel/watcher";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { AbsolutePathSchema } from "../schemas/paths";
@@ -9,6 +10,7 @@ import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { type WorkspaceConfig } from "../types";
+import { WATCHER_IGNORE_PATTERNS } from "./get-task-files";
 import {
   beginTurnChangeTracking,
   consumeTurnChanges,
@@ -104,6 +106,63 @@ describe("task file watcher turn tracking", () => {
 
     const { changes } = await consumeTurnChanges({ id, sessionId });
     expect(changes).toEqual([]);
+  }, 15_000);
+});
+
+// @parcel/watcher does not read the ignore list as gitignore patterns, so a
+// bare name only excludes a top-level directory. The trees big enough to matter
+// sit deeper (work/.venv, a skill's node_modules), and left un-excluded the
+// native layer both delivers an event per file in them and, on Linux, spends an
+// inotify watch descriptor per directory.
+describe("watcher ignore patterns", () => {
+  it("excludes generated trees at any depth, not just the task root", async () => {
+    const base = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "watcher-ignore-")),
+    );
+    await fs.mkdir(path.join(base, "work", ".venv", "lib"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(base, "work", "skills", "d", "node_modules"), {
+      recursive: true,
+    });
+
+    const files: string[] = [];
+    const subscription = await parcel.subscribe(
+      base,
+      (_error, events) => {
+        for (const event of events) {
+          files.push(path.relative(base, event.path));
+        }
+      },
+      { ignore: WATCHER_IGNORE_PATTERNS },
+    );
+
+    try {
+      // The excluded writes go first and the kept one last, so waiting for the
+      // kept event proves the watcher was live and has drained past all three.
+      // A fixed sleep would instead turn a slow machine into a false pass.
+      await fs.writeFile(
+        path.join(base, "work", ".venv", "lib", "x.so"),
+        "venv",
+      );
+      await fs.writeFile(
+        path.join(base, "work", "skills", "d", "node_modules", "i.js"),
+        "dep",
+      );
+      await fs.writeFile(path.join(base, "kept.md"), "real");
+
+      await vi.waitFor(
+        () => {
+          expect(files).toContain("kept.md");
+        },
+        { timeout: 10_000 },
+      );
+      expect(files.filter((file) => file.includes(".venv"))).toEqual([]);
+      expect(files.filter((file) => file.includes("node_modules"))).toEqual([]);
+    } finally {
+      await subscription.unsubscribe();
+      await fs.rm(base, { force: true, recursive: true });
+    }
   }, 15_000);
 });
 

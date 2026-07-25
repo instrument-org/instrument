@@ -25,6 +25,7 @@ import {
   type TaskFileChange,
   type TaskFileIndex,
   taskFilesFromIndex,
+  WATCHER_IGNORE_PATTERNS,
 } from "./get-task-files";
 import { normalizePath } from "./normalize-path";
 import { taskDir } from "./task-dir-utils";
@@ -419,7 +420,7 @@ async function initWatcher(entry: WatcherEntry) {
         }
         scheduleFlush(entry);
       },
-      { backend: NATIVE_BACKEND, ignore: INTERNAL_IGNORE_PATTERNS },
+      { backend: NATIVE_BACKEND, ignore: WATCHER_IGNORE_PATTERNS },
     );
     if (isDisposed(entry)) {
       await subscription.unsubscribe().catch(noop);

@@ -43,6 +43,31 @@ export const INTERNAL_IGNORE_PATTERNS = [
   "pnpm-lock.yaml",
 ];
 
+/**
+ * The same exclusions spelled for @parcel/watcher, which does not read them as
+ * gitignore patterns: it resolves a bare name against the watched root, so that
+ * form only ever matches at the top level, and it anchors a `name/**` glob to
+ * the start of the path. Every tree worth excluding sits deeper than the root
+ * (`work/.venv`, `work/skills/<name>/node_modules`), so each name is also
+ * matched at any depth.
+ *
+ * The bare `**\/name` form earns its place alongside the recursive one: the
+ * native backends test a directory before deciding whether to descend into it,
+ * and on Linux each directory they do descend into costs an inotify watch
+ * descriptor -- a finite per-user resource that a venv plus a few skills'
+ * dependencies can plausibly exhaust, after which the watcher silently stops
+ * seeing changes.
+ */
+export const WATCHER_IGNORE_PATTERNS = [
+  ...INTERNAL_IGNORE_PATTERNS,
+  ...INTERNAL_IGNORE_PATTERNS.filter((pattern) => !pattern.includes("/")).map(
+    (name) => `**/${name}`,
+  ),
+  ...INTERNAL_IGNORE_PATTERNS.filter((pattern) => !pattern.includes("/")).map(
+    (name) => `**/${name}/**`,
+  ),
+];
+
 const TaskFileSchema = z.object({
   filename: z.string(),
   filePath: RelativePathSchema,

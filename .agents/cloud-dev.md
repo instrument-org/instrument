@@ -2,7 +2,7 @@
 
 Use when Electron fails to start or when setting up from scratch in a VM (Cursor Cloud, CI).
 
-pnpm manages Node via `devEngines.runtime` (`onFail: "download"`). Bootstrap: `corepack enable && corepack prepare pnpm@10.33.0 --activate`.
+pnpm manages Node via `devEngines.runtime` (`onFail: "download"`). Bootstrap: `corepack enable && corepack prepare pnpm@11.10.0 --activate`.
 
 ## Electron as root
 
@@ -17,5 +17,5 @@ cd apps/studio && NO_SANDBOX=1 REMOTE_DEBUGGING_PORT=48160 pnpm dev
 
 ## Quick reference
 
-- `pnpm check:types` / `pnpm check:lint` / `pnpm test -- --run`
+- `pnpm check:types` / `pnpm check:lint` / `pnpm test run`
 - `pnpm-workspace.yaml` has `allowBuilds`; never approve builds interactively.

@@ -4,7 +4,10 @@ pnpm monorepo for the Instrument desktop app platform.
 
 - `apps/studio`: Electron desktop app (main product)
 - `packages/workspace`: Core AI agents, workflow logic, and workspace management
+- `packages/ai-gateway`: Model proxy (Hono app the workspace server mounts) plus the model discovery/identity library
+- `packages/shared`: Types, constants, and utilities used everywhere
 - `packages/shim-client`: Client-side runtime injected into user apps
+- `packages/eslint-config`, `packages/typescript-config`: Shared tool config
 
 ## Product terminology
 
@@ -70,6 +73,8 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 
 `check:lint` / `fix:lint` run **both** ESLint and `oxlint --type-aware`. ESLint handles syntactic rules (perfectionist, react-compiler, regexp, yml/jsonc, turbo); oxlint handles all TypeScript type-aware rules (via tsgolint, see `.oxlintrc.json`) and Tailwind class rules (oxlint-tailwindcss, per-package `.oxlintrc.json`). ESLint no longer builds a TypeScript program, so it is fast. There is no typed linting in the ESLint config.
 
+Format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`): each Edit/Write runs oxfmt on that file; Stop runs oxfmt + `eslint --fix` (formatting-only config from `packages/eslint-config/format.ts` — sorting and auto-fixable rules, no typed rules) + `oxlint --fix` (no `--type-aware`; this is what fixes Tailwind class order) + oxfmt over every changed file, then reports remaining ESLint findings against each package's real config. Don't hand-format or fix order-only/auto-fixable lint; expect files to change after you write them. Type errors and non-auto-fixable lint are not covered — run the checks above.
+
 Single test file: `cd packages/<name> && pnpm test run <file>` or `cd apps/studio && pnpm test run <file>`.
 
 ## Key catalog versions
@@ -82,6 +87,7 @@ Single test file: `cd packages/<name> && pnpm test run <file>` or `cd apps/studi
 - **Vite** 7.x / **Vitest** 4.x
 - **AI SDK** 6.x
 - **better-auth** 1.2.x
+- **pnpm** 11.10.0 (`packageManager`) / **Node** >=24.15.0 (`engines`)
 
 ## Package management
 
@@ -92,7 +98,7 @@ Single test file: `cd packages/<name> && pnpm test run <file>` or `cd apps/studi
 
 After a manual `git worktree add`, run `.claude/hooks/worktree-setup.sh <path-to-worktree>`: copies the gitignored env files (required to boot Studio), inits `registry/`, installs deps. Idempotent. Hooks do this automatically only for sessions started inside a worktree or via EnterWorktree.
 
-Multiple worktrees can run `pnpm dev` at once: dev skips the single-instance lock, shares one dev userData dir, and all server ports fall back to free ones. For CDP, give each instance a distinct `REMOTE_DEBUGGING_PORT`.
+Multiple worktrees can run Studio at once (`pnpm dev:studio` from the root, or `pnpm dev` inside `apps/studio`): dev skips the single-instance lock, shares one dev userData dir, and all server ports fall back to free ones. For CDP, give each instance a distinct `REMOTE_DEBUGGING_PORT`.
 
 ## Tests
 
@@ -122,9 +128,9 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
 - `docs/architecture/agent-sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
+- `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — Design constraints and known quirks of the `/task` + `/skills` + `/mnt` mount layout and the virtual↔host path bridge.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, shim + Studio startup, CDP port 48160, Xvfb, pnpm checks.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
-- `.agents/skills/studio-dev-logs/SKILL.md` — Read NDJSON logs written to `apps/studio/.logs/` on each dev boot.
-- `.agents/skills/run-bash/SKILL.md` — Test bash commands in the agent's just-bash sandbox without booting Studio.
+- `.agents/skills/` — Repo-local skills, invocable by name (symlinked to `.claude/skills`): `changelog`, `find-ui-changes`, `instrument-commit-message`, `release-notes`, `run-bash`, `session-transcript`, `studio-chrome-devtools`, `studio-dev-logs`, `task-database-query`, `typescript-result`. Read a `SKILL.md` before hand-rolling work one of them covers.
 - `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, neverthrow + Zod tool conventions.

@@ -5,7 +5,7 @@ Before the README setup flow (`pnpm install`, `./scripts/setup.sh`, `pnpm run de
 ## Tooling
 
 - Node **>=24.15.0** (root `package.json` `engines`)
-- **pnpm@10.33.0** (`packageManager` field); `corepack enable && corepack prepare pnpm@10.33.0 --activate`
+- **pnpm@11.10.0** (`packageManager` field); `corepack enable && corepack prepare pnpm@11.10.0 --activate`
 
 ## Repository
 

@@ -133,9 +133,11 @@ describe("registerTelemetry", () => {
     emit("will-quit", { preventDefault });
 
     expect(preventDefault).toHaveBeenCalled();
-    await vi.waitFor(async () => {
-      expect(await lockExists()).toBe(false);
+    // The quit is resumed last, after the marker is gone and telemetry has
+    // flushed, so it is the only settled point to wait on.
+    await vi.waitFor(() => {
+      expect(quit).toHaveBeenCalled();
     });
-    expect(quit).toHaveBeenCalled();
+    expect(await lockExists()).toBe(false);
   });
 });

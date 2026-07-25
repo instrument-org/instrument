@@ -26,6 +26,11 @@ jobs:
       SKIP_INTEL_MACOS: ${{ matrix.skip_for_prerelease && github.ref_type == 'tag' && (contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) }}
 
     strategy:
+      # One platform's flake shouldn't discard the other platforms' builds: a
+      # cancelled leg has to be rebuilt on re-run, while a leg left to finish
+      # keeps its artifacts across attempts. Publishing stays gated on the
+      # matrix result as a whole, which is only `success` when every leg passed.
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -107,9 +112,23 @@ jobs:
           project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
           version: ${{ github.ref_name }}
 
+      # Apple's notary service intermittently drops the connection while the
+      # signing step polls for submission status, which surfaces as an opaque
+      # "unexpected result" packaging failure. Retry the whole packaging pass:
+      # each attempt resubmits from scratch and overwrites the previous output.
       - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: Package Mac
-        run: pnpm --filter @instrument-org/studio exec electron-builder --mac --${{ matrix.arch }} --publish never
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter @instrument-org/studio exec electron-builder --mac --${{ matrix.arch }} --publish never; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Mac packaging attempt $attempt failed, retrying"
+              sleep 30
+            fi
+          done
+          exit 1
         env:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}

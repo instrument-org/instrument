@@ -30,7 +30,6 @@ const INSTALL_TIMEOUT_MS = ms("5 minutes");
 const portManager = new PortManager({
   basePort: DEFAULT_RUNTIME_BASE_PORT,
   maxAttempts: 1000,
-  retryDelayMs: ms("100ms"),
 });
 
 export type SpawnRuntimeEvent =

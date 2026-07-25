@@ -95,6 +95,37 @@ describe("getTaskFileIndex", () => {
     expect(filePaths).not.toContain("pnpm-lock.yaml");
   });
 
+  // A Python task's venv alone runs to hundreds of files, past the index cap
+  // once it holds the scientific stack, so leaving these enumerated would both
+  // bury the task's own files and drown the change list the user reads.
+  it("excludes dependency trees and tool caches wherever they sit", async () => {
+    const generated = [
+      { dir: "work/.venv/lib/python3.12", file: "x.so" },
+      { dir: "work/__pycache__", file: "m.pyc" },
+      { dir: "work/skills/docx/node_modules/dep", file: "index.js" },
+      { dir: "work/.pytest_cache", file: "log" },
+    ];
+
+    for (const { dir: subdir, file } of generated) {
+      await fs.mkdir(path.join(taskDirPath, subdir), { recursive: true });
+      await fs.writeFile(path.join(taskDirPath, subdir, file), "generated");
+    }
+    await fs.writeFile(path.join(taskDirPath, "work-note.py"), "code");
+
+    const result = await getTaskFileIndex(dir);
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    const filePaths = [...result.value.keys()];
+    for (const { dir: subdir } of generated) {
+      expect(filePaths.some((p) => p.startsWith(`${subdir}/`))).toBe(false);
+    }
+    expect(filePaths).toContain("work-note.py");
+  });
+
   it("skips symbolic links and caps recursive scans", async () => {
     await fs.mkdir(path.join(taskDirPath, "many"), { recursive: true });
     await fs.symlink(

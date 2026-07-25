@@ -11,13 +11,18 @@ import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import { normalizePath } from "./normalize-path";
+import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { taskDir } from "./task-dir-utils";
 
 export const INTERNAL_IGNORE_PATTERNS = [
   ".git",
   ".git/**",
-  "node_modules",
-  "node_modules/**",
+  // Dependency trees and tool caches: thousands of machine-generated entries
+  // (a Python venv alone runs to hundreds, and past the index's file cap once
+  // it holds the scientific stack) that would bury the task's own files in the
+  // index and drown the per-turn change list the user reads. Bare name matches
+  // at any depth, so this covers work/.venv and a skill's own node_modules.
+  ...SKILL_ARTIFACT_IGNORE.flatMap((name) => [name, `${name}/**`]),
   // The private dir holds the db, settings, and the browser session/home -- all
   // hidden from the agent file index (and off-limits to agent reads entirely).
   TASK_FOLDER_NAMES.private,

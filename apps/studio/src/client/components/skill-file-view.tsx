@@ -4,6 +4,7 @@ import { useSyntaxHighlighting } from "@/client/hooks/use-syntax-highlighting";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { rpcClient } from "@/client/rpc/client";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { motion } from "motion/react";
 
 import { Spinner } from "./ui/spinner";
 
@@ -28,12 +29,12 @@ export function SkillFileView({
     placeholderData: keepPreviousData,
   });
   const isMarkdownFile = isMarkdown(file);
+  const text = data?.kind === "text" ? data.content : undefined;
   const split =
-    data?.kind === "text" && isMarkdownFile
-      ? splitFrontmatter(data.content)
-      : null;
-  const { highlightedHtml } = useSyntaxHighlighting({
-    code: split?.body,
+    text !== undefined && isMarkdownFile ? splitFrontmatter(text) : null;
+  // Markdown renders as prose, so only the source view asks for highlighting.
+  const { highlightedHtml, isHighlightable } = useSyntaxHighlighting({
+    code: isMarkdownFile ? undefined : text,
     language: getLanguageFromFilePath(file),
   });
 
@@ -90,27 +91,6 @@ export function SkillFileView({
     );
   }
 
-  if (highlightedHtml) {
-    return (
-      <div className="overflow-hidden rounded-lg bg-card">
-        <div className="border-b bg-muted/20">
-          <div className="flex items-center justify-between gap-3 px-3 py-2">
-            <h2 className="font-mono text-xs font-medium">{file}</h2>
-            <CopyButton
-              className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
-              iconSize={14}
-              onCopy={() => navigator.clipboard.writeText(data.content)}
-            />
-          </div>
-        </div>
-        <div
-          className="overflow-x-auto p-4 text-xs"
-          dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="overflow-hidden rounded-lg bg-card">
       <div className="border-b bg-muted/20">
@@ -123,9 +103,23 @@ export function SkillFileView({
           />
         </div>
       </div>
-      <pre className="overflow-x-auto p-4 text-xs">
-        {split?.body ?? data.content}
-      </pre>
+      {highlightedHtml ? (
+        <div
+          className="overflow-x-auto p-4 text-xs"
+          dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
+        />
+      ) : (
+        // Highlighting is a round trip, so hold the plain text back long enough
+        // that a file about to arrive highlighted doesn't flash unstyled first.
+        <motion.pre
+          animate={{ opacity: 1 }}
+          className="overflow-x-auto p-4 text-xs"
+          initial={{ opacity: isHighlightable ? 0 : 1 }}
+          transition={{ delay: isHighlightable ? 0.3 : 0, duration: 0 }}
+        >
+          {split?.body ?? data.content}
+        </motion.pre>
+      )}
     </div>
   );
 }

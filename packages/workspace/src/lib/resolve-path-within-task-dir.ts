@@ -19,7 +19,13 @@ export function resolvePathWithinTaskDir({
   const resolvedPath = path.resolve(dir, normalizedFilePath);
   const relativePath = path.relative(dir, resolvedPath);
 
-  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+  // Compare against a whole `..` segment, not the `..` prefix: a file legitimately
+  // named `..foo` relativizes to `..foo` and is inside the dir.
+  if (
+    relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
     return null;
   }
 

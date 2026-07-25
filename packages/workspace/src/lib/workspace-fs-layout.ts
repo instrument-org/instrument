@@ -146,11 +146,11 @@ export async function buildBashFs(
     );
   }
 
-  // The workspace's own directories, always meant to be there, so create any a
-  // fresh workspace has not yet. Skipping a mount instead would leave the agent
-  // writing to a path the prompt advertises but that does not exist. Unlike an
-  // attached folder, these cannot be detached out from under us, so they always
-  // mount.
+  // The workspace's own directories, always meant to be there, so create any
+  // that a fresh workspace has not yet. Skipping a mount instead would leave the
+  // agent writing to a path the prompt advertises but that does not exist.
+  // Unlike an attached folder, these cannot be detached out from under us, so
+  // they always mount.
   for (const mount of workspaceMounts(layout)) {
     await mkdir(mount.hostRoot, { recursive: true });
     fs.mount(

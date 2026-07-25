@@ -27,6 +27,7 @@ import {
   type TaskFileIndex,
   taskFilesFromIndex,
   WATCHER_IGNORE_PATTERNS,
+  type WatcherPatterns,
 } from "./get-task-files";
 import { normalizePath } from "./normalize-path";
 import { taskDir } from "./task-dir-utils";
@@ -50,11 +51,15 @@ const NATIVE_BACKEND: Options["backend"] =
 
 // Minimal surface of @parcel/watcher we depend on; loaded dynamically so the
 // native binding resolves from node_modules at runtime instead of being bundled.
+// `ignore` is narrowed from the upstream `string[]` to the branded watcher
+// dialect: the two pattern lists are interchangeable to the compiler otherwise,
+// and passing the gitignore-spelled one here fails silently -- the patterns just
+// stop matching and every excluded path flows through again.
 interface ParcelWatcherApi {
   subscribe: (
     dir: string,
     callback: SubscribeCallback,
-    opts?: Options,
+    opts?: Omit<Options, "ignore"> & { ignore?: WatcherPatterns },
   ) => Promise<AsyncSubscription>;
 }
 

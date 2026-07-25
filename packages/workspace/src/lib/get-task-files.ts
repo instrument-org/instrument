@@ -48,14 +48,26 @@ const EXCLUDED_NAMES = [
 ];
 
 /**
+ * The two renderings are branded because they are both `string[]` holding
+ * similar-looking globs, and handing one to the other's library is silent: the
+ * patterns simply stop matching, and paths meant to be excluded quietly flow
+ * through. The brands make that a type error wherever a consumer names which
+ * dialect it speaks.
+ */
+const GitignorePatternsSchema = z.array(z.string()).brand("GitignorePatterns");
+const WatcherPatternsSchema = z.array(z.string()).brand("WatcherPatterns");
+
+/** Patterns in @parcel/watcher syntax, for its `ignore` option. */
+export type WatcherPatterns = z.output<typeof WatcherPatternsSchema>;
+
+/**
  * {@link EXCLUDED_NAMES} in gitignore syntax, for the `ignore` package: a bare
  * name there already matches at every depth, so the name and a recursive glob
  * for its contents are all that is needed.
  */
-export const INTERNAL_IGNORE_PATTERNS = EXCLUDED_NAMES.flatMap((name) => [
-  name,
-  `${name}/**`,
-]);
+export const INTERNAL_IGNORE_PATTERNS = GitignorePatternsSchema.parse(
+  EXCLUDED_NAMES.flatMap((name) => [name, `${name}/**`]),
+);
 
 /**
  * {@link EXCLUDED_NAMES} in @parcel/watcher syntax, which is not gitignore
@@ -70,12 +82,14 @@ export const INTERNAL_IGNORE_PATTERNS = EXCLUDED_NAMES.flatMap((name) => [
  * resource that a venv plus a few skills' dependencies can plausibly exhaust,
  * after which the watcher silently stops seeing changes.
  */
-export const WATCHER_IGNORE_PATTERNS = EXCLUDED_NAMES.flatMap((name) => [
-  name,
-  `${name}/**`,
-  `**/${name}`,
-  `**/${name}/**`,
-]);
+export const WATCHER_IGNORE_PATTERNS = WatcherPatternsSchema.parse(
+  EXCLUDED_NAMES.flatMap((name) => [
+    name,
+    `${name}/**`,
+    `**/${name}`,
+    `**/${name}/**`,
+  ]),
+);
 
 const TaskFileSchema = z.object({
   filename: z.string(),

@@ -474,6 +474,12 @@ export const agentMachine = setup({
             actions: assign({
               retryCount: ({ context }) => context.retryCount + 1,
             }),
+            // `maxRetryCount` bounds total LLM attempts, not retries after the
+            // first, so `<` is deliberate: 3 means one initial request plus two
+            // retries. XState evaluates the guard before the transition's
+            // actions, hence the `+ 1`. The step guard below reads `<=` because
+            // every step is a real step -- there is no free first one to
+            // discount -- so the two are not the same shape by mistake.
             guard: ({ context }) => {
               return context.retryCount + 1 < context.maxRetryCount;
             },

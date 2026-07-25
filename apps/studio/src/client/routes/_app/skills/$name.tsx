@@ -35,7 +35,11 @@ import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
-import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
+import {
+  isProvidedSource,
+  readOnlySkillReason,
+  skillSourceLabel,
+} from "@/client/lib/skill-source";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
@@ -53,8 +57,6 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const SKILL_FILE = "SKILL.md";
-const READ_ONLY_SKILL_TOOLTIP =
-  "This skill can’t be edited here because it was discovered elsewhere on your computer, not created in this workspace.";
 
 export const Route = createFileRoute("/_app/skills/$name")({
   component: SkillPage,
@@ -202,7 +204,7 @@ function SkillPage() {
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-60">
-                {READ_ONLY_SKILL_TOOLTIP}
+                {readOnlySkillReason(skill.source)}
               </TooltipContent>
             </Tooltip>
           )}
@@ -416,6 +418,7 @@ function SkillTitle({
   skill: { name: string; userInvocable: boolean };
 }) {
   const { active: showCopied, trigger } = useTimedFlag();
+  const [isTooltipOpen, setTooltipOpen] = useState(false);
   const label = skill.userInvocable ? `/${skill.name}` : skill.name;
 
   if (!skill.userInvocable) {
@@ -423,13 +426,28 @@ function SkillTitle({
   }
 
   return (
-    <Tooltip>
+    // Pointer and focus drive the tooltip directly: Radix closes a tooltip when
+    // its trigger is clicked, which is the moment the "Copied" confirmation has
+    // to appear, and its open delay would hide what clicking the title does.
+    <Tooltip open={isTooltipOpen}>
       <TooltipTrigger asChild>
         <button
           className="rounded-sm font-serif text-3xl tracking-tight transition-colors hover:bg-accent/40 focus-visible:bg-accent/40"
+          onBlur={() => {
+            setTooltipOpen(false);
+          }}
           onClick={() => {
             void navigator.clipboard.writeText(label);
             trigger();
+          }}
+          onFocus={() => {
+            setTooltipOpen(true);
+          }}
+          onPointerEnter={() => {
+            setTooltipOpen(true);
+          }}
+          onPointerLeave={() => {
+            setTooltipOpen(false);
           }}
           type="button"
         >

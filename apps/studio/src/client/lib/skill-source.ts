@@ -32,6 +32,21 @@ export function isProvidedSource(source: SkillSource) {
   return source === "registry" || source === "system";
 }
 
+/**
+ * Why a skill offers no edit or delete action, in terms of where it came from.
+ * Only the workspace's writable skills folder is editable, and everything else
+ * is read-only for a different reason worth naming.
+ */
+export function readOnlySkillReason(source: SkillSource) {
+  if (isProvidedSource(source)) {
+    return `This skill is built into ${APP_NAME}, so it can’t be edited or deleted.`;
+  }
+  if (source === "agents" || source === "workspace") {
+    return `This skill lives outside the skills folder ${APP_NAME} manages, so it can’t be edited or deleted here.`;
+  }
+  return `This skill comes from ${skillSourceLabel(source)}, so it can’t be edited or deleted here.`;
+}
+
 /** The app or place a skill comes from, named for a person. */
 export function skillSourceLabel(source: SkillSource) {
   return SOURCE_LABELS[source];

@@ -263,13 +263,13 @@ function shouldShowOnboarding(): boolean {
   return !appStateStore.get("hasCompletedProviderSetup");
 }
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// Closing the last window quits, on macOS too. Staying resident is the macOS
+// convention, but nothing here is meant to outlive its window: agents would
+// keep running with no window to watch or stop them from, which reads as work
+// the user already ended. The window's own close handler asks about running
+// agents first, so this only ever runs once that is settled.
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  app.quit();
 });
 
 function applyThemeToWindows() {

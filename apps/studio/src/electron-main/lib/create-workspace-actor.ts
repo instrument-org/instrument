@@ -284,12 +284,10 @@ export function createWorkspaceActor({
       isQuitHandling = true;
       try {
         if (!(await requestQuitApproval())) {
-          // Canceling has to leave the user somewhere. Outside macOS this quit
-          // may have started from a window close, and a process whose last
-          // window is gone can't be reached again.
-          if (process.platform !== "darwin") {
-            void ensureMainWindowVisible();
-          }
+          // Canceling has to leave the user somewhere. This quit may have
+          // started from a window close, and outside macOS a process whose last
+          // window is gone can't be reached again at all.
+          void ensureMainWindowVisible();
           return;
         }
 

@@ -114,14 +114,12 @@ export async function createMainWindow({
     saveState();
   });
 
-  // Outside macOS, closing the window quits the app (see `window-all-closed`),
-  // so the running-agent warning has to happen here, while the window still
-  // exists. Asking after the fact would destroy the window first and leave a
-  // canceled quit with a running process the user can't get back to. On macOS
-  // the app outlives its window, so closing interrupts nothing and only Cmd+Q
-  // needs to ask.
+  // Closing the last window quits the app (see `window-all-closed`), so the
+  // running-agent warning has to happen here, while the window still exists.
+  // Asking after the fact would destroy the window first and leave a canceled
+  // quit with a running process the user can't get back to.
   mainWindow.on("close", (event) => {
-    if (process.platform === "darwin" || isQuitApproved()) {
+    if (isQuitApproved() || !isLastWindow()) {
       return;
     }
     event.preventDefault();
@@ -242,6 +240,12 @@ export function updateMainWindowBackgroundColor() {
   if (window && !window.isDestroyed()) {
     window.setBackgroundColor(getMainWindowBackgroundColor());
   }
+}
+
+// Whether closing this window ends the app. A window is still listed while its
+// own `close` is being handled, so the last one sees a count of 1.
+function isLastWindow() {
+  return BrowserWindow.getAllWindows().length <= 1;
 }
 
 function isWindowNormal(mainWindow: BrowserWindow) {

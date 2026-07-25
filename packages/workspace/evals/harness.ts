@@ -26,6 +26,7 @@ import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { type EvalManifest, writeEvalManifest } from "./manifest";
 import {
   buildProviderConfigs,
   c,
@@ -98,6 +99,7 @@ export async function runEvals(
   );
   const providerConfigs = buildProviderConfigs();
   const registryDir = resolveRegistryDir();
+  const manifest: EvalManifest = {};
 
   process.stdout.write(`${c.dim}Workspace :${c.reset} ${workspaceRootDir}\n`);
   process.stdout.write(`${c.dim}Registry  :${c.reset} ${registryDir}\n`);
@@ -185,6 +187,13 @@ export async function runEvals(
       const partUpdates = publisher.subscribe("part.updated", {
         signal: abortController.signal,
       });
+
+      // Task ids are derived from the prompt, so the report cannot recover
+      // which case produced a task from the id alone. Written per task rather
+      // than once at the end so a suite that dies midway still reports, and
+      // after the subscription so it cannot delay it past the first part.
+      manifest[id] = { modelURI: uri, name: evalCase.name };
+      await writeEvalManifest(workspaceRootDir, manifest);
 
       void (async () => {
         try {

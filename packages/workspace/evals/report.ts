@@ -13,6 +13,7 @@ import {
 } from "../src/lib/workspace-config";
 import { type Session } from "../src/schemas/session";
 import { type AssertionResult, type EvalCase } from "./harness";
+import { readEvalManifest } from "./manifest";
 import { buildReportWorkspaceConfig, c } from "./utils";
 
 interface RollupSummary {
@@ -41,6 +42,7 @@ export async function generateReport({
 }): Promise<RollupSummary> {
   const evalCasesByName = new Map(evalCases.map((e) => [e.name, e]));
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
+  const manifest = await readEvalManifest(absoluteWorkspaceDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
   // `taskDir()` and friends read the config from its module singleton, which the
   // `run` flow populates when the workspace machine boots. Reporting on a past
@@ -157,14 +159,22 @@ export async function generateReport({
       return;
     });
 
+    const manifestName = manifest[task.id]?.name;
     const evalCase =
+      (manifestName === undefined
+        ? undefined
+        : evalCasesByName.get(manifestName)) ??
       evalCasesByName.get(task.id) ??
       [...evalCasesByName.entries()].find(([name]) =>
         task.id.endsWith(`-${name}`),
       )?.[1];
     await fs.writeFile(
       path.join(taskOutputDir, "eval-case.json"),
-      JSON.stringify({ modelURI: taskModelURI, name: task.id }, null, 2),
+      JSON.stringify(
+        { modelURI: taskModelURI, name: evalCase?.name ?? task.id },
+        null,
+        2,
+      ),
       "utf8",
     );
 

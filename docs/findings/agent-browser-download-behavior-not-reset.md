@@ -20,11 +20,10 @@ restarts.
 
 ## Proper fix (written, unpublished)
 
-A patch exists on the `fix/restore-download-behavior` branch of the local
-upstream checkout (`reference/agent-browser` sibling repo): adds
-`BrowserManager::restore_download_behavior` (launch-configured directory
-when one exists, otherwise browser default) and calls it on every exit path
-of `handle_download`. Compile-unverified locally (no Rust toolchain);
-upstream CI would cover it. Publishing (fork + PR to vercel-labs) needs an
-explicit go-ahead. Once it ships upstream, bump the pinned `agent-browser`
-version and drop the skill caveat.
+Add `BrowserManager::restore_download_behavior` -- re-send
+`Browser.setDownloadBehavior` with the launch-configured download directory
+when one exists, otherwise the browser default -- and call it on every exit
+path of `handle_download`. Written against the upstream source, but
+compile-unverified (no local Rust toolchain); upstream CI would cover it.
+Publishing it as a PR needs an explicit go-ahead. Once it ships upstream,
+bump the pinned `agent-browser` version and drop the skill caveat.

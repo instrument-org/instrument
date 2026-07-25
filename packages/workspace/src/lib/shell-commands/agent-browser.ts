@@ -102,6 +102,34 @@ const STRIPPED_VALUE_FLAGS = new Set([
 // agent doesn't accidentally spawn a browser view just by running --help.
 const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
 
+// Flags a `read <url>` may carry and still be a plain fetch: they shape the
+// request or the rendered output, never the browser.
+const READ_FETCH_FLAGS = new Set([
+  "--content-boundaries",
+  "--json",
+  "--outline",
+  "--raw",
+  "--require-md",
+]);
+const READ_FETCH_VALUE_FLAGS = new Set([
+  "--filter",
+  "--headers",
+  "--llms",
+  "--max-output",
+  "--timeout",
+]);
+
+// The standard proxy vars the CLI falls back to for `--proxy`, which is launch
+// configuration like any other.
+const PROXY_ENV_VARS = new Set([
+  "ALL_PROXY",
+  "all_proxy",
+  "HTTP_PROXY",
+  "http_proxy",
+  "HTTPS_PROXY",
+  "https_proxy",
+]);
+
 // cspell:ignore networkidle scrollintoview
 const WORKSPACE_HELP = dedent`
   agent-browser - Control the task's managed in-app browser.
@@ -148,6 +176,83 @@ const WORKSPACE_HELP = dedent`
 
   Do not pass connection, provider, profile, session, restore, or state flags. These are blocked because the workspace owns the in-app browser context.
 `.trim();
+
+/**
+ * The env a browser-free read runs with: launch configuration removed, and only
+ * what the fetch itself needs put back.
+ *
+ * Any launch option the CLI can see on an invocation with no `--cdp` target to
+ * attach to is answered by launching a real browser -- so the whole
+ * `AGENT_BROWSER_*` namespace goes, wholesale rather than by name, and options
+ * upstream adds later are covered by construction. Everything outside that
+ * namespace (PATH, TMPDIR, the Windows system vars) is inherited untouched,
+ * apart from the proxy vars `--proxy` falls back to.
+ */
+export function browserFreeReadEnv(env: Record<string, string | undefined>) {
+  const inherited = Object.fromEntries(
+    Object.entries(env).filter(
+      ([key]) => !key.startsWith("AGENT_BROWSER_") && !PROXY_ENV_VARS.has(key),
+    ),
+  );
+  return {
+    ...inherited,
+    // The daemon this read starts is reaped on the same timer as every other
+    // one, and its fingerprint has to match across invocations of its session.
+    AGENT_BROWSER_IDLE_TIMEOUT_MS,
+    AGENT_BROWSER_SOCKET_DIR,
+  };
+}
+
+/**
+ * Whether an invocation is a `read <url>`, which the CLI answers with an HTTP
+ * fetch and a Markdown conversion -- no page, no CDP, no browser.
+ *
+ * Deliberately exact: subcommand `read`, one positional, and nothing else but
+ * the fetch/output flags above. Every other flag is a potential launch option,
+ * and a launch option on an invocation with no `--cdp` target makes the CLI
+ * start a browser of its own, so an unrecognized one sends the command back to
+ * the normal target-backed path instead.
+ *
+ * `read` without a URL is not this: it reads the active page, which needs the
+ * target (as do `--llms` and `--require-md` without a URL, which resolve the
+ * active page's URL first).
+ */
+export function isBrowserFreeRead(args: string[]): boolean {
+  let sawSubcommand = false;
+  let url: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined) {
+      continue;
+    }
+    if (READ_FETCH_VALUE_FLAGS.has(arg)) {
+      // The CLI's read parser takes these values as the next argument only, so
+      // a `--flag=value` form falls through and disqualifies the invocation.
+      i++;
+      continue;
+    }
+    if (READ_FETCH_FLAGS.has(arg)) {
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      return false;
+    }
+    if (!sawSubcommand) {
+      if (arg !== "read") {
+        return false;
+      }
+      sawSubcommand = true;
+      continue;
+    }
+    if (url !== undefined) {
+      return false;
+    }
+    url = arg;
+  }
+
+  return url !== undefined;
+}
 
 /**
  * The CLI refuses a command when a daemon is already running for the session
@@ -244,13 +349,25 @@ export function createAgentBrowserCommand({
     );
     const resolvedArgs = resolvePathArgs(navigationArgs, taskId, ctx);
 
-    // Info-only invocations (--help, --version) print and exit without ever
-    // touching a browser target, so don't spin up a WebContentsView or attach
-    // to the CDP bridge.
-    const commandArgs: string[] = isInfoOnly ? [...resolvedArgs] : [];
+    const browserFreeRead = isBrowserFreeRead(resolvedArgs);
+
+    const commandArgs: string[] = [];
     let targetId: BrowserTargetId | undefined;
 
-    if (!isInfoOnly) {
+    if (isInfoOnly) {
+      // Info-only invocations (--help, --version) print and exit without ever
+      // touching a browser target, so don't spin up a WebContentsView or attach
+      // to the CDP bridge.
+      commandArgs.push(...resolvedArgs);
+    } else if (browserFreeRead) {
+      // A fetch needs no view either; creating one would leave the user staring
+      // at an empty browser panel the agent never navigates. It still needs a
+      // daemon, which gets its own session so the browser session's daemon is
+      // still only ever started by an invocation carrying --cdp: one started
+      // without it holds no CDP endpoint and would launch its own browser the
+      // next time a command needed a page.
+      commandArgs.push("--session", `${sessionId}-read`, ...resolvedArgs);
+    } else {
       // Idempotent: createTarget returns the existing view for this
       // (id, sessionId) pair if one is already live, so sub-agents and
       // repeat invocations within the same session reuse the same browsing
@@ -292,43 +409,45 @@ export function createAgentBrowserCommand({
     );
     const configPath = path.join(homeDir, "config.json");
 
+    const spawnEnv = {
+      ...env,
+      // `agent-browser record` spawns a real `ffmpeg` process by bare name,
+      // resolved against PATH. The bundled ffmpeg-static binary isn't on the
+      // sandbox PATH, so prepend its dir (the in-bash `ffmpeg` command is a
+      // just-bash intercept that a separate subprocess can't see).
+      ...ffmpegSubprocessEnv(env.PATH),
+      // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
+      // can't bypass the rejection above.
+      AGENT_BROWSER_AUTO_CONNECT: undefined,
+      AGENT_BROWSER_CDP: undefined,
+      AGENT_BROWSER_CONFIG: undefined,
+      // Uncomment this to enable debug mode.
+      // AGENT_BROWSER_DEBUG:
+      //   process.env.NODE_ENV === "development" ? "1" : undefined,
+      AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
+      AGENT_BROWSER_IDLE_TIMEOUT_MS,
+      AGENT_BROWSER_NAMESPACE: undefined,
+      AGENT_BROWSER_PROFILE: undefined,
+      AGENT_BROWSER_PROVIDER: undefined,
+      AGENT_BROWSER_RESTORE: undefined,
+      AGENT_BROWSER_RESTORE_CHECK_FN: undefined,
+      AGENT_BROWSER_RESTORE_CHECK_TEXT: undefined,
+      AGENT_BROWSER_RESTORE_CHECK_URL: undefined,
+      AGENT_BROWSER_RESTORE_SAVE: undefined,
+      AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
+      AGENT_BROWSER_SESSION_NAME: undefined,
+      AGENT_BROWSER_SOCKET_DIR,
+      AGENT_BROWSER_STATE: undefined,
+      HOME: homeDir,
+    };
+
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
     try {
       result = await runAgentBrowser({
         args: commandArgs,
         cancelSignal: ctx.signal,
         cwd: taskCwd,
-        env: {
-          ...env,
-          // `agent-browser record` spawns a real `ffmpeg` process by bare name,
-          // resolved against PATH. The bundled ffmpeg-static binary isn't on the
-          // sandbox PATH, so prepend its dir (the in-bash `ffmpeg` command is a
-          // just-bash intercept that a separate subprocess can't see).
-          ...ffmpegSubprocessEnv(env.PATH),
-          // Null out env-var equivalents of BLOCKED_FLAGS so the user shell
-          // can't bypass the rejection above.
-          AGENT_BROWSER_AUTO_CONNECT: undefined,
-          AGENT_BROWSER_CDP: undefined,
-          AGENT_BROWSER_CONFIG: undefined,
-          // Uncomment this to enable debug mode.
-          // AGENT_BROWSER_DEBUG:
-          //   process.env.NODE_ENV === "development" ? "1" : undefined,
-          AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
-          AGENT_BROWSER_IDLE_TIMEOUT_MS,
-          AGENT_BROWSER_NAMESPACE: undefined,
-          AGENT_BROWSER_PROFILE: undefined,
-          AGENT_BROWSER_PROVIDER: undefined,
-          AGENT_BROWSER_RESTORE: undefined,
-          AGENT_BROWSER_RESTORE_CHECK_FN: undefined,
-          AGENT_BROWSER_RESTORE_CHECK_TEXT: undefined,
-          AGENT_BROWSER_RESTORE_CHECK_URL: undefined,
-          AGENT_BROWSER_RESTORE_SAVE: undefined,
-          AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
-          AGENT_BROWSER_SESSION_NAME: undefined,
-          AGENT_BROWSER_SOCKET_DIR,
-          AGENT_BROWSER_STATE: undefined,
-          HOME: homeDir,
-        },
+        env: browserFreeRead ? browserFreeReadEnv(spawnEnv) : spawnEnv,
         input: subprocessStdin(ctx.stdin),
         managedConfigPath: isInfoOnly ? undefined : configPath,
         stateDir: agentBrowserStateDir,

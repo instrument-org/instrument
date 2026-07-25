@@ -4,8 +4,8 @@ import { type AbsolutePath } from "../../schemas/paths";
 import {
   CONNECTOR_GUIDE_FILE_NAME,
   CONNECTOR_MANIFEST_EXAMPLE,
+  type McpConnectorManifest,
 } from "./manifest";
-import { type McpConnectorManifest } from "./manifest";
 import { listMcpTools, withMcpClient } from "./mcp/client";
 import { mcpConnectionConfig } from "./mcp/connection-config";
 import { performConnectorRequest, redactCredential } from "./request";
@@ -76,7 +76,7 @@ export async function runConnectorTest({
   const loaded = await loadConnector(connectorsDir, slug);
   if (loaded.isErr()) {
     checks.push({
-      detail: `${loaded.error.message}\nExpected manifest shape (auth kinds: bearer, header, query, none):\n${CONNECTOR_MANIFEST_EXAMPLE}`,
+      detail: `${loaded.error.message}\nExpected manifest shape (auth kinds: bearer, header, none, plus query for api and oauth for mcp):\n${CONNECTOR_MANIFEST_EXAMPLE}`,
       name: "manifest",
       status: "fail",
     });

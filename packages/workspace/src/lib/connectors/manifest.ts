@@ -42,8 +42,8 @@ export type ConnectorAuth = z.output<typeof ConnectorAuthSchema>;
 
 /**
  * Auth for MCP connectors. Same credential-injection idea as API auth, minus
- * `query` (MCP is header-authenticated). OAuth is a later addition that will
- * slot in as another `kind`.
+ * `query` (MCP is header-authenticated) and plus `oauth`, which has no stored
+ * key at all.
  */
 const McpConnectorAuthSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("bearer") }),

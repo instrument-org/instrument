@@ -765,6 +765,12 @@ export const EditFile = setupTool({
 
     try {
       if (input.oldString === "") {
+        // An empty oldString replaces the whole file. Read what is there first
+        // so the diff shows the deletions rather than rendering a destructive
+        // overwrite as a pure addition.
+        if (exists) {
+          contentOld = await fs.readFile(absolutePath, "utf8");
+        }
         contentNew = input.newString;
         await writeFileWithDir(absolutePath, input.newString, { signal });
       } else {

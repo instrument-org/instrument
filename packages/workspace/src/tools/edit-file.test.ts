@@ -224,6 +224,66 @@ describe("EditFile", () => {
     );
   });
 
+  describe("execute - empty oldString", () => {
+    it("shows the replaced content as deletions when the file exists", async () => {
+      setupMockFs({ "index.ts": "const x = 1;\nconst y = 2;\n" });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./index.ts",
+          newString: "const z = 3;\n",
+          oldString: "",
+        }),
+      );
+
+      const { modifiedAt, ...output } = result._unsafeUnwrap();
+      expect(modifiedAt).toEqual(expect.any(Number));
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "diff": "Index: ./index.ts
+        ===================================================================
+        --- ./index.ts
+        +++ ./index.ts
+        @@ -1,2 +1,1 @@
+        -const x = 1;
+        -const y = 2;
+        +const z = 3;
+        ",
+          "filePath": "./index.ts",
+        }
+      `);
+    });
+
+    it("creates the file when it does not exist", async () => {
+      setupMockFs({});
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./created.ts",
+          newString: "const z = 3;\n",
+          oldString: "",
+        }),
+      );
+
+      const { modifiedAt, ...output } = result._unsafeUnwrap();
+      expect(modifiedAt).toEqual(expect.any(Number));
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "diff": "Index: ./created.ts
+        ===================================================================
+        --- ./created.ts
+        +++ ./created.ts
+        @@ -0,0 +1,1 @@
+        +const z = 3;
+        ",
+          "filePath": "./created.ts",
+        }
+      `);
+    });
+  });
+
   describe("execute - replaceAll", () => {
     beforeEach(() => {
       setupMockFs();

@@ -129,6 +129,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
 - `docs/architecture/agent-sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
 - `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — Design constraints and known quirks of the `/task` + `/skills` + `/mnt` mount layout and the virtual↔host path bridge.
+- `docs/architecture/in-app-browser.md` — The per-task browser: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, and what the panel may do that the agent may not.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, shim + Studio startup, CDP port 48160, Xvfb, pnpm checks.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.

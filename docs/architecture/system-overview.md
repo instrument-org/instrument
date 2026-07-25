@@ -64,6 +64,7 @@ Rooted at the workspace folder ([`get-workspace-folder`](../../apps/studio/src/e
 2. The workspace/session machine runs the agent, which selects tools per agent (`create-agent.ts`) and executes them against the task folder.
 3. Model calls go through the ai-gateway app (credentials injected there, never in the renderer); model metadata/selection uses the ai-gateway library.
 4. Results are persisted as message parts in the task's `task.db` and streamed back to the renderer over RPC.
+5. Stopping walks the same chain in reverse: session → agent → the in-flight `executeToolCallMachine`, which writes its own "stopped by you" part before the agent finishes. Cancellation is owned by whichever machine holds the work, because leaving a state that invokes a child hard-stops that child before it can react.
 
 ## Deeper references
 

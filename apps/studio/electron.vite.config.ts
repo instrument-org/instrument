@@ -48,12 +48,17 @@ const resolve = {
 // time is skipped when the destination already holds the current bytes. The
 // mtime has to match exactly rather than merely be newer: pnpm hard links from
 // its store, which carries the store's timestamps, so a reinstall can drop in a
-// same-size asset that is older than what was copied before.
+// same-size asset that is older than what was copied before. Both sides are
+// truncated to whole milliseconds because the stamp below goes through a `Date`,
+// which drops the sub-millisecond precision a source file can carry.
 async function copyVendorAsset({ from, to }: { from: string; to: string }) {
   const source = await fs.stat(from);
   try {
     const target = await fs.stat(to);
-    if (target.size === source.size && target.mtimeMs === source.mtimeMs) {
+    if (
+      target.size === source.size &&
+      Math.trunc(target.mtimeMs) === Math.trunc(source.mtimeMs)
+    ) {
       return;
     }
   } catch {

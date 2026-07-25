@@ -178,10 +178,33 @@ describe("buildBashFs", () => {
     const bash = await makeBash();
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "dev",
       "mnt",
       "skills",
       "task",
     ]);
+  });
+
+  // A write to a path outside every mount throws rather than returning an exit
+  // code, which drops the output of every command that already ran in the same
+  // call -- so an unbacked /dev/null would lose far more than it discards.
+  it.each(["> /dev/null", "1> /dev/null"])(
+    "discards stdout redirected with %s and keeps running",
+    async (redirect) => {
+      const bash = await makeBash();
+      const result = await bash.exec(`echo discarded ${redirect}; echo kept`);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("kept");
+      expect(result.stdout).not.toContain("discarded");
+    },
+  );
+
+  it("discards stderr redirected to /dev/null and keeps running", async () => {
+    const bash = await makeBash();
+    const result = await bash.exec("ls /nope 2> /dev/null; echo kept");
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("kept");
+    expect(result.stderr).toBe("");
   });
 
   it("skips attached mounts whose folder is missing on disk", async () => {
@@ -237,6 +260,7 @@ describe("buildBashFs skills mount", () => {
     const bash = await makeBash();
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "dev",
       "skills",
       "task",
     ]);

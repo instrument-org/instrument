@@ -1,5 +1,6 @@
 import {
   type IFileSystem,
+  InMemoryFs,
   MountableFs,
   OverlayFs,
   ReadWriteFs,
@@ -29,6 +30,14 @@ import { getWorkspaceConfig } from "./workspace-config";
  * translator routes through the layout, so this is the single value to change.
  */
 export const TASK_MOUNT_POINT = "/task";
+
+/**
+ * Virtual mount point of the device files.
+ *
+ * Not part of the agent's working surface: it exists so the ordinary shell
+ * idiom of redirecting output into a sink resolves instead of failing.
+ */
+const DEV_MOUNT_POINT = "/dev";
 
 /**
  * Virtual mount point of the workspace's own `skills/` directory.
@@ -81,6 +90,23 @@ export async function buildBashFs(
   { maxFileReadSize }: { maxFileReadSize: number },
 ): Promise<IFileSystem> {
   const fs = new MountableFs({ base: new ReadOnlyBaseFs() });
+
+  // just-bash seeds these into its default filesystem, but only for one it can
+  // initialize itself -- a mounted layout gets no /dev, so `cmd > /dev/null`
+  // dies with EROFS and takes the whole call's output with it. They are plain
+  // writable files rather than real devices, which is enough for the
+  // redirect-to-discard idiom; the mount is rebuilt per call, so anything
+  // written here is dropped when the call ends.
+  fs.mount(
+    DEV_MOUNT_POINT,
+    new InMemoryFs({
+      null: "",
+      stderr: "",
+      stdin: "",
+      stdout: "",
+      zero: "",
+    }),
+  );
 
   // The task mount is wrapped so the private dir is masked from the agent's
   // shell. It holds task internals the agent must never read: the task db,

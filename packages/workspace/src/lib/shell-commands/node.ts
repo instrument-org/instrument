@@ -1,4 +1,3 @@
-import { execa } from "execa";
 import { defineCommand, latin1FromBytes } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
@@ -7,6 +6,7 @@ import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
+import { execShim } from "./exec-shim";
 import { TS_COMMAND } from "./ts";
 import {
   bridgeFlagValuePath,
@@ -35,8 +35,7 @@ function execNode(
   env?: Record<string, string>,
   stdin?: Buffer,
 ) {
-  return execa(process.execPath, args, {
-    all: true,
+  return execShim(process.execPath, args, {
     cancelSignal: signal,
     cwd: cwd ?? taskDir(taskId),
     env: {
@@ -45,7 +44,6 @@ function execNode(
       // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
       ...ffmpegSubprocessEnv(env?.PATH),
     },
-    reject: false,
     ...(stdin ? { input: stdin } : { stdin: "ignore" }),
   });
 }

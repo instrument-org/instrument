@@ -1,4 +1,3 @@
-import { execa } from "execa";
 import { defineCommand } from "just-bash";
 import path from "node:path";
 
@@ -6,6 +5,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
 import { taskDir } from "../task-dir-utils";
+import { execShim } from "./exec-shim";
 import {
   bridgeFlagValuePath,
   resolveCommandContext,
@@ -164,18 +164,16 @@ export function createGitCommand(taskId: TaskId) {
       };
     }
 
-    const result = await execa(
+    const result = await execShim(
       gitBinaryPath(),
       [...FORCED_CONFIG.flatMap((entry) => ["-c", entry]), ...resolvedArgs],
       {
-        all: true,
         cancelSignal: ctx.signal,
         cwd: taskCwd,
         // Isolation from the user's git config and credentials comes from
         // gitSubprocessEnv, which resolveCommandContext applies to every hatch.
         env,
         input: subprocessStdin(ctx.stdin),
-        reject: false,
       },
     );
 

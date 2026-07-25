@@ -1,10 +1,10 @@
-import { execa } from "execa";
 import { defineCommand, latin1FromBytes } from "just-bash";
 
 import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { taskVenvPython } from "../uv";
+import { execShim } from "./exec-shim";
 import {
   bridgeInlineCodePaths,
   resolveCommandContext,
@@ -98,12 +98,10 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
       }
     }
 
-    const result = await execa(taskVenvPython(taskId), finalArgs, {
-      all: true,
+    const result = await execShim(taskVenvPython(taskId), finalArgs, {
       cancelSignal: ctx.signal,
       cwd: taskCwd,
       env,
-      reject: false,
       // Buffer, not the latin1-packed string: execa UTF-8 encodes string
       // input, which would double-encode every non-ASCII byte.
       ...(stdin

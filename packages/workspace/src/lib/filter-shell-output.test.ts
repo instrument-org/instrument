@@ -178,12 +178,14 @@ ${dir}\output\rainbow.pdf`;
 
     const result = filterShellOutput(output, dir);
     expect(result).toMatchInlineSnapshot(`
-      "Error: Tool call execution failed for 'tool-bash': Command failed with exit code 1: pnpm dlx jiti scripts/test-06-dependencies.ts
+      "
+          Error: Tool call execution failed for 'tool-bash': Command failed with exit code 1: pnpm dlx jiti scripts/test-06-dependencies.ts
 
           ✓ Test 6: Dependency Imports and Zod Validation
           ✓ Valid user parsed: { id: 1, email: 'user@example.com', age: 30, active: true }
           ✓ Caught validation errors:
-          TypeError: Cannot read properties of undefined (reading 'forEach')"
+          TypeError: Cannot read properties of undefined (reading 'forEach')
+      "
     `);
   });
 });

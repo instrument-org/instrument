@@ -444,6 +444,12 @@ async function spawnAgentBrowser({
       env,
       input,
       reject: false,
+      // Keep the final newline; the interpreter concatenates each command's
+      // output, so dropping it runs this command's last line into the next.
+      // Set here rather than via execShim because the Windows branch below
+      // reads the two streams back from files and has no merged stream to
+      // return, so both paths keep stdout and stderr separate.
+      stripFinalNewline: false,
     });
   }
 

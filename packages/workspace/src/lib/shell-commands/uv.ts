@@ -1,4 +1,3 @@
-import { execa } from "execa";
 import { type CommandContext, defineCommand } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
@@ -7,6 +6,7 @@ import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getUvBinPath } from "../uv";
+import { execShim } from "./exec-shim";
 import {
   resolveCommandContext,
   resolvePathArgs,
@@ -83,12 +83,10 @@ export async function runUv({
   taskId: TaskId;
 }) {
   const stdin = subprocessStdin(ctx.stdin);
-  const result = await execa(getUvBinPath(), args, {
-    all: true,
+  const result = await execShim(getUvBinPath(), args, {
     cancelSignal: ctx.signal,
     cwd: taskCwd,
     env,
-    reject: false,
     ...(stdin ? { input: stdin } : { stdin: "ignore" }),
   });
   return {

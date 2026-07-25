@@ -34,10 +34,16 @@ export function filterShellOutput(output: string, dir: TaskDir): string {
     process.env.NODE_ENV === "development" ||
     process.env.NODE_ENV === "test"
   ) {
+    // Only the debugger lines go. Trimming the result as well would eat the
+    // command's own trailing newline, running consecutive commands' output
+    // together within one bash call, and would make dev/test output differ
+    // from production for every command that routes through here.
     filtered = filtered
       .replaceAll(/^.*Debugger attached\..*$\n?/gm, "")
-      .replaceAll(/^.*Waiting for the debugger to disconnect\.\.\..*$\n?/gm, "")
-      .trim();
+      .replaceAll(
+        /^.*Waiting for the debugger to disconnect\.\.\..*$\n?/gm,
+        "",
+      );
   }
 
   return filtered;

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { noop } from "radashi";
 import { z } from "zod";
 
 import { getPreferencesStore, isDeveloperMode } from "../stores/preferences";
@@ -8,11 +9,25 @@ import { logger } from "./electron-logger";
 import { addServerException } from "./server-exceptions";
 import { telemetry } from "./telemetry";
 
-let DID_ATTEMPT_QUIT_CAPTURE = false;
-
 const CaptureSchema = z.looseObject({
   event: z.string(),
 });
+
+let quitTeardown: (() => Promise<void>) | null = null;
+let pendingTeardown: null | Promise<void> = null;
+
+/**
+ * Record the quit and clear the marker that says the last session died. The
+ * app's own shutdown path ends in `app.exit`, which by design never emits
+ * `will-quit`, so it has to call this itself; the `will-quit` fallback below
+ * covers a quit that happens before that path exists (a failed boot, or losing
+ * the single-instance lock). Idempotent, and never rejects -- telemetry must not
+ * be able to hold up a quit.
+ */
+export function finalizeTelemetry(): Promise<void> {
+  pendingTeardown ??= quitTeardown?.().catch(noop) ?? Promise.resolve();
+  return pendingTeardown;
+}
 
 export function registerTelemetry(app: Electron.App) {
   const lockFilename = path.join(app.getPath("userData"), "app.lock");
@@ -31,24 +46,29 @@ export function registerTelemetry(app: Electron.App) {
     captureServerEvent("app.ready", { graceful_exit: gracefulExit });
   });
 
-  app.on("will-quit", (event) => {
-    if (!DID_ATTEMPT_QUIT_CAPTURE) {
-      DID_ATTEMPT_QUIT_CAPTURE = true;
-      event.preventDefault();
+  quitTeardown = async () => {
+    // Unlink first: the marker is what a later boot reads to decide the last
+    // session crashed, so it must not depend on the network flush that follows.
+    await fs.unlink(lockFilename).catch(noop);
+    captureServerEvent("app.quit");
+    await telemetry?.flush();
+    await telemetry?.shutdown();
+  };
 
-      void (async () => {
-        await fs.unlink(lockFilename).catch(() => {
-          // no-op
-        });
-        captureServerEvent("app.quit");
-        setTimeout(() => {
-          app.quit();
-        }, 3000);
-        await telemetry?.flush();
-        await telemetry?.shutdown();
-        app.quit();
-      })();
+  app.on("will-quit", (event) => {
+    if (pendingTeardown) {
+      return;
     }
+    event.preventDefault();
+
+    // Bounded so a stuck flush can't wedge the quit.
+    const forceQuit = setTimeout(() => {
+      app.quit();
+    }, 3000);
+    void finalizeTelemetry().finally(() => {
+      clearTimeout(forceQuit);
+      app.quit();
+    });
   });
 
   const preferencesStore = getPreferencesStore();

@@ -3,6 +3,7 @@ import {
   requestQuitApproval,
   setQuitApproval,
 } from "@/electron-main/lib/quit-guard";
+import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
 import { diskModelCache } from "@/electron-main/stores/model-cache";
 import { ensureMainWindowVisible } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
@@ -293,6 +294,11 @@ export function createWorkspaceActor({
         }
 
         isQuitInProgress = true;
+        // The app.exit below skips `will-quit`, where the telemetry flush and
+        // crash-marker cleanup would otherwise run, so drive them from here.
+        // Started now so they overlap the rest of the teardown instead of
+        // adding to it.
+        const telemetryFinalized = finalizeTelemetry();
 
         let hasExited = false;
         const doExit = () => {
@@ -317,12 +323,13 @@ export function createWorkspaceActor({
           // watchers still held by an in-flight turn are captured. Bounded so a
           // stuck unsubscribe can't wedge the quit.
           const forceFinalize = setTimeout(finalize, 2000);
-          void stopAllTaskFileWatchers()
-            .catch(noop)
-            .finally(() => {
-              clearTimeout(forceFinalize);
-              finalize();
-            });
+          void Promise.all([
+            stopAllTaskFileWatchers().catch(noop),
+            telemetryFinalized,
+          ]).finally(() => {
+            clearTimeout(forceFinalize);
+            finalize();
+          });
         };
         const timeout = setTimeout(() => {
           captureServerException(

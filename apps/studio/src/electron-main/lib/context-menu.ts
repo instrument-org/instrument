@@ -51,13 +51,13 @@ export function createContextMenu({
         },
       ];
     },
-    // Offer "Copy Link" for real links only. A `file://` link is a local path an
-    // agent emitted in markdown; copying `file:///…` to the clipboard isn't
-    // useful.
+    // Offer "Copy Link" for links that lead somewhere outside the app; see
+    // `isCopyableLink`.
     prepend: (defaultActions, parameters) =>
-      parameters.linkURL && !parameters.linkURL.startsWith("file://")
-        ? [defaultActions.copyLink({})]
-        : [],
+      isCopyableLink(parameters) ? [defaultActions.copyLink({})] : [],
+    // Copy Link is conditional, so suppress the template's unconditional one
+    // and supply it from `prepend`.
+    showCopyLink: false,
     // Provided via `append` so the developer-mode check runs per right-click.
     showInspectElement: false,
     // Off by default on macOS; kept to match prior behavior.
@@ -69,4 +69,29 @@ export function createContextMenu({
     showSelectAll: true,
     window: browserWindow,
   });
+}
+
+/**
+ * Whether a link's URL is worth putting on the clipboard. Two kinds aren't:
+ * a `file://` link is a local path an agent emitted in markdown, and a link to
+ * an in-app route is a bare pathname the browser resolves against the renderer
+ * document, so it comes back as a dev-server URL or a nonexistent
+ * `file:///skills/foo`. Both share the page's origin; anything genuinely
+ * external doesn't.
+ */
+function isCopyableLink({
+  linkURL,
+  pageURL,
+}: {
+  linkURL: string;
+  pageURL: string;
+}) {
+  if (!linkURL || linkURL.startsWith("file://")) {
+    return false;
+  }
+  try {
+    return new URL(linkURL).origin !== new URL(pageURL).origin;
+  } catch {
+    return false;
+  }
 }

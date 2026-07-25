@@ -2,6 +2,7 @@ import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { openEditSkill } from "@/client/atoms/skill-modal";
 import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
+import { InternalLink } from "@/client/components/internal-link";
 import { Markdown } from "@/client/components/markdown";
 import { PromptInput } from "@/client/components/prompt-input";
 import { RevealPath } from "@/client/components/reveal-path";
@@ -46,7 +47,7 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -141,13 +142,13 @@ function SkillPage() {
   return (
     <div className="h-full overflow-y-auto scroll-fade-y">
       <div className="mx-auto w-full max-w-5xl px-8 py-12">
-        <Link
+        <InternalLink
           className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           to="/skills"
         >
           <ArrowLeftIcon className="size-4" />
           All skills
-        </Link>
+        </InternalLink>
         <div className="flex items-start gap-4">
           <div className="min-w-0 flex-1">
             <div className="group flex flex-wrap items-center gap-2">

@@ -44,6 +44,12 @@ export default [
             "TooltipProvider should only be declared once at the app root. Do not use it in other components.",
           selector: "JSXOpeningElement[name.name='TooltipProvider']",
         },
+        {
+          message:
+            "TanStack Router's Link is not tab-aware. Use the InternalLink component instead.",
+          selector:
+            "ImportDeclaration[source.value='@tanstack/react-router'] > ImportSpecifier[imported.name='Link']",
+        },
       ],
     },
   },

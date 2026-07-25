@@ -4,6 +4,8 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import {
+  getTaskFileIgnore,
+  isIgnoredTaskPath,
   type TaskFileIndex,
   taskFileIndexFromSnapshot,
   TaskFileIndexSnapshotSchema,
@@ -12,6 +14,7 @@ import {
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { taskDir } from "./task-dir-utils";
 
 /**
  * Removes every session's persisted file-index baseline for the task. Used after
@@ -54,7 +57,25 @@ export function getFileIndexBaseline(
       // Missing baseline is expected on the first message of a session.
       return ok(undefined);
     }
-    return ok(taskFileIndexFromSnapshot(result.value));
+    // A baseline outlives the ignore list that produced it. Anything the index
+    // no longer tracks is dropped here rather than surviving to be diffed as a
+    // deletion, which would tell the agent the user deleted files that are only
+    // no longer indexed. Without a matcher there is no way to tell the two
+    // apart, so report nothing and let the caller re-baseline, exactly as on the
+    // first message of a session.
+    let ignore;
+    try {
+      ignore = await getTaskFileIgnore(taskDir(taskId), { signal });
+    } catch {
+      return ok(undefined);
+    }
+    return ok(
+      taskFileIndexFromSnapshot(
+        result.value.filter(
+          (entry) => !isIgnoredTaskPath(ignore, entry.filePath),
+        ),
+      ),
+    );
   });
 }
 

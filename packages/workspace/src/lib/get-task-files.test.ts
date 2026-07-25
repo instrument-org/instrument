@@ -4,10 +4,12 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
-import { TaskDirSchema } from "../schemas/paths";
+import { RelativePathSchema, TaskDirSchema } from "../schemas/paths";
 import {
   diffTaskFileIndexes,
+  getTaskFileIgnore,
   getTaskFileIndex,
+  isIgnoredTaskPath,
   outputArtifactsFromChanges,
 } from "./get-task-files";
 
@@ -95,9 +97,52 @@ describe("getTaskFileIndex", () => {
     expect(filePaths).not.toContain("pnpm-lock.yaml");
   });
 
+  // A persisted baseline outlives the ignore list that produced it, so widening
+  // that list must not turn everything it newly covers into a deletion. The
+  // agent would otherwise be told the user deleted a venv that is merely no
+  // longer indexed.
+  it("does not report paths dropped from the index as deleted", async () => {
+    // A baseline captured under a narrower ignore list: two paths the index no
+    // longer tracks, plus one the user really did delete.
+    const before = new Map(
+      [
+        "work/.venv/lib/x.so",
+        "work/skills/docx/node_modules/dep/index.js",
+        "deleted-by-user.md",
+      ].map((filePath) => [
+        filePath,
+        {
+          filename: path.basename(filePath),
+          filePath: RelativePathSchema.parse(filePath),
+          mimeType: "text/plain",
+          mtimeMs: 1,
+          size: 1,
+        },
+      ]),
+    );
+
+    const ignore = await getTaskFileIgnore(dir);
+    const kept = new Map(
+      [...before].filter(([key]) => !isIgnoredTaskPath(ignore, key)),
+    );
+    const after = await getTaskFileIndex(dir);
+    expect(after.isOk()).toBe(true);
+    if (after.isErr()) {
+      return;
+    }
+
+    const deleted = diffTaskFileIndexes({ after: after.value, before: kept })
+      .filter((change) => change.status === "deleted")
+      .map(({ filePath }) => String(filePath));
+
+    // The real deletion survives; the two generated paths never enter the diff.
+    expect(deleted).toEqual(["deleted-by-user.md"]);
+  });
+
   // A Python task's venv alone runs to hundreds of files, past the index cap
   // once it holds the scientific stack, so leaving these enumerated would both
   // bury the task's own files and drown the change list the user reads.
+
   it("excludes dependency trees and tool caches wherever they sit", async () => {
     const generated = [
       { dir: "work/.venv/lib/python3.12", file: "x.so" },

@@ -475,7 +475,7 @@ export const agentMachine = setup({
               retryCount: ({ context }) => context.retryCount + 1,
             }),
             guard: ({ context }) => {
-              return context.retryCount + 1 < context.maxRetryCount;
+              return context.retryCount + 1 <= context.maxRetryCount;
             },
             target: "RetryingWithDelay",
           },

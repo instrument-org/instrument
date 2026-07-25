@@ -2,6 +2,10 @@ import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { openExternal } from "@/electron-main/lib/open-external";
+import {
+  isQuitApproved,
+  requestQuitApproval,
+} from "@/electron-main/lib/quit-guard";
 import { getMainWindowBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -19,6 +23,7 @@ import {
   setTrafficLightForZoom,
 } from "@/electron-main/windows/main/controls";
 import {
+  clearMainWindow,
   getMainWindow,
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
@@ -109,9 +114,28 @@ export async function createMainWindow({
     saveState();
   });
 
+  // Outside macOS, closing the window quits the app (see `window-all-closed`),
+  // so the running-agent warning has to happen here, while the window still
+  // exists. Asking after the fact would destroy the window first and leave a
+  // canceled quit with a running process the user can't get back to. On macOS
+  // the app outlives its window, so closing interrupts nothing and only Cmd+Q
+  // needs to ask.
+  mainWindow.on("close", (event) => {
+    if (process.platform === "darwin" || isQuitApproved()) {
+      return;
+    }
+    event.preventDefault();
+    void requestQuitApproval().then((approved) => {
+      if (approved && !mainWindow.isDestroyed()) {
+        mainWindow.close();
+      }
+    });
+  });
+
   mainWindow.on("closed", () => {
     debouncedSaveState.cancel();
     saveState();
+    clearMainWindow(mainWindow);
   });
 
   // Windows delivers mouse thumb buttons (back/forward) as native app-commands
@@ -189,6 +213,28 @@ export async function createMainWindow({
   });
 
   return mainWindow;
+}
+
+/**
+ * Put a usable main window on screen, recreating it if none is left. Outside
+ * macOS a running app with no window is unreachable -- no dock icon, no menu
+ * bar, and the single-instance lock turns a fresh launch into a no-op -- so any
+ * path that can strand the process has to be able to summon one back.
+ */
+export async function ensureMainWindowVisible() {
+  const existing = getMainWindow();
+  if (!existing) {
+    return createMainWindow();
+  }
+
+  if (existing.isMinimized()) {
+    existing.restore();
+  }
+  if (!existing.isVisible()) {
+    existing.show();
+  }
+  existing.focus();
+  return existing;
 }
 
 export function updateMainWindowBackgroundColor() {

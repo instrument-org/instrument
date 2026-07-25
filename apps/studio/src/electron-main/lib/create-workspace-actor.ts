@@ -1,5 +1,11 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
+import {
+  requestQuitApproval,
+  setQuitApproval,
+} from "@/electron-main/lib/quit-guard";
 import { diskModelCache } from "@/electron-main/stores/model-cache";
+import { ensureMainWindowVisible } from "@/electron-main/windows/main";
+import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
@@ -229,7 +235,7 @@ export function createWorkspaceActor({
       return true;
     }
 
-    const { response } = await dialog.showMessageBox({
+    const options: Electron.MessageBoxOptions = {
       buttons: ["Cancel", "Quit"],
       cancelId: 0,
       defaultId: 0,
@@ -237,10 +243,29 @@ export function createWorkspaceActor({
       message: `One or more ${count === 1 ? "agent is still running" : "agents are still running"}.`,
       noLink: true,
       type: "warning",
-    });
+    };
+
+    // Parent the dialog on the window that is being closed so it is
+    // window-modal, rather than a detached app-modal box that can end up behind
+    // the window it is asking about.
+    const parentWindow = getMainWindow();
+    const { response } = await (parentWindow
+      ? dialog.showMessageBox(parentWindow, options)
+      : dialog.showMessageBox(options));
 
     return response === 1;
   };
+
+  setQuitApproval(async () => {
+    // Dev hot reload quits the app (SIGTERM -> before-quit) on every
+    // main-process rebuild. Skip the running-agents prompt in dev so a reload is
+    // never blocked waiting on a dialog nobody sees, which would strand the old
+    // instance while electron-vite launches a new one. Teardown still runs.
+    if (is.dev || isQuitAlreadyConfirmed()) {
+      return true;
+    }
+    return confirmQuitWithRunningAgents();
+  });
 
   let isQuitHandling = false;
   let isQuitInProgress = false;
@@ -257,17 +282,13 @@ export function createWorkspaceActor({
     void (async () => {
       isQuitHandling = true;
       try {
-        // Dev hot reload quits the app (SIGTERM -> before-quit) on every
-        // main-process rebuild. Skip the running-agents prompt in dev so a
-        // reload is never blocked waiting on a dialog nobody sees, which would
-        // strand the old instance while electron-vite launches a new one.
-        // Teardown below still runs to clean up agent-browser sessions and
-        // file watchers.
-        if (
-          !is.dev &&
-          !isQuitAlreadyConfirmed() &&
-          !(await confirmQuitWithRunningAgents())
-        ) {
+        if (!(await requestQuitApproval())) {
+          // Canceling has to leave the user somewhere. Outside macOS this quit
+          // may have started from a window close, and a process whose last
+          // window is gone can't be reached again.
+          if (process.platform !== "darwin") {
+            void ensureMainWindowVisible();
+          }
           return;
         }
 

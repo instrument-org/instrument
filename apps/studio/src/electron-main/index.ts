@@ -8,6 +8,7 @@ import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
 import {
   createMainWindow,
+  ensureMainWindowVisible,
   updateMainWindowBackgroundColor,
 } from "@/electron-main/windows/main";
 import { focusMainContents } from "@/electron-main/windows/main/controls";
@@ -216,6 +217,10 @@ void app.whenReady().then(async () => {
  * Bring the active foreground window forward. The main window is the target
  * once visible; while it is still hidden (e.g. prepared during onboarding),
  * onboarding stays the foreground target so focus never lands on nothing.
+ *
+ * With no window left at all this opens one. Relaunching the app is how a user
+ * asks for a window back, and the single-instance lock routes that launch here
+ * instead of starting a process that could serve it.
  */
 function focusForegroundWindow() {
   const mainWindow = getMainWindow();
@@ -227,7 +232,23 @@ function focusForegroundWindow() {
     focusMainContents();
     return;
   }
-  getOnboardingWindow()?.focus();
+
+  const onboardingWindow = getOnboardingWindow();
+  if (onboardingWindow && !onboardingWindow.isDestroyed()) {
+    onboardingWindow.focus();
+    return;
+  }
+
+  // A second launch can land here while the first instance is still booting,
+  // before windows may be created; that boot opens its own window anyway.
+  if (!app.isReady()) {
+    return;
+  }
+  if (shouldShowOnboarding()) {
+    openOnboardingWindow();
+    return;
+  }
+  void ensureMainWindowVisible();
 }
 
 function handleDeepLink(_url: string) {

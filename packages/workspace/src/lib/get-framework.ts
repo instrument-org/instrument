@@ -48,10 +48,13 @@ export async function getFramework({
         arguments: [scriptName],
         command: getWorkspaceConfig().pnpmBinPath,
         log: {
-          message: `No framework found, falling back to npm ${scriptName}`,
+          message: `No framework found, falling back to pnpm ${scriptName}`,
           type: "normal",
         },
-        name: scripts[scriptName] ?? "unknown",
+        // Every other return passes `framework.name`. There is no framework
+        // here, and the script's own command string reads as
+        // "Starting vite --host dev server" downstream.
+        name: "unknown",
       });
     }
 

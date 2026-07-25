@@ -96,18 +96,6 @@ app.all("/*", async (c, next) => {
     responseContentType,
   );
   const isTextPlainContentType = responseContentType.includes("text/plain");
-  const isServerSentEvents = responseContentType.includes("text/event-stream");
-  const isStreaming =
-    res.headers.get("Transfer-Encoding") === "chunked" || isServerSentEvents;
-
-  // For streaming responses (SSE, chunked), pass through without consuming body
-  if (isStreaming) {
-    return new Response(res.body, {
-      headers: res.headers,
-      status: res.status,
-      statusText: res.statusText,
-    });
-  }
 
   if (res.status >= 400 && isTextPlainContentType) {
     const body = await res.text();
@@ -125,6 +113,18 @@ app.all("/*", async (c, next) => {
     }
 
     return c.html(fallbackPage);
+  }
+
+  // Only a response that might be HTML needs its body in memory -- it is read
+  // solely to inject the shim, plus to sniff the first KB when the app sends no
+  // content type at all. Everything else (assets, SSE, other streams) is passed
+  // through so it is neither buffered nor stalled.
+  if (!isHtmlContentType && responseContentType.trim()) {
+    return new Response(res.body, {
+      headers: res.headers,
+      status: res.status,
+      statusText: res.statusText,
+    });
   }
 
   const clonedRes = res.clone();
@@ -150,7 +150,7 @@ app.all("/*", async (c, next) => {
     return new Response(newBody, { headers: newHeaders, status: res.status });
   }
 
-  // For all other non-streaming responses, pass through as-is
+  // No content type and no HTML tag: pass the untouched body through
   return new Response(res.body, {
     headers: res.headers,
     status: res.status,

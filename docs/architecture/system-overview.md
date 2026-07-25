@@ -54,6 +54,7 @@ Rooted at the workspace folder ([`get-workspace-folder`](../../apps/studio/src/e
 
 - `tasks/<id>/` — one folder per task, with `.instrument/{task.db, state.json}` (per-task SQLite plus serialized state). Legacy layouts are normalized on boot by `migrateWorkspaceLayout`.
 - `projects/` — project folders tasks reference.
+- `skills/` — user-authored and imported skills, mounted writable into the agent at `/skills`. Distinct from the read-only registry below; skills discovered elsewhere on the machine stay where they are.
 - `registry/` — the skills submodule (read-only; never edited here).
 - Model cache and `uv` data live under Electron's `userData`, not the workspace folder.
 

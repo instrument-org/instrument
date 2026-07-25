@@ -1,6 +1,6 @@
 # pnpm 10 -> 11 migration
 
-Status: reopened. The version migration landed in `a7c117f2b` (`workspace,studio: migrate bundled pnpm to 11.10.0`), but a smoke test against beta.2 found the packaged app could not fork pnpm at all (`Cannot find module .../app.asar.unpacked/node_modules/pnpm/bin/pnpm.cjs`), so skill dependency installs were broken in production. A packaging fix followed (see "Packaging: pnpm must be explicitly unpacked" below). Not complete until a fresh packaged build passes smoke test 1.
+Status: **completed**. The version migration landed in `a7c117f2b` (`workspace,studio: migrate bundled pnpm to 11.10.0`). A smoke test then found the packaged app could not fork pnpm at all (`Cannot find module .../app.asar.unpacked/node_modules/pnpm/bin/pnpm.cjs`), because electron-builder stopped auto-unpacking pnpm 11; the packaging fix below (`asarUnpack`, `verifyPackagedPnpm`, `prunePnpmReflink`) closed that, and `verifyPackagedPnpm` now fails the build rather than shipping it silently broken. The sibling skills repo is on 11.10.0 too.
 
 Tracking: [FP-1202](https://linear.app/finalpoint/issue/FP-1202/pnpm-10-11-migration)
 
@@ -81,7 +81,7 @@ Fix (`apps/studio/electron-builder.ts`, `.../electron-builder/paths.ts`, `.../af
 - Add an `afterPack` guard (`verifyPackagedPnpm`) that fails the build if `pnpm/bin/pnpm.mjs` is missing from the unpacked tree -- the same pattern already used for ripgrep and uv. This converts a silent ship-broken into a loud build failure.
 - Update `prunePnpmReflink`: it targeted the pnpm 10 `dist/reflink.*.node` layout and had silently become a no-op, so every build shipped all four foreign reflink packages. It now prunes foreign `@reflink/reflink-*` package dirs under `dist/node_modules/@reflink/`.
 
-Requires a fresh packaged build to verify; smoke test 1 exercises exactly this path.
+Smoke test 1 exercises exactly this path, and `verifyPackagedPnpm` now turns a silent ship-broken into a build failure.
 
 ## Bundled pnpm resolved via `pnpm.mjs`, not `pnpm.cjs`
 

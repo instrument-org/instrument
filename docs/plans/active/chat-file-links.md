@@ -1,6 +1,6 @@
 # Interactive task-file links in chat
 
-Status: **active (blocked on prerequisite)** Owner: TBD Prerequisite: **the `worktree-open-in-native-app` branch must merge to `main` first**, so the right-click menu can include native "Open in {App}" / "Open with". Do not start until then.
+Status: **active (partly landed)** Owner: TBD. The native-open prerequisite is merged (`studio: open task files in native apps`), and with it the explicit-link half of this plan: `TaskFileLink` in [markdown.tsx](../../../apps/studio/src/client/components/markdown.tsx) renders `[label](output/x.png)` as a chip that opens the artifact panel, with the right-click file-actions menu (`studio: add a right-click menu to agent file-link chips`). **Remaining: bare-path auto-linking** (goal 2 / phase 2) — prose like `output/x.png` with no `[]()` is still plain text, since nothing preprocesses links before Markdown parsing.
 
 ## Problem
 

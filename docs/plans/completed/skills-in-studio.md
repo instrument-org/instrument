@@ -1,6 +1,6 @@
 # Skills in Studio
 
-Handoff for `feature/skills-sidebar` (PR #71). The branch is under final merge prep. CI is not green as of July 24, 2026: `check-and-test:ci` failed on workspace snapshot drift caused by the new global test setup preloading `store-id`, a `captureEvent` type error in `rpc/routes/skill.ts`, and a few Studio lint findings.
+Status: **completed**. Landed on `main` via PR #71 (`feature/skills-sidebar`), through `studio,workspace: close remaining skills review gaps`. Kept for the design rationale below, which the code does not state.
 
 ## What this is
 
@@ -34,19 +34,9 @@ Agent Skills, surfaced in Studio: a browsable list, a page per skill, a slash me
 
 **The catalog escapes what it embeds.** `renderSkillCatalog` puts discovered names and descriptions into the XML the `load_skill` tool description carries into the system prompt; a description from an unvalidated source could otherwise close its own tag. `escapeXml` handles `<`, `>`, `&`.
 
-## Open work
-
-Visual verification of the four changes above.
-
-Merge readiness cleanup still in flight:
-
-- keep the branch linear when rebasing or rewriting history
-- clear the remaining substantive PR review comments
-- rerun `pnpm check-and-test:ci` after the snapshot/test-harness fix and the remaining lint cleanups
-
 ## Things worth knowing before you touch this
 
-**Verify visually.** Nearly all of this was written without running Studio. The caret-position bug took three attempts because the first two theorized about the token's CSS when the actual cause was that `prosemirror-view/style/prosemirror.css` was never imported — ProseMirror emits a trailing `<br>` after a text block ending in an inline leaf, and its own stylesheet is what neutralizes that. Two of those rounds would have been saved by looking at the DOM once.
+**Verify visually.** Nearly all of this was written without running Studio, and it showed. The caret-position bug took three attempts because the first two theorized about the token's CSS when the actual cause was that `prosemirror-view/style/prosemirror.css` was never imported — ProseMirror emits a trailing `<br>` after a text block ending in an inline leaf, and its own stylesheet is what neutralizes that. Two of those rounds would have been saved by looking at the DOM once.
 
 **`listSkillFiles` feeds the agent, not just the UI.** It is what `load_skill` uses to tell the agent what a skill contains, and it is capped at `FILE_LIST_LIMIT`. Before it honored ignore rules, an installed skill's `node_modules` consumed the entire cap, so the agent never saw the skill's own scripts. Anything that changes what it walks changes what the agent sees.
 
@@ -56,8 +46,4 @@ Merge readiness cleanup still in flight:
 
 **`pnpm turbo:fix:lint` reorders Tailwind classes in files you did not touch.** It will dirty five or six unrelated components every run. Revert those before committing; `check:lint` tolerates the original order.
 
-**This worktree currently lacks its own installed bins.** `pnpm check-and-test` from the worktree fails before validation because `turbo`/`eslint` are missing there. Either hydrate the worktree install first or run the validation from a checkout that has `node_modules`.
-
-## Conflicts to expect
-
-`jmack/connectors-v1` adds a `connectors` mount and generalizes the same `workspace-fs-layout.ts` functions this branch touched. Whichever lands second should adopt the other's shape rather than merging both.
+**The mount layout is shared ground.** The connectors work adds its own mount and generalizes the same `workspace-fs-layout.ts` functions this work touched. Adopt the existing shape when adding a mount rather than introducing a parallel one.

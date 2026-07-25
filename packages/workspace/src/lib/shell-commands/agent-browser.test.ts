@@ -49,6 +49,16 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stderr).toContain(`flag ${flag} is not allowed`);
   });
 
+  it("blocks the short alias of a managed flag", async () => {
+    const result = await command.execute(
+      ["-p", "browserbase", "open", "https://example.com"],
+      mockCtx,
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("flag -p is not allowed");
+  });
+
   it.each([
     { subcommand: "connect" },
     { subcommand: "install" },
@@ -66,6 +76,13 @@ describe("createAgentBrowserCommand", () => {
       );
     },
   );
+
+  it("blocks a subcommand hidden behind a global flag's value", async () => {
+    const result = await command.execute(["--headers", "{}", "close"], mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("subcommand 'close' is not available");
+  });
 });
 
 describe("isBrowserFreeRead", () => {

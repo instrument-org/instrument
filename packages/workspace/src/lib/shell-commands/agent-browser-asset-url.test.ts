@@ -126,6 +126,18 @@ describe("rewriteNavigationArgToAssetUrl", () => {
     expect(result[1]).toBe("--raw");
   });
 
+  it("rewrites the target, not a preceding global flag's value", async () => {
+    const result = await rewrite([
+      "--headers",
+      "{}",
+      "open",
+      "output/report.html",
+    ]);
+
+    expect(result[3]).toContain("http://assets.");
+    expect(result.slice(0, 3)).toEqual(["--headers", "{}", "open"]);
+  });
+
   it("preserves surrounding flags", async () => {
     const result = await rewrite([
       "open",

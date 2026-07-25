@@ -29,6 +29,10 @@ import {
   taskDir,
 } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
+import {
+  agentBrowserFlagName,
+  parseAgentBrowserArgs,
+} from "./agent-browser-args";
 import { rewriteNavigationArgToAssetUrl } from "./agent-browser-asset-url";
 import {
   resolveCommandContext,
@@ -103,20 +107,18 @@ const STRIPPED_VALUE_FLAGS = new Set([
 const INFO_ONLY_FLAGS = new Set(["--help", "--version", "-h", "-V"]);
 
 // Flags a `read <url>` may carry and still be a plain fetch: they shape the
-// request or the rendered output, never the browser.
-const READ_FETCH_FLAGS = new Set([
+// request or the rendered output, never the browser. Split the way the CLI
+// reads them -- its own read parser sees the first two, the third is global and
+// consumed before that parser runs.
+const READ_FETCH_FLAGS = new Set(["--outline", "--raw", "--require-md"]);
+const READ_FETCH_VALUE_FLAGS = new Set(["--filter", "--llms", "--timeout"]);
+const READ_SAFE_GLOBAL_FLAGS = new Set([
   "--content-boundaries",
-  "--json",
-  "--outline",
-  "--raw",
-  "--require-md",
-]);
-const READ_FETCH_VALUE_FLAGS = new Set([
-  "--filter",
   "--headers",
-  "--llms",
+  "--json",
   "--max-output",
-  "--timeout",
+  "--quiet",
+  "--verbose",
 ]);
 
 // The standard proxy vars the CLI falls back to for `--proxy`, which is launch
@@ -207,8 +209,8 @@ export function browserFreeReadEnv(env: Record<string, string | undefined>) {
  * Whether an invocation is a `read <url>`, which the CLI answers with an HTTP
  * fetch and a Markdown conversion -- no page, no CDP, no browser.
  *
- * Deliberately exact: subcommand `read`, one positional, and nothing else but
- * the fetch/output flags above. Every other flag is a potential launch option,
+ * Deliberately exact: subcommand `read`, one positional, and no flag outside
+ * the fetch/output sets above. Every other flag is a potential launch option,
  * and a launch option on an invocation with no `--cdp` target makes the CLI
  * start a browser of its own, so an unrecognized one sends the command back to
  * the normal target-backed path instead.
@@ -218,11 +220,17 @@ export function browserFreeReadEnv(env: Record<string, string | undefined>) {
  * active page's URL first).
  */
 export function isBrowserFreeRead(args: string[]): boolean {
-  let sawSubcommand = false;
-  let url: string | undefined;
+  const { globalFlags, subArgs, subcommand } = parseAgentBrowserArgs(args);
+  if (subcommand !== "read") {
+    return false;
+  }
+  if (globalFlags.some(({ name }) => !READ_SAFE_GLOBAL_FLAGS.has(name))) {
+    return false;
+  }
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  let url: string | undefined;
+  for (let i = 1; i < subArgs.length; i++) {
+    const arg = subArgs[i]?.value;
     if (arg === undefined) {
       continue;
     }
@@ -237,13 +245,6 @@ export function isBrowserFreeRead(args: string[]): boolean {
     }
     if (arg.startsWith("-")) {
       return false;
-    }
-    if (!sawSubcommand) {
-      if (arg !== "read") {
-        return false;
-      }
-      sawSubcommand = true;
-      continue;
     }
     if (url !== undefined) {
       return false;
@@ -311,11 +312,10 @@ export function createAgentBrowserCommand({
       };
     }
 
-    // Match both --flag and --flag=value forms.
-    const blockedArg = args.find((a) => {
-      const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
-      return BLOCKED_FLAGS.has(flagName);
-    });
+    // Matches --flag, --flag=value, and short aliases (-p for --provider).
+    const blockedArg = args.find((a) =>
+      BLOCKED_FLAGS.has(agentBrowserFlagName(a)),
+    );
     if (blockedArg) {
       return {
         exitCode: 1,
@@ -324,7 +324,7 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const subcommand = args.find((a) => !a.startsWith("-"));
+    const { subcommand } = parseAgentBrowserArgs(args);
     if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
       return {
         exitCode: 1,

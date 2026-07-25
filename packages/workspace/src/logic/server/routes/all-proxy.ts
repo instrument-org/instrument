@@ -3,6 +3,7 @@ import { html } from "hono/html";
 import { proxy } from "hono/proxy";
 
 import { FALLBACK_PAGE_META_NAME, SHIM_SCRIPT_PATH } from "../constants";
+import { injectShimScript } from "../inject-shim-script";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
 
@@ -132,7 +133,7 @@ app.all("/*", async (c, next) => {
 
   if (isHtmlContentType || (!responseContentType.trim() && hasHtmlTag)) {
     // For HTML responses, inject the shim script
-    const newBody = body.replace("<head>", `<head>${shimScript}`);
+    const newBody = injectShimScript(body, shimScript);
 
     // Must modify headers to prevent caching issues due to injected shim
     const newHeaders = new Headers(res.headers);

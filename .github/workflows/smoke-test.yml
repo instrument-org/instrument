@@ -24,6 +24,11 @@ jobs:
         # icon.icon needs actool 26+ on a macOS 26 host (Xcode 26 on macos-15 crashes at runtime).
         os: [ubuntu-latest, macos-26, windows-latest]
     steps:
+      # Match the release build's checkout, so the smoke test exercises the
+      # bytes that ship. See the same step in release.yml.
+      - if: runner.os == 'Windows'
+        name: Keep line endings as committed
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive

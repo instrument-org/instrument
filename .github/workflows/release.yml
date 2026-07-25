@@ -46,6 +46,13 @@ jobs:
             runner: macos-26
 
     steps:
+      # Git for Windows defaults to core.autocrlf=true, so the runner would
+      # check out CRLF copies of files the app ships verbatim -- bundled skills
+      # and the scripts they run. Keep the packaged bytes identical on every
+      # platform. Must precede checkout, including the submodule.
+      - if: runner.os == 'Windows'
+        name: Keep line endings as committed
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive

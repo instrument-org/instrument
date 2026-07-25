@@ -285,12 +285,21 @@ export function parseFrontmatter(raw: string): FrontmatterResult {
  * Separate the YAML block from the body without a library.
  *
  * The block keeps the newline that follows the opening `---`, so a YAML error's
- * line number matches the line in the file. CRLF is normalized to LF for the
- * parser; the body is returned verbatim for the caller to trim.
+ * line number matches the line in the file.
+ *
+ * CRLF is normalized before the fence is located, not after the block is cut.
+ * The closing fence matches as `\n---`, which claims the `\n` of the final
+ * CRLF and strands its `\r` on the last line of the block. YAML reads that
+ * stray `\r` as a second scalar once the value it follows is quoted, so a
+ * CRLF-encoded skill whose last frontmatter line is `description: "..."` is
+ * rejected as unparseable and never discovered.
  */
 export function splitFrontmatter(raw: string): FrontmatterSplit {
   // A leading byte-order mark would hide the opening fence.
-  const text = raw.startsWith("\uFEFF") ? raw.slice(1) : raw;
+  const text = (raw.startsWith("\uFEFF") ? raw.slice(1) : raw).replaceAll(
+    "\r\n",
+    "\n",
+  );
 
   // The fence has to open the file, and `----` is a horizontal rule.
   if (!text.startsWith("---") || text.charAt(3) === "-") {
@@ -304,7 +313,7 @@ export function splitFrontmatter(raw: string): FrontmatterSplit {
   }
 
   return {
-    block: rest.slice(0, end).replaceAll("\r\n", "\n"),
+    block: rest.slice(0, end),
     body: rest.slice(end + "\n---".length),
     ok: true,
   };

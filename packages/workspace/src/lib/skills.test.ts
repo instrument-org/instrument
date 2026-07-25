@@ -88,8 +88,16 @@ describe("parseFrontmatter", () => {
       `);
   });
 
-  it("handles Windows-style CRLF line endings", () => {
-    const raw = "---\r\ndescription: Windows skill\r\n---\r\nBody";
+  // A CRLF checkout is what a Windows build packages, and the closing fence
+  // eats the `\n` of the last CRLF. Cover a quoted final value too: the stray
+  // `\r` left behind is harmless inside an unquoted scalar but is a second
+  // scalar after a closing quote, so quoting alone decided whether a skill was
+  // discovered at all.
+  it.each([
+    { style: "unquoted", value: "Windows skill" },
+    { style: "quoted", value: '"Windows skill"' },
+  ])("handles Windows-style CRLF line endings ($style)", ({ value }) => {
+    const raw = `---\r\ndescription: ${value}\r\n---\r\nBody`;
     expect(parseFrontmatter(raw)).toMatchInlineSnapshot(`
         {
           "body": "Body",

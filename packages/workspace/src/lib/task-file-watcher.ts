@@ -14,15 +14,16 @@ import { RelativePathSchema, type TaskDir } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
-import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import {
   diffTaskFileIndexes,
+  getTaskFileIgnore,
   getTaskFileIndex,
-  INTERNAL_IGNORE_PATTERNS,
+  isIgnoredTaskPath,
   MAX_TASK_FILE_INDEX_FILES,
   type TaskFile,
   type TaskFileChange,
+  type TaskFileIgnore,
   type TaskFileIndex,
   taskFilesFromIndex,
   WATCHER_IGNORE_PATTERNS,
@@ -46,8 +47,6 @@ const NATIVE_BACKEND: Options["backend"] =
     : process.platform === "darwin"
       ? "fs-events"
       : "inotify";
-
-type Ignore = Awaited<ReturnType<typeof getIgnore>>;
 
 // Minimal surface of @parcel/watcher we depend on; loaded dynamically so the
 // native binding resolves from node_modules at runtime instead of being bundled.
@@ -77,7 +76,7 @@ interface WatcherEntry {
   fallbackTimer: null | ReturnType<typeof setInterval>;
   id: TaskId;
   // Null until the first seed completes; seeding always precedes event handling.
-  ignore: Ignore | null;
+  ignore: null | TaskFileIgnore;
   index: TaskFileIndex;
   // Settles once seeding + the native subscribe have run, so shutdown can await
   // in-flight setup before tearing the watcher down.
@@ -291,7 +290,7 @@ async function applyChangedPath(
   }
 
   const key = relative;
-  if (entry.ignore.ignores(relative) || entry.ignore.ignores(`${relative}/`)) {
+  if (isIgnoredTaskPath(entry.ignore, relative)) {
     return deleteSubtree(entry, key);
   }
 
@@ -486,8 +485,7 @@ function releaseWatcher(id: TaskId) {
 
 /** Rebuilds the ignore matcher and walks disk to produce a fresh, authoritative index; marks the entry seeded. */
 async function reseed(entry: WatcherEntry) {
-  entry.ignore = await getIgnore(entry.dir);
-  entry.ignore.add(INTERNAL_IGNORE_PATTERNS);
+  entry.ignore = await getTaskFileIgnore(entry.dir);
   const result = await getTaskFileIndex(entry.dir);
   if (isDisposed(entry)) {
     return;

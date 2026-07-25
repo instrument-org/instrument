@@ -42,7 +42,11 @@ export function registerTelemetry(app: Electron.App) {
       // No lock file means graceful exit or first run
     }
 
-    await fs.writeFile(lockFilename, "running");
+    // The marker is best-effort: a failed write must not become an unhandled
+    // rejection that also swallows the `app.ready` event below.
+    await fs.writeFile(lockFilename, "running").catch((error: unknown) => {
+      logger.warn("Failed to write the session lock file.", error);
+    });
     captureServerEvent("app.ready", { graceful_exit: gracefulExit });
   });
 

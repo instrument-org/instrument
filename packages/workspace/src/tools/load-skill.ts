@@ -24,7 +24,6 @@ import {
   resolveSkillName,
   SKILL_CONTENT_LIMIT,
   type SkillInfo,
-  skillTaskDirName,
   truncateSkillContent,
 } from "../lib/skills";
 import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
@@ -105,8 +104,7 @@ export const LoadSkill = setupTool({
       // True when the body was longer than `SKILL_CONTENT_LIMIT` and only its
       // head was inlined, so the model is told where to read the rest.
       contentTruncated: z.boolean(),
-      // Folder the copy landed in under `work/skills`, which is the qualified
-      // name made safe for a path.
+      // Relative folder the copy landed in under `work/skills`.
       directory: z.string(),
       files: z.array(z.string()),
       installResults: z.array(SkillInstallResultSchema).optional(),
@@ -115,6 +113,7 @@ export const LoadSkill = setupTool({
       // can edit the skill in place: "workspace" lives in the writable /skills
       // mount, the others are read-only where they were discovered.
       origin: z.enum(["external", "in-repo", "instrument", "workspace"]),
+      skillName: z.string(),
       state: z.literal("success"),
       truncated: z.boolean(),
     }),
@@ -189,14 +188,15 @@ export const LoadSkill = setupTool({
       return executeError(runtime.error);
     }
 
-    // Two sources can ship a skill under one directory name, so the copy is
-    // named after the qualified one and each of them lands in its own folder.
-    const directory = skillTaskDirName(skill.qualifiedName);
+    // Source and name remain separate path segments. Turning an address into a
+    // filesystem-safe string would let distinct skills collapse onto one copy.
+    const directory = normalizedPathJoin(skill.sourceId, skill.name);
     const { alreadyLoaded, destDir } = await copySkill({
       dir: taskDir(taskId),
       signal,
       skillDir: skill.skillDir,
-      skillName: directory,
+      skillName: skill.name,
+      skillSource: skill.sourceId,
     });
 
     const relativeSkillRoot = normalizedPathJoin(
@@ -267,6 +267,7 @@ export const LoadSkill = setupTool({
       ...(installResults.length > 0 ? { installResults } : {}),
       name: skill.id,
       origin,
+      skillName: skill.name,
       state: "success" as const,
       truncated,
     });
@@ -327,13 +328,11 @@ export const LoadSkill = setupTool({
     }
 
     const customizeHint = `Copy it into \`${SKILLS_MOUNT_POINT}/\` to change it.`;
-    // A workspace skill always keeps its plain directory name, so `directory`
-    // is also what it is called where it lives.
     const originSection =
       output.origin === "workspace"
-        ? `\n\nThis skill lives at \`${SKILLS_MOUNT_POINT}/${output.directory}\`; edit it there to change the skill for future tasks (the \`${TASK_FOLDER_NAMES.work}/\` copy is only for this task).`
+        ? `\n\nThis skill lives at \`${SKILLS_MOUNT_POINT}/${output.skillName}\`; edit it there to change the skill for future tasks (the \`${TASK_FOLDER_NAMES.work}/\` copy is only for this task).`
         : output.origin === "in-repo"
-          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.directory}\`, outside the writable \`${SKILLS_MOUNT_POINT}/\` mount, so you cannot edit it in place from here. ${customizeHint}`
+          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the writable \`${SKILLS_MOUNT_POINT}/\` mount, so you cannot edit it in place from here. ${customizeHint}`
           : output.origin === "instrument"
             ? `\n\nThis skill is provided by ${APP_NAME} and is read-only. ${customizeHint}`
             : `\n\nThis skill comes from a skills folder elsewhere on this machine and is read-only. ${customizeHint}`;

@@ -93,6 +93,7 @@ describe("initializeTask", () => {
       dlxCacheMaxAge: 259200 # 180 days in minutes, extended for pnpm dlx jiti
       packages:
         - skills/*
+        - skills/*/*
       # Unapproved build scripts are skipped with a warning instead of failing the
       # install, so a package the agent adds mid-task cannot dead-end it. The bash
       # tool turns that warning into instructions for extending allowBuilds.

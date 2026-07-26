@@ -7,6 +7,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { getIgnore } from "./get-ignore";
 import { normalizePath } from "./normalize-path";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
+import { type SkillSourceId } from "./skills";
 import { getTaskWorkDir } from "./task-dir-utils";
 
 /**
@@ -24,15 +25,19 @@ export async function copySkill({
   signal,
   skillDir,
   skillName,
+  skillSource,
 }: {
   dir: TaskDir;
   signal: AbortSignal;
   skillDir: AbsolutePath;
   skillName: string;
+  skillSource: SkillSourceId;
 }): Promise<{ alreadyLoaded: boolean; destDir: AbsolutePath }> {
+  await ensureNestedSkillWorkspace(dir);
   const destDir = absolutePathJoin(
     getTaskWorkDir(dir),
     TASK_FOLDER_NAMES.skills,
+    skillSource,
     skillName,
   );
 
@@ -72,4 +77,35 @@ export async function copySkill({
     recursive: true,
   });
   return { alreadyLoaded, destDir };
+}
+
+/**
+ * Keep older tasks' package workspace aware of the collision-free skill path.
+ * The original one-level pattern remains for skills loaded before this layout.
+ */
+async function ensureNestedSkillWorkspace(dir: TaskDir) {
+  const workspaceFile = absolutePathJoin(
+    getTaskWorkDir(dir),
+    "pnpm-workspace.yaml",
+  );
+  let contents;
+  try {
+    contents = await fs.readFile(workspaceFile, "utf8");
+  } catch {
+    return;
+  }
+  if (contents.split(/\r?\n/).some((line) => line.trim() === "- skills/*/*")) {
+    return;
+  }
+
+  const newline = contents.includes("\r\n") ? "\r\n" : "\n";
+  const lines = contents.split(/\r?\n/);
+  const legacyIndex = lines.findIndex((line) => line.trim() === "- skills/*");
+  const legacyLine = lines[legacyIndex];
+  if (legacyIndex === -1 || legacyLine === undefined) {
+    return;
+  }
+  const indent = legacyLine.slice(0, legacyLine.indexOf("-"));
+  lines.splice(legacyIndex + 1, 0, `${indent}- skills/*/*`);
+  await fs.writeFile(workspaceFile, lines.join(newline));
 }

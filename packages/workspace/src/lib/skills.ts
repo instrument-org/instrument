@@ -433,18 +433,6 @@ export function resolveSkillName(
 }
 
 /**
- * Folder a skill is copied into inside a task. Qualified names carry a colon,
- * which Windows rejects in a path and macOS shows as a slash, so the separator
- * changes on the way to disk.
- */
-export function skillTaskDirName(qualifiedName: string): string {
-  // Every colon, not just the one qualifying added: a directory name may hold
-  // its own on the filesystems that allow it, and the copy has to land on the
-  // one that does not.
-  return qualifiedName.replaceAll(":", "-");
-}
-
-/**
  * Separate the YAML block from the body without a library.
  *
  * The block keeps the newline that follows the opening `---`, so a YAML error's

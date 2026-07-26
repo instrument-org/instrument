@@ -52,6 +52,16 @@ function baseExecuteArgs() {
   };
 }
 
+function copiedSkillDir(name: string, source = "registry") {
+  return path.join(
+    dir,
+    TASK_FOLDER_NAMES.work,
+    TASK_FOLDER_NAMES.skills,
+    source,
+    name,
+  );
+}
+
 async function createSkill({
   description = "A test skill",
   extraFiles = {},
@@ -113,7 +123,7 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("copies skill directory to work/skills/<name> on load", async () => {
+  it("copies skill directory to work/skills/<source>/<name> on load", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "console.log('hello')" },
       name: "my-skill",
@@ -124,12 +134,7 @@ describe("LoadSkill", () => {
       input: { explanation: "loading", name: "my-skill" },
     });
 
-    const destBase = path.join(
-      dir,
-      TASK_FOLDER_NAMES.work,
-      TASK_FOLDER_NAMES.skills,
-      "my-skill",
-    );
+    const destBase = copiedSkillDir("my-skill");
     const md = await fs.readFile(path.join(destBase, "SKILL.md"), "utf8");
     expect(md).toMatchInlineSnapshot(`
       "---
@@ -165,12 +170,7 @@ describe("LoadSkill", () => {
       input: { explanation: "loading", name: "my-skill" },
     });
 
-    const destBase = path.join(
-      dir,
-      TASK_FOLDER_NAMES.work,
-      TASK_FOLDER_NAMES.skills,
-      "my-skill",
-    );
+    const destBase = copiedSkillDir("my-skill");
     await expect(fs.access(path.join(destBase, ".venv"))).rejects.toThrow();
     await expect(
       fs.access(path.join(destBase, ".pytest_cache")),
@@ -201,12 +201,7 @@ describe("LoadSkill", () => {
       input: { explanation: "loading", name: "my-skill" },
     });
 
-    const destBase = path.join(
-      dir,
-      TASK_FOLDER_NAMES.work,
-      TASK_FOLDER_NAMES.skills,
-      "my-skill",
-    );
+    const destBase = copiedSkillDir("my-skill");
     await expect(
       fs.readFile(path.join(destBase, "scripts", "run.ts"), "utf8"),
     ).resolves.toBe("console.log('hello')");
@@ -236,9 +231,9 @@ describe("LoadSkill", () => {
     }
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "work/skills/my-skill/references/notes.md",
-        "work/skills/my-skill/scripts/lib/helper.ts",
-        "work/skills/my-skill/scripts/run.ts",
+        "work/skills/registry/my-skill/references/notes.md",
+        "work/skills/registry/my-skill/scripts/lib/helper.ts",
+        "work/skills/registry/my-skill/scripts/run.ts",
       ]
     `);
   });
@@ -334,24 +329,70 @@ describe("LoadSkill", () => {
       origin: result.origin,
     }).toMatchInlineSnapshot(`
       {
-        "directory": "claude-review",
+        "directory": "claude/review",
         "name": "claude:review",
         "origin": "external",
       }
     `);
-    // The registry copy keeps the plain name, so the two never share a folder.
     await expect(
       fs.readFile(
-        path.join(
-          dir,
-          TASK_FOLDER_NAMES.work,
-          TASK_FOLDER_NAMES.skills,
-          "claude-review",
-          "SKILL.md",
-        ),
+        path.join(copiedSkillDir("review", "claude"), "SKILL.md"),
         "utf8",
       ),
     ).resolves.toContain("Vendor instructions.");
+  });
+
+  it("does not merge a qualified ID with a plain hyphenated name", async () => {
+    await createSkill({ description: "Hyphenated", name: "claude-review" });
+    const vendorSkillDir = path.join(
+      tmpDir,
+      "home",
+      ".claude",
+      "skills",
+      "review",
+    );
+    await fs.mkdir(vendorSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(vendorSkillDir, "SKILL.md"),
+      `---\nname: review\ndescription: "Qualified"\n---\n\nQualified instructions.`,
+    );
+
+    for (const name of ["claude:review", "registry:claude-review"]) {
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name },
+      });
+    }
+
+    await expect(
+      fs.readFile(
+        path.join(copiedSkillDir("review", "claude"), "SKILL.md"),
+        "utf8",
+      ),
+    ).resolves.toContain("Qualified instructions.");
+    await expect(
+      fs.readFile(
+        path.join(copiedSkillDir("claude-review"), "SKILL.md"),
+        "utf8",
+      ),
+    ).resolves.toContain("# claude-review");
+  });
+
+  it("adds nested skill packages to an older task workspace", async () => {
+    const workDir = path.join(dir, TASK_FOLDER_NAMES.work);
+    const workspaceFile = path.join(workDir, "pnpm-workspace.yaml");
+    await fs.mkdir(workDir, { recursive: true });
+    await fs.writeFile(workspaceFile, "packages:\n  - skills/*\n");
+    await createSkill({ name: "my-skill" });
+
+    await runTool(LoadSkill, {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "my-skill" },
+    });
+
+    await expect(fs.readFile(workspaceFile, "utf8")).resolves.toBe(
+      "packages:\n  - skills/*\n  - skills/*/*\n",
+    );
   });
 
   it("loads a skill again without overwriting the agent's edits", async () => {
@@ -368,10 +409,7 @@ describe("LoadSkill", () => {
     await runTool(LoadSkill, args);
 
     const destScript = path.join(
-      dir,
-      TASK_FOLDER_NAMES.work,
-      TASK_FOLDER_NAMES.skills,
-      "my-skill",
+      copiedSkillDir("my-skill"),
       "scripts",
       "run.ts",
     );
@@ -402,12 +440,7 @@ describe("LoadSkill", () => {
 
     // What a load stopped partway through leaves behind: the directory exists,
     // its contents do not.
-    const destBase = path.join(
-      dir,
-      TASK_FOLDER_NAMES.work,
-      TASK_FOLDER_NAMES.skills,
-      "my-skill",
-    );
+    const destBase = copiedSkillDir("my-skill");
     await fs.mkdir(destBase, { recursive: true });
 
     const result = (await runTool(LoadSkill, args))._unsafeUnwrap();
@@ -424,7 +457,7 @@ describe("LoadSkill", () => {
     ).resolves.toBe("original");
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "work/skills/my-skill/scripts/run.ts",
+        "work/skills/registry/my-skill/scripts/run.ts",
       ]
     `);
   });
@@ -493,7 +526,7 @@ describe("LoadSkill", () => {
     ).toMatchInlineSnapshot(`
       "
 
-      This skill's SKILL.md is longer than 40000 characters, so only its beginning is above. Read \`work/skills/my-skill/SKILL.md\` for the rest before following it.
+      This skill's SKILL.md is longer than 40000 characters, so only its beginning is above. Read \`work/skills/registry/my-skill/SKILL.md\` for the rest before following it.
 
       This skill is provided by Instrument and is read-only. Copy it into \`/skills/\` to change it.
       </skill_content>"
@@ -579,10 +612,11 @@ describe("LoadSkill", () => {
           alreadyLoaded: false,
           content: "# Body",
           contentTruncated: false,
-          directory: "docx",
+          directory: "registry/docx",
           files: [],
           name: "docx",
           origin,
+          skillName: "docx",
           state: "success",
           truncated: false,
         },
@@ -650,7 +684,7 @@ describe("LoadSkill", () => {
 
     expect(installPythonSkill).toHaveBeenCalledWith({
       signal: args.signal,
-      skillDir: path.join(dir, "work", "skills", "python-skill"),
+      skillDir: copiedSkillDir("python-skill"),
       taskId: args.taskId,
     });
     expect(result).toMatchObject({
@@ -676,16 +710,7 @@ describe("LoadSkill", () => {
     expect(result._unsafeUnwrapErr().message).toBe(
       'Skill "unlocked-skill" is missing uv.lock for its Python dependencies.',
     );
-    await expect(
-      fs.access(
-        path.join(
-          dir,
-          TASK_FOLDER_NAMES.work,
-          TASK_FOLDER_NAMES.skills,
-          "unlocked-skill",
-        ),
-      ),
-    ).rejects.toThrow();
+    await expect(fs.access(copiedSkillDir("unlocked-skill"))).rejects.toThrow();
   });
 
   it("rejects an invalid Node package manifest before copying it", async () => {
@@ -839,7 +864,7 @@ describe("LoadSkill", () => {
         alreadyLoaded: false,
         content: "# Body",
         contentTruncated: false,
-        directory: "third-party",
+        directory: "claude/third-party",
         files: [],
         installResults: [
           { runtime: "node", state: "skipped" },
@@ -847,6 +872,7 @@ describe("LoadSkill", () => {
         ],
         name: "third-party",
         origin: "external",
+        skillName: "third-party",
         state: "success",
         truncated: false,
       },
@@ -859,7 +885,7 @@ describe("LoadSkill", () => {
 
       This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`/skills/\` to change it.
 
-      This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd work/skills/third-party && pnpm install\` yourself if you trust it.
+      This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd work/skills/claude/third-party && pnpm install\` yourself if you trust it.
 
       This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into \`work/.venv\` yourself if you trust it.
       </skill_content>"

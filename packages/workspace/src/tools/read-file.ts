@@ -59,6 +59,8 @@ const RegionSchema = z.object({
   y2: z.number().int().meta({ description: "Bottom edge, in pixels" }),
 });
 
+type MediaFileState = "audio" | "image" | "pdf" | "video";
+
 type RegionInput = z.output<typeof RegionSchema>;
 
 function clamp(value: number, low: number, high: number) {
@@ -69,8 +71,6 @@ function clamp(value: number, low: number, high: number) {
 function isReadableImage(mimeType: string) {
   return mimeType.startsWith("image/") && mimeType !== "image/svg+xml";
 }
-
-type MediaFileState = "audio" | "image" | "pdf" | "video";
 
 const MEDIA_CONFIG: Record<MediaFileState, { label: string; maxSize: number }> =
   {
@@ -99,59 +99,6 @@ const MEDIA_CONFIG: Record<MediaFileState, { label: string; maxSize: number }> =
 
 // Some models support more formats, but this should be safe across most.
 const SUPPORTED_IMAGE_FORMATS = ["image/jpeg", "image/png", "image/webp"];
-
-/**
- * Name the pixel space the model is looking at.
- *
- * Without this the model sees a picture and no idea how big it is, so any
- * position it reasons about is a guess at a scale it was never told. When the
- * file is larger than the provider renders, both numbers matter: the file's
- * because that is what still exists on disk, and the view's because that is
- * what the model's eyes are actually on.
- */
-function describeImageSize(output: {
-  height?: number;
-  region?: RegionInput;
-  renderedHeight?: number;
-  renderedWidth?: number;
-  viewHeight?: number;
-  viewWidth?: number;
-  width?: number;
-}) {
-  const {
-    height,
-    region,
-    renderedHeight,
-    renderedWidth,
-    viewHeight,
-    viewWidth,
-    width,
-  } = output;
-  if (width === undefined || height === undefined) {
-    return "";
-  }
-  const downscaled =
-    viewWidth !== undefined &&
-    viewHeight !== undefined &&
-    (viewWidth !== width || viewHeight !== height);
-
-  if (region && renderedWidth !== undefined && renderedHeight !== undefined) {
-    return [
-      ` -- region (${region.x1},${region.y1})-(${region.x2},${region.y2})`,
-      ` of the ${viewWidth}x${viewHeight} view,`,
-      ` cropped from the ${width}x${height} original`,
-      ` and magnified to ${renderedWidth}x${renderedHeight}`,
-    ].join("");
-  }
-
-  const detailNote = downscaled
-    ? ". Small text and closely spaced lines may not survive at that size; read it again with a `region` to magnify part of it"
-    : "";
-
-  return downscaled
-    ? ` (${width}x${height} px, shown to you at ${viewWidth}x${viewHeight})${detailNote}`
-    : ` (${width}x${height} px)`;
-}
 
 /**
  * Crop a region out of the full-resolution file and hand it back magnified.
@@ -223,7 +170,73 @@ async function cropRegion({
     );
   }
 
-  return ok({ rendered, region: { x1: left, x2: right, y1: top, y2: bottom } });
+  return ok({ region: { x1: left, x2: right, y1: top, y2: bottom }, rendered });
+}
+
+/**
+ * Name the pixel space the model is looking at.
+ *
+ * Without this the model sees a picture and no idea how big it is, so any
+ * position it reasons about is a guess at a scale it was never told. When the
+ * file is larger than the provider renders, both numbers matter: the file's
+ * because that is what still exists on disk, and the view's because that is
+ * what the model's eyes are actually on.
+ */
+function describeImageSize(output: {
+  height?: number;
+  region?: RegionInput;
+  renderedHeight?: number;
+  renderedWidth?: number;
+  viewHeight?: number;
+  viewWidth?: number;
+  width?: number;
+}) {
+  const {
+    height,
+    region,
+    renderedHeight,
+    renderedWidth,
+    viewHeight,
+    viewWidth,
+    width,
+  } = output;
+  if (width === undefined || height === undefined) {
+    return "";
+  }
+  const downscaled =
+    viewWidth !== undefined &&
+    viewHeight !== undefined &&
+    (viewWidth !== width || viewHeight !== height);
+
+  if (
+    region &&
+    downscaled &&
+    renderedWidth !== undefined &&
+    renderedHeight !== undefined
+  ) {
+    return [
+      ` -- region (${region.x1},${region.y1})-(${region.x2},${region.y2})`,
+      ` of the ${viewWidth}x${viewHeight} view,`,
+      ` cropped from the ${width}x${height} original`,
+      ` and magnified to ${renderedWidth}x${renderedHeight}`,
+    ].join("");
+  }
+
+  if (region && renderedWidth !== undefined && renderedHeight !== undefined) {
+    return [
+      ` -- region (${region.x1},${region.y1})-(${region.x2},${region.y2})`,
+      ` of the ${width}x${height} image,`,
+      ` magnified to ${renderedWidth}x${renderedHeight}`,
+    ].join("");
+  }
+
+  const detailNote = downscaled
+    ? ". Small text and closely spaced lines may not survive at that size; read it again with a `region` to magnify part of it"
+    : "";
+
+  return downscaled
+    ? ` (${width}x${height} px, shown to you at ${viewWidth}x${viewHeight})${detailNote}`
+    : ` (${width}x${height} px)`;
 }
 
 async function handleMediaFile({
@@ -355,13 +368,13 @@ export const ReadFile = setupTool({
       .meta({
         description: `The number of lines to read (defaults to ${DEFAULT_READ_LIMIT})`,
       }),
-    [INPUT_PARAMS.region]: RegionSchema.optional().meta({
-      description:
-        "Images only. Two opposite corners of a rectangle, in the pixel space of the image as you were shown it (origin at the top-left, x right, y down). Returns that region cropped from the full-resolution file and magnified.",
-    }),
     [INPUT_PARAMS.offset]: z.number().optional().meta({
       description:
         "The line number to start reading from (1-based, defaults to 1)",
+    }),
+    [INPUT_PARAMS.region]: RegionSchema.optional().meta({
+      description:
+        "Images only. Two opposite corners of a rectangle, in the pixel space of the image as you were shown it (origin at the top-left, x right, y down). Returns that region cropped from the full-resolution file and magnified.",
     }),
   }),
   name: "read_file",

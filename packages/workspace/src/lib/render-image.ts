@@ -51,78 +51,6 @@ export function measureImage(bytes: Buffer): ImageSize | undefined {
   }
 }
 
-async function runFfmpeg({
-  bytes,
-  region,
-  signal,
-  target,
-  ...encoding
-}: {
-  bytes: Buffer;
-  pixelFormat?: string;
-  quality?: number;
-  region?: ImageRegion;
-  signal?: AbortSignal;
-  target: ImageSize;
-  toJpeg: boolean;
-}) {
-  const { pixelFormat, quality, toJpeg } = encoding;
-  const steps = [
-    // ffmpeg applies EXIF orientation as it decodes, so every filter below sees
-    // the image the way a viewer would, and a region's coordinates mean the
-    // same thing here as they do to the model.
-    ...(region
-      ? [`crop=${region.width}:${region.height}:${region.left}:${region.top}`]
-      : []),
-    `scale=${target.width}:${target.height}:flags=lanczos`,
-  ];
-
-  const args = ["-y", "-hide_banner", "-loglevel", "error", "-i", "pipe:0"];
-  if (toJpeg) {
-    // JPEG has no alpha. Without a backdrop a transparent PNG flattens to
-    // black, which is a common way for a chart on a clear background to come
-    // back unreadable; compositing onto white matches how a viewer shows it.
-    args.push(
-      "-f",
-      "lavfi",
-      "-i",
-      `color=c=white:s=${target.width}x${target.height}`,
-    );
-    args.push(
-      "-filter_complex",
-      `[0:v]${steps.join(",")}[fg];[1:v][fg]overlay=format=auto`,
-    );
-  } else {
-    args.push("-vf", steps.join(","));
-  }
-  args.push("-frames:v", "1", "-f", "image2");
-  args.push(
-    ...(toJpeg
-      ? [
-          "-c:v",
-          "mjpeg",
-          "-pix_fmt",
-          pixelFormat ?? "yuvj444p",
-          "-q:v",
-          String(quality ?? 2),
-        ]
-      : ["-c:v", "png"]),
-  );
-  args.push("pipe:1");
-
-  const result = await execa(FFMPEG_PATH, args, {
-    cancelSignal: signal,
-    encoding: "buffer",
-    input: bytes,
-    reject: false,
-  });
-
-  if (result.exitCode !== 0 || result.stdout.length === 0) {
-    return undefined;
-  }
-  return Buffer.from(result.stdout);
-}
-
 /**
  * Re-render an image (optionally cropping first) at a target size, encoded
  * small enough to send.
@@ -182,4 +110,84 @@ export async function renderImage({
   }
 
   return undefined;
+}
+
+async function runFfmpeg({
+  bytes,
+  region,
+  signal,
+  target,
+  ...encoding
+}: {
+  bytes: Buffer;
+  pixelFormat?: string;
+  quality?: number;
+  region?: ImageRegion;
+  signal?: AbortSignal;
+  target: ImageSize;
+  toJpeg: boolean;
+}) {
+  const { pixelFormat, quality, toJpeg } = encoding;
+  const steps = [
+    // ffmpeg applies EXIF orientation as it decodes, so every filter below sees
+    // the image the way a viewer would, and a region's coordinates mean the
+    // same thing here as they do to the model.
+    ...(region
+      ? [`crop=${region.width}:${region.height}:${region.left}:${region.top}`]
+      : []),
+    `scale=${target.width}:${target.height}:flags=lanczos`,
+  ];
+
+  // JPEG has no alpha. Without a backdrop a transparent PNG flattens to black,
+  // which is a common way for a chart on a clear background to come back
+  // unreadable; compositing onto white matches how a viewer shows it.
+  const filtering = toJpeg
+    ? [
+        "-f",
+        "lavfi",
+        "-i",
+        `color=c=white:s=${target.width}x${target.height}`,
+        "-filter_complex",
+        `[0:v]${steps.join(",")}[fg];[1:v][fg]overlay=format=auto`,
+      ]
+    : ["-vf", steps.join(",")];
+
+  const encoder = toJpeg
+    ? [
+        "-c:v",
+        "mjpeg",
+        "-pix_fmt",
+        pixelFormat ?? "yuvj444p",
+        "-q:v",
+        String(quality ?? 2),
+      ]
+    : ["-c:v", "png"];
+
+  const args = [
+    "-y",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-i",
+    "pipe:0",
+    ...filtering,
+    "-frames:v",
+    "1",
+    "-f",
+    "image2",
+    ...encoder,
+    "pipe:1",
+  ];
+
+  const result = await execa(FFMPEG_PATH, args, {
+    cancelSignal: signal,
+    encoding: "buffer",
+    input: bytes,
+    reject: false,
+  });
+
+  if (result.exitCode !== 0 || result.stdout.length === 0) {
+    return;
+  }
+  return Buffer.from(result.stdout);
 }

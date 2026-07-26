@@ -32,142 +32,6 @@ const DROPPED_NOTE =
 const RENDER_CACHE = new Map<string, Awaited<ReturnType<typeof renderImage>>>();
 const RENDER_CACHE_LIMIT = 32;
 
-function cacheKey(bytes: Buffer, limits: ReturnType<typeof imageViewLimits>) {
-  const digest = crypto.createHash("sha1").update(bytes).digest("hex");
-  return `${digest}:${limits.maxEdge}:${limits.maxPatches}:${limits.patchSize}`;
-}
-
-function decodeImageData(data: unknown) {
-  if (data instanceof Uint8Array) {
-    return Buffer.from(data);
-  }
-  if (typeof data !== "string") {
-    // A URL the provider fetches itself. We hold no bytes, so there is nothing
-    // to measure or resize.
-    return undefined;
-  }
-  const base64 = data.startsWith("data:")
-    ? data.slice(data.indexOf(";base64,") + ";base64,".length)
-    : data;
-  if (data.startsWith("data:") && !data.includes(";base64,")) {
-    return undefined;
-  }
-  try {
-    return Buffer.from(base64, "base64");
-  } catch {
-    return undefined;
-  }
-}
-
-function encodeLikeSource(data: unknown, bytes: Buffer, mediaType: string) {
-  if (data instanceof Uint8Array) {
-    return new Uint8Array(bytes);
-  }
-  if (typeof data === "string" && data.startsWith("data:")) {
-    return `data:${mediaType};base64,${bytes.toString("base64")}`;
-  }
-  return bytes.toString("base64");
-}
-
-/**
- * Bring one image inside the budget, or report that it cannot be.
- *
- * `unchanged` is the common case and matters: an image already inside the
- * budget is passed through byte-for-byte, so the pixels the model sees are the
- * ones on disk and no re-encode can soften them.
- */
-async function normalizeImage({
-  data,
-  model,
-  signal,
-}: {
-  data: unknown;
-  model: AIGatewayModel.Type;
-  signal?: AbortSignal;
-}): Promise<
-  | { data: string | Uint8Array; mediaType: string; state: "replaced" }
-  | { state: "dropped" }
-  | { state: "unchanged" }
-> {
-  const bytes = decodeImageData(data);
-  if (!bytes) {
-    return { state: "unchanged" };
-  }
-
-  const size = measureImage(bytes);
-  if (!size) {
-    return { state: "unchanged" };
-  }
-
-  const limits = imageViewLimits(model.params.provider);
-  const target = imageViewSize({ ...size, limits });
-  const withinBudget =
-    target.width === size.width && target.height === size.height;
-  if (withinBudget && bytes.byteLength <= MAX_RAW_BYTES) {
-    return { state: "unchanged" };
-  }
-
-  const key = cacheKey(bytes, limits);
-  let rendered = RENDER_CACHE.get(key);
-  if (!RENDER_CACHE.has(key)) {
-    rendered = await renderImage({
-      bytes,
-      maxBytes: MAX_RAW_BYTES,
-      signal,
-      target,
-    });
-    if (RENDER_CACHE.size >= RENDER_CACHE_LIMIT) {
-      const oldest = RENDER_CACHE.keys().next();
-      if (!oldest.done) {
-        RENDER_CACHE.delete(oldest.value);
-      }
-    }
-    RENDER_CACHE.set(key, rendered);
-  }
-
-  if (!rendered) {
-    return { state: "dropped" };
-  }
-
-  return {
-    data: encodeLikeSource(data, rendered.bytes, rendered.mediaType),
-    mediaType: rendered.mediaType,
-    state: "replaced",
-  };
-}
-
-function isImagePart(part: { type: string }): part is FilePart {
-  return (
-    part.type === "file" &&
-    "mediaType" in part &&
-    typeof part.mediaType === "string" &&
-    part.mediaType.startsWith("image/")
-  );
-}
-
-function isImageMedia(item: unknown): item is MediaPart {
-  return (
-    typeof item === "object" &&
-    item !== null &&
-    "type" in item &&
-    item.type === "media" &&
-    "mediaType" in item &&
-    typeof item.mediaType === "string" &&
-    item.mediaType.startsWith("image/")
-  );
-}
-
-function isContentOutput(output: unknown): output is ContentOutput {
-  return (
-    typeof output === "object" &&
-    output !== null &&
-    "type" in output &&
-    output.type === "content" &&
-    "value" in output &&
-    Array.isArray(output.value)
-  );
-}
-
 /**
  * Resize every outgoing image to the size the model will actually render it at.
  *
@@ -286,4 +150,140 @@ export async function normalizeModelImages({
   }
 
   return result;
+}
+
+function cacheKey(bytes: Buffer, limits: ReturnType<typeof imageViewLimits>) {
+  const digest = crypto.createHash("sha1").update(bytes).digest("hex");
+  return `${digest}:${limits.maxEdge}:${limits.maxPatches}:${limits.patchSize}`;
+}
+
+function decodeImageData(data: unknown) {
+  if (data instanceof Uint8Array) {
+    return Buffer.from(data);
+  }
+  if (typeof data !== "string") {
+    // A URL the provider fetches itself. We hold no bytes, so there is nothing
+    // to measure or resize.
+    return;
+  }
+  const base64 = data.startsWith("data:")
+    ? data.slice(data.indexOf(";base64,") + ";base64,".length)
+    : data;
+  if (data.startsWith("data:") && !data.includes(";base64,")) {
+    return;
+  }
+  try {
+    return Buffer.from(base64, "base64");
+  } catch {
+    return;
+  }
+}
+
+function encodeLikeSource(data: unknown, bytes: Buffer, mediaType: string) {
+  if (data instanceof Uint8Array) {
+    return new Uint8Array(bytes);
+  }
+  if (typeof data === "string" && data.startsWith("data:")) {
+    return `data:${mediaType};base64,${bytes.toString("base64")}`;
+  }
+  return bytes.toString("base64");
+}
+
+function isContentOutput(output: unknown): output is ContentOutput {
+  return (
+    typeof output === "object" &&
+    output !== null &&
+    "type" in output &&
+    output.type === "content" &&
+    "value" in output &&
+    Array.isArray(output.value)
+  );
+}
+
+function isImageMedia(item: unknown): item is MediaPart {
+  return (
+    typeof item === "object" &&
+    item !== null &&
+    "type" in item &&
+    item.type === "media" &&
+    "mediaType" in item &&
+    typeof item.mediaType === "string" &&
+    item.mediaType.startsWith("image/")
+  );
+}
+
+function isImagePart(part: { type: string }): part is FilePart {
+  return (
+    part.type === "file" &&
+    "mediaType" in part &&
+    typeof part.mediaType === "string" &&
+    part.mediaType.startsWith("image/")
+  );
+}
+
+/**
+ * Bring one image inside the budget, or report that it cannot be.
+ *
+ * `unchanged` is the common case and matters: an image already inside the
+ * budget is passed through byte-for-byte, so the pixels the model sees are the
+ * ones on disk and no re-encode can soften them.
+ */
+async function normalizeImage({
+  data,
+  model,
+  signal,
+}: {
+  data: unknown;
+  model: AIGatewayModel.Type;
+  signal?: AbortSignal;
+}): Promise<
+  | { data: string | Uint8Array; mediaType: string; state: "replaced" }
+  | { state: "dropped" }
+  | { state: "unchanged" }
+> {
+  const bytes = decodeImageData(data);
+  if (!bytes) {
+    return { state: "unchanged" };
+  }
+
+  const size = measureImage(bytes);
+  if (!size) {
+    return { state: "unchanged" };
+  }
+
+  const limits = imageViewLimits(model.params.provider);
+  const target = imageViewSize({ ...size, limits });
+  const withinBudget =
+    target.width === size.width && target.height === size.height;
+  if (withinBudget && bytes.byteLength <= MAX_RAW_BYTES) {
+    return { state: "unchanged" };
+  }
+
+  const key = cacheKey(bytes, limits);
+  let rendered = RENDER_CACHE.get(key);
+  if (!RENDER_CACHE.has(key)) {
+    rendered = await renderImage({
+      bytes,
+      maxBytes: MAX_RAW_BYTES,
+      signal,
+      target,
+    });
+    if (RENDER_CACHE.size >= RENDER_CACHE_LIMIT) {
+      const oldest = RENDER_CACHE.keys().next();
+      if (!oldest.done) {
+        RENDER_CACHE.delete(oldest.value);
+      }
+    }
+    RENDER_CACHE.set(key, rendered);
+  }
+
+  if (!rendered) {
+    return { state: "dropped" };
+  }
+
+  return {
+    data: encodeLikeSource(data, rendered.bytes, rendered.mediaType),
+    mediaType: rendered.mediaType,
+    state: "replaced",
+  };
 }

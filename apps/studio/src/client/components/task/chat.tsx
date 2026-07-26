@@ -360,7 +360,10 @@ export function TaskChat({
           <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
-            <MessageScrollerButton className="pointer-events-auto" />
+            <MessageScrollerButton
+              busy={isAgentRunning}
+              className="pointer-events-auto"
+            />
           </div>
         </MessageScroller>
 

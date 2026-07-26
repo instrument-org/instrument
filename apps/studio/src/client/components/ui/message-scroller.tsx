@@ -4,6 +4,7 @@ import { MessageScroller as MessageScrollerPrimitive } from "@shadcn/react/messa
 import * as React from "react";
 
 import { Button } from "./button";
+import { Spinner } from "./spinner";
 
 /* eslint-disable react-refresh/only-export-components -- re-export scroller hooks from the primitive */
 export {
@@ -30,18 +31,24 @@ function MessageScroller({
 }
 
 // Positioning is left to the caller; this only styles the control. It
-// self-disables (inert, hidden) when there is nothing to scroll toward.
+// self-disables (inert, hidden) when there is nothing to scroll toward. `busy`
+// rings the button with a spinner, so a reader scrolled away from the end can
+// see that content is still arriving there; the caret stays put underneath it,
+// since the button does the same thing either way.
 function MessageScrollerButton({
+  busy = false,
   children,
   className,
   direction = "end",
   render,
   ...props
-}: React.ComponentProps<typeof MessageScrollerPrimitive.Button>) {
+}: React.ComponentProps<typeof MessageScrollerPrimitive.Button> & {
+  busy?: boolean;
+}) {
   return (
     <MessageScrollerPrimitive.Button
       className={cn(
-        "rounded-full bg-background shadow-lg hover:bg-background/90 data-[active=false]:pointer-events-none data-[active=false]:opacity-0",
+        "relative rounded-full bg-background shadow-lg hover:bg-background/90 data-[active=false]:pointer-events-none data-[active=false]:opacity-0",
         className,
       )}
       data-slot="message-scroller-button"
@@ -54,6 +61,14 @@ function MessageScrollerButton({
           <CaretDownIcon
             className={cn("size-3", direction === "start" && "rotate-180")}
           />
+          {busy ? (
+            // Inset by the stroke so the ring traces the button's own edge
+            // rather than straddling it and clipping against the shadow.
+            <Spinner
+              className="pointer-events-none absolute inset-px size-auto text-muted-foreground"
+              thickness={1.5}
+            />
+          ) : null}
           <span className="sr-only">
             {direction === "end" ? "Scroll to latest" : "Scroll to start"}
           </span>

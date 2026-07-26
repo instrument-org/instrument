@@ -9,7 +9,7 @@ description: Generate a git commit message matching the Instrument monorepo's sc
 
 `scope: clear, concise description of what changed`
 
-- **Scope:** the main area touched -- a package/app (`studio`, `workspace`, `shim-client`), a workflow (`dx`, `ci`, `release`), or a feature area (`breadcrumb`, `task`). Prioritize scope over type.
+- **Scope:** default to the package/app that owns the change (`studio`, `workspace`, `ai-gateway`, `shim-client`) or an established workflow scope (`dx`, `ci`, `release`, `docs`). Use a feature-area scope only when recent history shows that scope is established; do not invent one from the subject matter.
 - **No conventional types.** Drop `feat:`/`fix:`/`refactor:`/`chore:` etc. Let the description imply the nature of the change.
 - **Description:** lowercase, no period, imperative-ish, informative and scannable, no redundancy. Keep the subject under ~72 chars.
 - **Body:** add a short body when context, rationale, or follow-on detail would help.
@@ -23,7 +23,7 @@ dx: drop eslint --cache from lint scripts and editor
 studio: revert dark-mode secondary variant on new task button
 ```
 
-Use comma-separated scopes only when changes genuinely span two areas (`studio,workspace`). Omit scope only for truly repo-wide changes.
+Use comma-separated package/app scopes only when changes genuinely span both areas (`studio,workspace`). Omit scope only for truly repo-wide changes.
 
 ## How to write the message
 

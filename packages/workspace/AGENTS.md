@@ -21,3 +21,25 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 
 - Prefer neverthrow `Result` for fallible operations; use `toORPCError` when throwing from RPC handlers.
 - Tools use Zod input/output schemas and the shared `create-tool` / `setupTool` pattern.
+
+## Evals
+
+`evals/` boots the real workspace machine and runs the actual agent loop against
+real models. `evals/cases/` holds committed cases with assertions; `--prompt`
+runs a throwaway one.
+
+```bash
+pnpm eval list                      # committed cases
+pnpm eval run [pattern]             # run them
+pnpm eval run --yes --prompt "..."  # one ad-hoc case
+pnpm eval report <workspace-dir>    # re-report a past run
+```
+
+Flags: `--model` (repeatable; bare slug means OpenRouter, full model URI pins any
+configured provider), `--name`, `--concurrency`, `--dry-run`, `--include-context`.
+
+Results land in `eval-results.local/<timestamp>/<task>/` as `session.md` (the
+rendered transcript), `stats.json`, `errors.json`, and `assertions.json`.
+
+For choosing whether an eval is the right check at all, see the
+`validate-changes` skill.

@@ -123,6 +123,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 
 ## Additional guidance
 
+- `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.
 - `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
 - `.agents/env.md` — Environment variables for Studio and workspace.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
@@ -133,5 +134,5 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, shim + Studio startup, CDP port 48160, Xvfb, pnpm checks.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
-- `.agents/skills/` — Repo-local skills, invocable by name (symlinked to `.claude/skills`): `changelog`, `find-ui-changes`, `instrument-commit-message`, `release-notes`, `run-bash`, `session-transcript`, `studio-chrome-devtools`, `studio-dev-logs`, `task-database-query`, `typescript-result`. Read a `SKILL.md` before hand-rolling work one of them covers.
+- `.agents/skills/` — Repo-local skills, invocable by name (symlinked to `.claude/skills`): `changelog`, `find-ui-changes`, `instrument-commit-message`, `release-notes`, `run-bash`, `session-transcript`, `studio-chrome-devtools`, `studio-dev-logs`, `task-database-query`, `typescript-result`, `validate-changes`. Read a `SKILL.md` before hand-rolling work one of them covers.
 - `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, neverthrow + Zod tool conventions.

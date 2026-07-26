@@ -17,5 +17,4 @@ cd apps/studio && NO_SANDBOX=1 REMOTE_DEBUGGING_PORT=48160 pnpm dev
 
 ## Quick reference
 
-- `pnpm check:types` / `pnpm check:lint` / `pnpm test run`
 - `pnpm-workspace.yaml` has `allowBuilds`; never approve builds interactively.

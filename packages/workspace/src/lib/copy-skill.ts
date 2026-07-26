@@ -6,7 +6,7 @@ import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getIgnore } from "./get-ignore";
 import { normalizePath } from "./normalize-path";
-import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
+import { SKILL_COPY_IGNORE } from "./skill-artifact-ignore";
 import { type SkillSourceId } from "./skills";
 import { getTaskWorkDir } from "./task-dir-utils";
 
@@ -53,12 +53,7 @@ export async function copySkill({
   const baseIgnore = await getIgnore(skillDir, { signal });
   // Omit test infrastructure -- it's only used during skill development before
   // the skill is committed to the registry and made available to the agent.
-  const ignore = baseIgnore.add([
-    "SKILL.template.md",
-    ...SKILL_ARTIFACT_IGNORE,
-    "tests",
-    "vitest.config.ts",
-  ]);
+  const ignore = baseIgnore.add(SKILL_COPY_IGNORE);
   await fs.cp(skillDir, destDir, {
     errorOnExist: false,
     filter: (src) => {

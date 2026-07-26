@@ -17,3 +17,11 @@ export const SKILL_ARTIFACT_IGNORE = [
   "node_modules",
   "venv",
 ];
+
+/** Authored files omitted when a skill is copied into a task. */
+export const SKILL_COPY_IGNORE = [
+  "SKILL.template.md",
+  ...SKILL_ARTIFACT_IGNORE,
+  "tests",
+  "vitest.config.ts",
+];

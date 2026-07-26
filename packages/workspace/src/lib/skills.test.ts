@@ -403,6 +403,93 @@ describe("skill discovery", () => {
     });
   });
 
+  it("keeps same-instruction packages with different authored files", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-packages-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+    const claude = path.join(home, ".claude", "skills", "review");
+    const cursor = path.join(home, ".cursor", "skills", "review");
+    await writeSkill(claude, "Shared");
+    await writeSkill(cursor, "Shared");
+    await writePackageFile(claude, "scripts/run.ts", "claude");
+    await writePackageFile(cursor, "scripts/run.ts", "cursor");
+
+    const skills = await findSkills(
+      getSkillSources(
+        {
+          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
+          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
+        },
+        AbsolutePathSchema.parse(home),
+      ),
+    );
+
+    expect(skills.map(({ id }) => id)).toEqual([
+      "claude:review",
+      "cursor:review",
+    ]);
+  });
+
+  it("keeps copies with different invocation metadata", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-metadata-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+    const claude = path.join(home, ".claude", "skills", "review");
+    const cursor = path.join(home, ".cursor", "skills", "review");
+    await writeSkill(claude, "Shared");
+    await fs.mkdir(cursor, { recursive: true });
+    await fs.writeFile(
+      path.join(cursor, "SKILL.md"),
+      make("description: Shared\nuser-invocable: false"),
+    );
+
+    const skills = await findSkills(
+      getSkillSources(
+        {
+          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
+          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
+        },
+        AbsolutePathSchema.parse(home),
+      ),
+    );
+
+    expect(
+      skills.map(({ id, userInvocable }) => ({ id, userInvocable })),
+    ).toEqual([
+      { id: "claude:review", userInvocable: true },
+      { id: "cursor:review", userInvocable: false },
+    ]);
+  });
+
+  it("invalidates a cached package fingerprint when an authored file changes", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-cache-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+    const claude = path.join(home, ".claude", "skills", "review");
+    const cursor = path.join(home, ".cursor", "skills", "review");
+    for (const skillDir of [claude, cursor]) {
+      await writeSkill(skillDir, "Shared");
+      await writePackageFile(skillDir, "scripts/run.ts", "same");
+    }
+    const sources = getSkillSources(
+      {
+        registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
+        rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+        systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
+      },
+      AbsolutePathSchema.parse(home),
+    );
+
+    await expect(findSkills(sources)).resolves.toHaveLength(1);
+    await fs.writeFile(
+      path.join(cursor, "scripts", "run.ts"),
+      "different contents",
+    );
+    await expect(findSkills(sources)).resolves.toHaveLength(2);
+  });
+
   it("treats names that differ only in case as the same name", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-case-"));
     temporaryDirs.push(root);
@@ -498,6 +585,16 @@ describe("skill discovery", () => {
     ]);
   });
 });
+
+async function writePackageFile(
+  dir: string,
+  relativePath: string,
+  body: string,
+) {
+  const filePath = path.join(dir, relativePath);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, body);
+}
 
 async function writeSkill(dir: string, description: string) {
   await fs.mkdir(dir, { recursive: true });

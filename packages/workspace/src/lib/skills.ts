@@ -10,6 +10,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { getIgnore } from "./get-ignore";
 import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
+import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
 
 export const FILE_LIST_LIMIT = 50;
 
@@ -224,7 +225,7 @@ export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
     }
   }
 
-  return qualifySkillNames(dedupeIdenticalCopies([...skillMap.values()]));
+  return qualifySkillNames(await dedupeIdenticalCopies([...skillMap.values()]));
 }
 
 export function getSkillSources(
@@ -508,22 +509,37 @@ async function canonicalDir(skillDir: AbsolutePath): Promise<string> {
  * A symlink farm is already down to one entry by here, but plenty of setups
  * copy instead of linking, and every one of those copies would otherwise be
  * qualified and listed separately -- four `pdf`s in the menu for what the user
- * thinks of as one skill. Two directories with the same name whose SKILL.md
- * says exactly the same thing are that one skill, and the comparison is free:
- * discovery has already read both files.
- *
- * Only the instructions are compared, so copies that agree on SKILL.md but
- * differ in the scripts beside it collapse too. That is the right trade: the
- * body is what the agent is given and what the user reads, and diffing whole
- * directories on every scan would cost more than the distinction is worth.
+ * thinks of as one skill. Parsed metadata is the cheap first pass; only matching
+ * candidates get a cached whole-package fingerprint.
  */
-function dedupeIdenticalCopies(skills: DiscoveredSkill[]): DiscoveredSkill[] {
+async function dedupeIdenticalCopies(
+  skills: DiscoveredSkill[],
+): Promise<DiscoveredSkill[]> {
+  const manifestKeys = new Map<string, number>();
+  for (const skill of skills) {
+    const key = skillManifestKey(skill);
+    manifestKeys.set(key, (manifestKeys.get(key) ?? 0) + 1);
+  }
+  const fingerprints = new Map<string, string>();
+  await Promise.all(
+    skills.map(async (skill) => {
+      const manifestKey = skillManifestKey(skill);
+      if (manifestKeys.get(manifestKey) === 1) {
+        return;
+      }
+      const fingerprint = await getSkillPackageFingerprint(
+        skill.skillDir,
+      ).catch(() => `unreadable:${skill.id}`);
+      fingerprints.set(skill.id, fingerprint);
+    }),
+  );
+
   const byContent = new Map<string, DiscoveredSkill>();
 
   for (const skill of skills) {
-    const key = [nameKey(skill.name), skill.description, skill.content].join(
-      "\u0000",
-    );
+    const manifestKey = skillManifestKey(skill);
+    const fingerprint = fingerprints.get(skill.id) ?? skill.id;
+    const key = `${manifestKey}\u0000${fingerprint}`;
     const existing = byContent.get(key);
     // Keeping the highest-ranked copy decides which source the UI attributes it
     // to and whether it is editable in place. A `Map` keeps the entry where the
@@ -719,4 +735,16 @@ function sanitizeFrontmatter(block: string): string {
   }
 
   return result.join("\n");
+}
+
+function skillManifestKey(skill: DiscoveredSkill) {
+  return [
+    nameKey(skill.name),
+    skill.compatibility,
+    skill.content,
+    skill.description,
+    skill.modelInvocable,
+    skill.title,
+    skill.userInvocable,
+  ].join("\u0000");
 }

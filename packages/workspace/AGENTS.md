@@ -10,7 +10,7 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 - **Workspace server**: Hono app in `src/logic/server/index.ts`. Serves shim script/iframe, assets, heartbeat, redirect, and proxies app traffic. AI gateway is mounted at `AI_GATEWAY_API_PATH` when provided.
 - **Schemas**: `src/schemas/` (paths, project, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
 - **Machines**: XState in `src/machines/` (workspace, session, agent, runtime, task-browser). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
-- **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping by canonical directory then name. `skill-catalog.ts` renders the budgeted catalog into `LoadSkill`'s description; `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
+- **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog into `LoadSkill`'s description; `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
 
 ## Context messages
 

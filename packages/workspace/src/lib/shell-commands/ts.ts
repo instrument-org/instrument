@@ -90,8 +90,8 @@ export function createTsCommand(taskId: TaskId) {
       // Write the eval file into the current working directory (not a fixed
       // app-root tmp dir) so jiti resolves modules and relative paths from
       // where the agent is. Matches real `tsx -e` and `tsx <file>`: after
-      // `cd skills/<skill>`, `tsx -e 'import sharp'` finds the skill's
-      // node_modules. A root tmp dir broke this regardless of cwd.
+      // `cd work/skills/<source>/<skill>`, `tsx -e 'import sharp'` finds the
+      // skill's node_modules. A root tmp dir broke this regardless of cwd.
       const fileName = `.ts-eval-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ts`;
       await mkdir(taskCwd, { recursive: true });
       await writeFile(

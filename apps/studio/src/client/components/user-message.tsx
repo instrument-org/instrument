@@ -19,6 +19,14 @@ interface UserMessageProps {
   part: SessionMessagePart.TextPart;
 }
 
+// The height a collapsed message clamps to, chosen so the fade lands in the
+// middle of a line rather than between two. One constant rather than a class
+// and a number, because the height the bubble clamps at and the height the
+// overflow check measures against have to be the same: a message taller than
+// one and shorter than the other gets a fade and a click-to-expand target over
+// text that was never cut off.
+const COLLAPSED_MAX_HEIGHT_PX = 216;
+
 export const UserMessage = memo(function UserMessage({
   part,
 }: UserMessageProps) {
@@ -40,15 +48,11 @@ export const UserMessage = memo(function UserMessage({
       return;
     }
 
+    // `scrollHeight` is the full content height under either clamp, so this
+    // answers the same question expanded or collapsed without borrowing the
+    // element's styles to measure through.
     const checkOverflow = () => {
-      const previousMaxHeight = element.style.maxHeight;
-      const previousOverflow = element.style.overflow;
-      element.style.maxHeight = "12rem";
-      element.style.overflow = "hidden";
-      const isContentOverflowing = element.scrollHeight > element.clientHeight;
-      element.style.maxHeight = previousMaxHeight;
-      element.style.overflow = previousOverflow;
-      setIsOverflowing(isContentOverflowing);
+      setIsOverflowing(element.scrollHeight > COLLAPSED_MAX_HEIGHT_PX);
     };
 
     checkOverflow();
@@ -68,11 +72,13 @@ export const UserMessage = memo(function UserMessage({
         <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
           <div
             className={cn(
-              isExpanded
-                ? "max-h-128 overflow-y-auto"
-                : "max-h-54 overflow-hidden", // h-54 ensures the fade lands in the middle of a line
+              isExpanded ? "max-h-128 overflow-y-auto" : "overflow-hidden",
             )}
+            data-slot="user-message-content"
             ref={contentRef}
+            style={
+              isExpanded ? undefined : { maxHeight: COLLAPSED_MAX_HEIGHT_PX }
+            }
           >
             <div className="text-sm break-words whitespace-pre-wrap">
               <SkillMentionText text={messageText} />
@@ -83,6 +89,7 @@ export const UserMessage = memo(function UserMessage({
             <CollapsibleTrigger asChild>
               <button
                 className="absolute inset-0 cursor-pointer"
+                data-slot="user-message-expand"
                 type="button"
               />
             </CollapsibleTrigger>

@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -45,6 +46,11 @@ export default defineConfig({
       JSON.stringify(value),
     ]),
   ),
+  // A measured test that renders without the app's stylesheet is measuring a
+  // different app, so the browser project loads `globals.css` for real and
+  // needs the plugin that compiles it. Inert for the other two projects, which
+  // process no CSS.
+  plugins: [tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
@@ -54,7 +60,7 @@ export default defineConfig({
     clearMocks: true,
     // Three environments, chosen by extension so a file declares which it wants
     // by what it is. Reach for the cheapest one that can actually observe the
-    // behaviour:
+    // behavior:
     //
     // - `.test.ts`         node, no DOM. Plain logic. Most tests belong here.
     // - `.test.tsx`        jsdom. Rendering, props, refs. No layout, and no

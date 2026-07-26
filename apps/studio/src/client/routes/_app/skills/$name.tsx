@@ -138,14 +138,14 @@ function SkillPage() {
     if (!skill?.userInvocable) {
       return;
     }
-    if (seededSkillRef.current === name) {
+    if (seededSkillRef.current === skill.id) {
       return;
     }
-    seededSkillRef.current = name;
+    seededSkillRef.current = skill.id;
     setDraft((current) =>
-      current.trim() ? current : `Use ${skillMentionToken(name)} to…`,
+      current.trim() ? current : `Use ${skillMentionToken(skill.id)} to…`,
     );
-  }, [name, setDraft, skill?.userInvocable]);
+  }, [setDraft, skill?.id, skill?.userInvocable]);
 
   // `beforeLoad` has already redirected away from a skill that is not here, so
   // this covers the load itself rather than a missing skill.
@@ -159,7 +159,7 @@ function SkillPage() {
 
   const confirmDelete = async () => {
     try {
-      await deleteSkillMutation.mutateAsync({ name: skill.qualifiedName });
+      await deleteSkillMutation.mutateAsync({ name: skill.id });
       await queryClient.invalidateQueries({
         queryKey: rpcClient.workspace.skill.list.key(),
       });
@@ -206,7 +206,7 @@ function SkillPage() {
                 <DropdownMenuItem
                   onSelect={() => {
                     openEditSkill({
-                      name: skill.qualifiedName,
+                      name: skill.id,
                       title: skill.title,
                     });
                   }}
@@ -267,7 +267,7 @@ function SkillPage() {
                   files,
                   folders,
                   intent: skillPageIntent({
-                    name: skill.qualifiedName,
+                    name: skill.id,
                     title: skill.title,
                     userInvocable: skill.userInvocable,
                   }),
@@ -384,10 +384,7 @@ function SkillPage() {
                 </div>
               </div>
             ) : (
-              <SkillFileView
-                file={selectedFile}
-                skillName={skill.qualifiedName}
-              />
+              <SkillFileView file={selectedFile} skillName={skill.id} />
             )}
           </article>
 
@@ -454,16 +451,12 @@ function skillPageIntent({
 function SkillTitle({
   skill,
 }: {
-  skill: { qualifiedName: string; userInvocable: boolean };
+  skill: { id: string; name: string; userInvocable: boolean };
 }) {
   const { active: showCopied, trigger } = useTimedFlag();
   const [isTooltipOpen, setTooltipOpen] = useState(false);
-  // The qualified name throughout: it is what the composer inserts and what
-  // `load_skill` answers to, which a plain name shared with another source
-  // would not be.
-  const label = skill.userInvocable
-    ? `/${skill.qualifiedName}`
-    : skill.qualifiedName;
+  const label = skill.userInvocable ? `/${skill.name}` : skill.name;
+  const stableLabel = `/${skill.id}`;
 
   if (!skill.userInvocable) {
     return <h1 className="font-serif text-3xl tracking-tight">{label}</h1>;
@@ -481,7 +474,7 @@ function SkillTitle({
             setTooltipOpen(false);
           }}
           onClick={() => {
-            void navigator.clipboard.writeText(label);
+            void navigator.clipboard.writeText(stableLabel);
             trigger();
           }}
           onFocus={() => {
@@ -499,7 +492,7 @@ function SkillTitle({
         </button>
       </TooltipTrigger>
       <TooltipContent>
-        {showCopied ? "Copied" : "Copy slash command"}
+        {showCopied ? "Copied" : `Copy ${stableLabel}`}
       </TooltipContent>
     </Tooltip>
   );

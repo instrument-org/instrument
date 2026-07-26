@@ -40,11 +40,11 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
 // nothing. `limit` caps the result count when provided (the slash menu scrolls
 // a bounded list); leave it off to keep every match.
 //
-// Matching runs against the qualified name so a typed `claude:pdf` finds the
+// Matching runs against the stable ID so a typed `claude:pdf` finds the
 // skill it names, while `nameRanges` comes back in the coordinates of the plain
 // name every caller displays.
 export function matchSkills<
-  T extends { description: string; name: string; qualifiedName: string },
+  T extends { description: string; id: string; name: string },
 >(skills: T[], query: string, limit?: number): SkillMatch<T>[] {
   const cap = (matches: SkillMatch<T>[]) =>
     limit === undefined ? matches : matches.slice(0, limit);
@@ -60,7 +60,7 @@ export function matchSkills<
   }
 
   const fields = skills.map((skill) =>
-    joinFuzzyFields([skill.qualifiedName, skill.description]),
+    joinFuzzyFields([skill.id, skill.description]),
   );
   const haystack = fields.map((field) => field.haystack);
   // eslint-disable-next-line unicorn/no-array-method-this-argument
@@ -88,7 +88,7 @@ export function matchSkills<
           descriptionRanges: descriptionRanges ?? null,
           nameRanges: rangesOverPlainName(
             qualifiedRanges ?? null,
-            skill.qualifiedName.length - skill.name.length,
+            skill.id.length - skill.name.length,
           ),
           skill,
         },

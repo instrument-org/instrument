@@ -2,7 +2,6 @@ import { APP_NAME } from "@instrument-org/shared";
 import ms from "ms";
 import { ok } from "neverthrow";
 import fsSync from "node:fs";
-import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
@@ -22,7 +21,6 @@ import {
   findSkills,
   getSkillSources,
   listSkillFiles,
-  parseQualifiedSkillName,
   resolveSkillName,
   SKILL_CONTENT_LIMIT,
   type SkillInfo,
@@ -267,34 +265,17 @@ export const LoadSkill = setupTool({
       directory,
       files,
       ...(installResults.length > 0 ? { installResults } : {}),
-      name: skill.qualifiedName,
+      name: skill.id,
       origin,
       state: "success" as const,
       truncated,
     });
   },
   readOnly: false,
-  timeoutMs: ({ input }) => {
-    const base = ms("10 seconds");
-    // A qualified name says which source to look in, so the runtime read here
-    // is the one that will be loaded rather than a namesake from elsewhere.
-    const { name, source } = parseQualifiedSkillName(input.name);
-    const skillsDir = getSkillSources(getWorkspaceConfig()).findLast(
-      (candidate) =>
-        (source === undefined || candidate.source === source) &&
-        fsSync.existsSync(path.join(candidate.dir, name, "SKILL.md")),
-    )?.dir;
-    const runtime =
-      skillsDir === undefined
-        ? { node: false, python: false }
-        : getSkillRuntime(path.join(skillsDir, name), name);
-    const extra =
-      "error" in runtime
-        ? 0
-        : (runtime.node ? ms("2 minutes") : 0) +
-          (runtime.python ? ms("5 minutes") : 0);
-    return base + extra;
-  },
+  // A deadline, not a delay: dependency-free skills still return immediately.
+  // Keeping the maximum removes a second, synchronous skill resolver that can
+  // drift from execution and under-budget an alias or stable ID.
+  timeoutMs: ms("7 minutes") + ms("10 seconds"),
   toModelOutput: ({ output }) => {
     if (output.state === "not-found") {
       const listing =

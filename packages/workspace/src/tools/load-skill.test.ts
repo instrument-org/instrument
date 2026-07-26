@@ -103,7 +103,7 @@ describe("LoadSkill", () => {
         "available": [
           {
             "description": "A test skill",
-            "name": "existing-skill",
+            "name": "registry:existing-skill",
           },
         ],
         "name": "nonexistent",
@@ -261,7 +261,7 @@ describe("LoadSkill", () => {
       expect([name, result.state, result.name]).toEqual([
         name,
         "success",
-        "docx",
+        "registry:docx",
       ]);
     }
   });
@@ -487,7 +487,8 @@ describe("LoadSkill", () => {
     // Everything the model is told once the inlined body stops.
     expect(
       modelOutput.value.slice(
-        `<skill_content name="my-skill">\n`.length + result.content.length,
+        `<skill_content name="${result.name}">\n`.length +
+          result.content.length,
       ),
     ).toMatchInlineSnapshot(`
       "
@@ -876,18 +877,7 @@ describe("LoadSkill", () => {
       },
       name: "mixed-skill",
     });
-    const timeout = LoadSkill.timeoutMs;
-    if (typeof timeout !== "function") {
-      throw new TypeError("expected LoadSkill timeout to be dynamic");
-    }
-
-    const args = baseExecuteArgs();
-    expect(
-      timeout({
-        input: { explanation: "loading", name: "mixed-skill" },
-        taskId: args.taskId,
-      }),
-    ).toBe(7 * 60 * 1000 + 10 * 1000);
+    expect(LoadSkill.timeoutMs).toBe(7 * 60 * 1000 + 10 * 1000);
   });
 });
 /* eslint-enable unicorn/no-await-expression-member */

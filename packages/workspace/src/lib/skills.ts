@@ -42,9 +42,20 @@ export type FrontmatterResult =
   | { ok: false; reason: "no-frontmatter" | "unterminated" };
 
 export interface SkillInfo {
+  /**
+   * Every stable source-qualified identity that reaches this package. Copies
+   * collapsed during discovery keep their own IDs here, so an existing target
+   * remains valid when a higher-ranked identical copy appears.
+   */
+  aliases: string[];
   compatibility: string | undefined;
   content: string;
   description: string;
+  /**
+   * Stable identity derived from the discovery root and directory name. Unlike
+   * `qualifiedName`, adding or removing a namesake cannot change it.
+   */
+  id: string;
   /**
    * False when the skill's frontmatter sets `disable-model-invocation: true`.
    * Such a skill is kept out of the agent's catalog but stays listed in Studio
@@ -53,18 +64,17 @@ export interface SkillInfo {
   modelInvocable: boolean;
   name: string;
   /**
-   * How this skill is addressed: `load_skill`, the RPC routes, the slash menu
-   * and the task copy's folder all go through it. Equal to `name` unless
-   * another source ships a skill with the same directory name, in which case
-   * the ones that do not outrank the others read `<source>:<name>`.
+   * Human-friendly invocation alias. Equal to `name` unless another source
+   * ships a namesake. Accepted by `load_skill` for compatibility, but never
+   * persisted because the installed set can change it.
    */
   qualifiedName: string;
   skillDir: AbsolutePath;
   source: SkillSourceKind;
+  sourceId: SkillSourceId;
   /**
    * The frontmatter `name`, which is prose meant for people. The directory
-   * name stays the identity, because that is what is unique on disk and what
-   * the agent and the slash menu address a skill by.
+   * name is the plain label shown to people; `id` addresses the package.
    */
   title: string;
   /** False when the skill opts out of manual invocation affordances. */
@@ -73,8 +83,27 @@ export interface SkillInfo {
 
 export interface SkillSource {
   dir: AbsolutePath;
+  id: SkillSourceId;
   source: SkillSourceKind;
 }
+
+export type SkillSourceId =
+  | "agents"
+  | "agents-config"
+  | "antigravity"
+  | "claude"
+  | "codex"
+  | "copilot"
+  | "cursor"
+  | "gemini"
+  | "goose"
+  | "kiro"
+  | "opencode"
+  | "project"
+  | "registry"
+  | "system"
+  | "windsurf"
+  | "workspace";
 
 // The single source of truth for the source kinds. The RPC schema's Zod enum
 // and every exhaustive `Record<SkillSourceKind>` derive from this, so adding a
@@ -130,7 +159,7 @@ const SOURCE_RANK: Record<SkillSourceKind, number> = {
   workspace: 0,
 };
 
-/** A skill as its own directory describes it, before names are made unique. */
+/** A skill as its own directory describes it, before aliases are made unique. */
 type DiscoveredSkill = Omit<SkillInfo, "qualifiedName">;
 
 type FrontmatterSplit =
@@ -146,7 +175,12 @@ export async function findSkill(
 ): Promise<{ all: SkillInfo[]; skill: SkillInfo | undefined }> {
   const sources = getSkillSources(workspaceConfig);
   const all = await findSkills(sources);
-  return { all, skill: all.find((s) => s.qualifiedName === name) };
+  return {
+    all,
+    skill:
+      all.find((skill) => skill.aliases.includes(name)) ??
+      all.find((skill) => skill.qualifiedName === name),
+  };
 }
 
 /**
@@ -154,30 +188,36 @@ export async function findSkill(
  *
  * By canonical directory first: agent vendors' skill directories are routinely
  * symlink farms pointing at one real folder, so the same skill is reachable
- * through half a dozen sources. The first source to reach it wins, which keeps
- * attribution stable instead of labelling a shared skill with whichever vendor
- * happens to sort last.
+ * through half a dozen sources. The first source to reach it owns attribution,
+ * while every source-qualified ID remains an accepted alias.
  *
- * By source and name second, where the last source of a kind wins -- the
- * workspace scans two directories, and a skill in both of them is one skill the
- * user moved, not two. Separate copies under different sources all survive, and
- * `qualifySkillNames` gives each of them a name that reaches it.
+ * By identical instructions second. Separate copies with different
+ * instructions survive, and `qualifySkillNames` gives each of them a
+ * human-friendly invocation alias.
  */
 export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
   const skillMap = new Map<string, DiscoveredSkill>();
-  const seenDirs = new Set<string>();
+  const canonicalIds = new Map<string, string>();
 
-  for (const { dir, source } of sources) {
-    const skills = await findSkillsInDir(dir, source);
+  for (const { dir, id, source } of sources) {
+    const skills = await findSkillsInDir(dir, id, source);
     for (const skill of skills) {
       const canonical = await canonicalDir(skill.skillDir);
-      if (seenDirs.has(canonical)) {
+      const existingId = canonicalIds.get(canonical);
+      if (existingId) {
+        const existing = skillMap.get(existingId);
+        if (existing) {
+          skillMap.set(existingId, {
+            ...existing,
+            aliases: mergeSkillAliases(existing, skill),
+          });
+        }
         continue;
       }
-      seenDirs.add(canonical);
+      canonicalIds.set(canonical, skill.id);
       // Report where the skill really lives, not the symlink we reached it
       // through, so the UI can group and reveal it honestly.
-      skillMap.set(`${skill.source}\u0000${skill.name}`, {
+      skillMap.set(skill.id, {
         ...skill,
         skillDir: AbsolutePathSchema.parse(canonical),
       });
@@ -195,38 +235,47 @@ export function getSkillSources(
   }: Pick<WorkspaceConfig, "registryDir" | "rootDir" | "systemSkillsDir">,
   userHomeDir = AbsolutePathSchema.parse(os.homedir()),
 ): SkillSource[] {
-  const fromHome = (source: SkillSourceKind, ...parts: string[]) => ({
+  const fromHome = (
+    id: SkillSourceId,
+    source: SkillSourceKind,
+    ...parts: string[]
+  ) => ({
     dir: AbsolutePathSchema.parse(path.join(userHomeDir, ...parts)),
+    id,
     source,
   });
 
   return [
     {
       dir: systemSkillsDir,
+      id: "system",
       source: "system",
     },
     {
       dir: absolutePathJoin(registryDir, REGISTRY_FOLDER_NAMES.skills),
+      id: "registry",
       source: "registry",
     },
-    fromHome("agents", ".agents", "skills"),
-    fromHome("agents", ".config", "agents", "skills"),
-    fromHome("antigravity", ".gemini", "antigravity", "skills"),
-    fromHome("claude", ".claude", "skills"),
-    fromHome("codex", ".codex", "skills"),
-    fromHome("copilot", ".copilot", "skills"),
-    fromHome("cursor", ".cursor", "skills"),
-    fromHome("gemini", ".gemini", "skills"),
-    fromHome("goose", ".config", "goose", "skills"),
-    fromHome("kiro", ".kiro", "skills"),
-    fromHome("opencode", ".config", "opencode", "skills"),
-    fromHome("windsurf", ".codeium", "windsurf", "skills"),
+    fromHome("agents", "agents", ".agents", "skills"),
+    fromHome("agents-config", "agents", ".config", "agents", "skills"),
+    fromHome("antigravity", "antigravity", ".gemini", "antigravity", "skills"),
+    fromHome("claude", "claude", ".claude", "skills"),
+    fromHome("codex", "codex", ".codex", "skills"),
+    fromHome("copilot", "copilot", ".copilot", "skills"),
+    fromHome("cursor", "cursor", ".cursor", "skills"),
+    fromHome("gemini", "gemini", ".gemini", "skills"),
+    fromHome("goose", "goose", ".config", "goose", "skills"),
+    fromHome("kiro", "kiro", ".kiro", "skills"),
+    fromHome("opencode", "opencode", ".config", "opencode", "skills"),
+    fromHome("windsurf", "windsurf", ".codeium", "windsurf", "skills"),
     {
       dir: absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills),
+      id: "workspace",
       source: "workspace",
     },
     {
       dir: absolutePathJoin(rootDir, ".agents", REGISTRY_FOLDER_NAMES.skills),
+      id: "project",
       source: "workspace",
     },
   ];
@@ -338,47 +387,33 @@ export function parseFrontmatter(raw: string): FrontmatterResult {
 }
 
 /**
- * Split a qualified name into the source that owns it and the directory name on
- * disk. A name with no known source prefix is a plain directory name, colon and
- * all -- nothing stops a skill folder from containing one.
- */
-export function parseQualifiedSkillName(qualifiedName: string): {
-  name: string;
-  source: SkillSourceKind | undefined;
-} {
-  const separator = qualifiedName.indexOf(":");
-  if (separator === -1) {
-    return { name: qualifiedName, source: undefined };
-  }
-  const prefix = qualifiedName.slice(0, separator);
-  const source = SKILL_SOURCE_KINDS.find((kind) => kind === prefix);
-  return source === undefined
-    ? { name: qualifiedName, source: undefined }
-    : { name: qualifiedName.slice(separator + 1), source };
-}
-
-/**
  * Resolve what was asked for to a skill, or to the names worth suggesting.
  *
- * The exact qualified name is the answer whenever it exists. Past that a model
- * is usually close rather than wrong -- it drops a `claude:` prefix it was
- * shown, changes the case, or reaches for the frontmatter title instead of the
- * directory -- and each of those resolves as long as exactly one skill answers
- * to it. A name several skills answer to resolves to none of them and comes
- * back as the list to choose from, which is the one case where guessing would
- * silently load the wrong instructions.
+ * A stable ID or current invocation alias is the answer whenever it exists.
+ * Past that a model is usually close rather than wrong -- it drops a
+ * `claude:` prefix it was shown, changes the case, or reaches for the
+ * frontmatter title instead of the directory -- and each of those resolves as
+ * long as exactly one skill answers to it. A name several skills answer to
+ * resolves to none of them and comes back as the list to choose from, which is
+ * the one case where guessing would silently load the wrong instructions.
  */
 export function resolveSkillName(
   skills: SkillInfo[],
   requested: string,
 ): { skill: SkillInfo } | { suggestions: string[] } {
-  const exact = skills.find((skill) => skill.qualifiedName === requested);
+  const exact = skills.find(
+    (skill) =>
+      skill.aliases.includes(requested) || skill.qualifiedName === requested,
+  );
   if (exact) {
     return { skill: exact };
   }
 
   const lowered = requested.toLowerCase();
   const nearby = [
+    skills.filter((skill) =>
+      skill.aliases.some((alias) => alias.toLowerCase() === lowered),
+    ),
     skills.filter((skill) => skill.qualifiedName.toLowerCase() === lowered),
     skills.filter((skill) => skill.name.toLowerCase() === lowered),
     skills.filter((skill) => skill.title.toLowerCase() === lowered),
@@ -389,7 +424,7 @@ export function resolveSkillName(
     }
     if (candidates.length > 1) {
       return {
-        suggestions: candidates.map((skill) => skill.qualifiedName),
+        suggestions: candidates.map((skill) => skill.id),
       };
     }
   }
@@ -509,7 +544,17 @@ function dedupeIdenticalCopies(skills: DiscoveredSkill[]): DiscoveredSkill[] {
       existing === undefined ||
       SOURCE_RANK[skill.source] < SOURCE_RANK[existing.source]
     ) {
-      byContent.set(key, skill);
+      byContent.set(
+        key,
+        existing
+          ? { ...skill, aliases: mergeSkillAliases(skill, existing) }
+          : skill,
+      );
+    } else {
+      byContent.set(key, {
+        ...existing,
+        aliases: mergeSkillAliases(existing, skill),
+      });
     }
   }
 
@@ -526,6 +571,7 @@ function describeYamlError(error: unknown): string {
 
 async function findSkillsInDir(
   dir: AbsolutePath,
+  id: SkillSourceId,
   source: SkillSourceKind,
 ): Promise<DiscoveredSkill[]> {
   const exists = await pathExists(dir);
@@ -559,14 +605,17 @@ async function findSkillsInDir(
     }
 
     skills.push({
+      aliases: [`${id}:${entry.name}`],
       compatibility: parsed.compatibility,
       content: parsed.body,
       description: parsed.description,
+      id: `${id}:${entry.name}`,
       modelInvocable: parsed.modelInvocable,
       // Agent Skills are addressed by their containing directory name.
       name: entry.name,
       skillDir,
       source,
+      sourceId: id,
       title: parsed.title ?? entry.name,
       userInvocable: parsed.userInvocable,
     });
@@ -582,6 +631,13 @@ async function isDirectorySymlink(candidate: AbsolutePath) {
   } catch {
     return false;
   }
+}
+
+function mergeSkillAliases(
+  primary: DiscoveredSkill,
+  secondary: DiscoveredSkill,
+): string[] {
+  return [...new Set([...primary.aliases, ...secondary.aliases])];
 }
 
 /**

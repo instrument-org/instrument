@@ -72,7 +72,14 @@ export interface PromptEditorRef {
 
 type Skill = Pick<
   RPCOutput["workspace"]["skill"]["list"][number],
-  "description" | "name" | "path" | "qualifiedName" | "source" | "title"
+  | "aliases"
+  | "description"
+  | "id"
+  | "name"
+  | "path"
+  | "qualifiedName"
+  | "source"
+  | "title"
 >;
 
 // A skill token in the document, paired with the element ProseMirror gave its
@@ -182,7 +189,7 @@ export function PromptEditor({
       return;
     }
     const node = promptSchema.nodes.skill.create({
-      name: skill.qualifiedName,
+      name: skill.id,
     });
     const transaction = view.state.tr.replaceRangeWith(
       activeMenu.from,
@@ -390,7 +397,9 @@ export function PromptEditor({
                 // has gone: only claim a chip is stale once there is a list.
                 resolved={skills.length > 0}
                 summary={skills.find(
-                  (skill) => skill.qualifiedName === chip.name,
+                  (skill) =>
+                    skill.aliases.includes(chip.name) ||
+                    skill.qualifiedName === chip.name,
                 )}
                 // The composer's own controls stay the tab order; a draft with
                 // several tokens should not put a stop at each one.
@@ -426,7 +435,7 @@ export function PromptEditor({
       >
         {matches.map((match, index) => (
           <SkillMenuItem
-            key={match.skill.qualifiedName}
+            key={match.skill.id}
             match={match}
             onHover={() => {
               scrollToSelectionRef.current = false;
@@ -468,7 +477,7 @@ function SkillMenuItem({
         selected && "bg-accent text-accent-foreground",
       )}
       data-highlighted={selected ? "" : undefined}
-      key={match.skill.qualifiedName}
+      key={match.skill.id}
       // Mousedown rather than click, and defaulted out, so choosing a skill
       // never blurs the editor the insertion is about to run against.
       onMouseDown={(event) => {
@@ -487,7 +496,7 @@ function SkillMenuItem({
     >
       {/* The plain name, even where two sources share it: the source on the
           right is what tells them apart, and reading it there is easier than
-          reading a prefix. Choosing the row still inserts the qualified name. */}
+          reading a prefix. Choosing the row stores the stable ID. */}
       <span className="shrink-0 font-mono text-sm font-medium">
         /
         <FuzzyHighlight

@@ -27,10 +27,10 @@ export function SkillMention({
 }: {
   name: string;
   resolved: boolean;
-  summary?: Pick<SkillSummary, "description" | "title">;
+  summary?: Pick<SkillSummary, "description" | "id" | "name" | "title">;
   tabIndex?: number;
 }) {
-  const label = skillMentionLabel(name);
+  const label = skillMentionLabel(summary?.name ?? name);
 
   // A mention can outlive its skill: renamed or deleted, or in a workspace no
   // longer read. The list is the same source the composer offers mentions from,
@@ -71,6 +71,9 @@ export function SkillMention({
       <TooltipTrigger asChild>{link}</TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p className="font-medium">{summary.title}</p>
+        <p className="mt-0.5 font-mono text-background/70">
+          {skillMentionLabel(summary.id)}
+        </p>
         {summary.description ? (
           <p className="mt-0.5 text-background/70">{summary.description}</p>
         ) : null}

@@ -9,6 +9,7 @@ import {
   getSkillSources,
   listSkillFiles,
   parseFrontmatter,
+  resolveSkillName,
 } from "./skills";
 
 const make = (frontmatter: string, body = "Body content") =>
@@ -230,6 +231,37 @@ describe("listSkillFiles", () => {
 });
 
 describe("skill discovery", () => {
+  it("keeps a skill ID stable when a higher-ranked namesake appears", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-identity-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+    const workspace = path.join(root, "workspace");
+    await writeSkill(path.join(home, ".claude", "skills", "review"), "Claude");
+    const sources = getSkillSources(
+      {
+        registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
+        rootDir: WorkspaceDirSchema.parse(workspace),
+        systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
+      },
+      AbsolutePathSchema.parse(home),
+    );
+
+    const [before] = await findSkills(sources);
+    expect(before).toMatchObject({
+      id: "claude:review",
+      qualifiedName: "review",
+    });
+
+    await writeSkill(path.join(workspace, "skills", "review"), "Workspace");
+    const after = await findSkills(sources);
+    expect(
+      after.map(({ id, qualifiedName }) => ({ id, qualifiedName })),
+    ).toEqual([
+      { id: "claude:review", qualifiedName: "claude:review" },
+      { id: "workspace:review", qualifiedName: "review" },
+    ]);
+  });
+
   it("keeps every copy of a shared name and qualifies the ones that lose it", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-test-"));
     temporaryDirs.push(root);
@@ -242,11 +274,13 @@ describe("skill discovery", () => {
     await writeSkill(path.join(systemSkills, "creator"), "System");
     await writeSkill(path.join(registry, "skills", "bundled"), "Bundled");
     await writeSkill(sharedSkill, "Shared");
-    await fs.mkdir(path.join(home, ".codex", "skills"), { recursive: true });
-    await fs.symlink(
-      sharedSkill,
-      path.join(home, ".codex", "skills", "review"),
-    );
+    for (const vendor of [".claude", ".codex"]) {
+      await fs.mkdir(path.join(home, vendor, "skills"), { recursive: true });
+      await fs.symlink(
+        sharedSkill,
+        path.join(home, vendor, "skills", "review"),
+      );
+    }
     await writeSkill(path.join(workspace, "skills", "review"), "Workspace");
 
     const sources = getSkillSources(
@@ -260,7 +294,8 @@ describe("skill discovery", () => {
     const skills = await findSkills(sources);
 
     expect(
-      skills.map(({ description, qualifiedName, source }) => ({
+      skills.map(({ aliases, description, qualifiedName, source }) => ({
+        aliases,
         description,
         qualifiedName,
         source,
@@ -268,21 +303,34 @@ describe("skill discovery", () => {
     ).toMatchInlineSnapshot(`
       [
         {
+          "aliases": [
+            "system:creator",
+          ],
           "description": "System",
           "qualifiedName": "creator",
           "source": "system",
         },
         {
+          "aliases": [
+            "registry:bundled",
+          ],
           "description": "Bundled",
           "qualifiedName": "bundled",
           "source": "registry",
         },
         {
+          "aliases": [
+            "claude:review",
+            "codex:review",
+          ],
           "description": "Shared",
-          "qualifiedName": "codex:review",
-          "source": "codex",
+          "qualifiedName": "claude:review",
+          "source": "claude",
         },
         {
+          "aliases": [
+            "workspace:review",
+          ],
           "description": "Workspace",
           "qualifiedName": "review",
           "source": "workspace",
@@ -321,7 +369,8 @@ describe("skill discovery", () => {
     // One entry for the four identical copies, attributed to the source that
     // outranks the rest, and the genuinely different one beside it.
     expect(
-      skills.map(({ description, qualifiedName, source }) => ({
+      skills.map(({ aliases, description, qualifiedName, source }) => ({
+        aliases,
         description,
         qualifiedName,
         source,
@@ -329,17 +378,29 @@ describe("skill discovery", () => {
     ).toMatchInlineSnapshot(`
       [
         {
+          "aliases": [
+            "workspace:review",
+            "claude:review",
+            "cursor:review",
+            "gemini:review",
+          ],
           "description": "Shared",
           "qualifiedName": "review",
           "source": "workspace",
         },
         {
+          "aliases": [
+            "codex:review",
+          ],
           "description": "Different",
           "qualifiedName": "codex:review",
           "source": "codex",
         },
       ]
     `);
+    expect(resolveSkillName(skills, "claude:review")).toEqual({
+      skill: skills[0],
+    });
   });
 
   it("treats names that differ only in case as the same name", async () => {

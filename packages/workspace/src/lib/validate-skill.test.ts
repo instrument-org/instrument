@@ -189,14 +189,17 @@ describe("validateSkill", () => {
 
   it("reports a name another skill has already claimed", async () => {
     const other: SkillInfo = {
+      aliases: ["claude:test-skill"],
       compatibility: undefined,
       content: "body",
       description: "A different skill with the same name.",
+      id: "claude:test-skill",
       modelInvocable: true,
       name: "test-skill",
       qualifiedName: "claude:test-skill",
       skillDir: AbsolutePathSchema.parse("/elsewhere/test-skill"),
       source: "claude",
+      sourceId: "claude",
       title: "test-skill",
       userInvocable: true,
     };

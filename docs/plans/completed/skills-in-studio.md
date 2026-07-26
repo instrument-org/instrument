@@ -40,7 +40,7 @@ Agent Skills, surfaced in Studio: a browsable list, a page per skill, a slash me
 
 **`listSkillFiles` feeds the agent, not just the UI.** It is what `load_skill` uses to tell the agent what a skill contains, and it is capped at `FILE_LIST_LIMIT`. Before it honored ignore rules, an installed skill's `node_modules` consumed the entire cap, so the agent never saw the skill's own scripts. Anything that changes what it walks changes what the agent sees.
 
-**The directory name is the identity.** The frontmatter `name` is display prose and may be anything; the directory name is what is unique on disk and what the agent, the slash menu, and `load_skill` address. Do not swap them.
+**Skill identity includes its discovery root.** The stable ID is `<source>:<directory>`, so installing a namesake cannot retarget a saved route or mention. The directory name remains the plain label people see; the frontmatter `name` is display prose and may be anything.
 
 **Copy names the app.** Skills belong to Instrument, which is itself the agent — so the UI should not talk about "your agents". Use `APP_NAME`, never a literal.
 

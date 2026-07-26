@@ -41,10 +41,7 @@ export function SkillChangesCard({
   ].map((entry) => ({
     ...entry,
     // These names are directories in the writable `/skills` mount, which is
-    // where the agent wrote them and what `editable` marks. Matching the
-    // addressable name instead would miss the skill whenever the same folder
-    // name exists in the workspace's other skills directory, since neither
-    // copy then keeps the plain name.
+    // where the agent wrote them and what `editable` marks.
     skill: skills.find((skill) => skill.editable && skill.name === entry.name),
   }));
 
@@ -93,16 +90,14 @@ function SkillChangeRow({
   // resolves, a name it does not carry is unknown rather than gone.
   const isMissing = resolved && !skill;
 
-  // Spelled the way the skill is invoked, so the sentence doubles as a hint
-  // that /name works in the composer. That is the addressable name, which the
-  // directory name only equals while no other source claims it. A skill that
-  // opted out of manual invocation gets its bare name, since the slash form
-  // would be a lie.
-  const addressableName = skill?.qualifiedName ?? name;
+  // Keep the sentence human-readable while the link below carries the stable
+  // target. A skill that opted out of manual invocation gets its bare name,
+  // since the slash form would be a lie.
+  const addressableName = skill?.id ?? name;
   const label =
     skill?.userInvocable === false
-      ? addressableName
-      : skillMentionLabel(addressableName);
+      ? skill.name
+      : skillMentionLabel(skill?.name ?? name);
 
   const body = (
     <>

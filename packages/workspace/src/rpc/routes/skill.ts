@@ -28,6 +28,7 @@ const FILE_SIZE_LIMIT = 512 * 1024;
 const SkillSourceSchema = z.enum(SKILL_SOURCE_KINDS);
 
 const SkillSummarySchema = z.object({
+  aliases: z.string().array(),
   description: z.string(),
   /**
    * True when the skill lives in the one workspace directory the agent can
@@ -39,13 +40,13 @@ const SkillSummarySchema = z.object({
   editable: z.boolean(),
   fileCount: z.number(),
   filesTruncated: z.boolean(),
+  id: z.string(),
   modelInvocable: z.boolean(),
   name: z.string(),
   path: z.string(),
   /**
-   * What every route here takes as `name`, and what the slash menu and
-   * `load_skill` address the skill by. Reads `<source>:<name>` when another
-   * source ships a skill with the same directory name, so both stay reachable.
+   * Compatibility alias for manually typed invocations. Persisted routes and
+   * mentions use `id`, whose value does not depend on installed namesakes.
    */
   qualifiedName: z.string(),
   source: SkillSourceSchema,
@@ -100,10 +101,12 @@ const list = base
     );
 
     return skills.map((skill, index) => ({
+      aliases: skill.aliases,
       description: skill.description,
       editable: isEditable(skill.skillDir, writableRoot),
       fileCount: listings[index]?.files.length ?? 0,
       filesTruncated: listings[index]?.truncated ?? false,
+      id: skill.id,
       modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
@@ -138,6 +141,7 @@ const byName = base
     );
     const frontmatterResult = splitFrontmatter(rawSkillFile);
     return {
+      aliases: skill.aliases,
       compatibility: skill.compatibility ?? null,
       content: skill.content,
       description: skill.description,
@@ -148,6 +152,7 @@ const byName = base
       frontmatter: frontmatterResult.ok
         ? `---\n${frontmatterResult.block}\n---`
         : "",
+      id: skill.id,
       modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,

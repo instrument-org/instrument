@@ -78,12 +78,12 @@ export function renderSkillCatalog(
     .map((skill) => ({
       description: skill.description,
       descriptionCost: escapedLength(skill.description),
-      // The qualified name, because the catalog is what the agent loads from:
-      // a name it cannot pass back to `load_skill` is worse than no entry.
-      name: skill.qualifiedName,
+      // Stable identity, because catalog entries can be copied into persisted
+      // messages and must not retarget when a namesake is installed later.
+      name: skill.id,
       // Its own trailing newline, so the entry costs add up to `xml.length`
       // once the wrapper is accounted for.
-      nameOnlyCost: renderEntry(skill.qualifiedName, "").length + 1,
+      nameOnlyCost: renderEntry(skill.id, "").length + 1,
     }));
 
   if (entries.length === 0) {

@@ -211,11 +211,11 @@ function SkillsPage() {
                           return (
                             <div
                               className="group relative isolate flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
-                              key={skill.qualifiedName}
+                              key={skill.id}
                             >
                               <InternalLink
                                 className="absolute inset-0"
-                                params={{ name: skill.qualifiedName }}
+                                params={{ name: skill.id }}
                                 to="/skills/$name"
                               />
                               <div className="flex w-52 shrink-0 items-center gap-2">
@@ -233,7 +233,7 @@ function SkillsPage() {
                                     iconSize={13}
                                     onCopy={() =>
                                       navigator.clipboard.writeText(
-                                        `/${skill.qualifiedName}`,
+                                        `/${skill.id}`,
                                       )
                                     }
                                   />

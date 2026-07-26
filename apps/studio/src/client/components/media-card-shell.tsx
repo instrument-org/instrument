@@ -69,7 +69,11 @@ export function MediaCardShell({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group/media relative w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
+            // isolate: the scrim, the overlay actions and the video's progress
+            // bar stack against each other and nothing else. Without it they
+            // join whatever stacking context the page happens to give them and
+            // outrank chrome that is nowhere near this card.
+            "group/media relative isolate w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
             aspectRatio === "square" ? "aspect-square" : "aspect-video",
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",

@@ -76,7 +76,7 @@ const CodeWithCopy = ({
   children: React.ReactNode;
   content: string;
 }) => (
-  <div className="group relative">
+  <div className="group relative isolate">
     <div className="absolute top-1 right-1 z-10 opacity-0 transition-opacity group-hover:opacity-100">
       <CopyButton
         className="rounded-md border border-border/50 bg-background/80 p-1 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground"

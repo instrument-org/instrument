@@ -210,7 +210,7 @@ function SkillsPage() {
                           const ranges = matchBySkill.get(skill);
                           return (
                             <div
-                              className="group relative flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
+                              className="group relative isolate flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
                               key={skill.name}
                             >
                               <InternalLink

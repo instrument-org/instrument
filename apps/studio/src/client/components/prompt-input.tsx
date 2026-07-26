@@ -525,7 +525,9 @@ export const PromptInput = ({
     <>
       <TextareaContainer
         className={cn(
-          "relative overflow-visible rounded-[20px] p-4",
+          // isolate: the drag-and-drop overlay covers the composer and nothing
+          // beyond it.
+          "relative isolate overflow-visible rounded-[20px] p-4",
           "bg-white shadow-xs dark:bg-gray-800",
           className,
         )}

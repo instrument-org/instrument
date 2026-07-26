@@ -142,7 +142,7 @@ export function ServerExceptionsAlert() {
         <Accordion className="border-0" type="multiple">
           {groupedExceptions.map((exception) => (
             <AccordionItem
-              className="relative border-b last:border-b-0"
+              className="relative isolate border-b last:border-b-0"
               key={exception.id}
               value={exception.id}
             >

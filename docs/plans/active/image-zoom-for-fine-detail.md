@@ -170,6 +170,10 @@ Where a skill does earn its place is everything past one rectangle: contact shee
 - **Pre-resize changes what the agent is shown, not the file on disk.** It is the same downscale the provider would have done, so it is a wash, and the crop still reads from the original. Stated in the code so nobody "fixes" it later.
 - **Nothing here is measured.** Every accuracy number in this document is the cookbook's, on its benchmark, with its tool. Ours could plausibly do nothing if the agent never reaches for `region`.
 
+## Known defects in what landed
+
+[image-read-coordinate-contract.md](image-read-coordinate-contract.md) records five confirmed defects found in review, three of them breaking the promise this feature rests on: that the pixel space named in text is the pixel space the model sees. **Treat the region read as untrustworthy until those land**, and do not run the phase 4 eval before them, since measuring against a broken coordinate space measures nothing.
+
 ## Follow-on plans
 
 The image work put a validation pass at the send boundary, which turned out to be the right place for a problem larger than images:

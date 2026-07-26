@@ -34,6 +34,7 @@ export type AppCommand =
   | { type: "navigateBack" }
   | { type: "navigateForward" }
   | { type: "openSettings" }
+  | { type: "openShortcutGuide" }
   | { type: "reload" }
   | { type: "reopen" }
   | { type: "selectLast" }

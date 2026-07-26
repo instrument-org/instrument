@@ -1,43 +1,118 @@
 import { sendAppCommand } from "@/electron-main/app-command";
 import {
+  focusMainContents,
+  goBack,
+  goForward,
+  reload,
+  resetZoom,
+  zoomIn,
+  zoomOut,
+} from "@/electron-main/windows/main/controls";
+import { getMainWindow } from "@/electron-main/windows/main/instance";
+import {
+  resolveAccelerator,
+  SHORTCUT_ENTRIES,
+  type ShortcutAccelerator,
+  type ShortcutId,
+  SHORTCUTS,
+} from "@/shared/shortcuts";
+import {
+  type BaseWindow,
+  BrowserWindow,
   type Input,
   type MenuItemConstructorOptions,
   type WebContents,
 } from "electron";
 
-interface Shortcut {
-  accelerator: string;
-  label: string;
-  /**
-   * Whether the chord has to beat the focused page. Electron offers the native
-   * menu only the key events web content left unhandled, and Chromium keeps the
-   * editing chords for itself whenever a contenteditable has focus, so an
-   * unreserved chord stops working the moment the caret enters the prompt
-   * editor. Reserve only what the app owns outright: anything an editor
-   * legitimately uses (Mod-Z to undo) belongs to the page.
-   */
-  reserved: boolean;
-  run: () => void;
-}
-
-// Checks each entry against Shortcut without narrowing it to its literal
-// values, so `reserved` stays a boolean the binder can filter on.
-const defineShortcut = (shortcut: Shortcut) => shortcut;
+// The window the chord fired against, which the native menu hands us as the
+// `BaseWindow` it might be (a menu accelerator can reach any window, not just
+// the ones we build web contents for).
+type ShortcutAction = (focusedWindow?: BaseWindow) => void;
 
 /**
- * Shortcuts declared once and consumed everywhere: the native menu builds its
- * items from these, and the reserved ones are also run from the main process
- * ahead of the page.
+ * What each shortcut in the shared table does in the main process. `null` marks
+ * an entry the table only describes -- an Electron role or a hidden
+ * accelerator-only item binds the chord elsewhere -- so adding a descriptor
+ * forces a decision here rather than silently landing a dead chord.
  */
-export const SHORTCUTS = {
-  toggleSidebar: defineShortcut({
-    accelerator: "CmdOrCtrl+B",
-    label: "Toggle Sidebar",
-    reserved: true,
-    run: () => {
-      sendAppCommand({ type: "toggleSidebar" });
-    },
-  }),
+const SHORTCUT_ACTIONS: Record<ShortcutId, null | ShortcutAction> = {
+  closeTab: (focusedWindow) => {
+    const mainWindow = getMainWindow();
+    if (focusedWindow && focusedWindow !== mainWindow) {
+      focusedWindow.close();
+      return;
+    }
+    // The renderer ignores this while an app-wide modal is open (see
+    // useAppCommands + blockingModalCountAtom), so open modals stay put.
+    sendAppCommand({ type: "close" });
+  },
+  commandMenu: () => {
+    sendAppCommand({ type: "toggleCommandMenu" });
+    focusMainContents();
+  },
+  findInPage: () => {
+    sendAppCommand({ type: "findInPage" });
+  },
+  goBack: () => {
+    goBack();
+  },
+  goForward: () => {
+    goForward();
+  },
+  newTab: () => {
+    sendAppCommand({ newTab: true, to: "/new-tab", type: "navigate" });
+  },
+  newTask: () => {
+    sendAppCommand({ to: "/new-tab", type: "navigate" });
+  },
+  reloadPage: () => {
+    reload();
+  },
+  reloadWebViews: () => {
+    // The whole tabbed app is one web contents now, so this reloads it.
+    getMainWindow()?.webContents.reload();
+  },
+  reopenTab: () => {
+    sendAppCommand({ type: "reopen" });
+  },
+  resetZoom: () => {
+    // Main-window UI zoom, applied as CSS `zoom` in the renderer; embedded web
+    // content views (the agent browser) are left untouched.
+    resetZoom();
+  },
+  selectLastTab: null,
+  selectNextTab: () => {
+    sendAppCommand({ type: "selectNext" });
+  },
+  selectPreviousTab: () => {
+    sendAppCommand({ type: "selectPrevious" });
+  },
+  selectTabByIndex: null,
+  settings: () => {
+    sendAppCommand({ type: "openSettings" });
+  },
+  shortcutGuide: () => {
+    sendAppCommand({ type: "openShortcutGuide" });
+  },
+  themeDark: () => {
+    sendAppCommand({ theme: "dark", type: "setTheme" });
+  },
+  themeLight: () => {
+    sendAppCommand({ theme: "light", type: "setTheme" });
+  },
+  themeSystem: () => {
+    sendAppCommand({ theme: "system", type: "setTheme" });
+  },
+  toggleFullscreen: null,
+  toggleSidebar: () => {
+    sendAppCommand({ type: "toggleSidebar" });
+  },
+  zoomIn: () => {
+    zoomIn();
+  },
+  zoomOut: () => {
+    zoomOut();
+  },
 };
 
 /**
@@ -46,31 +121,42 @@ export const SHORTCUTS = {
  * chord still fires exactly once.
  */
 export function bindReservedShortcuts(webContents: WebContents) {
-  const reserved = Object.values(SHORTCUTS).filter(
-    (shortcut) => shortcut.reserved,
-  );
+  const reserved = SHORTCUT_ENTRIES.flatMap(({ descriptor, id }) => {
+    const run = SHORTCUT_ACTIONS[id];
+    return descriptor.reserved && run ? [{ descriptor, run }] : [];
+  });
   webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") {
       return;
     }
-    const shortcut = reserved.find((candidate) =>
-      matchesAccelerator(input, candidate.accelerator),
+    const shortcut = reserved.find(({ descriptor }) =>
+      matchesAccelerator(input, resolveMenuAccelerator(descriptor.accelerator)),
     );
     if (!shortcut) {
       return;
     }
     event.preventDefault();
-    shortcut.run();
+    shortcut.run(BrowserWindow.fromWebContents(webContents) ?? undefined);
   });
 }
 
-export function shortcutMenuItem(
-  shortcut: Shortcut,
-): MenuItemConstructorOptions {
+/**
+ * Projects one table entry into a native menu item. Renderer-owned chords (the
+ * guide's `?`) get the label without an accelerator: the renderer binds those,
+ * and the menu item is only a second way in.
+ */
+export function shortcutMenuItem(id: ShortcutId): MenuItemConstructorOptions {
+  const { accelerator, label, owner } = SHORTCUTS[id];
+  const run = SHORTCUT_ACTIONS[id];
   return {
-    accelerator: shortcut.accelerator,
-    click: shortcut.run,
-    label: shortcut.label,
+    accelerator:
+      owner === "menu" ? resolveMenuAccelerator(accelerator) : undefined,
+    click: run
+      ? (_menuItem, focusedWindow) => {
+          run(focusedWindow);
+        }
+      : undefined,
+    label,
   };
 }
 
@@ -93,4 +179,10 @@ function matchesAccelerator(input: Input, accelerator: string) {
   return process.platform === "darwin"
     ? input.meta && !input.control
     : input.control && !input.meta;
+}
+
+function resolveMenuAccelerator(accelerator: ShortcutAccelerator) {
+  return resolveAccelerator(accelerator, {
+    isMac: process.platform === "darwin",
+  });
 }

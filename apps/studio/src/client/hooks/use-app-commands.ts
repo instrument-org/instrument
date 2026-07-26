@@ -1,5 +1,6 @@
 import { toggleCommandMenu } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { tabsAtom } from "@/client/atoms/tabs";
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
@@ -28,6 +29,7 @@ import { useEffect } from "react";
 // command is blocked by default until it's explicitly marked modal-safe.
 const MODAL_SAFE_COMMANDS = new Set<AppCommand["type"]>([
   "openSettings",
+  "openShortcutGuide",
   "reload",
   "setTheme",
   "toggleCommandMenu",
@@ -164,6 +166,10 @@ export function useAppCommands() {
               }
               case "openSettings": {
                 openSettings({ tab: "General" });
+                break;
+              }
+              case "openShortcutGuide": {
+                openShortcutGuide();
                 break;
               }
               case "reload": {

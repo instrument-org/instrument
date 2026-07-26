@@ -93,7 +93,7 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
     createEditMenu(),
     viewMenu,
     createWindowMenu(),
-    createHelpMenu(),
+    createHelpMenu({ includeShortcutGuide: false }),
     ...(isDeveloperMode() ? createDevToolsMenu() : []),
   ];
 }

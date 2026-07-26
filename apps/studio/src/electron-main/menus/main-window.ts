@@ -1,18 +1,9 @@
 import { sendAppCommand } from "@/electron-main/app-command";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import {
-  focusMainContents,
-  goBack,
-  goForward,
-  reload,
-  resetZoom,
-  zoomIn,
-  zoomOut,
-} from "@/electron-main/windows/main/controls";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { zoomIn, zoomOut } from "@/electron-main/windows/main/controls";
 import { type MenuItemConstructorOptions } from "electron";
 
-import { shortcutMenuItem, SHORTCUTS } from "./shortcuts";
+import { shortcutMenuItem } from "./shortcuts";
 import {
   createAppMenu,
   createDevToolsMenu,
@@ -24,46 +15,11 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
-      {
-        accelerator: "CmdOrCtrl+T",
-        click: () => {
-          sendAppCommand({
-            newTab: true,
-            to: "/new-tab",
-            type: "navigate",
-          });
-        },
-        label: "New Tab",
-      },
-      {
-        accelerator: "CmdOrCtrl+N",
-        click: () => {
-          sendAppCommand({ to: "/new-tab", type: "navigate" });
-        },
-        label: "New Task",
-      },
+      shortcutMenuItem("newTab"),
+      shortcutMenuItem("newTask"),
       { type: "separator" as const },
-      {
-        accelerator: "CmdOrCtrl+W",
-        click: (_menuItem, focusedWindow) => {
-          const mainWindow = getMainWindow();
-          if (focusedWindow && focusedWindow !== mainWindow) {
-            focusedWindow.close();
-            return;
-          }
-          // The renderer ignores this while an app-wide modal is open (see
-          // useAppCommands + blockingModalCountAtom), so open modals stay put.
-          sendAppCommand({ type: "close" });
-        },
-        label: "Close Tab",
-      },
-      {
-        accelerator: "CmdOrCtrl+Shift+T",
-        click: () => {
-          sendAppCommand({ type: "reopen" });
-        },
-        label: "Reopen Closed Tab",
-      },
+      shortcutMenuItem("closeTab"),
+      shortcutMenuItem("reopenTab"),
     ],
   };
 
@@ -71,49 +27,18 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
     label: "View",
     role: "viewMenu" as const,
     submenu: [
-      {
-        accelerator: "CmdOrCtrl+K",
-        click: () => {
-          sendAppCommand({ type: "toggleCommandMenu" });
-          focusMainContents();
-        },
-        label: "Show Command Menu",
-      },
+      shortcutMenuItem("commandMenu"),
       { type: "separator" as const },
-      {
-        accelerator: "CmdOrCtrl+[",
-        click: () => {
-          goBack();
-        },
-        label: "Back",
-      },
-      {
-        accelerator: "CmdOrCtrl+]",
-        click: () => {
-          goForward();
-        },
-        label: "Forward",
-      },
+      shortcutMenuItem("goBack"),
+      shortcutMenuItem("goForward"),
       { type: "separator" as const },
-      {
-        accelerator: "CmdOrCtrl+R",
-        click: () => {
-          reload();
-        },
-        label: "Reload Page",
-      },
-      {
-        // A focused browser guest takes keyboard focus, so Cmd+F can only reach
-        // us via this native accelerator; the renderer opens the find bar in the
-        // active browser panel (no-op when none is showing).
-        accelerator: "CmdOrCtrl+F",
-        click: () => {
-          sendAppCommand({ type: "findInPage" });
-        },
-        label: "Find…",
-      },
+      shortcutMenuItem("reloadPage"),
+      // A focused browser guest takes keyboard focus, so Cmd+F can only reach
+      // us via this native accelerator; the renderer opens the find bar in the
+      // active browser panel (no-op when none is showing).
+      shortcutMenuItem("findInPage"),
       { type: "separator" as const },
-      shortcutMenuItem(SHORTCUTS.toggleSidebar),
+      shortcutMenuItem("toggleSidebar"),
       { type: "separator" as const },
       { role: "togglefullscreen" as const },
     ],
@@ -123,22 +48,8 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
     label: "Window",
     role: "windowMenu" as const,
     submenu: [
-      {
-        accelerator: "CmdOrCtrl+0",
-        click: () => {
-          // Main-window UI zoom, applied as CSS `zoom` in the renderer; embedded
-          // web content views (the agent browser) are left untouched.
-          resetZoom();
-        },
-        label: "Actual Size",
-      },
-      {
-        accelerator: "CmdOrCtrl+Plus",
-        click: () => {
-          zoomIn();
-        },
-        label: "Zoom In",
-      },
+      shortcutMenuItem("resetZoom"),
+      shortcutMenuItem("zoomIn"),
       {
         // Ctrl+= is what Windows users physically press for zoom
         // in. Electron only matches CmdOrCtrl+Plus on macOS, so we need this
@@ -160,13 +71,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         label: "Zoom In",
         visible: false,
       },
-      {
-        accelerator: "CmdOrCtrl+-",
-        click: () => {
-          zoomOut();
-        },
-        label: "Zoom Out",
-      },
+      shortcutMenuItem("zoomOut"),
       {
         // Numpad "-" duplicate of Zoom Out, hidden like the numpad "+" above.
         accelerator: "CmdOrCtrl+numsub",
@@ -177,20 +82,8 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         visible: false,
       },
       { type: "separator" as const },
-      {
-        accelerator: "Ctrl+Tab",
-        click: () => {
-          sendAppCommand({ type: "selectNext" });
-        },
-        label: "Show Next Tab",
-      },
-      {
-        accelerator: "Ctrl+Shift+Tab",
-        click: () => {
-          sendAppCommand({ type: "selectPrevious" });
-        },
-        label: "Show Previous Tab",
-      },
+      shortcutMenuItem("selectNextTab"),
+      shortcutMenuItem("selectPreviousTab"),
       {
         accelerator: "CmdOrCtrl+Shift+]",
         click: () => {
@@ -217,7 +110,8 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             { role: "front" as const },
           ] satisfies MenuItemConstructorOptions[])
         : []),
-      // Cmd/Ctrl+1..8 jump to that tab index; hidden accelerators (no menu row).
+      // Cmd/Ctrl+1..8 jump to that tab index; hidden accelerators (no menu row)
+      // behind the table's `selectTabByIndex` entry.
       ...Array.from(
         { length: 8 },
         (_, i): MenuItemConstructorOptions => ({
@@ -246,7 +140,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
     createEditMenu(),
     viewMenu,
     windowMenu,
-    createHelpMenu(),
+    createHelpMenu({ includeShortcutGuide: true }),
     ...(isDeveloperMode() ? createDevToolsMenu() : []),
   ];
 }

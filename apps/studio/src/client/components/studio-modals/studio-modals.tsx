@@ -2,6 +2,7 @@ import { DeleteTaskModal } from "@/client/components/studio-modals/delete-task-m
 import { LoginModal } from "@/client/components/studio-modals/login-modal";
 import { ProjectModal } from "@/client/components/studio-modals/project-modal";
 import { SettingsModal } from "@/client/components/studio-modals/settings-modal";
+import { ShortcutGuideModal } from "@/client/components/studio-modals/shortcut-guide-modal";
 import { SkillModal } from "@/client/components/studio-modals/skill-modal";
 import { WelcomeModal } from "@/client/components/studio-modals/welcome-modal";
 
@@ -22,6 +23,7 @@ export function StudioModals() {
       <SettingsModal />
       <DeleteTaskModal />
       <SkillModal />
+      <ShortcutGuideModal />
     </>
   );
 }

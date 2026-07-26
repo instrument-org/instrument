@@ -11,6 +11,7 @@ import {
 import { useAppCommands } from "@/client/hooks/use-app-commands";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
+import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import {
@@ -65,6 +66,7 @@ export function MainWindow() {
 
   useMouseBackForward();
   useAppCommands();
+  useShortcutGuideHotkey();
 
   // Keep the macOS traffic-light position in sync with the main-window zoom (the
   // toolbar height scales with it). Only the main window renders MainWindow, so

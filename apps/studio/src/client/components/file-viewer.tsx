@@ -611,14 +611,20 @@ export function FileViewer({
             title={filename}
           />
         ) : fileType === "video" ? (
+          // Muted is what makes autoplay allowed at all: Chrome blocks an
+          // unmuted `autoPlay` outright, so the viewer would open on a frozen
+          // first frame. Controls stay available to unmute and scrub.
           <video
+            autoPlay
             className="size-full object-contain"
             controls
             key={url}
+            muted
             onError={() => {
               setMediaLoadError(true);
               setMediaErrorType("mp4");
             }}
+            playsInline
             src={url}
           />
         ) : fileType === "audio" ? (

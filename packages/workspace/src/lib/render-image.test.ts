@@ -64,7 +64,11 @@ beforeAll(async () => {
 
 describe("measureImage", () => {
   it("reads plain dimensions", () => {
-    expect(measureImage(landscape)).toEqual({ height: 400, width: 800 });
+    expect(measureImage(landscape)).toEqual({
+      height: 400,
+      mediaType: "image/png",
+      width: 800,
+    });
   });
 
   it("returns undefined for bytes that are not an image", () => {
@@ -72,11 +76,11 @@ describe("measureImage", () => {
   });
 
   it.each([
-    { expected: { height: 400, width: 800 }, orientation: 1 },
-    { expected: { height: 400, width: 800 }, orientation: 3 },
+    { expected: { height: 400, mediaType: "image/jpeg", width: 800 }, orientation: 1 },
+    { expected: { height: 400, mediaType: "image/jpeg", width: 800 }, orientation: 3 },
     // 5-8 store the pixels a quarter turn from how they are displayed.
-    { expected: { height: 800, width: 400 }, orientation: 6 },
-    { expected: { height: 800, width: 400 }, orientation: 8 },
+    { expected: { height: 800, mediaType: "image/jpeg", width: 400 }, orientation: 6 },
+    { expected: { height: 800, mediaType: "image/jpeg", width: 400 }, orientation: 8 },
   ])(
     "reports displayed dimensions for EXIF orientation $orientation",
     async ({ expected, orientation }) => {
@@ -123,6 +127,7 @@ describe("renderImage", () => {
     expect(result?.mediaType).toBe("image/png");
     expect(measureImage(result?.bytes ?? Buffer.alloc(0))).toEqual({
       height: 200,
+      mediaType: "image/png",
       width: 400,
     });
   }, 30_000);
@@ -169,6 +174,7 @@ describe("renderImage", () => {
 
     expect(measureImage(result?.bytes ?? Buffer.alloc(0))).toEqual({
       height: 400,
+      mediaType: "image/png",
       width: 800,
     });
   }, 30_000);
@@ -208,6 +214,7 @@ describe("renderImage", () => {
 
     expect(measureImage(result?.bytes ?? Buffer.alloc(0))).toEqual({
       height: 700,
+      mediaType: "image/png",
       width: 300,
     });
   }, 30_000);

@@ -1,4 +1,4 @@
-import { imageSize } from "image-size";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/read.ts
 import { isBinaryFile } from "isbinaryfile";
@@ -15,8 +15,10 @@ import { executeError } from "../lib/execute-error";
 import { redactTaskDir } from "../lib/filter-shell-output";
 import { formatBytes } from "../lib/format-bytes";
 import { getMimeType } from "../lib/get-mime-type";
+import { imageViewLimits, imageViewSize } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
 import { pathExists } from "../lib/path-exists";
+import { measureImage } from "../lib/render-image";
 import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
@@ -48,9 +50,12 @@ const MEDIA_CONFIG: Record<MediaFileState, { label: string; maxSize: number }> =
     },
     image: {
       label: "Image",
-      // Anthropic's limit is 5 MB per image (base64-encoded).
-      // We use 5 MB on the raw file to stay safely under the encoded limit.
-      maxSize: 5 * 1024 * 1024,
+      // Providers cap a single image around 5 MB encoded, but an image over
+      // that no longer has to be refused: outgoing images are resized to the
+      // provider's budget on the way out (`normalize-model-images.ts`), which
+      // brings a large photo or scan under the cap on its own. This is only a
+      // guard against decoding something pathological into memory.
+      maxSize: 50 * 1024 * 1024,
     },
     pdf: {
       label: "PDF",
@@ -62,21 +67,50 @@ const MEDIA_CONFIG: Record<MediaFileState, { label: string; maxSize: number }> =
     },
   };
 
-const IMAGE_MAX_DIMENSION = 8000;
-
 // Some models support more formats, but this should be safe across most.
 const SUPPORTED_IMAGE_FORMATS = ["image/jpeg", "image/png", "image/webp"];
+
+/**
+ * Name the pixel space the model is looking at.
+ *
+ * Without this the model sees a picture and no idea how big it is, so any
+ * position it reasons about is a guess at a scale it was never told. When the
+ * file is larger than the provider renders, both numbers matter: the file's
+ * because that is what still exists on disk, and the view's because that is
+ * what the model's eyes are actually on.
+ */
+function describeImageSize(output: {
+  height?: number;
+  viewHeight?: number;
+  viewWidth?: number;
+  width?: number;
+}) {
+  const { height, viewHeight, viewWidth, width } = output;
+  if (width === undefined || height === undefined) {
+    return "";
+  }
+  const downscaled =
+    viewWidth !== undefined &&
+    viewHeight !== undefined &&
+    (viewWidth !== width || viewHeight !== height);
+
+  return downscaled
+    ? ` (${width}x${height} px, shown to you at ${viewWidth}x${viewHeight})`
+    : ` (${width}x${height} px)`;
+}
 
 async function handleMediaFile({
   absolutePath,
   fixedPath,
   mimeType,
+  model,
   signal,
   state,
 }: {
   absolutePath: string;
   fixedPath: string;
   mimeType: string;
+  model: AIGatewayModel.Type;
   signal: AbortSignal;
   state: MediaFileState;
 }) {
@@ -105,32 +139,38 @@ async function handleMediaFile({
 
   const fileData = await fs.readFile(absolutePath, { signal });
 
-  if (state === "image") {
-    try {
-      const dimensions = imageSize(fileData);
-      const { height, width } = dimensions;
-      if (width > IMAGE_MAX_DIMENSION || height > IMAGE_MAX_DIMENSION) {
-        return executeError(
-          [
-            `Image dimensions too large: ${fixedPath}`,
-            `(${width}x${height} px, max ${IMAGE_MAX_DIMENSION}x${IMAGE_MAX_DIMENSION} px).`,
-            "Please resize the image before reading.",
-          ].join(" "),
-        );
-      }
-    } catch {
-      // If we can't determine dimensions, proceed and let the model API reject it.
-    }
+  if (state !== "image") {
+    return ok({
+      base64Data: fileData.toString("base64"),
+      filePath: fixedPath,
+      mimeType,
+      modifiedAt: stats.mtimeMs,
+      state,
+    });
   }
 
-  const base64Data = fileData.toString("base64");
+  // An unmeasurable image still gets sent; the provider will say whether it can
+  // read it. We just cannot describe its pixel space, so we say nothing about
+  // it rather than guessing.
+  const size = measureImage(fileData);
+  const view =
+    size &&
+    imageViewSize({ ...size, limits: imageViewLimits(model.params.provider) });
 
   return ok({
-    base64Data,
+    base64Data: fileData.toString("base64"),
     filePath: fixedPath,
     mimeType,
     modifiedAt: stats.mtimeMs,
     state,
+    ...(size && view
+      ? {
+          height: size.height,
+          viewHeight: view.height,
+          viewWidth: view.width,
+          width: size.width,
+        }
+      : {}),
   });
 }
 
@@ -167,9 +207,16 @@ export const ReadFile = setupTool({
     z.object({
       base64Data: z.string(),
       filePath: z.string(),
+      // Absent when the image could not be measured.
+      height: z.number().optional(),
       mimeType: z.string(),
       modifiedAt: z.number(),
       state: z.literal("image"),
+      // The size this model renders the image at, which is smaller than the
+      // file whenever the file is over the provider's budget.
+      viewHeight: z.number().optional(),
+      viewWidth: z.number().optional(),
+      width: z.number().optional(),
     }),
     z.object({
       base64Data: z.string(),
@@ -226,7 +273,7 @@ export const ReadFile = setupTool({
     - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
     - You can read images, PDFs, audio files, and video files by using this tool.
   `,
-  execute: async ({ input, signal, taskId, taskState }) => {
+  execute: async ({ input, model, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
       taskHostRoot: taskDir(taskId),
@@ -352,6 +399,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
+        model,
         signal,
         state: "image",
       });
@@ -362,6 +410,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
+        model,
         signal,
         state: "pdf",
       });
@@ -372,6 +421,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
+        model,
         signal,
         state: "audio",
       });
@@ -382,6 +432,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
+        model,
         signal,
         state: "video",
       });
@@ -457,11 +508,13 @@ export const ReadFile = setupTool({
       case "video": {
         const config = MEDIA_CONFIG[output.state];
 
+        const size = output.state === "image" ? describeImageSize(output) : "";
+
         return {
           type: "content",
           value: [
             {
-              text: `${config.label} file: ${output.filePath}.`,
+              text: `${config.label} file: ${output.filePath}${size}.`,
               type: "text",
             },
             {

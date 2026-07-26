@@ -1,9 +1,11 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { execa } from "execa";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FFMPEG_PATH } from "../lib/ffmpeg";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { TaskDirSchema } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
@@ -14,6 +16,22 @@ import { TOOLS } from "./all";
 import { ReadFile } from "./read-file";
 
 const model = createMockAIGatewayModel();
+
+async function drawPngFixture(destination: string, size: string) {
+  await execa(FFMPEG_PATH, [
+    "-y",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    `testsrc=size=${size}:duration=1:rate=1`,
+    "-frames:v",
+    "1",
+    destination,
+  ]);
+}
 
 const fixturesPath = path.join(
   import.meta.dirname,
@@ -106,6 +124,65 @@ describe("ReadFile", () => {
         await fs.rm(probePath, { force: true });
       }
     });
+
+    it.each([
+      {
+        expected: {
+          height: 240,
+          viewHeight: 240,
+          viewWidth: 320,
+          width: 320,
+        },
+        name: "in-budget",
+        size: "320x240",
+      },
+      {
+        // Over the provider floor, so the model is shown a smaller copy and
+        // has to be told which of the two sizes its coordinates live in.
+        expected: {
+          height: 2160,
+          viewHeight: 819,
+          viewWidth: 1456,
+          width: 3840,
+        },
+        name: "oversized",
+        size: "3840x2160",
+      },
+    ])(
+      "reports the file and view dimensions of a $name image",
+      async ({ expected, size }) => {
+        const imagePath = path.join(
+          fixturesPath,
+          `dimension-probe-${size}.png`,
+        );
+        await drawPngFixture(imagePath, size);
+
+        try {
+          const value = (
+            await runTool(TOOLS.ReadFile, {
+              ...baseInput,
+              input: {
+                explanation: "read",
+                filePath: `./dimension-probe-${size}.png`,
+              },
+            })
+          )._unsafeUnwrap();
+
+          expect(value.state).toBe("image");
+          if (value.state === "image") {
+            expect({
+              height: value.height,
+              viewHeight: value.viewHeight,
+              viewWidth: value.viewWidth,
+              width: value.width,
+            }).toEqual(expected);
+          }
+        } finally {
+          await fs.rm(imagePath, { force: true });
+        }
+      },
+      60_000,
+    );
 
     it("reads a file from a read-only attached folder by its mount path", async () => {
       const value = (
@@ -360,6 +437,54 @@ describe("toModelOutput", () => {
       {
         "type": "error-text",
         "value": "Cannot read binary file with unknown MIME type: ./unknown.bin. Consider using command-line tools or scripts to extract or convert the file contents if needed.",
+      }
+    `);
+  });
+
+  it("states both sizes when the model is shown a downscaled copy", () => {
+    const result = ReadFile.toModelOutput({
+      input: { explanation: "read", filePath: "./scan.png" },
+      output: {
+        base64Data: "abc123",
+        filePath: "./scan.png",
+        height: 2160,
+        mimeType: "image/png",
+        modifiedAt: expect.any(Number),
+        state: "image",
+        viewHeight: 819,
+        viewWidth: 1456,
+        width: 3840,
+      },
+      toolCallId: "123",
+    });
+    expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
+      {
+        "text": "Image file: ./scan.png (3840x2160 px, shown to you at 1456x819).",
+        "type": "text",
+      }
+    `);
+  });
+
+  it("states one size when the model sees the image at full resolution", () => {
+    const result = ReadFile.toModelOutput({
+      input: { explanation: "read", filePath: "./photo.png" },
+      output: {
+        base64Data: "abc123",
+        filePath: "./photo.png",
+        height: 240,
+        mimeType: "image/png",
+        modifiedAt: expect.any(Number),
+        state: "image",
+        viewHeight: 240,
+        viewWidth: 320,
+        width: 320,
+      },
+      toolCallId: "123",
+    });
+    expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
+      {
+        "text": "Image file: ./photo.png (320x240 px).",
+        "type": "text",
       }
     `);
   });

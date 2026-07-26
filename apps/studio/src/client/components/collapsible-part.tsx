@@ -20,7 +20,7 @@ export function CollapsiblePartMainContent({
     <div className={cn("mt-2 text-xs", className)}>
       <div
         className={cn(
-          "max-h-64 overflow-y-auto rounded-md border border-l-4 bg-muted/30 p-2",
+          "max-h-64 overflow-y-auto rounded-md border bg-muted/30 p-2",
           contentClassName,
         )}
         ref={contentRef}

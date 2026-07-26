@@ -10,12 +10,12 @@ convenient than the one below it, and answers a question the ones below it
 cannot. **Start at the lowest rung that can actually answer your question, then
 stop.**
 
-| Rung | Runs | Agent | Model calls | Answers |
-| --- | --- | --- | --- | --- |
-| 1. Unit tests | pure functions, machines | no | no | is the logic right |
-| 2. Sandbox shell | `just-bash` + shims | no | no | does the command behave |
-| 3. Real agent | full agent loop | yes | yes | does a model *use* it |
-| 4. Studio | the whole app | yes | yes | does it work for a user |
+| Rung             | Runs                     | Agent | Model calls | Answers                 |
+| ---------------- | ------------------------ | ----- | ----------- | ----------------------- |
+| 1. Unit tests    | pure functions, machines | no    | no          | is the logic right      |
+| 2. Sandbox shell | `just-bash` + shims      | no    | no          | does the command behave |
+| 3. Real agent    | full agent loop          | yes   | yes         | does a model _use_ it   |
+| 4. Studio        | the whole app            | yes   | yes         | does it work for a user |
 
 The trap is stopping one rung too low and reporting the rung above's
 conclusion. Rungs 1 and 2 have no model in them: you pick the inputs, so they can tell you a

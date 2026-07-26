@@ -62,7 +62,13 @@ describe("ReadFile", () => {
     const baseInput = {
       agentName: "main" as const,
       model,
-      signal: AbortSignal.timeout(10_000),
+      // A getter, so spreading this gives each call its own deadline. Built once
+      // it would be a budget for the whole file rather than for one tool call,
+      // and every test past the deadline would fail on an aborted signal for
+      // reasons that have nothing to do with what it asserts.
+      get signal() {
+        return AbortSignal.timeout(30_000);
+      },
       spawnAgent: vi.fn(),
       taskId,
       taskState: {},
@@ -195,7 +201,10 @@ describe("ReadFile", () => {
       // to disagree -- a render shrinking below its own target to fit the byte
       // cap -- is covered where it happens, in `renderImage`.
       { name: "in-budget", size: "320x240" },
-      { name: "oversized", size: "3840x2160" },
+      // Over the preview budget, so it renders, but far cheaper to render than a
+      // 4K frame. These tests pay that cost now that read_file previews its own
+      // bytes rather than leaving the resize to send time.
+      { name: "oversized", size: "2000x1200" },
     ])(
       "sends bytes measuring exactly the view it announces for a $name image",
       async ({ size }) => {
@@ -239,7 +248,7 @@ describe("ReadFile", () => {
       // model switch, silently invalidating every earlier message that referred
       // to it. Nothing here may vary with the model.
       const imagePath = path.join(fixturesPath, "model-switch-probe.png");
-      await drawPngFixture(imagePath, "3840x2160");
+      await drawPngFixture(imagePath, "2000x1200");
 
       try {
         const read = async (provider: AIProviderType) =>

@@ -342,6 +342,37 @@ describe("skill discovery", () => {
     `);
   });
 
+  it("treats names that differ only in case as the same name", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-case-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+
+    await writeSkill(path.join(root, "registry", "skills", "pdf"), "Ours");
+    await writeSkill(path.join(home, ".claude", "skills", "PDF"), "Theirs");
+
+    const skills = await findSkills(
+      getSkillSources(
+        {
+          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
+          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
+        },
+        AbsolutePathSchema.parse(home),
+      ),
+    );
+
+    // macOS and Windows would give both of these the same folder inside a task,
+    // so the lower-ranked one has to be qualified even though the names differ.
+    expect(
+      skills.map(({ qualifiedName }) => qualifiedName),
+    ).toMatchInlineSnapshot(`
+      [
+        "pdf",
+        "claude:PDF",
+      ]
+    `);
+  });
+
   it("qualifies every claimant when the top-ranked source is a tie", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-tie-"));
     temporaryDirs.push(root);

@@ -369,11 +369,12 @@ export function parseQualifiedSkillName(qualifiedName: string): {
 export function qualifySkillNames(skills: DiscoveredSkill[]): SkillInfo[] {
   const byName = new Map<string, DiscoveredSkill[]>();
   for (const skill of skills) {
-    byName.set(skill.name, [...(byName.get(skill.name) ?? []), skill]);
+    const key = nameKey(skill.name);
+    byName.set(key, [...(byName.get(key) ?? []), skill]);
   }
 
   return skills.map((skill) => {
-    const sharing = byName.get(skill.name) ?? [skill];
+    const sharing = byName.get(nameKey(skill.name)) ?? [skill];
     if (sharing.length === 1) {
       return { ...skill, qualifiedName: skill.name };
     }
@@ -535,7 +536,9 @@ function dedupeIdenticalCopies(skills: DiscoveredSkill[]): DiscoveredSkill[] {
   const byContent = new Map<string, DiscoveredSkill>();
 
   for (const skill of skills) {
-    const key = [skill.name, skill.description, skill.content].join("\0");
+    const key = [nameKey(skill.name), skill.description, skill.content].join(
+      "\u0000",
+    );
     const existing = byContent.get(key);
     // Keeping the highest-ranked copy decides which source the UI attributes it
     // to and whether it is editable in place. A `Map` keeps the entry where the
@@ -617,6 +620,16 @@ async function isDirectorySymlink(candidate: AbsolutePath) {
   } catch {
     return false;
   }
+}
+
+/**
+ * How two skill names are compared for sameness. Case-folded, because macOS and
+ * Windows are: `pdf` and `PDF` from different sources are one name as far as
+ * the folder a task copies them into is concerned, so they have to be one name
+ * here too or the second load would land on top of the first.
+ */
+function nameKey(name: string): string {
+  return name.toLowerCase();
 }
 
 // Adapted from https://github.com/sst/opencode/blob/main/packages/opencode/src/config/markdown.ts

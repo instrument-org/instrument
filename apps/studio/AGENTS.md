@@ -67,6 +67,10 @@ Three Vitest projects, chosen by extension so a file declares which it wants by 
 
 Render jsdom tests through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. It does not supply a router: anything with an `InternalLink` needs one per test.
 
+The app itself mounts no Jotai `Provider`, so anything calling `getDefaultStore()` directly (the `openX()` modal setters) writes past a per-test store. Testing one of those means rendering without `renderWithProviders` and asserting on the default store, the way the app is actually wired.
+
+`setup-dom.ts` pins `window.electron.process.platform` to `darwin`, so `isMacOS()`-style checks read the same on every machine. A test asserting the other platform's copy has to stub it per-test.
+
 jsdom has no layout engine and never delivers `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is invisible to it — a test written that way passes whether the code works or not. That is what the browser project is for. It is slower and needs `pnpm exec playwright install chromium`, so send a test there only when jsdom genuinely cannot see the behavior.
 
 Whatever you assert, confirm it fails against the unfixed code before keeping it. This matters more here than in node tests: a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.

@@ -125,7 +125,10 @@ function ShortcutGuideContent({
 
 function ShortcutRow({ match }: { match: ShortcutMatch }) {
   return (
-    <div className="flex items-center justify-between gap-6 rounded-lg px-3 py-1.5">
+    <div
+      className="flex items-center justify-between gap-6 rounded-lg px-3 py-1.5"
+      data-testid="shortcut-row"
+    >
       <span className="min-w-0 truncate text-sm">
         <FuzzyHighlight
           ranges={match.labelRanges}

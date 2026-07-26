@@ -65,11 +65,7 @@ Three Vitest projects, chosen by extension so a file declares which it wants by 
 - `*.test.tsx` → **dom** (jsdom). Rendering, props, refs, what ends up in the DOM. Adds `@testing-library/react` and `afterEach(cleanup)`.
 - `*.browser.test.tsx` → **browser** (real Chromium via Playwright). Typing, selection, caret, measured layout. Uses `vitest-browser-react`'s `render` and `page` locators, not Testing Library.
 
-Render jsdom tests through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. It does not supply a router: anything with an `InternalLink` needs one per test.
-
-The app itself mounts no Jotai `Provider`, so anything calling `getDefaultStore()` directly (the `openX()` modal setters) writes past a per-test store. Testing one of those means rendering without `renderWithProviders` and asserting on the default store, the way the app is actually wired.
-
-`setup-dom.ts` pins `window.electron.process.platform` to `darwin`, so `isMacOS()`-style checks read the same on every machine. A test asserting the other platform's copy has to stub it per-test.
+Render jsdom tests through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. Its sibling `renderWithDefaultStore` mounts no Jotai `Provider`, the way the app itself runs — read the docblock before testing anything that writes through `getDefaultStore()`. Neither supplies a router: anything with an `InternalLink` needs one per test.
 
 jsdom has no layout engine and never delivers `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is invisible to it — a test written that way passes whether the code works or not. That is what the browser project is for. It is slower and needs `pnpm exec playwright install chromium`, so send a test there only when jsdom genuinely cannot see the behavior.
 

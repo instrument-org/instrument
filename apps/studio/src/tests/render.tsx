@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, type RenderOptions } from "@testing-library/react";
-import { createStore, Provider as JotaiProvider } from "jotai";
+import { createStore, getDefaultStore, Provider as JotaiProvider } from "jotai";
 import { type ReactElement, type ReactNode } from "react";
 
 /**
@@ -16,6 +16,28 @@ interface RenderWithProvidersResult {
   rerender: (ui: ReactElement) => void;
   store: ReturnType<typeof createStore>;
   unmount: () => void;
+}
+
+/**
+ * Render the way the app itself runs: with no Jotai `Provider` at all, so
+ * `useStore()` resolves to the default store.
+ *
+ * Use this whenever the code under test writes through `getDefaultStore()`
+ * rather than through a hook -- every `openX()` modal setter does. Under
+ * {@link renderWithProviders} those writes land in a store the returned one
+ * knows nothing about, so an assertion that the modal opened fails for a reason
+ * that has nothing to do with the code, and an assertion that it *didn't* open
+ * passes no matter what.
+ *
+ * The default store is global, so it carries values between tests. The dom
+ * setup clears the app-wide modal slot after each one; anything else this test
+ * writes there, it resets itself.
+ */
+export function renderWithDefaultStore(
+  ui: ReactElement,
+  options?: Omit<RenderOptions, "wrapper">,
+): RenderWithProvidersResult {
+  return renderWith({ options, store: null, ui });
 }
 
 /**
@@ -35,13 +57,29 @@ export function renderWithProviders(
   options?: Omit<RenderOptions, "wrapper">,
 ): RenderWithProvidersResult {
   const store = createStore();
+  return renderWith({ options, store, ui });
+}
+
+function renderWith({
+  options,
+  store,
+  ui,
+}: {
+  options?: Omit<RenderOptions, "wrapper">;
+  store: null | ReturnType<typeof createStore>;
+  ui: ReactElement;
+}): RenderWithProvidersResult {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <JotaiProvider store={store}>{children}</JotaiProvider>
+      {store ? (
+        <JotaiProvider store={store}>{children}</JotaiProvider>
+      ) : (
+        children
+      )}
     </QueryClientProvider>
   );
 
@@ -50,5 +88,11 @@ export function renderWithProviders(
     wrapper,
   });
 
-  return { container, queryClient, rerender, store, unmount };
+  return {
+    container,
+    queryClient,
+    rerender,
+    store: store ?? getDefaultStore(),
+    unmount,
+  };
 }

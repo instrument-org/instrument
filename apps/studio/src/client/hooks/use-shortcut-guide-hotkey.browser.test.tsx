@@ -1,4 +1,5 @@
 import { shortcutGuideModalAtom } from "@/client/atoms/shortcut-guide-modal";
+import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { PromptEditor } from "@/client/components/prompt-editor";
 import { getDefaultStore } from "jotai";
@@ -46,8 +47,10 @@ const editor = () => page.getByLabelText("Prompt");
 const isGuideOpen = () => store.get(shortcutGuideModalAtom) !== null;
 
 describe("useShortcutGuideHotkey in a browser", () => {
+  // The browser project loads no shared setup, so this resets what the dom
+  // project's `setup-dom` would have.
   beforeEach(() => {
-    store.set(shortcutGuideModalAtom, null);
+    resetStudioModals();
     store.set(blockingModalCountAtom, 0);
   });
 

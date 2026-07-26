@@ -1,4 +1,4 @@
-import { atom, type WritableAtom } from "jotai";
+import { atom, getDefaultStore, type WritableAtom } from "jotai";
 
 // The single app-wide modal slot: which studio modal is open (identified by
 // the symbol its atom closed over), that modal's state, and whether another
@@ -10,6 +10,16 @@ const openModalAtom = atom<null | {
 }>(null);
 
 type StudioModalAtom<T> = WritableAtom<null | T, [null | T], void>;
+
+/**
+ * Closes whichever studio modal holds the slot, on the default store the app
+ * (and every `openX()` setter) actually uses. For tests: the slot itself is
+ * private, so a test that opened a modal has no other way to put it back, and
+ * the default store outlives any one of them.
+ */
+export function resetStudioModals() {
+  getDefaultStore().set(openModalAtom, null);
+}
 
 /**
  * Creates the atom behind one app-wide studio modal. Every atom made here is

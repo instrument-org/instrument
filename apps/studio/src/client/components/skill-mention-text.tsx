@@ -5,14 +5,11 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
+import { splitSkillText } from "@/client/lib/skill-text";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import {
-  extractSkillMentions,
-  skillMentionLabel,
-  splitSkillMention,
-} from "@instrument-org/shared/skill-mention";
+import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 
@@ -26,34 +23,53 @@ type SkillSummary = RPCOutput["workspace"]["skill"]["list"][number];
  * parse instead. Here the token also links to its skill page, so a mention the
  * user reached for stays a way back to it. Newlines are emitted as text, so the
  * caller's `whitespace-pre-wrap` still governs wrapping.
+ *
+ * A `/name` the user typed or pasted past the menu ("use /release to ship")
+ * reads as the same reference, so it becomes the same token once the skill list
+ * confirms a skill by that name -- unlike the composer's own token, a bare word
+ * is only a guess until then.
  */
 export function SkillMentionText({ text }: { text: string }) {
-  // The list is only wanted to name and describe the tokens on hover, so leave
-  // it unfetched for the many messages that mention no skill.
-  const hasMentions = extractSkillMentions(text).length > 0;
+  const lines = text.split("\n").map((line) => splitSkillText(line));
+  // The list is only wanted to resolve and describe the tokens, so leave it
+  // unfetched for the many messages that reference no skill at all.
+  const hasReferences = lines.flat().some((segment) => segment.type !== "text");
   const { data: skills = [], isSuccess } = useQuery(
     rpcClient.workspace.skill.list.queryOptions({
-      enabled: hasMentions,
+      enabled: hasReferences,
       staleTime: SKILL_LIST_STALE_TIME_MS,
     }),
   );
   const byName = new Map(skills.map((skill) => [skill.name, skill]));
 
-  return text.split("\n").map((line, lineIndex) => (
+  return lines.map((segments, lineIndex) => (
     <Fragment key={lineIndex}>
       {lineIndex > 0 ? "\n" : null}
-      {splitSkillMention(line).map((segment, segmentIndex) =>
-        segment.type === "skill" ? (
+      {segments.map((segment, segmentIndex) => {
+        if (segment.type === "text") {
+          return <Fragment key={segmentIndex}>{segment.text}</Fragment>;
+        }
+        const summary = byName.get(segment.name);
+        // A bare word is only a skill reference if a skill answers to it as a
+        // slash command. Anything else -- a nonexistent name, a skill the agent
+        // loads on its own, or a name from another tool entirely -- is just text
+        // the user wrote, and linking it would invent a claim they never made.
+        if (segment.type === "slash" && !summary?.userInvocable) {
+          return (
+            <Fragment key={segmentIndex}>
+              {skillMentionLabel(segment.name)}
+            </Fragment>
+          );
+        }
+        return (
           <SkillMention
             key={segmentIndex}
             name={segment.name}
             resolved={isSuccess}
-            summary={byName.get(segment.name)}
+            summary={summary}
           />
-        ) : (
-          <Fragment key={segmentIndex}>{segment.text}</Fragment>
-        ),
-      )}
+        );
+      })}
     </Fragment>
   ));
 }

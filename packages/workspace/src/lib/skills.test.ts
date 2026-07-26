@@ -312,11 +312,11 @@ describe("skill discovery", () => {
         },
         {
           "aliases": [
-            "registry:bundled",
+            "instrument:bundled",
           ],
           "description": "Bundled",
           "qualifiedName": "bundled",
-          "source": "registry",
+          "source": "instrument",
         },
         {
           "aliases": [

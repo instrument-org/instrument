@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
 import { REGISTRY_FOLDER_NAMES } from "../constants";
@@ -9,8 +10,8 @@ import { type SkillInfo } from "./skills";
 export const SKILL_ORIGINS = [
   "external",
   "in-repo",
-  "instrument",
   "workspace",
+  APP_NAME_SLUG,
 ] as const;
 
 export interface SkillProvenance {
@@ -32,8 +33,8 @@ export function getSkillProvenance(
     ? "workspace"
     : skill.source === "workspace"
       ? "in-repo"
-      : skill.source === "registry" || skill.source === "system"
-        ? "instrument"
+      : skill.source === APP_NAME_SLUG || skill.source === "system"
+        ? APP_NAME_SLUG
         : "external";
   return {
     editable,

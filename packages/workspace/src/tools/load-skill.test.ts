@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -52,7 +53,7 @@ function baseExecuteArgs() {
   };
 }
 
-function copiedSkillDir(name: string, source = "registry") {
+function copiedSkillDir(name: string, source = APP_NAME_SLUG) {
   return path.join(
     dir,
     TASK_FOLDER_NAMES.work,
@@ -113,7 +114,7 @@ describe("LoadSkill", () => {
         "available": [
           {
             "description": "A test skill",
-            "name": "registry:existing-skill",
+            "name": "instrument:existing-skill",
           },
         ],
         "name": "nonexistent",
@@ -231,9 +232,9 @@ describe("LoadSkill", () => {
     }
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "work/skills/registry/my-skill/references/notes.md",
-        "work/skills/registry/my-skill/scripts/lib/helper.ts",
-        "work/skills/registry/my-skill/scripts/run.ts",
+        "work/skills/instrument/my-skill/references/notes.md",
+        "work/skills/instrument/my-skill/scripts/lib/helper.ts",
+        "work/skills/instrument/my-skill/scripts/run.ts",
       ]
     `);
   });
@@ -256,7 +257,7 @@ describe("LoadSkill", () => {
       expect([name, result.state, result.name]).toEqual([
         name,
         "success",
-        "registry:docx",
+        "instrument:docx",
       ]);
     }
   });
@@ -357,7 +358,7 @@ describe("LoadSkill", () => {
       `---\nname: review\ndescription: "Qualified"\n---\n\nQualified instructions.`,
     );
 
-    for (const name of ["claude:review", "registry:claude-review"]) {
+    for (const name of ["claude:review", "instrument:claude-review"]) {
       await runTool(LoadSkill, {
         ...baseExecuteArgs(),
         input: { explanation: "loading", name },
@@ -457,7 +458,7 @@ describe("LoadSkill", () => {
     ).resolves.toBe("original");
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "work/skills/registry/my-skill/scripts/run.ts",
+        "work/skills/instrument/my-skill/scripts/run.ts",
       ]
     `);
   });
@@ -526,7 +527,7 @@ describe("LoadSkill", () => {
     ).toMatchInlineSnapshot(`
       "
 
-      This skill's SKILL.md is longer than 40000 characters, so only its beginning is above. Read \`work/skills/registry/my-skill/SKILL.md\` for the rest before following it.
+      This skill's SKILL.md is longer than 40000 characters, so only its beginning is above. Read \`work/skills/instrument/my-skill/SKILL.md\` for the rest before following it.
 
       This skill is provided by Instrument and is read-only. Copy it into \`/skills/\` to change it.
       </skill_content>"
@@ -612,7 +613,7 @@ describe("LoadSkill", () => {
           alreadyLoaded: false,
           content: "# Body",
           contentTruncated: false,
-          directory: "registry/docx",
+          directory: "instrument/docx",
           files: [],
           name: "docx",
           origin,

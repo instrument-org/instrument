@@ -4,7 +4,7 @@ import { matchSkills } from "./skill-search";
 
 const skills = [
   { description: "Ship a release", id: "workspace:release", name: "release" },
-  { description: "Write a Word document", id: "registry:docx", name: "docx" },
+  { description: "Write a Word document", id: "instrument:docx", name: "docx" },
   {
     description: "Run the test suite",
     id: "claude:test",
@@ -37,7 +37,7 @@ describe("matchSkills", () => {
 
   it("matches against the description, not only the name", () => {
     const matches = matchSkills(skills, "document");
-    expect(matches.map((match) => match.skill.id)).toContain("registry:docx");
+    expect(matches.map((match) => match.skill.id)).toContain("instrument:docx");
   });
 
   it("matches a name typed with its source prefix", () => {

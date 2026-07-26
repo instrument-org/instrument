@@ -10,7 +10,7 @@ import { matchSkills } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 import {
   FilesIcon,
   MagnifyingGlassIcon,
@@ -41,6 +41,7 @@ type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 const SOURCE_RANK: Record<Skill["source"], number> = {
   agents: 3,
   antigravity: 3,
+  [APP_NAME_SLUG]: 1,
   claude: 3,
   codex: 3,
   copilot: 3,
@@ -49,7 +50,6 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
   goose: 3,
   kiro: 3,
   opencode: 3,
-  registry: 1,
   system: 1,
   windsurf: 3,
   workspace: 0,

@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -101,10 +102,10 @@ export type SkillSourceId =
   | "kiro"
   | "opencode"
   | "project"
-  | "registry"
   | "system"
   | "windsurf"
-  | "workspace";
+  | "workspace"
+  | typeof APP_NAME_SLUG;
 
 // The single source of truth for the source kinds. The RPC schema's Zod enum
 // and every exhaustive `Record<SkillSourceKind>` derive from this, so adding a
@@ -120,10 +121,10 @@ export const SKILL_SOURCE_KINDS = [
   "goose",
   "kiro",
   "opencode",
-  "registry",
   "system",
   "windsurf",
   "workspace",
+  APP_NAME_SLUG,
 ] as const;
 
 export type SkillSourceKind = (typeof SKILL_SOURCE_KINDS)[number];
@@ -146,6 +147,7 @@ export type SkillSourceKind = (typeof SKILL_SOURCE_KINDS)[number];
 const SOURCE_RANK: Record<SkillSourceKind, number> = {
   agents: 3,
   antigravity: 3,
+  [APP_NAME_SLUG]: 1,
   claude: 3,
   codex: 3,
   copilot: 3,
@@ -154,7 +156,6 @@ const SOURCE_RANK: Record<SkillSourceKind, number> = {
   goose: 3,
   kiro: 3,
   opencode: 3,
-  registry: 1,
   system: 2,
   windsurf: 3,
   workspace: 0,
@@ -254,8 +255,8 @@ export function getSkillSources(
     },
     {
       dir: absolutePathJoin(registryDir, REGISTRY_FOLDER_NAMES.skills),
-      id: "registry",
-      source: "registry",
+      id: APP_NAME_SLUG,
+      source: APP_NAME_SLUG,
     },
     fromHome("agents", "agents", ".agents", "skills"),
     fromHome("agents-config", "agents", ".config", "agents", "skills"),

@@ -74,14 +74,14 @@ describe("renderSkillCatalog", () => {
   it("orders bundled and workspace skills ahead of another agent's home directory", () => {
     const catalog = renderSkillCatalog([
       skill("from-cursor", "d", "cursor"),
-      skill("from-registry", "d", "registry"),
+      skill("from-instrument", "d", "instrument"),
       skill("from-workspace", "d", "workspace"),
       skill("from-system", "d", "system"),
     ]);
     expect(catalog.entries.map((entry) => entry.name)).toEqual([
       "system:from-system",
       "workspace:from-workspace",
-      "registry:from-registry",
+      "instrument:from-instrument",
       "cursor:from-cursor",
     ]);
   });

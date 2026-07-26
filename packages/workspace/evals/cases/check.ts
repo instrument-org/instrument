@@ -1,10 +1,12 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
+
 import { TASK_FOLDER_NAMES } from "../../src/constants";
 import { TSC_COMMAND } from "../../src/lib/shell-commands/tsc";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, defineEval } from "../harness";
 
 const PDF_SKILL_NAME = "pdf";
-const PDF_SKILL_TSC_PROJECT = `${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}/registry/${PDF_SKILL_NAME}/tsconfig.json`;
+const PDF_SKILL_TSC_PROJECT = `${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}/${APP_NAME_SLUG}/${PDF_SKILL_NAME}/tsconfig.json`;
 const PDF_SKILL_TSC_COMMAND = `${TSC_COMMAND.name} --noEmit --project ${PDF_SKILL_TSC_PROJECT}`;
 const ROOT_TSC_COMMAND = `${TSC_COMMAND.name} --noEmit`;
 const ROOT_TSC_COMMAND_EQUIVALENTS = new Set([

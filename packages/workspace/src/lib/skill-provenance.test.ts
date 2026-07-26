@@ -36,7 +36,7 @@ describe("getSkillProvenance", () => {
       },
       name: "provided skill",
       skillDir: "/app/skills/review",
-      source: "registry",
+      source: "instrument",
     },
     {
       expected: {

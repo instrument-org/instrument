@@ -1,5 +1,5 @@
 import { type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 
 export type SkillSource =
   RPCOutput["workspace"]["skill"]["list"][number]["source"];
@@ -13,6 +13,7 @@ const PROVIDED_LABEL = APP_NAME;
 const SOURCE_LABELS: Record<SkillSource, string> = {
   agents: "Agent skills",
   antigravity: "Antigravity",
+  [APP_NAME_SLUG]: PROVIDED_LABEL,
   claude: "Claude Code",
   codex: "Codex",
   copilot: "GitHub Copilot",
@@ -21,7 +22,6 @@ const SOURCE_LABELS: Record<SkillSource, string> = {
   goose: "Goose",
   kiro: "Kiro",
   opencode: "OpenCode",
-  registry: PROVIDED_LABEL,
   system: PROVIDED_LABEL,
   windsurf: "Windsurf",
   workspace: "Your workspace",
@@ -29,7 +29,7 @@ const SOURCE_LABELS: Record<SkillSource, string> = {
 
 // Skills Instrument itself ships; where they sit on disk is an internal detail.
 export function isProvidedSource(source: SkillSource) {
-  return source === "registry" || source === "system";
+  return source === APP_NAME_SLUG || source === "system";
 }
 
 /**

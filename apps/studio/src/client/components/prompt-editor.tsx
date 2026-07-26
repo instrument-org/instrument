@@ -1,5 +1,10 @@
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
-import { matchSkills } from "@/client/lib/skill-search";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/client/components/ui/popover";
+import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { skillSourceLabel } from "@/client/lib/skill-source";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
@@ -67,6 +72,10 @@ type Skill = Pick<
 // off the one they wanted.
 const SKILL_MENU_LIMIT = 50;
 
+const preventDefault = (event: Event) => {
+  event.preventDefault();
+};
+
 export function PromptEditor({
   autoFocus,
   className,
@@ -108,6 +117,10 @@ export function PromptEditor({
   }>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedIndexRef = useRef(0);
+  // Only the keyboard drags the list to its selection. Doing it on hover too
+  // would scroll a partly visible row under a stationary cursor, which lands the
+  // cursor on the next row and scrolls again.
+  const scrollToSelectionRef = useRef(false);
   const initialPropsRef = useRef({ autoFocus, placeholder, value });
 
   useEffect(() => {
@@ -138,6 +151,7 @@ export function PromptEditor({
     menuRef.current = next;
     setMenu(next);
     setSelectedIndex(0);
+    scrollToSelectionRef.current = true;
   };
 
   const insertSkill = (skill: Skill) => {
@@ -197,6 +211,7 @@ export function PromptEditor({
             (event.key === "ArrowDown" || event.key === "ArrowUp")
           ) {
             event.preventDefault();
+            scrollToSelectionRef.current = true;
             setSelectedIndex((current) => {
               const direction = event.key === "ArrowDown" ? 1 : -1;
               return (
@@ -306,52 +321,114 @@ export function PromptEditor({
   }));
 
   return (
-    <div className={cn("relative", className)}>
-      <div className="overflow-y-auto" ref={mountRef} style={{ maxHeight }} />
-      {menu && matches.length > 0 ? (
-        <div className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-72 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
-          {matches.map((match, index) => (
-            <button
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left",
-                index === selectedIndex && "bg-accent",
-              )}
-              key={match.skill.name}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                insertSkill(match.skill);
-              }}
-              // Keyboard nav has to bring its selection with it now the list
-              // scrolls past what is visible.
-              ref={(element) => {
-                if (index === selectedIndex) {
-                  element?.scrollIntoView({ block: "nearest" });
-                }
-              }}
-              type="button"
-            >
-              {/* Left at the default weight so the matched characters, which
-                  render semibold, are actually distinguishable. */}
-              <span className="shrink-0 font-mono text-sm">
-                /
-                <FuzzyHighlight
-                  ranges={match.nameRanges}
-                  text={match.skill.name}
-                />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                <FuzzyHighlight
-                  ranges={match.descriptionRanges}
-                  text={match.skill.description}
-                />
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground/70">
-                {skillSourceLabel(match.skill.source)}
-              </span>
-            </button>
-          ))}
+    <Popover open={menu !== null && matches.length > 0}>
+      <PopoverAnchor asChild>
+        <div className={className}>
+          <div
+            className="overflow-y-auto"
+            ref={mountRef}
+            style={{ maxHeight }}
+          />
         </div>
-      ) : null}
-    </div>
+      </PopoverAnchor>
+      {/*
+        The caret owns this menu, so the content must never take focus or claim
+        the pointer: the editor keeps both, and closing is driven by where the
+        caret ends up (`updateMenu`) or by the editor losing focus. Radix is here
+        for the portal, the collision-aware placement and the zoom correction,
+        not for its dismissal behavior.
+
+        `--radix-popover-trigger-width` and `--radix-popover-content-available-
+        height` are measured on screen, while the content re-applies zoom to its
+        own layout units, so both are divided by `--content-zoom` to land back at
+        the composer's width and inside the window.
+      */}
+      <PopoverContent
+        align="start"
+        className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-[calc(var(--radix-popover-trigger-width)/var(--content-zoom))] overflow-y-auto p-1 shadow-lg"
+        onCloseAutoFocus={preventDefault}
+        onFocusOutside={preventDefault}
+        onInteractOutside={preventDefault}
+        onOpenAutoFocus={preventDefault}
+        side="top"
+        sideOffset={8}
+      >
+        {matches.map((match, index) => (
+          <SkillMenuItem
+            key={match.skill.name}
+            match={match}
+            onHover={() => {
+              scrollToSelectionRef.current = false;
+              setSelectedIndex(index);
+            }}
+            onSelect={() => {
+              insertSkill(match.skill);
+            }}
+            ref={(element) => {
+              if (index === selectedIndex && scrollToSelectionRef.current) {
+                element?.scrollIntoView({ block: "nearest" });
+              }
+            }}
+            selected={index === selectedIndex}
+          />
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function SkillMenuItem({
+  match,
+  onHover,
+  onSelect,
+  ref,
+  selected,
+}: {
+  match: SkillMatch<Skill>;
+  onHover: () => void;
+  onSelect: () => void;
+  ref: React.Ref<HTMLButtonElement>;
+  selected: boolean;
+}) {
+  return (
+    <button
+      className={cn(
+        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left",
+        selected && "bg-accent text-accent-foreground",
+      )}
+      data-highlighted={selected ? "" : undefined}
+      key={match.skill.name}
+      // Mousedown rather than click, and defaulted out, so choosing a skill
+      // never blurs the editor the insertion is about to run against.
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onSelect();
+      }}
+      // Move rather than enter: the list can scroll out from under a cursor
+      // that never moved, and that should not count as pointing at a row.
+      onMouseMove={() => {
+        if (!selected) {
+          onHover();
+        }
+      }}
+      ref={ref}
+      type="button"
+    >
+      {/* Left at the default weight so the matched characters, which
+          render semibold, are actually distinguishable. */}
+      <span className="shrink-0 font-mono text-sm">
+        /
+        <FuzzyHighlight ranges={match.nameRanges} text={match.skill.name} />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+        <FuzzyHighlight
+          ranges={match.descriptionRanges}
+          text={match.skill.description}
+        />
+      </span>
+      <span className="shrink-0 text-xs text-muted-foreground/70">
+        {skillSourceLabel(match.skill.source)}
+      </span>
+    </button>
   );
 }

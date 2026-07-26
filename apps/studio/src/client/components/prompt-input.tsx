@@ -51,6 +51,7 @@ import { ulid } from "ulid";
 
 import { featuresAtom } from "../atoms/features";
 import {
+  draftKeyString,
   promptDraftAtom,
   type PromptDraftKey,
   promptDraftRefAtom,
@@ -195,7 +196,7 @@ export const PromptInput = ({
 
   useImperativeHandle(ref, () => ({
     clear: () => {
-      setValue("");
+      promptEditorRef.current?.clear();
       setAttachedItems([]);
       setSelectedProjectId(null);
     },
@@ -205,7 +206,7 @@ export const PromptInput = ({
   }));
 
   useEffect(() => {
-    setInputRef(promptEditorRef.current?.element ?? null);
+    setInputRef(promptEditorRef.current);
     return () => {
       setInputRef(null);
     };
@@ -580,10 +581,15 @@ export const PromptInput = ({
           </div>
         )}
 
+        {/* Keyed by draft: the editor reads its text once, at mount, so a
+            surface that swaps which draft it is composing (one skill page to
+            the next) needs a new editor rather than a new prop. */}
         <PromptEditor
           autoFocus={autoFocus}
           className="min-h-12"
+          defaultValue={value}
           disabled={disabled || isLoading}
+          key={draftKeyString(draftKey)}
           maxHeight={Math.max(autoResizeMaxHeight - 72, 48)}
           onChange={setValue}
           onPaste={handlePaste}
@@ -593,7 +599,6 @@ export const PromptInput = ({
           placeholder={placeholder}
           ref={promptEditorRef}
           skills={userInvocableSkills}
-          value={value}
         />
 
         <input

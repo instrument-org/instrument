@@ -1,3 +1,4 @@
+import { type PromptEditorRef } from "@/client/components/prompt-editor";
 import { type TabId } from "@/shared/tabs";
 import {
   MAX_PROMPT_STORAGE_LENGTH,
@@ -25,7 +26,8 @@ export type PromptDraftKey =
   | { scope: "compose"; tabId: TabId }
   | { scope: "task"; taskId: TaskId };
 
-function draftKeyString(key: PromptDraftKey): string {
+/** One string per draft, for keying anything that has to re-key with the scope. */
+export function draftKeyString(key: PromptDraftKey): string {
   switch (key.scope) {
     case "compose": {
       return `compose:${key.tabId}`;
@@ -167,30 +169,11 @@ export function useHydrateTaskDraft(taskId: TaskId, promptDraft: string) {
   useHydrateAtoms([[taskDraftValueFamily(taskId), promptDraft]]);
 }
 
-// The live textarea for a draft, so imperative focus targets the right input
-// even with several prompt surfaces mounted across tabs.
+// The live composer for a draft, so an imperative write targets the right
+// editor even with several prompt surfaces mounted across tabs.
 const promptDraftRefFamily = atomFamily((_key: string) =>
-  atom<HTMLElement | null>(null),
+  atom<null | PromptEditorRef>(null),
 );
-
-/** Focus a prompt textarea and drop the caret at the end of its text. */
-export function focusPromptDraft(el: HTMLElement | null) {
-  if (!el) {
-    return;
-  }
-  el.focus();
-  if (el instanceof HTMLTextAreaElement) {
-    const end = el.value.length;
-    el.setSelectionRange(end, end);
-    return;
-  }
-  const selection = window.getSelection();
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  range.collapse(false);
-  selection?.removeAllRanges();
-  selection?.addRange(range);
-}
 
 export function promptDraftRefAtom(key: PromptDraftKey) {
   return promptDraftRefFamily(draftKeyString(key));
@@ -217,25 +200,53 @@ export const bumpPromptFocusAtom = atom(null, (get, set, tabId: TabId) => {
   set(signal, get(signal) + 1);
 });
 
+/**
+ * Add something to a draft from outside the composer: a file path, a folder.
+ *
+ * It lands at the caret, so clicking "add to chat" mid-sentence puts the path
+ * where the user is looking instead of at the end. The editor owns the document
+ * and reports the result back through `onChange`, so there is nothing to write
+ * here and nothing to wait a frame for.
+ */
 export const appendToPromptAtom = atom(
+  null,
+  (get, set, { key, update }: { key: PromptDraftKey; update: string }) => {
+    const editor = get(promptDraftRefAtom(key));
+    const text = update.trim();
+    if (!editor) {
+      // No composer on screen: the task's file list is showing in its place,
+      // and that list is one of the places "add to chat" is offered from. There
+      // is no caret to aim at, so it goes on the end of the mirror, which is
+      // what the composer is built from when it comes back.
+      const valueAtom = promptDraftAtom(key);
+      const previous = get(valueAtom).trimEnd();
+      set(valueAtom, (previous ? previous + " " : "") + text + " ");
+      return;
+    }
+    editor.focus();
+    editor.insertText(text);
+  },
+);
+
+/**
+ * Replace a draft's whole text from outside the composer: a prefill, a reset.
+ *
+ * The value atom is written too, not only the editor: it is what a composer
+ * mounting later reads as its starting text, so a prefill that arrives before
+ * anything is on screen still lands.
+ */
+export const setPromptDraftAtom = atom(
   null,
   (
     get,
     set,
     { key, update }: { key: PromptDraftKey; update: SetStateAction<string> },
   ) => {
+    const editor = get(promptDraftRefAtom(key));
     const valueAtom = promptDraftAtom(key);
-    const prev = get(valueAtom);
-    const next =
-      typeof update === "function"
-        ? update(prev)
-        : (prev.trimEnd() ? prev.trimEnd() + " " : "") + update.trim() + " ";
+    const current = editor ? editor.getValue() : get(valueAtom);
+    const next = typeof update === "function" ? update(current) : update;
     set(valueAtom, next);
-    const el = get(promptDraftRefAtom(key));
-    el?.focus();
-    // The value lands on the next render; place the caret after it does.
-    requestAnimationFrame(() => {
-      focusPromptDraft(el);
-    });
+    editor?.setValue(next);
   },
 );

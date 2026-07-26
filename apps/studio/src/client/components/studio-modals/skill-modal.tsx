@@ -1,4 +1,4 @@
-import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import { setPromptDraftAtom } from "@/client/atoms/prompt-value";
 import { skillModalAtom } from "@/client/atoms/skill-modal";
 import { ExternalLink } from "@/client/components/external-link";
 import { PromptInput } from "@/client/components/prompt-input";
@@ -50,11 +50,12 @@ export function SkillModal() {
   const [state, setState] = useAtom(skillModalAtom);
   const isOpen = state !== null;
   const isEdit = state?.mode === "edit";
-  const draftKey = {
-    id: isEdit ? `edit-skill:${state.name}` : "create-skill",
-    scope: "transient",
-  } as const;
-  const setDraft = useSetAtom(promptDraftAtom(draftKey));
+  // The id is held on its own because the prefill effect below needs a
+  // dependency that only changes when the draft does, which the key object
+  // rebuilt on every render is not.
+  const draftId = isEdit ? `edit-skill:${state.name}` : "create-skill";
+  const draftKey = { id: draftId, scope: "transient" } as const;
+  const setDraft = useSetAtom(setPromptDraftAtom);
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
   const createTaskMutation = useMutation(
@@ -75,10 +76,12 @@ export function SkillModal() {
       return;
     }
     seededEditSkillRef.current = state.name;
-    setDraft((current) =>
-      current.trim() ? current : `Edit ${skillMentionToken(state.name)} to…`,
-    );
-  }, [isEdit, setDraft, state]);
+    setDraft({
+      key: { id: draftId, scope: "transient" },
+      update: (current) =>
+        current.trim() ? current : `Edit ${skillMentionToken(state.name)} to…`,
+    });
+  }, [draftId, isEdit, setDraft, state]);
 
   return (
     <Dialog

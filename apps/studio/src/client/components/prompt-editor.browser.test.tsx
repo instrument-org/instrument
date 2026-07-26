@@ -22,7 +22,7 @@ const editorProps = {
   skills: [] as ComponentProps<typeof PromptEditor>["skills"],
 };
 
-function renderEditor(value = "") {
+function renderEditor(defaultValue = "") {
   const onChange = vi.fn();
   const ref = createRef<PromptEditorRef>();
   // `render` reports a thenable so it can be awaited; nothing here needs to.
@@ -30,9 +30,9 @@ function renderEditor(value = "") {
     <PromptEditor
       {...editorProps}
       autoFocus
+      defaultValue={defaultValue}
       onChange={onChange}
       ref={ref}
-      value={value}
     />,
   );
   return { onChange, ref };
@@ -75,5 +75,32 @@ describe("PromptEditor in a browser", () => {
     await userEvent.keyboard("{ArrowLeft}b");
 
     expect(onChange).toHaveBeenLastCalledWith("abc");
+  });
+
+  // "Add this file to the chat" while the user is mid-sentence. The text has to
+  // land where they are looking, which is only observable against a real caret:
+  // an editor that appends would report "one two src/app.ts " and pass every
+  // assertion jsdom can make about the document.
+  it("inserts external text at the caret rather than at the end", async () => {
+    const { onChange, ref } = renderEditor();
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("one two");
+    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+    ref.current?.insertText("src/app.ts");
+
+    expect(onChange).toHaveBeenLastCalledWith("one src/app.ts two");
+  });
+
+  it("leaves the caret after inserted text, ready to keep typing", async () => {
+    const { onChange, ref } = renderEditor();
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("one two");
+    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+    ref.current?.insertText("src/app.ts");
+    await userEvent.keyboard("!");
+
+    expect(onChange).toHaveBeenLastCalledWith("one src/app.ts !two");
   });
 });

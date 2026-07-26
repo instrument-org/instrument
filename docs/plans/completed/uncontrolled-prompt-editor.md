@@ -1,6 +1,6 @@
 # Plan: make the prompt editor uncontrolled
 
-Status: not started. Ready to pick up; the test harness it depends on is in place.
+Status: done.
 
 ---
 
@@ -13,7 +13,7 @@ Status: not started. Ready to pick up; the test harness it depends on is in plac
 
 That effect is manual echo cancellation. It compares `promptTextFromDoc(view.state.doc) === value` to decide whether an incoming `value` is a real external write or just its own edit coming back around. It works, but it is the reason for a family of bugs:
 
-- **Drafts were emptied on load.** The editor reported its document on *every* transaction, including the selection change that focus produces. The empty view a page load starts with announced itself as the draft and overwrote the stored one. Fixed by guarding on `transaction.docChanged`, but the guard exists because edits and caret moves travel the same wire.
+- **Drafts were emptied on load.** The editor reported its document on _every_ transaction, including the selection change that focus produces. The empty view a page load starts with announced itself as the draft and overwrote the stored one. Fixed by guarding on `transaction.docChanged`, but the guard exists because edits and caret moves travel the same wire.
 - **The caret jumps to the end on any external write.** The effect ends with `TextSelection.atEnd(tr.doc)`. Clicking "add this file path" mid-sentence appends to the end and drags the caret there.
 - Round-tripping depends on `promptTextFromDoc`/`promptDocFromText` being perfectly symmetric. Any asymmetry is an infinite loop or a caret jump.
 
@@ -42,7 +42,6 @@ Landed this week, all on `main`:
 ```ts
 export interface PromptEditorRef {
   clear: () => void;
-  element: HTMLElement | null;
   focus: () => void;
   getValue: () => string;
   insertText: (text: string) => void; // at the caret
@@ -50,6 +49,9 @@ export interface PromptEditorRef {
   setValue: (text: string) => void; // external reset / prefill
 }
 ```
+
+`element` is not on it: once every writer goes through the handle, nothing wants
+the DOM node.
 
 `value` becomes `defaultValue`, read once when the `EditorState` is built (it already is: `promptDocFromText(initialProps.value)`). Delete the effect below it.
 
@@ -87,6 +89,29 @@ Then drive it by hand, because none of the above covers the draft round trip end
 2. Type, leave the route inside a second, return, draft is there.
 3. Click a file card's "add to prompt" with the caret mid-sentence: text lands at the caret.
 4. Open a skill page: prefill appears. Submit: composer clears.
+
+## What "read once" turned out to mean
+
+The view is not built once per composer. `TaskSidebar` keeps the chat inside
+`<Activity mode="hidden">` while the file list is showing, and hiding an
+`Activity` runs every effect's cleanup: the `EditorView` is destroyed and built
+again on the way back. The controlled version healed itself, because the
+`[value]` effect remounted with it and pushed the current text in. Uncontrolled,
+the rebuilt editor came back holding whatever it first mounted with, and a
+minute of typing was gone the first time the file list was opened.
+
+So the editor keeps `defaultValue` in a ref updated by a layout effect declared
+above the one that builds the view, and builds from that. Two consequences worth
+keeping in mind:
+
+- The mirror is not only a mirror. It is what the document is restored from, so
+  it has to stay accurate whether or not a view exists.
+- `appendToPromptAtom` needs its no-editor branch. "Add to chat" is offered from
+  the file list, which is exactly when the composer is not mounted; with no
+  caret to aim at, it appends to the mirror instead.
+
+None of the three test projects caught this. The dom test that now covers it
+drives `<Activity>` directly.
 
 ## Gotchas found the hard way
 

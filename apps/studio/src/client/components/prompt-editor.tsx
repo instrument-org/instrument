@@ -64,10 +64,23 @@ const editorPlugins = () => [
   keymap(baseKeymap),
 ];
 
+/**
+ * The way in from outside. ProseMirror owns the document, so a writer that is
+ * not the user reaches it through this rather than by handing the component a
+ * new `value` and hoping the two agree on which of them wrote it last.
+ *
+ * Every method that edits the document reports through `onChange`, so anything
+ * mirroring the text stays accurate without a round trip back through props.
+ */
 export interface PromptEditorRef {
-  element: HTMLElement | null;
+  clear: () => void;
   focus: () => void;
+  getValue: () => string;
+  /** Insert at the caret, spaced off from whatever it lands between. */
+  insertText: (text: string) => void;
   moveCaretToEnd: () => void;
+  /** Replace the whole document: an external reset or a prefill. */
+  setValue: (text: string) => void;
 }
 
 type Skill = Pick<
@@ -102,6 +115,7 @@ const preventDefault = (event: Event) => {
 export function PromptEditor({
   autoFocus,
   className,
+  defaultValue,
   disabled,
   maxHeight,
   onChange,
@@ -110,10 +124,11 @@ export function PromptEditor({
   placeholder,
   ref,
   skills,
-  value,
 }: {
   autoFocus: boolean;
   className?: string;
+  /** Read once, when the document is built. Later changes are ignored. */
+  defaultValue: string;
   disabled: boolean;
   maxHeight: number;
   onChange: (value: string) => void;
@@ -122,7 +137,6 @@ export function PromptEditor({
   placeholder?: string;
   ref?: React.Ref<PromptEditorRef>;
   skills: Skill[];
-  value: string;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView>(null);
@@ -146,7 +160,18 @@ export function PromptEditor({
   // would scroll a partly visible row under a stationary cursor, which lands the
   // cursor on the next row and scrolls again.
   const scrollToSelectionRef = useRef(false);
-  const initialPropsRef = useRef({ autoFocus, placeholder, value });
+  const initialPropsRef = useRef({ autoFocus, placeholder });
+  // Kept current rather than captured, because the view below is not built only
+  // once: a hidden `<Activity>` runs every effect's cleanup, so the task page
+  // showing its file list destroys this editor and builds it again on the way
+  // back. It has to come back as the draft stands, which is what the mirrored
+  // prop carries -- an "add to chat" while the composer was off screen included.
+  // Declared above the effect that builds the view so it is already current
+  // when that one runs, on a remount as much as on the first mount.
+  const defaultValueRef = useRef(defaultValue);
+  useLayoutEffect(() => {
+    defaultValueRef.current = defaultValue;
+  });
 
   useEffect(() => {
     skillsRef.current = skills;
@@ -208,6 +233,7 @@ export function PromptEditor({
     }
 
     const initialProps = initialPropsRef.current;
+    const doc = promptDocFromText(defaultValueRef.current);
     const view = new EditorView(mount, {
       attributes: editorAttributes(initialProps.placeholder),
       clipboardTextParser: (text) =>
@@ -304,9 +330,12 @@ export function PromptEditor({
         },
       },
       state: EditorState.create({
-        doc: promptDocFromText(initialProps.value),
+        doc,
         plugins: editorPlugins(),
         schema: promptSchema,
+        // Behind the text rather than in front of it: this is a draft being
+        // picked back up, so the caret belongs where typing would continue.
+        selection: TextSelection.atEnd(doc),
       }),
     });
     viewRef.current = view;
@@ -318,24 +347,6 @@ export function PromptEditor({
       view.destroy();
     };
   }, []);
-
-  // Replace the content through a transaction rather than a fresh EditorState:
-  // recreating the state drops the history stack, so an external value change
-  // (the skill prefill, a clear after submit) would silently make undo a no-op.
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view || promptTextFromDoc(view.state.doc) === value) {
-      return;
-    }
-    const doc = promptDocFromText(value);
-    const tr = view.state.tr.replaceWith(
-      0,
-      view.state.doc.content.size,
-      doc.content,
-    );
-    tr.setSelection(TextSelection.atEnd(tr.doc));
-    view.dispatch(tr);
-  }, [value]);
 
   // ProseMirror maps `editable: false` to `contentEditable="false"`, and the
   // browser blurs a contenteditable element the instant it stops being editable.
@@ -366,9 +377,57 @@ export function PromptEditor({
     viewRef.current?.setProps({ attributes: editorAttributes(placeholder) });
   }, [placeholder]);
 
+  // Replace the content through a transaction rather than a fresh EditorState:
+  // recreating the state drops the history stack, so an external write (the
+  // skill prefill, a clear after submit) would silently make undo a no-op.
+  const replaceDocument = (text: string) => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    const tr = view.state.tr.replaceWith(
+      0,
+      view.state.doc.content.size,
+      promptDocFromText(text).content,
+    );
+    tr.setSelection(TextSelection.atEnd(tr.doc));
+    view.dispatch(tr);
+  };
+
+  // What arrives from outside is a discrete thing -- a file path, a folder name
+  // -- rather than a continuation of the word the caret sits in, so it is spaced
+  // off from whatever it lands between. Only the view knows what that is, which
+  // is why the padding is decided here rather than by the caller.
+  const insertText = (text: string) => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    const { $from, $to } = view.state.selection;
+    const before = $from.nodeBefore;
+    const after = $to.nodeAfter;
+    const leading =
+      before && !(before.isText && /\s$/.test(before.text ?? "")) ? " " : "";
+    const trailing = after?.isText && /^\s/.test(after.text ?? "") ? "" : " ";
+    // Parsed the way pasted text is, so a skill mention in what was handed in
+    // becomes a chip rather than its own markup.
+    view.dispatch(
+      view.state.tr.replaceSelection(
+        Slice.maxOpen(promptDocFromText(leading + text + trailing).content),
+      ),
+    );
+  };
+
   useImperativeHandle(ref, () => ({
-    element: viewRef.current?.dom ?? null,
+    clear: () => {
+      replaceDocument("");
+    },
     focus: () => viewRef.current?.focus(),
+    getValue: () => {
+      const view = viewRef.current;
+      return view ? promptTextFromDoc(view.state.doc) : "";
+    },
+    insertText,
     moveCaretToEnd: () => {
       const view = viewRef.current;
       if (!view) {
@@ -378,6 +437,7 @@ export function PromptEditor({
         view.state.tr.setSelection(TextSelection.atEnd(view.state.doc)),
       );
     },
+    setValue: replaceDocument,
   }));
 
   return (

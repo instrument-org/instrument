@@ -1,4 +1,4 @@
-import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import { setPromptDraftAtom } from "@/client/atoms/prompt-value";
 import { openEditSkill } from "@/client/atoms/skill-modal";
 import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
@@ -123,11 +123,12 @@ function SkillPage() {
   const [selection, setSelection] = useState({ file: SKILL_FILE, skill: name });
   const selectedFile = selection.skill === name ? selection.file : SKILL_FILE;
 
-  const draftKey = {
-    id: `skill:${tabId}:${name}`,
-    scope: "transient",
-  } as const;
-  const setDraft = useSetAtom(promptDraftAtom(draftKey));
+  // The id is held on its own because the prefill effect below needs a
+  // dependency that only changes when the draft does, which the key object
+  // rebuilt on every render is not.
+  const draftId = `skill:${tabId}:${name}`;
+  const draftKey = { id: draftId, scope: "transient" } as const;
+  const setDraft = useSetAtom(setPromptDraftAtom);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   // Seed the compose box once per skill, showing what invoking it looks like and
   // leaving the user somewhere to keep typing. The route owns this so the shared
@@ -142,10 +143,12 @@ function SkillPage() {
       return;
     }
     seededSkillRef.current = skill.id;
-    setDraft((current) =>
-      current.trim() ? current : `Use ${skillMentionToken(skill.id)} to…`,
-    );
-  }, [setDraft, skill?.id, skill?.userInvocable]);
+    setDraft({
+      key: { id: draftId, scope: "transient" },
+      update: (current) =>
+        current.trim() ? current : `Use ${skillMentionToken(skill.id)} to…`,
+    });
+  }, [draftId, setDraft, skill?.id, skill?.userInvocable]);
 
   // `beforeLoad` has already redirected away from a skill that is not here, so
   // this covers the load itself rather than a missing skill.

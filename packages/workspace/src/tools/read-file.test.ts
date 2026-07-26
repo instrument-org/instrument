@@ -184,6 +184,113 @@ describe("ReadFile", () => {
       60_000,
     );
 
+    it("crops a region from the full-resolution file and magnifies it", async () => {
+      const imagePath = path.join(fixturesPath, "region-probe.png");
+      await drawPngFixture(imagePath, "3840x2160");
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: {
+              explanation: "zoom",
+              filePath: "./region-probe.png",
+              region: { x1: 100, x2: 500, y1: 100, y2: 400 },
+            },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("image");
+        if (value.state === "image") {
+          // A 400x300 slice of the 1456x819 view is 1055x791 of the original,
+          // handed back larger still so its contents cover more patches.
+          expect({
+            region: value.region,
+            renderedHeight: value.renderedHeight,
+            renderedWidth: value.renderedWidth,
+          }).toMatchInlineSnapshot(`
+            {
+              "region": {
+                "x1": 100,
+                "x2": 500,
+                "y1": 100,
+                "y2": 400,
+              },
+              "renderedHeight": 952,
+              "renderedWidth": 1270,
+            }
+          `);
+          expect(value.renderedWidth).toBeGreaterThan(500 - 100);
+        }
+      } finally {
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
+    it("clamps a region that runs off the edge of the image", async () => {
+      const imagePath = path.join(fixturesPath, "region-clamp-probe.png");
+      await drawPngFixture(imagePath, "320x240");
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: {
+              explanation: "zoom",
+              filePath: "./region-clamp-probe.png",
+              region: { x1: -50, x2: 9000, y1: 100, y2: 50 },
+            },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("image");
+        if (value.state === "image") {
+          // Corners come back ordered and inside the image, so the model can
+          // see what its request was actually taken to mean.
+          expect(value.region).toEqual({ x1: 0, x2: 320, y1: 50, y2: 100 });
+        }
+      } finally {
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
+    it("reports an empty region back to the model instead of failing", async () => {
+      const imagePath = path.join(fixturesPath, "region-empty-probe.png");
+      await drawPngFixture(imagePath, "320x240");
+
+      try {
+        const result = await runTool(TOOLS.ReadFile, {
+          ...baseInput,
+          input: {
+            explanation: "zoom",
+            filePath: "./region-empty-probe.png",
+            region: { x1: 400, x2: 500, y1: 10, y2: 20 },
+          },
+        });
+
+        expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+          `"Region (400,10)-(500,20) is empty or outside the 320x240 image. Give two corners in that pixel space, with the origin at the top-left."`,
+        );
+      } finally {
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
+    it("refuses a region on something that is not an image", async () => {
+      const result = await runTool(TOOLS.ReadFile, {
+        ...baseInput,
+        input: {
+          explanation: "zoom",
+          filePath: "./grep-test.txt",
+          region: { x1: 0, x2: 10, y1: 0, y2: 10 },
+        },
+      });
+
+      expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+        `"region only applies to images, and ./grep-test.txt is not one."`,
+      );
+    }, 60_000);
+
     it("reads a file from a read-only attached folder by its mount path", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {
@@ -459,7 +566,38 @@ describe("toModelOutput", () => {
     });
     expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
       {
-        "text": "Image file: ./scan.png (3840x2160 px, shown to you at 1456x819).",
+        "text": "Image file: ./scan.png (3840x2160 px, shown to you at 1456x819). Small text and closely spaced lines may not survive at that size; read it again with a \`region\` to magnify part of it.",
+        "type": "text",
+      }
+    `);
+  });
+
+  it("says which rectangle a region read was taken to mean", () => {
+    const result = ReadFile.toModelOutput({
+      input: {
+        explanation: "zoom",
+        filePath: "./scan.png",
+        region: { x1: 100, x2: 500, y1: 100, y2: 400 },
+      },
+      output: {
+        base64Data: "abc123",
+        filePath: "./scan.png",
+        height: 2160,
+        mimeType: "image/png",
+        modifiedAt: expect.any(Number),
+        region: { x1: 100, x2: 500, y1: 100, y2: 400 },
+        renderedHeight: 952,
+        renderedWidth: 1270,
+        state: "image",
+        viewHeight: 819,
+        viewWidth: 1456,
+        width: 3840,
+      },
+      toolCallId: "123",
+    });
+    expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
+      {
+        "text": "Image file: ./scan.png -- region (100,100)-(500,400) of the 1456x819 view, cropped from the 3840x2160 original and magnified to 1270x952.",
         "type": "text",
       }
     `);

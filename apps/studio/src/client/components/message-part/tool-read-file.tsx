@@ -59,11 +59,17 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
     case "image": {
       const src = `data:${output.mimeType};base64,${output.base64Data}`;
       const filename = filenameFromFilePath(output.filePath);
+      const { region } = output;
       return (
         <ReadFileCard
           filePath={output.filePath}
           id={id}
           modifiedAt={output.modifiedAt}
+          note={
+            region
+              ? `zoomed to (${region.x1},${region.y1})-(${region.x2},${region.y2})`
+              : undefined
+          }
           openOnContentClick
         >
           <div className="flex items-center justify-center">
@@ -142,12 +148,14 @@ function ReadFileCard({
   filePath,
   id,
   modifiedAt,
+  note,
   openOnContentClick = false,
 }: {
   children: React.ReactNode;
   filePath: string;
   id: TaskId;
   modifiedAt?: number;
+  note?: string;
   openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
@@ -182,6 +190,11 @@ function ReadFileCard({
           <span className="truncate text-xs font-medium text-muted-foreground">
             {filename}
           </span>
+          {note && (
+            <span className="truncate text-xs text-muted-foreground/70">
+              {note}
+            </span>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <IconButton

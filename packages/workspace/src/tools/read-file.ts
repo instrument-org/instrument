@@ -15,10 +15,14 @@ import { executeError } from "../lib/execute-error";
 import { redactTaskDir } from "../lib/filter-shell-output";
 import { formatBytes } from "../lib/format-bytes";
 import { getMimeType } from "../lib/get-mime-type";
-import { imageViewLimits, imageViewSize } from "../lib/image-view-size";
+import {
+  type ImageSize,
+  imageViewLimits,
+  imageViewSize,
+} from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
 import { pathExists } from "../lib/path-exists";
-import { measureImage } from "../lib/render-image";
+import { measureImage, renderImage } from "../lib/render-image";
 import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
@@ -38,7 +42,33 @@ const INPUT_PARAMS = {
   filePath: "filePath",
   limit: "limit",
   offset: "offset",
+  region: "region",
 } as const;
+
+// Multiplier that pushes a crop's size past any budget, so imageViewSize comes
+// back down to the largest in-budget size instead of leaving it as-is.
+const MAGNIFY_PROBE = 10_000;
+
+// Providers cap a single image near 5 MB encoded; base64 adds a third.
+const MAX_RENDERED_BYTES = Math.floor((5 * 1024 * 1024 * 3) / 4);
+
+const RegionSchema = z.object({
+  x1: z.number().int().meta({ description: "Left edge, in pixels" }),
+  x2: z.number().int().meta({ description: "Right edge, in pixels" }),
+  y1: z.number().int().meta({ description: "Top edge, in pixels" }),
+  y2: z.number().int().meta({ description: "Bottom edge, in pixels" }),
+});
+
+type RegionInput = z.output<typeof RegionSchema>;
+
+function clamp(value: number, low: number, high: number) {
+  return Math.min(high, Math.max(low, value));
+}
+
+// SVG is markup, so it reads as text rather than as pixels.
+function isReadableImage(mimeType: string) {
+  return mimeType.startsWith("image/") && mimeType !== "image/svg+xml";
+}
 
 type MediaFileState = "audio" | "image" | "pdf" | "video";
 
@@ -81,11 +111,22 @@ const SUPPORTED_IMAGE_FORMATS = ["image/jpeg", "image/png", "image/webp"];
  */
 function describeImageSize(output: {
   height?: number;
+  region?: RegionInput;
+  renderedHeight?: number;
+  renderedWidth?: number;
   viewHeight?: number;
   viewWidth?: number;
   width?: number;
 }) {
-  const { height, viewHeight, viewWidth, width } = output;
+  const {
+    height,
+    region,
+    renderedHeight,
+    renderedWidth,
+    viewHeight,
+    viewWidth,
+    width,
+  } = output;
   if (width === undefined || height === undefined) {
     return "";
   }
@@ -94,9 +135,95 @@ function describeImageSize(output: {
     viewHeight !== undefined &&
     (viewWidth !== width || viewHeight !== height);
 
+  if (region && renderedWidth !== undefined && renderedHeight !== undefined) {
+    return [
+      ` -- region (${region.x1},${region.y1})-(${region.x2},${region.y2})`,
+      ` of the ${viewWidth}x${viewHeight} view,`,
+      ` cropped from the ${width}x${height} original`,
+      ` and magnified to ${renderedWidth}x${renderedHeight}`,
+    ].join("");
+  }
+
+  const detailNote = downscaled
+    ? ". Small text and closely spaced lines may not survive at that size; read it again with a `region` to magnify part of it"
+    : "";
+
   return downscaled
-    ? ` (${width}x${height} px, shown to you at ${viewWidth}x${viewHeight})`
+    ? ` (${width}x${height} px, shown to you at ${viewWidth}x${viewHeight})${detailNote}`
     : ` (${width}x${height} px)`;
+}
+
+/**
+ * Crop a region out of the full-resolution file and hand it back magnified.
+ *
+ * Two things make this readable where the full view was not. The crop comes
+ * from the file on disk, so it uses every pixel the image has rather than the
+ * ones that survived the downscale the model was shown. And it is scaled up to
+ * fill the whole image budget, so what was a handful of pixels gets spread over
+ * as many of the provider's patches as the region's shape allows.
+ */
+async function cropRegion({
+  fileData,
+  limits,
+  region,
+  signal,
+  size,
+  view,
+}: {
+  fileData: Buffer;
+  limits: ReturnType<typeof imageViewLimits>;
+  region: RegionInput;
+  signal: AbortSignal;
+  size: ImageSize;
+  view: ImageSize;
+}) {
+  const left = clamp(Math.min(region.x1, region.x2), 0, view.width);
+  const right = clamp(Math.max(region.x1, region.x2), 0, view.width);
+  const top = clamp(Math.min(region.y1, region.y2), 0, view.height);
+  const bottom = clamp(Math.max(region.y1, region.y2), 0, view.height);
+
+  if (right - left < 1 || bottom - top < 1) {
+    return executeError(
+      [
+        `Region (${region.x1},${region.y1})-(${region.x2},${region.y2}) is empty`,
+        `or outside the ${view.width}x${view.height} image.`,
+        "Give two corners in that pixel space, with the origin at the top-left.",
+      ].join(" "),
+    );
+  }
+
+  // The resize preserved the aspect ratio, so one factor carries both axes.
+  const scale = size.width / view.width;
+  const source = {
+    height: Math.max(1, Math.round((bottom - top) * scale)),
+    left: Math.round(left * scale),
+    top: Math.round(top * scale),
+    width: Math.max(1, Math.round((right - left) * scale)),
+  };
+
+  // Ask for a size far past the budget so the search comes back down to the
+  // largest one that fits, which is the most magnification this shape allows.
+  const target = imageViewSize({
+    height: source.height * MAGNIFY_PROBE,
+    limits,
+    width: source.width * MAGNIFY_PROBE,
+  });
+
+  const rendered = await renderImage({
+    bytes: fileData,
+    maxBytes: MAX_RENDERED_BYTES,
+    region: source,
+    signal,
+    target,
+  });
+
+  if (!rendered) {
+    return executeError(
+      "Could not render that region of the image. Try a larger region.",
+    );
+  }
+
+  return ok({ rendered, region: { x1: left, x2: right, y1: top, y2: bottom } });
 }
 
 async function handleMediaFile({
@@ -104,6 +231,7 @@ async function handleMediaFile({
   fixedPath,
   mimeType,
   model,
+  region,
   signal,
   state,
 }: {
@@ -111,6 +239,7 @@ async function handleMediaFile({
   fixedPath: string;
   mimeType: string;
   model: AIGatewayModel.Type;
+  region?: RegionInput;
   signal: AbortSignal;
   state: MediaFileState;
 }) {
@@ -152,25 +281,65 @@ async function handleMediaFile({
   // An unmeasurable image still gets sent; the provider will say whether it can
   // read it. We just cannot describe its pixel space, so we say nothing about
   // it rather than guessing.
+  const limits = imageViewLimits(model.params.provider);
   const size = measureImage(fileData);
-  const view =
-    size &&
-    imageViewSize({ ...size, limits: imageViewLimits(model.params.provider) });
+  const view = size && imageViewSize({ ...size, limits });
+
+  if (!size || !view) {
+    if (region) {
+      return executeError(
+        `Cannot read a region of ${fixedPath}: its dimensions could not be determined.`,
+      );
+    }
+    return ok({
+      base64Data: fileData.toString("base64"),
+      filePath: fixedPath,
+      mimeType,
+      modifiedAt: stats.mtimeMs,
+      state,
+    });
+  }
+
+  const dimensions = {
+    height: size.height,
+    viewHeight: view.height,
+    viewWidth: view.width,
+    width: size.width,
+  };
+
+  if (!region) {
+    return ok({
+      base64Data: fileData.toString("base64"),
+      filePath: fixedPath,
+      mimeType,
+      modifiedAt: stats.mtimeMs,
+      state,
+      ...dimensions,
+    });
+  }
+
+  const cropped = await cropRegion({
+    fileData,
+    limits,
+    region,
+    signal,
+    size,
+    view,
+  });
+  if (cropped.isErr()) {
+    return err(cropped.error);
+  }
 
   return ok({
-    base64Data: fileData.toString("base64"),
+    ...dimensions,
+    base64Data: cropped.value.rendered.bytes.toString("base64"),
     filePath: fixedPath,
-    mimeType,
+    mimeType: cropped.value.rendered.mediaType,
     modifiedAt: stats.mtimeMs,
+    region: cropped.value.region,
+    renderedHeight: cropped.value.rendered.height,
+    renderedWidth: cropped.value.rendered.width,
     state,
-    ...(size && view
-      ? {
-          height: size.height,
-          viewHeight: view.height,
-          viewWidth: view.width,
-          width: size.width,
-        }
-      : {}),
   });
 }
 
@@ -186,6 +355,10 @@ export const ReadFile = setupTool({
       .meta({
         description: `The number of lines to read (defaults to ${DEFAULT_READ_LIMIT})`,
       }),
+    [INPUT_PARAMS.region]: RegionSchema.optional().meta({
+      description:
+        "Images only. Two opposite corners of a rectangle, in the pixel space of the image as you were shown it (origin at the top-left, x right, y down). Returns that region cropped from the full-resolution file and magnified.",
+    }),
     [INPUT_PARAMS.offset]: z.number().optional().meta({
       description:
         "The line number to start reading from (1-based, defaults to 1)",
@@ -211,6 +384,11 @@ export const ReadFile = setupTool({
       height: z.number().optional(),
       mimeType: z.string(),
       modifiedAt: z.number(),
+      // Set when a region was requested: the rectangle as interpreted, after
+      // clamping, in the view's pixel space.
+      region: RegionSchema.optional(),
+      renderedHeight: z.number().optional(),
+      renderedWidth: z.number().optional(),
       state: z.literal("image"),
       // The size this model renders the image at, which is smaller than the
       // file whenever the file is over the provider's budget.
@@ -272,6 +450,8 @@ export const ReadFile = setupTool({
     - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
     - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
     - You can read images, PDFs, audio files, and video files by using this tool.
+    - Reading an image tells you its pixel dimensions, and the smaller size you are shown it at when it is too large to render whole.
+    - To read a detail that is too small to make out -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the image as you were shown it. Narrow it further by reading a ${INPUT_PARAMS.region} of what you get back. Trust what you read magnified over your first impression of the whole image.
   `,
   execute: async ({ input, model, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({
@@ -325,6 +505,12 @@ export const ReadFile = setupTool({
         state: "is-directory" as const,
         truncated: dirTruncated,
       });
+    }
+
+    if (input.region && !isReadableImage(getMimeType(absolutePath))) {
+      return executeError(
+        `${INPUT_PARAMS.region} only applies to images, and ${displayPath} is not one.`,
+      );
     }
 
     const isBinary = await isBinaryFile(absolutePath);
@@ -394,12 +580,13 @@ export const ReadFile = setupTool({
 
     const mimeType = getMimeType(absolutePath);
 
-    if (mimeType.startsWith("image/") && mimeType !== "image/svg+xml") {
+    if (isReadableImage(mimeType)) {
       return handleMediaFile({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
         model,
+        region: input.region,
         signal,
         state: "image",
       });

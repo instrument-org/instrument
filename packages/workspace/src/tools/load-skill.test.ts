@@ -242,6 +242,59 @@ describe("LoadSkill", () => {
     `);
   });
 
+  it("loads a shadowed namesake by its qualified name, into its own folder", async () => {
+    await createSkill({ description: "Ours", name: "review" });
+    const vendorSkillDir = path.join(
+      tmpDir,
+      "home",
+      ".claude",
+      "skills",
+      "review",
+    );
+    await fs.mkdir(vendorSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(vendorSkillDir, "SKILL.md"),
+      `---\nname: review\ndescription: "Theirs"\n---\n\nVendor instructions.`,
+    );
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "claude:review" },
+      })
+    )._unsafeUnwrap();
+
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    expect(result.content).toContain("Vendor instructions.");
+    expect({
+      directory: result.directory,
+      name: result.name,
+      origin: result.origin,
+    }).toMatchInlineSnapshot(`
+      {
+        "directory": "claude-review",
+        "name": "claude:review",
+        "origin": "external",
+      }
+    `);
+    // The registry copy keeps the plain name, so the two never share a folder.
+    await expect(
+      fs.readFile(
+        path.join(
+          dir,
+          TASK_FOLDER_NAMES.work,
+          TASK_FOLDER_NAMES.skills,
+          "claude-review",
+          "SKILL.md",
+        ),
+        "utf8",
+      ),
+    ).resolves.toContain("Vendor instructions.");
+  });
+
   it("loads a skill again without overwriting the agent's edits", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "original" },
@@ -466,6 +519,7 @@ describe("LoadSkill", () => {
           alreadyLoaded: false,
           content: "# Body",
           contentTruncated: false,
+          directory: "docx",
           files: [],
           name: "docx",
           origin,
@@ -725,6 +779,7 @@ describe("LoadSkill", () => {
         alreadyLoaded: false,
         content: "# Body",
         contentTruncated: false,
+        directory: "third-party",
         files: [],
         installResults: [
           { runtime: "node", state: "skipped" },

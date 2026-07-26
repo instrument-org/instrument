@@ -312,12 +312,17 @@ function addCatalogFindings({
     add(
       "warning",
       "duplicate-name",
-      `${duplicates.length} skills are named "${skillName}". Only one of them is reachable.`,
+      `${duplicates.length} skills are named "${skillName}", so they are addressed as ${duplicates.map((skill) => `"${skill.qualifiedName}"`).join(", ")}. Rename this one to be reached by the name you gave it.`,
     );
   }
 
   const invocable = installed.filter((skill) => skill.modelInvocable);
-  if (!invocable.some((skill) => skill.name === skillName)) {
+  // Whichever copy of the name this directory turned out to be, matched the way
+  // the catalog will list it.
+  const qualifiedName = invocable.find(
+    (skill) => skill.name === skillName,
+  )?.qualifiedName;
+  if (qualifiedName === undefined) {
     return;
   }
 
@@ -327,7 +332,7 @@ function addCatalogFindings({
   // flagged: its full text still loads on demand, and the spec favors a richer
   // description over a shorter one, so nudging it shorter would work against it.
   const catalog = renderSkillCatalog(invocable);
-  const entry = catalog.entries.find((item) => item.name === skillName);
+  const entry = catalog.entries.find((item) => item.name === qualifiedName);
 
   if (!entry) {
     add(

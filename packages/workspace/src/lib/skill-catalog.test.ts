@@ -14,6 +14,7 @@ const skill = (
   description,
   modelInvocable: true,
   name,
+  qualifiedName: name,
   skillDir: AbsolutePathSchema.parse(`/workspace/skills/${name}`),
   source,
   title: name,

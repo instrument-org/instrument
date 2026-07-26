@@ -42,6 +42,12 @@ const SkillSummarySchema = z.object({
   modelInvocable: z.boolean(),
   name: z.string(),
   path: z.string(),
+  /**
+   * What every route here takes as `name`, and what the slash menu and
+   * `load_skill` address the skill by. Reads `<source>:<name>` when another
+   * source ships a skill with the same directory name, so both stay reachable.
+   */
+  qualifiedName: z.string(),
   source: SkillSourceSchema,
   title: z.string(),
   userInvocable: z.boolean(),
@@ -101,6 +107,7 @@ const list = base
       modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
+      qualifiedName: skill.qualifiedName,
       source: skill.source,
       title: skill.title,
       userInvocable: skill.userInvocable,
@@ -144,6 +151,7 @@ const byName = base
       modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
+      qualifiedName: skill.qualifiedName,
       rawSkillFile,
       source: skill.source,
       title: skill.title,

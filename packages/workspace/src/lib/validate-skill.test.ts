@@ -194,6 +194,7 @@ describe("validateSkill", () => {
       description: "A different skill with the same name.",
       modelInvocable: true,
       name: "test-skill",
+      qualifiedName: "claude:test-skill",
       skillDir: AbsolutePathSchema.parse("/elsewhere/test-skill"),
       source: "claude",
       title: "test-skill",

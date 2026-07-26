@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import { noop } from "radashi";
 
 import { publisher } from "../rpc/publisher";
+import { SKILL_ARTIFACT_WATCHER_IGNORE } from "./skill-artifact-ignore";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
@@ -71,31 +72,35 @@ export async function stopWorkspaceSkillWatcher(): Promise<void> {
 }
 
 async function initialize(entry: WatcherEntry) {
-  const skillsDir = getWorkspaceSkillsDir();
-  await fs.mkdir(skillsDir, { recursive: true });
-  const parcel = await loadParcelWatcher();
-  if (!parcel || isDisposed(entry)) {
-    return;
-  }
   try {
-    const subscription = await parcel.subscribe(skillsDir, (error, events) => {
-      if (error) {
-        getWorkspaceConfig().captureException(error);
-        return;
-      }
-      if (events.length === 0 || isDisposed(entry)) {
-        return;
-      }
-      if (entry.debounceTimer) {
-        clearTimeout(entry.debounceTimer);
-      }
-      entry.debounceTimer = setTimeout(() => {
-        entry.debounceTimer = null;
-        if (!isDisposed(entry)) {
-          publisher.publish("skill.changed", null);
+    const skillsDir = getWorkspaceSkillsDir();
+    await fs.mkdir(skillsDir, { recursive: true });
+    const parcel = await loadParcelWatcher();
+    if (!parcel || isDisposed(entry)) {
+      return;
+    }
+    const subscription = await parcel.subscribe(
+      skillsDir,
+      (error, events) => {
+        if (error) {
+          getWorkspaceConfig().captureException(error);
+          return;
         }
-      }, DEBOUNCE_MS);
-    });
+        if (events.length === 0 || isDisposed(entry)) {
+          return;
+        }
+        if (entry.debounceTimer) {
+          clearTimeout(entry.debounceTimer);
+        }
+        entry.debounceTimer = setTimeout(() => {
+          entry.debounceTimer = null;
+          if (!isDisposed(entry)) {
+            publisher.publish("skill.changed", null);
+          }
+        }, DEBOUNCE_MS);
+      },
+      { ignore: SKILL_ARTIFACT_WATCHER_IGNORE },
+    );
     if (isDisposed(entry)) {
       await subscription.unsubscribe().catch(noop);
       return;

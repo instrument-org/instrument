@@ -18,6 +18,11 @@ export const SKILL_ARTIFACT_IGNORE = [
   "venv",
 ];
 
+/** Machine-generated skill directories in @parcel/watcher glob syntax. */
+export const SKILL_ARTIFACT_WATCHER_IGNORE = SKILL_ARTIFACT_IGNORE.flatMap(
+  (name) => [name, `${name}/**`, `**/${name}`, `**/${name}/**`],
+);
+
 /** Authored files omitted when a skill is copied into a task. */
 export const SKILL_COPY_IGNORE = [
   "SKILL.template.md",

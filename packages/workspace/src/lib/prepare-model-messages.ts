@@ -10,6 +10,7 @@ import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
+import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
@@ -164,8 +165,17 @@ export async function prepareModelMessages({
     model,
   });
 
-  const cachedModelMessages = addCacheControlToMessages({
+  // After filtering, so we never spend a resize on an image this model was
+  // going to have stripped anyway; before cache control, because the cache
+  // breakpoints have to be placed over the bytes we actually send.
+  const normalizedMessages = await normalizeModelImages({
     messages: filteredMessages,
+    model,
+    signal,
+  });
+
+  const cachedModelMessages = addCacheControlToMessages({
+    messages: normalizedMessages,
     model,
   });
 

@@ -20,6 +20,7 @@ interface PackageEntry {
   stamp: string;
 }
 
+const CACHE_ENTRY_LIMIT = 256;
 const CACHE = new Map<string, CachedFingerprint>();
 
 /**
@@ -28,13 +29,20 @@ const CACHE = new Map<string, CachedFingerprint>();
  */
 export async function getSkillPackageFingerprint(skillDir: AbsolutePath) {
   const entries = await readPackageEntries(skillDir);
-  const signature = entries
-    .map(
-      ({ kind, relativePath, stamp }) => `${kind}\0${relativePath}\0${stamp}`,
-    )
-    .join("\0");
+  const signatureHash = createHash("sha256");
+  for (const { kind, relativePath, stamp } of entries) {
+    signatureHash.update(kind);
+    signatureHash.update("\0");
+    signatureHash.update(relativePath);
+    signatureHash.update("\0");
+    signatureHash.update(stamp);
+    signatureHash.update("\0");
+  }
+  const signature = signatureHash.digest("hex");
   const cached = CACHE.get(skillDir);
   if (cached?.signature === signature) {
+    CACHE.delete(skillDir);
+    CACHE.set(skillDir, cached);
     return cached.fingerprint;
   }
 
@@ -53,6 +61,12 @@ export async function getSkillPackageFingerprint(skillDir: AbsolutePath) {
   }
   const fingerprint = hash.digest("hex");
   CACHE.set(skillDir, { fingerprint, signature });
+  if (CACHE.size > CACHE_ENTRY_LIMIT) {
+    const oldest = CACHE.keys().next().value;
+    if (oldest !== undefined) {
+      CACHE.delete(oldest);
+    }
+  }
   return fingerprint;
 }
 

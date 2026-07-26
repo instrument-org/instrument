@@ -1,4 +1,5 @@
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
+import { SkillMention } from "@/client/components/skill-mention";
 import {
   Popover,
   PopoverAnchor,
@@ -27,6 +28,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 import {
   deleteSkillBackward,
@@ -65,8 +67,16 @@ export interface PromptEditorRef {
 
 type Skill = Pick<
   RPCOutput["workspace"]["skill"]["list"][number],
-  "description" | "name" | "source"
+  "description" | "name" | "source" | "title"
 >;
+
+// A skill token in the document, paired with the element ProseMirror gave its
+// node view so React can render the token into it.
+interface SkillChip {
+  id: number;
+  name: string;
+  target: HTMLElement;
+}
 
 // Generous rather than tight: the list scrolls, so a long query that still
 // matches broadly should let the user keep looking instead of silently cutting
@@ -116,6 +126,8 @@ export function PromptEditor({
     query: string;
     to: number;
   }>(null);
+  const [chips, setChips] = useState<SkillChip[]>([]);
+  const chipIdRef = useRef(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedIndexRef = useRef(0);
   // Only the keyboard drags the list to its selection. Doing it on hover too
@@ -244,6 +256,30 @@ export function PromptEditor({
         }
         return false;
       },
+      // A token in the draft is the same token the sent message will show, so
+      // the chip is the transcript's component rendered through a portal rather
+      // than a second lookalike built out of the schema's `toDOM`. ProseMirror
+      // owns the element; React owns everything inside it.
+      nodeViews: {
+        skill: (node) => {
+          const name = String(node.attrs.name);
+          const target = document.createElement("span");
+          target.contentEditable = "false";
+          target.dataset.skill = name;
+          const id = (chipIdRef.current += 1);
+          setChips((current) => [...current, { id, name, target }]);
+          return {
+            destroy: () => {
+              setChips((current) => current.filter((chip) => chip.id !== id));
+            },
+            dom: target,
+            // React's writes below `target` are not document edits.
+            ignoreMutation: () => true,
+            // The chip is a link with a tooltip; its events are its own.
+            stopEvent: () => true,
+          };
+        },
+      },
       state: EditorState.create({
         doc: promptDocFromText(initialProps.value),
         plugins: editorPlugins(),
@@ -330,6 +366,22 @@ export function PromptEditor({
             ref={mountRef}
             style={{ maxHeight }}
           />
+          {chips.map((chip) =>
+            createPortal(
+              <SkillMention
+                name={chip.name}
+                // An empty list means nothing to check against, not a skill that
+                // has gone: only claim a chip is stale once there is a list.
+                resolved={skills.length > 0}
+                summary={skills.find((skill) => skill.name === chip.name)}
+                // The composer's own controls stay the tab order; a draft with
+                // several tokens should not put a stop at each one.
+                tabIndex={-1}
+              />,
+              chip.target,
+              String(chip.id),
+            ),
+          )}
         </div>
       </PopoverAnchor>
       {/*

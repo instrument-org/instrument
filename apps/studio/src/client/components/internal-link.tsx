@@ -15,6 +15,7 @@ export function InternalLink(
     onMouseDown?: (e: MouseEvent<HTMLAnchorElement>) => void;
     openInCurrentTab?: boolean;
     openInNewTab?: boolean;
+    tabIndex?: number;
   },
 ) {
   const { addTab, navigateTab } = useTabActions();

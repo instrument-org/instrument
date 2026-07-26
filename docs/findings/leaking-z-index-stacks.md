@@ -19,7 +19,7 @@ DOM and asking for a higher `z-index`, because the composer wrapper in
 
 That last part is the non-obvious half. `isolation: isolate` creates a stacking
 context but does not position the element, so the whole subtree paints as a
-block-level in-flow descendant -- step 3 of the CSS painting order, *below*
+block-level in-flow descendant -- step 3 of the CSS painting order, _below_
 every positioned `z-index` descendant of the same parent (step 6 and up). A
 `z-20` inside an isolated, unpositioned wrapper therefore loses to a `z-10`
 outside it. The composer's `isolate` is correct and deliberate (it contains the

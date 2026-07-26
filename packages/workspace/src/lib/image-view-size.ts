@@ -9,10 +9,6 @@ export interface ImageSize {
   width: number;
 }
 
-export function imageViewLimits(provider: AIProviderType): ProviderImageView {
-  return getProviderMetadata(provider).imageView;
-}
-
 /**
  * Patches an image of this size costs the provider, one per patchSize square.
  */
@@ -30,21 +26,8 @@ export function imagePatchCount({
   );
 }
 
-function fitsBudget({
-  height,
-  limits,
-  width,
-}: {
-  height: number;
-  limits: ProviderImageView;
-  width: number;
-}) {
-  const { maxEdge, maxPatches, patchSize } = limits;
-  return (
-    Math.ceil(width / patchSize) * patchSize <= maxEdge &&
-    Math.ceil(height / patchSize) * patchSize <= maxEdge &&
-    imagePatchCount({ height, limits, width }) <= maxPatches
-  );
+export function imageViewLimits(provider: AIProviderType): ProviderImageView {
+  return getProviderMetadata(provider).imageView;
 }
 
 /**
@@ -99,4 +82,21 @@ export function imageViewSize({
   }
 
   return { height: heightFor(low), width: low };
+}
+
+function fitsBudget({
+  height,
+  limits,
+  width,
+}: {
+  height: number;
+  limits: ProviderImageView;
+  width: number;
+}) {
+  const { maxEdge, maxPatches, patchSize } = limits;
+  return (
+    Math.ceil(width / patchSize) * patchSize <= maxEdge &&
+    Math.ceil(height / patchSize) * patchSize <= maxEdge &&
+    imagePatchCount({ height, limits, width }) <= maxPatches
+  );
 }

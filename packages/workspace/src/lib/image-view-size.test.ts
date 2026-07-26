@@ -47,7 +47,7 @@ describe("imageViewSize", () => {
   it.each([
     { height: 2160, limits: DEFAULT_LIMITS, width: 3840 },
     { height: 2160, limits: HIGH_TIER_LIMITS, width: 3840 },
-    { height: 12000, limits: DEFAULT_LIMITS, width: 9000 },
+    { height: 12_000, limits: DEFAULT_LIMITS, width: 9000 },
     { height: 4000, limits: DEFAULT_LIMITS, width: 100 },
     { height: 100, limits: DEFAULT_LIMITS, width: 4000 },
     { height: 3000, limits: DEFAULT_LIMITS, width: 3000 },

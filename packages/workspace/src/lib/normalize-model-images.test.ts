@@ -43,13 +43,17 @@ let oversized: string;
 let small: string;
 
 beforeAll(async () => {
-  oversized = (await drawPng("3840x2160")).toString("base64");
-  small = (await drawPng("320x240")).toString("base64");
+  const [big, tiny] = await Promise.all([
+    drawPng("3840x2160"),
+    drawPng("320x240"),
+  ]);
+  oversized = big.toString("base64");
+  small = tiny.toString("base64");
 }, 60_000);
 
 function imageDataOf(message: ModelMessage | undefined) {
   if (!message || !Array.isArray(message.content)) {
-    return undefined;
+    return;
   }
   const part = message.content.find((item) => item.type === "file");
   return part && "data" in part && typeof part.data === "string"

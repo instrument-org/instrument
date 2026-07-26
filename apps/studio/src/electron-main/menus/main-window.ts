@@ -12,6 +12,7 @@ import {
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { type MenuItemConstructorOptions } from "electron";
 
+import { shortcutMenuItem, SHORTCUTS } from "./shortcuts";
 import {
   createAppMenu,
   createDevToolsMenu,
@@ -112,13 +113,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
         label: "Find…",
       },
       { type: "separator" as const },
-      {
-        accelerator: "CmdOrCtrl+B",
-        click: () => {
-          sendAppCommand({ type: "toggleSidebar" });
-        },
-        label: "Toggle Sidebar",
-      },
+      shortcutMenuItem(SHORTCUTS.toggleSidebar),
       { type: "separator" as const },
       { role: "togglefullscreen" as const },
     ],

@@ -8,6 +8,7 @@ import {
 } from "@/electron-main/lib/quit-guard";
 import { getMainWindowBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
+import { bindReservedShortcuts } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getMainWindowZoom,
@@ -74,6 +75,8 @@ export async function createMainWindow({
   });
 
   setMainWindow(mainWindow);
+
+  bindReservedShortcuts(mainWindow.webContents);
 
   // Center the traffic lights for the zoom the renderer last reported, so they
   // sit in the boot shell's toolbar correctly instead of jumping once the

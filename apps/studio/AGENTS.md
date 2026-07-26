@@ -75,7 +75,9 @@ jsdom has no layout engine and never delivers `selectionchange`, so anything mea
 
 Whatever you assert, confirm it fails against the unfixed code before keeping it. This matters more here than in node tests: a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.
 
-CI (`test:ci`) runs **node and dom only**. The browser project is left out on purpose: it needs a Chromium download and a cache entry the workflow does not have yet, so wiring it in is a deliberate change to `.github/actions/setup-binary-caches`, not something to add by widening the script. Run it locally with `pnpm test --project browser` after `pnpm exec playwright install chromium`.
+CI runs node and dom in the main check job (`test:ci`) and the browser project in a separate one (`test:browser`), so a Chromium download never sits in front of the rest of the checks and a browser flake reads as its own failure. That job caches Chromium by lockfile hash and reinstalls its system libraries every run, since those land in the runner rather than the cached directory. Browser tests retry twice under `CI`; locally they don't, because there a flake is worth seeing.
+
+Locally, run them with `pnpm test:browser` after `pnpm exec playwright install chromium` once.
 
 ## Where things are
 

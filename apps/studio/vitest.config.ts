@@ -94,6 +94,9 @@ export default defineConfig({
           exclude: SHARED_EXCLUDE,
           include: ["**/*.browser.test.tsx"],
           name: "browser",
+          // A real browser brings real timing. Locally a flake is worth seeing;
+          // on CI it is worth a second look before failing the run.
+          retry: process.env.CI ? 2 : 0,
         },
       },
     ],

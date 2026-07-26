@@ -50,6 +50,11 @@ export const publisher = new EventPublisher<{
     id: TaskId;
     sessionId: StoreId.Session;
   };
+  /**
+   * The workspace skills directory changed: a skill was installed, revised, or
+   * deleted. Carries no payload because every listener re-reads the list.
+   */
+  "skill.changed": null;
   "task.files.changed": {
     id: TaskId;
   };

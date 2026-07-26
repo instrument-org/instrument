@@ -156,6 +156,13 @@ const messages: SessionMessage.WithParts[] = [
         metadata: builder.partMetadata(assistantWithFileChangesId),
         type: "data-fileChanges",
       },
+      {
+        // Real skill names, so the card resolves a title and description here
+        // the way it does in a session; an unknown one falls back to the name.
+        data: { created: ["wireframe"], updated: ["markdown"] },
+        metadata: builder.partMetadata(assistantWithFileChangesId),
+        type: "data-skillChanges",
+      },
     ],
     role: "assistant",
   },

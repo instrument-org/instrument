@@ -12,6 +12,7 @@ export namespace SessionMessageDataPart {
     "externalFileChanges",
     "fileChanges",
     "intent",
+    "skillChanges",
     "skillMentions",
     "maxSteps",
     "projectChanges",
@@ -158,6 +159,22 @@ export namespace SessionMessageDataPart {
   export type IntentDataPart = z.output<typeof IntentDataPartSchema>;
 
   /**
+   * Skills the agent installed or revised during the turn, detected by diffing
+   * the workspace skills directory across the turn. Attached to the turn's last
+   * assistant message so the chat can offer a way into a skill the agent just
+   * wrote. Names are directory names, which is how the skills routes address
+   * them. Deletions are deliberately not carried: there would be nowhere to go.
+   */
+  export const SkillChangesDataPartSchema = z.object({
+    created: z.array(z.string()),
+    updated: z.array(z.string()),
+  });
+
+  export type SkillChangesDataPart = z.output<
+    typeof SkillChangesDataPartSchema
+  >;
+
+  /**
    * Skills the user named in their message. Recorded so the model is told what
    * the mention syntax means and can decide which, if any, to load; loading
    * them automatically would make a message that names several skills drag all
@@ -189,6 +206,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
+    [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;

@@ -1,3 +1,4 @@
+import { eventIterator } from "@orpc/server";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -16,6 +17,7 @@ import {
 } from "../../lib/skills";
 import { type AbsolutePath } from "../../schemas/paths";
 import { base, toORPCError } from "../base";
+import { publisher } from "../publisher";
 
 /**
  * Past this a file stops being something to read on a skill page, and the cost
@@ -212,6 +214,38 @@ const remove = base
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
+    publisher.publish("skill.changed", null);
   });
 
-export const skill = { byName, file, list, remove };
+/**
+ * Fires whenever the workspace skills directory changes. Deliberately a bare
+ * signal rather than a live `list`: the surfaces that show skills each hold
+ * their own cached `list`, and a stream that re-walked every source per
+ * subscriber would trade the caching those surfaces were given for freshness
+ * they can get by invalidating once on this.
+ *
+ * `revision` counts events on this subscription. It carries no meaning beyond
+ * making one event distinguishable from the next, which a client that reacts to
+ * a cached value needs before it can act on the second change.
+ *
+ * Revision 0 is emitted as soon as the subscription is live, before any change.
+ * A live query whose stream ends without ever yielding is an error to the client
+ * runtime, which then retries and eventually gives up -- so a stream that only
+ * spoke when something changed would go quiet for good after the first
+ * disconnect. It also gives the client a resync point: events published while
+ * nothing was subscribed are gone, so a fresh subscription is exactly when a
+ * consumer wants to re-read.
+ */
+const changed = base
+  .output(eventIterator(z.object({ revision: z.number() })))
+  .handler(async function* ({ signal }) {
+    const changes = publisher.subscribe("skill.changed", { signal });
+    let revision = 0;
+    yield { revision };
+    for await (const _ of changes) {
+      revision += 1;
+      yield { revision };
+    }
+  });
+
+export const skill = { byName, file, list, live: { changed }, remove };

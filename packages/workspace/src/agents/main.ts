@@ -32,6 +32,11 @@ import {
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
+import {
+  beginSkillChangeTracking,
+  consumeSkillChanges,
+  hasSkillChanges,
+} from "../lib/workspace-skill-index";
 import { publisher } from "../rpc/publisher";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -339,8 +344,20 @@ export const mainAgent = setupAgent({
       }
     }
 
+    // Skills live outside the task tree, in the shared writable `/skills`
+    // mount, so the file watcher above never sees them and a turn that only
+    // authored a skill has no task file changes at all.
+    const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
+    if (hasSkillChanges(skillChanges)) {
+      publisher.publish("skill.changed", null);
+    }
+    const skillChangesPart =
+      skillChanges.created.length > 0 || skillChanges.updated.length > 0
+        ? { created: skillChanges.created, updated: skillChanges.updated }
+        : undefined;
+
     const result = await safeTry(async function* () {
-      if (fileChanges.length === 0) {
+      if (fileChanges.length === 0 && !skillChangesPart) {
         return ok(undefined);
       }
 
@@ -379,30 +396,49 @@ export const mainAgent = setupAgent({
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
-      yield* Store.savePart(
-        {
-          data: {
-            files: fileChanges,
+      if (fileChanges.length > 0) {
+        yield* Store.savePart(
+          {
+            data: {
+              files: fileChanges,
+            },
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: lastAssistantMessage.id,
+              sessionId,
+            },
+            type: "data-fileChanges",
           },
-          metadata: {
-            createdAt: new Date(),
-            id: StoreId.newPartId(),
-            messageId: lastAssistantMessage.id,
-            sessionId,
-          },
-          type: "data-fileChanges",
-        },
-        taskId,
-        { signal },
-      );
+          taskId,
+          { signal },
+        );
 
-      const outputArtifacts = outputArtifactsFromChanges(fileChanges);
-      if (outputArtifacts.length > 0) {
-        publisher.publish("task.outputArtifactsCreated", {
-          files: outputArtifacts,
-          id: taskId,
-          sessionId,
-        });
+        const outputArtifacts = outputArtifactsFromChanges(fileChanges);
+        if (outputArtifacts.length > 0) {
+          publisher.publish("task.outputArtifactsCreated", {
+            files: outputArtifacts,
+            id: taskId,
+            sessionId,
+          });
+        }
+      }
+
+      if (skillChangesPart) {
+        yield* Store.savePart(
+          {
+            data: skillChangesPart,
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: lastAssistantMessage.id,
+              sessionId,
+            },
+            type: "data-skillChanges",
+          },
+          taskId,
+          { signal },
+        );
       }
 
       return ok(undefined);
@@ -412,11 +448,14 @@ export const mainAgent = setupAgent({
     }
   },
   onStart: async ({ sessionId, taskId }) => {
-    await beginTurnChangeTracking({
-      id: taskId,
-      sessionId,
-      workspaceConfig: getWorkspaceConfig(),
-    });
+    await Promise.all([
+      beginTurnChangeTracking({
+        id: taskId,
+        sessionId,
+        workspaceConfig: getWorkspaceConfig(),
+      }),
+      beginSkillChangeTracking({ id: taskId, sessionId }),
+    ]);
   },
   shouldContinue: shouldContinueWithToolCalls,
 }));

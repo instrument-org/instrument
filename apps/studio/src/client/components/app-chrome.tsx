@@ -6,6 +6,7 @@ import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { StudioToolbar } from "@/client/components/studio-toolbar";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, Suspense } from "react";
@@ -55,6 +56,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   const isTaskFileViewerOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
   const isSidebarOpen = useSidebarOpen();
+  useRefreshSkillsOnChange();
 
   return (
     <div

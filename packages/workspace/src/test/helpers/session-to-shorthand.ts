@@ -158,6 +158,17 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
       const instructions = part.data.instructions ? ` instructions` : "";
       return `<data-projectContext${projectName}${instructions} />`;
     }
+    case "data-skillChanges": {
+      const created =
+        part.data.created.length > 0
+          ? ` created="${part.data.created.join(",")}"`
+          : "";
+      const updated =
+        part.data.updated.length > 0
+          ? ` updated="${part.data.updated.join(",")}"`
+          : "";
+      return `<data-skillChanges${created}${updated} />`;
+    }
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;
     }

@@ -11,6 +11,7 @@ import { type RenderPartContext } from "./chat-stream-render-part";
 import { FileChangesCard } from "./file-changes-card";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
+import { SkillChangesCard } from "./skill-changes-card";
 
 type DataPartType = SessionMessagePart.DataPart["type"];
 
@@ -32,6 +33,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-maxSteps": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
+  "data-skillChanges": "always",
   "data-skillMentions": "dev",
 };
 
@@ -126,6 +128,18 @@ export function renderDataPart({
     }
     case "data-projectChanges": {
       return <ProjectChangesNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-skillChanges": {
+      return (
+        // Wider than the file grid's mt-2: that grid is a block of its own and
+        // reads as separate at 8px, while a single slim card sits close enough
+        // to the text above to look glued to it.
+        <SkillChangesCard
+          className="mt-3"
+          data={part.data}
+          key={part.metadata.id}
+        />
+      );
     }
     case "data-skillMentions": {
       return (

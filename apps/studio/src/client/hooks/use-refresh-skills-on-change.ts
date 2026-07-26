@@ -9,9 +9,9 @@ import { useEffect } from "react";
  * A skill the agent just authored is otherwise invisible to the slash menu on
  * the very page that created it until its cache goes stale or the window is
  * refocused, and one it just deleted stays offered there just as long. Mount
- * once per window: the cached list is shared, so one invalidation refreshes the
- * composer, the mention list, and the skills page together, and it only fires
- * on a real change rather than on every turn.
+ * once per window: the cached reads are shared, so one invalidation refreshes
+ * the composer, the mention list, the skills page and an open skill's own page
+ * together, and it only fires on a real change rather than on every turn.
  *
  * The subscription's opening revision is acted on like any other. Changes
  * published while nothing was listening are not replayed, so re-reading on a
@@ -28,8 +28,11 @@ export function useRefreshSkillsOnChange() {
     if (revision === undefined) {
       return;
     }
+    // The router's own key, so this covers every skill read rather than the
+    // list alone: someone watching a skill's page while the agent revises it
+    // is looking at `byName` and `file`, which the list key never touched.
     void queryClient.invalidateQueries({
-      queryKey: rpcClient.workspace.skill.list.key(),
+      queryKey: rpcClient.workspace.skill.key(),
     });
   }, [revision, queryClient]);
 }

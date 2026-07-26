@@ -40,9 +40,12 @@ export function SkillChangesCard({
     ...data.updated.map((name) => ({ name, verb: "Updated" })),
   ].map((entry) => ({
     ...entry,
-    // Matched on the addressable name: a workspace skill keeps its plain one,
-    // so a namesake from a vendor directory cannot answer for it here.
-    skill: skills.find((skill) => skill.qualifiedName === entry.name),
+    // These names are directories in the writable `/skills` mount, which is
+    // where the agent wrote them and what `editable` marks. Matching the
+    // addressable name instead would miss the skill whenever the same folder
+    // name exists in the workspace's other skills directory, since neither
+    // copy then keeps the plain name.
+    skill: skills.find((skill) => skill.editable && skill.name === entry.name),
   }));
 
   if (entries.length === 0) {
@@ -91,9 +94,15 @@ function SkillChangeRow({
   const isMissing = resolved && !skill;
 
   // Spelled the way the skill is invoked, so the sentence doubles as a hint
-  // that /name works in the composer. A skill that opted out of manual
-  // invocation gets its bare name, since the slash form would be a lie.
-  const label = skill?.userInvocable === false ? name : skillMentionLabel(name);
+  // that /name works in the composer. That is the addressable name, which the
+  // directory name only equals while no other source claims it. A skill that
+  // opted out of manual invocation gets its bare name, since the slash form
+  // would be a lie.
+  const addressableName = skill?.qualifiedName ?? name;
+  const label =
+    skill?.userInvocable === false
+      ? addressableName
+      : skillMentionLabel(addressableName);
 
   const body = (
     <>
@@ -139,7 +148,7 @@ function SkillChangeRow({
         "group/skill transition-colors select-none hover:bg-muted/40 dark:hover:bg-muted/40",
       )}
       openInCurrentTab
-      params={{ name }}
+      params={{ name: addressableName }}
       to="/skills/$name"
     >
       {body}

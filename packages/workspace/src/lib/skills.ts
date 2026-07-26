@@ -13,6 +13,18 @@ import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 
 export const FILE_LIST_LIMIT = 50;
 
+/**
+ * Hard ceiling on the SKILL.md body `load_skill` inlines, in characters.
+ *
+ * Roughly twice the authoring token budget, so a skill written to the rules is
+ * never touched. It exists for the ones that were not: a body discovered in
+ * another agent's directory is arbitrary text nothing here reviewed, and
+ * inlining it whole is the one place a single file can spend the context window
+ * before the task starts. Past this the agent is pointed at the copy in its
+ * task, which it can read the way it reads any other file.
+ */
+export const SKILL_CONTENT_LIMIT = 40_000;
+
 export type FrontmatterResult =
   | {
       body: string;
@@ -316,6 +328,29 @@ export function splitFrontmatter(raw: string): FrontmatterSplit {
     block: rest.slice(0, end),
     body: rest.slice(end + "\n---".length),
     ok: true,
+  };
+}
+
+/**
+ * Cut a skill body to the inlining ceiling on a line boundary, so the agent is
+ * never handed half a sentence or half a fenced block as if it were the whole
+ * instruction.
+ */
+export function truncateSkillContent(content: string): {
+  content: string;
+  truncated: boolean;
+} {
+  if (content.length <= SKILL_CONTENT_LIMIT) {
+    return { content, truncated: false };
+  }
+  const clipped = content.slice(0, SKILL_CONTENT_LIMIT);
+  const lastNewline = clipped.lastIndexOf("\n");
+  return {
+    content: (lastNewline === -1
+      ? clipped
+      : clipped.slice(0, lastNewline)
+    ).trimEnd(),
+    truncated: true,
   };
 }
 

@@ -9,6 +9,7 @@ import {
   FILE_LIST_LIMIT,
   listSkillFiles,
   parseFrontmatter,
+  SKILL_CONTENT_LIMIT,
   type SkillInfo,
 } from "./skills";
 
@@ -244,6 +245,15 @@ export async function validateSkill({
       "warning",
       "skill-file-too-many-tokens",
       `SKILL.md is roughly ${stats.skillFileTokens} tokens (limit ${SKILL_LIMITS.skillFileTokens}). Every one of them enters the conversation when the skill loads.`,
+      "SKILL.md",
+    );
+  }
+
+  if (frontmatter.body.length > SKILL_CONTENT_LIMIT) {
+    add(
+      "warning",
+      "skill-file-truncated-on-load",
+      `SKILL.md is ${frontmatter.body.length} characters, past the ${SKILL_CONTENT_LIMIT} \`load_skill\` inlines. The agent gets the beginning and a pointer to the file for the rest, so put what it must not miss first.`,
       "SKILL.md",
     );
   }

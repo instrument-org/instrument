@@ -23,7 +23,9 @@ import {
   findSkills,
   getSkillSources,
   listSkillFiles,
+  SKILL_CONTENT_LIMIT,
   type SkillInfo,
+  truncateSkillContent,
 } from "../lib/skills";
 import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -97,6 +99,9 @@ export const LoadSkill = setupTool({
   outputSchema: z.discriminatedUnion("state", [
     z.object({
       content: z.string(),
+      // True when the body was longer than `SKILL_CONTENT_LIMIT` and only its
+      // head was inlined, so the model is told where to read the rest.
+      contentTruncated: z.boolean(),
       files: z.array(z.string()),
       installResults: z.array(SkillInstallResultSchema).optional(),
       name: z.string(),
@@ -240,8 +245,11 @@ export const LoadSkill = setupTool({
       .filter((f) => f !== "SKILL.md")
       .map((f) => `${relativeSkillRoot}/${f}`);
 
+    const body = truncateSkillContent(skill.content);
+
     return ok({
-      content: skill.content,
+      content: body.content,
+      contentTruncated: body.truncated,
       files,
       ...(installResults.length > 0 ? { installResults } : {}),
       name: skill.name,
@@ -281,9 +289,14 @@ export const LoadSkill = setupTool({
       };
     }
 
+    const skillRoot = `${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}/${output.name}`;
+
+    const contentSection = output.contentTruncated
+      ? `\n\nThis skill's SKILL.md is longer than ${SKILL_CONTENT_LIMIT} characters, so only its beginning is above. Read \`${skillRoot}/SKILL.md\` for the rest before following it.`
+      : "";
+
     let fileSection = "";
     if (output.files.length > 0) {
-      const skillRoot = `${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}/${output.name}`;
       const fileSectionText = [
         `The skill files below are copied into your task and are yours to edit.`,
         `For an operation a script already covers, read it and run it with \`${TS_COMMAND.name}\` (TypeScript) or \`python\` (Python) rather than rewriting it.`,
@@ -359,6 +372,7 @@ export const LoadSkill = setupTool({
       value:
         `<${TAGS.content} name="${output.name}">\n` +
         output.content +
+        contentSection +
         originSection +
         fileSection +
         installSection +

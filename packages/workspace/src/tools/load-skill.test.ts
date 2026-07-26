@@ -8,6 +8,7 @@ import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../lib/workspace-config";
+import { SKILL_CONTENT_LIMIT } from "../lib/skills";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
@@ -296,6 +297,77 @@ describe("LoadSkill", () => {
     `);
   });
 
+  it("caps an oversized skill body and points at the copy for the rest", async () => {
+    const line = "Follow this instruction carefully.";
+    const body = Array.from(
+      { length: Math.ceil(SKILL_CONTENT_LIMIT / line.length) + 100 },
+      () => line,
+    ).join("\n");
+    await createSkill({ name: "my-skill" });
+    await fs.appendFile(path.join(skillsDir, "my-skill", "SKILL.md"), body);
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "my-skill" },
+      })
+    )._unsafeUnwrap();
+
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    expect(result.contentTruncated).toBe(true);
+    expect(result.content.length).toBeLessThanOrEqual(SKILL_CONTENT_LIMIT);
+    // Cut between lines, never mid-instruction.
+    expect(result.content.endsWith(line)).toBe(true);
+
+    const modelOutput = LoadSkill.toModelOutput({
+      input: { explanation: "loading", name: "my-skill" },
+      output: result,
+      toolCallId: "call-1",
+    });
+    expect(modelOutput.type).toBe("text");
+    if (modelOutput.type !== "text") {
+      return;
+    }
+    // Everything the model is told once the inlined body stops.
+    expect(
+      modelOutput.value.slice(
+        `<skill_content name="my-skill">\n`.length + result.content.length,
+      ),
+    ).toMatchInlineSnapshot(`
+      "
+
+      This skill's SKILL.md is longer than 40000 characters, so only its beginning is above. Read \`work/skills/my-skill/SKILL.md\` for the rest before following it.
+
+      This skill is provided by Instrument and is read-only. Copy it into \`/skills/\` to change it.
+      </skill_content>"
+    `);
+  });
+
+  it("leaves a skill inside the limit whole", async () => {
+    await createSkill({ name: "my-skill" });
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "my-skill" },
+      })
+    )._unsafeUnwrap();
+
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    expect(result.contentTruncated).toBe(false);
+    expect(result.content).toMatchInlineSnapshot(`
+      "# my-skill
+
+      Skill instructions here."
+    `);
+  });
+
   it("marks a skill discovered outside the workspace as read-only", async () => {
     await createSkill({ name: "my-skill" });
 
@@ -351,6 +423,7 @@ describe("LoadSkill", () => {
         input: { name: "docx" },
         output: {
           content: "# Body",
+          contentTruncated: false,
           files: [],
           name: "docx",
           origin,
@@ -608,6 +681,7 @@ describe("LoadSkill", () => {
       input: { name: "third-party" },
       output: {
         content: "# Body",
+        contentTruncated: false,
         files: [],
         installResults: [
           { runtime: "node", state: "skipped" },

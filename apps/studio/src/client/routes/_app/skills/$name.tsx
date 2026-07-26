@@ -1,5 +1,5 @@
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
-import { openCreateSkill, openEditSkill } from "@/client/atoms/skill-modal";
+import { openEditSkill } from "@/client/atoms/skill-modal";
 import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
 import { InternalLink } from "@/client/components/internal-link";
@@ -47,13 +47,11 @@ import { safe } from "@orpc/client";
 import {
   ArrowLeftIcon,
   DotsThreeOutlineVerticalIcon,
-  GraduationCapIcon,
   PencilSimpleIcon,
-  PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -61,6 +59,37 @@ import { toast } from "sonner";
 const SKILL_FILE = "SKILL.md";
 
 export const Route = createFileRoute("/_app/skills/$name")({
+  /**
+   * A transcript card or a kept tab outlives the skill it points at, so this
+   * route is reachable for one that has been deleted or renamed. There is
+   * nothing to show and nothing to do on such a page, so hand the list back
+   * with a note instead. Replaces the history entry, since going back would
+   * otherwise land here again.
+   *
+   * Reads through the query cache the component reads, so the page it does
+   * render costs no second fetch. `byName` keeps the default staleTime of 0,
+   * so this is always a fresh answer rather than a cached one.
+   */
+  beforeLoad: async ({ context, params, preload }) => {
+    const skill = await context.queryClient
+      .ensureQueryData(
+        rpcClient.workspace.skill.byName.queryOptions({
+          input: { name: params.name },
+        }),
+      )
+      .catch(() => null);
+    // Preload runs this too, where a toast and a navigation would fire from a
+    // hover. No skill link opts into preload today; the guard keeps that from
+    // becoming a trap for whoever adds the first one.
+    if (skill || preload) {
+      return;
+    }
+    toast.info(`No skill named "${params.name}" in this workspace`, {
+      id: `skill-missing:${params.name}`,
+    });
+    // oxlint-disable-next-line typescript/only-throw-error
+    throw redirect({ replace: true, to: "/skills" });
+  },
   component: SkillPage,
   head: async ({ params }) => {
     const skillResult = await safe(
@@ -70,44 +99,6 @@ export const Route = createFileRoute("/_app/skills/$name")({
   },
   staticData: { tabIcon: "graduation-cap" },
 });
-
-/**
- * A skill page can be reached for a skill that is not there: a transcript keeps
- * its cards, a tab keeps its route, and either outlives the skill being deleted
- * or renamed. Name what is missing and offer the two ways forward, rather than
- * stranding someone on a bare line of text.
- */
-function SkillNotFound({ name }: { name: string }) {
-  return (
-    <div className="h-full overflow-y-auto scroll-fade-y">
-      <div className="mx-auto w-full max-w-5xl px-8 py-12">
-        <InternalLink
-          className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          to="/skills"
-        >
-          <ArrowLeftIcon className="size-4" />
-          All skills
-        </InternalLink>
-        <div className="rounded-2xl border border-dashed p-10 text-center">
-          <GraduationCapIcon className="mx-auto size-8 text-muted-foreground/50" />
-          <p className="mt-4 font-medium">Skill not found</p>
-          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            {`Nothing in this workspace answers to "${name}". It may have been deleted or renamed since this page was linked.`}
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <Button asChild variant="outline">
-              <InternalLink to="/skills">Browse skills</InternalLink>
-            </Button>
-            <Button onClick={openCreateSkill}>
-              <PlusIcon className="size-4" />
-              New skill
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function SkillPage() {
   const { name } = Route.useParams();
@@ -156,16 +147,14 @@ function SkillPage() {
     );
   }, [name, setDraft, skill?.userInvocable]);
 
-  if (isLoading) {
+  // `beforeLoad` has already redirected away from a skill that is not here, so
+  // this covers the load itself rather than a missing skill.
+  if (isLoading || !skill) {
     return (
       <div className="grid h-full place-items-center text-sm text-muted-foreground">
         Loading skill…
       </div>
     );
-  }
-
-  if (!skill) {
-    return <SkillNotFound name={name} />;
   }
 
   const confirmDelete = async () => {

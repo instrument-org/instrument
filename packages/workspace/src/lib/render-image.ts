@@ -32,20 +32,44 @@ const JPEG_STEPS = [
 const SHRINK_STEPS = 6;
 const SHRINK_FACTOR = 0.75;
 
+// image-size's format names, mapped to the media types a provider is told.
+// Anything it can identify but that is missing here still reads as an image;
+// it just has to be re-encoded before it can be sent.
+const SNIFFED_MEDIA_TYPES: Record<string, string> = {
+  gif: "image/gif",
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
 /**
- * An image's dimensions as a viewer displays them.
+ * What an image actually is, read from its bytes.
  *
- * A JPEG carrying an EXIF orientation of 5-8 stores its pixels rotated a
- * quarter turn from how it is meant to be seen, so its stored width is its
- * displayed height. Everything downstream -- the size we tell the model, the
- * coordinates it sends back -- has to be in displayed terms, because displayed
- * is what it sees.
+ * The bytes are the only honest source. A file's extension is a claim its
+ * contents do not have to honor -- a download served as PNG under a `.jpg`
+ * name, a truncated write, an error page saved where an image was expected --
+ * and a media type taken from the name is how a request gets rejected for
+ * contradicting itself.
+ *
+ * Dimensions come back as a viewer displays them. A JPEG carrying an EXIF
+ * orientation of 5-8 stores its pixels a quarter turn from how it is meant to
+ * be seen, so its stored width is its displayed height, and displayed is what
+ * the model's coordinates refer to.
+ *
+ * `undefined` means these bytes could not be identified as an image at all.
  */
-export function measureImage(bytes: Buffer): ImageSize | undefined {
+export function measureImage(
+  bytes: Buffer,
+): (ImageSize & { mediaType?: string }) | undefined {
   try {
-    const { height, orientation, width } = imageSize(bytes);
+    const { height, orientation, type, width } = imageSize(bytes);
     const quarterTurned = orientation !== undefined && orientation >= 5;
-    return quarterTurned ? { height: width, width: height } : { height, width };
+    const size = quarterTurned
+      ? { height: width, width: height }
+      : { height, width };
+    const mediaType =
+      type === undefined ? undefined : SNIFFED_MEDIA_TYPES[type];
+    return mediaType === undefined ? size : { ...size, mediaType };
   } catch {
     return undefined;
   }

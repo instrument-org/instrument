@@ -184,6 +184,59 @@ describe("ReadFile", () => {
       60_000,
     );
 
+    it("refuses an image whose bytes cannot be decoded", async () => {
+      // An interrupted download or a truncated write leaves a file that opens
+      // as an image and is not one. Handing those bytes to the provider gets
+      // the request rejected, and since the part is persisted the rejection
+      // repeats on every later turn. (A text file with an image extension is
+      // harmless by comparison -- it reads as text and never becomes media.)
+      const imagePath = path.join(fixturesPath, "not-really.png");
+      await fs.writeFile(
+        imagePath,
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]),
+      );
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./not-really.png" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("unsupported-format");
+        if (value.state === "unsupported-format") {
+          expect(value.reason).toBe("undecodable-image");
+        }
+      } finally {
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
+    it("reports the format the bytes are, not the one the name claims", async () => {
+      const imagePath = path.join(fixturesPath, "mislabeled.jpg");
+      const png = path.join(fixturesPath, "mislabeled-source.png");
+      await drawPngFixture(png, "320x240");
+      await fs.copyFile(png, imagePath);
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./mislabeled.jpg" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("image");
+        if (value.state === "image") {
+          expect(value.mimeType).toBe("image/png");
+        }
+      } finally {
+        await fs.rm(imagePath, { force: true });
+        await fs.rm(png, { force: true });
+      }
+    }, 60_000);
+
     it("crops a region from the full-resolution file and magnifies it", async () => {
       const imagePath = path.join(fixturesPath, "region-probe.png");
       await drawPngFixture(imagePath, "3840x2160");

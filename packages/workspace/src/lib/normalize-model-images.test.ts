@@ -94,6 +94,7 @@ describe("normalizeModelImages", () => {
       .toMatchInlineSnapshot(`
         {
           "height": 819,
+          "mediaType": "image/png",
           "width": 1456,
         }
       `);
@@ -166,7 +167,60 @@ describe("normalizeModelImages", () => {
           "base64",
         ),
       ),
-    ).toEqual({ height: 819, width: 1456 });
+    ).toEqual({ height: 819, mediaType: "image/png", width: 1456 });
+  }, 60_000);
+
+  it.each([
+    {
+      data: Buffer.from("<html>404 not found</html>").toString("base64"),
+      name: "an error page saved with an image name",
+    },
+    {
+      data: Buffer.from("iVBORw0KGgoAAAANSUhEUg", "base64").toString("base64"),
+      name: "a truncated write",
+    },
+  ])(
+    "drops $name rather than sending it",
+    async ({ data }) => {
+      // These get rejected by the provider, and the rejection is permanent: the
+      // part is already on disk and replays on every later turn, so one bad read
+      // would otherwise end the conversation.
+      const messages: ModelMessage[] = [
+        {
+          content: [{ data, mediaType: "image/png", type: "file" }],
+          role: "user",
+        },
+      ];
+
+      const [result] = await normalizeModelImages({ messages, model });
+      const part = Array.isArray(result?.content)
+        ? result.content[0]
+        : undefined;
+
+      expect(part?.type).toBe("text");
+      expect(part && "text" in part ? part.text : "").toContain(
+        "[Image omitted:",
+      );
+    },
+    60_000,
+  );
+
+  it("corrects a media type the bytes contradict", async () => {
+    // A download served as PNG under a `.jpg` name is the ordinary way this
+    // happens, and the mismatch alone is enough to get the request rejected.
+    const messages: ModelMessage[] = [
+      {
+        content: [{ data: small, mediaType: "image/jpeg", type: "file" }],
+        role: "user",
+      },
+    ];
+
+    const [result] = await normalizeModelImages({ messages, model });
+    const part = Array.isArray(result?.content) ? result.content[0] : undefined;
+
+    expect(part && "mediaType" in part ? part.mediaType : undefined).toBe(
+      "image/png",
+    );
   }, 60_000);
 
   it("passes through a URL it holds no bytes for", async () => {

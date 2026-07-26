@@ -22,7 +22,13 @@ type ToolResultPart = Extract<
 const MAX_ENCODED_BYTES = 5 * 1024 * 1024;
 const MAX_RAW_BYTES = Math.floor((MAX_ENCODED_BYTES * 3) / 4);
 
-const DROPPED_NOTE =
+// Media types a provider is known to accept. A sniffed format outside this set
+// is re-encoded rather than refused, since ffmpeg can usually read it.
+const SENDABLE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+const UNREADABLE_NOTE =
+  "[Image omitted: the file is not readable as an image. It may be truncated, or it may not be the format its name claims.]";
+const OVERSIZED_NOTE =
   "[Image omitted: it could not be reduced to a size this model accepts.]";
 
 // One turn re-sends the whole transcript, so without this every image in the
@@ -56,11 +62,12 @@ export async function normalizeModelImages({
   async function normalizeFilePart(part: FilePart) {
     const normalized = await normalizeImage({
       data: part.data,
+      declaredMediaType: part.mediaType,
       model,
       signal,
     });
     if (normalized.state === "dropped") {
-      return { text: DROPPED_NOTE, type: "text" as const };
+      return { text: normalized.note, type: "text" as const };
     }
     if (normalized.state === "replaced") {
       return {
@@ -84,11 +91,12 @@ export async function normalizeModelImages({
       }
       const normalized = await normalizeImage({
         data: item.data,
+        declaredMediaType: item.mediaType,
         model,
         signal,
       });
       if (normalized.state === "dropped") {
-        value.push({ text: DROPPED_NOTE, type: "text" });
+        value.push({ text: normalized.note, type: "text" });
       } else if (normalized.state === "replaced") {
         value.push({
           ...item,
@@ -230,15 +238,17 @@ function isImagePart(part: { type: string }): part is FilePart {
  */
 async function normalizeImage({
   data,
+  declaredMediaType,
   model,
   signal,
 }: {
   data: unknown;
+  declaredMediaType: string;
   model: AIGatewayModel.Type;
   signal?: AbortSignal;
 }): Promise<
   | { data: string | Uint8Array; mediaType: string; state: "replaced" }
-  | { state: "dropped" }
+  | { note: string; state: "dropped" }
   | { state: "unchanged" }
 > {
   const bytes = decodeImageData(data);
@@ -248,14 +258,25 @@ async function normalizeImage({
 
   const size = measureImage(bytes);
   if (!size) {
-    return { state: "unchanged" };
+    // Nothing can read these bytes as an image, so neither can the provider.
+    // Sending them anyway costs the whole conversation: the request is rejected
+    // for the content, the content is already on disk, and every later turn
+    // replays it. Dropping one image is the cheap half of that trade.
+    return { note: UNREADABLE_NOTE, state: "dropped" };
   }
 
   const limits = imageViewLimits(model.params.provider);
   const target = imageViewSize({ ...size, limits });
   const withinBudget =
     target.width === size.width && target.height === size.height;
-  if (withinBudget && bytes.byteLength <= MAX_RAW_BYTES) {
+  // A media type that contradicts the bytes is rejected as surely as bad bytes
+  // are, and it is the likelier mistake: media types come from file extensions,
+  // which a download or a rename is free to get wrong.
+  const honest =
+    size.mediaType !== undefined && size.mediaType === declaredMediaType;
+  const sendable = honest && SENDABLE_MEDIA_TYPES.has(declaredMediaType);
+
+  if (sendable && withinBudget && bytes.byteLength <= MAX_RAW_BYTES) {
     return { state: "unchanged" };
   }
 
@@ -278,7 +299,10 @@ async function normalizeImage({
   }
 
   if (!rendered) {
-    return { state: "dropped" };
+    return {
+      note: sendable ? OVERSIZED_NOTE : UNREADABLE_NOTE,
+      state: "dropped",
+    };
   }
 
   return {

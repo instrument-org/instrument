@@ -27,6 +27,7 @@ import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
 } from "../lib/resolve-agent-path";
+import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
@@ -291,25 +292,26 @@ async function handleMediaFile({
     });
   }
 
-  // An unmeasurable image still gets sent; the provider will say whether it can
-  // read it. We just cannot describe its pixel space, so we say nothing about
-  // it rather than guessing.
   const limits = imageViewLimits(model.params.provider);
   const size = measureImage(fileData);
   const view = size && imageViewSize({ ...size, limits });
 
+  // Report what the bytes are, not what the name claims. `getMimeType` reads
+  // the extension, and a downloaded `.jpg` that is really a PNG would otherwise
+  // be announced as a JPEG -- a contradiction the provider rejects, on content
+  // already written to disk and replayed every turn after.
+  const sniffedMimeType = size?.mediaType ?? mimeType;
+
   if (!size || !view) {
-    if (region) {
-      return executeError(
-        `Cannot read a region of ${fixedPath}: its dimensions could not be determined.`,
-      );
-    }
+    // Nothing could read these bytes as an image. Say so rather than handing
+    // them on: the send would be rejected for content that is already saved and
+    // replayed on every later turn.
     return ok({
-      base64Data: fileData.toString("base64"),
       filePath: fixedPath,
       mimeType,
       modifiedAt: stats.mtimeMs,
-      state,
+      reason: "undecodable-image" as const,
+      state: "unsupported-format" as const,
     });
   }
 
@@ -324,7 +326,7 @@ async function handleMediaFile({
     return ok({
       base64Data: fileData.toString("base64"),
       filePath: fixedPath,
-      mimeType,
+      mimeType: sniffedMimeType,
       modifiedAt: stats.mtimeMs,
       state,
       ...dimensions,
@@ -439,7 +441,11 @@ export const ReadFile = setupTool({
       filePath: z.string(),
       mimeType: z.string().optional(),
       modifiedAt: z.number(),
-      reason: z.enum(["binary-file", "unsupported-image-format"]),
+      reason: z.enum([
+        "binary-file",
+        "undecodable-image",
+        "unsupported-image-format",
+      ]),
       state: z.literal("unsupported-format"),
     }),
     z.object({
@@ -674,6 +680,18 @@ export const ReadFile = setupTool({
     }
 
     if (output.state === "unsupported-format") {
+      if (output.reason === "undecodable-image") {
+        return {
+          type: "error-text",
+          value: [
+            `Cannot decode ${output.filePath} as an image.`,
+            "The file may be truncated or incomplete, or it may not be the format its name says it is.",
+            `Check what it really is with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\`,`,
+            "and convert it before reading.",
+          ].join(" "),
+        };
+      }
+
       if (output.reason === "unsupported-image-format") {
         const supportedFormatsText = SUPPORTED_IMAGE_FORMATS.map(
           (format) => `'${format}'`,

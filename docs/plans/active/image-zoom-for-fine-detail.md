@@ -122,7 +122,7 @@ The bash route stays available and unblocked for the things a fixed parameter ca
 
 The harness gains no new tool and no new bash command. What it gains is one optional parameter on a tool that already reads images, plus plumbing with no model-facing surface at all.
 
-A skill was the tempting answer, and it fails on the same point twice. `load_skill` is a deliberate act: the agent has to suspect it needs help before it goes looking. The failure this addresses is the agent *not* suspecting -- it looks at a chart, reads a number wrong, and moves on with no sense that anything was lost. Nothing prompts the skill load. And the coordinate space problem has to be solved in the harness regardless, because only the harness knows which provider is being called and what it does to an oversized image; a skill given the wrong pixel space just crops the wrong rectangle confidently.
+A skill was the tempting answer, and it fails on the same point twice. `load_skill` is a deliberate act: the agent has to suspect it needs help before it goes looking. The failure this addresses is the agent _not_ suspecting -- it looks at a chart, reads a number wrong, and moves on with no sense that anything was lost. Nothing prompts the skill load. And the coordinate space problem has to be solved in the harness regardless, because only the harness knows which provider is being called and what it does to an oversized image; a skill given the wrong pixel space just crops the wrong rectangle confidently.
 
 Where a skill does earn its place is everything past one rectangle: contact sheets, annotate-then-read, batch inspection, before-and-after diffs. Those are composed workflows, they are already possible with `sharp-images` and ffmpeg, and they are the right thing to reach for once the agent knows it needs to look closer. This plan is about it knowing.
 
@@ -169,6 +169,13 @@ Where a skill does earn its place is everything past one rectangle: contact shee
 - **The floor costs high-tier models resolution.** See phase 1 step 3. This is the one place the implementation trades something real away, and it is reversible the moment per-model image budgets exist.
 - **Pre-resize changes what the agent is shown, not the file on disk.** It is the same downscale the provider would have done, so it is a wash, and the crop still reads from the original. Stated in the code so nobody "fixes" it later.
 - **Nothing here is measured.** Every accuracy number in this document is the cookbook's, on its benchmark, with its tool. Ours could plausibly do nothing if the agent never reaches for `region`.
+
+## Follow-on plans
+
+The image work put a validation pass at the send boundary, which turned out to be the right place for a problem larger than images:
+
+- [session-recovery-from-unsendable-content.md](session-recovery-from-unsendable-content.md) -- a rejected part is permanent, because parts are persisted before they are validated and the whole transcript is replayed every turn. The image validation here is the prevention half; classification and recovery are not built.
+- [context-compaction.md](context-compaction.md) -- the same permanent-failure shape from a different cause, and the escalation path recovery needs.
 
 ## Out of scope
 

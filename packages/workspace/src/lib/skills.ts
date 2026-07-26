@@ -358,44 +358,6 @@ export function parseQualifiedSkillName(qualifiedName: string): {
 }
 
 /**
- * Hand every skill a name that addresses it and nothing else.
- *
- * A name only one source uses is left alone, so the common case reads the way
- * the author wrote it. Where several sources use one name, the highest-ranked
- * source keeps it and the rest take `<source>:<name>`; when the top rank is a
- * tie -- two vendor directories, say -- none of them has a claim on the plain
- * name, so all of them are qualified and it addresses nothing.
- */
-export function qualifySkillNames(skills: DiscoveredSkill[]): SkillInfo[] {
-  const byName = new Map<string, DiscoveredSkill[]>();
-  for (const skill of skills) {
-    const key = nameKey(skill.name);
-    byName.set(key, [...(byName.get(key) ?? []), skill]);
-  }
-
-  return skills.map((skill) => {
-    const sharing = byName.get(nameKey(skill.name)) ?? [skill];
-    if (sharing.length === 1) {
-      return { ...skill, qualifiedName: skill.name };
-    }
-    const bestRank = Math.min(
-      ...sharing.map((other) => SOURCE_RANK[other.source]),
-    );
-    const claimants = sharing.filter(
-      (other) => SOURCE_RANK[other.source] === bestRank,
-    );
-    const keepsPlainName =
-      claimants.length === 1 && SOURCE_RANK[skill.source] === bestRank;
-    return {
-      ...skill,
-      qualifiedName: keepsPlainName
-        ? skill.name
-        : `${skill.source}:${skill.name}`,
-    };
-  });
-}
-
-/**
  * Resolve what was asked for to a skill, or to the names worth suggesting.
  *
  * The exact qualified name is the answer whenever it exists. Past that a model
@@ -630,6 +592,44 @@ async function isDirectorySymlink(candidate: AbsolutePath) {
  */
 function nameKey(name: string): string {
   return name.toLowerCase();
+}
+
+/**
+ * Hand every skill a name that addresses it and nothing else.
+ *
+ * A name only one source uses is left alone, so the common case reads the way
+ * the author wrote it. Where several sources use one name, the highest-ranked
+ * source keeps it and the rest take `<source>:<name>`; when the top rank is a
+ * tie -- two vendor directories, say -- none of them has a claim on the plain
+ * name, so all of them are qualified and it addresses nothing.
+ */
+function qualifySkillNames(skills: DiscoveredSkill[]): SkillInfo[] {
+  const byName = new Map<string, DiscoveredSkill[]>();
+  for (const skill of skills) {
+    const key = nameKey(skill.name);
+    byName.set(key, [...(byName.get(key) ?? []), skill]);
+  }
+
+  return skills.map((skill) => {
+    const sharing = byName.get(nameKey(skill.name)) ?? [skill];
+    if (sharing.length === 1) {
+      return { ...skill, qualifiedName: skill.name };
+    }
+    const bestRank = Math.min(
+      ...sharing.map((other) => SOURCE_RANK[other.source]),
+    );
+    const claimants = sharing.filter(
+      (other) => SOURCE_RANK[other.source] === bestRank,
+    );
+    const keepsPlainName =
+      claimants.length === 1 && SOURCE_RANK[skill.source] === bestRank;
+    return {
+      ...skill,
+      qualifiedName: keepsPlainName
+        ? skill.name
+        : `${skill.source}:${skill.name}`,
+    };
+  });
 }
 
 // Adapted from https://github.com/sst/opencode/blob/main/packages/opencode/src/config/markdown.ts

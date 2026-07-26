@@ -61,44 +61,6 @@ export async function consumeSkillChanges(
   });
 }
 
-/**
- * What changed between two snapshots.
- *
- * An update is detected from SKILL.md alone, so a revision that only rewrites a
- * script or reference the skill ships goes unreported. Reading every file of
- * every skill to catch those would cost far more than the signal is worth, and
- * the case this exists for -- a skill appearing -- is exact either way.
- */
-export function diffWorkspaceSkillIndexes({
-  after,
-  before,
-}: {
-  after: WorkspaceSkillIndex;
-  before: WorkspaceSkillIndex;
-}): WorkspaceSkillChanges {
-  const changes = emptyChanges();
-
-  for (const [name, stamp] of after) {
-    const previous = before.get(name);
-    if (!previous) {
-      changes.created.push(name);
-    } else if (
-      previous.mtimeMs !== stamp.mtimeMs ||
-      previous.size !== stamp.size
-    ) {
-      changes.updated.push(name);
-    }
-  }
-
-  for (const name of before.keys()) {
-    if (!after.has(name)) {
-      changes.removed.push(name);
-    }
-  }
-
-  return changes;
-}
-
 export function hasSkillChanges(changes: WorkspaceSkillChanges): boolean {
   return (
     changes.created.length > 0 ||
@@ -144,6 +106,44 @@ export async function readWorkspaceSkillIndex(): Promise<WorkspaceSkillIndex> {
   );
 
   return index;
+}
+
+/**
+ * What changed between two snapshots.
+ *
+ * An update is detected from SKILL.md alone, so a revision that only rewrites a
+ * script or reference the skill ships goes unreported. Reading every file of
+ * every skill to catch those would cost far more than the signal is worth, and
+ * the case this exists for -- a skill appearing -- is exact either way.
+ */
+function diffWorkspaceSkillIndexes({
+  after,
+  before,
+}: {
+  after: WorkspaceSkillIndex;
+  before: WorkspaceSkillIndex;
+}): WorkspaceSkillChanges {
+  const changes = emptyChanges();
+
+  for (const [name, stamp] of after) {
+    const previous = before.get(name);
+    if (!previous) {
+      changes.created.push(name);
+    } else if (
+      previous.mtimeMs !== stamp.mtimeMs ||
+      previous.size !== stamp.size
+    ) {
+      changes.updated.push(name);
+    }
+  }
+
+  for (const name of before.keys()) {
+    if (!after.has(name)) {
+      changes.removed.push(name);
+    }
+  }
+
+  return changes;
 }
 
 function emptyChanges(): WorkspaceSkillChanges {

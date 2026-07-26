@@ -363,9 +363,8 @@ describe("skill discovery", () => {
 
     // macOS and Windows would give both of these the same folder inside a task,
     // so the lower-ranked one has to be qualified even though the names differ.
-    expect(
-      skills.map(({ qualifiedName }) => qualifiedName),
-    ).toMatchInlineSnapshot(`
+    expect(skills.map(({ qualifiedName }) => qualifiedName))
+      .toMatchInlineSnapshot(`
       [
         "pdf",
         "claude:PDF",

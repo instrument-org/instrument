@@ -389,7 +389,9 @@ export function PromptEditor({
                 // An empty list means nothing to check against, not a skill that
                 // has gone: only claim a chip is stale once there is a list.
                 resolved={skills.length > 0}
-                summary={skills.find((skill) => skill.qualifiedName === chip.name)}
+                summary={skills.find(
+                  (skill) => skill.qualifiedName === chip.name,
+                )}
                 // The composer's own controls stay the tab order; a draft with
                 // several tokens should not put a stop at each one.
                 tabIndex={-1}

@@ -1,7 +1,15 @@
-import { renderWithProviders } from "@/tests/render";
-import { act, type ComponentProps, createRef } from "react";
+import {
+  act,
+  type ComponentProps,
+  createRef,
+  type ReactElement,
+  type RefObject,
+} from "react";
 import { describe, expect, it, vi } from "vitest";
 
+// Relative, not `@/tests/render`: oxlint's type-aware pass does not resolve the
+// alias to this module and every access downstream then reads as an error type.
+import { renderWithProviders } from "../../tests/render";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 
 const noop = () => {
@@ -16,13 +24,20 @@ const editorProps = {
   skills: [] as ComponentProps<typeof PromptEditor>["skills"],
 };
 
+interface RenderedEditor {
+  onChange: ReturnType<typeof vi.fn>;
+  ref: RefObject<null | PromptEditorRef>;
+  rerender: (ui: ReactElement) => void;
+  text: () => null | string;
+}
+
 function renderEditor({
   autoFocus = false,
   value = "",
-}: { autoFocus?: boolean; value?: string } = {}) {
+}: { autoFocus?: boolean; value?: string } = {}): RenderedEditor {
   const onChange = vi.fn();
   const ref = createRef<PromptEditorRef>();
-  const result = renderWithProviders(
+  const { container, rerender } = renderWithProviders(
     <PromptEditor
       {...editorProps}
       autoFocus={autoFocus}
@@ -32,10 +47,12 @@ function renderEditor({
     />,
   );
 
-  const text = () =>
-    result.container.querySelector(".prompt-editor")?.textContent ?? null;
-
-  return { ...result, onChange, ref, text };
+  return {
+    onChange,
+    ref,
+    rerender,
+    text: () => container.querySelector(".prompt-editor")?.textContent ?? null,
+  };
 }
 
 describe("PromptEditor", () => {

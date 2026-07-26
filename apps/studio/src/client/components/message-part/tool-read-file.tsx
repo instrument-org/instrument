@@ -63,6 +63,7 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
           filePath={output.filePath}
           id={id}
           modifiedAt={output.modifiedAt}
+          openOnContentClick
         >
           <div className="flex items-center justify-center">
             <ImageWithFallback
@@ -140,11 +141,13 @@ function ReadFileCard({
   filePath,
   id,
   modifiedAt,
+  openOnContentClick = false,
 }: {
   children: React.ReactNode;
   filePath: string;
   id: TaskId;
   modifiedAt?: number;
+  openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
@@ -198,7 +201,18 @@ function ReadFileCard({
           )}
         </div>
       </div>
-      <div className="px-4 py-3">{children}</div>
+      {openOnContentClick && modifiedAt !== undefined ? (
+        <button
+          aria-label={`Open ${filename} in panel`}
+          className="block w-full cursor-zoom-in px-4 py-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+          onClick={handleExpand}
+          type="button"
+        >
+          {children}
+        </button>
+      ) : (
+        <div className="px-4 py-3">{children}</div>
+      )}
     </div>
   );
 }

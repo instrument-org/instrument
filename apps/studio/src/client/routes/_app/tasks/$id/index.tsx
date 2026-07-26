@@ -1,4 +1,4 @@
-import { taskDraftFamily } from "@/client/atoms/prompt-value";
+import { releaseTaskDraft } from "@/client/atoms/prompt-value";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskSidebarModeSchema } from "@/client/components/task/sidebar";
 import { TaskView } from "@/client/components/task/view";
@@ -88,8 +88,10 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
     selectedSessionId: search.selectedSessionId,
   }),
   onLeave: ({ params }) => {
-    // Garbage collect task atoms
-    taskDraftFamily.remove(params.id);
+    // Garbage collect task atoms. The draft is flushed on the way out, so
+    // walking away mid-sentence still lands the last edit before the in-memory
+    // copy that would have been written goes away.
+    releaseTaskDraft(params.id);
   },
   beforeLoad: async ({ context, params, search }) => {
     const needsSessionDefault = !search.selectedSessionId;
@@ -304,6 +306,7 @@ function RouteComponent() {
         artifactPanel={artifactPanel}
         attachedFolders={taskState.attachedFolders}
         files={files}
+        promptDraft={taskState.promptDraft ?? ""}
         selectedModelURI={taskState.selectedModelURI}
         selectedSessionId={selectedSessionId}
         showTutorial={taskState.showTutorial}

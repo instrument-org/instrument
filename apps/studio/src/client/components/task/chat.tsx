@@ -3,6 +3,7 @@ import {
   focusPromptDraft,
   promptDraftRefAtom,
   promptFocusSignalAtom,
+  useHydrateTaskDraft,
 } from "@/client/atoms/prompt-value";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
@@ -45,6 +46,7 @@ import { TutorialPromptCard } from "./tutorial-prompt-card";
 export function TaskChat({
   isReplayActive = false,
   onCancelReplay,
+  promptDraft,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   showTutorial,
@@ -52,6 +54,7 @@ export function TaskChat({
 }: {
   isReplayActive?: boolean;
   onCancelReplay?: () => void;
+  promptDraft: string;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
@@ -60,6 +63,11 @@ export function TaskChat({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const id = task.id;
+
+  // The route does not render until the task's state has loaded, so the stored
+  // draft is in hand on the composer's very first render rather than arriving
+  // after it.
+  useHydrateTaskDraft(id, promptDraft);
 
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
 

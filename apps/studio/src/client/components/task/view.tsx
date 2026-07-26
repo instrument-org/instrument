@@ -48,6 +48,7 @@ export function TaskView({
   artifactPanel,
   attachedFolders,
   files,
+  promptDraft,
   selectedModelURI,
   selectedSessionId,
   showTutorial,
@@ -57,6 +58,7 @@ export function TaskView({
   artifactPanel: ArtifactPanel | undefined;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
   files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
+  promptDraft: string;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
@@ -178,6 +180,7 @@ export function TaskView({
   const chatProps = {
     isReplayActive,
     onCancelReplay: handleCancelReplay,
+    promptDraft,
     selectedModelURI,
     selectedSessionId,
     showTutorial,

@@ -38,6 +38,18 @@ function draftKeyString(key: PromptDraftKey): string {
   }
 }
 
+// Saves still inside their debounce window, one per task the session has
+// opened. A reload or a quit is exactly the moment a draft is worth keeping and
+// exactly the moment nothing is left to fire the timer, so the window flushes
+// them on its way out.
+const pendingDraftSaves = new Set<() => void>();
+
+window.addEventListener("pagehide", () => {
+  for (const flushSave of pendingDraftSaves) {
+    flushSave();
+  }
+});
+
 const createTaskPromptStorage = (id: TaskId) => {
   let lastValue: string | undefined;
 
@@ -46,6 +58,12 @@ const createTaskPromptStorage = (id: TaskId) => {
       id,
       state: { promptDraft: newValue },
     });
+  });
+
+  pendingDraftSaves.add(() => {
+    if (lastValue !== undefined && save.isPending()) {
+      save.flush(lastValue);
+    }
   });
 
   return {

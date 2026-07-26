@@ -200,7 +200,13 @@ export function PromptEditor({
       dispatchTransaction: (transaction) => {
         const nextState = view.state.apply(transaction);
         view.updateState(nextState);
-        onChangeRef.current(promptTextFromDoc(nextState.doc));
+        // Only an edit is a change worth reporting. Focus and caret movement
+        // dispatch transactions too, and announcing the document on those means
+        // the empty view a page load starts with reports itself as the draft --
+        // overwriting the stored one before it has finished loading in.
+        if (transaction.docChanged) {
+          onChangeRef.current(promptTextFromDoc(nextState.doc));
+        }
         updateMenu(view);
       },
       handleDOMEvents: {

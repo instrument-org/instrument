@@ -67,7 +67,7 @@ export interface PromptEditorRef {
 
 type Skill = Pick<
   RPCOutput["workspace"]["skill"]["list"][number],
-  "description" | "name" | "source" | "title"
+  "description" | "name" | "qualifiedName" | "source" | "title"
 >;
 
 // A skill token in the document, paired with the element ProseMirror gave its
@@ -173,7 +173,9 @@ export function PromptEditor({
     if (!view || !activeMenu) {
       return;
     }
-    const node = promptSchema.nodes.skill.create({ name: skill.name });
+    const node = promptSchema.nodes.skill.create({
+      name: skill.qualifiedName,
+    });
     const transaction = view.state.tr.replaceRangeWith(
       activeMenu.from,
       activeMenu.to,
@@ -379,7 +381,7 @@ export function PromptEditor({
                 // An empty list means nothing to check against, not a skill that
                 // has gone: only claim a chip is stale once there is a list.
                 resolved={skills.length > 0}
-                summary={skills.find((skill) => skill.name === chip.name)}
+                summary={skills.find((skill) => skill.qualifiedName === chip.name)}
                 // The composer's own controls stay the tab order; a draft with
                 // several tokens should not put a stop at each one.
                 tabIndex={-1}
@@ -414,7 +416,7 @@ export function PromptEditor({
       >
         {matches.map((match, index) => (
           <SkillMenuItem
-            key={match.skill.name}
+            key={match.skill.qualifiedName}
             match={match}
             onHover={() => {
               scrollToSelectionRef.current = false;
@@ -456,7 +458,7 @@ function SkillMenuItem({
         selected && "bg-accent text-accent-foreground",
       )}
       data-highlighted={selected ? "" : undefined}
-      key={match.skill.name}
+      key={match.skill.qualifiedName}
       // Mousedown rather than click, and defaulted out, so choosing a skill
       // never blurs the editor the insertion is about to run against.
       onMouseDown={(event) => {
@@ -478,7 +480,7 @@ function SkillMenuItem({
         <FuzzyHighlight
           matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
           ranges={match.nameRanges}
-          text={match.skill.name}
+          text={match.skill.qualifiedName}
         />
       </span>
       <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">

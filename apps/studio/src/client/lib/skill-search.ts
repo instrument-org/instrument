@@ -16,7 +16,9 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
 // highlight ranges. An empty query keeps the input order and highlights
 // nothing. `limit` caps the result count when provided (the slash menu scrolls
 // a bounded list); leave it off to keep every match.
-export function matchSkills<T extends { description: string; name: string }>(
+export function matchSkills<
+  T extends { description: string; qualifiedName: string },
+>(
   skills: T[],
   query: string,
   limit?: number,
@@ -35,7 +37,7 @@ export function matchSkills<T extends { description: string; name: string }>(
   }
 
   const fields = skills.map((skill) =>
-    joinFuzzyFields([skill.name, skill.description]),
+    joinFuzzyFields([skill.qualifiedName, skill.description]),
   );
   const haystack = fields.map((field) => field.haystack);
   // eslint-disable-next-line unicorn/no-array-method-this-argument

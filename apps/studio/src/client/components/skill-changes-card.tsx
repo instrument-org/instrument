@@ -41,7 +41,9 @@ export function SkillChangesCard({
     ...data.updated.map((name) => ({ name, verb: "Updated" })),
   ].map((entry) => ({
     ...entry,
-    skill: skills.find((skill) => skill.name === entry.name),
+    // Matched on the addressable name: a workspace skill keeps its plain one,
+    // so a namesake from a vendor directory cannot answer for it here.
+    skill: skills.find((skill) => skill.qualifiedName === entry.name),
   }));
 
   if (entries.length === 0) {

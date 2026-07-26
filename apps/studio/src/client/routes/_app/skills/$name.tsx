@@ -126,7 +126,7 @@ function SkillPage() {
 
   const confirmDelete = async () => {
     try {
-      await deleteSkillMutation.mutateAsync({ name: skill.name });
+      await deleteSkillMutation.mutateAsync({ name: skill.qualifiedName });
       await queryClient.invalidateQueries({
         queryKey: rpcClient.workspace.skill.list.key(),
       });
@@ -172,7 +172,7 @@ function SkillPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   onSelect={() => {
-                    openEditSkill({ name: skill.name, title: skill.title });
+                    openEditSkill({ name: skill.qualifiedName, title: skill.title });
                   }}
                 >
                   <PencilSimpleIcon className="size-4 text-muted-foreground" />
@@ -231,7 +231,7 @@ function SkillPage() {
                   files,
                   folders,
                   intent: skillPageIntent({
-                    name: skill.name,
+                    name: skill.qualifiedName,
                     title: skill.title,
                     userInvocable: skill.userInvocable,
                   }),
@@ -348,7 +348,7 @@ function SkillPage() {
                 </div>
               </div>
             ) : (
-              <SkillFileView file={selectedFile} skillName={skill.name} />
+              <SkillFileView file={selectedFile} skillName={skill.qualifiedName} />
             )}
           </article>
 
@@ -415,11 +415,16 @@ function skillPageIntent({
 function SkillTitle({
   skill,
 }: {
-  skill: { name: string; userInvocable: boolean };
+  skill: { qualifiedName: string; userInvocable: boolean };
 }) {
   const { active: showCopied, trigger } = useTimedFlag();
   const [isTooltipOpen, setTooltipOpen] = useState(false);
-  const label = skill.userInvocable ? `/${skill.name}` : skill.name;
+  // The qualified name throughout: it is what the composer inserts and what
+  // `load_skill` answers to, which a plain name shared with another source
+  // would not be.
+  const label = skill.userInvocable
+    ? `/${skill.qualifiedName}`
+    : skill.qualifiedName;
 
   if (!skill.userInvocable) {
     return <h1 className="font-serif text-3xl tracking-tight">{label}</h1>;

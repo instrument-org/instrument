@@ -211,11 +211,11 @@ function SkillsPage() {
                           return (
                             <div
                               className="group relative isolate flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
-                              key={skill.name}
+                              key={skill.qualifiedName}
                             >
                               <InternalLink
                                 className="absolute inset-0"
-                                params={{ name: skill.name }}
+                                params={{ name: skill.qualifiedName }}
                                 to="/skills/$name"
                               />
                               <div className="flex w-52 shrink-0 items-center gap-2">
@@ -224,7 +224,7 @@ function SkillsPage() {
                                   <FuzzyHighlight
                                     matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
                                     ranges={ranges?.nameRanges ?? null}
-                                    text={skill.name}
+                                    text={skill.qualifiedName}
                                   />
                                 </span>
                                 {skill.userInvocable ? (
@@ -233,7 +233,7 @@ function SkillsPage() {
                                     iconSize={13}
                                     onCopy={() =>
                                       navigator.clipboard.writeText(
-                                        `/${skill.name}`,
+                                        `/${skill.qualifiedName}`,
                                       )
                                     }
                                   />

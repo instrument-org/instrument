@@ -30,7 +30,7 @@ export function SkillMentionText({ text }: { text: string }) {
       staleTime: SKILL_LIST_STALE_TIME_MS,
     }),
   );
-  const byName = new Map(skills.map((skill) => [skill.name, skill]));
+  const byName = new Map(skills.map((skill) => [skill.qualifiedName, skill]));
 
   return lines.map((segments, lineIndex) => (
     <Fragment key={lineIndex}>

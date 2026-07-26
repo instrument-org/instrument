@@ -224,7 +224,7 @@ function SkillsPage() {
                                   <FuzzyHighlight
                                     matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
                                     ranges={ranges?.nameRanges ?? null}
-                                    text={skill.qualifiedName}
+                                    text={skill.name}
                                   />
                                 </span>
                                 {skill.userInvocable ? (

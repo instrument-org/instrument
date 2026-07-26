@@ -5,8 +5,13 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
-import { skillSourceLabel } from "@/client/lib/skill-source";
+import { skillLocationHint, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
@@ -67,7 +72,7 @@ export interface PromptEditorRef {
 
 type Skill = Pick<
   RPCOutput["workspace"]["skill"]["list"][number],
-  "description" | "name" | "qualifiedName" | "source" | "title"
+  "description" | "name" | "path" | "qualifiedName" | "source" | "title"
 >;
 
 // A skill token in the document, paired with the element ProseMirror gave its
@@ -153,7 +158,10 @@ export function PromptEditor({
       return;
     }
     const before = view.state.doc.textBetween(0, from, "\n", "\uFFFC");
-    const match = /(?:^|\s)\/([\w-]*)$/.exec(before);
+    // The colon belongs to the name: a skill several sources ship is addressed
+    // as `claude:pdf`, and stopping the query at the colon would close the menu
+    // exactly when the user is disambiguating.
+    const match = /(?:^|\s)\/([\w:-]*)$/.exec(before);
     const next = match
       ? {
           from: from - (match[1]?.length ?? 0) - 1,
@@ -475,12 +483,15 @@ function SkillMenuItem({
       ref={ref}
       type="button"
     >
+      {/* The plain name, even where two sources share it: the source on the
+          right is what tells them apart, and reading it there is easier than
+          reading a prefix. Choosing the row still inserts the qualified name. */}
       <span className="shrink-0 font-mono text-sm font-medium">
         /
         <FuzzyHighlight
           matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
           ranges={match.nameRanges}
-          text={match.skill.qualifiedName}
+          text={match.skill.name}
         />
       </span>
       <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
@@ -489,9 +500,18 @@ function SkillMenuItem({
           text={match.skill.description}
         />
       </span>
-      <span className="shrink-0 text-xs text-muted-foreground/70">
-        {skillSourceLabel(match.skill.source)}
-      </span>
+      {/* No delay: this is the answer to "which of these two is it?", and a
+          hover that has to be held is no help while scanning the list. */}
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <span className="shrink-0 text-xs text-muted-foreground/70">
+            {skillSourceLabel(match.skill.source)}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-80 break-all">
+          {skillLocationHint(match.skill)}
+        </TooltipContent>
+      </Tooltip>
     </button>
   );
 }

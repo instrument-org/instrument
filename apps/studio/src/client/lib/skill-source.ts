@@ -47,6 +47,21 @@ export function readOnlySkillReason(source: SkillSource) {
   return `This skill comes from ${skillSourceLabel(source)}, so it can’t be edited or deleted here.`;
 }
 
+/**
+ * Where a skill sits, for a surface with room for one line of it: the folder
+ * on disk, or the app itself for the ones we ship, whose location is an
+ * internal detail nobody can act on.
+ */
+export function skillLocationHint({
+  path,
+  source,
+}: {
+  path: string;
+  source: SkillSource;
+}) {
+  return isProvidedSource(source) ? `Built into ${APP_NAME}` : path;
+}
+
 /** The app or place a skill comes from, named for a person. */
 export function skillSourceLabel(source: SkillSource) {
   return SOURCE_LABELS[source];

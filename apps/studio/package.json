@@ -46,6 +46,7 @@
     "tail-logs:dev": "tail -f ~/Library/Logs/Instrument/main.log",
     "tail-logs:prod": "tail -f ~/Library/Application\\ Support/Instrument/logs/main.log",
     "test": "vitest",
+    "test:ci": "vitest run --project node --project dom",
     "turbo:check": "turbo run check:types check:lint",
     "turbo:check-and-test": "turbo run check:types check:lint test:ci",
     "turbo:test": "turbo run test test:ci",

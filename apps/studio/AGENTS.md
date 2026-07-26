@@ -59,7 +59,7 @@ The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adj
 
 ## Tests
 
-Three Vitest projects, chosen by extension so a file declares which it wants by what it is. Reach for the cheapest one that can actually observe the behaviour:
+Three Vitest projects, chosen by extension so a file declares which it wants by what it is. Reach for the cheapest one that can actually observe the behavior:
 
 - `*.test.ts` → **node**, no DOM. Plain logic, parsers, schemas. Fast, and most tests belong here.
 - `*.test.tsx` → **dom** (jsdom). Rendering, props, refs, what ends up in the DOM. Adds `@testing-library/react` and `afterEach(cleanup)`.
@@ -67,9 +67,11 @@ Three Vitest projects, chosen by extension so a file declares which it wants by 
 
 Render jsdom tests through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. It does not supply a router: anything with an `InternalLink` needs one per test.
 
-jsdom has no layout engine and never delivers `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is invisible to it — a test written that way passes whether the code works or not. That is what the browser project is for. It is slower and needs `pnpm exec playwright install chromium`, so send a test there only when jsdom genuinely cannot see the behaviour.
+jsdom has no layout engine and never delivers `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is invisible to it — a test written that way passes whether the code works or not. That is what the browser project is for. It is slower and needs `pnpm exec playwright install chromium`, so send a test there only when jsdom genuinely cannot see the behavior.
 
 Whatever you assert, confirm it fails against the unfixed code before keeping it. This matters more here than in node tests: a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.
+
+CI (`test:ci`) runs **node and dom only**. The browser project is left out on purpose: it needs a Chromium download and a cache entry the workflow does not have yet, so wiring it in is a deliberate change to `.github/actions/setup-binary-caches`, not something to add by widening the script. Run it locally with `pnpm test --project browser` after `pnpm exec playwright install chromium`.
 
 ## Where things are
 

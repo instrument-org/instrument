@@ -57,6 +57,19 @@ The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adj
 - Never add a `container-type` above a portal target. floating-ui counts it as a containing block for fixed content and Chrome doesn't, so every menu/popover silently shifts by that element's offset. `@container/app-content` sits below the portal target for exactly this reason.
 - Both windows (see Windows) use the same `ZoomRoot` + `zoomAtom`: the onboarding window wires it via `OnboardingZoomRoot`. `ZoomToast` (a transient corner readout on any zoom change) is mounted once per window, outside `ZoomRoot`, so keep it in sync in both roots.
 
+## Tests
+
+Two Vitest projects, split by extension so a file declares which it wants by what it is:
+
+- `*.test.ts` → **node**, no DOM. Plain logic, parsers, schemas. Fast, and most tests belong here.
+- `*.test.tsx` → **dom** (jsdom). Rendering a component. Adds `@testing-library/react` and `afterEach(cleanup)` on top of the shared setup.
+
+Render through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. It does not supply a router: anything with an `InternalLink` needs one per test.
+
+jsdom has no layout engine and does not deliver `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is untestable there. Prefer driving a component through its props and imperative ref over simulating browser editing. Add shims to `src/tests/setup-dom.ts` only once a test actually needs one.
+
+Whatever you assert, confirm it fails against the unfixed code before keeping it — a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.
+
 ## Where things are
 
 - **Client**: `src/client`, file routes in `src/client/routes/` (`_app/` = layout/auth).

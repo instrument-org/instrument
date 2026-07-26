@@ -29,6 +29,14 @@ const GLOBAL_DEFINES = {
   ),
 } as const;
 
+const SHARED_EXCLUDE = [
+  "node_modules",
+  "dist",
+  "directory",
+  "out",
+  "smoke-test.spec.ts",
+];
+
 export default defineConfig({
   define: Object.fromEntries(
     Object.entries(GLOBAL_DEFINES).map(([key, value]) => [
@@ -43,7 +51,28 @@ export default defineConfig({
   },
   test: {
     clearMocks: true,
-    exclude: ["node_modules", "dist", "directory", "out", "smoke-test.spec.ts"],
-    setupFiles: ["src/tests/setup.ts"],
+    // Two environments, split by extension so a file declares which it wants by
+    // what it is: `.test.tsx` renders components and gets a DOM, `.test.ts`
+    // exercises plain logic in node, where it stays fast. Nothing opts in twice.
+    projects: [
+      {
+        extends: true,
+        test: {
+          exclude: [...SHARED_EXCLUDE, "**/*.test.tsx"],
+          name: "node",
+          setupFiles: ["src/tests/setup.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          environment: "jsdom",
+          exclude: SHARED_EXCLUDE,
+          include: ["**/*.test.tsx"],
+          name: "dom",
+          setupFiles: ["src/tests/setup.ts", "src/tests/setup-dom.ts"],
+        },
+      },
+    ],
   },
 });

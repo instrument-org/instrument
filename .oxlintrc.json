@@ -26,10 +26,16 @@
   },
   "overrides": [
     {
+      // Test libraries hand back values these rules cannot see through.
+      // `@testing-library/react`'s own types import `react-dom/test-utils`,
+      // which React 19 removed, so everything it returns reads as an error type
+      // here even though tsgo resolves the module fine.
       "files": ["**/*.test.*"],
       "rules": {
         "typescript/no-unsafe-assignment": "off",
-        "typescript/no-unsafe-call": "off"
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off"
       }
     },
     {

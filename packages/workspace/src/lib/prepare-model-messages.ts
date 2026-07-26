@@ -13,6 +13,7 @@ import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
+import { sanitizeModelText } from "./sanitize-model-text";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -175,7 +176,7 @@ export async function prepareModelMessages({
   });
 
   const cachedModelMessages = addCacheControlToMessages({
-    messages: normalizedMessages,
+    messages: sanitizeModelText(normalizedMessages),
     model,
   });
 

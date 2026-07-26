@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -112,6 +112,35 @@ describe("consumeSkillChanges", () => {
 
     const changes = await consumeSkillChanges(turn);
     expect(changes.created).toEqual(["brief"]);
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: [],
+      removed: [],
+      updated: [],
+    });
+  });
+
+  it("forgets a turn consumed while its initial snapshot is pending", async () => {
+    let unblockRead = () => {};
+    const blockedRead = new Promise<void>((resolve) => {
+      unblockRead = resolve;
+    });
+    const readdir = vi.spyOn(fs, "readdir").mockImplementationOnce(async () => {
+      await blockedRead;
+      return [];
+    });
+
+    const begin = beginSkillChangeTracking(turn);
+    await vi.waitFor(() => {
+      expect(readdir).toHaveBeenCalledOnce();
+    });
+    const consume = consumeSkillChanges(turn);
+    unblockRead();
+    await Promise.all([begin, consume]);
+
+    await writeSkill("brief", "Write a brief.");
+    withWorkspaceSkillTracking(turn, () => {
+      recordWorkspaceSkillMutation("/brief/SKILL.md");
+    });
     await expect(consumeSkillChanges(turn)).resolves.toEqual({
       created: [],
       removed: [],

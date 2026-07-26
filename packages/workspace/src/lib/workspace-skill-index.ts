@@ -29,7 +29,7 @@ interface SkillStamp {
 }
 
 interface TurnTracker {
-  before: WorkspaceSkillIndex;
+  before: Promise<WorkspaceSkillIndex>;
   touched: Set<string>;
   touchedAll: boolean;
 }
@@ -45,11 +45,21 @@ interface TurnKey {
 
 /** Snapshots the skills directory as a turn's "before" state. */
 export async function beginSkillChangeTracking(turn: TurnKey): Promise<void> {
-  TURNS.set(turnKey(turn), {
-    before: await readWorkspaceSkillIndex(),
+  const key = turnKey(turn);
+  const tracker: TurnTracker = {
+    before: readWorkspaceSkillIndex(),
     touched: new Set(),
     touchedAll: false,
-  });
+  };
+  TURNS.set(key, tracker);
+  try {
+    await tracker.before;
+  } catch (error) {
+    if (TURNS.get(key) === tracker) {
+      TURNS.delete(key);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -65,13 +75,14 @@ export async function consumeSkillChanges(
   if (!tracker) {
     return emptyChanges();
   }
+  const before = await tracker.before;
   const after = await readWorkspaceSkillIndex();
   const names = tracker.touchedAll
-    ? new Set([...after.keys(), ...tracker.before.keys()])
+    ? new Set([...after.keys(), ...before.keys()])
     : tracker.touched;
   const changes = emptyChanges();
   for (const name of names) {
-    const existedBefore = tracker.before.has(name);
+    const existedBefore = before.has(name);
     const existsAfter = after.has(name);
     if (!existedBefore && existsAfter) {
       changes.created.push(name);

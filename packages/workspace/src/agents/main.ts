@@ -322,13 +322,12 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
-    // Resolve the changes recorded by the file watcher during this turn. Always
-    // called so the watcher ref acquired in onStart is released, even when we
-    // skip saving the change summary below.
-    const { after, changes: fileChanges } = await consumeTurnChanges({
-      id: taskId,
-      sessionId,
-    });
+    const [{ after, changes: fileChanges }, skillChanges] = await Promise.all([
+      // Always consume so the watcher ref acquired in onStart is released, even
+      // when we skip saving the change summary below.
+      consumeTurnChanges({ id: taskId, sessionId }),
+      consumeSkillChanges({ id: taskId, sessionId }),
+    ]);
 
     // Advance the cross-turn baseline to the post-turn tree so the agent's own
     // changes aren't re-reported as external on the next user message.
@@ -346,7 +345,6 @@ export const mainAgent = setupAgent({
     // Skills live outside the task tree, in the shared writable `/skills`
     // mount, so the file watcher above never sees them and a turn that only
     // authored a skill has no task file changes at all.
-    const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
     const skillChangesPart =
       skillChanges.created.length > 0 || skillChanges.updated.length > 0
         ? { created: skillChanges.created, updated: skillChanges.updated }

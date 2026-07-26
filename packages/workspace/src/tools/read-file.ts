@@ -27,6 +27,7 @@ import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
 } from "../lib/resolve-agent-path";
+import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
@@ -560,7 +561,7 @@ export const ReadFile = setupTool({
 
       const processedLines = selectedLines.map((line) =>
         line.length > MAX_LINE_LENGTH
-          ? line.slice(0, Math.max(0, MAX_LINE_LENGTH)) + "..."
+          ? truncateWithoutSplitting(line, MAX_LINE_LENGTH) + "..."
           : line,
       );
 

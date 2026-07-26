@@ -184,6 +184,34 @@ describe("ReadFile", () => {
       60_000,
     );
 
+    it("does not cut a character in half when truncating a long line", async () => {
+      // A line over the cap whose 2000th code unit is the first half of an
+      // emoji. Slicing at a fixed index leaves a surrogate with no partner,
+      // which has no UTF-8 encoding and gets the whole request rejected -- on
+      // content that is already saved and replayed on every later turn.
+      const probePath = path.join(fixturesPath, "long-line-probe.txt");
+      await fs.writeFile(probePath, `${"a".repeat(1999)}🙈${"b".repeat(50)}\n`);
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./long-line-probe.txt" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("exists");
+        if (value.state === "exists") {
+          expect(
+            Buffer.from(value.content, "utf8").toString("utf8"),
+          ).toStrictEqual(value.content);
+          expect(value.content).toContain(`${"a".repeat(1999)}...`);
+        }
+      } finally {
+        await fs.rm(probePath, { force: true });
+      }
+    });
+
     it("refuses an image whose bytes cannot be decoded", async () => {
       // An interrupted download or a truncated write leaves a file that opens
       // as an image and is not one. Handing those bytes to the provider gets

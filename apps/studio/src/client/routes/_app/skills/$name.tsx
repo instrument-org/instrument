@@ -1,5 +1,5 @@
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
-import { openEditSkill } from "@/client/atoms/skill-modal";
+import { openCreateSkill, openEditSkill } from "@/client/atoms/skill-modal";
 import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
 import { InternalLink } from "@/client/components/internal-link";
@@ -47,7 +47,9 @@ import { safe } from "@orpc/client";
 import {
   ArrowLeftIcon,
   DotsThreeOutlineVerticalIcon,
+  GraduationCapIcon,
   PencilSimpleIcon,
+  PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -68,6 +70,44 @@ export const Route = createFileRoute("/_app/skills/$name")({
   },
   staticData: { tabIcon: "graduation-cap" },
 });
+
+/**
+ * A skill page can be reached for a skill that is not there: a transcript keeps
+ * its cards, a tab keeps its route, and either outlives the skill being deleted
+ * or renamed. Name what is missing and offer the two ways forward, rather than
+ * stranding someone on a bare line of text.
+ */
+function SkillNotFound({ name }: { name: string }) {
+  return (
+    <div className="h-full overflow-y-auto scroll-fade-y">
+      <div className="mx-auto w-full max-w-5xl px-8 py-12">
+        <InternalLink
+          className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          to="/skills"
+        >
+          <ArrowLeftIcon className="size-4" />
+          All skills
+        </InternalLink>
+        <div className="rounded-2xl border border-dashed p-10 text-center">
+          <GraduationCapIcon className="mx-auto size-8 text-muted-foreground/50" />
+          <p className="mt-4 font-medium">Skill not found</p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            {`Nothing in this workspace answers to "${name}". It may have been deleted or renamed since this page was linked.`}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <Button asChild variant="outline">
+              <InternalLink to="/skills">Browse skills</InternalLink>
+            </Button>
+            <Button onClick={openCreateSkill}>
+              <PlusIcon className="size-4" />
+              New skill
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SkillPage() {
   const { name } = Route.useParams();
@@ -116,12 +156,16 @@ function SkillPage() {
     );
   }, [name, setDraft, skill?.userInvocable]);
 
-  if (isLoading || !skill) {
+  if (isLoading) {
     return (
       <div className="grid h-full place-items-center text-sm text-muted-foreground">
-        {isLoading ? "Loading skill…" : "Skill not found"}
+        Loading skill…
       </div>
     );
+  }
+
+  if (!skill) {
+    return <SkillNotFound name={name} />;
   }
 
   const confirmDelete = async () => {
@@ -172,7 +216,10 @@ function SkillPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   onSelect={() => {
-                    openEditSkill({ name: skill.qualifiedName, title: skill.title });
+                    openEditSkill({
+                      name: skill.qualifiedName,
+                      title: skill.title,
+                    });
                   }}
                 >
                   <PencilSimpleIcon className="size-4 text-muted-foreground" />
@@ -348,7 +395,10 @@ function SkillPage() {
                 </div>
               </div>
             ) : (
-              <SkillFileView file={selectedFile} skillName={skill.qualifiedName} />
+              <SkillFileView
+                file={selectedFile}
+                skillName={skill.qualifiedName}
+              />
             )}
           </article>
 

@@ -41,7 +41,10 @@ export async function copySkill({
     }
   }
   await fs.mkdir(destDir, { recursive: true });
-  const baseIgnore = await getIgnore(dir, { signal });
+  // The skill's own .gitignore, not the task's: it is the only file that speaks
+  // for what this directory leaves behind, and another agent that ran the skill
+  // in place may have filled it with build output or an installed environment.
+  const baseIgnore = await getIgnore(skillDir, { signal });
   // Omit test infrastructure -- it's only used during skill development before
   // the skill is committed to the registry and made available to the agent.
   const ignore = baseIgnore.add([
@@ -52,11 +55,16 @@ export async function copySkill({
   ]);
   await fs.cp(skillDir, destDir, {
     filter: (src) => {
-      const relativePath = path.relative(skillDir, src);
+      const relativePath = normalizePath(path.relative(skillDir, src));
       if (relativePath === "") {
         return true;
       }
-      return !ignore.ignores(normalizePath(relativePath));
+      // A directory-only rule (`build/`) matches only with the trailing slash,
+      // and the filter is not told whether `src` is a directory. Testing both
+      // forms prunes the subtree rather than copying an empty shell of it.
+      return (
+        !ignore.ignores(relativePath) && !ignore.ignores(`${relativePath}/`)
+      );
     },
     recursive: true,
   });

@@ -181,6 +181,36 @@ describe("LoadSkill", () => {
     ).resolves.toBe("print('hello')");
   });
 
+  it("copies through the skill's own gitignore, not the task's", async () => {
+    await createSkill({
+      extraFiles: {
+        ".gitignore": "build/\n",
+        "build/generated.js": "generated",
+        "scripts/run.ts": "console.log('hello')",
+      },
+      name: "my-skill",
+    });
+    // A task's ignore rules describe the task's own tree, so they have no say
+    // over which of a skill's files come along.
+    await fs.writeFile(path.join(dir, ".gitignore"), "scripts/\n");
+
+    await runTool(LoadSkill, {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "my-skill" },
+    });
+
+    const destBase = path.join(
+      dir,
+      TASK_FOLDER_NAMES.work,
+      TASK_FOLDER_NAMES.skills,
+      "my-skill",
+    );
+    await expect(
+      fs.readFile(path.join(destBase, "scripts", "run.ts"), "utf8"),
+    ).resolves.toBe("console.log('hello')");
+    await expect(fs.access(path.join(destBase, "build"))).rejects.toThrow();
+  });
+
   it("includes relative file paths in files array", async () => {
     await createSkill({
       extraFiles: {

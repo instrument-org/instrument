@@ -57,6 +57,12 @@ export const MODELS = [
   // modelURI.openRouter("openai/gpt-5.4-nano"),
 ];
 
+export interface CompletedRun {
+  label: string;
+  modelURI: string;
+  taskId: TaskId;
+}
+
 export interface EvalCase {
   assertions?: Assertion[];
   files?: FileUpload.Type[];
@@ -83,8 +89,9 @@ export async function runEvals(
   {
     concurrency = 3,
     dryRun = false,
-  }: { concurrency?: number; dryRun?: boolean } = {},
-): Promise<{ workspaceRootDir: string }> {
+    models = MODELS,
+  }: { concurrency?: number; dryRun?: boolean; models?: string[] } = {},
+): Promise<{ runs: CompletedRun[]; workspaceRootDir: string }> {
   const workspaceRootDir = path.join(
     os.tmpdir(),
     `${APP_NAME_SLUG}-evals-${ulid()}`,
@@ -96,7 +103,7 @@ export async function runEvals(
   process.stdout.write(`${c.dim}Registry  :${c.reset} ${registryDir}\n`);
 
   if (dryRun) {
-    return { workspaceRootDir };
+    return { runs: [], workspaceRootDir };
   }
 
   const actor = createActor(workspaceMachine, {
@@ -135,19 +142,19 @@ export async function runEvals(
 
   actor.start();
 
-  const runs = MODELS.flatMap((uri) => {
+  const runs = models.flatMap((uri) => {
     const parsed = AIGatewayModelURI.parse(uri);
     const canonicalId = parsed.ok ? parsed.value.canonicalId : uri;
     const modelPrefix = sanitizeCanonicalId(canonicalId);
     return evals.map((evalCase) => ({ evalCase, modelPrefix, uri }));
   });
 
-  await _.parallel(
+  const completed = await _.parallel(
     concurrency,
     runs,
     async ({ evalCase, modelPrefix, uri }) => {
       const label =
-        MODELS.length > 1 ? `${evalCase.name}/${modelPrefix}` : evalCase.name;
+        models.length > 1 ? `${evalCase.name}/${modelPrefix}` : evalCase.name;
 
       process.stdout.write(
         `${evalPrefix(label)}${c.dim}Starting...${c.reset}\n`,
@@ -223,12 +230,14 @@ export async function runEvals(
       abortController.abort();
 
       process.stdout.write(`${evalPrefix(label)}${c.green}Done.${c.reset}\n`);
+
+      return { label, modelURI: uri, taskId: id };
     },
   );
 
   actor.stop();
 
-  return { workspaceRootDir };
+  return { runs: completed, workspaceRootDir };
 }
 
 function sanitizeCanonicalId(canonicalId: string): string {

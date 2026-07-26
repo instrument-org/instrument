@@ -1,7 +1,6 @@
 import { APP_NAME } from "@instrument-org/shared";
 import ms from "ms";
 import { ok } from "neverthrow";
-import fsSync from "node:fs";
 import { dedent } from "radashi";
 import { z } from "zod";
 
@@ -10,11 +9,15 @@ import { copySkill } from "../lib/copy-skill";
 import { executeError } from "../lib/execute-error";
 import { installPythonSkill } from "../lib/install-python-skill";
 import { normalizedPathJoin } from "../lib/normalize-path";
-import { pathIsWithin } from "../lib/path-is-within";
 import { runPnpmCommand } from "../lib/run-pnpm";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { renderSkillCatalog } from "../lib/skill-catalog";
+import {
+  getSkillProvenance,
+  getWritableSkillsRoot,
+  SKILL_ORIGINS,
+} from "../lib/skill-provenance";
 import { getSkillRuntime } from "../lib/skill-runtime";
 import {
   FILE_LIST_LIMIT,
@@ -23,15 +26,11 @@ import {
   listSkillFiles,
   resolveSkillName,
   SKILL_CONTENT_LIMIT,
-  type SkillInfo,
   truncateSkillContent,
 } from "../lib/skills";
 import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import {
-  getWorkspaceSkillsDir,
-  SKILLS_MOUNT_POINT,
-} from "../lib/workspace-fs-layout";
+import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
@@ -58,36 +57,6 @@ const SkillInstallResultSchema = z.discriminatedUnion("state", [
   }),
 ]);
 
-/**
- * Where a loaded skill came from, from the agent's point of view: only the
- * writable `/skills` mount is editable in place, so a skill outside it is
- * read-only wherever it was discovered. `skillDir` is canonicalized, so the
- * mount root is too before the containment check.
- *
- * A skill discovered under the project's `.agents/skills` is also `"workspace"`
- * source but sits outside that mount, so it reports as `"in-repo"`: still the
- * user's own trusted project (dependencies install), but not agent-editable in
- * place, and not "elsewhere on this machine" the way a co-installed agent's
- * home directory is.
- */
-async function skillOrigin(
-  skill: SkillInfo,
-): Promise<"external" | "in-repo" | "instrument" | "workspace"> {
-  const workspaceSkillsDir = getWorkspaceSkillsDir();
-  const mountRoot = await fsSync.promises
-    .realpath(workspaceSkillsDir)
-    .catch(() => workspaceSkillsDir);
-  if (pathIsWithin(skill.skillDir, mountRoot)) {
-    return "workspace";
-  }
-  if (skill.source === "workspace") {
-    return "in-repo";
-  }
-  return skill.source === "registry" || skill.source === "system"
-    ? "instrument"
-    : "external";
-}
-
 export const LoadSkill = setupTool({
   inputSchema: BaseInputSchema.extend({
     name: z.string().meta({
@@ -112,7 +81,7 @@ export const LoadSkill = setupTool({
       // Where the skill came from, so the model can say so and knows whether it
       // can edit the skill in place: "workspace" lives in the writable /skills
       // mount, the others are read-only where they were discovered.
-      origin: z.enum(["external", "in-repo", "instrument", "workspace"]),
+      origin: z.enum(SKILL_ORIGINS),
       skillName: z.string(),
       state: z.literal("success"),
       truncated: z.boolean(),
@@ -209,18 +178,19 @@ export const LoadSkill = setupTool({
       signal,
     );
 
-    const origin = await skillOrigin(skill);
+    const provenance = getSkillProvenance(
+      skill,
+      await getWritableSkillsRoot(workspaceConfig.rootDir),
+    );
 
     // Third-party skills discovered in another tool's folder on this machine are
     // never eagerly installed: their declared dependencies are code we'd fetch
     // and run before anyone has vetted the skill. First-party and workspace
     // skills are trusted enough to provision on load.
-    const installDependencies = origin !== "external";
-
     const installResults: z.output<typeof SkillInstallResultSchema>[] = [];
 
     if (runtime.node) {
-      if (installDependencies) {
+      if (provenance.installDependencies) {
         const { combined, exitCode } = await runPnpmCommand({
           args: ["install"],
           cwd: getTaskWorkDir(taskDir(taskId)),
@@ -238,7 +208,7 @@ export const LoadSkill = setupTool({
     }
 
     if (runtime.python) {
-      if (installDependencies) {
+      if (provenance.installDependencies) {
         const installResult = await installPythonSkill({
           signal,
           skillDir: destDir,
@@ -266,7 +236,7 @@ export const LoadSkill = setupTool({
       files,
       ...(installResults.length > 0 ? { installResults } : {}),
       name: skill.id,
-      origin,
+      origin: provenance.origin,
       skillName: skill.name,
       state: "success" as const,
       truncated,

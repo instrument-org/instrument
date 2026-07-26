@@ -3,10 +3,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { REGISTRY_FOLDER_NAMES } from "../../constants";
-import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { deleteSkill } from "../../lib/delete-skill";
 import { pathIsWithin } from "../../lib/path-is-within";
+import {
+  getSkillProvenance,
+  getWritableSkillsRoot,
+} from "../../lib/skill-provenance";
 import {
   findSkill,
   findSkills,
@@ -16,7 +18,6 @@ import {
   splitFrontmatter,
 } from "../../lib/skills";
 import { startWatchingWorkspaceSkills } from "../../lib/workspace-skill-watcher";
-import { type AbsolutePath } from "../../schemas/paths";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
 
@@ -69,28 +70,11 @@ const SkillFileSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("too-large") }),
 ]);
 
-function isEditable(skillDir: string, writableRoot: string): boolean {
-  return (
-    skillDir === writableRoot || skillDir.startsWith(writableRoot + path.sep)
-  );
-}
-
-/**
- * Canonical path of the one workspace skills directory the agent can write to
- * (the writable `/skills` mount). Editability is decided by containment here,
- * which matches agent writability exactly: a symlinked skill dir canonicalizes
- * outside this root and the mount blocks the escape anyway.
- */
-async function writableSkillsRoot(rootDir: AbsolutePath): Promise<string> {
-  const root = absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills);
-  return fs.realpath(root).catch(() => root);
-}
-
 const list = base
   .output(SkillSummarySchema.array())
   .handler(async ({ context }) => {
     const skills = await findSkills(getSkillSources(context.workspaceConfig));
-    const writableRoot = await writableSkillsRoot(
+    const writableRoot = await getWritableSkillsRoot(
       context.workspaceConfig.rootDir,
     );
     // Counting means walking every skill. Measured at a few milliseconds for a
@@ -104,7 +88,7 @@ const list = base
     return skills.map((skill, index) => ({
       aliases: skill.aliases,
       description: skill.description,
-      editable: isEditable(skill.skillDir, writableRoot),
+      editable: getSkillProvenance(skill, writableRoot).editable,
       fileCount: listings[index]?.files.length ?? 0,
       filesTruncated: listings[index]?.truncated ?? false,
       id: skill.id,
@@ -133,7 +117,7 @@ const byName = base
       skill.skillDir,
       AbortSignal.timeout(10_000),
     );
-    const writableRoot = await writableSkillsRoot(
+    const writableRoot = await getWritableSkillsRoot(
       context.workspaceConfig.rootDir,
     );
     const rawSkillFile = await fs.readFile(
@@ -146,7 +130,7 @@ const byName = base
       compatibility: skill.compatibility ?? null,
       content: skill.content,
       description: skill.description,
-      editable: isEditable(skill.skillDir, writableRoot),
+      editable: getSkillProvenance(skill, writableRoot).editable,
       fileCount: files.length,
       files,
       filesTruncated: truncated,

@@ -22,7 +22,7 @@ export function SkillChangesCard({
   const features = useAtomValue(featuresAtom);
   // Shares the cache the composer's slash menu fills, so the title and
   // description are a lookup rather than another walk of every skill source.
-  const { data: skills = [] } = useQuery(
+  const { data: skills = [], isSuccess } = useQuery(
     rpcClient.workspace.skill.list.queryOptions({
       enabled: features.skills,
       staleTime: SKILL_LIST_STALE_TIME_MS,
@@ -33,9 +33,8 @@ export function SkillChangesCard({
     return null;
   }
 
-  // Rendered from the name alone when the list has not caught up yet (or no
-  // longer holds the skill), so the card is never missing from the transcript
-  // and only its description arrives late.
+  // Rendered from the name alone until the list resolves, so the card is never
+  // missing from the transcript and only its description arrives late.
   const entries = [
     ...data.created.map((name) => ({ name, verb: "Created" })),
     ...data.updated.map((name) => ({ name, verb: "Updated" })),
@@ -56,6 +55,7 @@ export function SkillChangesCard({
         <SkillChangeRow
           key={`${verb}:${name}`}
           name={name}
+          resolved={isSuccess}
           skill={skill}
           verb={verb}
         />
@@ -64,44 +64,85 @@ export function SkillChangesCard({
   );
 }
 
+const CARD_CLASS_NAME =
+  "flex items-center gap-3 rounded-2xl bg-card px-3 py-3 shadow-xs dark:border dark:border-black/5";
+
+/* Portrait, and tall enough to stand level with the sentence plus two clamped
+   lines of description beside it. Radius is the card's own less its padding, so
+   the two curves sit concentric. */
+const TILE_CLASS_NAME =
+  "flex h-14.5 w-11 shrink-0 items-center justify-center rounded-xl bg-foreground/5";
+
 function SkillChangeRow({
   name,
+  resolved,
   skill,
   verb,
 }: {
   name: string;
+  resolved: boolean;
   skill: Skill | undefined;
   verb: string;
 }) {
+  // A skill can outlive the turn that wrote it: the transcript keeps the card
+  // long after someone deletes the skill. Say so and stop linking rather than
+  // sending them to a page that only reports the same absence. Until the list
+  // resolves, a name it does not carry is unknown rather than gone.
+  const isMissing = resolved && !skill;
+
   // Spelled the way the skill is invoked, so the sentence doubles as a hint
   // that /name works in the composer. A skill that opted out of manual
   // invocation gets its bare name, since the slash form would be a lie.
   const label = skill?.userInvocable === false ? name : skillMentionLabel(name);
 
-  return (
-    <InternalLink
-      className="group/skill flex items-center gap-3 rounded-2xl bg-card px-3 py-3 shadow-xs transition-colors select-none hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40"
-      openInCurrentTab
-      params={{ name }}
-      to="/skills/$name"
-    >
-      {/* Portrait, and tall enough to stand level with the sentence plus two
-          clamped lines of description beside it. Radius is the card's own less
-          its padding, so the two curves sit concentric. */}
-      <div className="flex h-14.5 w-11 shrink-0 items-center justify-center rounded-xl bg-foreground/5">
+  const body = (
+    <>
+      <div className={cn(TILE_CLASS_NAME, isMissing && "opacity-50")}>
         <GraduationCapIcon className="size-5 text-muted-foreground" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-y-0.5">
-        <span className="truncate text-sm leading-5 text-foreground">
-          {verb} the <span className={SKILL_TOKEN_CLASS_NAME}>{label}</span>{" "}
+        <span
+          className={cn(
+            "truncate text-sm leading-5",
+            isMissing ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {verb} the{" "}
+          <span
+            className={cn(SKILL_TOKEN_CLASS_NAME, isMissing && "opacity-70")}
+          >
+            {label}
+          </span>{" "}
           skill
         </span>
-        {skill?.description ? (
+        {isMissing ? (
+          <span className="text-xs leading-[18px] text-muted-foreground">
+            No longer available in this workspace
+          </span>
+        ) : skill?.description ? (
           <span className="line-clamp-2 text-xs leading-[18px] text-muted-foreground">
             {skill.description}
           </span>
         ) : null}
       </div>
+    </>
+  );
+
+  if (isMissing) {
+    return <div className={CARD_CLASS_NAME}>{body}</div>;
+  }
+
+  return (
+    <InternalLink
+      className={cn(
+        CARD_CLASS_NAME,
+        "group/skill transition-colors select-none hover:bg-muted/40 dark:hover:bg-muted/40",
+      )}
+      openInCurrentTab
+      params={{ name }}
+      to="/skills/$name"
+    >
+      {body}
       <CaretRightIcon className="size-4 shrink-0 text-muted-foreground/40 transition-colors group-hover/skill:text-muted-foreground" />
     </InternalLink>
   );

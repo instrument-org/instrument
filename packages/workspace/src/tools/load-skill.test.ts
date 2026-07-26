@@ -4,11 +4,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { REGISTRY_FOLDER_NAMES, TASK_FOLDER_NAMES } from "../constants";
+import { SKILL_CONTENT_LIMIT } from "../lib/skills";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../lib/workspace-config";
-import { SKILL_CONTENT_LIMIT } from "../lib/skills";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
@@ -108,6 +108,7 @@ describe("LoadSkill", () => {
         ],
         "name": "nonexistent",
         "state": "not-found",
+        "suggestions": [],
       }
     `);
   });
@@ -240,6 +241,64 @@ describe("LoadSkill", () => {
         "work/skills/my-skill/scripts/run.ts",
       ]
     `);
+  });
+
+  it("resolves a name that only differs in case or is the frontmatter title", async () => {
+    const skillDir = path.join(skillsDir, "docx");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, "SKILL.md"),
+      `---\nname: Word Documents\ndescription: "Writes .docx files"\n---\n\nSkill instructions here.`,
+    );
+
+    for (const name of ["DOCX", "Word Documents"]) {
+      const result = (
+        await runTool(LoadSkill, {
+          ...baseExecuteArgs(),
+          input: { explanation: "loading", name },
+        })
+      )._unsafeUnwrap();
+      expect([name, result.state, result.name]).toEqual([
+        name,
+        "success",
+        "docx",
+      ]);
+    }
+  });
+
+  it("names the candidates when a plain name reaches several skills", async () => {
+    for (const vendor of [".claude", ".cursor"]) {
+      const vendorDir = path.join(tmpDir, "home", vendor, "skills", "review");
+      await fs.mkdir(vendorDir, { recursive: true });
+      await fs.writeFile(
+        path.join(vendorDir, "SKILL.md"),
+        `---\nname: review\ndescription: "Reviews ${vendor}"\n---\n\nInstructions.`,
+      );
+    }
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "review" },
+      })
+    )._unsafeUnwrap();
+
+    expect(result.state).toBe("not-found");
+    if (result.state !== "not-found") {
+      return;
+    }
+    const modelOutput = LoadSkill.toModelOutput({
+      input: { explanation: "loading", name: "review" },
+      output: result,
+      toolCallId: "call-1",
+    });
+    expect(modelOutput.type).toBe("error-text");
+    if (modelOutput.type !== "error-text") {
+      return;
+    }
+    expect(modelOutput.value.split("\n\n")[1]).toMatchInlineSnapshot(
+      `"Several skills answer to that name. Load one of them by its full name: claude:review, cursor:review."`,
+    );
   });
 
   it("loads a shadowed namesake by its qualified name, into its own folder", async () => {

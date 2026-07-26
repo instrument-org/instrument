@@ -19,14 +19,14 @@ import { renderSkillCatalog } from "../lib/skill-catalog";
 import { getSkillRuntime } from "../lib/skill-runtime";
 import {
   FILE_LIST_LIMIT,
-  findSkill,
   findSkills,
   getSkillSources,
   listSkillFiles,
   parseQualifiedSkillName,
+  resolveSkillName,
   SKILL_CONTENT_LIMIT,
-  skillTaskDirName,
   type SkillInfo,
+  skillTaskDirName,
   truncateSkillContent,
 } from "../lib/skills";
 import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
@@ -126,6 +126,9 @@ export const LoadSkill = setupTool({
       ),
       name: z.string(),
       state: z.literal("not-found"),
+      // Qualified names the request was close to: what several skills answer
+      // to when the plain name it asked for reaches none of them on its own.
+      suggestions: z.array(z.string()),
     }),
   ]),
 }).create({
@@ -166,9 +169,10 @@ export const LoadSkill = setupTool({
   },
   execute: async ({ input, signal, taskId }) => {
     const workspaceConfig = getWorkspaceConfig();
-    const { all, skill } = await findSkill(workspaceConfig, input.name);
+    const all = await findSkills(getSkillSources(workspaceConfig));
+    const resolved = resolveSkillName(all, input.name);
 
-    if (!skill) {
+    if (!("skill" in resolved)) {
       return ok({
         // Same budgeted catalog as the tool description: a mistyped name should
         // not be the one path that dumps every installed skill into context.
@@ -176,8 +180,11 @@ export const LoadSkill = setupTool({
           .entries,
         name: input.name,
         state: "not-found" as const,
+        suggestions: resolved.suggestions,
       });
     }
+
+    const skill = resolved.skill;
 
     const runtime = getSkillRuntime(skill.skillDir, skill.name);
     if ("error" in runtime) {
@@ -296,9 +303,13 @@ export const LoadSkill = setupTool({
           : output.available
               .map((s) => `- ${s.name}: ${s.description}`)
               .join("\n");
+      const didYouMean =
+        output.suggestions.length > 0
+          ? `\n\nSeveral skills answer to that name. Load one of them by its full name: ${output.suggestions.join(", ")}.`
+          : "";
       return {
         type: "error-text",
-        value: `Skill "${output.name}" not found.\n\nAvailable skills:\n\n${listing}`,
+        value: `Skill "${output.name}" not found.${didYouMean}\n\nAvailable skills:\n\n${listing}`,
       };
     }
 

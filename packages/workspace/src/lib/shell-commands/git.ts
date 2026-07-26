@@ -80,6 +80,14 @@ const BLOCKED_CONFIG_LEAVES = new Set([
  * hold against a key the agent wrote into a repo with `git config`.
  */
 const FORCED_CONFIG = [
+  // Windows-only in effect: git's mingw layer reads it to address files through
+  // the Unicode `\\?\` APIs instead of the 260-character MAX_PATH ones. The
+  // task prefix (`…\Instrument\workspace\tasks\<63-char id>\work\`) already
+  // spends up to half that budget, so a clone of a repository with any depth to
+  // it fails with "Filename too long" without this. It has to arrive as
+  // command-line config: a clone has no repository config to read yet, and
+  // GIT_CONFIG_GLOBAL is deliberately empty.
+  "core.longpaths=true",
   // core.quotepath=false keeps non-ASCII filenames raw instead of
   // octal-escaped and quoted, so they parse and stat correctly on every OS.
   "core.quotepath=false",

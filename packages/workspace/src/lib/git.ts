@@ -35,10 +35,15 @@ const ALLOWED_PROTOCOLS = "http:https";
  * anchoring the isolation to one command shim would leave those uncovered. The
  * argv-level checks in `shell-commands/git.ts` are the layer that cannot work
  * this way, and sit on top of this rather than replacing it.
+ *
+ * The return type is spelled out because spreading a Record into an object
+ * literal drops its index signature, leaving only the `PATH` set below. Both
+ * halves matter: the arbitrary GIT_* keys, and PATH as always-present for the
+ * callers that read it back.
  */
 export function gitSubprocessEnv(
   baseEnv: Record<string, string | undefined> = {},
-) {
+): Record<string, string | undefined> & { PATH: string } {
   // A minimal base env, so setupEnvironment returns just the vars git needs
   // (GIT_EXEC_PATH, templates, CA bundle) rather than a copy of process.env.
   const pathValue = baseEnv.PATH ?? process.env.PATH;
@@ -56,10 +61,19 @@ export function gitSubprocessEnv(
       GIT_AUTHOR_NAME: GIT_AGENT_NAME,
       GIT_COMMITTER_EMAIL: GIT_AGENT_EMAIL,
       GIT_COMMITTER_NAME: GIT_AGENT_NAME,
+      // core.longpaths for a bare `git` a script reaches without going through
+      // the shell command (which forces the same key on its own argv). Owning
+      // all three keys is also what keeps them out of disownedGitVars' reach:
+      // COUNT pinned at 1 means a KEY_1 the agent exported names nothing, and
+      // its KEY_0/VALUE_0 lose to these. See FORCED_CONFIG for why the key is
+      // needed and why config files cannot carry it.
+      GIT_CONFIG_COUNT: "1",
       // Skip ~/.gitconfig and the XDG config. Task subprocesses run with the
       // real HOME restored (see uvSubprocessEnv), so git would otherwise pick
       // up the user's identity, credential helpers, and url.insteadOf rewrites.
       GIT_CONFIG_GLOBAL: "",
+      GIT_CONFIG_KEY_0: "core.longpaths",
+      GIT_CONFIG_VALUE_0: "true",
       // dugite points GIT_CONFIG_SYSTEM at its own bundled gitconfig, but on
       // macOS and Linux that file is an `include` of the host /etc/gitconfig,
       // so ignore system config outright there. On Windows dugite ships minGit,

@@ -48,7 +48,11 @@ function MessageScrollerButton({
   return (
     <MessageScrollerPrimitive.Button
       className={cn(
-        "relative rounded-full bg-background shadow-lg hover:bg-background/90 data-[active=false]:pointer-events-none data-[active=false]:opacity-0",
+        "relative rounded-full bg-background hover:bg-background/90 data-[active=false]:pointer-events-none data-[active=false]:opacity-0",
+        // The spinner ring stands in for the elevation hairline while busy;
+        // the soft shadow drops that hairline so the two never stack as
+        // concentric rings.
+        busy ? "shadow-lg-soft" : "shadow-lg",
         className,
       )}
       data-slot="message-scroller-button"
@@ -62,10 +66,11 @@ function MessageScrollerButton({
             className={cn("size-3", direction === "start" && "rotate-180")}
           />
           {busy ? (
-            // Inset by the stroke so the ring traces the button's own edge
-            // rather than straddling it and clipping against the shadow.
+            // The ring's outer edge is its box's edge, so overhanging the
+            // button by the hairline's 1px lands it exactly where the
+            // elevation ring sits at rest.
             <Spinner
-              className="pointer-events-none absolute inset-px size-auto text-muted-foreground"
+              className="pointer-events-none absolute -inset-px size-auto text-muted-foreground"
               thickness={1.5}
             />
           ) : null}

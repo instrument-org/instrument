@@ -6,6 +6,7 @@ import {
 } from "@/client/components/ui/popover";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { skillSourceLabel } from "@/client/lib/skill-source";
+import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { baseKeymap } from "prosemirror-commands";
@@ -414,11 +415,13 @@ function SkillMenuItem({
       ref={ref}
       type="button"
     >
-      {/* Left at the default weight so the matched characters, which
-          render semibold, are actually distinguishable. */}
-      <span className="shrink-0 font-mono text-sm">
+      <span className="shrink-0 font-mono text-sm font-medium">
         /
-        <FuzzyHighlight ranges={match.nameRanges} text={match.skill.name} />
+        <FuzzyHighlight
+          matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
+          ranges={match.nameRanges}
+          text={match.skill.name}
+        />
       </span>
       <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
         <FuzzyHighlight

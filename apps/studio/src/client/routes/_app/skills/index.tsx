@@ -8,8 +8,7 @@ import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { matchSkills } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
-import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
-import { cn } from "@/client/lib/utils";
+import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -35,10 +34,6 @@ export const Route = createFileRoute("/_app/skills/")({
 });
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
-
-// The name is already bold, so a matched run reads as a color shift instead of
-// extra weight, reusing the same brown that marks a skill mention elsewhere.
-const NAME_MATCH_CLASS_NAME = cn("bg-transparent", SKILL_TOKEN_CLASS_NAME);
 
 // Where a group sits in the list. The user's own workspace first, since it is
 // the one they author; then Instrument's provided skills; then skills found in
@@ -227,7 +222,7 @@ function SkillsPage() {
                                 <span className="min-w-0 truncate font-mono text-sm font-medium">
                                   {skill.userInvocable ? "/" : null}
                                   <FuzzyHighlight
-                                    matchClassName={NAME_MATCH_CLASS_NAME}
+                                    matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
                                     ranges={ranges?.nameRanges ?? null}
                                     text={skill.name}
                                   />

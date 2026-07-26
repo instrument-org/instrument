@@ -60,6 +60,7 @@ export async function getSkillPackageFingerprint(skillDir: AbsolutePath) {
     hash.update("\0");
   }
   const fingerprint = hash.digest("hex");
+  CACHE.delete(skillDir);
   CACHE.set(skillDir, { fingerprint, signature });
   if (CACHE.size > CACHE_ENTRY_LIMIT) {
     const oldest = CACHE.keys().next().value;

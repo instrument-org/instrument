@@ -35,7 +35,6 @@ import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
 import {
   beginSkillChangeTracking,
   consumeSkillChanges,
-  hasSkillChanges,
 } from "../lib/workspace-skill-index";
 import { publisher } from "../rpc/publisher";
 import { type FolderAttachment } from "../schemas/folder-attachment";
@@ -348,9 +347,6 @@ export const mainAgent = setupAgent({
     // mount, so the file watcher above never sees them and a turn that only
     // authored a skill has no task file changes at all.
     const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
-    if (hasSkillChanges(skillChanges)) {
-      publisher.publish("skill.changed", null);
-    }
     const skillChangesPart =
       skillChanges.created.length > 0 || skillChanges.updated.length > 0
         ? { created: skillChanges.created, updated: skillChanges.updated }

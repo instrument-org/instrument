@@ -15,6 +15,7 @@ import {
   closeAllAgentBrowserSessions,
   migrateWorkspaceLayout,
   stopAllTaskFileWatchers,
+  stopWorkspaceSkillWatcher,
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
@@ -323,6 +324,7 @@ export function createWorkspaceActor({
           const forceFinalize = setTimeout(finalize, 2000);
           void Promise.all([
             stopAllTaskFileWatchers().catch(noop),
+            stopWorkspaceSkillWatcher().catch(noop),
             telemetryFinalized,
           ]).finally(() => {
             clearTimeout(forceFinalize);

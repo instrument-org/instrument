@@ -9,6 +9,7 @@ export { resolvePathWithinTaskDir } from "./lib/resolve-path-within-task-dir";
 export { taskDir } from "./lib/task-dir-utils";
 export { stopAllTaskFileWatchers } from "./lib/task-file-watcher";
 export { getTaskSettings } from "./lib/task-settings";
+export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export {
   type WorkspaceActorRef,
   type WorkspaceEvent,

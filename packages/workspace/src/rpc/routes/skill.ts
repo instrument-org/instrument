@@ -15,6 +15,7 @@ import {
   SKILL_SOURCE_KINDS,
   splitFrontmatter,
 } from "../../lib/skills";
+import { startWatchingWorkspaceSkills } from "../../lib/workspace-skill-watcher";
 import { type AbsolutePath } from "../../schemas/paths";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
@@ -227,7 +228,6 @@ const remove = base
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
-    publisher.publish("skill.changed", null);
   });
 
 /**
@@ -253,11 +253,16 @@ const changed = base
   .output(eventIterator(z.object({ revision: z.number() })))
   .handler(async function* ({ signal }) {
     const changes = publisher.subscribe("skill.changed", { signal });
+    const stopWatching = await startWatchingWorkspaceSkills();
     let revision = 0;
-    yield { revision };
-    for await (const _ of changes) {
-      revision += 1;
+    try {
       yield { revision };
+      for await (const _ of changes) {
+        revision += 1;
+        yield { revision };
+      }
+    } finally {
+      await stopWatching();
     }
   });
 

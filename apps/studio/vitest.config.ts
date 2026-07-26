@@ -1,3 +1,4 @@
+import { playwright } from "@vitest/browser-playwright";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,9 +52,17 @@ export default defineConfig({
   },
   test: {
     clearMocks: true,
-    // Two environments, split by extension so a file declares which it wants by
-    // what it is: `.test.tsx` renders components and gets a DOM, `.test.ts`
-    // exercises plain logic in node, where it stays fast. Nothing opts in twice.
+    // Three environments, chosen by extension so a file declares which it wants
+    // by what it is. Reach for the cheapest one that can actually observe the
+    // behaviour:
+    //
+    // - `.test.ts`         node, no DOM. Plain logic. Most tests belong here.
+    // - `.test.tsx`        jsdom. Rendering, props, refs. No layout, and no
+    //                      `selectionchange`, so nothing the browser itself
+    //                      drives can be seen.
+    // - `.browser.test.tsx`  real Chromium. Typing, selection, caret, measured
+    //                      layout. Slow and heavier to run, so it earns its
+    //                      place only where jsdom is blind.
     projects: [
       {
         extends: true,
@@ -67,10 +76,24 @@ export default defineConfig({
         extends: true,
         test: {
           environment: "jsdom",
-          exclude: SHARED_EXCLUDE,
+          exclude: [...SHARED_EXCLUDE, "**/*.browser.test.tsx"],
           include: ["**/*.test.tsx"],
           name: "dom",
           setupFiles: ["src/tests/setup.ts", "src/tests/setup-dom.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          browser: {
+            enabled: true,
+            headless: true,
+            instances: [{ browser: "chromium" }],
+            provider: playwright(),
+          },
+          exclude: SHARED_EXCLUDE,
+          include: ["**/*.browser.test.tsx"],
+          name: "browser",
         },
       },
     ],

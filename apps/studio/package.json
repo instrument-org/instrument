@@ -147,6 +147,7 @@
     "@types/ws": "^8.18.1",
     "@typescript/native-preview": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "@vitest/browser-playwright": "^4.1.10",
     "agentation": "^3.0.2",
     "babel-plugin-react-compiler": "^1.0.0",
     "clsx": "^2.1.1",
@@ -190,6 +191,7 @@
     "vite": "catalog:",
     "vite-bundle-analyzer": "^1.3.1",
     "vitest": "catalog:",
+    "vitest-browser-react": "^2.2.0",
     "write-package": "^7.1.0"
   },
   "optionalDependencies": {

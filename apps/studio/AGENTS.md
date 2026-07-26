@@ -59,16 +59,17 @@ The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adj
 
 ## Tests
 
-Two Vitest projects, split by extension so a file declares which it wants by what it is:
+Three Vitest projects, chosen by extension so a file declares which it wants by what it is. Reach for the cheapest one that can actually observe the behaviour:
 
 - `*.test.ts` → **node**, no DOM. Plain logic, parsers, schemas. Fast, and most tests belong here.
-- `*.test.tsx` → **dom** (jsdom). Rendering a component. Adds `@testing-library/react` and `afterEach(cleanup)` on top of the shared setup.
+- `*.test.tsx` → **dom** (jsdom). Rendering, props, refs, what ends up in the DOM. Adds `@testing-library/react` and `afterEach(cleanup)`.
+- `*.browser.test.tsx` → **browser** (real Chromium via Playwright). Typing, selection, caret, measured layout. Uses `vitest-browser-react`'s `render` and `page` locators, not Testing Library.
 
-Render through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. It does not supply a router: anything with an `InternalLink` needs one per test.
+Render jsdom tests through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. It does not supply a router: anything with an `InternalLink` needs one per test.
 
-jsdom has no layout engine and does not deliver `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is untestable there. Prefer driving a component through its props and imperative ref over simulating browser editing. Add shims to `src/tests/setup-dom.ts` only once a test actually needs one.
+jsdom has no layout engine and never delivers `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is invisible to it — a test written that way passes whether the code works or not. That is what the browser project is for. It is slower and needs `pnpm exec playwright install chromium`, so send a test there only when jsdom genuinely cannot see the behaviour.
 
-Whatever you assert, confirm it fails against the unfixed code before keeping it — a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.
+Whatever you assert, confirm it fails against the unfixed code before keeping it. This matters more here than in node tests: a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.
 
 ## Where things are
 

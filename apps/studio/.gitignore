@@ -25,3 +25,9 @@ electron.vite.config*.mjs
 
 # Dev logs (written by the main process during local development)
 .logs/
+
+# Written by the browser test project when a test fails: a screenshot of the
+# page, and the attachments the reporter links from its output. Both are
+# reproduced by re-running the failure, so neither is worth keeping.
+.vitest-attachments/
+__screenshots__/

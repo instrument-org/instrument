@@ -98,6 +98,9 @@ export const LoadSkill = setupTool({
   name: "load_skill",
   outputSchema: z.discriminatedUnion("state", [
     z.object({
+      // True when this task had already copied the skill, so the model is told
+      // its own edits to those files survived the reload.
+      alreadyLoaded: z.boolean(),
       content: z.string(),
       // True when the body was longer than `SKILL_CONTENT_LIMIT` and only its
       // head was inlined, so the model is told where to read the rest.
@@ -176,18 +179,13 @@ export const LoadSkill = setupTool({
       return executeError(runtime.error);
     }
 
-    const copyResult = await copySkill({
+    const { alreadyLoaded, destDir } = await copySkill({
       dir: taskDir(taskId),
       signal,
       skillDir: skill.skillDir,
       skillName: skill.name,
     });
 
-    if (copyResult.isErr()) {
-      return executeError(copyResult.error.message);
-    }
-
-    const destDir = copyResult.value;
     const relativeSkillRoot = normalizedPathJoin(
       TASK_FOLDER_NAMES.work,
       TASK_FOLDER_NAMES.skills,
@@ -248,6 +246,7 @@ export const LoadSkill = setupTool({
     const body = truncateSkillContent(skill.content);
 
     return ok({
+      alreadyLoaded,
       content: body.content,
       contentTruncated: body.truncated,
       files,
@@ -293,6 +292,10 @@ export const LoadSkill = setupTool({
 
     const contentSection = output.contentTruncated
       ? `\n\nThis skill's SKILL.md is longer than ${SKILL_CONTENT_LIMIT} characters, so only its beginning is above. Read \`${skillRoot}/SKILL.md\` for the rest before following it.`
+      : "";
+
+    const reloadSection = output.alreadyLoaded
+      ? `\n\nYou had already loaded this skill in this task. Its files are still at \`${skillRoot}\` with any changes you made to them, and anything missing from that folder was restored.`
       : "";
 
     let fileSection = "";
@@ -374,6 +377,7 @@ export const LoadSkill = setupTool({
         output.content +
         contentSection +
         originSection +
+        reloadSection +
         fileSection +
         installSection +
         `\n</${TAGS.content}>`,

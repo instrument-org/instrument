@@ -242,7 +242,7 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("returns an error and does not re-copy if destination already exists", async () => {
+  it("loads a skill again without overwriting the agent's edits", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "original" },
       name: "my-skill",
@@ -266,14 +266,55 @@ describe("LoadSkill", () => {
 
     await fs.writeFile(destScript, "modified");
 
-    const result = await runTool(LoadSkill, args);
+    const result = (await runTool(LoadSkill, args))._unsafeUnwrap();
 
-    const fileContent = await fs.readFile(destScript, "utf8");
-    expect(fileContent).toMatchInlineSnapshot(`"modified"`);
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
-      `"Skill "my-skill" is already loaded. Read work/skills/my-skill/SKILL.md if you haven't yet -- do not read other files in that folder unless the skill instructs you to."`,
+    await expect(fs.readFile(destScript, "utf8")).resolves.toBe("modified");
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    expect(result.alreadyLoaded).toBe(true);
+    expect(result.content).toContain("Skill instructions here.");
+  });
+
+  it("restores what a load cut short left missing", async () => {
+    await createSkill({
+      extraFiles: { "scripts/run.ts": "original" },
+      name: "my-skill",
+    });
+
+    const args = {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name: "my-skill" },
+    };
+
+    // What a load stopped partway through leaves behind: the directory exists,
+    // its contents do not.
+    const destBase = path.join(
+      dir,
+      TASK_FOLDER_NAMES.work,
+      TASK_FOLDER_NAMES.skills,
+      "my-skill",
     );
+    await fs.mkdir(destBase, { recursive: true });
+
+    const result = (await runTool(LoadSkill, args))._unsafeUnwrap();
+
+    expect(result.state).toBe("success");
+    if (result.state !== "success") {
+      return;
+    }
+    await expect(
+      fs.readFile(path.join(destBase, "SKILL.md"), "utf8"),
+    ).resolves.toContain("Skill instructions here.");
+    await expect(
+      fs.readFile(path.join(destBase, "scripts", "run.ts"), "utf8"),
+    ).resolves.toBe("original");
+    expect(result.files).toMatchInlineSnapshot(`
+      [
+        "work/skills/my-skill/scripts/run.ts",
+      ]
+    `);
   });
 
   it("returns skill content in content field", async () => {
@@ -422,6 +463,7 @@ describe("LoadSkill", () => {
       LoadSkill.toModelOutput({
         input: { name: "docx" },
         output: {
+          alreadyLoaded: false,
           content: "# Body",
           contentTruncated: false,
           files: [],
@@ -680,6 +722,7 @@ describe("LoadSkill", () => {
     const value = LoadSkill.toModelOutput({
       input: { name: "third-party" },
       output: {
+        alreadyLoaded: false,
         content: "# Body",
         contentTruncated: false,
         files: [],
